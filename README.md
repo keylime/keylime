@@ -21,9 +21,13 @@ violate any copyrights that exist in this work.
 
 # python-keylime
 
-A python library to make friends of TPMs and Clouds.  See ACSAC 2016 paper at TBD
+A python library to make friends of TPMs and Clouds.  See ACSAC 2016 paper in doc directory
 
-It requires Python 2.7.9 or newer for proper TLS support.  It also requires the following python packages:
+# Installation
+
+keylime requires Python 2.7.9 or newer for proper TLS support.  This is newer than some LTS distributions like Ubuntu 14.04 or centos 7.  See google for instructions on how to get a newer Python onto those platforms.
+
+It also requires the following python packages:
 
 * pycryptodomex>=3.4.1
 * tornado>=4.3
@@ -33,32 +37,38 @@ It requires Python 2.7.9 or newer for proper TLS support.  It also requires the 
 
 The latter of these are usually available as distro packages.
 
+On Centos: `yum install -y python-devel python-setuptools python-tornado python-m2crypto`
+
+On Ubuntu: `apt-get install -y python-dev python-setuptools python-tornado python-m2crypto`
+
 You also need a patched version of tpm4720 the IBM software TPM emulator and utilities.
 
-# Patching the IBM TPM emulator
+Obtain version 4720 of the IBM TPM emulator to patch at: https://sourceforge.net/projects/ibmswtpm/files/tpm4720.tar.gz/download
 
-obtain version 4720 of the IBM TPM emulator to patch at:
-
-https://sourceforge.net/projects/ibmswtpm/files/tpm4720.tar.gz/download
-
-extract this version then apply the patch tpm4720-patch.txt with 
+extract this version then apply patches/tpm4720-patch.txt with 
 
 `patch -p1 < tpm4720-patch.txt`
 
-See README.md in the tpm emulator directory for instructions on how to build and install it.
-To ensure that you have the patched version installed ensure that you have the `encaik` utility.
+See README.md in the tpm emulator directory for detailed instructions on how to build and install it.  There are also scripts for building distro packages in the patched version.
+The brief synopsis of a quick build/install is:
 
-# Installing using setup.py
+`apt-get -y install build-essential libssl-dev libtool automake`
+or
+`yum install -y openssl-devel libtool gcc automake`
 
-Get package pre-requisites:
+then build and install with:
+```
+cd ../libtpm
+./comp-chardev.sh
+sudo make install
+```
 
-On Centos, this means
+To ensure that you have the patched version installed ensure that you have the `encaik` utility in your path.
 
-`yum install -y python-devel python-setuptools python-tornado python-m2crypto`
+You're finally ready to install keylime!
 
-On Ubuntu this means
+`sudo python setup.py install`
 
-`apt-get install -y python-dev python-setuptools python-tornado python-m2crypto`
 
 # configuring keylime
 
@@ -74,9 +84,7 @@ Keylime has 3 major component services that run: the registrar, verifier, and th
 The registrar is a simple HTTPS service that accepts TPM public keys and verifies them.  It then presents an interface
 to obtain these public keys for checking quotes.
 
-The keylime_verifier uses mutual TLS for its control interface.  
-
-By default, the verifier will create appropriate TLS certificates for itself in /var/lib/keylime/cv_ca/.  The registrar and tenant will use this as well.
+The verifier is the most important component in keylime.  It does initial and periodic checks of system integrity and supports bootstrapping a cryptographic key securely with the node.  The keylime_verifier uses mutual TLS for its control interface.  By default, the verifier will create appropriate TLS certificates for itself in /var/lib/keylime/cv_ca/.  The registrar and tenant will use this as well.
 If you use the generated TLS certificates then all the processes need to run as root to allow reading of private key files in /var/lib/keylime/
 
 to run a basic test, run keylime_verifier, keylime_registrar, and keylime_node.  If the node starts up properly, then you can proceed.
@@ -102,14 +110,15 @@ For additional advanced options for the tenant utility run
 # Using keylime CA
 
 we've built a simple certificate authority to use with keylime. You can interact with it using keylime_ca or keylime_tenant.
-Options for configuring the certificates that keylime_ca creates are in /etc/keylime.conf
+Options for configuring the certificates that keylime_ca creates are in /etc/keylime.conf.  
+
+NOTE: This CA functionality is different than the TLS support for talking to the verifier or registrar (though it uses some of the same config options in /etc/keylime.conf.  This CA is for the cloud node's you provision and you can use keylime to bootstrap the private keys into nodes.
 
 To initialize a new certificate authority run:
 
 `keylime_ca --command init`
 
-This will create a certificate authority in /var/lib/keylime/ca and requires root access to write the directory.  Use -d to point
-it to another directory not necessarily require root.
+This will create a certificate authority in /var/lib/keylime/ca and requires root access to write the directory.  Use -d to point it to another directory not necessarily require root.
 
 You can create certificates under this ca using
 
@@ -142,27 +151,3 @@ git clone https://gitlab.com/m2crypto/m2crypto.git
 python setup.py build build_ext --openssl=/usr/local/opt/openssl/
 sudo -E python setup.py install build_ext --openssl=/usr/local/opt/openssl/
 ```
-
-# To build a package
-
-TODO THESE INSTRUCTIONS ARE CURRENTLY OUT OF DATE AND DO NOT WORK RIGHT
-
-check out LLSRC-tci
-check out keylime-init
-
-sudo -E apt-get install ruby-dev python-setuptools
-sudo -E gem install fpm --verbose
-
-configure srcrepo
-http://srcrepo.llan.ll.mit.edu/
-
-sudo -E apt-get install python-pycryptodomex 
-
-fpm -s python -t deb LLSRC-tci/setup.py 
-
-installing on a fresh instance
-
-install srcrepo config
-
-sudo -E apt-get install python-pycrypto tpmtools
-

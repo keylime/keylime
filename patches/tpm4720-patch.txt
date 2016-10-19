@@ -1,0 +1,4542 @@
+diff -Naur baseline/.gitignore tpm4720-master/.gitignore
+--- baseline/.gitignore	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/.gitignore	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,144 @@
++*.o
++*.lo
++*.deb
++*.la
++libtpm/utils/tpmconv
++libtpm/utils/getrandom
++libtpm/utils/activateidentity
++libtpm/utils/bindfile
++libtpm/utils/calcfuturepcr
++libtpm/utils/certifykey
++libtpm/utils/certifyselftest
++libtpm/utils/checkquote
++libtpm/utils/checkquote2
++libtpm/utils/chgauth
++libtpm/utils/chgtpmauth
++libtpm/utils/clearown
++libtpm/utils/cmk_approvema
++libtpm/utils/cmk_createkey
++libtpm/utils/cmk_createticket
++libtpm/utils/cmk_loadmigrationblob
++libtpm/utils/cmk_migrate
++libtpm/utils/cmk_setrestrictions
++libtpm/utils/counter_calc_incr
++libtpm/utils/counter_create
++libtpm/utils/counter_increment
++libtpm/utils/counter_read
++libtpm/utils/counter_release
++libtpm/utils/createek
++libtpm/utils/createkey
++libtpm/utils/createkeydelegation
++libtpm/utils/createownerdelegation
++libtpm/utils/createrevek
++libtpm/utils/delegatemanage
++libtpm/utils/delegatereadtable
++libtpm/utils/deepquote
++libtpm/utils/dirread
++libtpm/utils/dirwrite
++libtpm/utils/disableforceclear
++libtpm/utils/disableownerclear
++libtpm/utils/disablepubek
++libtpm/utils/dumpkey
++libtpm/utils/enableaudit
++libtpm/utils/evictkey
++libtpm/utils/extend
++libtpm/utils/flushspecific
++libtpm/utils/forceclear
++libtpm/utils/getauditdigest
++libtpm/utils/getauditdigestsigned
++libtpm/utils/getcapability
++libtpm/utils/getcontextcount
++libtpm/utils/getpubek
++libtpm/utils/getpubkey
++libtpm/utils/getticks
++libtpm/utils/identity
++libtpm/utils/keycontrol
++libtpm/utils/killmaintenancefeature
++libtpm/utils/libtpm-config
++libtpm/utils/listkeys
++libtpm/utils/loadauthcontext
++libtpm/utils/loadcontext
++libtpm/utils/loadkey
++libtpm/utils/loadkeycontext
++libtpm/utils/loadmanumaintpub
++libtpm/utils/loadmigrationblob
++libtpm/utils/loadownerdelegation
++libtpm/utils/migrate
++libtpm/utils/migratekey
++libtpm/utils/nv
++libtpm/utils/nv_definespace
++libtpm/utils/nv_readvalue
++libtpm/utils/nv_writevalue
++libtpm/utils/ownerreadinternalpub
++libtpm/utils/ownersetdisable
++libtpm/utils/pcrread
++libtpm/utils/pcrreset
++libtpm/utils/physicaldisable
++libtpm/utils/physicalenable
++libtpm/utils/physicalpresence
++libtpm/utils/physicalsetdeactivated
++libtpm/utils/quote2
++libtpm/utils/random
++libtpm/utils/readmanumaintpub
++libtpm/utils/resetestbit
++libtpm/utils/resetlockvalue
++libtpm/utils/revtrust
++libtpm/utils/saveauthcontext
++libtpm/utils/savecontext
++libtpm/utils/savekeycontext
++libtpm/utils/savestate
++libtpm/utils/sealfile
++libtpm/utils/sealfile2
++libtpm/utils/sealxfile
++libtpm/utils/selftest
++libtpm/utils/session
++libtpm/utils/setcapability
++libtpm/utils/setoperatorauth
++libtpm/utils/setownerinstall
++libtpm/utils/setownerpointer
++libtpm/utils/settempdeactivated
++libtpm/utils/sha
++libtpm/utils/sha1parts
++libtpm/utils/sha1start
++libtpm/utils/signfile
++libtpm/utils/signmsg
++libtpm/utils/takeown
++libtpm/utils/tickstampblob
++libtpm/utils/tpmbios
++libtpm/utils/tpminit
++libtpm/utils/tpmquote
++libtpm/utils/tpmreset
++libtpm/utils/transport_test
++libtpm/utils/unbindfile
++libtpm/utils/unsealfile
++libtpm/utils/unsealxfile
++libtpm/utils/updateverification
++libtpm/utils/verifydelegation
++libtpm/utils/verifyfile
++tpm/tpm_server
++libtpm/Makefile
++libtpm/Makefile.in
++libtpm/aclocal.m4
++libtpm/autom4te.cache/
++libtpm/compile
++libtpm/config.guess
++libtpm/config.log
++libtpm/config.status
++libtpm/config.sub
++libtpm/configure
++libtpm/depcomp
++libtpm/install-sh
++libtpm/lib/.deps/
++libtpm/lib/.libs/
++libtpm/lib/Makefile
++libtpm/lib/Makefile.in
++libtpm/lib/libtpm.la
++libtpm/libtool
++libtpm/ltmain.sh
++libtpm/m4/
++libtpm/missing
++libtpm/utils/.deps/
++libtpm/utils/Makefile
++libtpm/utils/Makefile.in
++libtpm/utils/checkdeepquote
++libtpm/utils/encaik
+diff -Naur baseline/CHANGELOG tpm4720-master/CHANGELOG
+--- baseline/CHANGELOG	2014-04-02 15:53:45.000000000 -0400
++++ tpm4720-master/CHANGELOG	2016-09-30 13:42:53.000000000 -0400
+@@ -36,7 +36,33 @@
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-Changes from 4665 to current
++Changes from 4720 to current
++
++Major
++____
++
++Utilities:
++- - - - -
++
++tpmconv
++	add a utility to convert a raw public key file into an PEM formatted file
++quote
++	updated to take in external data and writeout quote and signature to file
++identity
++	some debug code added
++encaik
++	added utility to perform privacy CA function for enrolling new AIKs.  
++	code mostly copied from identity.c into its own function that can be 
++	executed by itself without a TPM
++deepquote
++	added utility to generate deepquotes from the Xen vTPM implementation
++checkquote
++	added utility to check quotes
++checkdeepquote
++	added utility to validate deepquotes
++
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++Changes from 4665 to 4720
+ 
+ Major
+ ____
+diff -Naur baseline/README.md tpm4720-master/README.md
+--- baseline/README.md	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/README.md	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,39 @@
++# tpm4720
++A fork of the IBM software TPM code from http://sourceforge.net/projects/ibmswtpm/
++
++To build the emulator for testing without a TPM:
++
++# building on ubuntu/debian
++
++<set up proxy so that apt works>
++
++`cd tpm4720/scripts`
++
++`./install.sh`
++
++you can now run stuff from LLSRC-tci
++
++# building on a mac
++
++you need brew and the proxy configured
++
++`cd tpm4720/scripts`
++
++`./install-mac.sh`
++
++# building on centos
++
++`cd tpm4720/scripts`
++
++`./install-centos.sh`
++
++# building to talk to a real TPM
++
++Install required packages as indicated in the install.sh scripts above.  Then run
++
++`cd libtpm`
++`./comp-chardev.sh`
++`sudo make install`
++
++
++
+diff -Naur baseline/libtpm/autogen-mac tpm4720-master/libtpm/autogen-mac
+--- baseline/libtpm/autogen-mac	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/libtpm/autogen-mac	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,60 @@
++#!/bin/bash
++
++#################################################################################
++#										#
++# (c) Copyright IBM Corporation 2006, 2010.					#
++# 										#
++# All rights reserved.								#
++# 										#
++# Redistribution and use in source and binary forms, with or without		#
++# modification, are permitted provided that the following conditions are	#
++# met:										#
++# 										#
++# Redistributions of source code must retain the above copyright notice,	#
++# this list of conditions and the following disclaimer.				#
++# 										#
++# Redistributions in binary form must reproduce the above copyright		#
++# notice, this list of conditions and the following disclaimer in the		#
++# documentation and/or other materials provided with the distribution.		#
++# 										#
++# Neither the names of the IBM Corporation nor the names of its			#
++# contributors may be used to endorse or promote products derived from		#
++# this software without specific prior written permission.			#
++# 										#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		#
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		#
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR		#
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		#
++# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	#
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		#
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,		#
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY		#
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		#
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE		#
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		#
++#										#
++#################################################################################
++
++uname=$(uname)
++
++rm -rf install-sh depcomp mkinstalldirs missing config.*
++
++PROGS="glibtoolize aclocal automake autoconf"
++
++for PROG in ${PROGS}; do
++	type -P ${PROG} > /dev/null || \
++		{ echo "${PROG} is needed for builing."; exit 1;}
++done
++
++
++glibtoolize --force --copy
++aclocal
++automake  --add-missing --copy --foreign
++autoconf
++
++if [ "$uname" == "AIX" ]; then
++	cat configure | sed "s/--no-verify//" > configure.AIX
++	mv configure configure.BAD
++	mv configure.AIX configure
++	chmod 751 configure
++fi
+diff -Naur baseline/libtpm/lib/Makefile.am tpm4720-master/libtpm/lib/Makefile.am
+--- baseline/libtpm/lib/Makefile.am	2014-04-02 15:45:04.000000000 -0400
++++ tpm4720-master/libtpm/lib/Makefile.am	2016-09-30 13:42:53.000000000 -0400
+@@ -37,7 +37,7 @@
+ #										#
+ #################################################################################
+ 
+-AM_CFLAGS = -Wall -ggdb -Wuninitialized -Wmissing-declarations -Wmissing-prototypes -Wnested-externs -W -Werror
++AM_CFLAGS = -Wall -ggdb -Wuninitialized -Wmissing-declarations -Wmissing-prototypes -Wnested-externs -fPIC -W  -Wno-deprecated-declarations 
+ lib_LTLIBRARIES = libtpm.la
+ 
+ AM_LDFLAGS = -lcrypto @LIBTPMS_LIBRARY_PATH@ @LIBTPMS_LIBRARY@ 
+diff -Naur baseline/libtpm/lib/deepquote.h tpm4720-master/libtpm/lib/deepquote.h
+--- baseline/libtpm/lib/deepquote.h	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/libtpm/lib/deepquote.h	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,123 @@
++/* Aggregate some useful functions here */
++#ifndef  DEEPQUOTE_H
++#define  DEEPQUOTE_H
++#include <errno.h>
++
++/* vTPM command params */
++#define VTPM_QUOTE_FLAGS_HASH_UUID                  0x00000001
++#define VTPM_QUOTE_FLAGS_VTPM_MEASUREMENTS          0x00000002
++#define VTPM_QUOTE_FLAGS_GROUP_INFO                 0x00000004
++#define VTPM_QUOTE_FLAGS_GROUP_PUBKEY               0x00000008
++
++extern unsigned int TPM_logflag;
++
++/* Some debugging prints */
++#define dump_bytes(arr,name, n)					\
++    do {							\
++	if (TPM_logflag) {					\
++	    int i;						\
++	    for (i=0; i < (int)(n); i++) {			\
++		if ((i % 20) == 0) {				\
++		    printf("\n%s[%d]: ", name, i/20);		\
++		}						\
++		printf("%02x ", ((unsigned char *)arr)[i]);	\
++	    }							\
++	    printf("\n");					\
++	}							\
++    } while(0)
++
++#define dump_hash(arr, name) dump_bytes(arr, name, 20)
++#define logfprintf(...)				\
++    do {					\
++	if (TPM_logflag) {			\
++	    fprintf(__VA_ARGS__);		\
++	}					\
++    } while(0)
++
++/* Convenience macros for arg checking */
++#define printExitCode(rc, ...) do {		\
++    fprintf(stderr, __VA_ARGS__);		\
++    exit(rc);					\
++    } while(0)
++#define printExit(...) printExitCode(-1, __VA_ARGS__)
++
++#define CHECK_ARG(arg, name) do {				\
++	if ((arg) == 0)	{					\
++	    printf("Required argument '" name "' missing\n");	\
++	    printUsage();					\
++	}							\
++    } while(0)
++
++/* Headers used in the hashed QuoteInfo structs */
++static const BYTE dquot_hdr[] = {
++	0, 0, 0, 0, 'D', 'Q', 'U', 'T'
++};
++
++static const BYTE quot_hdr[] = {
++	1, 1, 0, 0, 'Q', 'U', 'O', 'T'
++};
++
++/* Some redefinitions of TPM structures that are easier to serialize without TSS_* stuff */
++struct __attribute__ ((packed)) PCR_SELECTION {
++    uint16_t sizeOfSelect;
++    BYTE pcrSelect[3];
++};
++struct __attribute__ ((packed)) PCR_INFO_SHORT {
++    struct PCR_SELECTION pcrSelection;
++    TPM_LOCALITY_SELECTION localityAtRelease;
++    TPM_COMPOSITE_HASH digestAtRelease;
++};
++
++typedef struct __attribute__ ((packed)) DeepQuoteValues {
++    uint32_t numInfoHashes;
++    unsigned char infoHashes[4 * TPM_HASH_SIZE];
++    uint32_t numPCRVals;
++    unsigned char PCRVals[24 * TPM_HASH_SIZE];
++} DeepQuoteValues;
++
++typedef struct __attribute__ ((packed)) DeepQuoteInfo  {
++    unsigned char  extraInfoFlags[4];
++    unsigned char  signature[256];
++    DeepQuoteValues values;
++} DeepQuoteInfo;
++
++/* Structure representing a serialized DeepQuote */
++struct __attribute__ ((packed)) DeepQuoteBin {
++	struct PCR_SELECTION ppcrSel;
++	DeepQuoteInfo dqi;
++};
++
++/**
++ * read_file() - Read a file into a heap-allocated buffer
++ * @path:	The filepath
++ * @size:	The amount of bytes to read
++ *
++ * Allocates a buffer of size @len and fills it with the first @len
++ * bytes of the file at @path. The caller is responsible for freeing
++ * the allocated buffer.
++ *
++ * Return: Buffer containing the first @len bytes of @path on
++ * success. Exits on failure.
++ */
++__attribute__ ((unused)) /* Leave me alone gcc */
++static unsigned char *read_file(const char *path, size_t len)
++{
++    FILE *fp;
++    unsigned char *buf = calloc(1, len);
++    size_t bytes_read = 0;
++
++    if ((fp = fopen(path,"rb"))==0) {
++	printf("Error opening file '%s'\n", path);
++	exit(ENOENT);
++    }
++
++    if ((bytes_read = fread(buf, 1, len, fp)) != len) {
++	printf("Only read %zu out of %zu requested\n", bytes_read, len);
++	exit(EINVAL);
++    }
++    fclose(fp);
++
++    return buf;
++}
++
++#endif /* !(DEEPQUOTE_H) */
+diff -Naur baseline/libtpm/lib/keys.c tpm4720-master/libtpm/lib/keys.c
+--- baseline/libtpm/lib/keys.c	2014-04-02 15:45:04.000000000 -0400
++++ tpm4720-master/libtpm/lib/keys.c	2016-09-30 13:42:53.000000000 -0400
+@@ -1320,6 +1320,35 @@
+    rsa->e = exp;
+    return rsa;
+    }
++   
++/****************************************************************************/
++/*                                                                          */
++/* Convert an OpenSSL RSA public key to a TPM public key                    */
++/*                                                                          */
++/****************************************************************************/
++void TSS_convrsakey(RSA *rsa, pubkeydata *k)
++   {
++    memset(k,0,sizeof(pubkeydata));
++   	/* convert BIGNUMS */
++   	k->pubKey.keyLength =BN_bn2bin(rsa->n,k->pubKey.modulus);
++   	
++   	// default exponent
++   	unsigned char exponent[3] = {0x1,0x0,0x1};
++   	unsigned char tmp_exp[3];
++   	
++   	BN_bn2bin(rsa->e,tmp_exp);
++   	
++   	if(memcmp(tmp_exp,exponent,sizeof(exponent)!=0)) {
++   		k->algorithmParms.u.rsaKeyParms.exponentSize = BN_bn2bin(rsa->e,k->algorithmParms.u.rsaKeyParms.exponent);
++   	}
++   
++	/* Set up the parameters */
++	k->algorithmParms.algorithmID = TPM_ALG_RSA;
++	k->algorithmParms.encScheme = TPM_ES_NONE;
++	k->algorithmParms.sigScheme = TPM_SS_RSASSAPKCS1v15_SHA1;
++	k->algorithmParms.u.rsaKeyParms.keyLength = 2048;
++	k->algorithmParms.u.rsaKeyParms.numPrimes = 2;
++   }
+ 
+ 
+ /****************************************************************************/
+diff -Naur baseline/libtpm/lib/pcrs.c tpm4720-master/libtpm/lib/pcrs.c
+--- baseline/libtpm/lib/pcrs.c	2014-04-02 15:45:04.000000000 -0400
++++ tpm4720-master/libtpm/lib/pcrs.c	2016-09-30 13:42:53.000000000 -0400
+@@ -1,3 +1,4 @@
++/* -*- Mode: C; c-basic-offset: 8; -*- */
+ /********************************************************************************/
+ /*										*/
+ /*			     	TPM PCR Processing Functions			*/
+@@ -57,6 +58,7 @@
+ #include <tpm_constants.h>
+ #include <tpm_structures.h>
+ #include "tpmfunc.h"
++#include "deepquote.h"
+ 
+ 
+ uint32_t TPM_ValidateSignature(uint16_t sigscheme,
+@@ -170,6 +172,51 @@
+ 	return ret;
+ }
+ 
++/* 
++ * Validate the signature over a PCR composite structure. take in vinfo rather than query
++ * Returns '0' on success, an error code otherwise.
++ */
++uint32_t TPM_ValidatePCRCompositeSignatureNoCap(TPM_PCR_COMPOSITE *tpc,
++                                           unsigned char *antiReplay,
++                                           RSA *rsa,
++                                           struct tpm_buffer *signature,
++                                           uint16_t sigscheme)
++{
++	uint32_t ret;
++	TPM_QUOTE_INFO tqi;
++	STACK_TPM_BUFFER (ser_tqi);
++	STACK_TPM_BUFFER (ser_tpc);
++
++	/* hard code version to 1.1 no revs */
++	tqi.version.major = 0x01;
++	tqi.version.minor = 0x01;
++	tqi.version.revMajor = 0x00;
++	tqi.version.revMinor = 0x00;
++	
++	memcpy(&(tqi.fixed), "QUOT", 4);
++	memcpy(&(tqi.externalData), antiReplay, TPM_NONCE_SIZE);
++	ret = TPM_WritePCRComposite(&ser_tpc, tpc);
++	if ((ret & ERR_MASK)) {
++		RSA_free(rsa);
++		return ret;
++	}
++	/* create the hash of the PCR_composite data for the quoteinfo structure */
++	TSS_sha1(ser_tpc.buffer, ser_tpc.used, tqi.digestValue);
++
++	ret = TPM_WriteQuoteInfo(&ser_tqi, &tqi);
++	if ((ret & ERR_MASK)) {
++		RSA_free(rsa);
++		return ret;
++	}
++	
++	ret = TPM_ValidateSignature(sigscheme,
++	                            &ser_tqi,
++	                            signature,
++	                            rsa);
++	RSA_free(rsa);
++	return ret;
++}
++
+ 
+ /****************************************************************************/
+ /*                                                                          */
+@@ -276,10 +323,16 @@
+ 		/* move Network byte order data to variables for hmac calculation */
+ 		c = 0;
+ 		/* calculate authorization HMAC value */
+-		ret = TSS_authhmac(pubauth,TSS_Session_GetAuth(&sess),TPM_HASH_SIZE,TSS_Session_GetENonce(&sess),nonceodd,c,
+-		                   TPM_U32_SIZE,&ordinal,
+-		                   TPM_HASH_SIZE,externalData,
+-		                   serPcrSel.used,serPcrSel.buffer,
++		ret = TSS_authhmac(pubauth,TSS_Session_GetAuth(&sess),
++				   TPM_HASH_SIZE,
++				   TSS_Session_GetENonce(&sess),
++				   nonceodd,c,
++		                   TPM_U32_SIZE,
++				   &ordinal,
++		                   TPM_HASH_SIZE,
++				   externalData,
++		                   serPcrSel.used,
++				   serPcrSel.buffer,
+ 		                   0,0);
+ 		if (ret != 0) {
+ 			TSS_SessionClose(&sess);
+@@ -287,14 +340,15 @@
+ 		}
+ 		/* build the request buffer */
+ 		ret = TSS_buildbuff("00 C2 T l l % % L % o %",&tpmdata,
+-		                             ordinal,
+-		                               keyhndl,
+-		                                 TPM_HASH_SIZE,externalData,
+-		                                   serPcrSel.used, serPcrSel.buffer,
+-		                                     TSS_Session_GetHandle(&sess),
+-		                                       TPM_NONCE_SIZE,nonceodd,
+-		                                         c,
+-		                                          TPM_HASH_SIZE,pubauth);
++				    ordinal,
++				    keyhndl,
++				    TPM_HASH_SIZE,externalData,
++				    serPcrSel.used, serPcrSel.buffer,
++				    
++				    TSS_Session_GetHandle(&sess),
++				    TPM_NONCE_SIZE,nonceodd,
++				    c,
++				    TPM_HASH_SIZE,pubauth);
+ 		if ((ret & ERR_MASK) != 0) {
+ 			TSS_SessionClose(&sess);
+ 			return ret;
+@@ -345,8 +399,8 @@
+ 	} else  /* no authdata required */ {
+ 		/* build the request buffer */
+ 		ret = TSS_buildbuff("00 C1 T l l % %",&tpmdata,
+-		                             ordinal,
+-		                               keyhndl,
++				    ordinal,
++				    keyhndl,
+ 		                                 TPM_HASH_SIZE,externalData,
+ 		                                   serPcrSel.used,serPcrSel.buffer);
+ 		if ((ret & ERR_MASK) != 0) return ret;
+@@ -386,6 +440,402 @@
+ 	}
+ 	return 0;
+ }
++	
++int TPM_WriteDeepQuoteBin(const char *path,
++			  const TPM_PCR_SELECTION *htps,
++			  const DeepQuoteInfo *dqi,
++        	struct tpm_buffer *vq_signature,
++        	TPM_PCR_COMPOSITE *vq_tpc)
++{
++	FILE *fp;
++	struct DeepQuoteBin dqb = {
++		.ppcrSel = {
++			.sizeOfSelect = htons(3),
++			.pcrSelect = {
++				[0] = htps->pcrSelect[0],
++				[1] = htps->pcrSelect[1],
++				[2] = htps->pcrSelect[2]
++			}
++		},
++		.dqi = *dqi
++	};
++	
++	if (path == NULL) {
++		fprintf(stderr, "Path to DeepQuoteBin cannot be NULL\n");
++		return 1;
++	}
++	
++	if ((fp = fopen(path, "wb")) == 0) {
++		fprintf(stderr, "Failed to open '%s'\n", path);
++		return 1;
++	}
++
++	if (fwrite(&dqb, sizeof(dqb), 1, fp) != 1) {
++		perror("Failed to write out DeepQuoteBin");
++		return 1;
++	}
++
++	/* write out the vTPM quote too */
++    if(fwrite(vq_signature,sizeof(uint32_t),3,fp)<3) {
++    perror("Error writing signature header.\n");
++    exit(-1);
++    }
++    if(fwrite(vq_signature->buffer,sizeof(char),vq_signature->used,fp)<vq_signature->used) {
++    perror("Error writing signature data.\n");
++    return 1;
++    }
++    if(fwrite(vq_tpc,sizeof(TPM_PCR_COMPOSITE),1,fp)<1) {
++    perror("Error writing PCR composite.\n");
++    return 1;
++    }
++    if(fwrite(vq_tpc->pcrValue.buffer,sizeof(BYTE),vq_tpc->pcrValue.size,fp)<vq_tpc->pcrValue.size) {
++    perror("Error writing PCR buffer.\n");
++    return 1;
++    }
++
++	return fclose(fp);
++}
++
++/****************************************************************************/
++/*                                                                          */
++/* Validate a DeepQuoteInfo's signature                                     */
++/*                                                                          */
++/* The arguments are...                                                     */
++/*                                                                          */
++/* pubkey    is a pointer to a buffer containing a raw public AIK           */
++/*           (as a TPM would return it)                                     */
++/* htps      is a pointer to a selection of physical PCRs                   */
++/* nonce     is a pointer to the nonce passed to TPM_DeepQuote()            */
++/* dqi       is a pointer to a DeepQuoteInfo struct as returned from        */
++/*           TPM_DeepQuote()                                                */
++/*                                                                          */
++/****************************************************************************/
++uint32_t TPM_ValidateDeepQuoteInfo(RSA *pubKeyRSA,
++				   TPM_PCR_SELECTION *htps,
++				   unsigned char *nonce,
++				   DeepQuoteInfo *dqi)
++{
++	SHA_CTX sha;
++	/* ExternalData used by vTPM's GetParentQuote */
++	unsigned char extData1[TPM_HASH_SIZE];
++	/* ExternalData used by pTPM's Quote */
++	unsigned char extData2[TPM_HASH_SIZE];
++	/* Composite hash of the pPCRs */
++	unsigned char compDigest[TPM_DIGEST_SIZE];
++	unsigned char quoteBlob[sizeof(quot_hdr) + sizeof(compDigest) + sizeof(extData2)];
++	uint32_t valueSize;
++	size_t offset=0;
++	pubkeydata pubKeyData;
++	STACK_TPM_BUFFER (signatureBuf);
++	STACK_TPM_BUFFER (blobBuf);
++	int ret;
++    
++	/* Make the physical PCR Selection */
++	struct PCR_SELECTION ppcrSel = {
++		.sizeOfSelect = htons(3),
++		.pcrSelect = {
++			[0] = htps->pcrSelect[0],
++			[1] = htps->pcrSelect[1],
++			[2] = htps->pcrSelect[2]	    
++		}
++	};
++    
++	/* For now we're going to ignore vpcr mask */
++	struct PCR_INFO_SHORT vpcrData = {
++		.pcrSelection = {
++			.sizeOfSelect = htons(3),
++			.pcrSelect = {0,},
++		},
++		.localityAtRelease = 1,
++		.digestAtRelease   = {0,}
++	};
++	uint16_t sigscheme = TPM_SS_RSASSAPKCS1v15_SHA1;    
++
++	dump_bytes(dqi->signature, "Signature", 256);
++    
++	dump_hash(nonce, "extData");
++	dump_bytes(dquot_hdr, "dquot", sizeof(dquot_hdr));
++	dump_bytes(&vpcrData, "vPCR_INFO_SHORT", sizeof(vpcrData));
++
++	/* GetParentQuote's extData is just the composite hash of the vPCRs */
++	SHA1_Init(&sha);
++	SHA1_Update(&sha, dquot_hdr, sizeof(dquot_hdr));
++	SHA1_Update(&sha, nonce,     TPM_NONCE_SIZE);
++	SHA1_Update(&sha, &vpcrData,  sizeof(vpcrData));
++	SHA1_Final(extData1, &sha);
++	dump_hash(extData1, "ParentQuote.extData");
++
++	/* Dump out information we use to calculate Quote's extData */
++	logfprintf(stderr, "\n\n  NumPCR: %u, NumHashes: %u, ExtraFlags: %x\n", dqi->values.numPCRVals, dqi->values.numInfoHashes, *(uint32_t *)dqi->extraInfoFlags);
++	dump_bytes(&dqi->extraInfoFlags, "ExtraInfoFlags", 4);
++	dump_bytes(dqi->values.PCRVals, "PCRVals", 20 * dqi->values.numPCRVals);
++	dump_bytes(dqi->values.infoHashes, "InfoHashes", 20 * dqi->values.numInfoHashes);
++
++	/* Calculate the extData to Quote */
++	SHA1_Init(&sha);
++	SHA1_Update(&sha, &dqi->extraInfoFlags, 4);
++	SHA1_Update(&sha, extData1, TPM_NONCE_SIZE);
++	SHA1_Update(&sha, dqi->values.infoHashes, TPM_HASH_SIZE * dqi->values.numInfoHashes);
++	SHA1_Final(extData2, &sha);
++	dump_bytes(extData2, "Quote.externData", TPM_DIGEST_SIZE);
++
++	/* Create the valueSize parameters in network order */
++	valueSize = htonl(dqi->values.numPCRVals * 20);
++    
++	/* Calculate composite hash of the serialized versions of these */
++	SHA1_Init(&sha);
++	SHA1_Update(&sha, &ppcrSel, sizeof(ppcrSel));
++	SHA1_Update(&sha, &valueSize , sizeof(valueSize));
++	SHA1_Update(&sha, dqi->values.PCRVals, dqi->values.numPCRVals * 20);
++	SHA1_Final(compDigest, &sha);
++
++	/* Dump the hash and selection out; we'll be using them to recreate the blob Quote signed */
++	dump_bytes(&ppcrSel,   "Quote.ppcrSel",    sizeof(ppcrSel));
++	dump_bytes(compDigest, "Quote.compDigest", TPM_DIGEST_SIZE);
++
++    
++	/* Recreate the blob Quote signed */
++	memcpy(&quoteBlob[offset], quot_hdr,   sizeof(quot_hdr));
++	offset+= sizeof(quot_hdr);
++	memcpy(&quoteBlob[offset], compDigest, sizeof(compDigest));
++	offset+= sizeof(compDigest);
++	memcpy(&quoteBlob[offset], extData2,   sizeof(extData2));
++	offset+= sizeof(extData2);
++
++	/* Set up buffers of the blob and signature */
++	logfprintf(stderr, "Total size of blob is %zu\n", offset);
++	SET_TPM_BUFFER(&blobBuf, quoteBlob, sizeof(quoteBlob));
++	SET_TPM_BUFFER(&signatureBuf, dqi->signature, sizeof(dqi->signature)); 
++
++	dump_bytes(pubKeyData.pubKey.modulus, "Public Key", 256);
++
++	ret = TPM_ValidateSignature(sigscheme, 
++				    &blobBuf,
++				    &signatureBuf, 
++				    pubKeyRSA); 
++	if (ret != 0) {
++		return ret;
++	}
++
++	return 0;
++
++}
++
++
++
++
++/****************************************************************************/
++/*                                                                          */
++/* DEEPLY Quote the specified PCR registers                                 */
++/*                                                                          */
++/* The arguments are...                                                     */
++/*                                                                          */
++/* keyhandle is the handle of the key used to sign the results              */
++/* tps       selection of the PCRs to quote                                 */
++/* keyauth   is the authorization data (password) for the key               */
++/*           if NULL, it will be assumed that no password is required       */
++/* data      is a pointer to a nonce                                        */
++/* tpc       is a pointer to an area to receive a pcrcomposite structure    */
++/* signature is a pointer to an area to receive the signature               */
++/*                                                                          */
++/****************************************************************************/
++uint32_t TPM_DeepQuote(unsigned char *keyauth,
++		       unsigned char *externalData,
++                       TPM_PCR_SELECTION *vtps,
++                       TPM_PCR_SELECTION *ptps,
++		       DeepQuoteInfo *dqi)
++{
++	
++	uint32_t ret;
++	int i, j;
++	uint32_t sessHandle;
++	unsigned char c;
++	uint32_t keyhandle;
++	uint32_t extraInfo= htonl(VTPM_QUOTE_FLAGS_HASH_UUID);
++	STACK_TPM_BUFFER( tpmdata );
++	session sess;
++	unsigned char nonceodd[TPM_NONCE_SIZE];
++	unsigned char pubauth[TPM_HASH_SIZE];
++	uint32_t ordinal = htonl(TPM_ORD_DeepQuote);
++	uint32_t offset;
++	uint32_t pcrOffset;	
++	uint32_t infoHashOffset;
++	STACK_TPM_BUFFER( ptSel );
++	STACK_TPM_BUFFER( vtSel );
++	uint32_t numPCR = 0;
++	uint32_t numInfoHashes = 0;
++	uint32_t paramSize = 0;
++
++	/* Auth is done against TPM_KH_OWNER */
++	keyhandle = TPM_KH_OWNER;	
++
++	/* check input arguments */
++	if (externalData == NULL || keyauth == NULL || dqi == NULL)  
++		return ERR_NULL_ARG;
++
++	/* Validate key */
++	ret = needKeysRoom(keyhandle, 0, 0, 0);
++	if (ret != 0) 
++		return ret;
++
++	/* Create selection for physical PCRs */
++	ret = TPM_WritePCRSelection(&ptSel, ptps);
++	if ((ret & ERR_MASK)) {
++		fprintf(stderr, "Failed to create phys. PCR selection [%s]\n", TPM_GetErrMsg(ret));
++		return ret;
++	}
++
++	/* Create selection for virtual PCRs */
++	ret = TPM_WritePCRSelection(&vtSel, vtps);
++	if ((ret & ERR_MASK)) {
++		fprintf(stderr, "Failed to create virt. PCR selection [%s]\n", TPM_GetErrMsg(ret));		
++		return ret;
++	}
++
++	/* Requested PCRs */
++	for (i=0; i < ptps->sizeOfSelect; i++) {
++		BYTE selectByte = ptps->pcrSelect[i];
++		for(j = 0; j < 8; j++) {
++			numPCR += selectByte & 1;
++			selectByte = selectByte >> 1;
++		}
++	}
++	logfprintf(stderr, "Num PCRs selected: %d\n", numPCR);
++	
++
++	/* Open an __OIAP__ session. This bit me good as TPM_Quote can be used via 
++	 * plain ORD commands, OSAP, or DSAP, while DeepQuote as currently implemented
++	 * only supports OIAP*/
++	ret = TSS_SessionOpen(SESSION_OIAP, &sess, keyauth,TPM_ET_KEYHANDLE,keyhandle);
++	if (ret != 0)  {
++		fprintf(stderr, "Failed to auth [%s]\n", TPM_GetErrMsg(ret));
++		return ret;
++	}
++	
++	/* Get session handle */
++	sessHandle = TSS_Session_GetHandle(&sess);
++	/* Don't continue session */
++	c = 0;
++	/* Generate odd nonce */
++	TSS_gennonce(nonceodd);
++
++	/* calculate authorization HMAC value */
++	ret = TSS_authhmac(pubauth,TSS_Session_GetAuth(&sess),
++			   TPM_HASH_SIZE,TSS_Session_GetENonce(&sess),nonceodd,c,
++			   TPM_U32_SIZE,&ordinal,
++			   TPM_HASH_SIZE,externalData,
++			   vtSel.used, vtSel.buffer,
++			   ptSel.used, ptSel.buffer,
++			   TPM_U32_SIZE, &extraInfo,
++			   0,0);
++	if (ret != 0) {
++		fprintf(stderr, "Failed to generate HMAC [%s]\n", TPM_GetErrMsg(ret));;
++		TSS_SessionClose(&sess);
++		return ret;
++	}
++	
++
++	// <header> 0:ord 1:ext 2:vtps 3:ptps 4:extraInfo 5:sessHandle 6:oddNonce 7:continue 8:hmac
++	// 00 C2 T  l     %     %      %      l           L            %          o          %
++	ret = TSS_buildbuff("00 C2 T l % % % l L % o %", 
++			    &tpmdata,         /* dest buffer             */
++			    ordinal,          /* [0] T:     <ord>        */
++			    TPM_HASH_SIZE,    /* [1] %.len: <ext>        */
++			    externalData,     /* [1] %.buf: <ext>        */
++			    vtSel.used,       /* [2] %.len: <vtSel       */
++			    vtSel.buffer,     /* [2] %.buf: <vtSel       */
++			    ptSel.used,       /* [3] %.len: <ptSel>      */
++			    ptSel.buffer,     /* [3] %.buf: <ptSel>      */
++			    extraInfo,        /* [4] l:     <extraInfo>  */			    
++			    sessHandle,       /* [5] L:     <sessHandle> */
++			    TPM_NONCE_SIZE,   /* [6] %.len: <oddNonce>   */
++			    nonceodd,         /* [6] %.buf: <oddNonce>   */
++			    c,                /* [7] o:     <continue>   */
++			    TPM_HASH_SIZE,    /* [8] %.len  <pubauth>    */
++			    pubauth           /* [8] %.buf  <pubauth>    */
++			    );
++
++	if ((ret & ERR_MASK) != 0) {
++		fprintf(stderr, "Failed to build buffer [%s]\n", TPM_GetErrMsg(ret));
++		TSS_SessionClose(&sess);
++		return ret;
++	}
++
++	/* transmit the request buffer to the TPM device and read the reply */
++	ret = TPM_Transmit(&tpmdata,"Deep Quote");
++	TSS_SessionClose(&sess);
++	if (ret != 0) {
++		fprintf(stderr, "Unable to transmit to TPM [%s]\n", TPM_GetErrMsg(ret));
++		return ret;
++	}
++
++	ret =  tpm_buffer_load32(&tpmdata,TPM_PARAMSIZE_OFFSET, &paramSize);
++	if (ret != 0) {
++		fprintf(stderr, "Unable to read paramSize [%s]\n", TPM_GetErrMsg(ret));
++		return ret;
++	}
++	logfprintf(stderr, "Size is %du\n", paramSize);
++	
++	/* Header and signature blob */
++	offset  = 10 + 256;
++		
++	infoHashOffset = offset;
++	/* extraInfo hashes */
++	if (extraInfo & htonl(VTPM_QUOTE_FLAGS_HASH_UUID)) {
++		offset += 20;
++		numInfoHashes++;
++	}
++	if (extraInfo & htonl(VTPM_QUOTE_FLAGS_VTPM_MEASUREMENTS)) {
++		offset += 20;
++		numInfoHashes++;
++	}
++	if (extraInfo & htonl(VTPM_QUOTE_FLAGS_GROUP_INFO)) {
++		offset += 20;
++		numInfoHashes++;
++	}
++	if (extraInfo & htonl(VTPM_QUOTE_FLAGS_GROUP_PUBKEY)) {
++		offset += 20;
++		numInfoHashes++;
++	}
++	
++	pcrOffset = offset;
++	offset += numPCR * sizeof(TPM_PCRVALUE);
++	logfprintf(stderr, "Size of return data %d\n", offset);
++
++	/* check the HMAC in the response */
++	ret = TSS_checkhmac1(&tpmdata,ordinal,nonceodd,
++			     TSS_Session_GetAuth(&sess),TPM_HASH_SIZE,
++			     offset-TPM_DATA_OFFSET, TPM_DATA_OFFSET,
++			     0,0);
++
++	if ((ret & ERR_MASK)) {
++		fprintf(stderr, "Failed to validate hmac [%s]\n", TPM_GetErrMsg(ret));
++		return ret;
++	}
++
++	if (pcrOffset != (infoHashOffset + (numInfoHashes * 20))) {
++		fprintf(stderr, "Inconsistent offsets. pcrOff: %x, infoHashOff: %x, numInfo: %u, numPCR %u\n",
++			pcrOffset, infoHashOffset, numInfoHashes, numPCR);
++		return -1;
++	}
++
++	dqi->extraInfoFlags[0] = extraInfo >> 24;
++	dqi->extraInfoFlags[1] = extraInfo >> 16;
++	dqi->extraInfoFlags[2] = extraInfo >>  8;
++	dqi->extraInfoFlags[3] = extraInfo >>  0;
++
++	dqi->values.numInfoHashes = numInfoHashes;
++	memcpy(dqi->values.infoHashes, &tpmdata.buffer[infoHashOffset], numInfoHashes * TPM_HASH_SIZE);
++
++	dqi->values.numPCRVals = numPCR;	
++	memcpy(dqi->values.PCRVals, &tpmdata.buffer[pcrOffset], numPCR * TPM_HASH_SIZE);
++
++	memcpy(dqi->signature, &tpmdata.buffer[TPM_DATA_OFFSET], 256);
++	return 0;
++}
++
++
++
+ 
+ /****************************************************************************/
+ /*                                                                          */
+@@ -483,14 +933,14 @@
+ 		}
+ 		/* build the request buffer */
+ 		ret = TSS_buildbuff("00 C2 T l l % % o L % o %",&tpmdata,
+-		                             ordinal_no,
+-		                               keyhndl,
+-		                                 TPM_HASH_SIZE,antiReplay,
+-		                                   serPCRSelectionSize,serPCRSelection->buffer,
+-		                                     addVersion,
+-		                                       TSS_Session_GetHandle(&sess),
+-		                                         TPM_NONCE_SIZE,nonceodd,
+-		                                           c,
++				    ordinal_no,
++				    keyhndl,
++				    TPM_HASH_SIZE,antiReplay,
++				    serPCRSelectionSize,serPCRSelection->buffer,
++				    addVersion,
++				    TSS_Session_GetHandle(&sess),
++				    TPM_NONCE_SIZE,nonceodd,
++				    c,
+ 		                                             TPM_HASH_SIZE,pubauth);
+ 		TSS_FreeTPMBuffer(serPCRSelection);
+ 		if ((ret & ERR_MASK) != 0) {
+diff -Naur baseline/libtpm/lib/tpm_constants.h tpm4720-master/libtpm/lib/tpm_constants.h
+--- baseline/libtpm/lib/tpm_constants.h	2014-04-02 15:45:04.000000000 -0400
++++ tpm4720-master/libtpm/lib/tpm_constants.h	2016-09-30 13:42:53.000000000 -0400
+@@ -1166,6 +1166,7 @@
+ #define TPM_PROTECTED_ORDINAL   (TPM_PROTECTED_COMMAND   | TPM_MAIN)
+ #define TPM_UNPROTECTED_ORDINAL (TPM_UNPROTECTED_COMMAND | TPM_MAIN)
+ #define TPM_CONNECTION_ORDINAL  (TPM_CONNECTION_COMMAND  | TPM_MAIN)
++#define TPM_ORD_DeepQuote       (TPM_VENDOR_COMMAND | TPM_ORD_Quote)
+ 
+ /* Command ordinals */
+ 
+diff -Naur baseline/libtpm/lib/tpm_structures.h tpm4720-master/libtpm/lib/tpm_structures.h
+--- baseline/libtpm/lib/tpm_structures.h	2014-04-02 15:45:04.000000000 -0400
++++ tpm4720-master/libtpm/lib/tpm_structures.h	2016-09-30 13:42:53.000000000 -0400
+@@ -43,6 +43,7 @@
+ #include <limits.h>
+ #include "tpm_constants.h"
+ #include "tpm_types.h"
++#include "tpm.h"
+ 
+ /* Sanity check on build macros are centralized here, since any TPM will use this header */
+ 
+@@ -2528,5 +2529,4 @@
+                                                    thresholdCount. See 21.10. */
+     TPM_SIZED_BUFFER vendorData;        /* Vendor specific data field */
+ } TPM_DA_INFO_LIMITED;
+-
+ #endif
+diff -Naur baseline/libtpm/lib/tpmfunc.h tpm4720-master/libtpm/lib/tpmfunc.h
+--- baseline/libtpm/lib/tpmfunc.h	2014-04-02 15:45:04.000000000 -0400
++++ tpm4720-master/libtpm/lib/tpmfunc.h	2016-09-30 13:42:53.000000000 -0400
+@@ -47,6 +47,8 @@
+ #include <oiaposap.h>
+ #include <tpm_structures.h>
+ 
++typedef struct DeepQuoteInfo DeepQuoteInfo;
++
+ /* section 3: Admin startup and state */
+ uint32_t TPM_Init(void); /* just for testing */
+ uint32_t TPM_Startup(uint16_t type);
+@@ -187,6 +189,20 @@
+                    TPM_PCR_SELECTION *tps,
+                    TPM_PCR_COMPOSITE *tpc,
+                    struct tpm_buffer *signature);
++uint32_t TPM_ValidateDeepQuoteInfo(RSA *pubKeyRSA,
++				   TPM_PCR_SELECTION *htps,
++				   unsigned char *nonce,
++				   DeepQuoteInfo *dqi);
++int TPM_WriteDeepQuoteBin(const char *path,
++			  const TPM_PCR_SELECTION *htps,
++			  const DeepQuoteInfo *dqi,
++        struct tpm_buffer *vq_signature,
++        TPM_PCR_COMPOSITE *vq_tpc);
++uint32_t TPM_DeepQuote(unsigned char *keyauth,
++                       unsigned char *externalData,
++                       TPM_PCR_SELECTION *vtps,
++                       TPM_PCR_SELECTION *ptps,
++		       DeepQuoteInfo *dqi);
+ uint32_t TPM_PCRReset(TPM_PCR_SELECTION * selection);
+ uint32_t TPM_Quote2(uint32_t keyhandle,
+                     TPM_PCR_SELECTION * selection,
+@@ -628,6 +644,11 @@
+                                            pubkeydata *pk,
+                                            struct tpm_buffer *signature,
+                                            uint16_t sigscheme);
++uint32_t TPM_ValidatePCRCompositeSignatureNoCap(TPM_PCR_COMPOSITE *tpc,
++                                           unsigned char *antiReplay,
++                                           RSA *rsa,
++                                           struct tpm_buffer *signature,
++                                           uint16_t sigscheme);
+ 
+ 
+ /* helper functions to serialize / deserialize data structures */
+@@ -696,6 +717,7 @@
+ uint32_t  TSS_KeyExtract(const struct tpm_buffer *tb, uint32_t offset, keydata *k);
+ uint32_t  TSS_PubKeyExtract(const struct tpm_buffer *tb, uint32_t offset, pubkeydata *k);
+ RSA      *TSS_convpubkey(pubkeydata *k);
++void      TSS_convrsakey(RSA *rsa, pubkeydata *k);
+ uint32_t  TPM_WriteKey(struct tpm_buffer *tb, keydata *k);
+ uint32_t  TPM_ReadKey(const struct tpm_buffer *tb, uint32_t offset, keydata *k);
+ uint32_t  TPM_WriteKeyPub(struct tpm_buffer *tp, keydata *k);
+diff -Naur baseline/libtpm/lib/tpmutil.c tpm4720-master/libtpm/lib/tpmutil.c
+--- baseline/libtpm/lib/tpmutil.c	2014-04-02 15:45:04.000000000 -0400
++++ tpm4720-master/libtpm/lib/tpmutil.c	2016-09-30 13:42:53.000000000 -0400
+@@ -84,8 +84,9 @@
+ static TPM_RESULT TPMC_SHA1Delete(void **context);
+ 
+ /* local variables */
++unsigned int TPM_logflag = 1;
++#define logflag TPM_logflag
+ 
+-static unsigned int logflag = 1;
+ /* the to-be-used lowlevel transport */
+ static struct tpm_transport *use_transp = NULL;
+ static int actual_used_transport = 0;
+diff -Naur baseline/libtpm/utils/Makefile.am tpm4720-master/libtpm/utils/Makefile.am
+--- baseline/libtpm/utils/Makefile.am	2014-04-02 15:45:05.000000000 -0400
++++ tpm4720-master/libtpm/utils/Makefile.am	2016-09-30 13:42:53.000000000 -0400
+@@ -37,18 +37,26 @@
+ #										#
+ #################################################################################
+ 
+-AM_CFLAGS = -Wall -ggdb -Wmissing-declarations -Wmissing-prototypes -Wnested-externs @STATIC_LINKING_FLAG@ -W -Werror
++AM_CFLAGS = -fPIC -Wall -ggdb -Wmissing-declarations -Wmissing-prototypes -Wnested-externs @STATIC_LINKING_FLAG@ -W -Wno-deprecated-declarations
+ INCLUDES =  -I../lib
+ LDADD = $(top_builddir)/lib/.libs/libtpm.a -lcrypto
+ LDADD += @UDXTK_LD_PATHS@ @UDXTK_LD_LIBS@
+ LDADD += @LIBTPMS_LIBRARY_PATH@ @LIBTPMS_LIBRARY@
+ 
++
++lib_LTLIBRARIES = libkeylime.la
++libkeylime_la_SOURCES = checkquote.c quote.c
++libkeylime_la_CFLAGS = -DSHARED_LIB
++libkeylime_la_LDFLAGS = -L$(top_builddir)/lib/.libs -ltpm
++
++
+ AM_CONDITIONAL = TPM_VTPM
+ AM_LDFLAGS =
+-bin_PROGRAMS = takeown clearown createkey tpmreset evictkey  \
++bin_PROGRAMS = encaik takeown clearown createkey tpmreset evictkey  \
+                signfile verifyfile sealfile unsealfile loadkey \
+-               listkeys quote dumpkey bindfile unbindfile getpubek \
+-               disablepubek chgauth chgtpmauth \
++               listkeys tpmquote checkquote checkquote2 checkdeepquote \
++	        dumpkey bindfile unbindfile getpubek getrandom\
++               disablepubek chgauth chgtpmauth deepquote \
+ 		createek tpmbios setownerinstall \
+ 		nv nv_definespace nv_readvalue nv_writevalue certifyselftest \
+ 		counter_create counter_increment counter_read counter_release \
+@@ -71,16 +79,16 @@
+ 		createownerdelegation loadownerdelegation unsealxfile \
+ 		createkeydelegation updateverification verifydelegation \
+ 		random resetlockvalue setownerpointer session transport_test \
+-		getpubkey getcontextcount physicalpresence \
++		getpubkey getcontextcount physicalpresence tpmconv \
+ 		libtpm-config
+ 
+ if LIBTPMS_AVAILABLE
+ bin_PROGRAMS +=	tis_test
+ endif
+ 
+-
+-
+-
++getrandom_SOURCE = getrandom.c
++encaik_SOURCE = encaik.c
++deepquote_SOURCES = deepquote.c
+ takeown_SOURCES = takeown.c
+ clearown_SOURCES = clearown.c
+ createkey_SOURCES = createkey.c
+@@ -90,8 +98,10 @@
+ signfile_SOURCES = signfile.c
+ signmsg_SOURCES = signmsg.c
+ verifyfile_SOURCES = verifyfile.c
+-quote_SOURCES = quote.c
++tpmquote_SOURCES = quote.c
++checkquote_SOURCES = checkquote.c
+ quote2_SOURCES = quote2.c
++checkquote2_SOURCES = checkquote2.c
+ dumpkey_SOURCES = dumpkey.c
+ sealfile_SOURCES = sealfile.c
+ sealxfile_SOURCES = sealxfile.c
+@@ -172,3 +182,4 @@
+ delegatemanage_SOURCES = delegatemanage.c
+ delegatereadtable_SOURCES = delegatereadtable.c
+ physicalpresence_SOURCES = physicalpresence.c
++tpmconv_SOURCES = tpmconv.c
+diff -Naur baseline/libtpm/utils/activateidentity.c tpm4720-master/libtpm/utils/activateidentity.c
+--- baseline/libtpm/utils/activateidentity.c	2014-04-02 15:45:04.000000000 -0400
++++ tpm4720-master/libtpm/utils/activateidentity.c	2016-09-30 13:42:53.000000000 -0400
+@@ -116,6 +116,7 @@
+     unsigned char ownerHash[20];
+     unsigned char * ownerAuth = NULL;
+     uint32_t aikHandle = 0;		/* IAK key handle */
++    int setkh = 0;
+     unsigned char *blobData = NULL;	/* blob to be activated, free @1 */
+     uint32_t blobSize;
+ 
+@@ -139,10 +140,7 @@
+ 		   printf("Invalid -hk argument '%s'\n",argv[i]);
+ 		   exit(2);
+ 	       }
+-	       if (aikHandle == 0) {
+-		   printf("Invalid -hk argument '%s'\n",argv[i]);
+-		   exit(2);
+-	       }		 
++	       setkh=1;	 
+ 	   }
+ 	   else {
+ 	       printf("-hk option needs a value\n");
+@@ -206,16 +204,6 @@
+ 		PrintUsage();
+ 	    }
+ 	}
+-	else if (!strcmp("-ok",argv[i])) {
+-	    i++;
+-	    if (i < argc) {
+-		keyFilename = argv[i];
+-	    }
+-	    else {
+-		printf("Missing parameter for -ok\n");
+-		PrintUsage();
+-	    }
+-	}
+ 	else if (!strcmp("-v",argv[i])) {
+ 	    TPM_setlog(1);
+ 	    verbose = TRUE;
+@@ -229,7 +217,7 @@
+ 	}
+     }
+     /* validate command line arguments */
+-    if (aikHandle == 0) {
++    if (setkh == 0) {
+ 	printf("Missing AIK handle\n");
+ 	PrintUsage();
+     }
+diff -Naur baseline/libtpm/utils/checkdeepquote.c tpm4720-master/libtpm/utils/checkdeepquote.c
+--- baseline/libtpm/utils/checkdeepquote.c	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/libtpm/utils/checkdeepquote.c	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,346 @@
++/********************************************************************************/
++/*										*/
++/*			     	TPM Test of TPM DeepQuote			*/
++/*			     Written by J. Kravitz, S. Berger			*/
++/*		       IBM Thomas J. Watson Research Center			*/
++/*	      $Id: quote.c 4702 2013-01-03 21:26:29Z kgoldman $			*/
++/*										*/
++/* (c) Copyright IBM Corporation 2006, 2010.					*/
++/*										*/
++/* All rights reserved.								*/
++/* 										*/
++/* Redistribution and use in source and binary forms, with or without		*/
++/* modification, are permitted provided that the following conditions are	*/
++/* met:										*/
++/* 										*/
++/* Redistributions of source code must retain the above copyright notice,	*/
++/* this list of conditions and the following disclaimer.			*/
++/* 										*/
++/* Redistributions in binary form must reproduce the above copyright		*/
++/* notice, this list of conditions and the following disclaimer in the		*/
++/* documentation and/or other materials provided with the distribution.		*/
++/* 										*/
++/* Neither the names of the IBM Corporation nor the names of its		*/
++/* contributors may be used to endorse or promote products derived from		*/
++/* this software without specific prior written permission.			*/
++/* 										*/
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		*/
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		*/
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR	*/
++/* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		*/
++/* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	*/
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		*/
++/* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,	*/
++/* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY	*/
++/* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		*/
++/* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE	*/
++/* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
++/********************************************************************************/
++
++#include <stdio.h>
++#include <sys/types.h>
++#include <unistd.h>
++#include <string.h>
++#ifdef TPM_POSIX
++#include <netinet/in.h>
++#endif
++#ifdef TPM_WINDOWS
++#include <winsock2.h>
++#endif
++#include "tpmfunc.h"
++#include "deepquote.h"
++#include <openssl/pem.h>
++#include <openssl/rsa.h>
++#include <openssl/x509.h>
++#include <openssl/x509v3.h>
++
++static int printUsage()
++{
++    printf("Usage: checkdeepquote\n"
++	   "-aik <keyfile provided by vTPM manager (pem)>\n"
++	   "-vaik <keyfile of the associated vTPM quote>\n"
++	   "-deepquote <deepquote.bin>\n"
++	   "-nonce <random value>\n"
++	   "[-repeat <number of iterations>]\n");
++    exit(-1);
++    return -1;
++}
++
++int main(int argc, char *argv[])
++{
++    int i;
++    int ret;	
++    unsigned char vq_nonce[TPM_NONCE_SIZE]; 
++    unsigned char dq_nonce[TPM_NONCE_SIZE]; 
++    const char *keyname = NULL;
++    const char *vkeyname = NULL;
++    const char *binpath = NULL;
++    char *nonceval = NULL;      
++    EVP_PKEY *pkey = NULL;          /* OpenSSL public key */  
++    RSA *rsa = NULL;
++    EVP_PKEY *vpkey = NULL;          /* OpenSSL public key */  
++    RSA *vrsa = NULL;
++	FILE *keyfile = NULL; 
++	FILE *fp;   
++	struct DeepQuoteBin dqb;
++   	unsigned int numhPCRs=0;
++   	unsigned int numvPCRs=0;
++    STACK_TPM_BUFFER(signature);
++    TPM_PCR_COMPOSITE tpc;
++	SHA_CTX sha;
++	int verified = 0;
++	unsigned int repeat = 1;
++    
++    TPM_setlog(0);		/* turn off verbose output from TPM driver */
++    for (i=1 ; i<argc ; i++) {
++	if (!strcmp(argv[i], "-aik")) {
++	    i++;
++	    if (i < argc) {
++		keyname = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -aik\n");
++		printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i], "-vaik")) {
++	    i++;
++	    if (i < argc) {
++		vkeyname = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -vaik\n");
++		printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i], "-deepquote")) {
++	    i++;
++	    if (i < argc) {
++		binpath = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -quote\n");
++		printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i],"-nonce")) {
++	    i++;
++	    if (i < argc) {
++		nonceval = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -nonce\n");
++		printUsage();
++	    }
++	}
++    else if (!strcmp(argv[i],"-repeat")) {
++        i++;
++        if (i < argc) {
++        repeat = atoi(argv[i]);
++        }
++        else {
++        printf("Missing parameter to -repeat\n");
++        return printUsage();
++        }
++    }
++	else if (!strcmp(argv[i], "-h")) {
++	    printUsage();
++	}
++	else if (!strcmp(argv[i], "-v")) {
++	    TPM_setlog(1);
++	}
++	else {
++	    printf("\n%s is not a valid option\n", argv[i]);
++	    printUsage();
++	}
++    }
++
++    CHECK_ARG(keyname,  "-aik");
++    CHECK_ARG(vkeyname, "-vaik");
++    CHECK_ARG(nonceval, "-nonce");
++    CHECK_ARG(binpath,  "-deepquote");
++
++
++    /*  hash nonceval to create nonce data */
++    TSS_sha1((unsigned char *)nonceval,strlen(nonceval),vq_nonce);
++
++	/*
++	** read the public AIK
++	*/
++	keyfile = fopen(keyname,"rb");
++	if (keyfile == NULL)
++	  {
++	  printf("Unable to open public aik file '%s'\n",keyname);
++	  exit(6);
++	  }
++	pkey = PEM_read_PUBKEY(keyfile,NULL,NULL,NULL);
++	fclose(keyfile);
++	if (pkey == NULL)
++	  {
++	  printf("I/O Error while reading public aik file '%s'\n",keyname);
++	  exit(7);
++	  }
++
++	if (binpath == NULL) {
++		fprintf(stderr, "Path to DeepQuoteBin cannot be NULL\n");
++		return 1;
++	}
++	if ((fp = fopen(binpath, "rb")) == 0) {
++		fprintf(stderr, "Failed to open '%s'\n", binpath);
++		return 1;
++	}
++
++	if (fread(&dqb, sizeof(dqb), 1, fp) != 1) {
++		fprintf(stderr, "Failed to read in DeepQuoteBin");
++		return 1;
++	}
++    if(fread(&signature,sizeof(uint32_t),3,fp)<3) {
++    printf("Error reading signature header.\n");
++    exit(-1);
++    }
++    if(signature.used>sizeof(signature.buffer)) {
++    printf("Error invalid signature: bytes used %u is larger than the buffer %lu.\n",signature.used,sizeof(signature.buffer));
++    exit(-1);
++    }
++    if(fread(&signature.buffer,sizeof(char),signature.used,fp)<signature.used) {
++    printf("Error read signature data.\n");
++    exit(-1);
++    }
++    if(fread(&tpc,sizeof(TPM_PCR_COMPOSITE),1,fp)<1) {
++    printf("Error reading PCR composite.\n");
++    exit(-1);
++    }
++    if((tpc.pcrValue.buffer=(BYTE*)malloc(sizeof(BYTE)*tpc.pcrValue.size))==NULL) {
++    printf("unable to allocate memory for PCR buffer.\n");
++    exit(-1);
++    }
++	if(fread(tpc.pcrValue.buffer,sizeof(BYTE),tpc.pcrValue.size,fp)<tpc.pcrValue.size) {
++    printf("Error reading PCR value.\n");
++    exit(-1);
++    }
++    fclose(fp);
++
++   /*
++   ** read the virtual public AIK file
++   */
++   keyfile = fopen(vkeyname,"rb");
++   if (keyfile == NULL)
++      {
++	  printf("Unable to open virtual public key file '%s'\n",vkeyname);
++	  exit(6);
++      }
++   vpkey = PEM_read_PUBKEY(keyfile,NULL,NULL,NULL);
++   if (pkey == NULL)
++      {
++	  printf("I/O Error while reading virtual public key file '%s'\n",vkeyname);
++	  exit(7);
++      }
++    fclose(keyfile);
++    
++    
++    unsigned int j =0;
++    for(j=0;j<repeat;j++) {
++    
++	rsa = EVP_PKEY_get1_RSA(pkey);
++	if (rsa == NULL)
++	  {
++	  printf("Error while converting public key \n");
++	  exit(8);
++	  }
++    
++       vrsa = EVP_PKEY_get1_RSA(vpkey);
++   if (vrsa == NULL)
++      {
++      printf("Error while converting virtual public key \n");
++      exit(8);
++      }
++
++    /* now verify the vTPM quote */
++
++    ret = TPM_ValidatePCRCompositeSignatureNoCap(&tpc,
++					    vq_nonce,
++					    vrsa,
++					    &signature,
++					    TPM_SS_RSASSAPKCS1v15_SHA1);
++    if (ret) {
++	fprintf(stderr, "Error %s from validating the signature over the vPCR composite.\n",
++	       TPM_GetErrMsg(ret));
++    } 
++    else {
++    	verified++;
++    }
++
++    /* at this point the vTPM quote is valid */
++    /* take the quote sig and TPC and hash them into the nonce for the deepquote */
++	SHA1_Init(&sha);
++	SHA1_Update(&sha, vq_nonce,     TPM_NONCE_SIZE);
++	SHA1_Update(&sha, &signature,  sizeof(signature));
++	SHA1_Update(&sha, &tpc.select,  sizeof(TPM_PCR_SELECTION));
++	SHA1_Update(&sha, tpc.pcrValue.buffer, tpc.pcrValue.size);
++	SHA1_Final(dq_nonce, &sha);
++
++
++	TPM_PCR_SELECTION htps;
++			
++	htps.sizeOfSelect = ntohs(dqb.ppcrSel.sizeOfSelect);
++	memcpy(htps.pcrSelect, dqb.ppcrSel.pcrSelect, htps.sizeOfSelect);
++
++    if ((ret = TPM_ValidateDeepQuoteInfo(rsa,
++					 &htps,
++					 dq_nonce,
++					 &dqb.dqi)) != 0) {
++	fprintf(stderr, "Error %s from validating the signature over the PCR composite.\n",
++	       TPM_GetErrMsg(ret));
++    }
++    else {
++    	verified++;
++    }
++    
++    }
++    
++    if (verified >= 2) {
++    fprintf(stdout, "Verification against AIK succeeded\n");
++	}	
++
++    fprintf(stdout, "PCR contents from quote:\n");
++    for(i=0;i<ntohs(dqb.ppcrSel.sizeOfSelect*CHAR_BIT);i++) {
++	    if((dqb.ppcrSel.pcrSelect[i/8] & (1<<(i&0x7)))>0) {
++		    unsigned int j=0;
++		    if(TPM_HASH_SIZE*(numhPCRs+1)>sizeof(dqb.dqi.values.PCRVals)) {
++			    fprintf(stdout, "Error: malformed PCR structure\n");
++			    exit(-1);
++		    }
++		    fprintf(stdout, "PCR %.2d ",i);
++		    for(j=0;j<TPM_HASH_SIZE;j++) {
++			    fprintf(stdout, "%.2x",dqb.dqi.values.PCRVals[TPM_HASH_SIZE*numhPCRs+j]);
++		    }
++		    fprintf(stdout, "\n");
++		    numhPCRs++;
++	    }
++    }
++    
++    fprintf(stdout, "PCR contents from vTPM quote:\n");
++    for(i=0;i<tpc.select.sizeOfSelect*CHAR_BIT;i++) {
++	    if((tpc.select.pcrSelect[i/8] & (1<<(i&0x7)))>0) {
++		    unsigned int j=0;
++		    /* check tpc.pcrValue.size */
++		    if(TPM_HASH_SIZE*(numvPCRs+1)>tpc.pcrValue.size) {
++			    fprintf(stdout, "Error: malformed vPCR structure\n");
++			    exit(-1);
++		    }
++		    fprintf(stdout, "vPCR %.2d ",i);
++		    for(j=0;j<TPM_HASH_SIZE;j++) {
++			    fprintf(stdout, "%.2x",tpc.pcrValue.buffer[TPM_HASH_SIZE*numvPCRs+j]);
++		    }
++		    fprintf(stdout, "\n");
++		    numvPCRs++;
++	    }
++    }
++
++
++    free(tpc.pcrValue.buffer);
++    if(verified < 2)
++    	return -1;
++    else
++    	return 0;
++}
+diff -Naur baseline/libtpm/utils/checkquote.c tpm4720-master/libtpm/utils/checkquote.c
+--- baseline/libtpm/utils/checkquote.c	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/libtpm/utils/checkquote.c	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,255 @@
++/********************************************************************************/
++/*										*/
++/*			     	TPM Test of TPM Quote				*/
++/*			     Written by J. Kravitz, S. Berger			*/
++/*		       IBM Thomas J. Watson Research Center			*/
++/*	      $Id: quote.c 4702 2013-01-03 21:26:29Z kgoldman $			*/
++/*										*/
++/* (c) Copyright IBM Corporation 2006, 2010.					*/
++/*										*/
++/* All rights reserved.								*/
++/* 										*/
++/* Redistribution and use in source and binary forms, with or without		*/
++/* modification, are permitted provided that the following conditions are	*/
++/* met:										*/
++/* 										*/
++/* Redistributions of source code must retain the above copyright notice,	*/
++/* this list of conditions and the following disclaimer.			*/
++/* 										*/
++/* Redistributions in binary form must reproduce the above copyright		*/
++/* notice, this list of conditions and the following disclaimer in the		*/
++/* documentation and/or other materials provided with the distribution.		*/
++/* 										*/
++/* Neither the names of the IBM Corporation nor the names of its		*/
++/* contributors may be used to endorse or promote products derived from		*/
++/* this software without specific prior written permission.			*/
++/* 										*/
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		*/
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		*/
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR	*/
++/* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		*/
++/* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	*/
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		*/
++/* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,	*/
++/* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY	*/
++/* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		*/
++/* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE	*/
++/* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
++/********************************************************************************/
++
++#include <stdio.h>
++#include <sys/types.h>
++#include <unistd.h>
++#include <string.h>
++#ifdef TPM_POSIX
++#include <netinet/in.h>
++#endif
++#ifdef TPM_WINDOWS
++#include <winsock2.h>
++#endif
++#include "tpmfunc.h"
++#include <openssl/pem.h>
++#include <openssl/rsa.h>
++#include <openssl/x509.h>
++#include <openssl/x509v3.h>
++
++
++static int printUsage()
++{
++    printf("Usage: checkquote\n"
++	   "-aik <file containing key length and aik modulus> \n"
++	   "-quote <quote.bin>\n"
++       "-nonce <random value>\n"
++	   "[-repeat <number of iterations>]\n");
++    return -1;
++}
++
++uint32_t TPM_ValidatePCRCompositeSignatureNoCap(TPM_PCR_COMPOSITE *tpc,
++                                           unsigned char *antiReplay,
++                                           RSA *rsa,
++                                           struct tpm_buffer *signature,
++                                           uint16_t sigscheme);
++
++#ifndef SHARED_LIB
++#define outStream stdout
++int main(int argc, char *argv[])
++#else
++#define exit(rc) return rc;	
++int checkquote_main(FILE *outStream, int argc, char *argv[])
++#endif	
++{
++    int ret;			/* general return value */
++    unsigned char nonce[TPM_NONCE_SIZE];	/* nonce data */
++    static char *nonceval = NULL; /* nonce value passed in by user */
++    STACK_TPM_BUFFER(signature);
++    TPM_PCR_COMPOSITE tpc;
++    STACK_TPM_BUFFER (ser_tpc);
++    STACK_TPM_BUFFER (ser_tqi);
++    int i;
++    uint16_t sigscheme = TPM_SS_RSASSAPKCS1v15_SHA1;
++   	unsigned int numPCRs=0;
++   	RSA *rsa = NULL;
++   	FILE *keyfile = NULL;
++   	EVP_PKEY *pkey;
++   	unsigned int repeat = 1;
++
++    const char *keyFilename = NULL;
++    const char *quoteFilename = NULL;
++    FILE *fp = NULL;
++    
++    TPM_setlog(0);		/* turn off verbose output from TPM driver */
++    for (i=1 ; i<argc ; i++) {
++	if (!strcmp(argv[i], "-aik")) {
++	    i++;
++	    if (i < argc) {
++		keyFilename = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -aik\n");
++		return printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i], "-quote")) {
++	    i++;
++	    if (i < argc) {
++		quoteFilename = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -quote\n");
++		return printUsage();
++	    }
++	}
++    else if (!strcmp(argv[i],"-nonce")) {
++        i++;
++        if (i < argc) {
++        nonceval = argv[i];
++        }
++        else {
++        printf("Missing parameter to -nonce\n");
++        return printUsage();
++        }
++    }
++    else if (!strcmp(argv[i],"-repeat")) {
++        i++;
++        if (i < argc) {
++        repeat = atoi(argv[i]);
++        }
++        else {
++        printf("Missing parameter to -repeat\n");
++        return printUsage();
++        }
++    }
++	else if (!strcmp(argv[i], "-h")) {
++	    return printUsage();
++	}
++	else if (!strcmp(argv[i], "-v")) {
++	    TPM_setlog(1);
++	}
++	else {
++	    printf("\n%s is not a valid option\n", argv[i]);
++	    return printUsage();
++	}
++    }
++    
++    if ((quoteFilename == NULL) ||
++	(keyFilename == NULL) ||
++	nonceval == NULL) {
++	printf("Missing argument\n");
++	return printUsage();
++    }
++    
++    /*  hash nonceval to create nonce data */
++    TSS_sha1((unsigned char *)nonceval,strlen(nonceval),nonce);
++
++    /* read in quote from file */
++    if((fp = fopen(quoteFilename,"r"))==0) {
++    printf("Error opening file %s.\n",quoteFilename);
++    exit(-1);
++    }
++    if(fread(&signature,sizeof(uint32_t),3,fp)<3) {
++    printf("Error reading signature header.\n");
++    exit(-1);
++    }
++    if(signature.used>sizeof(signature.buffer)) {
++    printf("Error invalid signature: bytes used %u is larger than the buffer %lu.\n",signature.used,sizeof(signature.buffer));
++    exit(-1);
++    }
++    if(fread(&signature.buffer,sizeof(char),signature.used,fp)<signature.used) {
++    printf("Error read signature data.\n");
++    exit(-1);
++    }
++    if(fread(&tpc,sizeof(TPM_PCR_COMPOSITE),1,fp)<1) {
++    printf("Error reading PCR composite.\n");
++    exit(-1);
++    }
++    if((tpc.pcrValue.buffer=(BYTE*)malloc(sizeof(BYTE)*tpc.pcrValue.size))==NULL) {
++    printf("unable to allocate memory for PCR buffer.\n");
++    exit(-1);
++    }
++	if(fread(tpc.pcrValue.buffer,sizeof(BYTE),tpc.pcrValue.size,fp)<tpc.pcrValue.size) {
++    printf("Error reading PCR value.\n");
++    exit(-1);
++    }
++    fclose(fp);
++
++   /*
++   ** read the key file
++   */
++   keyfile = fopen(keyFilename,"rb");
++   if (keyfile == NULL)
++      {
++	  printf("Unable to open public key file '%s'\n",keyFilename);
++	  exit(6);
++      }
++   pkey = PEM_read_PUBKEY(keyfile,NULL,NULL,NULL);
++   fclose(keyfile);
++   if (pkey == NULL)
++      {
++	  printf("I/O Error while reading public key file '%s'\n",keyFilename);
++	  exit(7);
++      }
++        unsigned int j =0;
++    for(j=0;j<repeat;j++) {
++   rsa = EVP_PKEY_get1_RSA(pkey);
++   if (rsa == NULL)
++      {
++      printf("Error while converting public key \n");
++      exit(8);
++      }
++    
++    ret = TPM_ValidatePCRCompositeSignatureNoCap(&tpc,
++					    nonce,
++					    rsa,
++					    &signature,
++					    sigscheme);
++	}
++    if (ret) {
++	printf("Error %s from validating the signature over the PCR composite.\n",
++	       TPM_GetErrMsg(ret));
++	exit(ret);
++    }  
++    
++    fprintf(outStream, "Verification against AIK succeeded\n");
++    fprintf(outStream, "PCR contents from quote:\n");
++	
++    for(i=0;i<tpc.select.sizeOfSelect*CHAR_BIT;i++) {
++	    if((tpc.select.pcrSelect[i/8] & (1<<(i&0x7)))>0) {
++		    unsigned int j=0;
++		    /* check tpc.pcrValue.size */
++		    if(TPM_HASH_SIZE*(numPCRs+1)>tpc.pcrValue.size) {
++			    fprintf(outStream, "Error: malformed PCR structure\n");
++			    exit(-1);
++		    }
++		    fprintf(outStream, "PCR %.2d ",i);
++		    for(j=0;j<TPM_HASH_SIZE;j++) {
++			    fprintf(outStream, "%.2x",tpc.pcrValue.buffer[TPM_HASH_SIZE*numPCRs+j]);
++		    }
++		    fprintf(outStream, "\n");
++		    numPCRs++;
++	    }
++    }
++    
++    free(tpc.pcrValue.buffer);
++    exit(ret);
++}
++
+diff -Naur baseline/libtpm/utils/checkquote2.c tpm4720-master/libtpm/utils/checkquote2.c
+--- baseline/libtpm/utils/checkquote2.c	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/libtpm/utils/checkquote2.c	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,249 @@
++/********************************************************************************/
++/*										*/
++/*			     	TPM Test of TPM Quote				*/
++/*			     Written by J. Kravitz, S. Berger			*/
++/*		       IBM Thomas J. Watson Research Center			*/
++/*	      $Id: quote.c 4702 2013-01-03 21:26:29Z kgoldman $			*/
++/*										*/
++/* (c) Copyright IBM Corporation 2006, 2010.					*/
++/*										*/
++/* All rights reserved.								*/
++/* 										*/
++/* Redistribution and use in source and binary forms, with or without		*/
++/* modification, are permitted provided that the following conditions are	*/
++/* met:										*/
++/* 										*/
++/* Redistributions of source code must retain the above copyright notice,	*/
++/* this list of conditions and the following disclaimer.			*/
++/* 										*/
++/* Redistributions in binary form must reproduce the above copyright		*/
++/* notice, this list of conditions and the following disclaimer in the		*/
++/* documentation and/or other materials provided with the distribution.		*/
++/* 										*/
++/* Neither the names of the IBM Corporation nor the names of its		*/
++/* contributors may be used to endorse or promote products derived from		*/
++/* this software without specific prior written permission.			*/
++/* 										*/
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		*/
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		*/
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR	*/
++/* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		*/
++/* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	*/
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		*/
++/* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,	*/
++/* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY	*/
++/* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		*/
++/* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE	*/
++/* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
++/********************************************************************************/
++
++#include <stdio.h>
++#include <sys/types.h>
++#include <unistd.h>
++#include <string.h>
++#ifdef TPM_POSIX
++#include <netinet/in.h>
++#endif
++#ifdef TPM_WINDOWS
++#include <winsock2.h>
++#endif
++#include "tpmfunc.h"
++#include <openssl/pem.h>
++#include <openssl/rsa.h>
++#include <openssl/x509.h>
++#include <openssl/x509v3.h>
++
++int GetRSAKey(RSA **rsa,
++	      X509 *x509Certificate);
++uint32_t TPM_ValidatePCRCompositeSignatureRSA(TPM_PCR_COMPOSITE *tpc,
++					      unsigned char *antiReplay,
++					      RSA *rsaKey,
++					      struct tpm_buffer *signature,
++					      uint16_t sigscheme);
++
++static void printUsage(void);
++
++//void printHash(char *name, void *ptr, unsigned int len);
++
++int main(int argc, char *argv[])
++{
++    int ret;			/* general return value */
++    unsigned char nonce[TPM_NONCE_SIZE];	/* nonce data */
++    static char *nonceval = NULL; /* nonce value passed in by user */
++
++    STACK_TPM_BUFFER(signature);
++    pubkeydata pubkey;	/* public key structure */
++    STACK_TPM_BUFFER (ser_tpc);
++    STACK_TPM_BUFFER (ser_tqi);
++    STACK_TPM_BUFFER (response);
++    int i;
++    uint16_t sigscheme = TPM_SS_RSASSAPKCS1v15_SHA1;
++    TPM_STORE_PUBKEY_EMB verifiedPubkey;
++   	STACK_TPM_BUFFER( serQuoteInfo )
++   	RSA *rsa;			/* openssl RSA public key */
++
++    const char *keyFilename = NULL;
++    const char *quoteFilename = NULL;
++    FILE *fp = NULL;
++    
++    TPM_setlog(0);		/* turn off verbose output from TPM driver */
++    for (i=1 ; i<argc ; i++) {
++	if (!strcmp(argv[i], "-aik")) {
++	    i++;
++	    if (i < argc) {
++		keyFilename = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -aik\n");
++		printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i], "-quote")) {
++	    i++;
++	    if (i < argc) {
++		quoteFilename = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -quote\n");
++		printUsage();
++	    }
++	}
++    else if (!strcmp(argv[i],"-nonce")) {
++        i++;
++        if (i < argc) {
++        nonceval = argv[i];
++        }
++        else {
++        printf("Missing parameter to -nonce\n");
++        printUsage();
++        }
++    }
++	else if (!strcmp(argv[i], "-h")) {
++	    printUsage();
++	}
++	else if (!strcmp(argv[i], "-v")) {
++	    TPM_setlog(1);
++	}
++	else {
++	    printf("\n%s is not a valid option\n", argv[i]);
++	    printUsage();
++	}
++    }
++    
++    if ((quoteFilename == NULL) ||
++	(keyFilename == NULL) ||
++	(nonceval == NULL)) {
++	printf("Missing argument\n");
++	printUsage();
++    }
++    
++    /*  hash nonceval to create nonce data */
++    TSS_sha1((unsigned char *)nonceval,strlen(nonceval),nonce);
++
++    /* read in quote from file */
++    if((fp = fopen(quoteFilename,"r"))==0) {
++    printf("Error opening file %s.\n",quoteFilename);
++    exit(-1);
++    }    
++    if(fread(&serQuoteInfo,sizeof(struct tpm_buffer),1,fp)<1) {
++    printf("Error reading serQuoteInfo.\n");
++    exit(-1);
++    }
++    if(fread(&signature,sizeof(struct tpm_buffer),1,fp)<1) {
++    printf("Error reading signature.\n");
++    exit(-1);
++    }
++    if(fread(&pubkey,sizeof(pubkey),1,fp)<1) {
++    printf("Error reading pubkey.\n");
++    exit(-1);
++    }
++    fclose(fp);
++    
++    /* read and then check aik in structure against the one passed in */
++    if((fp = fopen(keyFilename,"r"))==0) {
++    printf("Error opening file %s.\n",keyFilename);
++    exit(-1);
++    }
++    if(fread(&verifiedPubkey.keyLength,sizeof(uint32_t),1,fp)<1) {
++    printf("Error reading pub key len\n");
++    exit(-1);
++    }
++    if(sizeof(BYTE)*verifiedPubkey.keyLength>sizeof(verifiedPubkey.modulus)) {
++    printf("Error verified aik malformed, length %lu > %lu",sizeof(BYTE)*verifiedPubkey.keyLength,sizeof(verifiedPubkey.modulus));
++    exit(-1);
++    }
++    if(fread(&verifiedPubkey.modulus,sizeof(BYTE),verifiedPubkey.keyLength,fp)<verifiedPubkey.keyLength) {
++    printf("Error reading verified public key.\n");
++    exit(-1);
++    }
++    fclose(fp);
++    
++    if(verifiedPubkey.keyLength!=pubkey.pubKey.keyLength ||
++       memcmp(&verifiedPubkey.modulus,&pubkey.pubKey.modulus,sizeof(BYTE)*verifiedPubkey.keyLength)!=0) {
++    printf("Error public key in quote does not match key specified by -aik: %s\n",keyFilename);
++    exit(-1);
++    } 	
++        
++    /*
++	** convert to an OpenSSL RSA public key
++	*/
++	rsa = TSS_convpubkey(&pubkey);
++	
++	ret = TPM_ValidateSignature(sigscheme,
++	                            &serQuoteInfo,
++	                            &signature,
++	                            rsa);
++	if (ret != 0) {
++		printf("Verification failed\n");
++	} else {
++		printf("Verification succeeded\n");
++	}
++    
++    
++    /*
++	printf("PCR contents from quote:\n");
++	
++	for(i=0;i<tpc.select.sizeOfSelect*CHAR_BIT;i++) {
++		if((tpc.select.pcrSelect[i/8] & (1<<(i&0x7)))>0) {
++		unsigned int j=0;
++		// check tpc.pcrValue.size 
++		if(TPM_HASH_SIZE*(numPCRs+1)>tpc.pcrValue.size) {
++			printf("Error: malformed PCR structure\n");
++			exit(-1);
++		}
++		printf("PCR %.2d ",i);
++		for(j=0;j<TPM_HASH_SIZE;j++) {
++			printf("%.2x",tpc.pcrValue.buffer[TPM_HASH_SIZE*numPCRs+j]);
++		}
++		printf("\n");
++		numPCRs++;
++		}
++	}
++    
++    free(tpc.pcrValue.buffer);
++    */
++    
++    
++    exit(ret);
++}
++
++static void printUsage()
++{
++    printf("Usage: checkquote\n"
++	   "-aik <file containing key length and aik modulus> \n"
++	   "-quote <quote.bin>\n"
++       "-nonce <random value>\n");
++    exit(-1);
++}
++
++// void printHash(char *name, void *ptr, unsigned int len) {
++// 	unsigned char print[TPM_HASH_SIZE];
++// 	TSS_sha1((unsigned char *)ptr,len,print);
++// 	unsigned int i =0;
++// 	
++// 	printf("%s:\t",name);
++// 	for(i=0;i<TPM_HASH_SIZE;i++) {
++// 		printf("%.2X ",print[i]);
++// 	}
++// 	printf("\n");
++// }
+diff -Naur baseline/libtpm/utils/deepquote.c tpm4720-master/libtpm/utils/deepquote.c
+--- baseline/libtpm/utils/deepquote.c	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/libtpm/utils/deepquote.c	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,268 @@
++/********************************************************************************/
++/*										*/
++/*			     	TPM Test of TPM Quote				*/
++/*			     Written by J. Kravitz, S. Berger			*/
++/*		       IBM Thomas J. Watson Research Center			*/
++/*	      $Id: quote.c 4702 2013-01-03 21:26:29Z kgoldman $			*/
++/*										*/
++/* (c) Copyright IBM Corporation 2006, 2010.					*/
++/*										*/
++/* All rights reserved.								*/
++/* 										*/
++/* Redistribution and use in source and binary forms, with or without		*/
++/* modification, are permitted provided that the following conditions are	*/
++/* met:										*/
++/* 										*/
++/* Redistributions of source code must retain the above copyright notice,	*/
++/* this list of conditions and the following disclaimer.			*/
++/* 										*/
++/* Redistributions in binary form must reproduce the above copyright		*/
++/* notice, this list of conditions and the following disclaimer in the		*/
++/* documentation and/or other materials provided with the distribution.		*/
++/* 										*/
++/* Neither the names of the IBM Corporation nor the names of its		*/
++/* contributors may be used to endorse or promote products derived from		*/
++/* this software without specific prior written permission.			*/
++/* 										*/
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		*/
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		*/
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR	*/
++/* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		*/
++/* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	*/
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		*/
++/* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,	*/
++/* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY	*/
++/* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		*/
++/* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE	*/
++/* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
++/********************************************************************************/
++
++#include <stdio.h>
++#include <sys/types.h>
++#include <unistd.h>
++#include <string.h>
++#ifdef TPM_POSIX
++#include <netinet/in.h>
++#include <errno.h>
++#endif
++#ifdef TPM_WINDOWS
++#include <winsock2.h>
++#endif
++#include "tpmfunc.h"
++#include "tpmutil.h"
++#include <openssl/pem.h>
++#include <openssl/rsa.h>
++#include <openssl/x509.h>
++#include <openssl/x509v3.h>
++#include "deepquote.h"    
++
++static void printUsage()
++{
++    printf("Usage: quote\n"
++	   "[-noverify]\n"
++	   	   "-vk   <vTPM key handle for quote in hex>\n"
++           "-vm   <vTPM pcr mask in hex>\n"
++           "-hm   <hTPM pcr mask in hex>\n"
++           "-pwdo <owner password>\n"
++           "[-oq   <destination file for quote>]\n"
++           "-nonce <random value>\n");
++    exit(-1);
++}
++
++
++int main(int argc, char *argv[])
++{
++    int ret;			                    /* general return value */
++    uint32_t keyhandle = 0;	                /* handle of quote key */
++    int setkh = 0;
++    unsigned int vpcrmask = 0;              /* virtual pcr register mask */
++    unsigned int hpcrmask = 0;              /* hardware pcr register mask */
++    unsigned char passhash1[TPM_HASH_SIZE]; /* hash of key password */
++    unsigned char vq_nonce[TPM_NONCE_SIZE];    /* nonce data */
++    unsigned char dq_nonce[TPM_NONCE_SIZE];    /* nonce data */
++    static char *nonceval = NULL;           /* nonce value passed in by user */
++    static char *ownerpw = NULL;            /* key password */
++    static char *outputname = NULL;         /* file to write out the quote to */
++    STACK_TPM_BUFFER (ser_tpc);
++    STACK_TPM_BUFFER (ser_tqi);
++    STACK_TPM_BUFFER (vinfo);
++    uint32_t pcrs;
++    TPM_PCR_SELECTION vtps;
++    TPM_PCR_SELECTION htps;
++    int i;
++    DeepQuoteInfo dqi = {0,};
++    STACK_TPM_BUFFER(signature);
++    TPM_PCR_COMPOSITE tpc;
++	SHA_CTX sha;
++	
++    TPM_setlog(0);	 /* turn off verbose output from TPM driver */
++    for (i=1 ; i<argc ; i++) {
++	if (strcmp(argv[i],"-vk") == 0) {
++	    i++;
++	    if (i < argc) {
++		/* convert key handle from hex */
++		if (1 != sscanf(argv[i], "%x", &keyhandle)) {
++		    printf("Invalid -vk argument '%s'\n",argv[i]);
++		    exit(2);
++		}
++		setkh =1;		 
++	    }
++	    else {
++		printf("-vk option needs a value\n");
++		printUsage();
++	    }
++	}
++	else if (strcmp(argv[i],"-vm") == 0) {
++	    i++;
++	    if (i < argc) {
++			/* convert key handle from hex */
++			if (1 != sscanf(argv[i], "%x", &vpcrmask)) {
++			    printf("Invalid -vm argument '%s'\n",argv[i]);
++			    exit(2);
++			}
++	    }
++	    else {
++		printf("-vm option needs a value\n");
++		printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i], "-pwdo")) {
++	    i++;
++	    if (i < argc) {
++		ownerpw = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -pwdo\n");
++		printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i], "-oq")) {
++	    i++;
++	    if (i < argc) {
++		outputname = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -oq\n");
++		printUsage();
++	    }
++	}
++        else if (strcmp(argv[i],"-hm") == 0) {
++            i++;
++            if (i < argc) {
++                /* convert key handle from hex */
++                if (1 != sscanf(argv[i], "%x", &hpcrmask)) {
++                    printf("Invalid -hm argument '%s'\n",argv[i]);
++                    exit(2);
++                }
++            }
++            else {
++                printf("-hm option needs a value\n");
++                printUsage();
++            }
++        }
++	else if (!strcmp(argv[i],"-nonce")) {
++	    i++;
++	    if (i < argc) {
++		nonceval = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -nonce\n");
++		printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i], "-h")) {
++	    printUsage();
++	}
++	else if (!strcmp(argv[i], "-v")) {
++	    TPM_setlog(1);
++	}
++	else {
++	    printf("\n%s is not a valid option\n", argv[i]);
++	    printUsage();
++	}
++    }
++    
++    /* Check for required arguments */
++    //CHECK_ARG(vpcrmask, "-vm");
++    CHECK_ARG(setkh,"-vk");
++    CHECK_ARG(hpcrmask, "-hm");
++    CHECK_ARG(nonceval, "-nonce");
++    CHECK_ARG(ownerpw,  "-pwdo");
++
++    if(outputname==NULL)
++    	outputname = "deepquote.bin";
++
++    /* get the SHA1 hash of the password string for use as the Key Authorization Data */
++    TSS_sha1((unsigned char *)ownerpw, strlen(ownerpw), passhash1);
++    
++    /* hash nonceval to create nonce data */
++    TSS_sha1((unsigned char *)nonceval,strlen(nonceval),vq_nonce);
++
++    
++    ret = TPM_GetNumPCRRegisters(&pcrs);
++    if (ret != 0) 
++	printExit("Error reading number of PCR registers.\n");
++
++    if (pcrs > TPM_NUM_PCR) 
++	printExit("Library does not support that many PCRs.\n");
++
++    /* Convert selection to bitmask */
++    vtps.sizeOfSelect = pcrs / 8;
++    for (i = 0; i < vtps.sizeOfSelect; i++) {
++	vtps.pcrSelect[i] = (vpcrmask & 0xff);
++	vpcrmask >>= 8;
++    }    
++    /*
++    ** perform the TPM Quote function
++    */
++    ret = TPM_Quote(keyhandle,	/* KEY handle */
++		    NULL,	/* Key Password (hashed), or null */
++		    vq_nonce,	        /* nonce data */
++		    &vtps,	        /* specify PCR registers */
++		    &tpc,		/* pointer to pcr composite */
++		    &signature);/* buffer to receive result, int to receive result length */
++    if (ret != 0) {
++	printf("Error '%s' from TPM_Quote\n", TPM_GetErrMsg(ret));
++	exit(ret);
++    }
++
++    /* take the quote sig and TPC and hash them into the nonce for the deepquote */
++	SHA1_Init(&sha);
++	SHA1_Update(&sha, vq_nonce,     TPM_NONCE_SIZE);
++	SHA1_Update(&sha, &signature,  sizeof(signature));
++	SHA1_Update(&sha, &tpc.select,  sizeof(TPM_PCR_SELECTION));
++	SHA1_Update(&sha, tpc.pcrValue.buffer, tpc.pcrValue.size);
++	SHA1_Final(dq_nonce, &sha);
++
++    /* Convert hw pcr selection to bitmask */
++    htps.sizeOfSelect = pcrs / 8;
++    for (i = 0; i < htps.sizeOfSelect; i++) {
++        htps.pcrSelect[i] = (hpcrmask & 0xff);
++        hpcrmask >>= 8;
++    }
++
++    /* do not propagate vtpm pcrs, we'll put it into the nonce */
++    memset(&vtps.pcrSelect,0,vtps.sizeOfSelect);
++
++    /*
++    ** perform the TPM DeepQuote function
++    */
++    ret = TPM_DeepQuote(passhash1,    /* Owner Password (hashed) */
++                        dq_nonce,        /* nonce data */
++                        &vtps,        /* specify vPCR registers */
++                        &htps,        /* specify hardware PCR registers */
++			&dqi);        /* Deep quote buffer to receive info */
++    if (ret != 0) {
++	fprintf(stderr, "Error '%s' from TPM_DeepQuote\n", TPM_GetErrMsg(ret));
++	exit(ret);
++    }
++
++    /* Do a round trip on WriteDeepQuoteBin and ValidateDeepQuoteBin to test out the code */
++    if ((ret = TPM_WriteDeepQuoteBin(outputname, &htps, &dqi, &signature, &tpc)) != 0) {
++	fprintf(stderr, "Failed to open '%s\n'", outputname);
++	return ret;
++    }
++    fprintf(stdout, "Wrote '%s'\n", outputname);
++
++    return 0;
++}
+diff -Naur baseline/libtpm/utils/encaik.c tpm4720-master/libtpm/utils/encaik.c
+--- baseline/libtpm/utils/encaik.c	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/libtpm/utils/encaik.c	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,509 @@
++/********************************************************************************/
++/*										*/
++/*			    TCPA Identity    					*/
++/*			     Written by Stefan Berger				*/
++/*		       IBM Thomas J. Watson Research Center			*/
++/*	      $Id: identity.c 4702 2013-01-03 21:26:29Z kgoldman $		*/
++/*										*/
++/* (c) Copyright IBM Corporation 2006, 2010.					*/
++/*										*/
++/* All rights reserved.								*/
++/* 										*/
++/* Redistribution and use in source and binary forms, with or without		*/
++/* modification, are permitted provided that the following conditions are	*/
++/* met:										*/
++/* 										*/
++/* Redistributions of source code must retain the above copyright notice,	*/
++/* this list of conditions and the following disclaimer.			*/
++/* 										*/
++/* Redistributions in binary form must reproduce the above copyright		*/
++/* notice, this list of conditions and the following disclaimer in the		*/
++/* documentation and/or other materials provided with the distribution.		*/
++/* 										*/
++/* Neither the names of the IBM Corporation nor the names of its		*/
++/* contributors may be used to endorse or promote products derived from		*/
++/* this software without specific prior written permission.			*/
++/* 										*/
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		*/
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		*/
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR	*/
++/* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		*/
++/* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	*/
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		*/
++/* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,	*/
++/* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY	*/
++/* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		*/
++/* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE	*/
++/* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
++/********************************************************************************/
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <unistd.h>
++
++#ifdef TPM_POSIX
++#include <netinet/in.h>
++#endif
++#ifdef TPM_WINDOWS
++#include <winsock2.h>
++#endif
++
++#include <openssl/rsa.h>
++#include <openssl/pem.h>
++#include <openssl/evp.h>
++#include <openssl/rand.h>
++
++#include "tpm.h"
++#include "tpmutil.h"
++#include "tpmfunc.h"
++#include "tpm_constants.h"
++#include "tpm_structures.h"
++#include "tpm_error.h"
++#include "tpmkeys.h"
++#include "newserialize.h"
++
++
++static void usage() {
++	printf("Usage: encaik -ik <keyblob> -ek <pubek> -ok <outputblob> [-oak <keyname>]\n");
++	printf("\n");
++	printf(" -ik <keydata>  : The public key(.pem) from identity\n");
++	printf(" -ek <pubek>    : The public EK of the TPM\n");
++	printf(" -ok <keyname>  : Output blob file name\n");
++	printf(" -oak <keyname> : Output AES key file name\n");
++	printf(" -ekb           : Use a TPM_EK_BLOB for activation instead of TPM_ASYM_CA_CONTENTS.\n");
++	printf(" -v             : verbose\n");
++	printf("\n");
++	exit(-1);
++}
++
++static uint32_t encryptBlob(unsigned char *blobbuf,
++							 uint32_t blobbuflen,
++							 RSA *rsa, int verbose, char *outputkeyname);
++							 
++uint32_t TPM_WriteKeyPubOnly(struct tpm_buffer *buffer, pubkeydata * k);
++
++void printhash(void *ptr, unsigned int len, char *name);							 
++void printhash(void *ptr, unsigned int len, char *name) {
++	unsigned char hash[20];
++		TSS_sha1((unsigned char *)ptr,
++		 len,
++		 hash);	
++			printf("hash of %s (len %d): ",name,len);
++		unsigned int i =0;
++		for(i=0;i<20;i++) {
++			printf("%X ",0xFF & hash[i]);
++		}
++		printf("\n");
++}
++
++void printbuf(void *ptr, unsigned int len, char *name);
++void printbuf(void *ptr, unsigned int len, char *name) {
++			printf("%s (len %d): ",name,len);
++		unsigned int i =0;
++		for(i=0;i<len;i++) {
++			printf("%X ",0xFF & ((unsigned char*)ptr)[i]);
++		}
++		printf("\n");
++}
++
++int main(int argc, char * argv[])
++{
++    uint32_t ret = 0;
++    int i =	0;
++    pubkeydata pubidkey;
++    FILE *keyfile;                  /* output file for key token */
++    RSA *ek_rsa;                    /* OpenSSL format Public EK */
++    RSA *aik_rsa;                   /* OpenSSL format Public EK */
++    EVP_PKEY *pkey = NULL;          /* OpenSSL public key */
++    char *keyname = NULL;           /* pointer to key name argument */
++    char *outputkeyname = NULL;     /* pointer to output blob name */
++    char *outputaeskeyname = NULL;  /* pointer to the output AES key name */
++    char *pubekname = NULL;         /* pointer to the name of the ek file */
++	int verbose = FALSE;
++    int use_ca = TRUE;
++    unsigned char *blobbuf = NULL;
++    uint32_t blobbuflen=0;
++	
++	/*
++	 * An random symmetric key
++	 */
++	unsigned char symkey[32];
++	
++    i = 1;
++	
++    TPM_setlog(0);
++	
++    for (i=1 ; i<argc ; i++) {
++	if (!strcmp("-ok",argv[i])) {
++	    i++;
++	    if (i < argc) {
++		outputkeyname = argv[i];
++	    }
++	    else {
++		printf("Missing parameter for -ok\n");
++		usage();
++	    }
++	}
++	else if (!strcmp("-ik",argv[i])) {
++	    i++;
++	    if (i < argc) {
++		keyname = argv[i];
++	    }
++	    else {
++		printf("Missing parameter for -ik\n");
++		usage();
++	    }
++	}
++	else if (!strcmp("-ek",argv[i])) {
++	    i++;
++	    if (i < argc) {
++		pubekname = argv[i];
++	    }
++	    else {
++		printf("Missing parameter for -ik\n");
++		usage();
++	    }
++	}
++	else if (!strcmp("-oak",argv[i])) {
++	    i++;
++	    if (i < argc) {
++		outputaeskeyname = argv[i];
++	    }
++	    else {
++		printf("Missing parameter for -oak\n");
++		usage();
++	    }
++	}
++	else if (!strcmp("-v",argv[i])) {
++	    TPM_setlog(1);
++	    verbose = TRUE;
++	}
++	else if (!strcmp("-ekb",argv[i])) {
++	    use_ca = FALSE;
++	}
++	else if (!strcmp("-h",argv[i])) {
++	    usage();
++	}
++	else {
++	    printf("\n%s is not a valid option\n", argv[i]);
++	    usage();
++	}
++    }
++
++    if ((keyname == NULL) || (outputkeyname == NULL)) {
++	printf("\nMissing keyname\n");
++	usage();
++    }
++    if (pubekname == NULL) {
++	printf("\nMissing public EK\n");
++	usage();
++    }
++    
++	/*
++	** read the public AIK
++	*/
++	keyfile = fopen(keyname,"rb");
++	if (keyfile == NULL)
++	  {
++	  printf("Unable to open public aik file '%s'\n",keyname);
++	  exit(6);
++	  }
++	pkey = PEM_read_PUBKEY(keyfile,NULL,NULL,NULL);
++	fclose(keyfile);
++	if (pkey == NULL)
++	  {
++	  printf("I/O Error while reading public aik file '%s'\n",keyname);
++	  exit(7);
++	  }
++	aik_rsa = EVP_PKEY_get1_RSA(pkey);
++	if (aik_rsa == NULL)
++	  {
++	  printf("Error while converting public key \n");
++	  exit(8);
++	  }
++	  
++	// now convert the rsa key to a TPM pubkeydata  
++	TSS_convrsakey(aik_rsa,&pubidkey);
++    
++    /* generate the symmetric key */
++    if (!RAND_bytes(symkey,sizeof(symkey))) {
++		printf("Error creating random symmetric key\n");
++		exit(6);
++	}
++	if (outputaeskeyname != NULL) {
++		/* now write out the AES key that we used */
++		keyfile = fopen(outputaeskeyname, "wb");
++		if (keyfile == NULL) {
++			printf("Unable to create key file %s.\n", outputaeskeyname);
++			exit(-1);
++		}
++		ret = fwrite(symkey, 1, sizeof(symkey), keyfile);
++		if (ret != sizeof(symkey)) {
++			printf("I/O Error writing key file %s\n", outputaeskeyname);
++			exit(-1);
++		}
++		fclose(keyfile);
++	}
++    
++    if (use_ca) {
++	STACK_TPM_BUFFER(buffer)
++	uint32_t serkeylen;
++	uint32_t sercacontlen;
++	TPM_ASYM_CA_CONTENTS data;
++	TPM_SYMMETRIC_KEY tpm_symkey;
++	STACK_TPM_BUFFER(ser_symkey_buf)
++	uint32_t ser_symkey_len;
++	uint32_t ret = 0;
++	/*
++	 * Need to build the symmetric key structure,
++	 * serialize it and attach it to data.buffer of 'data'.
++	 */
++	tpm_symkey.algId       = TPM_ALG_AES256;
++	tpm_symkey.encScheme   = TPM_ES_SYM_CTR;
++	tpm_symkey.size        = sizeof(symkey);
++	tpm_symkey.data        = symkey;
++	
++	ser_symkey_len = TPM_WriteSymmetricKey(&ser_symkey_buf, &tpm_symkey);	
++	if (ser_symkey_len & ERR_MASK) {
++		return ret;
++	}
++
++	memset(&data,0x0,sizeof(data));
++	// symmetric key
++	data.sessionKey =  tpm_symkey;
++	/*
++	 * Need to calculate the digest of the public key part in 
++	 * idKey as returned by MakeIdentity
++	 * First serialize the key, then sha it
++	 */
++	ret = TPM_WriteKeyPubOnly(&buffer,&pubidkey);
++	if (ret & ERR_MASK) {
++		printf("Error while serializing key!\n");
++		return ret;
++	}
++	
++	serkeylen = ret;
++	
++	TSS_sha1(buffer.buffer,serkeylen,data.idDigest);
++	
++	/*
++	 * Need to serialize the 'data' structure
++	 * and encrypt it using the public EK.
++	 */
++	RESET_TPM_BUFFER(&buffer);
++	ret = TPM_WriteCAContents(&buffer, &data);
++	if (ret & ERR_MASK) {
++		printf("Error while serializing CA Contents.\n");
++		return ret;
++	}
++	sercacontlen = ret;
++	
++	blobbuf = buffer.buffer;
++	blobbuflen = sercacontlen;
++	
++	}
++	else {
++	TPM_EK_BLOB ekblob;
++	TPM_EK_BLOB_ACTIVATE activate;
++	TPM_SYMMETRIC_KEY tpm_symkey;
++	STACK_TPM_BUFFER( ser_symkey_buf )
++	uint32_t ser_symkey_len;
++	uint32_t serkeylen;
++	STACK_TPM_BUFFER( buffer )
++	STACK_TPM_BUFFER( ek_actblob )
++	uint32_t ek_actblobsize = 0;
++	STACK_TPM_BUFFER(ek_blobbuf)
++	uint32_t ek_blobbufsize = 0;
++
++	uint32_t ret = 0;
++	uint32_t pcrs = TPM_NUM_PCR;
++
++	memset(&activate, 0x0, sizeof(activate));
++	
++	/*
++	 * Need to build the symmetric key structure,
++	 * serialize it and attach it to data.buffer of 'data'.
++	 */
++	tpm_symkey.algId       = TPM_ALG_AES256;
++	tpm_symkey.encScheme   = TPM_ES_SYM_CTR;
++	tpm_symkey.size        = sizeof(symkey);
++	tpm_symkey.data        = symkey;
++
++	ser_symkey_len = TPM_WriteSymmetricKey(&ser_symkey_buf, &tpm_symkey);
++	if (ser_symkey_len & ERR_MASK) {
++		return ret;
++	}
++
++
++	activate.tag  = TPM_TAG_EK_BLOB_ACTIVATE;
++	activate.sessionKey = tpm_symkey;
++
++	ret = TPM_WriteKeyPubOnly(&buffer,&pubidkey);
++	if (ret & ERR_MASK) {
++		return ret;
++	}
++	serkeylen = ret;
++	TSS_sha1(buffer.buffer,serkeylen,activate.idDigest);
++
++	activate.pcrInfo.pcrSelection.sizeOfSelect = pcrs / 8;
++	activate.pcrInfo.localityAtRelease = TPM_LOC_ZERO;
++
++	ret = TPM_WriteEkBlobActivate(&ek_actblob,&activate);
++
++	if (ret & ERR_MASK) {
++		return ret;
++	}
++  
++	ek_actblobsize = ret;
++
++	ekblob.tag    = TPM_TAG_EK_BLOB;
++	ekblob.ekType = TPM_EK_TYPE_ACTIVATE;
++	ekblob.blob.size   = ek_actblobsize;
++	ekblob.blob.buffer = ek_actblob.buffer;
++
++	ret = TPM_WriteEkBlob(&ek_blobbuf, &ekblob);
++	if (ret & ERR_MASK) {
++		return ret;
++	}
++  
++	ek_blobbufsize = ret;
++	
++	blobbuf = ek_blobbuf.buffer;
++	blobbuflen = ek_blobbufsize;
++	}
++	
++	//==========================
++	
++	/*
++	** read the public EK
++	*/
++	keyfile = fopen(pubekname,"rb");
++	if (keyfile == NULL)
++	  {
++	  printf("Unable to open public EK file '%s'\n",pubekname);
++	  exit(6);
++	  }
++	pkey = PEM_read_PUBKEY(keyfile,NULL,NULL,NULL);
++	fclose(keyfile);
++	if (pkey == NULL)
++	  {
++	  printf("I/O Error while reading public EK file '%s'\n",pubekname);
++	  exit(7);
++	  }
++	ek_rsa = EVP_PKEY_get1_RSA(pkey);
++	if (ek_rsa == NULL)
++	  {
++	  printf("Error while converting public key \n");
++	  exit(8);
++	  }
++    
++
++	return encryptBlob(blobbuf,blobbuflen,ek_rsa,verbose,outputkeyname);
++	
++}
++
++
++
++static uint32_t encryptBlob(unsigned char *blobbuf,
++							 uint32_t blobbuflen,
++							 RSA *rsa, int verbose, char *outputkeyname) {
++	unsigned char out_blob[2048];
++	uint32_t blobsize;
++	unsigned char * blob;
++	STACK_TPM_BUFFER(returnbuffer)
++	unsigned char tpm_oaep_pad_str[] = { 'T' , 'C' , 'P' , 'A' };
++	uint32_t ret = 0;
++    unsigned int i =	0;
++    FILE *keyfile;                  /* output file for key token */
++
++	blobsize = RSA_size(rsa);
++	blob = malloc(blobsize);
++	
++	if(verbose) {
++		printhash(blobbuf,blobbuflen,"pre-pad-blob");
++		printhash(tpm_oaep_pad_str,sizeof(tpm_oaep_pad_str),"tpm oaep");
++	}
++
++	/*
++	 * Add some padding to the data that need to
++	 * be encrypted.
++	 */
++	ret = RSA_padding_add_PKCS1_OAEP(blob,
++									 blobsize,
++									 blobbuf,
++									 blobbuflen,
++									 tpm_oaep_pad_str,
++									 sizeof(tpm_oaep_pad_str));
++
++	if (0 == ret) {
++		printf("Error while adding padding.\n");
++		exit(-1);
++	}
++
++	if(verbose) {
++	printhash(blob,blobsize,"pre-enc-blob");
++	//RSA_print_fp(stdout,rsa,0);
++	printf("padded blob PRE-ENC: ");
++	for(i=0;i<blobbuflen;i++) {
++		printf("%X ",0xFF & ((unsigned char*)blobbuf)[i]);
++	}
++	printf("\n");
++	}
++	
++	ret = RSA_public_encrypt(blobsize, 
++							 blob,
++							 out_blob, 
++							 rsa,
++							 RSA_NO_PADDING);
++
++	if (ret != blobsize) {
++		printf("Something went wrong while encoding with public key!!! ret(%d)!=blobsize(%d)\n",
++			   ret,
++			   blobsize);
++		exit(-1);
++	}
++	
++	// now write out the final blob for passing into activeidentity
++	keyfile = fopen(outputkeyname, "wb");
++	if (keyfile == NULL) {
++	    printf("Unable to create key file %s.\n", outputkeyname);
++	    exit(-1);
++	}
++	ret = fwrite(out_blob, 1, blobsize, keyfile);
++	if (ret != blobsize) {
++	    printf("I/O Error writing key file %s\n", outputkeyname);
++	    exit(-1);
++	}
++	fclose(keyfile);
++	return 0;
++}
++
++uint32_t TPM_WriteKeyPubOnly(struct tpm_buffer *buffer, pubkeydata * k)
++{
++	uint32_t ret = -1;
++	switch (k->algorithmParms.algorithmID) {
++		case TPM_ALG_RSA:
++			ret = TSS_buildbuff(FORMAT_TPM_PUBKEY_EMB_RSA, buffer,
++			                    PARAMS_TPM_PUBKEY_EMB_RSA_W(k));
++		break;
++		
++		case TPM_ALG_AES128:
++		case TPM_ALG_AES192:
++		case TPM_ALG_AES256:
++			ret = TSS_buildbuff(FORMAT_TPM_PUBKEY_EMB_SYM, buffer,
++			                    PARAMS_TPM_PUBKEY_EMB_SYM_W(k));
++		break;
++		
++		default:
++			ret = ERR_BAD_ARG;
++		break;
++	}
++	return ret;
++}
++
++
++
++
++
++
+diff -Naur baseline/libtpm/utils/getpubek.c tpm4720-master/libtpm/utils/getpubek.c
+--- baseline/libtpm/utils/getpubek.c	2014-04-02 15:45:04.000000000 -0400
++++ tpm4720-master/libtpm/utils/getpubek.c	2016-09-30 13:42:53.000000000 -0400
+@@ -59,6 +59,7 @@
+    const char *ownerAuthFilename = NULL;
+    unsigned char ownerAuth[20];
+    int verbose = 0;
++   char *pubekpath = "pubek.pem";
+    
+    TPM_setlog(0); /* turn off verbose output */
+ 
+@@ -83,6 +84,16 @@
+ 	       printUsage();
+ 	   }
+        }
++       else if (!strcmp(argv[i], "-ok")) {
++     i++;
++     if (i < argc) {
++         pubekpath = argv[i];
++     }
++     else {
++         printf("Missing parameter to -ok\n");
++         printUsage();
++     }
++       }
+        else if (!strcmp(argv[i], "-h")) {
+ 	   printUsage();
+        }
+@@ -148,7 +159,7 @@
+        exit(-4);
+    }
+    ret = EVP_PKEY_assign_RSA(pkey,rsa);
+-   keyfile = fopen("pubek.pem","wb");
++   keyfile = fopen(pubekpath,"wb");
+    if (keyfile == NULL)
+       {
+       printf("Unable to create public key file\n");
+@@ -179,6 +190,7 @@
+     printf("\n");
+     printf("getpubek (to pubek.pem)\n");
+     printf("   [-pwdo <owner password> -pwdof <owner authorization file name>\n");
++    printf("   [-ok <filename> the file to output the pubek to\n");
+     printf("\n");
+     printf("With owner password - runs TPM_OwnerReadPubek\n");
+     printf("Without owner password - runs TPM_ReadPubek\n");
+diff -Naur baseline/libtpm/utils/getpubkey.c tpm4720-master/libtpm/utils/getpubkey.c
+--- baseline/libtpm/utils/getpubkey.c	2014-04-02 15:45:04.000000000 -0400
++++ tpm4720-master/libtpm/utils/getpubkey.c	2016-09-30 13:42:53.000000000 -0400
+@@ -60,6 +60,7 @@
+    RSA *rsa;                       /* OpenSSL format Public Key */
+    const char *keypass = NULL;
+    uint32_t keyHandle = 0;
++   int setkh = 0;
+    
+    TPM_setlog(0); /* turn off verbose output */
+ 
+@@ -81,6 +82,7 @@
+                     printf("Could not parse the key handle.\n");
+                     exit(1);
+                 }
++                setkh=1;
+ 	    } else {
+ 	        printf("Missing parameter to -ha\n");
+ 	        printUsage(argv[0]);
+@@ -101,7 +103,7 @@
+         }
+     }
+ 
+-    if (keyHandle == 0) {
++    if (setkh == 0) {
+         printf("Missing key handle.\n");
+         printUsage(argv[0]);
+         exit(1);
+diff -Naur baseline/libtpm/utils/getrandom.c tpm4720-master/libtpm/utils/getrandom.c
+--- baseline/libtpm/utils/getrandom.c	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/libtpm/utils/getrandom.c	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,133 @@
++/********************************************************************************/
++/*										*/
++/*			     	TPM Get Random					*/
++/*			     Written by Nabil Schear			*/
++/*										*/
++/*										*/
++/* All rights reserved.								*/
++/* 										*/
++/* Redistribution and use in source and binary forms, with or without		*/
++/* modification, are permitted provided that the following conditions are	*/
++/* met:										*/
++/* 										*/
++/* Redistributions of source code must retain the above copyright notice,	*/
++/* this list of conditions and the following disclaimer.			*/
++/* 										*/
++/* Redistributions in binary form must reproduce the above copyright		*/
++/* notice, this list of conditions and the following disclaimer in the		*/
++/* documentation and/or other materials provided with the distribution.		*/
++/* 										*/
++/* Neither the names of the IBM Corporation nor the names of its		*/
++/* contributors may be used to endorse or promote products derived from		*/
++/* this software without specific prior written permission.			*/
++/* 										*/
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		*/
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		*/
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR	*/
++/* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		*/
++/* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	*/
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		*/
++/* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,	*/
++/* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY	*/
++/* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		*/
++/* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE	*/
++/* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
++/********************************************************************************/
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include "tpm.h"
++#include "tpmutil.h"
++#include "tpmfunc.h"
++
++static int printUsage()
++{
++    printf("Usage: getrandom\n"
++	   "-size <number of bytes of randomness>\n"
++	   "-out  <filename to write out randomness>\n");
++    exit(-1);
++    return -1;
++}
++
++
++int main(int argc, char *argv[])
++{
++    int ret;			/* general return value */
++	unsigned char *buffer = NULL;
++	int i = 0;
++	uint32_t numbytes = 0;
++	const char *output = NULL;
++	FILE *fp = NULL;
++	
++	TPM_setlog(0);
++	
++    for (i=1 ; i<argc ; i++) {
++	if (!strcmp(argv[i], "-size")) {
++	    i++;
++	    if (i < argc) {
++		numbytes = atoi(argv[i]);
++	    }
++	    else {
++		printf("Missing parameter to -size\n");
++		printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i], "-out")) {
++	    i++;
++	    if (i < argc) {
++		output = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -out\n");
++		printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i], "-h")) {
++	    printUsage();
++	}
++	else if (!strcmp(argv[i], "-v")) {
++	    TPM_setlog(1);
++	}
++	else {
++	    printf("\n%s is not a valid option\n", argv[i]);
++	    printUsage();
++	}
++    }
++
++    if(output==NULL) {
++    	printf("missing output filename\n");
++    	return printUsage();
++    }
++    if(numbytes==0){
++    	numbytes=32;
++    }
++
++
++    if((buffer=(unsigned char*)malloc(sizeof(unsigned char)*numbytes))==NULL) {
++    printf("unable to allocate memory for random output.\n");
++    exit(-1);
++    }
++
++    ret = TPM_GetRandom(numbytes,buffer,&numbytes);
++	if (0 != ret) {
++		printf("Error %s from TPM_GetRandom.\n",
++		       TPM_GetErrMsg(ret));
++		exit (ret);
++	}
++
++	// now write it out
++    if((fp = fopen(output,"w"))==0) {
++    printf("Error opening file %s\n",output);
++    exit(-1);
++    }
++    if(fwrite(buffer,sizeof(unsigned char),numbytes,fp)<numbytes) {
++    printf("Error writing randomness.\n");
++    exit(-1);
++    }
++
++    fclose(fp);
++    return 0;
++}
++
+diff -Naur baseline/libtpm/utils/identity.c tpm4720-master/libtpm/utils/identity.c
+--- baseline/libtpm/utils/identity.c	2014-04-02 15:45:05.000000000 -0400
++++ tpm4720-master/libtpm/utils/identity.c	2016-09-30 13:42:53.000000000 -0400
+@@ -362,6 +362,21 @@
+ 	    exit(-1);
+ 	}
+ 	fclose(keyfile);
++	
++	/* write out the public key in TPM native format */
++// 	sprintf(filename, "%s.pkey", keyname);
++// 	keyfile = fopen(filename, "wb");
++// 	if (keyfile == NULL) {
++// 	    printf("Unable to create key file %s.\n", filename);
++// 	    exit(-1);
++// 	}
++// 	ret = fwrite(&(idkey.pub), 1, sizeof(idkey.pub), keyfile);
++// 	if (ret != sizeof(idkey.pub)) {
++// 	    printf("I/O Error writing key file %s\n", filename);
++// 	    exit(-1);
++// 	}
++// 	fclose(keyfile);
++	
+ 	/*
+ 	** convert the returned public key to OpenSSL format and
+ 	** export it to a file
+@@ -579,7 +594,6 @@
+ 			exit(-1);
+ 		}
+ 
+-
+ 		ret = TPM_ActivateIdentity(newhandle,
+ 		                           out_blob, blobsize,
+ 		                           usageptr,
+diff -Naur baseline/libtpm/utils/nv_readvalue.c tpm4720-master/libtpm/utils/nv_readvalue.c
+--- baseline/libtpm/utils/nv_readvalue.c	2014-04-02 15:45:05.000000000 -0400
++++ tpm4720-master/libtpm/utils/nv_readvalue.c	2016-09-30 13:42:53.000000000 -0400
+@@ -316,12 +316,12 @@
+ 	}
+ 	/* validate the bytes and get the certificate length */
+ 	if (ret == 0) {
+-	    if ((readbuffer[0] != 0x00) ||	/* stored certificate, full certificate */
++	    if ((readbuffer[0] != 0x10) ||	/* stored certificate, full certificate */
+ 		(readbuffer[1] != 0x01) ||
+ 		(readbuffer[2] != 0x00) ||	/* full certificate */
+ 		(readbuffer[5] != 0x10) ||
+ 		(readbuffer[6] != 0x02)) {
+-		printf("Indexd dpoes not have certificate prefix\n");
++		printf("Index does not have certificate prefix\n");
+ 		ret = -1;
+ 	    }
+ 	    readbufferlen = (readbuffer[3] << 8) +	/* msb */
+@@ -331,14 +331,31 @@
+ 	free(readbuffer);
+ 	readbuffer = NULL;
+ 	if (ret == 0) {
+-	    ret = readtpm(index,
+-			  readbufferlen,
+-			  7,		/* skip the prefix */
+-			  ownerAuthPtr,
+-			  areaAuthPtr,
+-			  &readbuffer,
+-			  &readbufferlen,
+-			  expectederror);
++		// read NVRAM 128 bytes at a time
++		uint32_t ekoffset = 0;
++		unsigned char *tmpbuf;
++		readbuffer = (unsigned char*)malloc(readbufferlen);
++
++		while(ekoffset < readbufferlen) {
++			uint32_t length = readbufferlen-ekoffset;
++			if(length>128)
++				length = 128;
++		    ret = readtpm(index,
++				  length,
++				  7+ekoffset,		/* skip the 7 byte prefix */
++				  ownerAuthPtr,
++				  areaAuthPtr,
++				  &tmpbuf,
++				  &length,
++				  expectederror);
++		    memcpy(readbuffer+ekoffset,tmpbuf,length);
++		    ekoffset += length;
++		    free(tmpbuf);
++
++
++	    if (ret !=0)
++	    	break;
++		}
+ 	}
+     }
+     /* optionally write the result to stdout */
+diff -Naur baseline/libtpm/utils/quote.c tpm4720-master/libtpm/utils/quote.c
+--- baseline/libtpm/utils/quote.c	2014-04-02 15:45:05.000000000 -0400
++++ tpm4720-master/libtpm/utils/quote.c	2016-09-30 13:42:53.000000000 -0400
+@@ -61,23 +61,41 @@
+ 					      struct tpm_buffer *signature,
+ 					      uint16_t sigscheme);
+ 
+-static void printUsage(void);
++static int printUsage()
++{
++    printf("Usage: quote\n"
++	   "-hk <key handle in hex>\n"
++	   "-bm <pcr mask in hex>\n"
++	   "[-noverify]\n"
++	   "[-pwdk <key password>]\n"
++       "[-oq   <destination file for quote>]\n"
++	   "[-nonce <random value>]\n"
++	   "[-cert <key certificate to verify the quote signature]\n");
++    return -1;
++}
+ 
++#ifndef SHARED_LIB
++#define outStream stdout
+ int main(int argc, char *argv[])
++#else
++#define exit(rc) return rc;	
++int quote_main(FILE *outStream, int argc, char *argv[])
++#endif	
+ {
+     int ret;			/* general return value */
+     uint32_t keyhandle = 0;	/* handle of quote key */
++    int setkh = 0;
+     unsigned int pcrmask = 0;	/* pcr register mask */
+     unsigned char passhash1[TPM_HASH_SIZE];	/* hash of key password */
+     unsigned char nonce[TPM_NONCE_SIZE];	/* nonce data */
+-
++    static char *nonceval = NULL; /* nonce value passed in by user */
++    static char *outputname = NULL;         /* file to write out the quote to */
+     STACK_TPM_BUFFER(signature);
+     pubkeydata pubkey;	/* public key structure */
+     unsigned char *passptr;
+     TPM_PCR_COMPOSITE tpc;
+     STACK_TPM_BUFFER (ser_tpc);
+     STACK_TPM_BUFFER (ser_tqi);
+-    STACK_TPM_BUFFER (response);
+     uint32_t pcrs;
+     int i;
+     uint16_t sigscheme = TPM_SS_RSASSAPKCS1v15_SHA1;
+@@ -85,6 +103,8 @@
+     static char *keypass = NULL;
+     const char *certFilename = NULL;
+     int verbose = FALSE;
++    FILE *fp = NULL;
++    int noverify = FALSE;
+     
+     TPM_setlog(0);		/* turn off verbose output from TPM driver */
+     for (i=1 ; i<argc ; i++) {
+@@ -96,14 +116,11 @@
+ 		    printf("Invalid -hk argument '%s'\n",argv[i]);
+ 		    exit(2);
+ 		}
+-		if (keyhandle == 0) {
+-		    printf("Invalid -hk argument '%s'\n",argv[i]);
+-		    exit(2);
+-		}		 
++		setkh=1;	 
+ 	    }
+ 	    else {
+ 		printf("-hk option needs a value\n");
+-		printUsage();
++		return printUsage();
+ 	    }
+ 	}
+ 	else if (!strcmp(argv[i], "-pwdk")) {
+@@ -113,9 +130,12 @@
+ 	    }
+ 	    else {
+ 		printf("Missing parameter to -pwdk\n");
+-		printUsage();
++		return printUsage();
+ 	    }
+ 	}
++	else if (!strcmp(argv[i], "-noverify")) {
++		noverify= TRUE;
++	}
+ 	else if (strcmp(argv[i],"-bm") == 0) {
+ 	    i++;
+ 	    if (i < argc) {
+@@ -127,7 +147,7 @@
+ 	    }
+ 	    else {
+ 		printf("-bm option needs a value\n");
+-		printUsage();
++		return printUsage();
+ 	    }
+ 	}
+ 	else if (!strcmp(argv[i], "-cert")) {
+@@ -137,11 +157,31 @@
+ 	    }
+ 	    else {
+ 		printf("Missing parameter to -cert\n");
++		return printUsage();
++	    }
++	}
++	else if (!strcmp(argv[i], "-oq")) {
++	    i++;
++	    if (i < argc) {
++		outputname = argv[i];
++	    }
++	    else {
++		printf("Missing parameter to -oq\n");
+ 		printUsage();
+ 	    }
+ 	}
++    else if (!strcmp(argv[i],"-nonce")) {
++        i++;
++        if (i < argc) {
++        nonceval = argv[i];
++        }
++        else {
++        printf("Missing parameter to -nonce\n");
++        return printUsage();
++        }
++    }
+ 	else if (!strcmp(argv[i], "-h")) {
+-	    printUsage();
++	    return printUsage();
+ 	}
+ 	else if (!strcmp(argv[i], "-v")) {
+ 	    verbose = TRUE;
+@@ -149,14 +189,18 @@
+ 	}
+ 	else {
+ 	    printf("\n%s is not a valid option\n", argv[i]);
+-	    printUsage();
++	    return printUsage();
+ 	}
+     }
+-    if ((keyhandle == 0) ||
++    if ((setkh== 0) ||
+ 	(pcrmask == 0)) {
+ 	printf("Missing argument\n");
+-	printUsage();
++	return printUsage();
+     }
++    if(outputname==NULL)
++    	outputname = "quote.bin";
++
++
+     /* get the SHA1 hash of the password string for use as the Key Authorization Data */
+     if (keypass != NULL) {
+ 	TSS_sha1((unsigned char *)keypass, strlen(keypass), passhash1);
+@@ -165,8 +209,15 @@
+     else {
+ 	passptr = NULL;
+     }
++    
++    if (nonceval != NULL) {
++    /* if specified, hash nonceval to create nonce data */
++    TSS_sha1((unsigned char *)nonceval,strlen(nonceval),nonce);
++    }
++    else {
+     /* for testing, use the password hash as the test nonce */
+     memcpy(nonce, passhash1, TPM_HASH_SIZE);
++    }
+ 	
+     ret = TPM_GetNumPCRRegisters(&pcrs);
+     if (ret != 0) {
+@@ -196,6 +247,7 @@
+ 	printf("Error '%s' from TPM_Quote\n", TPM_GetErrMsg(ret));
+ 	exit(ret);
+     }
++    
+     /*
+     ** Get the public key and convert to an OpenSSL RSA public key
+     */
+@@ -204,7 +256,34 @@
+ 	printf("quote: Error '%s' from TPM_GetPubKey\n", TPM_GetErrMsg(ret));
+ 	exit(-6);
+     }
+-	
++        
++    /* write out quote to file */
++    if((fp = fopen(outputname,"w"))==0) {
++    printf("Error opening file %s\n",outputname);
++    exit(-1);
++    }
++    if(fwrite(&signature,sizeof(uint32_t),3,fp)<3) {
++    printf("Error writing signature header.\n");
++    exit(-1);
++    }
++    if(fwrite(&signature.buffer,sizeof(char),signature.used,fp)<signature.used) {
++    printf("Error writing signature data.\n");
++    exit(-1);
++    }
++    if(fwrite(&tpc,sizeof(TPM_PCR_COMPOSITE),1,fp)<1) {
++    printf("Error writing PCR composite.\n");
++    exit(-1);
++    }
++    if(fwrite(tpc.pcrValue.buffer,sizeof(BYTE),tpc.pcrValue.size,fp)<tpc.pcrValue.size) {
++    printf("Error writing PCR buffer.\n");
++    exit(-1);
++    }
++    fclose(fp);
++    
++    if(noverify) {
++    	exit(0);
++    }
++    
+     ret = TPM_ValidatePCRCompositeSignature(&tpc,
+ 					    nonce,
+ 					    &pubkey,
+@@ -215,8 +294,8 @@
+ 	       TPM_GetErrMsg(ret));
+ 	exit(ret);
+     }
+-    printf("Verification against AIK succeeded\n");
+-
++    fprintf(outStream, "Verification against AIK succeeded\n");
++    
+     /* optionally verify the quote signature against the key certificate */
+     if (certFilename != NULL) {
+ 	unsigned char *certStream = NULL;	/* freed @1 */
+@@ -236,33 +315,33 @@
+ 	}
+ 	/* convert to openssl X509 */
+ 	if (ret == 0) {
+-	    if (verbose) printf("quote: parsing the certificate stream\n");
++	    if (verbose) fprintf(outStream, "quote: parsing the certificate stream\n");
+ 	    tmpPtr = certStream;
+ 	    x509Certificate = d2i_X509(NULL,
+ 				       (const unsigned char **)&tmpPtr, certStreamLength);
+ 	    if (x509Certificate == NULL) {
+-		printf("Error in certificate deserialization d2i_X509()\n");
++		fprintf(outStream, "Error in certificate deserialization d2i_X509()\n");
+ 		ret = -1;
+ 	    }
+ 	}
+ 	if (ret == 0) {
+-	    if (verbose) printf("quote: get the certificate public key\n");
++	    if (verbose) fprintf(outStream, "quote: get the certificate public key\n");
+ 	    ret = GetRSAKey(&rsaKey,	/* freed @3 */
+ 			    x509Certificate);
+ 	}
+ 	if (ret == 0) {
+-	    if (verbose) printf("quote: quote validate signature\n");
++	    if (verbose) fprintf(outStream, "quote: quote validate signature\n");
+ 	    ret = TPM_ValidatePCRCompositeSignatureRSA(&tpc,
+ 						       nonce,
+ 						       rsaKey,
+ 						       &signature,
+ 						       sigscheme);
+ 	    if (ret != 0) {
+-		printf("Verification against certificate failed\n");
++		fprintf(outStream, "Verification against certificate failed\n");
+ 	    }
+ 	}
+ 	if (ret == 0) {
+-	    printf("Verification against certificate succeeded\n");
++	    fprintf(outStream, "Verification against certificate succeeded\n");
+ 	}
+ 	free(certStream);		/* @1 */
+ 	X509_free(x509Certificate); 	/* @2 */
+@@ -340,16 +419,3 @@
+     }
+     return rc;
+ }
+-
+-/* FIXME move to library */
+-
+-
+-static void printUsage()
+-{
+-    printf("Usage: quote\n"
+-	   "-hk <key handle in hex>\n"
+-	   "-bm <pcr mask in hex>\n"
+-	   "[-pwdk <key password>]\n"
+-	   "[-cert <key certificate to verify the quote signature]\n");
+-    exit(-1);
+-}
+diff -Naur baseline/libtpm/utils/quote2.c tpm4720-master/libtpm/utils/quote2.c
+--- baseline/libtpm/utils/quote2.c	2014-04-02 15:45:05.000000000 -0400
++++ tpm4720-master/libtpm/utils/quote2.c	2016-09-30 13:42:53.000000000 -0400
+@@ -75,7 +75,8 @@
+ 	TPM_BOOL addVersion = FALSE;
+ 	STACK_TPM_BUFFER(versionblob);
+ 	static char *keypass = NULL;
+-
++    static char *nonceval = NULL; /* nonce value passed in by user */
++    FILE *fp = NULL;
+ 	
+ 	TPM_setlog(0);    /* turn off verbose output from TPM driver */
+ 	for (i=1 ; i<argc ; i++) {
+@@ -121,6 +122,16 @@
+ 		    printUsage();
+ 		}
+ 	    }
++		else if (!strcmp(argv[i],"-nonce")) {
++			i++;
++			if (i < argc) {
++			nonceval = argv[i];
++			}
++			else {
++			printf("Missing parameter to -nonce\n");
++			printUsage();
++			}
++		}
+ 	    else if (!strcmp(argv[i], "-vinfo")) {
+ 		addVersion = TRUE;
+ 		printf("Adding version info.\n");
+@@ -152,8 +163,15 @@
+ 	} else {
+ 		passptr = NULL;
+ 	}
+-	/* for testing, use the password hash as the test nonce */
+-	memcpy(data,passhash1,TPM_HASH_SIZE);
++	
++    if (nonceval != NULL) {
++    /* if specified, hash nonceval to create nonce data */
++    TSS_sha1((unsigned char *)nonceval,strlen(nonceval),data);
++    }
++    else {
++    /* for testing, use the password hash as the test nonce */
++    memcpy(data, passhash1, TPM_HASH_SIZE);
++    }
+ 	
+ 	ret = TPM_GetNumPCRRegisters(&pcrs);
+ 	if (ret != 0) {
+@@ -219,7 +237,7 @@
+ 	           versionblob.used);
+ 	    serQuoteInfo.used += versionblob.used;
+ 	}
+-	
++
+ 	ret = TPM_ValidateSignature(sigscheme,
+ 	                            &serQuoteInfo,
+ 	                            &signature,
+@@ -229,6 +247,28 @@
+ 	} else {
+ 		printf("Verification succeeded\n");
+ 	}
++	
++    /* write out quote to file */
++    if((fp = fopen("quote.bin","w"))==0) {
++    printf("Error opening file quote.bin\n");
++    exit(-1);
++    }
++    
++    if(fwrite(&serQuoteInfo,sizeof(struct tpm_buffer),1,fp)<1) {
++    printf("Error writing quote info.\n");
++    exit(-1);
++    } 
++    if(fwrite(&signature,sizeof(struct tpm_buffer),1,fp)<1) {
++    printf("Error writing signature.\n");
++    exit(-1);
++    }
++    if(fwrite(&pubkey,sizeof(pubkey),1,fp)<1) {
++    printf("Error writing pubkey.\n");
++    exit(-1);
++    }
++    
++    fclose(fp);
++    
+ 	RSA_free(rsa);
+ 	exit(ret);
+ }
+@@ -240,6 +280,8 @@
+ 	   "\n"
+ 	   "Available options:\n"
+ 	   "-vinfo    : have TPM_CAP_VERSION_INFO returned in the response\n"
++       "[-nonce <random value>]\n"
+ 	   "\n");
+     exit(-1);
+ }
++
+diff -Naur baseline/libtpm/utils/takeown.c tpm4720-master/libtpm/utils/takeown.c
+--- baseline/libtpm/utils/takeown.c	2014-04-02 15:45:05.000000000 -0400
++++ tpm4720-master/libtpm/utils/takeown.c	2016-09-30 13:42:53.000000000 -0400
+@@ -48,6 +48,7 @@
+ {
+     printf("Usage: takeown [-v12] [-sz keylen]\n"
+ 	   "   [-pwdo <owner password> -pwdof <owner authorization file name>\n"
++	   "   [-nopubsrk do not output the public SRK (CAUTION THERE IS NO WAY TO GET IT WITHOUT RESET)\n"
+ 	   "   [-pwds <storage root key password>]\n"
+ 	   "   [-ix <pcr num> <digest> PCR authorization for SRK]\n");
+     printf("\tOmitting -pwds sets the SRK auth to all zeros\n");
+@@ -67,6 +68,7 @@
+ 
+ 	TPM_setlog(0);		/* turn off verbose output */
+ 	TPM_BOOL v12 = FALSE;
++	TPM_BOOL outputSRK = TRUE;
+ 	const char *ownerPassword = NULL;
+ 	const char *ownerAuthFilename = NULL;
+  	const char *srkAuth = NULL;
+@@ -87,6 +89,9 @@
+ 	    if (!strcmp(argv[i], "-v12")) {
+ 		v12 = TRUE;
+ 	    }
++	    else if (!strcmp(argv[i], "-nopubsrk")) {
++		outputSRK = FALSE;
++	    }
+ 	    else if (!strcmp(argv[i], "-sz")) {
+ 		i++;
+ 		if (i < argc) {
+@@ -310,6 +315,7 @@
+ 		exit(-1);
+ 	    }
+ 	}
++	if (outputSRK) {
+ 	/*
+ 	** convert the returned public key to OpenSSL format and
+ 	** export it to a file
+@@ -342,5 +348,6 @@
+ 	}
+ 	fclose(keyfile);
+ 	EVP_PKEY_free(pkey);
++	}
+ 	exit(0);
+ }
+diff -Naur baseline/libtpm/utils/tpmconv.c tpm4720-master/libtpm/utils/tpmconv.c
+--- baseline/libtpm/utils/tpmconv.c	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/libtpm/utils/tpmconv.c	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,208 @@
++/* Convert TPM Modulus files to PEM */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <unistd.h>
++#include <assert.h>
++
++#ifdef TPM_POSIX
++#include <netinet/in.h>
++#endif
++#ifdef TPM_WINDOWS
++#include <winsock2.h>
++#endif
++
++#include <openssl/rsa.h>
++#include <openssl/pem.h>
++#include <openssl/evp.h>
++#include <openssl/err.h>
++
++#include "tpm.h"
++#include "tpmutil.h"
++#include "tpmfunc.h"
++#include "tpm_constants.h"
++#include "tpm_structures.h"
++#include "tpm_error.h"
++
++
++static void usage() {
++	printf("Usage: -ik [filename] -ok [filename]\n");
++	printf("\n");
++	printf(" -ik <keyname>: Key file name (raw modulus file)\n");
++	printf(" -ok <keyname>: Key file name\n");
++	printf("\n");
++	exit(-1);
++}
++
++
++struct modulus {
++	size_t len;
++	unsigned char data[256];
++};
++
++static int filesize(FILE *fp)
++{
++	size_t cur_pos = ftell(fp);
++	size_t size;
++	assert(fseek(fp, 0, SEEK_END) == 0);
++
++	size = ftell(fp);
++	assert(fseek(fp, cur_pos, SEEK_SET) == 0);
++
++	return size;
++}
++
++#define write_file(filename, data, len) do {				\
++	FILE *fp;							\
++	if ((fp = fopen(filename, "wb")) == 0) {			\
++		fprintf(fp, "Unable to open '%s' - %s", filename, strerror(errno)); \
++		return errno;						\
++	}								\
++	if (fwrite(data, 1, len, fp) != len) {				\
++		fprintf(fp, "Failed to write all %zu bytes of '%s'\n", len, filename); \
++		return errno;						\
++	}								\
++	fclose(fp);							\
++	} while(0)
++
++
++static int check_filesize(FILE *fp, size_t goal_size)
++{
++	size_t actual_size = filesize(fp);
++	return (goal_size == actual_size)?0:actual_size;
++}
++
++static pubkeydata *mod_to_pkey(struct modulus *modulus)
++{
++	pubkeydata *pkey = calloc(1, sizeof(*pkey));
++
++	/* Set up the parameters */
++	pkey->algorithmParms.algorithmID = TPM_ALG_RSA;
++	pkey->algorithmParms.encScheme = TPM_ES_NONE;
++	pkey->algorithmParms.sigScheme = TPM_SS_RSASSAPKCS1v15_SHA1;
++	pkey->algorithmParms.u.rsaKeyParms.keyLength = 2048;
++	pkey->algorithmParms.u.rsaKeyParms.numPrimes = 2;
++	pkey->algorithmParms.u.rsaKeyParms.exponentSize = 0;
++
++	/* Copy the modulus to the pubkeydata */
++	assert(modulus->len <= sizeof(pkey->pubKey.modulus));
++	memcpy(pkey->pubKey.modulus, modulus->data, modulus->len);
++	pkey->pubKey.keyLength = modulus->len;
++
++	fprintf(stderr, "Final size of pubkeydata is %zu\n", sizeof(*pkey));
++	return pkey;
++}
++
++
++static int tpmconv(struct modulus *modulus, const char *pempath)
++{
++	int ret = -1;
++	FILE *fp = NULL;
++	pubkeydata *pkey;
++	EVP_PKEY *evp_pkey = NULL;
++	RSA *rsa;
++	pkey = mod_to_pkey(modulus);
++
++	rsa = TSS_convpubkey(pkey);
++
++	if (rsa == NULL) {
++		ret = 1;
++		goto error;
++	}
++
++	if ((fp = fopen(pempath, "wb")) == 0) {
++		fprintf(stderr, "Unable to open '%s'\n", pempath);
++		return errno;
++	}
++
++	OpenSSL_add_all_algorithms();
++	evp_pkey = EVP_PKEY_new();
++	if (evp_pkey == NULL) {
++		fprintf(stderr, "Unable to create EVP_PKEY\n");
++		ERR_print_errors_fp(stderr);
++		ret = (int)ERR_get_error();
++		goto error;
++	}
++
++	if (EVP_PKEY_assign_RSA(evp_pkey, rsa) == 0) {
++		fprintf(stderr, "Unable to assign RSA to EVP_PKEY\n");
++		ERR_print_errors_fp(stderr);
++		ret = (int)ERR_get_error();
++		goto error;
++	}
++
++	if (PEM_write_PUBKEY(fp, evp_pkey) == 0) {
++		fprintf(stderr, "Unable to write pubkey\n");
++		ERR_print_errors_fp(stderr);
++		ret = (int)ERR_get_error();
++		goto error;
++	}
++
++	fprintf(stdout, "Wrote '%s'\n", pempath);
++	ret = 0;
++
++error:
++	EVP_PKEY_free(evp_pkey);
++	fclose(fp);
++	return ret;
++}
++
++int main(int argc, char *argv[])
++{
++	const char *inkey  = NULL;
++	const char *outkey = NULL;
++	FILE *fp;
++	int i;
++	struct modulus modulus = {
++		.len = 256
++	};
++
++	if (argc < 2)
++		usage();
++
++	for (i = 0 ; i < argc; i++) {
++		if (strcmp(argv[i], "-ik") == 0) {
++			if (i >= (argc-1)) {
++				fprintf(stderr, "-ik Requires argument\n");
++				exit(-1);
++			}
++			inkey = argv[++i];
++		}
++
++		if (strcmp(argv[i], "-ok") == 0) {
++			if (i >= (argc-1)) {
++				fprintf(stderr, "-ok Requires argument\n");
++				exit(-1);
++			}
++			outkey = argv[++i];
++		}
++	}
++
++	if (inkey == NULL)
++		usage();
++
++	if ((fp = fopen(inkey, "rb")) == 0) {
++		fprintf(stderr, "Failed to open '%s'", inkey);
++		exit(-1);
++	}
++	if (check_filesize(fp, 256) != 0) {
++		size_t size = filesize(fp);
++		fprintf(stderr, "Expected 256 byte file, got %zu byte file\n", size);
++		fclose(fp);
++		exit(-1);
++	}
++
++	if (fread(modulus.data, 1, sizeof(modulus.data), fp) != sizeof(modulus.data)) {
++		fprintf(stderr, "Failed to read from '%s'\n", inkey);
++		fclose(fp);
++		exit(-1);
++	}
++
++	fclose(fp);
++
++	if (outkey == NULL)
++		outkey = "key";
++
++	return tpmconv(&modulus, outkey);
++}
+diff -Naur baseline/scripts/clean_rebuild tpm4720-master/scripts/clean_rebuild
+--- baseline/scripts/clean_rebuild	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/clean_rebuild	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,8 @@
++#!/bin/bash
++sudo initctl stop tpmserver
++sudo initctl stop tpmbios
++sudo apt-get purge tpmtools -y
++sudo rm -Rf /var/log/upstart/tpmserver.log /var/lib/tpmserver /var/run/tpmserver.pid /var/log/upstart/tpmbios.log /var/log/tpmserver
++rm -f *.deb
++./make_package.sh 1.0 1 upstart
++sudo dpkg -i tpmtools*deb
+diff -Naur baseline/scripts/config.env tpm4720-master/scripts/config.env
+--- baseline/scripts/config.env	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/config.env	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,6 @@
++export TPM_PORT=9998
++export TCSD_TCP_DEVICE_PORT=${TPM_PORT}
++export TPM_SERVER_NAME=localhost
++export TPM_SERVER_PORT=${TPM_PORT}
++export TPM_PATH=/tmp/tpm0/
++mkdir -p ${TPM_PATH}
+diff -Naur baseline/scripts/init-scripts/systemd/after-install tpm4720-master/scripts/init-scripts/systemd/after-install
+--- baseline/scripts/init-scripts/systemd/after-install	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/init-scripts/systemd/after-install	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,4 @@
++#!/bin/bash
++
++systemctl daemon-reload
++systemctl start tpmserver
+diff -Naur baseline/scripts/init-scripts/systemd/tpmserver.service tpm4720-master/scripts/init-scripts/systemd/tpmserver.service
+--- baseline/scripts/init-scripts/systemd/tpmserver.service	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/init-scripts/systemd/tpmserver.service	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,11 @@
++[Unit]
++Description=Start a TPM
++
++[Service]
++Type=oneshot
++ExecStart=/usr/sbin/tpmservice start
++ExecStop=/usr/sbin/tpmservice stop
++RemainAfterExit=yes
++
++[Install]
++WantedBy=multi-user.target
+diff -Naur baseline/scripts/init-scripts/sysv/after-install tpm4720-master/scripts/init-scripts/sysv/after-install
+--- baseline/scripts/init-scripts/sysv/after-install	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/init-scripts/sysv/after-install	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,3 @@
++#!/bin/bash
++
++service tpmserver reset
+diff -Naur baseline/scripts/init-scripts/sysv/tpm_server-default tpm4720-master/scripts/init-scripts/sysv/tpm_server-default
+--- baseline/scripts/init-scripts/sysv/tpm_server-default	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/init-scripts/sysv/tpm_server-default	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,8 @@
++# This goes in /etc/default or /etc/sysconfig depending on what flavor of 
++# Linux you use
++
++user="root"
++group="root"
++chroot="/"
++chdir="/"
++nice=""
+diff -Naur baseline/scripts/init-scripts/sysv/tpm_server-init tpm4720-master/scripts/init-scripts/sysv/tpm_server-init
+--- baseline/scripts/init-scripts/sysv/tpm_server-init	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/init-scripts/sysv/tpm_server-init	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,195 @@
++#!/bin/sh
++# Init script for tpm_server
++# Implemented based on LSB Core 3.1:
++#   * Sections: 20.2, 20.3
++#
++### BEGIN INIT INFO
++# Provides:          tpm_server
++# Required-Start:    $remote_fs $syslog
++# Required-Stop:     $remote_fs $syslog
++# Default-Start:     2 3 4 5
++# Default-Stop:      0 1 6
++# Short-Description: 
++# Description:       no description given
++### END INIT INFO
++
++PATH=/sbin:/usr/sbin:/bin:/usr/bin
++export PATH
++
++name=tpmserver
++tpmserver_program=/usr/bin/tpm_server
++tpmserver_args=''
++tpmbios_program=/usr/bin/tpmbios
++tpmbios_args=''
++pidfile="/var/run/$name.pid"
++
++[ -r /etc/default/$name ] && . /etc/default/$name
++[ -r /etc/sysconfig/$name ] && . /etc/sysconfig/$name
++
++export TPM_PORT=9998
++export TCSD_TCP_DEVICE_PORT=${TPM_PORT}
++export TPM_SERVER_NAME=localhost
++export TPM_SERVER_PORT=${TPM_PORT}
++export TPM_PATH=/var/lib/tpmserver/tpm0
++export TPM_LOG_DIR=/var/log/tpmserver
++
++trace() {
++  logger -t "/etc/init.d/tpmserver" "$@"
++}
++
++emit() {
++  trace "$@"
++  echo "$@"
++}
++
++start() {
++
++  # Ensure the log directory is setup correctly.
++  [ ! -d ${TPM_LOG_DIR} ] && mkdir -p ${TPM_LOG_DIR}
++  chown "$user":"$group" $TPM_LOG_DIR
++  chmod 755 ${TPM_LOG_DIR}
++
++  if [ ! -d $TPM_PATH ]; then
++    mkdir -p $TPM_PATH
++    emit "tpm_server not yet initializing, resetting now"
++    reset
++  fi
++  chmod 700 $TPM_PATH
++  
++  # Run the program!  
++  chroot --userspec "$user":"$group" "$chroot" sh -c "
++    
++    cd \"$chdir\"
++    exec \"$tpmserver_program\" $tpmserver_args
++  " >> ${TPM_LOG_DIR}/tpm_server.stdout 2>> ${TPM_LOG_DIR}/tpm_server.stderr &
++
++  # Generate the pidfile from here. If we instead made the forked process
++  # generate it there will be a race condition between the pidfile writing
++  # and a process possibly asking for status.
++  echo $! > $pidfile
++
++  sleep 2
++
++  chroot --userspec "$user":"$group" "$chroot" sh -c "
++    
++    cd \"$chdir\"
++    exec \"$tpmbios_program\" $tpmbios_args
++  " >> ${TPM_LOG_DIR}/tpmbios.stdout 2>> ${TPM_LOG_DIR}/tpmbios.stderr &
++
++  emit "$name started"
++
++  return 0
++}
++
++stop() {
++  # Try a few times to kill TERM the program
++  if status ; then
++    pid=$(cat "$pidfile")
++    trace "Killing $name (pid $pid) with SIGTERM"
++    kill -TERM $pid
++    # Wait for it to exit.
++    for i in 1 2 3 4 5 ; do
++      trace "Waiting $name (pid $pid) to die..."
++      status || break
++      sleep 1
++    done
++    if status ; then
++      emit "$name stop failed; still running."
++    else
++      emit "$name stopped."
++    fi
++  fi
++}
++
++reset() {
++  emit "Resetting TPM: all keys, PCRs and other state will be cleared"
++
++  force_stop
++  rm -rf ${TPM_PATH}
++  rm -rf ${TPM_LOG_DIR}
++
++  mkdir -p $TPM_PATH
++  start
++  
++  force_stop
++  start
++
++  force_stop
++}
++
++status() {
++  if [ -f "$pidfile" ] ; then
++    pid=$(cat "$pidfile")
++    if ps -p $pid > /dev/null 2> /dev/null ; then
++      # process by this pid is running.
++      # It may not be our pid, but that's what you get with just pidfiles.
++      # TODO(sissel): Check if this process seems to be the same as the one we
++      # expect. It'd be nice to use flock here, but flock uses fork, not exec,
++      # so it makes it quite awkward to use in this case.
++      return 0
++    else
++      return 2 # program is dead but pid file exists
++    fi
++  else
++    return 3 # program is not running
++  fi
++}
++
++force_stop() {
++  if status ; then
++    stop
++    status && kill -KILL $(cat "$pidfile")
++  fi
++}
++
++
++case "$1" in
++  force-start|start|stop|force-stop|restart|reset)
++    trace "Attempting '$1' on tpm_server"
++    ;;
++esac
++
++case "$1" in
++  force-start)
++    PRESTART=no
++    exec "$0" start
++    ;;
++  start)
++    status
++    code=$?
++    if [ $code -eq 0 ]; then
++      emit "$name is already running"
++      exit $code
++    else
++      start
++      exit $?
++    fi
++    ;;
++  stop) stop ;;
++  force-stop) force_stop ;;
++  status) 
++    status
++    code=$?
++    if [ $code -eq 0 ] ; then
++      emit "$name is running"
++    else
++      emit "$name is not running"
++    fi
++    exit $code
++    ;;
++  reset)
++    stop
++    reset
++    start
++    ;;
++  restart) 
++    
++    stop && start 
++    ;;
++  *)
++    echo "Usage: $SCRIPTNAME {start|force-start|stop|force-start|force-stop|status|restart|reset}" >&2
++    exit 3
++  ;;
++esac
++
++exit $?
+diff -Naur baseline/scripts/init-scripts/upstart/after-install tpm4720-master/scripts/init-scripts/upstart/after-install
+--- baseline/scripts/init-scripts/upstart/after-install	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/init-scripts/upstart/after-install	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,9 @@
++#!/bin/bash
++
++if [ ! -d /var/lib/tpmserver ]; then
++  /usr/sbin/tpmctl reset
++fi
++
++rm -Rf /tmp/tpmpid /var/log/tpmserver
++
++initctl start tpmserver
+diff -Naur baseline/scripts/init-scripts/upstart/tpmbios.conf tpm4720-master/scripts/init-scripts/upstart/tpmbios.conf
+--- baseline/scripts/init-scripts/upstart/tpmbios.conf	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/init-scripts/upstart/tpmbios.conf	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,19 @@
++description     "IBM Software TPM BIOS"
++start on started tpmserver
++stop on stopped tpmserver
++
++respawn
++umask 022
++chdir /
++setuid root
++setgid root
++console log # log stdout/stderr to /var/log/upstart/
++
++env TPM_PORT=9998
++env TCSD_TCP_DEVICE_PORT=9998
++env TPM_SERVER_NAME=localhost
++env TPM_SERVER_PORT=9998
++env TPM_PATH=/var/lib/tpmserver/tpm0
++
++#expect daemon
++exec /usr/bin/tpmbios
+diff -Naur baseline/scripts/init-scripts/upstart/tpmctl tpm4720-master/scripts/init-scripts/upstart/tpmctl
+--- baseline/scripts/init-scripts/upstart/tpmctl	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/init-scripts/upstart/tpmctl	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,56 @@
++#!/bin/bash
++
++export PATH=/sbin:/usr/sbin:/bin:/usr/bin
++export TPM_PATH=/var/lib/tpmserver
++export TPM_SERVER_NAME=localhost
++export TPM_SERVER_PORT=9998
++
++trace() {
++  logger -t "/usr/sbin/tpmctl" "$@"
++}
++
++emit() {
++  trace "$@"
++  echo "$@"
++}
++
++reset() {
++  if [[ $EUID -ne 0 ]]; then
++    echo "You must be a root user to reset the TPM."
++    exit 1
++  fi
++
++  emit "*** Resetting TPM: all keys, PCRs and other state will be cleared."
++  emit "*** You'll see the service restart a few times. This is OK."
++  emit "*** You have 2 seconds to stop this process by using Control+C."
++  sleep 2
++
++  /sbin/initctl stop tpmserver
++  rm -rf ${TPM_PATH} /var/log/upstart/tpm*
++  mkdir -p ${TPM_PATH}/tpm0
++  
++  /sbin/initctl start tpmserver 
++  sleep 2
++  /sbin/initctl stop tpmserver 
++  /sbin/initctl start tpmserver
++  sleep 2
++  /sbin/initctl stop tpmserver
++}
++
++case "$1" in
++  reset)
++    trace "Attempting '$1' on tpm_server"
++    ;;
++esac
++
++case "$1" in
++  reset)
++    reset
++    ;;
++  *)
++    echo "Usage: $SCRIPTNAME {reset}" >&2
++    exit 3
++  ;;
++esac
++
++exit $?
+diff -Naur baseline/scripts/init-scripts/upstart/tpmserver.conf tpm4720-master/scripts/init-scripts/upstart/tpmserver.conf
+--- baseline/scripts/init-scripts/upstart/tpmserver.conf	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/init-scripts/upstart/tpmserver.conf	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,19 @@
++description     "IBM Software TPM Server"
++start on mounted MOUNTPOINT=/ and mounted MOUNTPOINT=/run
++stop on runlevel [!2345]
++
++respawn
++umask 022
++chdir /
++setuid root
++setgid root
++console log # log stdout/stderr to /var/log/upstart/
++
++env TPM_PORT=9998
++env TCSD_TCP_DEVICE_PORT=9998
++env TPM_SERVER_NAME=localhost
++env TPM_SERVER_PORT=9998
++env TPM_PATH=/var/lib/tpmserver/tpm0
++
++#expect daemon
++exec /usr/bin/tpm_server
+diff -Naur baseline/scripts/init_tpm_server tpm4720-master/scripts/init_tpm_server
+--- baseline/scripts/init_tpm_server	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/init_tpm_server	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,41 @@
++#!/bin/bash
++
++if [[ $EUID -ne 0 ]]; then
++   echo "This script must be run as root" 1>&2
++   exit 1
++fi
++
++pkill -x tpm_server
++
++export TPM_PORT=9998
++export TCSD_TCP_DEVICE_PORT=${TPM_PORT}
++export TPM_SERVER_NAME=localhost
++export TPM_SERVER_PORT=${TPM_PORT}
++export TPM_PATH=/tmp/tpm0/
++
++mkdir -p ${TPM_PATH}
++
++# Initialize tpm-server
++
++rm -rf ${TPM_PATH} 
++mkdir -p ${TPM_PATH}
++chown 700 ${TPM_PATH}
++
++rm -rf /var/lib/tpm_server
++rm -f /var/log/tpm_server.log
++
++echo -n "TPM Initializing..."
++ 
++# Start server
++tpm_serverd 
++
++# Stop server
++pkill -x tpm_server
++
++# Restart server
++tpm_serverd 
++
++# Stop server now that initialization is complete
++pkill -x tpm_server
++
++echo "DONE"
+diff -Naur baseline/scripts/install-centos.sh tpm4720-master/scripts/install-centos.sh
+--- baseline/scripts/install-centos.sh	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/install-centos.sh	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,29 @@
++#!/bin/bash
++
++if [[ $EUID -ne 0 ]]; then
++   echo "This script must be run as root" 1>&2
++   exit 1
++fi
++
++set -e 
++
++yum clean all
++yum install -y openssl-devel libtool gcc automake
++
++cd ../tpm
++make -f makefile-tpm
++
++install -c tpm_server /usr/local/bin/tpm_server
++
++cd ../libtpm
++./comp-sockets.sh
++make install
++
++cd ../scripts
++install -c tpm_serverd /usr/local/bin/tpm_serverd
++install -c init_tpm_server /usr/local/bin/init_tpm_server
++
++init_tpm_server
++
++tpm_serverd
++
+diff -Naur baseline/scripts/install-mac.sh tpm4720-master/scripts/install-mac.sh
+--- baseline/scripts/install-mac.sh	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/install-mac.sh	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,38 @@
++#!/bin/bash
++
++set -e 
++
++export http_proxy=http://155.34.234.20:8080
++export https_proxy=http://155.34.234.20:8080
++
++brew install libtool automake autoconf openssl
++brew link openssl --force
++
++
++cd ../tpm
++make -f makefile-tpm
++
++cd ../libtpm
++
++echo "Compiling with socket support but NO virtual TPM support"
++[ -r Makefile ] && make clean
++./autogen-mac
++# add --enable-chardev to not use sockets
++./configure --includedir=/usr/local/opt/openssl/include --libdir=/usr/local/opt/openssl/lib
++
++make 
++
++echo "Please sudo to allow installation"
++sudo make install
++
++cd ../tpm
++sudo install -c tpm_server /usr/local/bin/tpm_server
++
++
++cd ../scripts
++sudo install -c tpm_serverd /usr/local/bin/tpm_serverd
++sudo install -c init_tpm_server /usr/local/bin/init_tpm_server
++
++sudo init_tpm_server
++
++sudo tpm_serverd
+diff -Naur baseline/scripts/install.sh tpm4720-master/scripts/install.sh
+--- baseline/scripts/install.sh	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/install.sh	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,23 @@
++#!/bin/bash
++
++set -e 
++
++sudo -E apt-get update
++sudo -E apt-get -y install build-essential libssl-dev libtool automake
++
++cd ../tpm
++make -f makefile-tpm
++
++sudo install -c tpm_server /usr/local/bin/tpm_server
++
++cd ../libtpm
++./comp-sockets.sh
++sudo make install
++
++cd ../scripts
++sudo install -c tpm_serverd /usr/local/bin/tpm_serverd
++sudo install -c init_tpm_server /usr/local/bin/init_tpm_server
++
++sudo init_tpm_server
++
++sudo tpm_serverd
+diff -Naur baseline/scripts/make_chardev_package.sh tpm4720-master/scripts/make_chardev_package.sh
+--- baseline/scripts/make_chardev_package.sh	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/make_chardev_package.sh	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,57 @@
++#!/bin/bash
++
++set -e 
++
++# sudo -E apt-get update
++# sudo -E apt-get -y install build-essential libssl-dev libtool automake ruby-dev gcc make
++# gem install fpm
++
++command -v fpm >/dev/null 2>&1 || { echo "I require fpm but it's not installed.  Aborting." >&2; exit 1; }
++
++export DESTDIR=$(mktemp -d /tmp/blah.XXXX)
++
++if [ ! -d $DESTDIR ]; then
++	echo "aieeeee i have no temp dir"
++	exit 1
++fi
++
++
++if [[ $# -eq 0 ]] ; then
++    echo 'This should make a package. Specify a version (1.0), a revision (n)'
++    exit 0
++fi
++
++if [ ! $1 ]; then
++	echo "Specify a version number as the first argument"
++	exit 1
++fi
++
++if [ ! $2 ]; then
++	echo "specify a revision number as the second argument"
++	exit 1
++fi
++
++DIRS="usr"
++
++cd ../tpm
++make -f makefile-tpm
++
++mkdir -p $DESTDIR/usr/bin/
++sudo install -c tpm_server $DESTDIR/usr/bin/tpm_server
++
++cd ../libtpm
++./autogen
++./configure --prefix=/usr --enable-chardev
++make install
++
++cd ../scripts
++
++fpm -t deb -s dir -C $DESTDIR -n tpmtools -v $1 --iteration $2 $DIRS
++
++if [ $? == 0 ]; then
++	rm -Rf $DESTDIR
++	echo "Success"
++else
++	echo "It didn't work. I've left $DESTDIR intact."
++	exit 1
++fi
+diff -Naur baseline/scripts/make_package.sh tpm4720-master/scripts/make_package.sh
+--- baseline/scripts/make_package.sh	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/make_package.sh	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,93 @@
++#!/bin/bash
++
++set -e 
++
++# sudo -E apt-get update
++# sudo -E apt-get -y install build-essential libssl-dev libtool automake ruby-dev gcc make
++# gem install fpm
++
++command -v fpm >/dev/null 2>&1 || { echo "I require fpm but it's not installed.  Aborting." >&2; exit 1; }
++
++export DESTDIR=$(mktemp -d /tmp/blah.XXXX)
++
++if [ ! -d $DESTDIR ]; then
++	echo "aieeeee i have no temp dir"
++	exit 1
++fi
++
++
++if [[ $# -eq 0 ]] ; then
++    echo 'This should make a package. Specify a version (1.0), a revision (n), and init style (sysv)'
++    exit 0
++fi
++
++if [ ! $1 ]; then
++	echo "Specify a version number as the first argument"
++	exit 1
++fi
++
++if [ ! $2 ]; then
++	echo "specify a revision number as the second argument"
++	exit 1
++fi
++
++if [ ! $3 ]; then
++	echo "Specify an init style - currently the only one supported is sysv"
++	exit 1
++fi
++
++
++DIRS=""
++AFTERINSTALL=""
++case "$3" in
++	"sysv")
++		mkdir -p $DESTDIR/etc/init.d $DESTDIR/etc/default
++		cp init-scripts/sysv/tpm_server-default $DESTDIR/etc/default/tpmserver
++		cp init-scripts/sysv/tpm_server-init $DESTDIR/etc/init.d/tpmserver
++		DIRS="usr etc"
++		AFTERINSTALL="init-scripts/sysv/after-install"
++	;;
++	"systemd")
++		mkdir -p $DESTDIR/lib/systemd/system $DESTDIR/etc/default $DESTDIR/usr/sbin
++		cp init-scripts/systemd/tpmserver.service $DESTDIR/lib/systemd/system
++		cp init-scripts/sysv/tpm_server-init $DESTDIR/usr/sbin/tpmctl
++		cp init-scripts/sysv/tpm_server-default $DESTDIR/etc/default/tpmserver
++		DIRS="usr etc lib"
++		AFTERINSTALL="init-scripts/systemd/after-install"
++	;;
++	"upstart")
++		mkdir -p $DESTDIR/etc/init $DESTDIR/usr/sbin
++		cp init-scripts/upstart/tpmserver.conf $DESTDIR/etc/init
++		cp init-scripts/upstart/tpmbios.conf $DESTDIR/etc/init
++                cp init-scripts/upstart/tpmctl $DESTDIR/usr/sbin/tpmctl
++		DIRS="usr etc"
++		AFTERINSTALL="init-scripts/upstart/after-install"
++	;;
++	*) 
++		echo "Did not specify valid init type" 
++		exit 1
++	;;
++esac
++
++cd ../tpm
++make -f makefile-tpm
++
++mkdir -p $DESTDIR/usr/bin/
++sudo install -c tpm_server $DESTDIR/usr/bin/tpm_server
++
++cd ../libtpm
++./autogen
++./configure --prefix=/usr
++make install
++
++cd ../scripts
++
++fpm -t deb -s dir -C $DESTDIR -n tpmtools-emulate -v $1 --iteration $2 --after-install $AFTERINSTALL $DIRS
++
++if [ $? == 0 ]; then
++	rm -Rf $DESTDIR
++	echo "Success"
++else
++	echo "It didn't work. I've left $DESTDIR intact."
++	exit 1
++fi
+diff -Naur baseline/scripts/tpm_serverd tpm4720-master/scripts/tpm_serverd
+--- baseline/scripts/tpm_serverd	1969-12-31 19:00:00.000000000 -0500
++++ tpm4720-master/scripts/tpm_serverd	2016-09-30 13:42:53.000000000 -0400
+@@ -0,0 +1,35 @@
++#!/bin/bash
++
++if [[ $EUID -ne 0 ]]; then
++   echo "This script must be run as root" 1>&2
++   exit 1
++fi
++
++/usr/bin/pgrep -x "tpm_server" &> /dev/null
++if [[ $? -eq 0 ]]; then   
++   echo "tpm_server is already running, stop it first with pkill -x tpm_server"
++   exit 1
++fi
++
++export TPM_PORT=9998
++export TCSD_TCP_DEVICE_PORT=${TPM_PORT}
++export TPM_SERVER_NAME=localhost
++export TPM_SERVER_PORT=${TPM_PORT}
++export TPM_PATH=/tmp/tpm0/
++
++mkdir -p ${TPM_PATH}
++
++mkdir -p /var/lib/tpm_server
++touch /var/log/tpm_server.log
++chmod 600 /var/log/tpm_server.log
++
++cd /var/lib/tpm_server
++
++echo "$(date) TPM Server Starting" >> /var/log/tpm_server.log
++
++tpm_server >> /var/log/tpm_server.log &
++
++sleep 2
++
++tpmbios
++

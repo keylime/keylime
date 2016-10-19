@@ -1,0 +1,94 @@
+#!/usr/bin/python
+
+'''
+DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
+
+This material is based upon work supported by the Assistant Secretary of Defense for 
+Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
+FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
+material are those of the author(s) and do not necessarily reflect the views of the 
+Assistant Secretary of Defense for Research and Engineering.
+
+Copyright 2015 Massachusetts Institute of Technology.
+
+The software/firmware is provided to you on an As-Is basis
+
+Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
+252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
+rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
+above. Use of this work other than as specifically authorized by the U.S. Government may 
+violate any copyrights that exist in this work.
+'''
+
+import sys
+import common
+import ConfigParser
+import registrar_client
+import vtpm_manager
+import base64
+import json
+
+# read the config file
+config = ConfigParser.RawConfigParser()
+config.read(common.CONFIG_FILE)
+
+logger = common.init_logging('platform-init')
+
+def add_vtpm(inputfile):
+    if common.STUB_TPM:
+        group = {
+                 'uuid': common.TEST_GROUP_UUID,
+                 'aikpem': common.TEST_HAIK,
+                 'pubekpem': common.TEST_PUB_EK,
+                 'ekcert': common.TEST_EK_CERT,
+                 }
+    else:
+        # read in the file
+        with open(inputfile,'r') as f:
+            group = json.load(f)
+
+    
+    # fetch configuration parameters 
+    provider_reg_port = config.get('general', 'provider_registrar_port')
+    provider_reg_ip = config.get('general', 'provider_registrar_ip')
+    
+    # request a vtpm uuid from the manager
+    vtpm_uuid = vtpm_manager.add_vtpm_to_group(group['uuid'])
+    
+    # use an TLS context with no certificate checking 
+    registrar_client.noAuthTLSContext(config)
+    
+    # registrar it and get back a blob
+    keyblob = registrar_client.doRegisterNode(provider_reg_ip,provider_reg_port,vtpm_uuid,group['pubekpem'],group['ekcert'],group['aikpem'])
+    
+    # get the ephemeral registrar key by activating in the hardware tpm
+    key = base64.b64encode(vtpm_manager.activate_group(group['uuid'], keyblob))
+    
+    # tell the registrar server we know the key
+    registrar_client.doActivateNode(provider_reg_ip,provider_reg_port,vtpm_uuid,key)
+
+    logger.info("Registered new vTPM with UUID: %s"%(vtpm_uuid))
+    
+    return vtpm_uuid
+
+def main(argv=sys.argv):
+    if common.DEVELOP_IN_ECLIPSE and not common.STUB_TPM:
+        raise Exception("Can't use Xen features in Eclipse without STUB_TPM")
+    
+    if common.DEVELOP_IN_ECLIPSE:
+        argv = ['provider_platform_register.py','1']
+        
+    if len(argv)<2:
+        print "usage: provider_vtpm_add.py [uuid].tpm"
+        print "\tassociates creates a vtpm and adds it to the specified group \n\tusing JSON data in the .tpm file for aik, uuid, and activation key"
+        sys.exit(-1)
+
+    add_vtpm(argv[1])
+    
+    sys.exit(0)
+
+if __name__=="__main__":
+    try:
+        main()
+    except Exception as e:
+        logger.exception(e)
