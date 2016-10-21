@@ -45,9 +45,14 @@ You also need a patched version of tpm4720 the IBM software TPM emulator and uti
 
 Obtain version 4720 of the IBM TPM emulator to patch at: https://sourceforge.net/projects/ibmswtpm/files/tpm4720.tar.gz/download
 
-extract this version then apply patches/tpm4720-patch.txt with 
 
-`patch -p1 < tpm4720-patch.txt`
+extract this version then apply patches/tpm4720-patch.txt with 
+```
+mkdir -p tpm4720
+tar -xzf tpm4720.tar.gz -C tpm4720
+cd tpm4720
+patch -p1 < tpm4720-patch.txt
+```
 
 See README.md in the tpm emulator directory for detailed instructions on how to build and install it.  There are also scripts for building distro packages in the patched version.
 The brief synopsis of a quick build/install is:
@@ -58,7 +63,7 @@ or
 
 then build and install with:
 ```
-cd ../libtpm
+cd tpm4720/libtpm
 ./comp-chardev.sh
 sudo make install
 ```
