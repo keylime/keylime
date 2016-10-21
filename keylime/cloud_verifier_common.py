@@ -89,7 +89,7 @@ def init_tls(config,section='cloud_verifier',verifymode=ssl.CERT_REQUIRED,genera
             logger.info("Generating a new CA in %s and a tenant certificate for connecting"%tls_dir)
             logger.info("use keylime_ca -d %s to manage this CA"%tls_dir)
             if not os.path.exists(tls_dir):
-                os.makedirs(tls_dir)
+                os.makedirs(tls_dir,0o700)
             if my_key_pw=='default':
                 logger.warning("CAUTION: using default password for CA, please set private_key_pw to a strong password")
             ca_util.setpassword(my_key_pw)
@@ -310,6 +310,10 @@ def init_db(db_filename):
     if common.DEVELOP_IN_ECLIPSE and os.path.exists(global_db_filename):
         os.remove(global_db_filename)
     os.umask(0o077)
+    kl_dir = os.path.dirname(os.path.abspath(global_db_filename))
+    if not os.path.exists(kl_dir):
+        os.makedirs(kl_dir, 0o700)
+        
     with sqlite3.connect(global_db_filename) as conn:
         cur = conn.cursor()
         createstr = "CREATE TABLE IF NOT EXISTS main("

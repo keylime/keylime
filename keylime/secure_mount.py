@@ -58,7 +58,7 @@ def mount():
     if not check_mounted(secdir):
         # ok now we know it isn't already mounted, go ahead and create and mount
         if not os.path.exists(secdir):
-            os.makedirs(secdir)
+            os.makedirs(secdir,0o700)
             os.chown(secdir, 0, 0)
         size = config.get('cloud_node','secure_size')
         logger.info("mounting secure storage location %s on tmpfs"%secdir)

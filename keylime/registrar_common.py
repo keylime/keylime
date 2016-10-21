@@ -311,6 +311,9 @@ class ThreadedRegistrarServer(ThreadingMixIn, HTTPServer):
         
     def init_db(self):
         os.umask(0o077)
+        kl_dir = os.path.dirname(os.path.abspath(self.db_filename))
+        if not os.path.exists(kl_dir):
+            os.makedirs(kl_dir, 0o700)
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS main(instance_id TEXT PRIMARY_KEY, key TEXT, aik TEXT, ek TEXT, ekcert TEXT, virtual INT, active INT)")

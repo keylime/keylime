@@ -65,7 +65,7 @@ CA_WORK_DIR='%s/ca/'%WORK_DIR
 
 def ch_dir(path=WORK_DIR,root=True):    
     if not os.path.exists(path):
-        os.makedirs(path)
+        os.makedirs(path,0o700)
         if not DEVELOP_IN_ECLIPSE and root:
             os.chown(path,0,0)
     os.chdir(path)
@@ -101,9 +101,9 @@ def init_logging(loggername):
                 return logger
             else:
                 if not os.path.exists(LOGDIR):
-                    os.makedirs(LOGDIR, 0750)
+                    os.makedirs(LOGDIR, 0o750)
                 os.chown(LOGDIR, 0, 0)
-                os.chmod(LOGDIR,0750)
+                os.chmod(LOGDIR,0o750)
                 
         fh = logging.FileHandler(logfilename)
         fh.setLevel(logger.getEffectiveLevel())
