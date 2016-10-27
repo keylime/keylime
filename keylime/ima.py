@@ -22,6 +22,7 @@ import sys
 import common
 import hashlib
 import struct
+import re
 
 logger = common.init_logging('ima')
 
@@ -183,7 +184,7 @@ def process_measurement_list(lines,whitelist=None,m2w=None):
         
         errs[3]+=1
     
-    #print "ERRORS: template-hash %d fnf %d hash %d good %d"%tuple(errs)
+    print "ERRORS: template-hash %d fnf %d hash %d good %d"%tuple(errs)
     return runninghash
 
 def read_whitelist(path):
@@ -191,16 +192,17 @@ def read_whitelist(path):
     whitelist = {}
     for line in f:
         line = line.strip()
-        space = line.find(" ")
-        slash = line.find("/")
-        tokens = line.split()
-        if space ==-1 or (slash ==-1 and tokens[1]!='boot_aggregate'):
+        spaces = re.search("(\s+)",line)
+        if spaces is None:
             logger.error("invalid whitelist file line: %s"%(line))
             continue
-        if slash==-1:
-            path = tokens[1]
-        else:
-            path = line[slash:]
+        spaces = spaces.group(1)
+        space = line.find(spaces)
+        path = line[space+len(spaces):]
+        if path.startswith("."):
+            path = path[1:]
+        if not path.startswith("/"):
+            path = "/%s"%path
             
         tmp = whitelist.get(path,[])
         tmp.append(line[:space].decode('hex'))
@@ -213,14 +215,13 @@ def main(argv=sys.argv):
     
     print "reading white list"
     whitelist = read_whitelist('whitelist.txt')
-
     whitelist['boot_aggregate'] = START_HASH
     
     print "reading measurement list"
     m2w = open('measure2white.txt',"w")
     f = open(measure_path, 'r')
     lines = f.readlines()
-    process_measurement_list(lines,None,m2w)
+    process_measurement_list(lines,whitelist,m2w)
     f.close()
     m2w.close()
     
