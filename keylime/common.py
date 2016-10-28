@@ -24,7 +24,7 @@ import logging.config
 import sys
     
 # SET THIS TO True TO ENABLE THIS TO RUN in ECLIPSE
-DEVELOP_IN_ECLIPSE=True
+DEVELOP_IN_ECLIPSE=False
 
 # SET THIS TO True TO ALLOW ALL TPM Operations to be stubbed out
 STUB_TPM=False
