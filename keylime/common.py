@@ -21,9 +21,10 @@ violate any copyrights that exist in this work.
 import os.path
 import ConfigParser
 import logging.config
+import sys
     
 # SET THIS TO True TO ENABLE THIS TO RUN in ECLIPSE
-DEVELOP_IN_ECLIPSE=False
+DEVELOP_IN_ECLIPSE=True
 
 # SET THIS TO True TO ALLOW ALL TPM Operations to be stubbed out
 STUB_TPM=False
@@ -48,6 +49,11 @@ try:
     USE_CLIME=True
 except ImportError:
     USE_CLIME=False
+    
+TPM_TOOLS_PATH = '/usr/local/bin/'
+if getattr(sys, 'frozen', False):
+    # we are running in a pyinstaller bundle, redirect tpm tools to bundle
+    TPM_TOOLS_PATH = sys._MEIPASS
 
 if DEVELOP_IN_ECLIPSE:
     CONFIG_FILE="../keylime.conf"
@@ -55,6 +61,15 @@ elif LOAD_TEST:
     CONFIG_FILE="./keylime.conf"
 else:
     CONFIG_FILE=os.getenv('KEYLIME_CONFIG', '/etc/keylime.conf')
+
+# if CONFIG_FILE not set as environment var or in /etc/keylime.conf and bundle
+# try to locate the config file next to the script
+if not os.path.exists(CONFIG_FILE) and getattr(sys, 'frozen', False):
+    CONFIG_FILE = os.path.dirname(os.path.abspath(sys.executable))+"/keylime.conf"
+
+if not os.path.exists(CONFIG_FILE):
+    raise Exception('"{0}" does not exist. Please set environment variable KEYLIME_CONFIG or see "{1}" for more details'.format(CONFIG_FILE, __file__))
+print("Using config file %s"%(CONFIG_FILE,))
 
 if DEVELOP_IN_ECLIPSE:
     WORK_DIR="."
@@ -69,16 +84,6 @@ def ch_dir(path=WORK_DIR,root=True):
         if not DEVELOP_IN_ECLIPSE and root:
             os.chown(path,0,0)
     os.chdir(path)
-
-if not os.path.exists(CONFIG_FILE):
-    print('Using packaged keylime.conf')
-    CONFIG_FILE = os.path.dirname(__file__) + '/../keylime.conf'
-
-if not os.path.exists(CONFIG_FILE):
-    raise Exception('"{0}" does not exist. Please set environment variable KEYLIME_CONFIG or see "{1}" for more details'.format(CONFIG_FILE, __file__))
-        
-
-print("Using config file %s"%(CONFIG_FILE,))
 
 LOG_TO_FILE=['cloudnode','registrar','provider_registrar','cloudverifier']
 # not clear that this works right.  console logging may not work

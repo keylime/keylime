@@ -74,7 +74,6 @@ You're finally ready to install keylime!
 
 `sudo python setup.py install`
 
-
 # configuring keylime
 
 keylime puts its configuration in /etc/keylime.conf.  It will also take an alternate location for the config
@@ -145,6 +144,17 @@ a node with it.  Use the --cert option to keylime_tenant to do this.  This takes
 
 If you also have the option extract_payload_zip in /etc/keylime.conf set to True on the cloud_node, then it will
 automatically extract the zip containing an unprotected private key, public key, certificate and CA certificate to /var/lib/keylime/secure/unzipped
+
+# bundling keylime_node into a semi-portable binary
+
+You can build a single binary for the keylime_node service.  It uses http://www.pyinstaller.org/  Install with `pip install pyinstaller`
+
+Make sure that you have UPX for binary compression.  On ubuntu: `apt-get install upx`.
+
+Ensure that you have the tools needed to install keylime normally (see section above). On Ubuntu:
+`apt-get install -y python-dev python-setuptools python-tornado python-m2crypto`.  Now pull in the rest of the python dependencies with `sudo python setup.py install`
+
+Now you can run `make_node_bundle.sh` in the keylime directory.  The single binary will appear inside the dist folder.  You can distribute this file along with keylime.conf and run the node service without any other dependencies.  It will look for the conf file in /etc/ first and then in the same directory as the keylime_node binary.
 
 # to run on OSX 10.11
 

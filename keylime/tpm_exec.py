@@ -20,6 +20,7 @@ violate any copyrights that exist in this work.
 import os
 import subprocess
 import threading
+import common
 
 # shared lock to serialize access to TPM tools
 tpmutilLock = threading.Lock()
@@ -31,7 +32,7 @@ def run(cmd,expectedcode=EXIT_SUCESS,raiseOnError=True,lock=True):
     env = os.environ.copy()
     env['TPM_SERVER_PORT']='9998'
     env['TPM_SERVER_NAME']='localhost'
-    env['PATH']=env['PATH']+":/usr/local/bin"
+    env['PATH']=env['PATH']+":%s"%common.TPM_TOOLS_PATH
     
     if lock:
         with tpmutilLock:

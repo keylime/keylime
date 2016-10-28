@@ -144,28 +144,10 @@ def create_aik(owner_pw,activate):
     return pem,key,mod
         
 def get_mod_from_pem(pemfile):
-    retout = tpm_exec.run("openssl rsa -pubin -in %s -text"%pemfile,lock=False)[0]
-    
-    inMod = False
-    public_modulus = []
-    for line in retout:
-        if line.startswith("Modulus"):
-            inMod=True
-            continue
-        if line.startswith("Exponent"):
-            break
-        if inMod:
-            if line.strip()[-1]==':':
-                line = line.strip()[:-1]
-                
-            tokens = line.strip().split(':')
-            for token in tokens:
-                # drop the first byte to match what comes out of getpubkey
-                if token=='00' and len(public_modulus)==0:
-                    continue
-                public_modulus.append(string.atol(token,base=16))
-    return base64.b64encode(bytearray(public_modulus))
-
+    with open(pemfile,"r") as f:
+        pem = f.read()
+    pubkey = crypto.rsa_import_pubkey(pem)
+    return base64.b64encode(bytearray.fromhex('{:0192x}'.format(pubkey.n)))
 
 def get_mod_from_tpm(keyhandle):
     retout = tpm_exec.run("getpubkey -ha %s"%keyhandle)[0]
@@ -181,7 +163,6 @@ def get_mod_from_tpm(keyhandle):
             for token in tokens:
                 public_modulus.append(string.atol(token,base=16))
     return base64.b64encode(bytearray(public_modulus))
-    
     
 def load_aik():
     # is the key already there?
