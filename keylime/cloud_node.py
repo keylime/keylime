@@ -403,16 +403,6 @@ def main(argv=sys.argv):
     if os.getuid()!=0 and not common.DEVELOP_IN_ECLIPSE:
         logger.critical("This process must be run as root.")
         return
-
-    try:
-        node_uuid = config.get('cloud_node','node_uuid')
-    except ConfigParser.NoOptionError:
-        node_uuid = None
-    
-    if node_uuid == 'openstack':
-        node_uuid = openstack.get_openstack_uuid()
-    elif node_uuid == 'generate' or node_uuid is None:
-        node_uuid = str(uuid.uuid4())
     
     if common.DEVELOP_IN_ECLIPSE:
         node_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
@@ -436,6 +426,18 @@ def main(argv=sys.argv):
         
     if virtual_node and (ekcert is None or common.STUB_TPM):
         ekcert = 'virtual'
+        
+    # now we need the UUID
+    try:
+        node_uuid = config.get('cloud_node','node_uuid')
+    except ConfigParser.NoOptionError:
+        node_uuid = None
+    if node_uuid == 'openstack':
+        node_uuid = openstack.get_openstack_uuid()
+    elif node_uuid == 'hash_ek':
+        node_uuid = hashlib.sha256(ek).hexdigest()
+    elif node_uuid == 'generate' or node_uuid is None:
+        node_uuid = str(uuid.uuid4())
 
     # use an TLS context with no certificate checking 
     registrar_client.noAuthTLSContext(config)
