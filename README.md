@@ -84,12 +84,26 @@ You're finally ready to install keylime!
 
 `sudo python setup.py install`
 
-# configuring keylime
+# Configuring keylime
 
 keylime puts its configuration in /etc/keylime.conf.  It will also take an alternate location for the config
 in the environment var KEYLIME_CONFIG.
 
 This file is documented with comments and should be self explanatory.
+
+# Making sure your TPM is ready for keylime
+
+The above instructions for installing tpm4720 will be configured to talk to /dev/tpm0.  If this device is not on your system, then you may need to build/install TPM support for your kernel.  You can use 
+
+`dmesg | grep -i tpm`
+
+to see if the kernel is initializing the TPM driver during boot.  If you have the /dev/tpm0 device, you next need to get it into the right state.  The kernel driver reports status on the TPM in /sys.  You can locate the folder with relevant info from the driver using
+
+`sudo find /sys -name tpm0`
+
+Several results may be returned, but the duplicates are just symlinks to one location.  Go to one of the returned paths, for example, /sys/class/misc/tpm0.  Now change to the device directory.  Here you can find some information from the TPM like the current pcr values and sometimes the public EK is available.  It will also report two important state values: active and enabled.  To use keylime, both of these must be 1.  If they are not, you may need to reboot into the BIOS to enable and activate the TPM.  If you need to both enable and activate, then you must enable first, reboot, then activate and finally reboot again.  It is also possible that you may need to assert physical presence (see manual for your system on how to do this) in order to accomplish these actions in your BIOS.  
+
+If your system shows enabled and activated, you can next check the "owned" status in the /sys directory.  Keylime can take a system that is not owned (i.e., owned = 0) and take control of it.  Keylime can also take a system that is already owned, provided that you know the owner password and that keylime or another trusted computing system that relies upon tpm4720 previously took ownership.  If you know the owner password, you can set the option tpm_ownerpassword in keylime.conf to this known value.
 
 # Running keylime
 
@@ -155,7 +169,7 @@ a node with it.  Use the --cert option to keylime_tenant to do this.  This takes
 If you also have the option extract_payload_zip in /etc/keylime.conf set to True on the cloud_node, then it will
 automatically extract the zip containing an unprotected private key, public key, certificate and CA certificate to /var/lib/keylime/secure/unzipped
 
-# bundling keylime_node into a semi-portable binary
+# Bundling keylime_node into a semi-portable binary
 
 You can build a single binary for the keylime_node service.  It uses http://www.pyinstaller.org/  Install with `pip install pyinstaller`
 
@@ -166,7 +180,7 @@ Ensure that you have the tools needed to install keylime normally (see section a
 
 Now you can run `make_node_bundle.sh` in the keylime directory.  The single binary will appear inside the dist folder.  You can distribute this file along with keylime.conf and run the node service without any other dependencies.  It will look for the conf file in /etc/ first and then in the same directory as the keylime_node binary.
 
-# to run on OSX 10.11
+# To run on OSX 10.11
 
 you need to build m2crypto from source with 
 

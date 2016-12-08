@@ -44,7 +44,10 @@ def request(method,url,params=None,data=None,context=None):
     return tornado_response(response.code,response.body)
 
 def is_refused(e):
-    return "Connection refused" in e.strerror
+    if hasattr(e,'strerror'):
+        return "Connection refused" in e.strerror
+    else:
+        return False
 
 class tornado_response():
     

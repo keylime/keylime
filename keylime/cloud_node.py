@@ -120,10 +120,9 @@ class Handler(BaseHTTPRequestHandler):
             if not os.path.exists(common.IMA_ML):
                 logger.warn("IMA measurement list not available: %s"%(common.IMA_ML))
             else:
-                f = open(common.IMA_ML)
-                ml = f.read()
-                f.close()
-                response['ima_list']=ml
+                with open(common.IMA_ML,'r') as f:
+                    ml = f.read()
+                response['ima_measurement_list']=ml
              
         json_response = json.dumps(response)  
            
@@ -403,9 +402,6 @@ def main(argv=sys.argv):
     if os.getuid()!=0 and not common.DEVELOP_IN_ECLIPSE:
         logger.critical("This process must be run as root.")
         return
-    
-    if common.DEVELOP_IN_ECLIPSE:
-        node_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
 
     # get params for initialization
     registrar_ip = config.get('general', 'registrar_ip')
@@ -438,6 +434,8 @@ def main(argv=sys.argv):
         node_uuid = hashlib.sha256(ek).hexdigest()
     elif node_uuid == 'generate' or node_uuid is None:
         node_uuid = str(uuid.uuid4())
+    if common.DEVELOP_IN_ECLIPSE:
+        node_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
 
     # use an TLS context with no certificate checking 
     registrar_client.noAuthTLSContext(config)

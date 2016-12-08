@@ -28,14 +28,20 @@ import os
 import crypto
 import base64
 import argparse
-import time
 import ConfigParser
 import getpass
 import json
 import zipfile
 import cStringIO
 import socket
-from M2Crypto import X509, EVP, RSA, ASN1, BIO
+
+if common.CA_IMPL=='cfssl':
+    import ca_impl_cfssl as ca_impl
+elif common.CA_IMPL=='openssl':
+    import ca_impl_openssl as ca_impl
+else:
+    raise Exception("Unknown CA implementation: %s"%common.CA_IMPL)
+from M2Crypto import X509, EVP, BIO
 
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
@@ -50,95 +56,6 @@ Usage ;
    # Create a temporary server cert+key, signed by the CA
    server_cert = mk_temporary_cert(cacert.name, cakey.name, '*.server.co.uk')
 """
-
-
-def mk_cert_valid(cert, days=365):
-    """
-    Make a cert valid from now and til 'days' from now.
-    Args:
-       cert -- cert to make valid
-       days -- number of days cert is valid for from now.
-    """
-    t = long(time.time())
-    now = ASN1.ASN1_UTCTIME()
-    now.set_time(t)
-    expire = ASN1.ASN1_UTCTIME()
-    expire.set_time(t + days * 24 * 60 * 60)
-    cert.set_not_before(now)
-    cert.set_not_after(expire)
-
-
-def mk_request(bits, cn):
-    """
-    Create a X509 request with the given number of bits in they key.
-    Args:
-      bits -- number of RSA key bits
-      cn -- common name in the request
-    Returns a X509 request and the private key (EVP)
-    """
-    pk = EVP.PKey()
-    x = X509.Request()
-    rsa = RSA.gen_key(bits, 65537, lambda: None)
-    pk.assign_rsa(rsa)
-    x.set_pubkey(pk)
-    name = x.get_subject()
-    name.C = config.get('ca','cert_country')
-    name.CN = cn
-    name.ST = config.get('ca','cert_state')
-    name.L = config.get('ca','cert_locality')
-    name.O = config.get('ca','cert_organization')
-    name.OU = config.get('ca','cert_org_unit')
-    x.sign(pk,'sha256')
-    return x, pk
-
-
-def mk_cacert():
-    """
-    Make a CA certificate.
-    Returns the certificate, private key and public key.
-    """
-    req, pk = mk_request(config.getint('ca','cert_bits'),config.get('ca','cert_ca_name'))
-    pkey = req.get_pubkey()
-    cert = X509.X509()
-    cert.set_serial_number(1)
-    cert.set_version(2)
-    mk_cert_valid(cert,config.getint('ca','cert_ca_lifetime'))
-
-    issuer = X509.X509_Name()
-    issuer.C = config.get('ca','cert_country')
-    issuer.CN = config.get('ca','cert_ca_name')
-    issuer.ST = config.get('ca','cert_state')
-    issuer.L = config.get('ca','cert_locality')
-    issuer.O = config.get('ca','cert_organization')
-    issuer.OU = config.get('ca','cert_org_unit')
-    cert.set_issuer(issuer)
-    cert.set_subject(cert.get_issuer())
-    cert.set_pubkey(pkey)
-    cert.add_ext(X509.new_extension('basicConstraints', 'CA:TRUE'))
-    cert.add_ext(X509.new_extension('subjectKeyIdentifier', cert.get_fingerprint()))
-    cert.sign(pk, 'sha256')
-    return cert, pk, pkey
-
-def mk_signed_cert(cacert,ca_pk,name):
-    """
-    Create a CA cert + server cert + server private key.
-    """
-    # unused, left for history.
-    cert_req, pk = mk_request(config.getint('ca','cert_bits'), cn=name)
-    
-    cert = X509.X509()
-    cert.set_serial_number(2)
-    cert.set_version(2)
-    mk_cert_valid(cert)
-    cert.add_ext(X509.new_extension('nsComment', 'SSL sever'))
-    cert.add_ext(X509.new_extension('subjectAltName','DNS:%s'%name))
-    
-    cert.set_subject(cert_req.get_subject())
-    cert.set_pubkey(cert_req.get_pubkey())
-    cert.set_issuer(cacert.get_issuer())
-    cert.sign(ca_pk, 'sha256')
-    return cert, pk
-
 # protips
 # openssl verify -CAfile cacert.crt cacert.crt cert.crt
 # openssl x509 -in cert.crt -noout -text
@@ -162,14 +79,20 @@ def cmd_mkcert(workingdir,name):
         cacert = X509.load_cert('cacert.crt')
         ca_pk = EVP.load_key_string(str(priv[0]['ca']))
             
-        cert,pk = mk_signed_cert(cacert,ca_pk,name)
+        cert,pk = ca_impl.mk_signed_cert(cacert,ca_pk,name,priv[0]['lastserial']+1)
         with open('%s-cert.crt'%name, 'w') as f:
             f.write(cert.as_pem())
-        
+            
         f = BIO.MemoryBuffer() 
         pk.save_key_bio(f,None)
         priv[0][name]=f.getvalue()
         f.close()
+        
+        #increment serial number after successful creation
+        priv[0]['lastserial']+=1
+
+        # extract the serial number
+        serial = cert.get_serial_number()
         
         write_private(priv)
         
@@ -189,6 +112,8 @@ def cmd_mkcert(workingdir,name):
             logger.errro("ERROR: Cert does not validate against CA")
     finally:
         os.chdir(cwd)
+        
+    return serial
 
 def cmd_init(workingdir):
     cwd = os.getcwd()
@@ -200,7 +125,7 @@ def cmd_init(workingdir):
         rmfiles("*.zip")
         rmfiles("private.json")
     
-        cacert, ca_pk, _ = mk_cacert()
+        cacert, ca_pk, _ = ca_impl.mk_cacert()
         
         priv=read_private()
             
@@ -212,6 +137,10 @@ def cmd_init(workingdir):
         ca_pk.save_key_bio(f,None)
         priv[0]['ca']=f.getvalue()
         f.close()
+        
+        # store the last serial number created.
+        # the CA is always serial # 1
+        priv[0]['lastserial'] = 1
         
         write_private(priv)
         
@@ -276,7 +205,42 @@ def cmd_certpkg(workingdir,name,needfile=True):
         return pkg
     finally:
         os.chdir(cwd)
-    
+        
+def cmd_revoke(workingdir,name=None,serial=None):
+    cwd = os.getcwd()
+    try:
+        common.ch_dir(workingdir,os.getuid()==0)
+        priv = read_private()
+        
+        if name is not None and serial is not None:
+            raise Exception("You may not specify a cert and a serial at the same time")
+        if name is None and serial is None:
+            raise Exception("You must specify a cert or a serial to revoke")
+        if name is not None:
+            # load up the cert
+            cert = X509.load_cert("%s-cert.crt"%name)
+            serial = cert.get_serial_number()
+            
+        #convert serial to string
+        serial = str(serial)
+            
+        # get the ca key cert and keys as strings
+        with open('cacert.crt','r') as f:
+            cacert = f.read()
+        ca_pk = str(priv[0]['ca'])
+        
+        if serial not in priv[0]['revoked_keys']:
+            priv[0]['revoked_keys'].append(serial)
+        
+        crl = ca_impl.gencrl(priv[0]['revoked_keys'],cacert,ca_pk)
+         
+        write_private(priv)
+        
+        return crl
+    finally:
+        os.chdir(cwd)
+    return crl
+
 def rmfiles(path):
     import glob
     files = glob.glob(path)
@@ -313,7 +277,7 @@ def read_private():
         return json.loads(plain),toread['salt']
     else:
         #file doesn't exist, just invent a salt
-        return {},base64.b64encode(crypto.generate_random_key())
+        return {'revoked_keys':[]},base64.b64encode(crypto.generate_random_key())
 
 def main(argv=sys.argv):
     parser = argparse.ArgumentParser(argv[0])
@@ -322,11 +286,12 @@ def main(argv=sys.argv):
     parser.add_argument('-d','--dir',action='store',help='use a custom directory to store certificates and keys')
 
     if common.DEVELOP_IN_ECLIPSE and len(argv)==1:
-        argv=['-c','init']
-        argv=['-c','create','-n',socket.getfqdn()]
-        argv=['-c','create','-n','client']
         setpassword('test')
-        #argv=['-c','pkg','-n','tester']
+        argv=['-c','init']
+        #argv=['-c','create','-n',socket.getfqdn()]
+        argv=['-c','create','-n','crltest.llan.ll.mit.edu']
+        #argv=['-c','pkg','-n','client']
+        argv=['-c','revoke','-n','crltest.llan.ll.mit.edu']
     else:
         argv = argv[1:]
         
@@ -354,6 +319,12 @@ def main(argv=sys.argv):
             parser.print_help()
             sys.exit(-1)
         cmd_certpkg(workingdir,args.name)
+    elif args.command=='revoke':
+        if args.name is None:
+            logger.error("you must pass in a name for the certificate using -n (or --name)")
+            parser.print_help()
+            sys.exit(-1)
+        cmd_revoke(workingdir, args.name)
     else:
         logger.error("Invalid command: %s"%args.command)
         parser.print_help()

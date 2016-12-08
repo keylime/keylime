@@ -43,6 +43,9 @@ else:
 # if you're Robert and you really don't want to mount secure
 #MOUNT_SECURE=False
 
+# choose between cfssl or openssl for creating CA certifciates
+CA_IMPL = 'openssl'
+
 # Try and import cLime, if it fails set USE_CLIME to False.
 try:
     import _cLime
@@ -162,10 +165,11 @@ BS = 16
 # how many quotes are we allowed to verify before asking the registrar if the key is valid
 MAX_STALE_REGISTRAR_CACHE = 200
 
-if DEVELOP_IN_ECLIPSE:
-    IMA_ML = 'ascii'
+if DEVELOP_IN_ECLIPSE or STUB_TPM:
+    IMA_ML = '../scripts/ima/ascii_runtime_measurements'
 else:
     IMA_ML = '/sys/kernel/security/ima/ascii_runtime_measurements'
+    
 IMA_PCR = 10
 
 # this is where data will be bound to a quote, MUST BE RESETABLE!

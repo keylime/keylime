@@ -23,22 +23,16 @@ import common
 import hashlib
 import struct
 import re
+import os
 
 logger = common.init_logging('ima')
-
-# Paths
-measure_path = '/sys/kernel/security/ima/ascii_runtime_measurements'
 
 #         m = ima_measure_re.match(measure_line)
 #         measure  = m.group('file_hash')
 #         filename = m.group('file_path')
 
-# build whitelist
-# find / \( -fstype rootfs -o -type f \) -uid 0 -exec sha1sum '{}' > ~/list.txt \;
-
 START_HASH = '0000000000000000000000000000000000000000'.decode('hex')
 FF_HASH =  'ffffffffffffffffffffffffffffffffffffffff'.decode('hex')
-
 
 # struct event {
 #     struct {
@@ -122,17 +116,28 @@ def read_measreument_list_bin(path,whitelist):
         
         import pdb; pdb.set_trace()
         
-def process_measurement_list(lines,whitelist=None,m2w=None):
+def process_measurement_list(lines,lists=None,m2w=None):
     errs = [0,0,0,0]
     runninghash = START_HASH
     
+    
+    if lists is not None:
+        whitelist = lists['whitelist']
+        exclude_list = lists['exclude']
+    else:
+        whitelist = None
+        
+    combined=None
+    if exclude_list != []:
+        combined = "(" + ")|(".join(exclude_list) + ")"
+        
     for line in lines:
         line = line.strip()
         tokens = line.split()
         
         if line =='':
             continue
-        if len(tokens)!=5:
+        if len(tokens)<5:
             logger.error("invalid measurement list file line: -%s-"%(line))
             return None
         
@@ -140,30 +145,49 @@ def process_measurement_list(lines,whitelist=None,m2w=None):
         #pcr = tokens[0]
         template_hash=tokens[1].decode('hex')
         mode = tokens[2]
-        filedata = tokens[3]
-        ftokens = filedata.split(":")
-        filedata_algo = str(ftokens[0])
-        filedata_hash = ftokens[1].decode('hex')
-        path = str(line[line.find(filedata)+len(filedata)+1:])
         
-        if mode !="ima-ng":
-            raise Exception("Unsupported ima mode %s"%(mode))
-        
-        # this is some IMA weirdness
-        if template_hash == START_HASH:
-            template_hash = FF_HASH
-        else:
-            #verify template hash. yep this is terrible
-            fmt = "<I%dsBB%dsI%dsB"%(len(filedata_algo),len(filedata_hash),len(path))
-            # +2 for the : and the null terminator, and +1 on path for null terminator
-            tohash=struct.pack(fmt,len(filedata_hash)+len(filedata_algo)+2,filedata_algo,ord(':'),ord('\0'),filedata_hash,len(path)+1,path,ord('\0'))
-            expected_template_hash = hashlib.sha1(tohash).digest()
+        if mode =="ima-ng":        
+            filedata = tokens[3]
+            ftokens = filedata.split(":")
+            filedata_algo = str(ftokens[0])
+            filedata_hash = ftokens[1].decode('hex')
+            path = str(line[line.rfind(filedata)+len(filedata)+1:])
             
-            if expected_template_hash!=template_hash:
-                errs[0]+=1
-                logger.warning("template hash for file %s does not match %s != %s"%(path,expected_template_hash.encode('hex'),template_hash.encode('hex')))     
-                sys.exit(0)   
-        
+            # this is some IMA weirdness
+            if template_hash == START_HASH:
+                template_hash = FF_HASH
+            else:
+                #verify template hash. yep this is terrible
+                fmt = "<I%dsBB%dsI%dsB"%(len(filedata_algo),len(filedata_hash),len(path))
+                # +2 for the : and the null terminator, and +1 on path for null terminator
+                tohash=struct.pack(fmt,len(filedata_hash)+len(filedata_algo)+2,filedata_algo,ord(':'),ord('\0'),filedata_hash,len(path)+1,path,ord('\0'))
+                expected_template_hash = hashlib.sha1(tohash).digest()
+                
+                if expected_template_hash!=template_hash:
+                    errs[0]+=1
+                    logger.warning("template hash for file %s does not match %s != %s"%(path,expected_template_hash.encode('hex'),template_hash.encode('hex')))     
+        elif mode=='ima':
+            filedata_hash = tokens[3].decode('hex')
+            path = str(line[line.rfind(tokens[3])+len(tokens[3])+1:])
+            
+            # this is some IMA weirdness
+            if template_hash == START_HASH:
+                template_hash = FF_HASH
+            else:
+                #verify template hash. yep this is terrible
+                # name needs to be null padded out to MAX len. +1 is for the null terminator of the string itself
+                fmt = "<%ds%ds%ds"%(len(filedata_hash),len(path),TCG_EVENT_NAME_LEN_MAX-len(path)+1)
+                tohash=struct.pack(fmt,filedata_hash,path,str(bytearray(TCG_EVENT_NAME_LEN_MAX-len(path)+1)))
+                #print len(tohash)
+                #print tohash.encode('hex')
+                expected_template_hash = hashlib.sha1(tohash).digest()
+                
+                if expected_template_hash!=template_hash:
+                    errs[0]+=1
+                    logger.warning("template hash for file %s does not match %s != %s"%(path,expected_template_hash.encode('hex'),template_hash.encode('hex')))     
+        else:
+            raise Exception("unsupported ima template mode: %s"%mode)
+               
         # update hash
         runninghash = hashlib.sha1(runninghash+template_hash).digest()
         
@@ -172,22 +196,32 @@ def process_measurement_list(lines,whitelist=None,m2w=None):
             m2w.write("%s %s\n"%(filedata_hash.encode('hex'),path))
         
         if whitelist is not None:
+            
+            # determine if path matches any exclusion list items
+            if combined is not None and re.match(combined,path):
+                #print "excluding %s"%path
+                continue            
+            
             accept_list = whitelist.get(path,None)
             if accept_list is None:
                 logger.warning("File not found in whitelist: %s"%(path))
                 errs[1]+=1
                 continue
-            if filedata_hash not in accept_list:
-                logger.warning("Hashes for file %s don't match %s not in %s"%(path,filedata_hash.encode('hex'),[x.encode('hex') for x in accept_list]))
+            if filedata_hash.encode('hex') not in accept_list:
+                logger.warning("Hashes for file %s don't match %s not in %s"%(path,filedata_hash.encode('hex'),accept_list))
                 errs[2]+=1
                 continue
         
         errs[3]+=1
-    
-    print "ERRORS: template-hash %d fnf %d hash %d good %d"%tuple(errs)
-    return runninghash
+        
+    # clobber the retval if there were IMA file errors 
+    if sum(errs[:3])>0:
+        logger.error("IMA ERRORS: template-hash %d fnf %d hash %d good %d"%tuple(errs))
+        runninghash = START_HASH
+        
+    return runninghash.encode('hex')
 
-def read_whitelist(path):
+def read_whitelists(path,exclude_path):
     f = open(path, 'r')
     whitelist = {}
     for line in f:
@@ -205,31 +239,51 @@ def read_whitelist(path):
             path = "/%s"%path
             
         tmp = whitelist.get(path,[])
-        tmp.append(line[:space].decode('hex'))
+        tmp.append(line[:space])
         whitelist[path]=tmp
     f.close()
-    return whitelist
-
+    whitelist['boot_aggregate'] = START_HASH.encode('hex')
+    
+    excl_list = []
+    if os.path.exists(exclude_path):
+        with open(exclude_path,'r') as f:
+            excl_list = f.read()
+        excl_list = excl_list.split("\n")
+        for excl in excl_list:
+            if excl.startswith("#"):
+                excl_list.remove(excl)
+    return{'whitelist':whitelist,'exclude':excl_list}
+    
 def main(argv=sys.argv):
     #read_measreument_list_bin("/sys/kernel/security/ima/binary_runtime_measurements", None)
     
-    print "reading white list"
-    whitelist = read_whitelist('whitelist.txt')
-    whitelist['boot_aggregate'] = START_HASH
+    whitelist_path = 'whitelist.txt'
+    #whitelist_path = '../scripts/gerardo/whitelist.txt'
+    #whitelist_path = '../scripts/ima/whitelist.txt'
+    print "reading white list from %s"%whitelist_path
+
+    exclude_path = 'exclude.txt'
+    #exclude_path = '../scripts/ima/exclude.txt'
+    print "reading exclude list from %s"%exclude_path
     
-    print "reading measurement list"
-    m2w = open('measure2white.txt',"w")
+    lists = read_whitelists(whitelist_path,exclude_path)
+    
+    measure_path = common.IMA_ML
+    #measure_path='../scripts/ima/ascii_runtime_measurements_ima'
+    #measure_path = '../scripts/gerardo/ascii_runtime_measurements'
+    print "reading measurement list from %s"%measure_path
     f = open(measure_path, 'r')
     lines = f.readlines()
-    process_measurement_list(lines,whitelist,m2w)
+    
+    m2w = open('measure2white.txt',"w")
+    process_measurement_list(lines,lists,m2w)
     f.close()
     m2w.close()
     
     print "using m2w"
     
-    wl2 = read_whitelist('measure2white.txt')
-    
-    process_measurement_list(lines,wl2)
+    lists2 = read_whitelists('measure2white.txt',exclude_path)
+    process_measurement_list(lines,lists2)
     
     print "done"
         

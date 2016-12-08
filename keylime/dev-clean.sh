@@ -22,20 +22,23 @@
 #
 ##########################################################################################
 
-rm -f .auditing*
-rm -f aik*
-rm -f *cv_persis*
-rm -f *en_persis*
-rm -f owner_pw.txt
-rm -f *pem
-rm -f derived_tci_key
-rm -f tpm_nvram
-rm -f *log_*
-rm -f keylime-dev.log
-rm -f decrypted_payload
-rm -rf reg_ca
-rm -rf cv_ca
-rm -f *.sqlite
-rm -f tpmdata.json
-sudo init_tpm_server
-sudo tpm_serverd
+echo "Deleting..."
+rm -fv .auditing*
+rm -fv aik*
+rm -fv *cv_persis*
+rm -fv *en_persis*
+rm -fv owner_pw.txt
+rm -fv *pem
+rm -fv derived_tci_key
+rm -fv tpm_nvram
+rm -fv *log_*
+rm -fv keylime-dev.log
+rm -fv decrypted_payload
+rm -fv encrypted_payload
+rm -vrf reg_ca
+rm -vrf cv_ca
+rm -fv *.sqlite
+rm -fv tpmdata.json
+rm -vrf ca
+init_tpm_server
+tpm_serverd

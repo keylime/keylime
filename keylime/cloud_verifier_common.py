@@ -142,12 +142,12 @@ def process_quote_response(instance, json_response, config):
     try:        
         received_public_key =json_response.get("pubkey",None)
         quote = json_response["quote"]
-        ima_list = json_response.get("ima_list",None)
+        ima_measurement_list = json_response.get("ima_measurement_list",None)
         
         logger.debug("received quote:      %s"%quote)
         logger.debug("for nonce:           %s"%instance['nonce'])
         logger.debug("received public key: %s"%received_public_key)
-        logger.debug("received ima_list    %s"%(ima_list!=None))
+        logger.debug("received ima_measurement_list    %s"%(ima_measurement_list!=None))
     except Exception:
         return None
     
@@ -173,14 +173,28 @@ def process_quote_response(instance, json_response, config):
         instance['aikFromRegistrarCacheHits'] += 1
         
     if not instance['vtpm_policy']:
-        validQuote = tpm_quote.check_quote(instance['nonce'],received_public_key,quote,aikFromRegistrar,instance['tpm_policy'],ima_list)
+        validQuote = tpm_quote.check_quote(instance['nonce'],
+                                           received_public_key,
+                                           quote,
+                                           aikFromRegistrar,
+                                           instance['tpm_policy'],
+                                           ima_measurement_list,
+                                           instance['ima_whitelist'])
     else:
         registrar_client.serverAuthTLSContext(config,'cloud_verifier')
         dq_aik = registrar_client.getAIK(config.get("general","provider_registrar_ip"), config.get("general","provider_registrar_port"), instance['instance_id'])
         if dq_aik is None:
             logger.warning("provider AIK not found in registrar, deep quote not validated")
             return False
-        validQuote = tpm_quote.check_deep_quote(instance['nonce'],received_public_key,quote,aikFromRegistrar,dq_aik,instance['vtpm_policy'],instance['tpm_policy'],ima_list=ima_list)
+        validQuote = tpm_quote.check_deep_quote(instance['nonce'],
+                                                received_public_key,
+                                                quote,
+                                                aikFromRegistrar,
+                                                dq_aik,
+                                                instance['vtpm_policy'],
+                                                instance['tpm_policy'],
+                                                ima_measurement_list,
+                                                instance['ima_whitelist'])
     if not validQuote:
         return False
     
@@ -269,12 +283,17 @@ def get_query_tag_value(path, query_tag):
     return data.get(query_tag,None) 
 
 def handleVerificationError(instance):
+    if instance['metadata'] != None:
+        # assume it is a cert serial number
+        #crl = ca_util.cmd_revoke(instance['metadata'])
+        crl = None
+    crl = None
     ###########################################################################
     # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
     # DO SOMETHING HERE to signal that bad stuff is happening in the system, like a web service call
     # to some admin server to act on the potential breach by shutting things down
     ###########################################################################
-    return
+    return crl
 
 # ===== sqlite stuff =====
 global_db_filename = None
@@ -289,6 +308,8 @@ cols_db = {
     'public_key': 'TEXT',
     'tpm_policy' : 'TEXT', 
     'vtpm_policy' : 'TEXT', 
+    'metadata' : 'TEXT',
+    'ima_whitelist' : 'TEXT',
     }
 
 # in the form key : default value
@@ -356,6 +377,8 @@ def add_instance(json_body):
     d['public_key'] = ""
     d['tpm_policy'] = json_body['tpm_policy']
     d['vtpm_policy'] = json_body.get('vtpm_policy',"{}")
+    d['metadata'] = json_body.get('metadata',None)
+    d['ima_whitelist'] = json_body.get('ima_whitelist',None)
     
     d = add_defaults(d)
 
@@ -370,13 +393,16 @@ def add_instance(json_body):
         insertlist = []
         for key in sorted(cols_db.keys()):
             insertlist.append(d[key])
-        cur.execute('INSERT INTO main VALUES(?,?,?,?,?,?,?,?)',insertlist)
+        
+        cur.execute('INSERT INTO main VALUES(?%s)'%(",?"*(len(insertlist)-1)),insertlist)
 
         conn.commit()
         
     # these are JSON strings and should be converted to dictionaries
     d['tpm_policy'] = json.loads(d['tpm_policy'])
     d['vtpm_policy'] = json.loads(d['vtpm_policy'])
+    if d['ima_whitelist'] is not None:
+        d['ima_whitelist'] = json.loads(d['ima_whitelist'])
                                   
     print_db()
     return d
@@ -478,7 +504,7 @@ def overwrite_instance(instance_id,instance):
         for key in cols_db.keys():
             if key is 'instance_id':
                 continue
-            if key == 'tpm_policy' or key == 'vtpm_policy':
+            if key == 'tpm_policy' or key == 'vtpm_policy' or key =='ima_whitelist':
                 cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(json.dumps(instance[key]),instance_id))
             else:
                 cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(instance[key],instance_id))
@@ -519,6 +545,7 @@ def test_sql():
         'cloudnode_port': '39843',
         'tpm_policy': '{"a":"1"}',
         'vtpm_policy': '{"ab":"1"}',
+        'ima_whitelist': '{"ab":"1"}',
         }
     
     json_body2 = {
@@ -528,6 +555,7 @@ def test_sql():
         'cloudnode_port': '39843',
         'tpm_policy': '{"ab":"1"}',
         'vtpm_policy': '{"ab":"1"}',
+        'metadata': 'ldkajflksdjflasj'
         }
     #some DB testing stuff
     print "testing add"

@@ -24,17 +24,24 @@
 
 if [ $# -lt 1 ]
 then
-    echo "Usage:  `basename $0` list.txt" >&2
+    echo "Usage:  `basename $0` list.txt [hash-algo]" >&2
     exit $NOARGS;
+fi
+
+if [ $# -eq 2 ]
+then
+	ALGO=$2
+else
+	ALGO=sha1sum
 fi
 
 OUTPUT=$(readlink -f $1)
 rm -f $OUTPUT
 
-echo "Writing whitelist to $OUTPUT..."
+echo "Writing whitelist to $OUTPUT with $ALGO..."
 
 cd /
-find `ls / | grep -v "sys\|run\|proc\|lost+found\|dev\|medai\|mnt"` \( -fstype rootfs -o -type f \) -uid 0 -exec sha1sum '{}' >> $OUTPUT \;
+find `ls / | grep -v "sys/\|run\|proc\|lost+found\|dev\|media\|mnt"` \( -fstype rootfs -o -type f -o -type l\) -uid 0 -exec $ALGO '{}' >> $OUTPUT \;
 
 rm -rf /tmp/ima/
 for i in `ls /boot/initrd*`
@@ -43,6 +50,6 @@ do
 	mkdir -p /tmp/ima/$i-extracted
 	cd /tmp/ima/$i-extracted
 	gzip -dc $i | cpio -id
-	find . -type f -exec sha1sum '{}' >> $OUTPUT \;
+	find . -type f -exec $ALGO '{}' >> $OUTPUT \;
 done
 rm -rf /tmp/ima

@@ -31,7 +31,7 @@ logger = common.init_logging('tpm_nvram')
 
 # this may not be TPM spec compliant
 #def clear_key_nvram():
-#    tpm_exec.run("nv_definespace -pwdo %s -in 1 -sz 0 -pwdd %s -per 40004"%(ownerpw,ownerpw))
+#    tpm_exec.run("nv_definespace -pwdo %s -in 1 -sz 0 -pwdd %s -per 40004"%(owner_pw,owner_pw))
 
 def write_key_nvram(key):
     if common.STUB_TPM:
@@ -40,7 +40,7 @@ def write_key_nvram(key):
         storage.close()
         return
           
-    ownerpw = tpm_initialize.get_tpm_data()['owner_pw']
+    owner_pw = tpm_initialize.get_tpm_metadata('owner_pw')
     keyFile = None
     try:
         # write out quote
@@ -49,8 +49,8 @@ def write_key_nvram(key):
         keyFile.write(key)
         keyFile.close()
         os.close(keyfd)
-        tpm_exec.run("nv_definespace -pwdo %s -in 1 -sz %d -pwdd %s -per 40004"%(ownerpw,common.BOOTSTRAP_KEY_SIZE,ownerpw))
-        tpm_exec.run("nv_writevalue -pwdd %s -in 1 -if %s"%(ownerpw,keyFile.name))
+        tpm_exec.run("nv_definespace -pwdo %s -in 1 -sz %d -pwdd %s -per 40004"%(owner_pw,common.BOOTSTRAP_KEY_SIZE,owner_pw))
+        tpm_exec.run("nv_writevalue -pwdd %s -in 1 -if %s"%(owner_pw,keyFile.name))
     finally:
         if keyFile is not None:
             os.remove(keyFile.name)
@@ -61,11 +61,11 @@ def read_ekcert_nvram():
         return common.TEST_EK_CERT
     nvpath = None
     try:
-        ownerpw = tpm_initialize.get_tpm_data()['owner_pw']
+        owner_pw = tpm_initialize.get_tpm_metadata('owner_pw')
         #make a temp file for the quote 
         nvfd,nvpath = tempfile.mkstemp()
         
-        (output,code) = tpm_exec.run("nv_readvalue -pwdo %s -in 1000f000 -cert -of %s"%(ownerpw,nvpath),raiseOnError=False)
+        (output,code) = tpm_exec.run("nv_readvalue -pwdo %s -in 1000f000 -cert -of %s"%(owner_pw,nvpath),raiseOnError=False)
             
         if code!=tpm_exec.EXIT_SUCESS and len(output)>0 and output[0].startswith("Error Illegal index from NV_ReadValue"):
             logger.warn("No EK certificate found in TPM NVRAM")
@@ -93,12 +93,12 @@ def read_key_nvram():
         return key
     nvpath = None
     try: 
-        ownerpw = tpm_initialize.get_tpm_data()['owner_pw']
+        owner_pw = tpm_initialize.get_tpm_metadata('owner_pw')
         
         #make a temp file for the nvram return 
         nvfd,nvpath = tempfile.mkstemp()
         
-        (output,code) = tpm_exec.run("nv_readvalue -pwdd %s -in 1 -sz %d -of %s"%(ownerpw,common.BOOTSTRAP_KEY_SIZE,nvpath),raiseOnError=False)
+        (output,code) = tpm_exec.run("nv_readvalue -pwdd %s -in 1 -sz %d -of %s"%(owner_pw,common.BOOTSTRAP_KEY_SIZE,nvpath),raiseOnError=False)
             
         if code!=tpm_exec.EXIT_SUCESS and len(output)>0 and (output[0].startswith("Error Illegal index from NV_ReadValue") or output[0].startswith("Error Authentication failed")):
             logger.debug("No stored U in TPM NVRAM")

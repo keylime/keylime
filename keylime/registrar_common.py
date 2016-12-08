@@ -165,13 +165,15 @@ class RegistrarHandler(BaseHTTPRequestHandler):
                 ekcert = json_body['ekcert']
                 aik = json_body['aik']
                 
-                # no EK provided
-                if ekcert is None and config.getboolean('registrar','require_ek_cert') and not common.DEVELOP_IN_ECLIPSE:
-                    raise Exception("No EK cert provided")
-                
-                # there is an EK
-                if not common.STUB_TPM and (ekcert!=None and ekcert!='virtual' and not tpm_initialize.verify_ek(base64.b64decode(ekcert), ek)):
-                        raise Exception("Invalid EK certificate")
+                # config option must be on to check for EK certs
+                if config.getboolean('registrar','require_ek_cert'):
+                    # no EK provided
+                    if ekcert is None and not common.DEVELOP_IN_ECLIPSE:
+                        raise Exception("No EK cert provided, require_ek_cert option in config set to True")
+                    
+                    # there is an EK
+                    if not common.STUB_TPM and (ekcert!=None and ekcert!='virtual' and not tpm_initialize.verify_ek(base64.b64decode(ekcert), ek)):
+                            raise Exception("Invalid EK certificate")
                 
                 # try to encrypt the AIK
                 (blob,key) = tpm_initialize.encryptAIK(instance_id,aik,ek)

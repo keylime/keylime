@@ -33,6 +33,7 @@ import traceback
 import sets
 import time
 import ima
+import json
 
 logger = common.init_logging('tpm_quote')
 
@@ -55,7 +56,7 @@ def create_deep_quote(nonce,data=None,vpcrmask=EMPTYMASK,pcrmask=EMPTYMASK):
     try:
         # read in the vTPM key handle
         keyhandle = tpm_initialize.load_aik()
-        ownerpw = tpm_initialize.get_tpm_data()['owner_pw']
+        owner_pw = tpm_initialize.get_tpm_metadata('owner_pw')
 
         if pcrmask is None:
             pcrmask = EMPTYMASK
@@ -73,7 +74,7 @@ def create_deep_quote(nonce,data=None,vpcrmask=EMPTYMASK,pcrmask=EMPTYMASK):
             #make a temp file for the quote 
             quotefd,quotepath = tempfile.mkstemp()
             
-            command = "deepquote -vk %s -hm %s -vm %s -nonce %s -pwdo %s -oq %s" % (keyhandle, pcrmask, vpcrmask, nonce, ownerpw,quotepath)
+            command = "deepquote -vk %s -hm %s -vm %s -nonce %s -pwdo %s -oq %s" % (keyhandle, pcrmask, vpcrmask, nonce, owner_pw,quotepath)
             #print("Executing %s"%(command))
             tpm_exec.run(command,lock=False)
 
@@ -123,7 +124,7 @@ def create_quote(nonce,data=None,pcrmask=EMPTYMASK):
     return quote
 
 
-def check_deep_quote(nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima_list=None):
+def check_deep_quote(nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima_measurement_list=None,ima_whitelist=None):
     quoteFile=None
     vAIKFile=None
     hAIKFile=None
@@ -200,9 +201,9 @@ def check_deep_quote(nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima
             pcrs.append(line)
     
     # don't pass in data to check pcrs for physical quote 
-    return check_pcrs(tpm_policy,pcrs,None) and check_pcrs(vtpm_policy, vpcrs, data, True,ima_list=ima_list)
+    return check_pcrs(tpm_policy,pcrs,None,False,None,None) and check_pcrs(vtpm_policy, vpcrs, data, True,ima_measurement_list,ima_whitelist)
 
-def check_quote(nonce,data,quote,aikFromRegistrar,tpm_policy={},ima_list=None):
+def check_quote(nonce,data,quote,aikFromRegistrar,tpm_policy={},ima_measurement_list=None,ima_whitelist=None):
     quoteFile=None
     aikFile=None
 
@@ -259,11 +260,14 @@ def check_quote(nonce,data,quote,aikFromRegistrar,tpm_policy={},ima_list=None):
         if pcrs is not None:
             pcrs.append(line)    
 
-    return check_pcrs(tpm_policy,pcrs,data,ima_list=ima_list)
+    return check_pcrs(tpm_policy,pcrs,data,False,ima_measurement_list,ima_whitelist)
 
-def check_pcrs(tpm_policy,pcrs,data,virtual=False,ima_list=None):
+def check_pcrs(tpm_policy,pcrs,data,virtual,ima_measurement_list,ima_whitelist):
     pcrWhiteList = tpm_policy.copy()
     if 'mask' in pcrWhiteList: del pcrWhiteList['mask']
+    # convert all pcr num keys to integers
+    pcrWhiteList = {int(k):v for k,v in pcrWhiteList.items()}
+    
     pcrsInQuote=sets.Set()
     for line in pcrs:
         tokens = line.split()
@@ -271,12 +275,18 @@ def check_pcrs(tpm_policy,pcrs,data,virtual=False,ima_list=None):
             logger.error("Invalid %sPCR in quote: %s"%(("","v")[virtual],pcrs))
             continue
         
-        pcrval = tokens[2]
-        pcrnum = tokens[1]
-        if pcrnum==str(common.TPM_DATA_PCR) and data is not None:
+        # always lower case
+        pcrval = tokens[2].lower()
+        # convert pcr num to number
+        try:
+            pcrnum = int(tokens[1])
+        except Exception:
+            logger.error("Invalide PCR number %s"%tokens[1])
+        
+        if pcrnum==common.TPM_DATA_PCR and data is not None:
             # compute expected value  H(0|H(string(H(data))))
             # confused yet?  pcrextend will hash the string of the original hash again
-            expectedval = hashlib.sha1(EMPTY_PCR.decode('hex')+hashlib.sha1(hashlib.sha1(data).hexdigest()).digest()).hexdigest()
+            expectedval = hashlib.sha1(EMPTY_PCR.decode('hex')+hashlib.sha1(hashlib.sha1(data).hexdigest()).digest()).hexdigest().lower()
             if expectedval != pcrval and not common.STUB_TPM:
                 logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s\n"%(("","v")[virtual],pcrnum,pcrval,expectedval))
                 return False
@@ -288,12 +298,12 @@ def check_pcrs(tpm_policy,pcrs,data,virtual=False,ima_list=None):
             continue
                
         # check for ima PCR
-        if pcrnum==str(common.IMA_PCR) and not common.STUB_TPM:
-            if ima_list==None:
+        if pcrnum==common.IMA_PCR and not common.STUB_TPM:
+            if ima_measurement_list==None:
                 logger.error("IMA PCR in policy, but no measurement list provided")
                 return False
             
-            if check_ima(pcrval,ima_list):
+            if check_ima(pcrval,ima_measurement_list,ima_whitelist):
                 pcrsInQuote.add(pcrnum)
             else:
                 return False
@@ -313,17 +323,40 @@ def check_pcrs(tpm_policy,pcrs,data,virtual=False,ima_list=None):
         return False
     return True
 
-def check_ima(pcrval,ima_list):
+def check_ima(pcrval,ima_measurement_list,ima_whitelist):
     logger.info("Checking IMA measurement list...")
-    ex_value = ima.process_measurement_list(ima_list.split('\n'))
+    ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'),ima_whitelist)
     if ex_value is None:
         return False
     
-    if pcrval != ex_value.encode('hex'):
+    if pcrval != ex_value and not common.DEVELOP_IN_ECLIPSE:
         logger.error("IMA measurement list expected pcr value %s does not match TPM PCR %s"%(ex_value,pcrval))
         return False
     logger.debug("IMA measurement list validated")
     return True
+
+def readPolicy(configval):
+    policy = json.loads(configval)
+    
+    # compute PCR mask from tpm_policy
+    mask = 0
+    for key in policy.keys():
+        if not key.isdigit() or int(key)>24:
+            raise Exception("Invalid tpm policy pcr number: %s"%(key))
+        
+        if int(key)==common.TPM_DATA_PCR:
+            raise Exception("Invalid whitelist PCR number %s, keylime uses this PCR to bind data."%key)
+        mask = mask + (1<<int(key))
+        
+        # wrap it in a list if it is a singleton
+        if isinstance(policy[key],basestring):
+            policy[key]=[policy[key]]
+         
+        # convert all hash values to lowercase
+        policy[key] = [x.lower() for x in policy[key]]
+    
+    policy['mask'] = "0x%X"%(mask)
+    return policy
 
 # this is just for testing
 def main(argv=sys.argv):
@@ -336,12 +369,11 @@ def main(argv=sys.argv):
 
     print "checking quote..."
     if common.STUB_TPM:
-        aikFromCV = common.TEST_AIK
+        aik = common.TEST_AIK
     else:
-        f = open('aik.pem',"r")
-        aikFromCV = f.read()
-        f.close()
-    print "\tVerified %s"%check_quote(nonce,rsa_key,quote,aikFromCV)
+        aik = tpm_initialize.get_tpm_metadata('aik')
+        
+    print "\tVerified %s"%check_quote(nonce,rsa_key,quote,aik)
 
     print "creating full quote..."
     # this is a quote for pcr 22,2
@@ -349,23 +381,22 @@ def main(argv=sys.argv):
     print "\tDONE"
 
     print "checking full quote..."
-    f = open('aik.pem',"r")
-    aikFromRegistrar = f.read()
-    f.close()
-
-    tpm_policy={}
-    tpm_policy['22']='ffffffffffffffffffffffffffffffffffffffff'
-    tpm_policy['02']='0000000000000000000000000000000000000000'
-
-    print "\tVerified %s"%check_quote(nonce,rsa_key,quote,aikFromRegistrar,tpm_policy)
+    
+    json_tpm_policy = '{"22":"ffffffffffffffffffffffffffffffffffffffff","02":"0000000000000000000000000000000000000000"}'
+    
+    tpm_policy = readPolicy(json_tpm_policy)
+    print "\tVerified %s"%check_quote(nonce,rsa_key,quote,aik,tpm_policy)
     
     print "\n========\n\nchecking deepquote"
     print "\tVerified %s"%check_deep_quote(common.TEST_DQ_NONCE, None, common.TEST_DQ, common.TEST_VAIK, common.TEST_HAIK, {}, {})
     
+    if True:
+        sys.exit(0)
+        
     print "creating a bunch of quotes"
     for _ in range(1000):
         create_quote(nonce,rsa_key)
-        check_quote(nonce,rsa_key,quote,aikFromRegistrar,tpm_policy)
+        check_quote(nonce,rsa_key,quote,aik,tpm_policy)
         pass
     print "done"
 

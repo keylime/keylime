@@ -38,6 +38,8 @@ import os
 import ssl
 import tornado_requests
 import cloud_verifier_common
+import hashlib
+import ima
 
 #setup logging
 logger = common.init_logging('tenant')
@@ -75,25 +77,7 @@ class Tenant():
     
     context = None
     
-    def readPolicy(self,configval):
-        policy = json.loads(configval)
-        
-        # compute PCR mask from tpm_policy
-        mask = 0
-        for key in policy.keys():
-            if not key.isdigit() or int(key)>24:
-                raise Exception("Invalid tpm policy pcr number: %s"%(key))
-            
-            if int(key)==common.TPM_DATA_PCR:
-                raise Exception("Invalid whitelist PCR number %s, keylime uses this PCR to bind data."%key)
-            mask = mask + (1<<int(key))
-            
-            # wrap it in a list if it is a singleton
-            if isinstance(policy[key],basestring):
-                policy[key]=[policy[key]]
-                
-        policy['mask'] = "0x%X"%(mask)
-        return policy
+
     
     def __init__(self, vtpm):
         self.cloudverifier_port = config.get('general', 'cloudverifier_port')
@@ -140,16 +124,31 @@ class Tenant():
             self.context = None
         
         
-        self.tpm_policy = self.readPolicy(config.get('tenant', 'tpm_policy'))
+        self.tpm_policy = tpm_quote.readPolicy(config.get('tenant', 'tpm_policy'))
+        imaPolicy = self.tpm_policy
         logger.info("TPM PCR Mask from policy is %s"%self.tpm_policy['mask'])
 
         #optional arg for vtpm policy for virtual nodes
         if vtpm:
-            self.vtpm_policy = self.readPolicy(config.get('tenant', 'vtpm_policy'))
+            self.vtpm_policy = tpm_quote.readPolicy(config.get('tenant', 'vtpm_policy'))
             logger.info("vTPM PCR Mask from policy is %s"%self.vtpm_policy['mask'])
+            imaPolicy = self.vtpm_policy
         else:
-            self.vtpm_policy ={}
+            self.vtpm_policy = None
     
+        if tpm_quote.check_mask(imaPolicy['mask'],common.IMA_PCR):
+            wlistpath = config.get('tenant','ima_whitelist')
+            if common.DEVELOP_IN_ECLIPSE:
+                wlistpath = '../scripts/ima/whitelist.txt'
+            elistpath = config.get('tenant','ima_excludelist')
+            
+            if common.DEVELOP_IN_ECLIPSE:
+                elistpath = '../scripts/ima/exclude.txt'
+                
+            self.ima_whitelist = ima.read_whitelists(wlistpath,elistpath)
+        else:
+            self.ima_whitelist = None
+            
     def preloop(self):
         # encrypt the node UUID as a check for delivering the correct key
         self.auth_tag = crypto.do_hmac(self.K,self.node_uuid)
@@ -158,7 +157,7 @@ class Tenant():
             logger.debug("K:" + base64.b64encode(self.K))
             logger.debug("V:" + base64.b64encode(self.V))
             logger.debug("U:" + base64.b64encode(str(self.U)))
-            logger.debug("Auth Tag: " + self.auth_tag) 
+            logger.debug("Auth Tag: " + self.auth_tag)
 
     def validate_tpm_quote(self,public_key, quote):
         registrar_client.serverAuthTLSContext(config,'tenant')
@@ -181,8 +180,12 @@ class Tenant():
             'cloudnode_ip': self.cloudnode_ip,
             'cloudnode_port': self.cloudnode_port,
             'tpm_policy': json.dumps(self.tpm_policy),
-            'vtpm_policy': json.dumps(self.vtpm_policy),
-            }
+        }
+        
+        if self.vtpm_policy is not None:
+            data['vtpm_policy'] = json.dumps(self.vtpm_policy)
+        if self.ima_whitelist is not None:
+            data['ima_whitelist'] = json.dumps(self.ima_whitelist)
                     
         json_message = json.dumps(data)
         response = tornado_requests.request("POST","http://%s:%s/v1/instances"%(self.cloudverifier_ip,self.cloudverifier_port),data=json_message,context=self.context)
@@ -312,7 +315,6 @@ def main(argv=sys.argv):
     parser.add_argument('--cert',action='store',dest='ca_dir',default=None,help='Create and deliver a certificate using a CA created by ca-util. Pass in the CA directory or use "default" to use the standard dir')
     parser.add_argument('-k', '--key',action='store',dest='keyfile',help='an intermedia key file produced by user_data_encrypt')
     parser.add_argument('-p', '--payload', action='store',default=None,help='Specify the encrypted payload to deliver with encrypted keys specified by -k')
-
     
     if common.DEVELOP_IN_ECLIPSE:
         #tmp = ['-c','add','-t','127.0.0.1','-v', '127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','-p','content_payload.txt','-k','content_keys.txt']
@@ -332,6 +334,9 @@ def main(argv=sys.argv):
     
     if args.node_uuid is not None:
         mytenant.node_uuid = args.node_uuid
+        # if the uuid is actually a public key, then hash it
+        if mytenant.node_uuid.startswith('-----BEGIN PUBLIC KEY-----'):
+            mytenant.node_uuid = hashlib.sha256(mytenant.node_uuid).hexdigest()
     else:
         logger.warning("Using default UUID D432FBB3-D2F1-4A97-9EF7-75BD81C00000")
         mytenant.node_uuid = "D432FBB3-D2F1-4A97-9EF7-75BD81C00000"

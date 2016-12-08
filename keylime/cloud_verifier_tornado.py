@@ -80,7 +80,18 @@ class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.set_status(501,"Not Implemented")
         self.write("Use /v1/instances/ interface instead\n")
-            
+    
+crl = None      
+class CRLHandler(BaseHandler):       
+    def get(self):
+        global crl
+        if crl is not None:
+            self.set_status(200, "OK")
+            self.write(crl)
+        else:
+            self.set_status(404, "CRL not found")
+
+
 class InstancesHandler(BaseHandler):       
     def head(self):
         """HEAD not supported"""                  
@@ -224,7 +235,8 @@ class InstancesHandler(BaseHandler):
                             self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE)
                     else:
                         self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.INVALID_QUOTE)
-                        cloud_verifier_common.handleVerificationError(instance)
+                        global crl
+                        crl = cloud_verifier_common.handleVerificationError(instance)
  
 #                 if self.get_q_log_file_base_name is not None and writeTime:
 #                     self.get_q_log_file.write("%s\n" % t.secs)
@@ -377,6 +389,7 @@ def main(argv=sys.argv):
     app = tornado.web.Application([
         (r"/", MainHandler),                      
         (r"/v1/instances", InstancesHandler),
+        (r"/crl",CRLHandler),
         ])
     
     context = cloud_verifier_common.init_tls(config)

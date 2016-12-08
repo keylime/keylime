@@ -61,68 +61,90 @@ def create_ek():
         raise Exception("createek failed with code "+str(code)+": "+str(output))
     return 
 
-def get_pub_ek(ownerpw):
+def test_ownerpw(owner_pw):
+    tmppath = None
+    try:
+        #make a temp file for the output 
+        _,tmppath = tempfile.mkstemp()
+        (output,code) = tpm_exec.run("getpubek -pwdo %s -ok %s"%(owner_pw,tmppath),raiseOnError=False) 
+        if code!=tpm_exec.EXIT_SUCESS and len(output)>0 and output[0].startswith("Error Authentication failed (Incorrect Password) from TPM_OwnerReadPubek"):
+            return False
+        elif code!=tpm_exec.EXIT_SUCESS:
+            raise Exception("test ownerpw, getpubek failed with code "+str(code)+": "+str(output))
+    finally:
+        if tmppath is not None:
+            os.remove(tmppath)
+    return True
+
+def take_ownership(config_pw):
+    owner_pw = get_tpm_metadata("owner_pw")
+    
+    ownerpw_known = False
+    if not is_tpm_owned():
+        # if no ownerpassword
+        if config_pw == 'generate':
+            logger.info("Generating random TPM owner password")
+            owner_pw = random_password(20,useTPM=True)
+        else:
+            logger.info("Taking ownership with config provided TPM owner password: %s"%config_pw)
+            owner_pw = config_pw
+            
+        logger.info("Taking ownership of TPM")
+        tpm_exec.run("takeown -pwdo %s -nopubsrk"%owner_pw)
+        ownerpw_known = True
+    else:
+        logger.debug("TPM ownership already taken")
+        
+    
+    # tpm owner_pw still not known, and non provided? bail
+    if owner_pw is None and config_pw == 'generate':
+        raise Exception("TPM is owned, but owner password has not been provided.  Set config option tpm_ownerpassword to the existing password if known.  If not know, TPM reset is required.")
+        
+    # now we have owner_pw from tpmdata.json and a config_pw.
+    if not ownerpw_known:
+        if owner_pw is None or not test_ownerpw(owner_pw):
+            logger.info("Owner password: %s from tpmdata.json invalid.  Trying config provided TPM owner password: %s"%(owner_pw,config_pw))
+            owner_pw = config_pw
+            if not test_ownerpw(owner_pw):
+                raise Exception("Config provided owner password %s invalid. Set config option tpm_ownerpassword to the existing password if known.  If not know, TPM reset is required."%owner_pw)
+            
+    if get_tpm_metadata('owner_pw') is not owner_pw:
+        set_tpm_metadata('owner_pw',owner_pw)
+        
+def get_pub_ek(): # assumes that owner_pw is correct at this point
+    owner_pw = get_tpm_metadata('owner_pw')
     tmppath = None
     try:
         #make a temp file for the output 
         tmpfd,tmppath = tempfile.mkstemp()
-        (output,code) = tpm_exec.run("getpubek -pwdo %s -ok %s"%(ownerpw,tmppath),raiseOnError=False) # generates pubek.pem
-        if code!=tpm_exec.EXIT_SUCESS and len(output)>0 and output[0].startswith("Error Authentication failed (Incorrect Password) from TPM_OwnerReadPubek"):
-            raise Exception("TPM Owner password invalid, TPM reset required")
-        elif code!=tpm_exec.EXIT_SUCESS:
+        (output,code) = tpm_exec.run("getpubek -pwdo %s -ok %s"%(owner_pw,tmppath),raiseOnError=False) # generates pubek.pem
+        if code!=tpm_exec.EXIT_SUCESS:
             raise Exception("getpubek failed with code "+str(code)+": "+str(output))
 
         # read in the output
         f = open(tmppath,"rb")
-        output = f.read()
+        ek = f.read()
         f.close()
         os.close(tmpfd)
     finally:
         if tmppath is not None:
             os.remove(tmppath)
-    
-    return output
-
-def take_ownership(config_pw = 'generate'):
-    if os.path.isfile("owner_pw.txt"):
-        f = open("owner_pw.txt","r")
-        ownerpw = f.readline()
-        f.close()
-        ownerpw = ownerpw.strip()
-    else:
-        ownerpw = None
-    
-    if is_tpm_owned():
-        logger.debug("TPM ownership already taken")
-        return ownerpw,get_pub_ek(ownerpw)
-    
-    # if no ownerpassword
-    if ownerpw is None:
-        if config_pw == 'generate':
-            logger.info("Generating random TPM owner password")
-            ownerpw = random_password(20,useTPM=True)
-        else:
-            logger.info("Using config provided TPM owner passowrd")
-            ownerpw = config_pw
             
-        f = open("owner_pw.txt","w")
-        f.write(ownerpw)
-        f.write('\n')
-        f.close()
-        
-    logger.info("Taking ownership of TPM")
-    tpm_exec.run("takeown -pwdo %s -nopubsrk"%ownerpw)
+    if get_tpm_metadata('ek') is not ek:
+        set_tpm_metadata('ek',ek)
 
-    # check the pub ek with the one in the tpm, get if it doesn't match
-    ek = get_pub_ek(ownerpw)
-    return ownerpw,ek
-
-def create_aik(owner_pw,activate):
+def create_aik(activate):
+    # if no AIK created, then create one
+    if get_tpm_metadata('aik') is not None and get_tpm_metadata('aikpriv') is not None and get_tpm_metadata('aikmod') is not None:
+        logger.debug("AIK already created")
+        return
+    
     logger.debug("Creating a new AIK identity")
     extra = ""
     if activate:
         extra = "-ac"
     
+    owner_pw = get_tpm_metadata('owner_pw')
     tmppath = None
     try:
         #make a temp file for the output 
@@ -140,8 +162,11 @@ def create_aik(owner_pw,activate):
             os.remove(tmppath+".key")
     if activate:
         logger.debug("Self-activated AIK identity in test mode")
-    
-    return pem,key,mod
+
+    # persist results
+    set_tpm_metadata('aik',pem)
+    set_tpm_metadata('aikpriv', key)
+    set_tpm_metadata('aikmod',mod)
         
 def get_mod_from_pem(pemfile):
     with open(pemfile,"r") as f:
@@ -166,8 +191,7 @@ def get_mod_from_tpm(keyhandle):
     
 def load_aik():
     # is the key already there?
-    data = get_tpm_data()
-    modFromFile = data['aikmod']
+    modFromFile = get_tpm_metadata('aikmod')
     
     retout = tpm_exec.run("listkeys")[0]
     for line in retout:
@@ -184,10 +208,10 @@ def load_aik():
     
     inFile=None
     try:
-        # write out quote
+        # write out private key
         infd, intemp = tempfile.mkstemp()
         inFile = open(intemp,"wb")
-        inFile.write(base64.b64decode(data['aikpriv']))
+        inFile.write(base64.b64decode(get_tpm_metadata('aikpriv')))
         inFile.close()
         os.close(infd)
 
@@ -266,7 +290,7 @@ def activate_identity(keyblob):
     if common.STUB_TPM:
         return base64.b64encode(common.TEST_AES_REG_KEY)
     
-    ownerpw = get_tpm_data()['owner_pw']
+    owner_pw = get_tpm_metadata('owner_pw')
     keyblobFile = None
     secpath = None
     try:
@@ -291,7 +315,7 @@ def activate_identity(keyblob):
             
         secfd,secpath=tempfile.mkstemp(dir=secdir)
         
-        tpm_exec.run("activateidentity -hk %s -pwdo %s -if %s -ok %s"%(keyhandle,ownerpw,keyblobFile.name,secpath))
+        tpm_exec.run("activateidentity -hk %s -pwdo %s -if %s -ok %s"%(keyhandle,owner_pw,keyblobFile.name,secpath))
         logger.info("AIK activated.")
         
         f = open(secpath,'rb')
@@ -383,44 +407,42 @@ def read_tpm_data():
     else:
         return {}
     
-def write_tpm_data(towrite):
+def write_tpm_data():
+    global global_tpmdata
     with open('tpmdata.json','w') as f:
-        json.dump(towrite,f)
-    
+        json.dump(global_tpmdata,f)
 
-def get_tpm_data():
+def get_tpm_metadata(key):
     global global_tpmdata
     if global_tpmdata == None:
         global_tpmdata = read_tpm_data()
-    return global_tpmdata
+    return global_tpmdata.get(key,None)
+
+def set_tpm_metadata(key,value):
+    global global_tpmdata
+    if global_tpmdata == None:
+        global_tpmdata = read_tpm_data()
+    global_tpmdata[key]=value
+    write_tpm_data()
 
 def init(self_activate=False,config_pw=None):
     if not common.STUB_TPM:
-        # read in saved state if any
-        tpmdata = get_tpm_data()
-        
         create_ek()
-        owner_pw,ek = take_ownership(config_pw)
+        take_ownership(config_pw)
         
-        if tpmdata.get('owner_pw') is not owner_pw:
-            tpmdata['owner_pw'] = owner_pw
-            
-        if tpmdata.get('ek') is not ek:
-            tpmdata['ek'] = ek
+        get_pub_ek()
 
         ekcert = tpm_nvram.read_ekcert_nvram()
-        if tpmdata.get('ekcert') is not ekcert:
-            tpmdata['ekcert'] = ekcert
+        if get_tpm_metadata('ekcert') is not ekcert:
+            set_tpm_metadata('ekcert',ekcert)
         
         # if no AIK created, then create one
-        if tpmdata.get('aik') is None or tpmdata.get('aikpriv') is None:
-            tpmdata['aik'],tpmdata['aikpriv'],tpmdata['aikmod'] = create_aik(owner_pw,self_activate)
+        create_aik(self_activate)
         
-        # preemptively load AIK
+        # preemptively load AIK up
         load_aik()
-        write_tpm_data(tpmdata)
         
-        return tpmdata['ek'],tpmdata.get('ekcert'),tpmdata['aik']
+        return get_tpm_metadata('ek'),get_tpm_metadata('ekcert'),get_tpm_metadata('aik')
     else:
         return common.TEST_PUB_EK,common.TEST_EK_CERT,common.TEST_AIK
     
