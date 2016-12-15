@@ -31,7 +31,7 @@ violate any copyrights that exist in this work.
 
 # python-keylime
 
-A python library to make friends of TPMs and Clouds.  See ACSAC 2016 paper in doc directory
+A python library to make friends of TPMs and Clouds.  See ACSAC 2016 paper in doc directory: https://github.com/mit-ll/python-keylime/blob/master/doc/tci-acm.pdf  A presentation on keylime is also available in the doc directory: https://github.com/mit-ll/python-keylime/raw/master/doc/llsrc-keylime-acsac-v4.pptx 
 
 # Installation
 
