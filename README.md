@@ -31,7 +31,11 @@ violate any copyrights that exist in this work.
 
 # python-keylime
 
-A python library to make friends of TPMs and Clouds.  See ACSAC 2016 paper in doc directory: https://github.com/mit-ll/python-keylime/blob/master/doc/tci-acm.pdf  A presentation on keylime is also available in the doc directory: https://github.com/mit-ll/python-keylime/raw/master/doc/llsrc-keylime-acsac-v4.pptx 
+A python library to make friends of TPMs and Clouds.  See ACSAC 2016 paper in doc directory: https://github.com/mit-ll/python-keylime/blob/master/doc/tci-acm.pdf  A presentation on keylime is also available in the doc directory: https://github.com/mit-ll/python-keylime/raw/master/doc/llsrc-keylime-acsac-v5.pptx 
+
+# Errata from the ACSAC Paper
+
+We discovered a typo in Figure 5 of the published ACSAC paper. The final interaction between the Tenant and Cloud Verifier showed an HMAC of the node's ID using the key K_e.  This should be using K_b.  The paper in this repository and the ACSAC presentation have been updated to correct this typo.  
 
 # Installation
 
