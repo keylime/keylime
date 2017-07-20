@@ -34,10 +34,13 @@ import ssl
 import socket
 import ca_util
 import sqlite3
+import revocation_notifier
+import keylime_sqlite
 
 logger = common.init_logging('cloudverifier_common')
 
 class CloudInstance_Operational_State:
+    REGISTERED = 0
     START = 1
     SAVED = 2
     GET_QUOTE = 3
@@ -47,6 +50,20 @@ class CloudInstance_Operational_State:
     FAILED = 7
     TERMINATED = 8   
     INVALID_QUOTE = 9
+    
+    STR_MAPPINGS = {
+        0 : "Registered",
+        1 : "Start",
+        2 : "Saved",
+        3 : "Get Quote",
+        4 : "Get Quote (retry)",
+        5 : "Provide V",
+        6 : "Provide V (retry)",
+        7 : "Failed",
+        8 : "Terminated",
+        9 : "Invalid Quote"
+    }
+    
 
 class Timer(object):
     def __init__(self, verbose=False):
@@ -63,7 +80,7 @@ class Timer(object):
         if self.verbose:
             print 'elapsed time: %f ms' % self.msecs
             
-def init_tls(config,section='cloud_verifier',verifymode=ssl.CERT_REQUIRED,generatedir='cv_ca',need_client=True):
+def init_mtls(config,section='cloud_verifier',generatedir='cv_ca'):
     if not config.getboolean('general',"enable_tls"):
         logger.warning("TLS is currently disabled, keys will be sent in the clear! Should only be used for testing.")
         return None
@@ -86,7 +103,7 @@ def init_tls(config,section='cloud_verifier',verifymode=ssl.CERT_REQUIRED,genera
         if os.path.exists(ca_path):
             logger.info("Existing CA certificate found in %s, not generating a new one"%(tls_dir))
         else:    
-            logger.info("Generating a new CA in %s and a tenant certificate for connecting"%tls_dir)
+            logger.info("Generating a new CA in %s and a client certificate for connecting"%tls_dir)
             logger.info("use keylime_ca -d %s to manage this CA"%tls_dir)
             if not os.path.exists(tls_dir):
                 os.makedirs(tls_dir,0o700)
@@ -95,8 +112,7 @@ def init_tls(config,section='cloud_verifier',verifymode=ssl.CERT_REQUIRED,genera
             ca_util.setpassword(my_key_pw)
             ca_util.cmd_init(tls_dir)
             ca_util.cmd_mkcert(tls_dir, socket.gethostname())
-            if need_client:
-                ca_util.cmd_mkcert(tls_dir, 'tenant')
+            ca_util.cmd_mkcert(tls_dir, 'client')
     
     if tls_dir == 'CV':
         if section !='registrar':
@@ -127,7 +143,7 @@ def init_tls(config,section='cloud_verifier',verifymode=ssl.CERT_REQUIRED,genera
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.load_verify_locations(cafile=ca_path)
     context.load_cert_chain(certfile=my_cert,keyfile=my_priv_key,password=my_key_pw)
-    context.verify_mode = verifymode
+    context.verify_mode = ssl.CERT_REQUIRED
     return context
 
 def process_quote_response(instance, json_response, config):
@@ -139,9 +155,10 @@ def process_quote_response(instance, json_response, config):
     quote = None
     
     # in case of failure in response content do not continue
-    try:        
-        received_public_key =json_response.get("pubkey",None)
+    try:
+        received_public_key = json_response.get("pubkey",None)
         quote = json_response["quote"]
+        
         ima_measurement_list = json_response.get("ima_measurement_list",None)
         
         logger.debug("received quote:      %s"%quote)
@@ -159,51 +176,41 @@ def process_quote_response(instance, json_response, config):
         instance['provide_V'] = False
         received_public_key = instance['public_key']
     
-    if instance.get('aikFromRegistrar',"") is "" or instance.get('aikFromRegistrarCacheHits',common.MAX_STALE_REGISTRAR_CACHE)>=common.MAX_STALE_REGISTRAR_CACHE:
-        # talk to yourself fool
-        registrar_client.serverAuthTLSContext(config,'cloud_verifier')
-        aikFromRegistrar = registrar_client.getAIK(config.get("general","registrar_ip"),config.get("general","registrar_port"),instance['instance_id'])
-        if aikFromRegistrar is None:
+    if instance.get('registrar_keys',"") is "":
+        registrar_client.init_client_tls(config,'cloud_verifier')
+        registrar_keys = registrar_client.getKeys(config.get("general","registrar_ip"),config.get("general","registrar_tls_port"),instance['instance_id'])
+        if registrar_keys is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
-        instance['aikFromRegistrar']  = aikFromRegistrar
-        instance['aikFromRegistrarCacheHits'] = 0
-    else:
-        aikFromRegistrar = instance['aikFromRegistrar']
-        instance['aikFromRegistrarCacheHits'] += 1
+        instance['registrar_keys']  = registrar_keys
         
-    if not instance['vtpm_policy']:
-        validQuote = tpm_quote.check_quote(instance['nonce'],
-                                           received_public_key,
-                                           quote,
-                                           aikFromRegistrar,
-                                           instance['tpm_policy'],
-                                           ima_measurement_list,
-                                           instance['ima_whitelist'])
-    else:
-        registrar_client.serverAuthTLSContext(config,'cloud_verifier')
-        dq_aik = registrar_client.getAIK(config.get("general","provider_registrar_ip"), config.get("general","provider_registrar_port"), instance['instance_id'])
-        if dq_aik is None:
-            logger.warning("provider AIK not found in registrar, deep quote not validated")
-            return False
+    if tpm_quote.is_deep_quote(quote):
         validQuote = tpm_quote.check_deep_quote(instance['nonce'],
                                                 received_public_key,
                                                 quote,
-                                                aikFromRegistrar,
-                                                dq_aik,
+                                                instance['registrar_keys']['aik'],
+                                                instance['registrar_keys']['provider_keys']['aik'],
                                                 instance['vtpm_policy'],
                                                 instance['tpm_policy'],
                                                 ima_measurement_list,
                                                 instance['ima_whitelist'])
+    else:
+        validQuote = tpm_quote.check_quote(instance['nonce'],
+                                           received_public_key,
+                                           quote,
+                                           instance['registrar_keys']['aik'],
+                                           instance['tpm_policy'],
+                                           ima_measurement_list,
+                                           instance['ima_whitelist'])
     if not validQuote:
         return False
-    
+
     # has public key changed? if so, clear out b64_encrypted_V, it is no longer valid
     if received_public_key != instance.get('public_key',""):
         instance['public_key'] = received_public_key
         instance['b64_encrypted_V'] = ""
         instance['provide_V'] = True
-
+    
     # ok we're done
     return validQuote
 
@@ -237,33 +244,27 @@ def prepare_get_quote(instance):
     
     params = {
         'nonce': instance['nonce'],
-        'mask': instance['tpm_policy']['mask']
+        'mask': instance['tpm_policy']['mask'],
+        'vmask': instance['vtpm_policy']['mask'],
         }
-    
-    if instance['vtpm_policy']:
-        params['vmask'] = instance['vtpm_policy']['mask']
-        
-    if instance.get('public_key',"")=="":
-        params['need_pubkey'] = "True"
     
     return params
 
 def process_get_status(instance):
+    if isinstance(instance['ima_whitelist'],dict) and 'whitelist' in instance['ima_whitelist']:
+        wl_len = len(instance['ima_whitelist']['whitelist'])
+    else:
+        wl_len = 0
     response = {'operational_state':instance['operational_state'],
                 'v':instance['v'],
                 'ip':instance['ip'],
                 'port':instance['port'],
                 'tpm_policy':instance['tpm_policy'],
                 'vtpm_policy':instance['vtpm_policy'],
+                'metadata':instance['metadata'],
+                'ima_whitelist_len':wl_len,
                 }
-    return json.dumps(response)  
-  
-
-def is_instance_resource(path):
-    """Returns True if this is a valid instances uri i.e /v1/instances, else False. Trailing slash optional."""  
-    parsed_path = urlparse(path.strip("/"))
-    tokens = parsed_path.path.split('/')
-    return len(tokens) == 2 and tokens[0] == 'v1' and tokens[1] == 'instances'
+    return response  
 
 def get_query_tag_value(path, query_tag):
     """This is a utility method to query for specific the http parameters in the uri.  
@@ -282,253 +283,63 @@ def get_query_tag_value(path, query_tag):
             break        
     return data.get(query_tag,None) 
 
+# sign a message with revocation key.  telling of verification problem
 def handleVerificationError(instance):
-    if instance['metadata'] != None:
-        # assume it is a cert serial number
-        #crl = ca_util.cmd_revoke(instance['metadata'])
-        crl = None
-    crl = None
-    ###########################################################################
-    # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-    # DO SOMETHING HERE to signal that bad stuff is happening in the system, like a web service call
-    # to some admin server to act on the potential breach by shutting things down
-    ###########################################################################
-    return crl
+
+    # prepare the revocation message:
+    revocation = {'ip':instance['ip'],
+                'port':instance['port'],
+                'tpm_policy':instance['tpm_policy'],
+                'vtpm_policy':instance['vtpm_policy'],
+                'metadata':instance['metadata'],
+                } 
+    
+    revocation['time_revoked'] = time.asctime()
+    tosend={'revocation': json.dumps(revocation)}
+            
+    #also need to load up private key for signing revocations
+    if instance['revocation_key']!="":
+        global signing_key
+        signing_key = crypto.rsa_import_privkey(instance['revocation_key'])
+        tosend['signature']=crypto.rsa_sign(signing_key,tosend['revocation'])
+        
+        #print "verified? %s"%crypto.rsa_verify(signing_key, tosend['signature'], tosend['revocation'])
+    else:
+        tosend['siganture']="none"
+            
+    revocation_notifier.notify(tosend)
 
 # ===== sqlite stuff =====
-global_db_filename = None
-
-# in the form key, SQL type
-cols_db = {
-    'instance_id': 'TEXT PRIMARY_KEY',
-    'v': 'TEXT',
-    'ip': 'TEXT',
-    'port': 'INT',
-    'operational_state': 'INT',
-    'public_key': 'TEXT',
-    'tpm_policy' : 'TEXT', 
-    'vtpm_policy' : 'TEXT', 
-    'metadata' : 'TEXT',
-    'ima_whitelist' : 'TEXT',
-    }
-
-# in the form key : default value
-exclude_db = {
-    'aikFromRegistrar': '',
-    'aikFromRegistrarCacheHits': 0,
-    'nonce': '',
-    'b64_encrypted_V': '',
-    'provide_V': True,
-    'num_retries': 0,
-    'pending_event': None,
-    }
-
 def init_db(db_filename):
-    global global_db_filename
-    global_db_filename = db_filename
+    # in the form key, SQL type
+    cols_db = {
+        'instance_id': 'TEXT PRIMARY_KEY',
+        'v': 'TEXT',
+        'ip': 'TEXT',
+        'port': 'INT',
+        'operational_state': 'INT',
+        'public_key': 'TEXT',
+        'tpm_policy' : 'TEXT', 
+        'vtpm_policy' : 'TEXT', 
+        'metadata' : 'TEXT',
+        'ima_whitelist' : 'TEXT',
+        'revocation_key': 'TEXT',
+        }
     
-    # turn off persistence by default in development mode
-    if common.DEVELOP_IN_ECLIPSE and os.path.exists(global_db_filename):
-        os.remove(global_db_filename)
-    os.umask(0o077)
-    kl_dir = os.path.dirname(os.path.abspath(global_db_filename))
-    if not os.path.exists(kl_dir):
-        os.makedirs(kl_dir, 0o700)
-        
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        createstr = "CREATE TABLE IF NOT EXISTS main("
-        for key in sorted(cols_db.keys()):
-            createstr += "%s %s, "%(key,cols_db[key])
-        # lop off the last comma space
-        createstr = createstr[:-2]+')'
-        cur.execute(createstr)
-        conn.commit()
-    os.chmod(global_db_filename,0o600)
-        
-def print_db():
-    return
-    global global_db_filename
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM main')
-        rows = cur.fetchall()
+    # these are the columns that contain json data and need marshalling
+    json_cols_db = ['tpm_policy','vtpm_policy','metadata','ima_whitelist']
+    
+    # in the form key : default value
+    exclude_db = {
+        'registrar_keys': '',
+        'nonce': '',
+        'b64_encrypted_V': '',
+        'provide_V': True,
+        'num_retries': 0,
+        'pending_event': None,
+        }
+    return keylime_sqlite.KeylimeDB(db_filename,cols_db,json_cols_db,exclude_db)
 
-        colnames = [description[0] for description in cur.description]
-        print colnames
-        for row in rows:
-            print row
-            
-def add_defaults(instance):
-    for key in exclude_db.keys():
-        instance[key] = exclude_db[key]
-    return instance
-            
-def add_instance(json_body):
-    global global_db_filename
-    """Threadsafe function to add an instance to the instances container."""
-    # always overwrite instances with same ID
-    d = {}
-    d['instance_id'] = json_body['instance_id']
-    d['v'] =json_body['v']
-    d['ip'] = json_body['cloudnode_ip']
-    d['port'] = int(json_body['cloudnode_port'])
-    d['operational_state'] = CloudInstance_Operational_State.START
-    d['public_key'] = ""
-    d['tpm_policy'] = json_body['tpm_policy']
-    d['vtpm_policy'] = json_body.get('vtpm_policy',"{}")
-    d['metadata'] = json_body.get('metadata',None)
-    d['ima_whitelist'] = json_body.get('ima_whitelist',None)
-    
-    d = add_defaults(d)
-
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT * from main where instance_id=?',(d['instance_id'],))
-        rows = cur.fetchall()
-        # don't allow overwrite
-        if len(rows)>0:
-            return None
-        
-        insertlist = []
-        for key in sorted(cols_db.keys()):
-            insertlist.append(d[key])
-        
-        cur.execute('INSERT INTO main VALUES(?%s)'%(",?"*(len(insertlist)-1)),insertlist)
-
-        conn.commit()
-        
-    # these are JSON strings and should be converted to dictionaries
-    d['tpm_policy'] = json.loads(d['tpm_policy'])
-    d['vtpm_policy'] = json.loads(d['vtpm_policy'])
-    if d['ima_whitelist'] is not None:
-        d['ima_whitelist'] = json.loads(d['ima_whitelist'])
-                                  
-    print_db()
-    return d
-
-def remove_instance(instance_id):
-    global global_db_filename
-    """Threadsafe function to remove an instance to the instances container."""
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT * from main where instance_id=?',(instance_id,))
-        rows = cur.fetchall()
-        if len(rows)==0:
-            return False
-        cur.execute('DELETE FROM main WHERE instance_id=?',(instance_id,))
-        conn.commit()
-    
-    print_db()
-    return True
-    
-def update_instance(instance_id, key, value):
-    global global_db_filename
-    """Threadsafe function to query the existance of an instance in the instances container. Returns None 
-    on failure, else the CloudInstance object"""
-    if key not in cols_db.keys():
-        raise Exception("Database key %s not in schema: %s"%(key,cols_db.keys()))
-    
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        if key is 'tpm_policy' or key is 'vtpm_policy':
-            value = json.dumps(value)
-        cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(value,instance_id))
-        conn.commit()
-    
-    print_db()
-    return
-               
-def get_instance(instance_id):
-    global global_db_filename
-    """Threadsafe function to query the existance of an instance in the instances container. Returns None 
-    on failure, else the CloudInstance object"""   
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT * from main where instance_id=?',(instance_id,))
-        rows = cur.fetchall()
-        if len(rows)==0:
-            return None
-        
-        colnames = [description[0] for description in cur.description]
-        d ={}
-        for i in range(len(colnames)):
-            if colnames[i] == u'tpm_policy' or colnames[i] == u'vtpm_policy':
-                d[colnames[i]] = json.loads(rows[0][i])
-            else:
-                d[colnames[i]]=rows[0][i]
-        d = add_defaults(d)
-        return d
-    
-def get_instance_ids():
-    global global_db_filename
-    """Threadsafe function to query the existance of an instance in the instances container. Returns None 
-    on failure, else the CloudInstance object"""
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT instance_id from main')
-        rows = cur.fetchall()
-        if len(rows)==0:
-            return '{}'
-        retval = []
-        for i in rows:
-            retval.append(i[0])
-        return json.dumps(retval)
-    
-def terminate_instance(instance_id):
-    global global_db_filename
-    retval = False
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT * from main where instance_id=?',(instance_id,))
-        rows = cur.fetchall()
-        if len(rows)>0:
-            colnames = [description[0] for description in cur.description]
-            op_state = rows[0][colnames.index(u'operational_state')]
-            
-            if op_state == CloudInstance_Operational_State.SAVED or \
-            op_state == CloudInstance_Operational_State.FAILED or \
-            op_state == CloudInstance_Operational_State.INVALID_QUOTE:
-                cur.execute('DELETE FROM main WHERE instance_id=?',(instance_id,))
-            else:            
-                cur.execute('UPDATE main SET operational_state = ? where instance_id = ?',(CloudInstance_Operational_State.TERMINATED,instance_id,))
-            retval = True
-    
-    print_db()        
-    return retval
-    
-def overwrite_instance(instance_id,instance):
-    global global_db_filename
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        for key in cols_db.keys():
-            if key is 'instance_id':
-                continue
-            if key == 'tpm_policy' or key == 'vtpm_policy' or key =='ima_whitelist':
-                cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(json.dumps(instance[key]),instance_id))
-            else:
-                cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(instance[key],instance_id))
-        conn.commit()
-    print_db()
-    return
-
-def set_saved():
-    global global_db_filename
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        cur.execute('UPDATE main SET operational_state = ?',(CloudInstance_Operational_State.SAVED,))
-        conn.commit()
-    print_db()
-    return
-
-def count_instances():
-    global global_db_filename
-    with sqlite3.connect(global_db_filename) as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT instance_id from main')
-        rows = cur.fetchall()
-        return len(rows)
-    
 def test_sql(): 
     # testing
     db_filename = 'cv_testdata.sqlite'
@@ -536,16 +347,22 @@ def test_sql():
     if os.path.exists(db_filename):
         os.remove(db_filename)
         
-    init_db(db_filename)
+    db = init_db(db_filename)
     
     json_body = {
         'v': 'vbaby',
         'instance_id': '209483',
         'cloudnode_ip': 'ipaddy',
         'cloudnode_port': '39843',
-        'tpm_policy': '{"a":"1"}',
-        'vtpm_policy': '{"ab":"1"}',
-        'ima_whitelist': '{"ab":"1"}',
+        'tpm_policy': '{"atpm":"1"}',
+        'vtpm_policy': '{"abv":"1"}',
+        'ima_whitelist': '{"abi":"1"}',
+        'metadata': '{"cert_serial":"1"}',
+        'operational_state': 0,
+        'ip': "128.1.1.1.",
+        'port': 2000,
+        'revocation_key': '',
+        'public_key': 'bleh',
         }
     
     json_body2 = {
@@ -553,40 +370,42 @@ def test_sql():
         'instance_id': '2094aqrea3',
         'cloudnode_ip': 'ipaddy',
         'cloudnode_port': '39843',
-        'tpm_policy': '{"ab":"1"}',
+        'tpm_policy': '{"a":"1"}',
         'vtpm_policy': '{"ab":"1"}',
-        'metadata': 'ldkajflksdjflasj'
+        'ima_whitelist': '{"ab":"1"}',
+        'metadata': '{"cert_serial":"1"}',
+        'operational_state': 0,
+        'ip': "128.1.1.1.",
+        'port': 2000,
+        'revocation_key': '',
+        'public_key': 'bleh',
         }
+    
     #some DB testing stuff
     print "testing add"
-    add_instance(json_body)
+    db.add_instance('209483',json_body)
     print 'testing update'
-    update_instance('209483','v','NEWVVV')
+    db.update_instance('209483','v','NEWVVV')
     print 'testing remove'
-    print remove_instance('209483')
-    print_db()
+    print db.remove_instance('209483')
+    db.print_db()
     print 'testing get instance ids'
-    add_instance(json_body)
-    add_instance(json_body2)
-    print get_instance_ids()
+    db.add_instance('209483',json_body)
+    db.add_instance('2094aqrea3',json_body2)
+    print db.get_instance_ids()
     
     print 'testing get instance'
-    print get_instance(209483)
-    
-    print 'testing terminate'
-    terminate_instance(209483)
-    print get_instance(209483)
+    print db.get_instance(209483)
     
     print 'testing overwrite'
-    instance = get_instance('2094aqrea3')
+    instance = db.get_instance('2094aqrea3')
     instance['instance_id']=209483
     instance['v']='OVERWRITTENVVVV'
-    overwrite_instance(209483, instance)
-    print get_instance(209483)
+    db.overwrite_instance(209483, instance)
+    print db.get_instance(209483)
     
-    
-    print 'testing set saved'
-    set_saved()
+    print 'testing update_all'
+    db.update_all_instances('operational_state', 2)
     
     import sys
     sys.exit(0)

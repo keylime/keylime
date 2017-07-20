@@ -26,22 +26,12 @@ import base64
 import common
 import ssl
 import os
+import logging
 
 logger = common.init_logging('registrar_client')
 context = None
-    
-def noAuthTLSContext(config):
-    if not config.getboolean('general',"enable_tls"):
-        logger.warning("TLS is currently disabled, AIKs may not be authentic.")
-        return
-    
-    # setup a default SSL context with no cert checking
-    global context
-    context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
 
-def serverAuthTLSContext(config,section):
+def init_client_tls(config,section):
     global context
     
     #make this reentrant
@@ -55,11 +45,19 @@ def serverAuthTLSContext(config,section):
     logger.info("Setting up client TLS...")
     tls_dir = config.get(section,'registrar_tls_dir')
     
+    my_cert = config.get(section, 'registrar_my_cert')
+    my_priv_key = config.get(section, 'registrar_private_key')
+    my_key_pw = config.get(section,'registrar_private_key_pw')
+    
     if tls_dir =='default':
         tls_dir = 'reg_ca'
+        my_cert = 'client-cert.crt'
+        my_priv_key = 'client-private.pem'
         
     if tls_dir == 'CV':
         tls_dir = 'cv_ca'
+        my_cert = 'client-cert.crt'
+        my_priv_key = 'client-private.pem'
         
     # this is relative path, convert to absolute in WORK_DIR
     if tls_dir[0]!='/':
@@ -71,13 +69,28 @@ def serverAuthTLSContext(config,section):
         ca_path = "%s/cacert.crt"%(tls_dir)
     else:
         ca_path = "%s/%s"%(tls_dir,ca_cert)
+
+    my_cert = "%s/%s"%(tls_dir,my_cert)
+    my_priv_key = "%s/%s"%(tls_dir,my_priv_key)
     
     context = ssl.create_default_context()
     context.load_verify_locations(cafile=ca_path)   
     context.check_hostname = config.getboolean('general','tls_check_hostnames')
     context.verify_mode = ssl.CERT_REQUIRED
     
+    if my_key_pw=='default':
+        logger.warning("CAUTION: using default password for private key, please set private_key_pw to a strong password")
+                
+    context.load_cert_chain(certfile=my_cert,keyfile=my_priv_key,password=my_key_pw)
+    
 def getAIK(registrar_ip,registrar_port,instance_id):
+    retval = getKeys(registrar_ip,registrar_port,instance_id)
+    if retval is None:
+        return retval
+    else:
+        return retval['aik']
+
+def getKeys(registrar_ip,registrar_port,instance_id):
     global context
     
     #make absolutely sure you don't ask for AIKs unauthenticated
@@ -86,16 +99,25 @@ def getAIK(registrar_ip,registrar_port,instance_id):
     
     try:
         response = tornado_requests.request("GET",
-                                            "http://%s:%s/v1/instance_id/%s"%(registrar_ip,registrar_port,instance_id),
+                                            "http://%s:%s/v2/instances/%s"%(registrar_ip,registrar_port,instance_id),
                                             context=context)
         
-        if response.status_code == 200:
-            response_body = response.json()  
-            aik = response_body["aik"]
-            return aik
-        else:
+        response_body = response.json()
+        
+        if response.status_code != 200:
             logger.critical("Error: unexpected http response code from Registrar Server: %s"%str(response.status_code))
+            common.log_http_response(logger,logging.CRITICAL,response_body)
             return None 
+        
+        if "results" not in response_body:
+            logger.critical("Error: unexpected http response body from Registrar Server: %s"%str(response.status_code))
+            return None 
+        
+        if "aik" not in response_body["results"]:
+            logger.critical("Error: did not receive aik from Registrar Server: %s"%str(response.status_code))
+            return None 
+        
+        return response_body["results"]
     except Exception as e:
         logger.critical(traceback.format_exc())
         logger.critical("An unexpected error occurred: " + str(e))
@@ -103,74 +125,83 @@ def getAIK(registrar_ip,registrar_port,instance_id):
     return None
 
 def doRegisterNode(registrar_ip,registrar_port,instance_id,pub_ek,ekcert,pub_aik):
-    global context
     data = {
-    'command': 'register_node',
     'ek': pub_ek,
     'ekcert': ekcert,
     'aik': pub_aik,
     }
     v_json_message = json.dumps(data)
     
-    response = tornado_requests.request("PUT",
-                                        "http://%s:%s/v1/instance_id/%s"%(registrar_ip,registrar_port,instance_id),
+    response = tornado_requests.request("POST",
+                                        "http://%s:%s/v2/instances/%s"%(registrar_ip,registrar_port,instance_id),
                                         data=v_json_message,
-                                        context=context)
+                                        context=None)
 
-    if response.status_code == 200:
-        logger.info("Node registration requested for %s"%instance_id)
-        response_body = response.json()  
-        return response_body["blob"]
-    else:
+    response_body = response.json() 
+    
+    if response.status_code != 200:
         logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status_code))
+        common.log_http_response(logger,logging.ERROR,response_body)
         return None
+    
+    logger.info("Node registration requested for %s"%instance_id)
+    
+    if "results" not in response_body:
+        logger.critical("Error: unexpected http response body from Registrar Server: %s"%str(response.status_code))
+        return None 
+    
+    if "blob" not in response_body["results"]:
+        logger.critical("Error: did not receive blob from Registrar Server: %s"%str(response.status_code))
+        return None 
+    
+    return response_body["results"]["blob"]
+
 
 def doActivateNode(registrar_ip,registrar_port,instance_id,key):
-    global context
     data = {
-    'command': 'activate_node',
     'auth_tag': crypto.do_hmac(base64.b64decode(key),instance_id),
     }
             
     v_json_message = json.dumps(data)
     
     response = tornado_requests.request("PUT",
-                                        "http://%s:%s/v1/instance_id/%s"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/v2/instances/%s/activate"%(registrar_ip,registrar_port,instance_id),
                                         data=v_json_message,
-                                        context=context)
+                                        context=None)
 
     if response.status_code == 200:
         logger.info("Registration activated for node %s."%instance_id)
     else:
         logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status_code))
+        common.log_http_response(logger,logging.ERROR,response.json())
 
 def doActivateVirtualNode(registrar_ip,registrar_port,instance_id,deepquote):
-    global context
     data = {
-    'command': 'activate_virtual_node',
     'deepquote': deepquote,
     }
             
     v_json_message = json.dumps(data)
     
     response = tornado_requests.request("PUT",
-                                        "http://%s:%s/v1/instance_id/%s"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/v2/instances/%s/vactivate"%(registrar_ip,registrar_port,instance_id),
                                         data=v_json_message,
-                                        context=context)
+                                        context=None)
 
     if response.status_code == 200:
         logger.info("Registration activated for node %s."%instance_id)
     else:
         logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status_code))
+        common.log_http_response(logger,logging.ERROR,response.json())
     
 
-def doRegisterDelete(registrar_ip,registrar_port, instance_id):
+def doRegistrarDelete(registrar_ip,registrar_port, instance_id):
     global context
     response = tornado_requests.request("DELETE", "PUT",
-                                        "http://%s:%s/v1/instance_id/%s"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/v2/instances/%s"%(registrar_ip,registrar_port,instance_id),
                                         context=context)
     
     if response.status_code == 200:
         logger.debug("Registrar deleted.")
     else:
         logger.warn("Status command response: " + str(response.status_code) + " Unexpected response from Cloud Node.") 
+        common.log_http_response(logger,logging.WARNING,response.json())

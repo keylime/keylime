@@ -51,15 +51,19 @@ def check_mounted(secdir):
     return False
     
 def mount():
-    if not common.MOUNT_SECURE:
-        return "."
-    
     secdir = common.WORK_DIR+"/secure"
+    
+    if not common.MOUNT_SECURE:
+        secdir = common.WORK_DIR+"/tmpfs-dev"
+        if not os.path.isdir(secdir):
+            os.makedirs(secdir)
+        return secdir
+    
     if not check_mounted(secdir):
         # ok now we know it isn't already mounted, go ahead and create and mount
         if not os.path.exists(secdir):
             os.makedirs(secdir,0o700)
-            os.chown(secdir, 0, 0)
+        common.chownroot(secdir,logger)
         size = config.get('cloud_node','secure_size')
         logger.info("mounting secure storage location %s on tmpfs"%secdir)
         tpm_exec.run("mount -t tmpfs -o size=%s,mode=0700 tmpfs %s" %(size,secdir),lock=False)

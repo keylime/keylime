@@ -55,9 +55,6 @@ def add_vtpm(inputfile):
     # request a vtpm uuid from the manager
     vtpm_uuid = vtpm_manager.add_vtpm_to_group(group['uuid'])
     
-    # use an TLS context with no certificate checking 
-    registrar_client.noAuthTLSContext(config)
-    
     # registrar it and get back a blob
     keyblob = registrar_client.doRegisterNode(provider_reg_ip,provider_reg_port,vtpm_uuid,group['pubekpem'],group['ekcert'],group['aikpem'])
     

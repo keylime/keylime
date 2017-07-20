@@ -22,6 +22,11 @@
 ##########################################################################################
 
 
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 1>&2
+   exit 1
+fi
+
 if [ $# -lt 1 ]
 then
     echo "Usage:  `basename $0` list.txt [hash-algo]" >&2
@@ -41,15 +46,18 @@ rm -f $OUTPUT
 echo "Writing whitelist to $OUTPUT with $ALGO..."
 
 cd /
-find `ls / | grep -v "sys/\|run\|proc\|lost+found\|dev\|media\|mnt"` \( -fstype rootfs -o -type f -o -type l\) -uid 0 -exec $ALGO '{}' >> $OUTPUT \;
+find `ls / | grep -v "\bsys\b\|\brun\b\|\bproc\b\|\blost+found\b\|\bdev\b\|\bmedia\b\|mnt"` \( -fstype rootfs -o -xtype f -type l -o -type f \) -uid 0 -exec $ALGO '/{}' >> $OUTPUT \;
 
 rm -rf /tmp/ima/
+mkdir -p /tmp/ima
+
+echo "Creating whitelist for initrd..."
 for i in `ls /boot/initrd*`
 do
-	echo "extracting $i"
-	mkdir -p /tmp/ima/$i-extracted
-	cd /tmp/ima/$i-extracted
-	gzip -dc $i | cpio -id
-	find . -type f -exec $ALGO '{}' >> $OUTPUT \;
+    echo "extracting $i"
+    mkdir -p /tmp/ima/$i-extracted
+    cd /tmp/ima/$i-extracted
+    gzip -dc $i | cpio -id 2> /dev/null
+    find -type f -exec sha1sum "./{}" \; | sed "s| \./\./| /|" >> $OUTPUT
 done
 rm -rf /tmp/ima

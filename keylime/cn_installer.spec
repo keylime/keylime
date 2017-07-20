@@ -3,6 +3,7 @@
 block_cipher = None
 
 added_files = [
+		( '/usr/local/bin/flushspecific', '.' ),
 		( '/usr/local/bin/createek', '.' ),
 		( '/usr/local/bin/getpubek', '.' ),
 		( '/usr/local/bin/takeown', '.' ),
@@ -20,7 +21,6 @@ added_files = [
 		( '/usr/local/bin/deepquote', '.' ),
 		( '/usr/local/bin/tpmquote', '.' ),
 		( '/usr/local/bin/getrandom', '.' ),
-		( '/usr/local/bin/tpmconv', '.' ),
 		( 'build/crypto/*.so', '.' ),
          ]
 

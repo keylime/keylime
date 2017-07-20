@@ -22,12 +22,20 @@ import os.path
 import ConfigParser
 import logging.config
 import sys
-    
+from urlparse import urlparse
+import json
+import tornado.web
+from BaseHTTPServer import BaseHTTPRequestHandler
+import httplib
+
 # SET THIS TO True TO ENABLE THIS TO RUN in ECLIPSE
 DEVELOP_IN_ECLIPSE=False
 
 # SET THIS TO True TO ALLOW ALL TPM Operations to be stubbed out
 STUB_TPM=False
+
+# SET TO TRUE TO STUB A VTPM
+STUB_VTPM=False
 
 # set this to true to run the load testing on the CV
 LOAD_TEST=False
@@ -40,11 +48,12 @@ if LOAD_TEST or DEVELOP_IN_ECLIPSE:
 else:
     MOUNT_SECURE=True
     
+#force stub tpm if vtpm true
+if STUB_VTPM:
+    STUB_TPM=True
+    
 # if you're Robert and you really don't want to mount secure
 #MOUNT_SECURE=False
-
-# choose between cfssl or openssl for creating CA certifciates
-CA_IMPL = 'openssl'
 
 # Try and import cLime, if it fails set USE_CLIME to False.
 try:
@@ -65,28 +74,124 @@ elif LOAD_TEST:
 else:
     CONFIG_FILE=os.getenv('KEYLIME_CONFIG', '/etc/keylime.conf')
 
-# if CONFIG_FILE not set as environment var or in /etc/keylime.conf and bundle
-# try to locate the config file next to the script
-if not os.path.exists(CONFIG_FILE) and getattr(sys, 'frozen', False):
-    CONFIG_FILE = os.path.dirname(os.path.abspath(sys.executable))+"/keylime.conf"
+# if CONFIG_FILE not set as environment var or in /etc/keylime.conf 
 
 if not os.path.exists(CONFIG_FILE):
-    raise Exception('"{0}" does not exist. Please set environment variable KEYLIME_CONFIG or see "{1}" for more details'.format(CONFIG_FILE, __file__))
+    # try to locate the config file next to the script if bundled
+    if getattr(sys, 'frozen', False):
+        CONFIG_FILE = os.path.dirname(os.path.abspath(sys.executable))+"/keylime.conf"
+    else:
+        # instead try to get config file from python data_files install
+        CONFIG_FILE = os.path.dirname(os.path.abspath(__file__))+"/../package_default/keylime.conf"
+        
+if not os.path.exists(CONFIG_FILE):
+    raise Exception('%s does not exist. Please set environment variable KEYLIME_CONFIG or see %s for more details'%(CONFIG_FILE, __file__))
 print("Using config file %s"%(CONFIG_FILE,))
 
+# read the config file
+config = ConfigParser.RawConfigParser()
+config.read(CONFIG_FILE)
+
 if DEVELOP_IN_ECLIPSE:
-    WORK_DIR="."
+    WORK_DIR=os.path.dirname(os.path.abspath(__file__))
 else:
     WORK_DIR=os.getenv('KEYLIME_DIR','/var/lib/keylime')
 
 CA_WORK_DIR='%s/ca/'%WORK_DIR
 
-def ch_dir(path=WORK_DIR,root=True):    
+
+def chownroot(path,logger):
+    if os.geteuid()==0:
+        os.chown(path,0,0)
+    elif not DEVELOP_IN_ECLIPSE:
+        logger.debug("Unable to change ownership to root for file: %s"%(path)) 
+
+def ch_dir(path,logger):    
     if not os.path.exists(path):
         os.makedirs(path,0o700)
-        if not DEVELOP_IN_ECLIPSE and root:
-            os.chown(path,0,0)
+        chownroot(path,logger)
+    os.umask(0o077)
     os.chdir(path)
+
+def log_http_response(logger, loglevel, response_body):
+    """Takes JSON response payload and logs error info"""
+    if response_body is None:
+        return False
+    if logger is None:
+        return False
+    
+    log_func = logger.info
+    if loglevel == logging.CRITICAL:
+        log_func = logger.critical
+    elif loglevel == logging.ERROR:
+        log_func = logger.error
+    elif loglevel == logging.WARNING:
+        log_func = logger.warning
+    elif loglevel == logging.INFO:
+        log_func = logger.info
+    elif loglevel == logging.DEBUG:
+        log_func = logger.debug
+    
+    if "results" in response_body and "code" in response_body and "status" in response_body:
+        log_func("Response code %s: %s"%(response_body["code"], response_body["status"]))
+    else:
+        logger.error("Error: unexpected or malformed http response payload")
+        return False
+    
+    return True
+
+def echo_json_response(handler,code,status=None,results=None):
+    """Takes a JSON package and returns it to the user w/ full HTTP headers"""
+    if handler is None or code is None:
+        return False
+    if status is None:
+        status = httplib.responses[code]
+    if results is None:
+        results = {}
+    
+    json_res = {'code': code, 'status': status, 'results' : results}
+    json_response = json.dumps(json_res)
+    
+    if isinstance(handler, BaseHTTPRequestHandler):
+        handler.send_response(code)
+        handler.send_header('Content-Type', 'application/json')
+        handler.end_headers()
+        handler.wfile.write(json_response)
+        return True
+    elif isinstance(handler, tornado.web.RequestHandler):
+        handler.set_status(code)
+        handler.set_header('Content-Type', 'application/json')
+        handler.write(json_response)
+        return True
+    else:
+        return False
+
+def list_to_dict(list):
+    """Convert list into dictionary via grouping [k0,v0,k1,v1,...]"""
+    params = {}
+    i = 0
+    while (i < len(list)):
+        params[list[i]] = list[i+1] if (i+1)<len(list) else None
+        i = i+2
+    return params
+
+def get_restful_params(urlstring):
+    """Returns a dictionary of paired RESTful URI parameters"""
+    parsed_path = urlparse(urlstring.strip("/"))
+    tokens = parsed_path.path.split('/')
+    
+    # Be sure we at least have /v#/opt
+    if len(tokens) < 2:
+        return None
+    
+    # Be sure first token is API version
+    if len(tokens[0]) == 2 and tokens[0][0] == 'v':
+        params = list_to_dict(tokens[1:])
+        params["api_version"] = tokens[0][1]
+        return params
+    else:
+        return None
+
 
 LOG_TO_FILE=['cloudnode','registrar','provider_registrar','cloudverifier']
 # not clear that this works right.  console logging may not work
@@ -110,7 +215,7 @@ def init_logging(loggername):
             else:
                 if not os.path.exists(LOGDIR):
                     os.makedirs(LOGDIR, 0o750)
-                os.chown(LOGDIR, 0, 0)
+                chownroot(LOGDIR,logger)
                 os.chmod(LOGDIR,0o750)
                 
         fh = logging.FileHandler(logfilename)
@@ -146,13 +251,13 @@ TEST_PUB_EK='-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgK
 TEST_EK_CERT='MIIDiTCCAnGgAwIBAgIFLgbvovcwDQYJKoZIhvcNAQEFBQAwUjFQMBwGA1UEAxMVTlRDIFRQTSBFSyBSb290IENBIDAyMCUGA1UEChMeTnV2b3RvbiBUZWNobm9sb2d5IENvcnBvcmF0aW9uMAkGA1UEBhMCVFcwHhcNMTMxMDA2MDkxNTM4WhcNMzMxMDA2MDkxNTM4WjAAMIIBXzBKBgkqhkiG9w0BAQcwPaALMAkGBSsOAwIaBQChGDAWBgkqhkiG9w0BAQgwCQYFKw4DAhoFAKIUMBIGCSqGSIb3DQEBCQQFVENQQQADggEPADCCAQoCggEBANcVmYdWlcCiF09QfZ+dfSxOjnt0CJHiqlFDVETfMBTHfQHLPryJ4eTVoCgB7RuG+SgWalcrbyDieDXLY4pxWEwiSjN0ibTwNl2HF2lHOhAEHWuUzIH6gnorR44r07YG94UzDayIHzgleNKXlFNyJkp3fOKuEa6vQnxiHZgQiwswBX6G5XuorzMUVcyfTm98bZWkvETlyqhfr6tHWWeNUCKeiIKQ5Un9Uy/MPhh3TEECFDNVxCEbfTsL/CUL5zOIl9OhKZwj/wWbIS1Dfgor1+FUVsY7mvDZMDL/8HN8SOuBOfBGBVpxnGt1AYtyQQ9ELrs5GDNb5H5L4tkDYlgOyBUCAwEAAaN7MHkwVAYDVR0RAQH/BEowSKRGMEQxQjAUBgVngQUCARMLaWQ6NTc0NTQzMDAwGAYFZ4EFAgITD05QQ1Q0MngvTlBDVDUweDAQBgVngQUCAxMHaWQ6MDM5MTAMBgNVHRMBAf8EAjAAMBMGA1UdJQEB/wQJMAcGBWeBBQgBMA0GCSqGSIb3DQEBBQUAA4IBAQALYCcNLxnWs2rvt/gPGjCfZKuURHmgcICu97IaAM5iJPsyLR14rgOpOXpH1yUbcNvJbljOOfHsCczHOW5rvc+lIOrWHwhPKaRAAVnx7o7Zdj6ndDIqwjMi3royPvM8qad69vVRXTAx/zJkOtWO6eFX0UmPlfpRwVjLbjrbih7rJ58etNH6Umk23iCUriYTXy9HSyuhqQY3f/gxuvQB5v0DIvH6m3ne4mNcvtAv4LMIvKS6PUAjamMHRtebhY3xvGzZUlyHzXuId9Rw9bOS1fRwA6k4cC0qqWDO3d12ojN5B9Tr1IPV65weu7sCQT0PzkUKI0KeCoAGcPy0+ibk4VxL'
 # use the following option to get the next three canned values from a real system
 PRINT_QUOTE_INFO = False
-TEST_QUOTE='eJxjEGBgYGAEIwZ9jbgCnopDz5Zc29kovtPX6ZTh9+lFy2qWbZp6ilsqu8klV3y5hfc5y9Jgz0l/rmbqSS4Q+cl+s9HAe9vT+6ZpPsknWfjEZ++39eabNX/pKh33XkcX1+2GZzRk5r05bWcSqTs18LHRP7F1MUvdq/gmTT/x/Ob+lE1ymhrti06aHZdfwnr+4nNNa89pn3adKGDfFSY+VfnUndiDOxzXLDEW1OCLMmtYqTexRmnjucqShOKLvN+NTyb9/7ly2912sfQN230n912/MFf5ecBDsVvWZSdn2ZXeb/2QsYfpZ/rtbRIc+x5GOIWk+MvIblj03vL3Tsa4N85m0sZ9//Weq33qlWUr3WUpum9C9fElvqnMwDBwrGdg0GCAgAUsBzof1TNgBf+xAABvBpOV'
+TEST_QUOTE='reJxjEGBgYGAEIwZ9jbgCnopDz5Zc29kovtPX6ZTh9+lFy2qWbZp6ilsqu8klV3y5hfc5y9Jgz0l/rmbqSS4Q+cl+s9HAe9vT+6ZpPsknWfjEZ++39eabNX/pKh33XkcX1+2GZzRk5r05bWcSqTs18LHRP7F1MUvdq/gmTT/x/Ob+lE1ymhrti06aHZdfwnr+4nNNa89pn3adKGDfFSY+VfnUndiDOxzXLDEW1OCLMmtYqTexRmnjucqShOKLvN+NTyb9/7ly2912sfQN230n912/MFf5ecBDsVvWZSdn2ZXeb/2QsYfpZ/rtbRIc+x5GOIWk+MvIblj03vL3Tsa4N85m0sZ9//Weq33qlWUr3WUpum9C9fElvqnMwDBwrGdg0GCAgAUsBzof1TNgBf+xAABvBpOV'
 TEST_NONCE='c092b9a693d632c5f93a3b2776b2317bf11d0af8'
 TEST_AIK='-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzpAAp0TEPftgRr0z0ZYV\nBtKz3yDAYE+lH8p6gE3hRcI/Vg9ngGfQJohc9wsy4ELSSKUVMBVOkw2ITKCH3UOo\ny6J+FPApp12oYGSKxUMeHH30cVKaFSXMKSYl4J67Uufv8rhuKbcp60EJNfo8ougv\nHV1n9fwSBsmYeU8InW3cC4qcOkkQW++zeQi6HhTvrXdajTSdoH9wO8olQvx+IW4n\nmWz74vYWt5u5whyIv2wDkGlOz1x5iAAcarxS3xPuQTu/Mv9QOVNqwcvQaAolps6z\n3ckOGyRrEUS7rKkkBGX4FATUq6XhbxyJ7ZLba83jEnGS9h8EO2t9SUmp7cNxV+A7\njQIDAQAB\n-----END PUBLIC KEY-----\n'
 
 # use the following option to get the next three canned values from a real system
 PRINT_DEEPQUOTE_INFO = False
-TEST_DQ='eJxjYP7//z8jAwPD2YOCkba7vsoFf9ndFiVZtO7EGaG04uNiAn6W4rdCQuZO0FG4vW6vfZRZr9ln1+2s4mmTXYxPPXDW/Bjbcbo2tC+Q7W/tH4kvS3of1jq57gjQYWZ5OHXVvPN89ZeXnfPODjxz7tfZ0y9vvfOw+57Y/GmO7sMjxyQ6eabK7j6kHTCp8+bt+POPJksYeK3/NV2lcWfnxN4+XxWXr0zzc5WDf1jb7I1MtEosvcvREtn5MuuzJNPOnW62qk/DDhV+fiQmY6fh/IRJMEw5+VqpJkPlYR+u188lzvb2zra5+dRkJXvar+SZXId6V/94zrgmg/PUQhFJQeblnr+WrNG9wymsvvrsFumaA26hx62S/e+DwkDeSWO6ikneSua6jOji3aY/X+/IEmegAEgAsd+Jb/Xm6yUvHXG0ujLt9vOdiwVj8qIn716wLGW5QFCkV8HUTeyl5cyu3Kkf067PmMp7cb6p9dJXp2o3xJzS5sSmjq26/XUtL+/Ri+8PHpqX3br0sRTHwbrIrt93Xyle3HawqPJIG/e2Fu6H+tj0YhOjxH8DBf4PEMDqGAEgZgQjhq62J0933/cVvnl6JtsW/Rvu5hc+Vuyy/vdshjH72Yymf+LXn2xft93xkn3vbo6TbIrax/TmmLeuvp5TvlbofMS5qf+PH44ymy11QmRbB3tN+T5p54N2T/dMzHO6XhzdYCe52XXS9Vk2c5Sk2LZ/9XSsu/Lhsf6klZmsU3oCHBzjuJ5JRYtd/+Us3HUrYGMOg0rDAtt3pxNsnm10PsRt//ROqJlcS/p53okH2Z9MOP2wZ6k4k/sEM3H1S1mmEjGzdt2vMG7ZH6aw76F4cgNDF2fkbeG8LYoSDjMqw378yJj2ZonP4k3NFyas0PBT3Gn6ePdFmytJE07/WXvvgs1uVo7k+38Wb4v+eoHJnMWh+jwzAySQHjDCgoaViV5pYjiDgUrvxAIAoKts4Q=='
+TEST_DQ='deJxjYP7//z8jAwPD2YOCkba7vsoFf9ndFiVZtO7EGaG04uNiAn6W4rdCQuZO0FG4vW6vfZRZr9ln1+2s4mmTXYxPPXDW/Bjbcbo2tC+Q7W/tH4kvS3of1jq57gjQYWZ5OHXVvPN89ZeXnfPODjxz7tfZ0y9vvfOw+57Y/GmO7sMjxyQ6eabK7j6kHTCp8+bt+POPJksYeK3/NV2lcWfnxN4+XxWXr0zzc5WDf1jb7I1MtEosvcvREtn5MuuzJNPOnW62qk/DDhV+fiQmY6fh/IRJMEw5+VqpJkPlYR+u188lzvb2zra5+dRkJXvar+SZXId6V/94zrgmg/PUQhFJQeblnr+WrNG9wymsvvrsFumaA26hx62S/e+DwkDeSWO6ikneSua6jOji3aY/X+/IEmegAEgAsd+Jb/Xm6yUvHXG0ujLt9vOdiwVj8qIn716wLGW5QFCkV8HUTeyl5cyu3Kkf067PmMp7cb6p9dJXp2o3xJzS5sSmjq26/XUtL+/Ri+8PHpqX3br0sRTHwbrIrt93Xyle3HawqPJIG/e2Fu6H+tj0YhOjxH8DBf4PEMDqGAEgZgQjhq62J0933/cVvnl6JtsW/Rvu5hc+Vuyy/vdshjH72Yymf+LXn2xft93xkn3vbo6TbIrax/TmmLeuvp5TvlbofMS5qf+PH44ymy11QmRbB3tN+T5p54N2T/dMzHO6XhzdYCe52XXS9Vk2c5Sk2LZ/9XSsu/Lhsf6klZmsU3oCHBzjuJ5JRYtd/+Us3HUrYGMOg0rDAtt3pxNsnm10PsRt//ROqJlcS/p53okH2Z9MOP2wZ6k4k/sEM3H1S1mmEjGzdt2vMG7ZH6aw76F4cgNDF2fkbeG8LYoSDjMqw378yJj2ZonP4k3NFyas0PBT3Gn6ePdFmytJE07/WXvvgs1uVo7k+38Wb4v+eoHJnMWh+jwzAySQHjDCgoaViV5pYjiDgUrvxAIAoKts4Q=='
 TEST_DQ_NONCE='123456'
 TEST_HAIK='-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0Em0Y7CEPS1wjY4DwlbP\nnleKpKcViK54K5R2wghixKT+I17FqzCfZWR9oxgO7YrjasoNkd8q+IaPzNIwv8f0\nxBJPjJdZy+OKP2b1/Yl5vlArvhhA8v0/FJv6qBnzMsPhoIKFaVidE5Z5MHZdGBP9\nY3CeXHGxeFoulge8CQj/A2rKPzCJ78TDY8is5wkmiqbqV1nAV+oDgnzWniVP3Bg6\njaK6uGxeATWtpNPFyyxbS+F/p5vRr7fpz/6RjJrheW2xsMHo+8V8J6knNXoAUsFj\nWgNm6MWpEWtJ9kEopSAKNPr96JA50Ns3fPG2OlCPU4bG7rHB5zr8irjWwiJFtpiE\ncQIDAQAB\n-----END PUBLIC KEY-----\n'
 TEST_VAIK='-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsWZQSYGM03DPfaN9FgH/\nCZ9KHDY79VeVqnhBFk3NcnWQ515ld9cCunqfKLdCow4G3dNmTmsNhp7nNIK4UtSl\nzDCaH2/v1jk5eAPTS0w0E50oYSIMAfN+7PQDCNlzM4mKSiP4sj4uNYj/WVbuZxCM\nb37Cdj8q1Wh+lONUnBfPhIwBnjQ1o9Gzbq2/18xLKHiJvIPeCsNlVabPbbWg26eA\n5sRqeTyx8gSKX0u6fmgrf8KmiHeau8aU131SIZgdvYMv74ZB2i4qgZpNAXK3XvU+\nay5lOaYNr2//MdSSV43hQZvyh9hSb2r4BtoJfJ5eyubPC4hRQSC55/hI+2j3x0+z\nmQIDAQAB\n-----END PUBLIC KEY-----\n'
@@ -177,3 +282,11 @@ TPM_DATA_PCR = 16
 
 # the size of the bootstrap key for AES-GCM 256bit
 BOOTSTRAP_KEY_SIZE=32
+
+# choose between cfssl or openssl for creating CA certificates
+CA_IMPL = config.get('general','ca_implementation')
+
+if DEVELOP_IN_ECLIPSE:
+    CRL_PORT=38080
+else:
+    CRL_PORT=38080

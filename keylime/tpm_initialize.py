@@ -40,12 +40,8 @@ logger = common.init_logging('tpm_initialize')
 
 global_tpmdata = None
 
-def random_password(length=20,useTPM=False):
-    if useTPM:
-        rand = tpm_random.get_tpm_randomness(length)
-    else:
-        rand = crypto.generate_random_key(length)
-        
+def random_password(length=20):
+    rand = crypto.generate_random_key(length)
     chars = string.ascii_uppercase + string.digits + string.ascii_lowercase
     password = ''
     for i in range(length):
@@ -84,7 +80,7 @@ def take_ownership(config_pw):
         # if no ownerpassword
         if config_pw == 'generate':
             logger.info("Generating random TPM owner password")
-            owner_pw = random_password(20,useTPM=True)
+            owner_pw = random_password(20)
         else:
             logger.info("Taking ownership with config provided TPM owner password: %s"%config_pw)
             owner_pw = config_pw
@@ -189,6 +185,16 @@ def get_mod_from_tpm(keyhandle):
                 public_modulus.append(string.atol(token,base=16))
     return base64.b64encode(bytearray(public_modulus))
     
+
+def flush_keys():
+    logger.debug("Flushing keys from TPM...") 
+    retout = tpm_exec.run("listkeys")[0]
+    for line in retout:
+        tokens = line.split()
+        if len(tokens)==4 and tokens[0]=='Key' and tokens[1]=='handle':
+            handle = tokens[3]
+            tpm_exec.run("flushspecific -ha %s -rt 1"%handle)
+            
 def load_aik():
     # is the key already there?
     modFromFile = get_tpm_metadata('aikmod')
@@ -377,7 +383,7 @@ def verify_ek(ekcert,ekpem):
         if ek509.verify(pubkey) == 1:
             logger.debug("EK cert matched trusted key %s"%key)
             return True
-    logger.errror("No Root CA matched EK Certificate")
+    logger.error("No Root CA matched EK Certificate")
     return False
 
 def get_tpm_manufacturer():
@@ -385,12 +391,15 @@ def get_tpm_manufacturer():
     for line in retout:
         tokens = line.split()
         if len(tokens)== 3 and tokens[0]=='VendorID' and tokens[1]==':':
-            logger.debug("TPM vendor id: %s",tokens[2])
+            #logger.debug("TPM vendor id: %s",tokens[2])
             return tokens[2]
     return None
 
 def is_vtpm():
-    return 'ETHZ'==get_tpm_manufacturer()
+    if common.STUB_VTPM:
+        return True
+    else:
+        return 'ETHZ'==get_tpm_manufacturer()
 
 def is_tpm_owned():
     retout = tpm_exec.run("getcapability -cap 5 -scap 111")[0]
@@ -409,6 +418,9 @@ def read_tpm_data():
     
 def write_tpm_data():
     global global_tpmdata
+    os.umask(0o077)
+    if os.geteuid()!=0 and not common.DEVELOP_IN_ECLIPSE:
+        logger.warning("Creating tpm metadata file without root.  Sensitive trust roots may be at risk!")
     with open('tpmdata.json','w') as f:
         json.dump(global_tpmdata,f)
 

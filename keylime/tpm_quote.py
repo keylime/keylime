@@ -87,7 +87,7 @@ def create_deep_quote(nonce,data=None,vpcrmask=EMPTYMASK,pcrmask=EMPTYMASK):
         if quotepath is not None:
             os.remove(quotepath)
 
-    return quote
+    return 'd'+quote
 
 def create_quote(nonce,data=None,pcrmask=EMPTYMASK):
     # if not using TPM, just return a canned quote
@@ -121,10 +121,17 @@ def create_quote(nonce,data=None,pcrmask=EMPTYMASK):
         if quotepath is not None:
             os.remove(quotepath)
 
-    return quote
+    return 'r'+quote
 
+def is_deep_quote(quote):
+    if quote[0]=='d':
+        return True
+    elif quote[0]=='r':
+        return False
+    else:
+        raise Exception("Invalid quote type %s"%quote[0])
 
-def check_deep_quote(nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima_measurement_list=None,ima_whitelist=None):
+def check_deep_quote(nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima_measurement_list=None,ima_whitelist={}):
     quoteFile=None
     vAIKFile=None
     hAIKFile=None
@@ -140,6 +147,10 @@ def check_deep_quote(nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima
         #magic numbers get rid of the extra quotes
         print "TEST_HAIK='%s'"%repr(str(hAIK))[1:-1]
         print "TEST_VAIK='%s'"%repr(str(vAIK))[1:-1]
+        
+    if quote[0]!='d':
+        raise Exception("Invalid deep quote type %s"%quote[0])
+    quote = quote[1:]
     
     try:
         # write out quote
@@ -203,7 +214,7 @@ def check_deep_quote(nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima
     # don't pass in data to check pcrs for physical quote 
     return check_pcrs(tpm_policy,pcrs,None,False,None,None) and check_pcrs(vtpm_policy, vpcrs, data, True,ima_measurement_list,ima_whitelist)
 
-def check_quote(nonce,data,quote,aikFromRegistrar,tpm_policy={},ima_measurement_list=None,ima_whitelist=None):
+def check_quote(nonce,data,quote,aikFromRegistrar,tpm_policy={},ima_measurement_list=None,ima_whitelist={}):
     quoteFile=None
     aikFile=None
 
@@ -215,7 +226,11 @@ def check_quote(nonce,data,quote,aikFromRegistrar,tpm_policy={},ima_measurement_
         print "TEST_NONCE='%s'"%nonce
         #magic numbers get rid of the extra quotes
         print "TEST_AIK='%s'"%repr(str(aikFromRegistrar))[1:-1]
-        
+
+    if quote[0]!='r':
+        raise Exception("Invalid quote type %s"%quote[0])
+    quote = quote[1:]
+    
     try:
         # write out quote
         qfd, qtemp = tempfile.mkstemp()
@@ -288,13 +303,8 @@ def check_pcrs(tpm_policy,pcrs,data,virtual,ima_measurement_list,ima_whitelist):
             # confused yet?  pcrextend will hash the string of the original hash again
             expectedval = hashlib.sha1(EMPTY_PCR.decode('hex')+hashlib.sha1(hashlib.sha1(data).hexdigest()).digest()).hexdigest().lower()
             if expectedval != pcrval and not common.STUB_TPM:
-                logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s\n"%(("","v")[virtual],pcrnum,pcrval,expectedval))
+                logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s"%(("","v")[virtual],pcrnum,pcrval,expectedval))
                 return False
-            continue
-                
-        if pcrnum not in pcrWhiteList.keys():
-            if not common.STUB_TPM and len(tpm_policy.keys())>0:
-                logger.warn("%sPCR #%s in quote not found in tpm_policy, skipping."%(("","v")[virtual],pcrnum))
             continue
                
         # check for ima PCR
@@ -305,11 +315,16 @@ def check_pcrs(tpm_policy,pcrs,data,virtual,ima_measurement_list,ima_whitelist):
             
             if check_ima(pcrval,ima_measurement_list,ima_whitelist):
                 pcrsInQuote.add(pcrnum)
+                continue
             else:
                 return False
-            
+                
+        if pcrnum not in pcrWhiteList.keys():
+            if not common.STUB_TPM and len(tpm_policy.keys())>0:
+                logger.warn("%sPCR #%s in quote not found in tpm_policy, skipping."%(("","v")[virtual],pcrnum))
+            continue
         elif pcrval not in pcrWhiteList[pcrnum] and not common.STUB_TPM:
-            logger.error("%sPCR #%s: %s from quote does not match expected value %s\n"%(("","v")[virtual],pcrnum,pcrval,pcrWhiteList[pcrnum]))
+            logger.error("%sPCR #%s: %s from quote does not match expected value %s"%(("","v")[virtual],pcrnum,pcrval,pcrWhiteList[pcrnum]))
             return False
         else:
             pcrsInQuote.add(pcrnum)       
@@ -346,6 +361,9 @@ def readPolicy(configval):
         
         if int(key)==common.TPM_DATA_PCR:
             raise Exception("Invalid whitelist PCR number %s, keylime uses this PCR to bind data."%key)
+        if int(key)==common.IMA_PCR:
+            raise Exception("Invalid whitelist PCR number %s, this PCR is used for IMA."%key)
+        
         mask = mask + (1<<int(key))
         
         # wrap it in a list if it is a singleton

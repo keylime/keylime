@@ -41,12 +41,16 @@ import tpm_initialize
 import registrar_client
 import tpm_nvram
 import secure_mount
-import signal
 import time
 import hashlib
 import openstack
 import zipfile
 import cStringIO
+import revocation_notifier
+import importlib
+import shutil
+import tpm_random
+import tpm_exec
 
 # read the config file
 config = ConfigParser.RawConfigParser()
@@ -71,177 +75,216 @@ class Handler(BaseHTTPRequestHandler):
         
         logger.info('GET invoked from ' + str(self.client_address)  + ' with uri:' + self.path)
         
-        if not self.is_quote():
-            logger.warning('GET returning 400 response. uri not supported: ' + self.path)
-            self.send_response(400)
-            self.end_headers()
-            return
-         
-        nonce = self.get_query_tag_value(self.path, 'nonce')
-        pcrmask = self.get_query_tag_value(self.path, 'mask')
-        vpcrmask = self.get_query_tag_value(self.path, 'vmask')
-          
-        # if the query is not messed up
-        if nonce is None:
-            logger.warning('GET quote returning 400 response. nonce not provided as an HTTP parameter in request')
-            self.send_response(400)
-            self.end_headers()
-            return 
-        
-        if self.is_tenant_quote():
-            #always need share when talking to the tenant
-            need_share = True
-        elif self.is_cloudverifier_quote():
-            # if we already have a K, then no need to ask for V again
-            if self.server.K is not None and self.get_query_tag_value(self.path, 'need_pubkey') !='True':
-                need_share = False   
-            else:
-                need_share = True                      
-        else:
-            logger.warning('GET returning 400 response. uri not supported: ' + self.path)
-            self.send_response(400)
-            self.end_headers()
-            return  
-        
-        if vpcrmask is None:
-            quote = tpm_quote.create_quote(nonce, self.server.rsapublickey_exportable,pcrmask)
-            imaMask = pcrmask
-        else:
-            quote = tpm_quote.create_deep_quote(nonce, self.server.rsapublickey_exportable, vpcrmask, pcrmask)
-            imaMask = vpcrmask
+        rest_params = common.get_restful_params(self.path)
+        if "keys" in rest_params and rest_params['keys']=='verify':
+            if self.server.K is None:
+                logger.info('GET key challenge returning 400 response. bootstrap key not available')
+                common.echo_json_response(self, 400, "Bootstrap key not yet available.")
+                return
+            challenge = rest_params['challenge']
+            response={}
+            response['hmac'] = crypto.do_hmac(self.server.K, challenge)            
+            common.echo_json_response(self, 200, "Success", response)
+            logger.info('GET key challenge returning 200 response.')
             
-        response = { 'quote': quote }
-
-        if need_share:
+        # If node pubkey requested
+        elif "keys" in rest_params and rest_params["keys"] == "pubkey":
+            response = {}
             response['pubkey'] = self.server.rsapublickey_exportable
             
-        # return a measurement list if available
-        if tpm_quote.check_mask(imaMask, common.IMA_PCR):
-            if not os.path.exists(common.IMA_ML):
-                logger.warn("IMA measurement list not available: %s"%(common.IMA_ML))
+            common.echo_json_response(self, 200, "Success", response)
+            logger.info('GET pubkey returning 200 response.')
+            return
+        
+        elif "quotes" in rest_params:
+            nonce = rest_params['nonce']
+            pcrmask = rest_params['mask'] if 'mask' in rest_params else None
+            vpcrmask = rest_params['vmask'] if 'vmask' in rest_params else None
+            
+            # if the query is not messed up
+            if nonce is None:
+                logger.warning('GET quote returning 400 response. nonce not provided as an HTTP parameter in request')
+                common.echo_json_response(self, 400, "nonce not provided as an HTTP parameter in request")
+                return
+            
+            # Sanitization assurance (for tpm_exec.run() tasks below) 
+            if not (nonce.isalnum() and (pcrmask is None or pcrmask.isalnum()) and (vpcrmask is None or vpcrmask.isalnum())):
+                logger.warning('GET quote returning 400 response. parameters should be strictly alphanumeric')
+                common.echo_json_response(self, 400, "parameters should be strictly alphanumeric")
+                return
+            
+            # identity quotes are always shallow
+            if not tpm_initialize.is_vtpm() or rest_params["quotes"]=='identity':
+                quote = tpm_quote.create_quote(nonce, self.server.rsapublickey_exportable,pcrmask)
+                imaMask = pcrmask
             else:
-                with open(common.IMA_ML,'r') as f:
-                    ml = f.read()
-                response['ima_measurement_list']=ml
-             
-        json_response = json.dumps(response)  
-           
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(json_response)
-        logger.info('GET %s quote returning 200 response.'%('tenant','verifier')[self.is_cloudverifier_quote()])
-        return
+                quote = tpm_quote.create_deep_quote(nonce, self.server.rsapublickey_exportable, vpcrmask, pcrmask)
+                imaMask = vpcrmask
+            
+            # Allow for a partial quote response (without pubkey) 
+            if "partial" in rest_params and (rest_params["partial"] is None or int(rest_params["partial"],0) == 1):
+                response = { 
+                    'quote': quote, 
+                    }
+            else:
+                response = {
+                    'quote': quote, 
+                    'pubkey': self.server.rsapublickey_exportable, 
+                }
+            
+            # return a measurement list if available
+            if tpm_quote.check_mask(imaMask, common.IMA_PCR):
+                if not os.path.exists(common.IMA_ML):
+                    logger.warn("IMA measurement list not available: %s"%(common.IMA_ML))
+                else:
+                    with open(common.IMA_ML,'r') as f:
+                        ml = f.read()
+                    response['ima_measurement_list']=ml
+            
+            common.echo_json_response(self, 200, "Success", response)
+            logger.info('GET %s quote returning 200 response.'%(rest_params["quotes"]))
+            return
+        
+        else:
+            logger.warning('GET returning 400 response. uri not supported: ' + self.path)
+            common.echo_json_response(self, 400, "uri not supported")
+            return
+        
 
     def do_POST(self):
-        """This method services the GET request typically from either the Tenant or the Cloud Verifier.
+        """This method services the POST request typically from either the Tenant or the Cloud Verifier.
         
         Only tenant and cloudverifier uri's are supported. Both requests require a nonce parameter.  
         The Cloud verifier requires an additional mask parameter.  If the uri or parameters are incorrect, a 400 response is returned.
         """        
-        tn_quote_flag = self.is_tenant_quote()
-        cv_quote_flag = self.is_cloudverifier_quote()
-        if tn_quote_flag or cv_quote_flag: 
-            content_length = int(self.headers.get('Content-Length', 0))
-            if content_length > 0:
-                post_body = self.rfile.read(content_length)
-                json_body = json.loads(post_body)
-                    
-                b64_encrypted_key = json_body['encrypted_key']
-                decrypted_key = crypto.rsa_decrypt(self.server.rsaprivatekey,base64.b64decode(b64_encrypted_key))
-                
-                have_derived_key = False
+        rest_params = common.get_restful_params(self.path)
+        
+        content_length = int(self.headers.get('Content-Length', 0))
+        if content_length <= 0:
+            logger.warning('POST returning 400 response, expected content in message. url:  ' + self.path)
+            common.echo_json_response(self, 400, "expected content in message")
+            return
+        
+        post_body = self.rfile.read(content_length)
+        json_body = json.loads(post_body)
+            
+        b64_encrypted_key = json_body['encrypted_key']
+        decrypted_key = crypto.rsa_decrypt(self.server.rsaprivatekey,base64.b64decode(b64_encrypted_key))
+        
+        have_derived_key = False
 
-                if tn_quote_flag:                                                                                                                         
-                    self.server.add_U(decrypted_key)
-                    self.server.auth_tag = json_body['auth_tag']
-                    self.server.payload = json_body.get('payload',None)
-                    
-                    have_derived_key = self.server.attempt_decryption(self)
-                elif cv_quote_flag:                                                                                                                                
-                    self.server.add_V(decrypted_key)
-                    have_derived_key = self.server.attempt_decryption(self)
-                else:
-                    logger.warning('POST returning  response. uri not supported: ' + self.path)
-                    self.send_response(400)
-                    self.end_headers()
-                    return
-                logger.info('POST of %s key returning 200'%(('V','U')[tn_quote_flag]))
-                self.send_response(200)
-                self.end_headers()
-                
-                if have_derived_key: 
-                    # ok lets write out the key now
-                    secdir = secure_mount.mount() # confirm that storage is still securely mounted
-                    
-                    f = open(secdir+"/"+self.server.enc_keyname,'w')
-                    f.write(base64.b64encode(self.server.K))
-                    f.close()
-                    
-                    # if we have a good key, now attempt to write out the encrypted payload
-                    dec_path = "%s/%s"%(secdir, config.get('cloud_node',"dec_payload_file"))
-                    enc_path = "%s/encrypted_payload"%common.WORK_DIR
-                    if self.server.payload is not None:
-                        plaintext = crypto.decrypt(self.server.payload, str(self.server.K))
-                        zfio = cStringIO.StringIO(plaintext)
-                        
-                        if config.getboolean('cloud_node','extract_payload_zip') and zipfile.is_zipfile(zfio):
-                            logger.info("Decrypting and unzipping payload to %s/unzipped"%dec_path)
-                            with zipfile.ZipFile(zfio,'r')as f:
-                                f.extractall('%s/unzipped'%secdir)
-                        else:
-                            logger.info("Decrypting payload to %s"%dec_path)
-                            with open(dec_path,'w') as f:
-                                f.write(plaintext)
-                        zfio.close()
-                        
-                        # also write out encrypted payload to be decrytped next time
-                        with open(enc_path,'w') as f:
-                            f.write(self.server.payload)
-                            
-                    elif os.path.exists(enc_path):
-                        # if no payload provided, try to decrypt one from a previous run stored in encrypted_payload                       
-                        with open(enc_path,'r') as f:
-                            payload = f.read()
-                        try:
-                            with open(dec_path,'w') as fp:
-                                fp.write(crypto.decrypt(payload,str(self.server.K)))
-                                logger.info("Decrypted previous payload in %s to %s"%(enc_path,dec_path))
-                        except Exception as e:
-                            logger.warning("Unable to decrypt previous payload %s with derived key: %s"%(enc_path,e))
-                            os.remove(enc_path)
-                        
-                    #stow the U value for later
-                    tpm_nvram.write_key_nvram(self.server.final_U)
-                    
-                    return                   
-            else:
-                logger.warning('POST returning 400 response, expected content in message. url:  ' + self.path)
-                self.send_response(400)
-                self.end_headers()
-                return     
+        if rest_params["keys"] == "ukey":
+            self.server.add_U(decrypted_key)
+            self.server.auth_tag = json_body['auth_tag']
+            self.server.payload = json_body.get('payload',None)
+            
+            have_derived_key = self.server.attempt_decryption(self)
+        elif rest_params["keys"] == "vkey":
+            self.server.add_V(decrypted_key)
+            have_derived_key = self.server.attempt_decryption(self)
         else:
-            logger.warning('POST returning 400 response. uri not supported: ' + self.path)
-            self.send_response(400)
-            self.end_headers()
-            return      
-    
-    def is_quote(self):
-        """Returns True if this is  quote uri, else False"""  
-        parsed_path = urlparse(self.path.strip("/"))
-        tokens = parsed_path.path.split('/')
-        return len(tokens) >= 2 and tokens[0] == 'v1' and tokens[1] == 'quotes' 
-    
-    def is_tenant_quote(self):
-        """Returns True if this is a tenant quote uri, else False"""  
-        parsed_path = urlparse(self.path.strip("/"))
-        tokens = parsed_path.path.split('/')
-        return len(tokens) == 3 and tokens[0] == 'v1' and tokens[1] == 'quotes' and tokens[2] == 'tenant'
+            logger.warning('POST returning  response. uri not supported: ' + self.path)
+            common.echo_json_response(self, 400, "uri not supported")
+            return
+        logger.info('POST of %s key returning 200'%(('V','U')[rest_params["keys"] == "ukey"]))
+        common.echo_json_response(self, 200, "Success")
+        
+        # no key yet, then we're done
+        if not have_derived_key:
+            return
+        
+        # woo hoo we have a key 
+        # ok lets write out the key now
+        secdir = secure_mount.mount() # confirm that storage is still securely mounted
+        
+        # clean out the secure dir of any previous info before we extract files
+        if os.path.isdir("%s/unzipped"%secdir):
+            shutil.rmtree("%s/unzipped"%secdir)
+        
+        # write out key file
+        f = open(secdir+"/"+self.server.enc_keyname,'w')
+        f.write(base64.b64encode(self.server.K))
+        f.close()
+        
+        #stow the U value for later
+        tpm_nvram.write_key_nvram(self.server.final_U)
+        
+        # optionally extend a hash of they key and payload into specified PCR
+        tomeasure = self.server.K
+        
+        # if we have a good key, now attempt to write out the encrypted payload
+        dec_path = "%s/%s"%(secdir, config.get('cloud_node',"dec_payload_file"))
+        enc_path = "%s/encrypted_payload"%common.WORK_DIR
+        
+        dec_payload = None
+        enc_payload = None
+        
+        if self.server.payload is not None:
+            dec_payload = crypto.decrypt(self.server.payload, str(self.server.K))
+            enc_payload = self.server.payload
+        elif os.path.exists(enc_path):
+            # if no payload provided, try to decrypt one from a previous run stored in encrypted_payload
+            with open(enc_path,'r') as f:
+                enc_payload = f.read()
+            try:
+                dec_payload = crypto.decrypt(enc_payload,str(self.server.K))
+                logger.info("Decrypted previous payload in %s to %s"%(enc_path,dec_path))
+            except Exception as e:
+                logger.warning("Unable to decrypt previous payload %s with derived key: %s"%(enc_path,e))
+                os.remove(enc_path)
+                enc_payload=None
+        
+        # also write out encrypted payload to be decrytped next time
+        if enc_payload is not None:
+            with open(enc_path,'w') as f:
+                f.write(self.server.payload)
 
-    def is_cloudverifier_quote(self):
-        """Returns True if this is a cloud verifier quote uri, else False"""  
-        parsed_path = urlparse(self.path.strip("/"))
-        tokens = parsed_path.path.split('/')
-        return len(tokens) == 3 and tokens[0] == 'v1' and tokens[1] == 'quotes' and tokens[2] == 'cloudverifier'
+        # deal with payload
+        payload_thread = None
+        if dec_payload is not None:
+            tomeasure += dec_payload
+            # see if payload is a zip
+            zfio = cStringIO.StringIO(dec_payload)
+            if config.getboolean('cloud_node','extract_payload_zip') and zipfile.is_zipfile(zfio):
+                logger.info("Decrypting and unzipping payload to %s/unzipped"%secdir)
+                with zipfile.ZipFile(zfio,'r')as f:
+                    f.extractall('%s/unzipped'%secdir)
+                
+                # run an included script if one has been provided
+                initscript = config.get('cloud_node','payload_script')
+                if initscript is not "":
+                    def initthread():
+                        import subprocess
+                        logger.debug("Executing specified script: %s"%initscript)
+                        env = os.environ.copy()
+                        env['NODE_UUID']=self.server.node_uuid
+                        proc= subprocess.Popen(["/bin/sh",initscript],env=env,shell=False,cwd='%s/unzipped'%secdir,
+                                                stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+                        proc.wait()
+                        while True:
+                            line = proc.stdout.readline()
+                            if line=="":
+                                break
+                            logger.debug("init-output: %s"%line.strip())
+                            
+                    payload_thread = threading.Thread(target=initthread)
+            else:
+                logger.info("Decrypting payload to %s"%dec_path)
+                with open(dec_path,'w') as f:
+                    f.write(dec_payload)
+            zfio.close()
+
+        # now extend a measurement of the payload and key if there was one
+        pcr = config.getint('cloud_node','measure_payload_pcr')
+        if pcr>0 and pcr<24:
+            logger.info("extending measurement of payload into PCR %s"%pcr)
+            measured = hashlib.sha1(tomeasure).hexdigest()
+            tpm_exec.run("extend -ix %d -ih %s"%(pcr,measured))
+            
+        if payload_thread is not None:
+            payload_thread.start()
+            
+        return
 
     def get_query_tag_value(self, path, query_tag):
         """This is a utility method to query for specific the http parameters in the uri.  
@@ -267,11 +310,6 @@ class Handler(BaseHTTPRequestHandler):
 # https://github.com/muayyad-alsadi/python-PooledProcessMixIn
 class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
     """Http Server which will handle each request in a separate thread."""
-
-    instances = {}
-    client_id = uuid.uuid4()
-
-    cloudnode_port = None
    
     ''' Do not modify directly unless you acquire uvLock. Set chosen for uniqueness of contained values''' 
     u_set = set([])
@@ -290,7 +328,8 @@ class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
     
     def __init__(self, server_address, RequestHandlerClass, node_uuid):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
-        keyname = config.get('cloud_node','rsa_keyname')
+        secdir = secure_mount.mount()
+        keyname = "%s/%s"%(secdir,config.get('cloud_node','rsa_keyname'))
         
         # read or generate the key depending on configuration
         if os.path.isfile(keyname):
@@ -301,9 +340,8 @@ class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
         else:
             logger.debug("key not found, generating a new one")
             rsa_key = crypto.rsa_generate(2048)
-            f = open(keyname,"w")
-            f.write(crypto.rsa_export_privkey(rsa_key))
-            f.close()
+            with open(keyname,"w") as f:
+                f.write(crypto.rsa_export_privkey(rsa_key))
         
         self.rsaprivatekey = rsa_key
         self.rsapublickey_exportable = crypto.rsa_export_pubkey(self.rsaprivatekey)
@@ -355,6 +393,9 @@ class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
                     both_u_and_v_present = True
                     return_value = self.decrypt_check(u,v)
                     if return_value:
+                        # reset u and v sets
+                        self.u_set= set([])
+                        self.v_set= set([])
                         return return_value
             #TODO check on whether this happens or not.  NVRAM causes trouble
             if both_u_and_v_present: 
@@ -376,27 +417,24 @@ class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
             logger.warning("Invalid U len %d or V len %d. skipping..."%(len(decrypted_U),len(decrypted_V)))
             return None
         
-        self.K = crypto.strbitxor(decrypted_U, decrypted_V)
+        candidate_key = str(crypto.strbitxor(decrypted_U, decrypted_V))
         
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
         if common.DEVELOP_IN_ECLIPSE:
             logger.debug("U: " + base64.b64encode(decrypted_U))
             logger.debug("V: " + base64.b64encode(decrypted_V))
-            logger.debug("K: " + base64.b64encode(self.K))
+            logger.debug("K: " + base64.b64encode(candidate_key))
             
         logger.debug( "auth_tag: " + self.auth_tag)
-        ex_mac = crypto.do_hmac(str(self.K),self.node_uuid)
+        ex_mac = crypto.do_hmac(candidate_key,self.node_uuid)
         
         if ex_mac == self.auth_tag:
             logger.info( "Successfully derived K for UUID %s",self.node_uuid)
             self.final_U = decrypted_U
+            self.K = candidate_key
             return True
 
         return False
-    
-def do_shutdown(servers):
-        for server in servers:
-            server.shutdown()
                         
 def main(argv=sys.argv):
     if os.getuid()!=0 and not common.DEVELOP_IN_ECLIPSE:
@@ -408,14 +446,17 @@ def main(argv=sys.argv):
     registrar_port = config.get('general', 'registrar_port')
     
     # initialize the tmpfs partition to store keys if it isn't already available
-    secure_mount.mount()
+    secdir = secure_mount.mount()
 
     # change dir to working dir
-    common.ch_dir()
+    common.ch_dir(common.WORK_DIR,logger)
     
     #initialize tpm 
     (ek,ekcert,aik) = tpm_initialize.init(self_activate=False,config_pw=config.get('cloud_node','tpm_ownerpassword')) # this tells initialize not to self activate the AIK
     virtual_node = tpm_initialize.is_vtpm()
+    
+    # try to get some TPM randomness into the system entropy pool
+    tpm_random.init_system_rand()
     
     if common.STUB_TPM:
         ekcert = common.TEST_EK_CERT
@@ -436,9 +477,6 @@ def main(argv=sys.argv):
         node_uuid = str(uuid.uuid4())
     if common.DEVELOP_IN_ECLIPSE:
         node_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
-
-    # use an TLS context with no certificate checking 
-    registrar_client.noAuthTLSContext(config)
         
     # register it and get back a blob
     keyblob = registrar_client.doRegisterNode(registrar_ip,registrar_port,node_uuid,ek,ekcert,aik)
@@ -457,45 +495,68 @@ def main(argv=sys.argv):
         registrar_client.doActivateNode(registrar_ip,registrar_port,node_uuid,key)
 
     serveraddr = ('', config.getint('general', 'cloudnode_port'))
-    server = CloudNodeHTTPServer(serveraddr, Handler,node_uuid)
+    server = CloudNodeHTTPServer(serveraddr,Handler,node_uuid)
+    serverthread = threading.Thread(target=server.serve_forever)
 
-    thread = threading.Thread(target=server.serve_forever)
-
-    threads = []
-    servers = []
-
-    threads.append(thread)
-    servers.append(server)
-    
-    # start the server
     logger.info( 'Starting Cloud Node on port %s use <Ctrl-C> to stop'%serveraddr[1])
-    for thread in threads:
-        thread.start()
+    serverthread.start()
     
-    def signal_handler(signal, frame):
-        do_shutdown(servers)
-        sys.exit(0)   
+    # want to listen for revocations?
+    if config.getboolean('cloud_node','listen_notfications'):
+        cert_path = config.get('cloud_node','revocation_cert')
+        if cert_path == "default":
+            cert_path = '%s/unzipped/RevocationNotifier-cert.crt'%(secdir)
+        elif cert_path[0]!='/':
+            # if it is a relative, convert to absolute in work_dir
+            cert_path = os.path.abspath('%s/%s'%(common.WORK_DIR,cert_path))
+            
+        def perform_actions(revocation):
+            actionlist = config.get('cloud_node','revocation_actions')
+            if actionlist.strip() == "":
+                logger.debug("No revocation actions specified")
+                return
+            if actionlist =='default':
+                # load actions from unzipped
+                with open("%s/unzipped/action_list"%secdir,'r') as f:
+                    actionlist = f.read()
+ 
+                actionlist = actionlist.strip().split(',')
+                uzpath = "%s/unzipped"%secdir
+                if uzpath not in sys.path:
+                    sys.path.append(uzpath)
+            else:
+                # load the actions from inside the keylime module
+                actionlist = actionlist.split(',')
+                actionlist = ["revocation_actions.%s"%i for i in actionlist]
+            
+            for action in actionlist:
+                module = importlib.import_module(action)
+                execute = getattr(module,'execute')
+                try:
+                    execute(revocation)
+                except Exception as e:
+                    logger.warn("Exception during exeuction of revocation action %s: %s"%(action,e))
+        try:
+            while True:
+                try:
+                    revocation_notifier.await_notifications(perform_actions,revocation_cert_path=cert_path)
+                except Exception as e:
+                    logger.exception(e)
+                    logger.warn("No connection to revocation server, retrying in 10s...")
+                    time.sleep(10)
+        except KeyboardInterrupt:
+            logger.info("TERM Signal received, shutting down...")
+            tpm_initialize.flush_keys()
+            server.shutdown()
+    else:  
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("TERM Signal received, shutting down...")
+            tpm_initialize.flush_keys()
+            server.shutdown()
 
-    # Catch these signals.  Note that a SIGKILL cannot be caught, so
-    # killing this process with "kill -9" may result in improper shutdown 
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGQUIT, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-
-
-    # keep the main thread active, so it can process the signals and gracefully shutdown    
-    while True:
-        if not any([thread.isAlive() for thread in threads]):
-            # All threads have stopped
-            break
-        else:
-            # Some threads are still going
-            time.sleep(1)
-
-    for thread in threads:
-        thread.join()
-
-    
 if __name__=="__main__":
     try:
         main()

@@ -38,6 +38,9 @@ def request(method,url,params=None,data=None,context=None):
         response = http_client.fetch(request)
         http_client.close()
     except httpclient.HTTPError as e:
+        if e.response is None:
+            return tornado_response(500,str(e))
+        
         return tornado_response(e.response.code,e.response.body)
     if response is None:
         return None
@@ -56,4 +59,8 @@ class tornado_response():
         self.body = body
         
     def json(self):
-        return json.loads(self.body)
+        try:
+            retval =  json.loads(self.body)
+        except Exception as e:
+            retval = [self.body,str(e)]
+        return retval

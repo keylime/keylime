@@ -34,6 +34,14 @@ import json
 import zipfile
 import cStringIO
 import socket
+import revocation_notifier
+import threading
+import BaseHTTPServer
+from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+from SocketServer import ThreadingMixIn
+import functools
+import signal
+import time
 
 if common.CA_IMPL=='cfssl':
     import ca_impl_cfssl as ca_impl
@@ -68,12 +76,14 @@ def globalcb(*args):
 
 def setpassword(pw):
     global global_password
+    if len(pw)==0:
+        raise Exception("You must specify a password!")
     global_password = pw
 
 def cmd_mkcert(workingdir,name):
     cwd = os.getcwd()
     try:
-        common.ch_dir(workingdir,os.getuid()==0)
+        common.ch_dir(workingdir,logger)
         priv = read_private()
         
         cacert = X509.load_cert('cacert.crt')
@@ -90,9 +100,6 @@ def cmd_mkcert(workingdir,name):
         
         #increment serial number after successful creation
         priv[0]['lastserial']+=1
-
-        # extract the serial number
-        serial = cert.get_serial_number()
         
         write_private(priv)
         
@@ -112,17 +119,16 @@ def cmd_mkcert(workingdir,name):
             logger.errro("ERROR: Cert does not validate against CA")
     finally:
         os.chdir(cwd)
-        
-    return serial
 
 def cmd_init(workingdir):
     cwd = os.getcwd()
     try:
-        common.ch_dir(workingdir,os.getuid()==0)
+        common.ch_dir(workingdir,logger)
         
         rmfiles("*.pem")
         rmfiles("*.crt")
         rmfiles("*.zip")
+        rmfiles("*.der")
         rmfiles("private.json")
     
         cacert, ca_pk, _ = ca_impl.mk_cacert()
@@ -146,6 +152,12 @@ def cmd_init(workingdir):
         
         ca_pk.get_rsa().save_pub_key('ca-public.pem')
         
+        # generate an empty crl
+        crl = ca_impl.gencrl([],cacert.as_pem(),str(priv[0]['ca']))
+        with open('cacrl.der','wb') as f:
+            f.write(crl)
+        convert_crl_to_pem("cacrl.der","cacrl.pem")
+        
         # Sanity checks...
         cac = X509.load_cert('cacert.crt')
         if cac.verify():
@@ -155,10 +167,10 @@ def cmd_init(workingdir):
     finally:
         os.chdir(cwd)
         
-def cmd_certpkg(workingdir,name,needfile=True):
+def cmd_certpkg(workingdir,name,insecure=False):
     cwd = os.getcwd()
     try:
-        common.ch_dir(workingdir,os.getuid()==0)
+        common.ch_dir(workingdir,logger)
         # zip up the crt, private key, and public key
         
         with open('cacert.crt','r') as f:
@@ -169,6 +181,15 @@ def cmd_certpkg(workingdir,name,needfile=True):
             
         with open("%s-cert.crt"%name,'rb') as f:
             cert = f.read()
+            
+        with open('cacrl.der','r') as f:
+            crl = f.read()
+        
+        with open('cacrl.pem','r') as f:
+            crlpem = f.read()
+        
+        cert_obj = X509.load_cert_string(cert)
+        serial = cert_obj.get_serial_number()
         
         priv = read_private()
         private = priv[0][name]
@@ -191,25 +212,58 @@ def cmd_certpkg(workingdir,name,needfile=True):
             f.writestr('%s-cert.crt'%name,cert)
             f.writestr('%s-private.pem'%name,private)
             f.writestr('cacert.crt',cacert)
+            f.writestr('cacrl.der',crl)
+            f.writestr('cacrl.pem',crlpem)
         pkg = sf.getvalue()
         
-        # actually output the package to disk with a protected private key
-        with zipfile.ZipFile('%s-pkg.zip'%name,'w',compression=zipfile.ZIP_STORED) as f:
-            f.writestr('%s-public.pem'%name,pub)
-            f.writestr('%s-cert.crt'%name,cert)
-            f.writestr('%s-private.pem'%name,prot_priv)
-            f.writestr('cacert.crt',cacert)
+        if insecure:
+            logger.warn("Unprotected private keys in cert package being written to disk")
+            with open('%s-pkg.zip'%name,'w') as f:
+                f.write(pkg)
+        else:
+            # actually output the package to disk with a protected private key
+            with zipfile.ZipFile('%s-pkg.zip'%name,'w',compression=zipfile.ZIP_STORED) as f:
+                f.writestr('%s-public.pem'%name,pub)
+                f.writestr('%s-cert.crt'%name,cert)
+                f.writestr('%s-private.pem'%name,prot_priv)
+                f.writestr('cacert.crt',cacert)
+                f.writestr('cacrl.der',crl)
+                f.writestr('cacrl.pem',crlpem)
 
         logger.info("Creating cert package for %s in %s-pkg.zip"%(name,name))
         
-        return pkg
+        return pkg,serial
     finally:
         os.chdir(cwd)
         
+def convert_crl_to_pem(derfile,pemfile):
+    if config.get('general','ca_implementation')=='openssl':
+        with open(pemfile,'w') as f:
+            f.write("")
+    else:
+        import tpm_exec
+        tpm_exec.run("openssl crl -in %s -inform der -out %s"%(derfile,pemfile),lock=False)
+    
+def get_crl_distpoint(cert_path):
+    cert_obj = X509.load_cert(cert_path)
+    text= cert_obj.as_text()
+    incrl=False
+    distpoint=""
+    for line in text.split('\n'):
+        line = line.strip()
+        if line.startswith("X509v3 CRL Distribution Points:"):
+            incrl = True
+        if incrl and line.startswith("URI:"):
+            distpoint = line[4:]
+            break
+    
+    return distpoint
+
+# to check: openssl crl -inform DER -text -noout -in cacrl.der     
 def cmd_revoke(workingdir,name=None,serial=None):
     cwd = os.getcwd()
     try:
-        common.ch_dir(workingdir,os.getuid()==0)
+        common.ch_dir(workingdir,logger)
         priv = read_private()
         
         if name is not None and serial is not None:
@@ -236,10 +290,68 @@ def cmd_revoke(workingdir,name=None,serial=None):
          
         write_private(priv)
         
-        return crl
+        # write out the CRL to the disk
+        with open('cacrl.der','wb') as f:
+            f.write(crl)
+        convert_crl_to_pem("cacrl.der","cacrl.pem")
+        
     finally:
         os.chdir(cwd)
     return crl
+
+def cmd_listen(workingdir,cert_path):  
+    #just load up the password for later
+    read_private()
+    
+    serveraddr = ('', common.CRL_PORT)
+    server = ThreadedCRLServer(serveraddr,CRLHandler)
+    if os.path.exists('%s/cacrl.der'%workingdir):
+        with open('%s/cacrl.der'%workingdir,'r') as f:
+            server.setcrl(f.read())
+    t = threading.Thread(target=server.serve_forever)
+    logger.info("Hosting CRL on %s:%d"%(socket.getfqdn(),common.CRL_PORT))
+    t.start()
+    
+    def revoke_callback(revocation):
+        serial = revocation.get("metadata",{}).get("cert_serial",None)
+        if serial is None:
+            logger.error("Unsupported revocation message: %s"%revocation)
+            return
+        
+        logger.info("Revoking certificate: %s"%serial)
+        server.setcrl(cmd_revoke(workingdir, None, serial))
+        
+    try:
+        while True:
+            try:
+                revocation_notifier.await_notifications(revoke_callback,revocation_cert_path=cert_path)
+            except Exception as e:
+                logger.exception(e)
+                logger.warn("No connection to revocation server, retrying in 10s...")
+                time.sleep(10)
+    except KeyboardInterrupt:
+        logger.info("TERM Signal received, shutting down...")
+        server.shutdown()
+    
+class ThreadedCRLServer(ThreadingMixIn, HTTPServer):
+    published_crl = None
+    
+    def setcrl(self,crl):
+        self.published_crl = crl
+        
+
+class CRLHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        logger.info('GET invoked from ' + str(self.client_address)  + ' with uri:' + self.path)
+        
+        if self.server.published_crl is None:
+            self.send_response(404)
+            self.end_headers()
+        else:
+            # send back the CRL
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(self.server.published_crl)
 
 def rmfiles(path):
     import glob
@@ -263,7 +375,7 @@ def write_private(inp):
 def read_private():
     global global_password
     if global_password is None:
-        global_password = getpass.getpass("Please enter the password to decrypt your keystore: ")
+        setpassword(getpass.getpass("Please enter the password to decrypt your keystore: "))
 
     if os.path.exists('private.json'):
         with open('private.json','r') as f:
@@ -281,19 +393,24 @@ def read_private():
 
 def main(argv=sys.argv):
     parser = argparse.ArgumentParser(argv[0])
-    parser.add_argument('-c', '---command',action='store',dest='command',required=True,help="valid commands are init,create")
+    parser.add_argument('-c', '---command',action='store',dest='command',required=True,help="valid commands are init,create,pkg,revoke,listen")
     parser.add_argument('-n', '--name',action='store',help='the common name of the certificate to create')
     parser.add_argument('-d','--dir',action='store',help='use a custom directory to store certificates and keys')
+    parser.add_argument('-i','--insecure',action='store_true',default=False,help='create cert packages with unprotected private keys and write them to disk.  USE WITH CAUTION!')
 
     if common.DEVELOP_IN_ECLIPSE and len(argv)==1:
-        setpassword('test')
         argv=['-c','init']
         #argv=['-c','create','-n',socket.getfqdn()]
-        argv=['-c','create','-n','crltest.llan.ll.mit.edu']
+        argv=['-c','create','-n','client']
         #argv=['-c','pkg','-n','client']
-        argv=['-c','revoke','-n','crltest.llan.ll.mit.edu']
+        argv=['-c','revoke','-n','client']
+        argv=['-c','listen','-n','ca/RevocationNotifier-public.pem']
     else:
         argv = argv[1:]
+        
+    # never prompt for passwords in development mode
+    if common.DEVELOP_IN_ECLIPSE:
+        setpassword('default')
         
     args = parser.parse_args(argv)
     
@@ -318,17 +435,26 @@ def main(argv=sys.argv):
             logger.error("you must pass in a name for the certificate using -n (or --name)")
             parser.print_help()
             sys.exit(-1)
-        cmd_certpkg(workingdir,args.name)
+        cmd_certpkg(workingdir,args.name,args.insecure)
     elif args.command=='revoke':
         if args.name is None:
             logger.error("you must pass in a name for the certificate using -n (or --name)")
             parser.print_help()
             sys.exit(-1)
         cmd_revoke(workingdir, args.name)
+    elif args.command=='listen':
+        if args.name is None:
+            logger.error("you must pass in the path to the authorized revoker's certificate using -n (or --name)")
+            parser.print_help()
+            sys.exit(-1)
+        cmd_listen(workingdir,args.name)
     else:
         logger.error("Invalid command: %s"%args.command)
         parser.print_help()
         sys.exit(-1)
     
 if __name__=="__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.exception(e)

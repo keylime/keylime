@@ -80,9 +80,6 @@ def main(argv=sys.argv):
     
     # create a new group
     (group_uuid,group_aik,group_num,_) = vtpm_manager.add_vtpm_group()
-    
-    # use an TLS context with no certificate checking 
-    registrar_client.noAuthTLSContext(config)
 
     # registrar it and get back a blob
     keyblob = registrar_client.doRegisterNode(provider_reg_ip,provider_reg_port,group_uuid,ek,ekcert,group_aik)

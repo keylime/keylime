@@ -28,14 +28,15 @@ from Cryptodome.Cipher import PKCS1_OAEP
 from Cryptodome.PublicKey import RSA
 from Cryptodome.Cipher import AES
 from Cryptodome.Protocol import KDF
+from Cryptodome.Signature import pss
  
 import tpm_random
  
 def rsa_import_pubkey(buf):
     return RSA.importKey(buf)
  
-def rsa_import_privkey(buf):
-    return rsa_import_pubkey(buf)
+def rsa_import_privkey(buf,password=None):
+    return RSA.importKey(buf,password)
  
 def rsa_export_pubkey(privkey):
     return privkey.publickey().exportKey()
@@ -43,8 +44,26 @@ def rsa_export_pubkey(privkey):
 def rsa_export_privkey(privkey):
     return privkey.exportKey()
      
-def rsa_generate(size):
-    return RSA.generate(2048,randfunc=tpm_random.get_tpm_randomness)
+def rsa_generate(size,useTPM=False):
+    # warning this can be pretty slow 20-40s
+    if useTPM:
+        return RSA.generate(2048,randfunc=tpm_random.get_tpm_randomness)
+    else:
+        return RSA.generate(2048)
+
+def rsa_sign(key,message):
+    h = SHA384.new(message)
+    signature = pss.new(key).sign(h)
+    return base64.b64encode(signature)
+
+def rsa_verify(pubkey,received_message,signature):
+    h = SHA384.new(received_message)
+    verifier = verifier = pss.new(pubkey)
+    try:
+        verifier.verify(h, base64.b64decode(signature))
+        return True
+    except ValueError:
+        return False
    
 # don't use tpm randomness on encrypt to avoid contention for TPM  
 def rsa_encrypt(key,message):
@@ -52,7 +71,7 @@ def rsa_encrypt(key,message):
     return cipher.encrypt(message)
      
 def rsa_decrypt(key,ciphertext):
-    cipher = PKCS1_OAEP.new(key,randfunc=tpm_random.get_tpm_randomness)
+    cipher = PKCS1_OAEP.new(key)
     return cipher.decrypt(ciphertext)
  
 def generate_random_key(size=32):

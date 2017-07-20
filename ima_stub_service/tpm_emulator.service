@@ -1,0 +1,8 @@
+[Unit]
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/tpm_with_ima.sh
+
+[Install]
+WantedBy=default.target
