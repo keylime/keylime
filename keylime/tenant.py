@@ -567,9 +567,11 @@ class Tenant():
                 else:
                     logger.error("Key derivation failed")
             else:
-                logger.error("Status command response: %d Unexpected response from Cloud Node."%response.status_code)
                 common.log_http_response(logger,logging.ERROR,response_body)
-                break
+                retry  = config.getfloat('tenant','retry_interval')
+                logger.error("Key derivation not yet complete...trying again in %s seconds...Ctrl-C to stop"%retry)
+                time.sleep(retry)
+                continue
             break;
 
 def main(argv=sys.argv):    
@@ -587,6 +589,7 @@ def main(argv=sys.argv):
     parser.add_argument('--exclude',action='store',dest='ima_exclude',default=None,help="Specify the location of an IMA exclude list")
     parser.add_argument('--tpm_policy',action='store',dest='tpm_policy',default=None,help="Specify a TPM policy in JSON format. e.g., {\"15\":\"0000000000000000000000000000000000000000\"}")
     parser.add_argument('--vtpm_policy',action='store',dest='vtpm_policy',default=None,help="Specify a vTPM policy in JSON format")
+    parser.add_argument('--verify',action='store_true',default=False,help='Block on cryptographically checked key derivation confirmation from the node once it has been provisioned')
 
     if common.DEVELOP_IN_ECLIPSE:
         ca_util.setpassword('default')
@@ -605,7 +608,8 @@ def main(argv=sys.argv):
     
     if args.command != 'list' and args.node_ip is None:
         logger.error("-t/--targethost is required for command %s"%args.command)
-    
+        sys.exit(2)
+        
     if args.node_uuid is not None:
         mytenant.node_uuid = args.node_uuid
         # if the uuid is actually a public key, then hash it
@@ -624,14 +628,15 @@ def main(argv=sys.argv):
             mytenant.preloop()
             mytenant.do_cv()
             mytenant.do_quote()
+            if args.verify:
+                mytenant.do_verify()
+                
             if common.DEVELOP_IN_ECLIPSE:
                 time.sleep(2)
                 mytenant.do_cvstatus()
                 time.sleep(1)
-                mytenant.do_verify()
-                time.sleep(1)
                 #invalidate it eventually
-                logger.debug("invalidating PCR 15, forcing revocation")
+                logger.debug("invalidating PCR 15, staforcing revocation")
                 tpm_exec.run("extend -ix 15 -if tenant.py")
                 time.sleep(5)
                 logger.debug("Deleting node from verifier")

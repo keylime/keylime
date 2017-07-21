@@ -142,10 +142,11 @@ def create_aik(activate):
     
     owner_pw = get_tpm_metadata('owner_pw')
     tmppath = None
+    aik_pw = random_password(20)
     try:
         #make a temp file for the output 
         tmppath = tempfile.mkstemp()[1]    
-        tpm_exec.run("identity -la aik -ok %s -pwdo %s %s"%(tmppath,owner_pw,extra)) 
+        tpm_exec.run("identity -la aik -ok %s -pwdo %s -pwdk %s %s"%(tmppath,owner_pw,aik_pw,extra)) 
         # read in the output
         with open(tmppath+".pem","rb") as f:
             pem = f.read()
@@ -163,6 +164,7 @@ def create_aik(activate):
     set_tpm_metadata('aik',pem)
     set_tpm_metadata('aikpriv', key)
     set_tpm_metadata('aikmod',mod)
+    set_tpm_metadata('aik_pw',aik_pw)
         
 def get_mod_from_pem(pemfile):
     with open(pemfile,"r") as f:
@@ -171,7 +173,10 @@ def get_mod_from_pem(pemfile):
     return base64.b64encode(bytearray.fromhex('{:0192x}'.format(pubkey.n)))
 
 def get_mod_from_tpm(keyhandle):
-    retout = tpm_exec.run("getpubkey -ha %s"%keyhandle)[0]
+    (retout,code)  = tpm_exec.run("getpubkey -ha %s -pwdk %s"%(keyhandle,get_tpm_metadata('aik_pw')),raiseOnError=False)
+    if code!=tpm_exec.EXIT_SUCESS and len(retout)>0 and retout[0].startswith("Error Authentication failed (Incorrect Password) from TPM_GetPubKey"):
+        return None
+
     # now to parse things!
     inMod = False
     public_modulus = []
@@ -221,7 +226,7 @@ def load_aik():
         inFile.close()
         os.close(infd)
 
-        retout = tpm_exec.run("loadkey -hp 40000000 -ik %s"%inFile.name)[0]
+        retout = tpm_exec.run("loadkey -hp 40000000 -ik %s"%(inFile.name,))[0]
         
         if len(retout)>0 and len(retout[0].split())>=4:
             handle = retout[0].split()[4]
@@ -321,7 +326,7 @@ def activate_identity(keyblob):
             
         secfd,secpath=tempfile.mkstemp(dir=secdir)
         
-        tpm_exec.run("activateidentity -hk %s -pwdo %s -if %s -ok %s"%(keyhandle,owner_pw,keyblobFile.name,secpath))
+        tpm_exec.run("activateidentity -hk %s -pwdo %s -pwdk %s -if %s -ok %s"%(keyhandle,owner_pw,get_tpm_metadata('aik_pw'),keyblobFile.name,secpath))
         logger.info("AIK activated.")
         
         f = open(secpath,'rb')
@@ -363,7 +368,16 @@ def verify_ek(ekcert,ekpem):
     
     ek509 = M2Crypto.X509.load_cert_der_string(ekcert)
     
-    if str(pubekmod) not in str(ekcert):
+    # locate the region where the pub ek should be and then brute force looking for it.  this is awful!
+    # Sadly TPM ek certificates are corrupted in a way that openssl and most other utilities can't read them.
+    # sigh TCG
+    #
+    # search for first 1.2.840.113549.1.1.5 (OID for sha1WithRSAEncryption (PKCS #1))
+    start = ekcert.index('2a864886f70d010107'.decode('hex'))
+    # now locate the next 1.2.840.113549.1.1.7 (OID for rsaOAEP (PKCS #1)) afterwards
+    end = ekcert.index('2a864886f70d010105'.decode('hex'),start)
+    
+    if str(pubekmod) not in str(ekcert[start:end]):
         logger.error("Public EK does not match EK certificate")
         return False
     

@@ -57,7 +57,8 @@ def create_deep_quote(nonce,data=None,vpcrmask=EMPTYMASK,pcrmask=EMPTYMASK):
         # read in the vTPM key handle
         keyhandle = tpm_initialize.load_aik()
         owner_pw = tpm_initialize.get_tpm_metadata('owner_pw')
-
+        aik_pw = tpm_initialize.get_tpm_metadata('aik_pw')
+        
         if pcrmask is None:
             pcrmask = EMPTYMASK
         if vpcrmask is None:
@@ -74,7 +75,7 @@ def create_deep_quote(nonce,data=None,vpcrmask=EMPTYMASK,pcrmask=EMPTYMASK):
             #make a temp file for the quote 
             quotefd,quotepath = tempfile.mkstemp()
             
-            command = "deepquote -vk %s -hm %s -vm %s -nonce %s -pwdo %s -oq %s" % (keyhandle, pcrmask, vpcrmask, nonce, owner_pw,quotepath)
+            command = "deepquote -vk %s -hm %s -vm %s -nonce %s -pwdo %s -pwdk %s -oq %s" % (keyhandle, pcrmask, vpcrmask, nonce, owner_pw, aik_pw, quotepath)
             #print("Executing %s"%(command))
             tpm_exec.run(command,lock=False)
 
@@ -98,6 +99,8 @@ def create_quote(nonce,data=None,pcrmask=EMPTYMASK):
     quotepath = None
     try:
         keyhandle = tpm_initialize.load_aik()
+        aik_pw = tpm_initialize.get_tpm_metadata('aik_pw')
+        
         if pcrmask is None:
             pcrmask = EMPTYMASK
 
@@ -110,7 +113,7 @@ def create_quote(nonce,data=None,pcrmask=EMPTYMASK):
             
             #make a temp file for the quote 
             quotefd,quotepath = tempfile.mkstemp()
-            tpm_exec.run("tpmquote -hk %s -bm %s -nonce %s -noverify -oq %s"%(keyhandle,pcrmask,nonce,quotepath),lock=False)
+            tpm_exec.run("tpmquote -hk %s -pwdk %s -bm %s -nonce %s -noverify -oq %s"%(keyhandle,aik_pw,pcrmask,nonce,quotepath),lock=False)
             
         # read in the quote
         f = open(quotepath,"rb")

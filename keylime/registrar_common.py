@@ -221,6 +221,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             d['key']=key
             d['provider_keys']={}
             
+            # force overwrite
+            if self.server.db.get_instance(instance_id) is not None:
+                self.server.db.remove_instance(instance_id)
+            
             self.server.db.add_instance(instance_id, d)
             response = {
                     'blob': blob,
