@@ -21,6 +21,7 @@ added_files = [
 		( '/usr/local/bin/deepquote', '.' ),
 		( '/usr/local/bin/tpmquote', '.' ),
 		( '/usr/local/bin/getrandom', '.' ),
+		( '/usr/local/bin/resetlockvalue', '.'),
 		( 'build/crypto/*.so', '.' ),
          ]
 

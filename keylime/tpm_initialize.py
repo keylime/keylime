@@ -51,22 +51,36 @@ def random_password(length=20):
 def create_ek():
     # this function is intended to be idempotent 
     (output,code) = tpm_exec.run("createek",raiseOnError=False)
-    if code!=tpm_exec.EXIT_SUCESS and len(output)>0 and output[0].startswith("Error Target command disabled from TPM_CreateEndorsementKeyPair"):
-        logger.debug("TPM EK already created.")
-    elif code!=tpm_exec.EXIT_SUCESS:
-        raise Exception("createek failed with code "+str(code)+": "+str(output))
+    if code!=tpm_exec.EXIT_SUCESS:
+        if len(output)>0 and output[0].startswith("Error Target command disabled from TPM_CreateEndorsementKeyPair"):
+            logger.debug("TPM EK already created.")
+        elif len(output)>0 and output[0].startswith("Error Defend lock running from TPM_CreateEndorsementKeyPair"):
+            logger.debug("createek failed.  TPM locked, will attempt unlock during while taking ownership.  To manually repair run resetlockvalue -pwdo [owner_password]")
+        else:
+            raise Exception("createek failed with code "+str(code)+": "+str(output))
     return 
 
-def test_ownerpw(owner_pw):
+def test_ownerpw(owner_pw,reentry=False):
     tmppath = None
     try:
         #make a temp file for the output 
         _,tmppath = tempfile.mkstemp()
         (output,code) = tpm_exec.run("getpubek -pwdo %s -ok %s"%(owner_pw,tmppath),raiseOnError=False) 
-        if code!=tpm_exec.EXIT_SUCESS and len(output)>0 and output[0].startswith("Error Authentication failed (Incorrect Password) from TPM_OwnerReadPubek"):
-            return False
-        elif code!=tpm_exec.EXIT_SUCESS:
-            raise Exception("test ownerpw, getpubek failed with code "+str(code)+": "+str(output))
+        if code!=tpm_exec.EXIT_SUCESS:
+            if len(output)>0 and output[0].startswith("Error Authentication failed (Incorrect Password) from TPM_OwnerReadPubek"):
+                return False
+            elif len(output)>0 and output[0].startswith("Error Defend lock running from TPM_OwnerReadPubek"):
+                if reentry:
+                    logger.error("Unable to unlock TPM")
+                    return False
+                # tpm got locked. lets try to unlock it
+                logger.error("TPM is locked from too many invalid owner password attempts, attempting to unlock with password: %s"%owner_pw)
+                # i have no idea why, but runnig this twice seems to actually work
+                tpm_exec.run("resetlockvalue -pwdo %s"%owner_pw,raiseOnError=False) 
+                tpm_exec.run("resetlockvalue -pwdo %s"%owner_pw,raiseOnError=False) 
+                return test_ownerpw(owner_pw,True)
+            else:
+                raise Exception("test ownerpw, getpubek failed with code "+str(code)+": "+str(output))
     finally:
         if tmppath is not None:
             os.remove(tmppath)
@@ -74,7 +88,6 @@ def test_ownerpw(owner_pw):
 
 def take_ownership(config_pw):
     owner_pw = get_tpm_metadata("owner_pw")
-    
     ownerpw_known = False
     if not is_tpm_owned():
         # if no ownerpassword
@@ -103,9 +116,13 @@ def take_ownership(config_pw):
             owner_pw = config_pw
             if not test_ownerpw(owner_pw):
                 raise Exception("Config provided owner password %s invalid. Set config option tpm_ownerpassword to the existing password if known.  If not know, TPM reset is required."%owner_pw)
-            
+        ownerpw_known = True
+    
     if get_tpm_metadata('owner_pw') is not owner_pw:
         set_tpm_metadata('owner_pw',owner_pw)
+    
+    if not ownerpw_known:
+        raise Exception("Owner password unknown, TPM reset required")
         
 def get_pub_ek(): # assumes that owner_pw is correct at this point
     owner_pw = get_tpm_metadata('owner_pw')
