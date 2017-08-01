@@ -55,7 +55,7 @@ def create_deep_quote(nonce,data=None,vpcrmask=EMPTYMASK,pcrmask=EMPTYMASK):
     quotepath = None
     try:
         # read in the vTPM key handle
-        keyhandle = tpm_initialize.load_aik()
+        keyhandle = tpm_initialize.get_tpm_metadata('aik_handle')
         owner_pw = tpm_initialize.get_tpm_metadata('owner_pw')
         aik_pw = tpm_initialize.get_tpm_metadata('aik_pw')
         
@@ -98,7 +98,7 @@ def create_quote(nonce,data=None,pcrmask=EMPTYMASK):
         
     quotepath = None
     try:
-        keyhandle = tpm_initialize.load_aik()
+        keyhandle = tpm_initialize.get_tpm_metadata('aik_handle')
         aik_pw = tpm_initialize.get_tpm_metadata('aik_pw')
         
         if pcrmask is None:

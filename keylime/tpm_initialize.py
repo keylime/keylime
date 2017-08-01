@@ -112,17 +112,18 @@ def take_ownership(config_pw):
     # now we have owner_pw from tpmdata.json and a config_pw.
     if not ownerpw_known:
         if owner_pw is None or not test_ownerpw(owner_pw):
-            logger.info("Owner password: %s from tpmdata.json invalid.  Trying config provided TPM owner password: %s"%(owner_pw,config_pw))
+            logger.info("TPM Owner password: %s from tpmdata.json invalid.  Trying config provided TPM owner password: %s"%(owner_pw,config_pw))
             owner_pw = config_pw
             if not test_ownerpw(owner_pw):
-                raise Exception("Config provided owner password %s invalid. Set config option tpm_ownerpassword to the existing password if known.  If not know, TPM reset is required."%owner_pw)
+                raise Exception("Config provided owner password %s invalid. Set config option tpm_ownerpassword to the existing password if known.  If not know, TPM reset is required."%owner_pw)                
         ownerpw_known = True
-    
-    if get_tpm_metadata('owner_pw') is not owner_pw:
-        set_tpm_metadata('owner_pw',owner_pw)
-    
+            
+    set_tpm_metadata('owner_pw',owner_pw)
+
     if not ownerpw_known:
         raise Exception("Owner password unknown, TPM reset required")
+    else:
+        logger.info("TPM Owner password confirmed: %s"%owner_pw)
         
 def get_pub_ek(): # assumes that owner_pw is correct at this point
     owner_pw = get_tpm_metadata('owner_pw')
@@ -143,46 +144,48 @@ def get_pub_ek(): # assumes that owner_pw is correct at this point
         if tmppath is not None:
             os.remove(tmppath)
             
-    if get_tpm_metadata('ek') is not ek:
-        set_tpm_metadata('ek',ek)
+    set_tpm_metadata('ek',ek)
 
 def create_aik(activate):
     # if no AIK created, then create one
     if get_tpm_metadata('aik') is not None and get_tpm_metadata('aikpriv') is not None and get_tpm_metadata('aikmod') is not None:
         logger.debug("AIK already created")
-        return
-    
-    logger.debug("Creating a new AIK identity")
-    extra = ""
-    if activate:
-        extra = "-ac"
-    
-    owner_pw = get_tpm_metadata('owner_pw')
-    tmppath = None
-    aik_pw = random_password(20)
-    try:
-        #make a temp file for the output 
-        tmppath = tempfile.mkstemp()[1]    
-        tpm_exec.run("identity -la aik -ok %s -pwdo %s -pwdk %s %s"%(tmppath,owner_pw,aik_pw,extra)) 
-        # read in the output
-        with open(tmppath+".pem","rb") as f:
-            pem = f.read()
-        mod = get_mod_from_pem(tmppath+'.pem')
-        with open(tmppath+".key",'rb') as f:
-            key = base64.b64encode(f.read())
-    finally:
-        if tmppath is not None:
-            os.remove(tmppath+".pem")
-            os.remove(tmppath+".key")
-    if activate:
-        logger.debug("Self-activated AIK identity in test mode")
-
-    # persist results
-    set_tpm_metadata('aik',pem)
-    set_tpm_metadata('aikpriv', key)
-    set_tpm_metadata('aikmod',mod)
-    set_tpm_metadata('aik_pw',aik_pw)
+    else:
+        logger.debug("Creating a new AIK identity")
+        extra = ""
+        if activate:
+            extra = "-ac"
         
+        owner_pw = get_tpm_metadata('owner_pw')
+        tmppath = None
+        aik_pw = random_password(20)
+        try:
+            #make a temp file for the output 
+            tmppath = tempfile.mkstemp()[1]    
+            tpm_exec.run("identity -la aik -ok %s -pwdo %s -pwdk %s %s"%(tmppath,owner_pw,aik_pw,extra)) 
+            # read in the output
+            with open(tmppath+".pem","rb") as f:
+                pem = f.read()
+            mod = get_mod_from_pem(tmppath+'.pem')
+            with open(tmppath+".key",'rb') as f:
+                key = base64.b64encode(f.read())
+        finally:
+            if tmppath is not None:
+                os.remove(tmppath+".pem")
+                os.remove(tmppath+".key")
+        if activate:
+            logger.debug("Self-activated AIK identity in test mode")
+    
+        # persist results
+        set_tpm_metadata('aik',pem)
+        set_tpm_metadata('aikpriv', key)
+        set_tpm_metadata('aikmod',mod)
+        set_tpm_metadata('aik_pw',aik_pw)
+    
+    # ensure the AIK is loaded
+    handle = load_aik()
+    set_tpm_metadata('aik_handle', handle)
+    
 def get_mod_from_pem(pemfile):
     with open(pemfile,"r") as f:
         pem = f.read()
@@ -214,24 +217,26 @@ def flush_keys():
     for line in retout:
         tokens = line.split()
         if len(tokens)==4 and tokens[0]=='Key' and tokens[1]=='handle':
-            handle = tokens[3]
+            handle = tokens[3].upper()
+            #logger.debug("Flushing key handle %s"%handle)
             tpm_exec.run("flushspecific -ha %s -rt 1"%handle)
             
 def load_aik():
-    # is the key already there?
-    modFromFile = get_tpm_metadata('aikmod')
-    
-    retout = tpm_exec.run("listkeys")[0]
-    for line in retout:
-        tokens = line.split()
-        if len(tokens)==4 and tokens[0]=='Key' and tokens[1]=='handle':
-            handle = tokens[3]
-            modFromTPM = get_mod_from_tpm(handle)
-            if modFromTPM == modFromFile:
-                #logger.debug("Located AIK at key handle %s"%handle)
-                return handle
-    
-    # we didn't find the key
+    # dont' even try to see if the key is already loaded.  we're flushing them now
+#     # is the key already there?
+#     modFromFile = get_tpm_metadata('aikmod')
+#      
+#     retout = tpm_exec.run("listkeys")[0]
+#     for line in retout:       
+#         tokens = line.split()
+#         if len(tokens)==4 and tokens[0]=='Key' and tokens[1]=='handle':
+#             handle = tokens[3]
+#             modFromTPM = get_mod_from_tpm(handle)
+#             if modFromTPM == modFromFile:
+#                 logger.debug("Located AIK at key handle %s"%handle)
+#                 return handle
+#     
+#     # we didn't find the key
     logger.debug("Loading AIK private key into TPM")
     
     inFile=None
@@ -253,7 +258,7 @@ def load_aik():
         if inFile is not None:
             os.remove(inFile.name)
     
-    return handle
+    return handle.upper()
   
 def encryptAIK(uuid,pubaik,pubek):
     pubaikFile=None
@@ -319,6 +324,8 @@ def activate_identity(keyblob):
         return base64.b64encode(common.TEST_AES_REG_KEY)
     
     owner_pw = get_tpm_metadata('owner_pw')
+    keyhandle = get_tpm_metadata('aik_handle')
+    
     keyblobFile = None
     secpath = None
     try:
@@ -328,8 +335,6 @@ def activate_identity(keyblob):
         keyblobFile.write(base64.b64decode(keyblob))
         keyblobFile.close()
         os.close(kfd)
-        
-        keyhandle = load_aik()
         
         keyfd,keypath = tempfile.mkstemp()        
         # read in the key
@@ -465,8 +470,10 @@ def set_tpm_metadata(key,value):
     global global_tpmdata
     if global_tpmdata == None:
         global_tpmdata = read_tpm_data()
-    global_tpmdata[key]=value
-    write_tpm_data()
+    
+    if global_tpmdata.get(key,None) is not value:
+        global_tpmdata[key]=value
+        write_tpm_data()
 
 def init(self_activate=False,config_pw=None):
     if not common.STUB_TPM:
@@ -476,14 +483,10 @@ def init(self_activate=False,config_pw=None):
         get_pub_ek()
 
         ekcert = tpm_nvram.read_ekcert_nvram()
-        if get_tpm_metadata('ekcert') is not ekcert:
-            set_tpm_metadata('ekcert',ekcert)
+        set_tpm_metadata('ekcert',ekcert)
         
         # if no AIK created, then create one
         create_aik(self_activate)
-        
-        # preemptively load AIK up
-        load_aik()
         
         return get_tpm_metadata('ek'),get_tpm_metadata('ekcert'),get_tpm_metadata('aik')
     else:
