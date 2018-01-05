@@ -39,6 +39,8 @@ rm -vrf reg_ca
 rm -vrf cv_ca
 rm -fv *.sqlite
 rm -fv tpmdata.json
+rm -fv current_group.tpm
+rm -fv group-*
 rm -vrf ca
 rm -vrf tmpfs-dev/unzipped
 init_tpm_server

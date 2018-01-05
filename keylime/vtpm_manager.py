@@ -36,6 +36,7 @@ import time
 import tempfile
 import tpm_exec
 from uuid import UUID
+import json
 
 sys.path.append(os.path.dirname(__file__))
 from tpm_initialize import get_mod_from_pem
@@ -60,173 +61,176 @@ VTPM_ORD_VTPM_NEW = 0x02000204
 # Serialized format of a UUID
 uuid_fmt = '4s2s2s2s6s'
 
-
-def get_default_data_dir():
-    keylime_dir = os.path.expanduser("~/.keylime")
-    if not os.path.exists(keylime_dir):
-        os.mkdir(keylime_dir)
-    return keylime_dir
-
+# 
+# def get_default_data_dir():
+#     keylime_dir = os.path.expanduser("~/.keylime")
+#     if not os.path.exists(keylime_dir):
+#         os.mkdir(keylime_dir)
+#     return keylime_dir
+# 
+# 
+# 
+# 
+# class VTPMGroup(object):
+#     """A class that represents a groupof VTPMs managed by the VTPM Manager
+# 
+#     This class is not intended to be instantiated directly.
+#     `VTPMManager`` returns objects that are instances of this class.
+#     """
+#     _groups = { }
+# 
+#     def __new__(cls, uuid, aik_path, vtpm, added=False):
+#         """
+#         Args
+#         ----
+#         uuid: str
+#             The UUID for this VTPM Group
+#         aik_path: str
+#             The path to the .pem for this group's AIK
+#         """
+#         if uuid in VTPMGroup._groups:
+#             return VTPMGroup._groups[uuid]
+# 
+#         obj = object.__new__(cls)
+#         obj.uuid = uuid
+#         obj.aik_path = aik_path
+#         obj.vtpm = vtpm
+# 
+#         if added:
+#             VTPMGroup._groups[uuid] = obj
+#         return obj
+# 
+#     @property
+#     def num(self):
+#         return self.vtpm.get_groupnum(self.uuid)
+# 
+# 
+# class VTPMManager(object):
+#     """A class that represents the Xen VTPM Manager"""
+#     keyblob_path = 'key.blob'
+# 
+#     def __init__(self, data_dir=get_default_data_dir(), pubek_path=None,
+#                  force_reinit=True):
+#         """
+#         Args
+#         ----
+#         data_dir: str
+#             The path to store keys
+#         pubek_path: str
+#             The path to the .pem for the underlying physical TPM.
+#             Defaults to ``data_dir + '/pubek.pem'``
+#         force_reinit: bool
+#             Whether to initialize when ``data_dir`` contains files
+#         """
+#         if pubek_path is None:
+#             pubek_path = data_dir + '/pubek.pem'
+#         if not os.path.exists(pubek_path):
+#             raise OSError('"{0}" does not exist'.format(pubek_path),
+#                           os.strerror(errno.ENOENT), errno.ENOENT)
+# 
+#         with open(pubek_path, 'rb') as pubek_f:
+#             pubek = pubek_f.read()
+# 
+#             rsamod_path = pubek_path + '.bin'
+#             public_mod = get_mod_from_pem(pubek)
+#             with open(rsamod_path, 'wb') as f:
+#                 f.write(public_mod)
+#             print('Wrote {0} bytes to {1}'.format(len(public_mod), rsamod_path))
+# 
+#             self.pubek_path = pubek_path
+#             self.rsamod_path = rsamod_path
+#             self.groupaiks = {}
+# 
+#         VTPMGroup._groups = {}
+#         for i in range(self.count_groups()):
+#             self.get_group(i)
+# 
+#     def count_groups(self):
+#         """ Returns the number of Added VTPM Groups """
+#         return count_groups()
+# 
+#     def get_groupnum(self, group_uuid):
+#         for i in range(self.count_groups()):
+#             group = show_group(i)
+#             if group_uuid == group['uuid']:
+#                 return i
+#         raise LookupError('Could not find group with UUID: {0}'.format(group_uuid))
+# 
+#     def get_group(self, groupnum):
+#         """ Returns the ```VTPMGroup``` for ``groupnum``"""
+#         ginfo = get_group_info(groupnum)
+#         return VTPMGroup(ginfo['uuid'], ginfo['aikpem'], self)
+# 
+#     def activate_group(self, groupnum, keyblob):
+#         """ Returns an AES symmetric key derived from base64 ``keyblob`` """
+#         with open(self.keyblob_path, 'w') as f:
+#             f.write(base64.b64decode(keyblob))
+#         symkey = do_group_activate(groupnum, self.keyblob_path)
+#         self.groupaiks[groupnum] = symkey
+#         return symkey
+# 
+#     def add_group(self):
+#         """ Adds a new VTPM Group and returns its ``VTPMGroup``"""
+#         (uuid, aik, _) = do_group_add(self.rsamod_path)
+#         aik_base = aik.split('.pub')[0]
+#         check_call('tpmconv -ik {0} -ok {1}'.format(aik, aik_base), shell=True)
+# 
+#         return VTPMGroup(uuid, aik_base + '.pem', self, True)
+# 
+#     def add_vtpm(self, groupnum):
+#         """ Adds a new VTPM to VTPMGroup ``groupnum`` and returns its UUID"""
+#         return add_vtpm(groupnum)
+# 
+# 
+# class StubVTPMManager(VTPMManager):
+#     """
+#     A stub implementation of VTPMManager which performs no writes to /dev/tpm0
+#     but implements all methods.
+#     """
+# 
+#     group_uuid = 'c697ce76-641c-41fb-a4a6-b816860afd11'
+#     vtpm_uuid = 'C432FBB3-D2F1-4A97-9EF7-75BD81C866E9'
+# 
+#     def __init__(self):
+#         self.aikpath = '{0}/{1}_aik.pem'.format(get_default_data_dir(),self.group_uuid)
+#         self.pubekpath = '{0}/test_pubek.pem'.format(get_default_data_dir())
+#         self.blobpath = '{0}/test_key.blob'.format(get_default_data_dir())
+#         self.aespath = '{0}/test_key.aes'.format(get_default_data_dir())
+# 
+#         if not os.path.exists(self.aikpath):
+#             with open(self.aikpath, 'wb') as f:
+#                 f.write(common.TEST_HAIK)
+# 
+#         if not os.path.exists(self.pubekpath):
+#             with open(self.pubekpath, 'wb') as f:
+#                 f.write(common.TEST_PUB_EK)
+# 
+#     def get_groupnum(self, group_uuid):
+#         """ Returns ``0`` """
+#         return 0
+# 
+#     def count_groups(self):
+#         """ Returns ``1`` """
+#         return 1
+# 
+#     def activate_group(self, groupnum, keyblob):
+#         """
+#         Returns the symkey generated from ``encaik`` on
+#         ``common.TEST_AIK`` and ``common.TEST_PUB_EK``
+#         """
+#         return common.TEST_AES_REG_KEY
+# 
+#     def add_group(self):
+#         """ Returns the uuid in ``StubVTPMManager.group_uuid``"""
+#         return VTPMGroup(self.group_uuid, self.aikpath, self)
+# 
+#     def add_vtpm(self, groupnum):
+#         """ Returns the uuid in ``StubVTPMManager.vtpm_uuid``"""
+#         return self.vtpm_uuid
 
 def check_call(*args, **kwargs):
     print(args, kwargs)
     return subprocess.check_call(*args, **kwargs)
-
-
-class VTPMGroup(object):
-    """A class that represents a groupof VTPMs managed by the VTPM Manager
-
-    This class is not intended to be instantiated directly.
-    `VTPMManager`` returns objects that are instances of this class.
-    """
-    _groups = { }
-
-    def __new__(cls, uuid, aik_path, vtpm, added=False):
-        """
-        Args
-        ----
-        uuid: str
-            The UUID for this VTPM Group
-        aik_path: str
-            The path to the .pem for this group's AIK
-        """
-        if uuid in VTPMGroup._groups:
-            return VTPMGroup._groups[uuid]
-
-        obj = object.__new__(cls)
-        obj.uuid = uuid
-        obj.aik_path = aik_path
-        obj.vtpm = vtpm
-
-        if added:
-            VTPMGroup._groups[uuid] = obj
-        return obj
-
-    @property
-    def num(self):
-        return self.vtpm.get_groupnum(self.uuid)
-
-
-class VTPMManager(object):
-    """A class that represents the Xen VTPM Manager"""
-    keyblob_path = 'key.blob'
-
-    def __init__(self, data_dir=get_default_data_dir(), pubek_path=None,
-                 force_reinit=True):
-        """
-        Args
-        ----
-        data_dir: str
-            The path to store keys
-        pubek_path: str
-            The path to the .pem for the underlying physical TPM.
-            Defaults to ``data_dir + '/pubek.pem'``
-        force_reinit: bool
-            Whether to initialize when ``data_dir`` contains files
-        """
-        if pubek_path is None:
-            pubek_path = data_dir + '/pubek.pem'
-        if not os.path.exists(pubek_path):
-            raise OSError('"{0}" does not exist'.format(pubek_path),
-                          os.strerror(errno.ENOENT), errno.ENOENT)
-
-        rsamod_path = pubek_path + '.bin'
-        public_mod = get_mod_from_pem(pubek_path)
-        with open(rsamod_path, 'wb') as f:
-            f.write(public_mod)
-        print('Wrote {0} bytes to {1}'.format(len(public_mod), rsamod_path))
-
-        self.pubek_path = pubek_path
-        self.rsamod_path = rsamod_path
-        self.groupaiks = {}
-
-        VTPMGroup._groups = {}
-        for i in range(self.count_groups()):
-            self.get_group(i)
-
-    def count_groups(self):
-        """ Returns the number of Added VTPM Groups """
-        return count_groups()
-
-    def get_groupnum(self, group_uuid):
-        for i in range(self.count_groups()):
-            group = show_group(i)
-            if group_uuid == group['uuid']:
-                return i
-        raise LookupError('Could not find group with UUID: {0}'.format(group_uuid))
-
-    def get_group(self, groupnum):
-        """ Returns the ```VTPMGroup``` for ``groupnum``"""
-        ginfo = get_group_info(groupnum)
-        return VTPMGroup(ginfo['uuid'], ginfo['aikpem'], self)
-
-    def activate_group(self, groupnum, keyblob):
-        """ Returns an AES symmetric key derived from base64 ``keyblob`` """
-        with open(self.keyblob_path, 'w') as f:
-            f.write(base64.b64decode(keyblob))
-        symkey = do_group_activate(groupnum, self.keyblob_path)
-        self.groupaiks[groupnum] = symkey
-        return symkey
-
-    def add_group(self):
-        """ Adds a new VTPM Group and returns its ``VTPMGroup``"""
-        (uuid, aik, _) = do_group_add(self.rsamod_path)
-        aik_base = aik.split('.pub')[0]
-        check_call('tpmconv -ik {0} -ok {1}'.format(aik, aik_base), shell=True)
-
-        return VTPMGroup(uuid, aik_base + '.pem', self, True)
-
-    def add_vtpm(self, groupnum):
-        """ Adds a new VTPM to VTPMGroup ``groupnum`` and returns its UUID"""
-        return add_vtpm(groupnum)
-
-
-class StubVTPMManager(VTPMManager):
-    """
-    A stub implementation of VTPMManager which performs no writes to /dev/tpm0
-    but implements all methods.
-    """
-
-    group_uuid = 'c697ce76-641c-41fb-a4a6-b816860afd11'
-    vtpm_uuid = 'C432FBB3-D2F1-4A97-9EF7-75BD81C866E9'
-
-    def __init__(self):
-        self.aikpath = '{0}/{1}_aik.pem'.format(get_default_data_dir(),self.group_uuid)
-        self.pubekpath = '{0}/test_pubek.pem'.format(get_default_data_dir())
-        self.blobpath = '{0}/test_key.blob'.format(get_default_data_dir())
-        self.aespath = '{0}/test_key.aes'.format(get_default_data_dir())
-
-        if not os.path.exists(self.aikpath):
-            with open(self.aikpath, 'wb') as f:
-                f.write(common.TEST_HAIK)
-
-        if not os.path.exists(self.pubekpath):
-            with open(self.pubekpath, 'wb') as f:
-                f.write(common.TEST_PUB_EK)
-
-    def get_groupnum(self, group_uuid):
-        """ Returns ``0`` """
-        return 0
-
-    def count_groups(self):
-        """ Returns ``1`` """
-        return 1
-
-    def activate_group(self, groupnum, keyblob):
-        """
-        Returns the symkey generated from ``encaik`` on
-        ``common.TEST_AIK`` and ``common.TEST_PUB_EK``
-        """
-        return common.TEST_AES_REG_KEY
-
-    def add_group(self):
-        """ Returns the uuid in ``StubVTPMManager.group_uuid``"""
-        return VTPMGroup(self.group_uuid, self.aikpath, self)
-
-    def add_vtpm(self, groupnum):
-        """ Returns the uuid in ``StubVTPMManager.vtpm_uuid``"""
-        return self.vtpm_uuid
-
 
 def unpack(fmt, s):
     """
@@ -438,75 +442,6 @@ def do_register_test_helper(groupnum=1,
 def do_register_test():
     do_register_test_helper()
 
-usage = """
-list [index]
-    Lists the group identified by index, or all groups if omitted
-
-group-add rsa-modulus-file
-    Adds a new group to the TPM. The public key and Privacy CA data are
-    output to group-UUID/aik.pub and group-UUID/aik.priv-ca-data, and the
-    UUID is output to stdout.
-
-group-update index signed-config-list-file
-    Updates the permitted boot configuration list for an group
-
-group-del index
-    Deletes a group
-
-vtpm-add index
-    Adds a vTPM. Output: UUID
-
-vtpm-del UUID
-    Deletes a vTPM.
-
-test
-    Tests provisioning of a new vTPM and establishing its identity
-"""
-
-commands = {
-    'list': do_list,
-    'group-activate': do_group_activate,
-    'group-add': do_group_add,
-    'group-del': do_group_del,
-    'test': do_register_test
-}
-
-
-def check_args_and_call(func, args):
-    argspec = inspect.getargspec(func)
-    if len(argspec.args) != len(args):
-        print('Usage: vtpmmgr.py {0} {1}'.format(func._command_,
-                                                 ' '.join(argspec.args)))
-        sys.exit(-1)
-    return func(*args)
-
-
-def main(args):
-    if len(args) < 2:
-        print('Usage: vtpmmgr.py [list|group-add|group-update|'
-              'group-del|vtpm-add|vtpm-del|test]')
-        sys.exit(-1)
-
-    # Setup command dispatch
-    for (command, func) in commands.items():
-        func._command_ = command
-
-#     console = logging.StreamHandler()
-#     console.setFormatter(logging.Formatter('%(name)s: %(levelname)-8s '
-#                                            '%(message)s'))
-#     console.setLevel(logging.INFO)
-#     logger.addHandler(console)
-
-    command = args[1]
-    check_args_and_call(commands[command], args[2:])
-
-
-if __name__ == '__main__':
-    try:
-        main()
-    except Exception as e:
-        logger.exception(e)
-
 
 def tpmconv(inmod):
     """ convert a raw modulus file into a pem file """
@@ -551,10 +486,24 @@ def get_group_num(desired_uuid):
     
 def add_vtpm_group(rsa_mod=None):
     """ Add new vtpm group"""
-    if common.STUB_TPM:
-        return (common.TEST_GROUP_UUID,common.TEST_HAIK,1,None)
+    fprt = "add_vtpm_group"
+    if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
+        # Use canned values for stubbing 
+        jsonIn = common.TPM_CANNED_VALUES
+        if fprt in jsonIn:
+            # The value we're looking for has been canned! 
+            thisTiming = jsonIn[fprt]['timing']
+            thisRetout = jsonIn[fprt]['retout']
+            logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
+            time.sleep(thisTiming)
+            return tuple(thisRetout)
+        else:
+            # Our command hasn't been canned!
+            raise Exception("Command %s not found in canned JSON!"%(fprt))
     
     logger.debug('Adding group')
+    
+    t0=time.time()
     
     if rsa_mod is None:
         rsa_mod = '\x00' * 256
@@ -568,17 +517,36 @@ def add_vtpm_group(rsa_mod=None):
     logger.info('Created group with UUID: %s', uuid)
     
     aikpem = tpmconv(aik_pub)
-    
     # return the group
     group_num = get_group_num(uuid)
+    t1=time.time()
     
-    return (uuid,aikpem,group_num,aik_priv_ca)
-
+    retout = (uuid,aikpem,group_num,base64.b64encode(aik_priv_ca))
+    
+    if common.TPM_CANNED_VALUES_PATH is not None:
+        with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
+            jsonObj = {'type':"add_vtpm_group",'retout':list(retout),'fileout':"",'cmd':"add_vtpm_group",'timing':t1-t0,'code':0,'nonce':None}
+            can.write("\"%s\": %s,\n"%("add_vtpm_group",json.dumps(jsonObj,indent=4,sort_keys=True)))
+            
+    return retout
 
 def activate_group(uuid,keyblob):
-    if common.STUB_TPM:
-        return common.TEST_AES_REG_KEY
-    
+    fprt = "activate_group"
+    if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
+        # Use canned values for stubbing 
+        jsonIn = common.TPM_CANNED_VALUES
+        if fprt in jsonIn:
+            # The value we're looking for has been canned! 
+            thisTiming = jsonIn[fprt]['timing']
+            thisRetout = jsonIn[fprt]['retout']
+            logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
+            time.sleep(thisTiming)
+            return base64.b64decode(thisRetout)
+        else:
+            # Our command hasn't been canned!
+            raise Exception("Command %s not found in canned JSON!"%(fprt))
+        
+    t0=time.time()
     group_id = get_group_num(uuid)
     priv_ca = base64.b64decode(keyblob)
     assert len(priv_ca) == 256
@@ -586,16 +554,45 @@ def activate_group(uuid,keyblob):
     body = vtpm_cmd(VTPM_ORD_GROUP_ACTIVATE,
                     struct.pack('>II', group_id, 256) + priv_ca)
     (algId, encScheme, size), body = unpack('>IHH', body)
+    assert size == len(body)
+    t1=time.time()
     logger.info('Received Key. AlgID: 0x%x, encScheme: 0x%x, size: 0x%x',
                 algId, encScheme, size)
     logger.info('Key: %r', body)
-    assert size == len(body)
+    
+    if common.TPM_CANNED_VALUES_PATH is not None:
+        with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
+            jsonObj = {'type':"activate_group",'retout':base64.b64encode(body),'fileout':"",'cmd':"activate_group",'timing':t1-t0,'code':0,'nonce':None}
+            can.write("\"%s\": %s,\n"%("activate_group",json.dumps(jsonObj,indent=4,sort_keys=True)))
+
     return body
 
 def add_vtpm_to_group(uuid):
-    if common.STUB_TPM:
-        return common.TEST_VTPM_UUID
-    
+    fprt = "add_vtpm_to_group"
+    if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
+        # Use canned values for stubbing 
+        jsonIn = common.TPM_CANNED_VALUES
+        if fprt in jsonIn:
+            # The value we're looking for has been canned! 
+            thisTiming = jsonIn[fprt]['timing']
+            thisRetout = jsonIn[fprt]['retout']
+            logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
+            time.sleep(thisTiming)
+            return thisRetout
+        else:
+            # Our command hasn't been canned!
+            raise Exception("Command %s not found in canned JSON!"%(fprt))
+        
+    t0=time.time()
     num = get_group_num(uuid)
     vtpm_uuid = add_vtpm(num)
-    return str(UUID(vtpm_uuid)).upper()    
+    t1=time.time()
+    
+    retout = str(UUID(vtpm_uuid)).upper()
+    
+    if common.TPM_CANNED_VALUES_PATH is not None:
+        with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
+            jsonObj = {'type':"add_vtpm_to_group",'retout':retout,'fileout':"",'cmd':"add_vtpm_to_group",'timing':t1-t0,'code':0,'nonce':None}
+            can.write("\"%s\": %s,\n"%("add_vtpm_to_group",json.dumps(jsonObj,indent=4,sort_keys=True)))
+        
+    return retout

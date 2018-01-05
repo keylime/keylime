@@ -89,7 +89,7 @@ def kdf(password,salt):
     return KDF.PBKDF2(password, salt, dkLen=32, count=2000)
      
 def do_hmac(key,value):
-    h = HMAC.new(key,value,digestmod=SHA384.new())
+    h = HMAC.new(key,str(value),digestmod=SHA384.new())
     return h.hexdigest()
  
 def _pad(s):

@@ -35,18 +35,9 @@ config.read(common.CONFIG_FILE)
 logger = common.init_logging('platform-init')
 
 def add_vtpm(inputfile):
-    if common.STUB_TPM:
-        group = {
-                 'uuid': common.TEST_GROUP_UUID,
-                 'aikpem': common.TEST_HAIK,
-                 'pubekpem': common.TEST_PUB_EK,
-                 'ekcert': common.TEST_EK_CERT,
-                 }
-    else:
-        # read in the file
-        with open(inputfile,'r') as f:
-            group = json.load(f)
-
+    # read in the file
+    with open(inputfile,'r') as f:
+        group = json.load(f)
     
     # fetch configuration parameters 
     provider_reg_port = config.get('general', 'provider_registrar_port')
@@ -73,7 +64,7 @@ def main(argv=sys.argv):
         raise Exception("Can't use Xen features in Eclipse without STUB_TPM")
     
     if common.DEVELOP_IN_ECLIPSE:
-        argv = ['provider_platform_register.py','1']
+        argv = ['provider_platform_register.py','current_group.tpm']
         
     if len(argv)<2:
         print "usage: provider_vtpm_add.py [uuid].tpm"

@@ -32,6 +32,7 @@ import secure_mount
 import tpm_nvram
 import json
 import crypto
+import sys
 from tpm_ek_ca import *
 import M2Crypto
 from M2Crypto import m2
@@ -50,7 +51,7 @@ def random_password(length=20):
 
 def create_ek():
     # this function is intended to be idempotent 
-    (output,code) = tpm_exec.run("createek",raiseOnError=False)
+    (output,code,fileout) = tpm_exec.run("createek",raiseOnError=False)
     if code!=tpm_exec.EXIT_SUCESS:
         if len(output)>0 and output[0].startswith("Error Target command disabled from TPM_CreateEndorsementKeyPair"):
             logger.debug("TPM EK already created.")
@@ -61,11 +62,9 @@ def create_ek():
     return 
 
 def test_ownerpw(owner_pw,reentry=False):
-    tmppath = None
-    try:
-        #make a temp file for the output 
-        _,tmppath = tempfile.mkstemp()
-        (output,code) = tpm_exec.run("getpubek -pwdo %s -ok %s"%(owner_pw,tmppath),raiseOnError=False) 
+    #make a temp file for the output 
+    with tempfile.NamedTemporaryFile() as tmppath:
+        (output,code,fileout) = tpm_exec.run("getpubek -pwdo %s -ok %s"%(owner_pw,tmppath.name),raiseOnError=False,outputpath=tmppath.name) 
         if code!=tpm_exec.EXIT_SUCESS:
             if len(output)>0 and output[0].startswith("Error Authentication failed (Incorrect Password) from TPM_OwnerReadPubek"):
                 return False
@@ -81,9 +80,6 @@ def test_ownerpw(owner_pw,reentry=False):
                 return test_ownerpw(owner_pw,True)
             else:
                 raise Exception("test ownerpw, getpubek failed with code "+str(code)+": "+str(output))
-    finally:
-        if tmppath is not None:
-            os.remove(tmppath)
     return True
 
 def take_ownership(config_pw):
@@ -127,23 +123,12 @@ def take_ownership(config_pw):
         
 def get_pub_ek(): # assumes that owner_pw is correct at this point
     owner_pw = get_tpm_metadata('owner_pw')
-    tmppath = None
-    try:
-        #make a temp file for the output 
-        tmpfd,tmppath = tempfile.mkstemp()
-        (output,code) = tpm_exec.run("getpubek -pwdo %s -ok %s"%(owner_pw,tmppath),raiseOnError=False) # generates pubek.pem
+    #make a temp file for the output 
+    with tempfile.NamedTemporaryFile() as tmppath:
+        (output,code,ek) = tpm_exec.run("getpubek -pwdo %s -ok %s"%(owner_pw,tmppath.name),raiseOnError=False,outputpath=tmppath.name) # generates pubek.pem
         if code!=tpm_exec.EXIT_SUCESS:
             raise Exception("getpubek failed with code "+str(code)+": "+str(output))
-
-        # read in the output
-        f = open(tmppath,"rb")
-        ek = f.read()
-        f.close()
-        os.close(tmpfd)
-    finally:
-        if tmppath is not None:
-            os.remove(tmppath)
-            
+    
     set_tpm_metadata('ek',ek)
 
 def create_aik(activate):
@@ -157,43 +142,45 @@ def create_aik(activate):
             extra = "-ac"
         
         owner_pw = get_tpm_metadata('owner_pw')
-        tmppath = None
         aik_pw = random_password(20)
-        try:
-            #make a temp file for the output 
-            tmppath = tempfile.mkstemp()[1]    
-            tpm_exec.run("identity -la aik -ok %s -pwdo %s -pwdk %s %s"%(tmppath,owner_pw,aik_pw,extra)) 
+        #make a temp file for the output
+        with tempfile.NamedTemporaryFile() as tmppath:
+            (retout,code,fileout) = tpm_exec.run("identity -la aik -ok %s -pwdo %s -pwdk %s %s"%(tmppath.name,owner_pw,aik_pw,extra),outputpath=tmppath.name)
+            inPem=False
+            pem=""
+            for line in retout:
+                if line.startswith("-----BEGIN PUBLIC KEY-----"):
+                    inPem=True
+                if inPem:
+                    pem+=line
+                if line.startswith("-----END PUBLIC KEY-----"):
+                    inPem=False
+            if pem=="":
+                raise Exception("unable to read public aik from create identity.  Is your tpm4720 installation up to date?")
+            mod = get_mod_from_pem(pem)
             # read in the output
-            with open(tmppath+".pem","rb") as f:
-                pem = f.read()
-            mod = get_mod_from_pem(tmppath+'.pem')
-            with open(tmppath+".key",'rb') as f:
-                key = base64.b64encode(f.read())
-        finally:
-            if tmppath is not None:
-                os.remove(tmppath+".pem")
-                os.remove(tmppath+".key")
+            if fileout=='':
+                raise Exception("unable to read file output.  Is your tpm4720 installation up to date?")
+            key = base64.b64encode(fileout)
+            
+            # persist results
+            set_tpm_metadata('aik',pem)
+            set_tpm_metadata('aikpriv', key)
+            set_tpm_metadata('aikmod',mod)
+            set_tpm_metadata('aik_pw',aik_pw)
         if activate:
             logger.debug("Self-activated AIK identity in test mode")
-    
-        # persist results
-        set_tpm_metadata('aik',pem)
-        set_tpm_metadata('aikpriv', key)
-        set_tpm_metadata('aikmod',mod)
-        set_tpm_metadata('aik_pw',aik_pw)
     
     # ensure the AIK is loaded
     handle = load_aik()
     set_tpm_metadata('aik_handle', handle)
-    
-def get_mod_from_pem(pemfile):
-    with open(pemfile,"r") as f:
-        pem = f.read()
+
+def get_mod_from_pem(pem):
     pubkey = crypto.rsa_import_pubkey(pem)
     return base64.b64encode(bytearray.fromhex('{:0192x}'.format(pubkey.n)))
 
 def get_mod_from_tpm(keyhandle):
-    (retout,code)  = tpm_exec.run("getpubkey -ha %s -pwdk %s"%(keyhandle,get_tpm_metadata('aik_pw')),raiseOnError=False)
+    (retout,code,fileout)  = tpm_exec.run("getpubkey -ha %s -pwdk %s"%(keyhandle,get_tpm_metadata('aik_pw')),raiseOnError=False)
     if code!=tpm_exec.EXIT_SUCESS and len(retout)>0 and retout[0].startswith("Error Authentication failed (Incorrect Password) from TPM_GetPubKey"):
         return None
 
@@ -239,24 +226,17 @@ def load_aik():
 #     # we didn't find the key
     logger.debug("Loading AIK private key into TPM")
     
-    inFile=None
-    try:
-        # write out private key
-        infd, intemp = tempfile.mkstemp()
-        inFile = open(intemp,"wb")
+    # write out private key
+    with tempfile.NamedTemporaryFile() as inFile:
         inFile.write(base64.b64decode(get_tpm_metadata('aikpriv')))
-        inFile.close()
-        os.close(infd)
+        inFile.flush()
 
-        retout = tpm_exec.run("loadkey -hp 40000000 -ik %s"%(inFile.name,))[0]
+        retout = tpm_exec.run("loadkey -hp 40000000 -ik %s"%(inFile.name))[0]
         
         if len(retout)>0 and len(retout[0].split())>=4:
             handle = retout[0].split()[4]
         else:
             raise Exception("unable to process output of loadkey %s"%(retout))
-    finally:
-        if inFile is not None:
-            os.remove(inFile.name)
     
     return handle.upper()
   
@@ -320,9 +300,6 @@ def encryptAIK(uuid,pubaik,pubek):
 
     
 def activate_identity(keyblob):
-    if common.STUB_TPM:
-        return base64.b64encode(common.TEST_AES_REG_KEY)
-    
     owner_pw = get_tpm_metadata('owner_pw')
     keyhandle = get_tpm_metadata('aik_handle')
     
@@ -336,24 +313,16 @@ def activate_identity(keyblob):
         keyblobFile.close()
         os.close(kfd)
         
-        keyfd,keypath = tempfile.mkstemp()        
-        # read in the key
-        f = open(keypath,"rb")
-        key = f.read()
-        f.close()
-        os.close(keyfd)
-        
         # ok lets write out the key now
         secdir=secure_mount.mount() # confirm that storage is still securely mounted
             
         secfd,secpath=tempfile.mkstemp(dir=secdir)
         
-        tpm_exec.run("activateidentity -hk %s -pwdo %s -pwdk %s -if %s -ok %s"%(keyhandle,owner_pw,get_tpm_metadata('aik_pw'),keyblobFile.name,secpath))
+        command = "activateidentity -hk %s -pwdo %s -pwdk %s -if %s -ok %s"%(keyhandle,owner_pw,get_tpm_metadata('aik_pw'),keyblobFile.name,secpath)
+        (retout,code,fileout) = tpm_exec.run(command,outputpath=secpath)
         logger.info("AIK activated.")
         
-        f = open(secpath,'rb')
-        key = base64.b64encode(f.read())
-        f.close()
+        key = base64.b64encode(fileout)
         os.close(secfd)
         os.remove(secpath)
         
@@ -375,50 +344,46 @@ def verify_ek(ekcert,ekpem):
     :param ekpem: the endorsement public key in PEM format
     :returns: True if the certificate can be verified, false otherwise
     """
-    tmppath = None
     try:
-        # write out key blob
-        tmpfd, tmppath = tempfile.mkstemp()
-        ekFile = open(tmppath,"wb")
-        ekFile.write(ekpem)
-        ekFile.close()
-        os.close(tmpfd)
-        pubekmod = base64.b64decode(get_mod_from_pem(tmppath))
-    finally:
-        if tmppath is not None:
-            os.remove(tmppath)
-    
-    ek509 = M2Crypto.X509.load_cert_der_string(ekcert)
-    
-    # locate the region where the pub ek should be and then brute force looking for it.  this is awful!
-    # Sadly TPM ek certificates are corrupted in a way that openssl and most other utilities can't read them.
-    # sigh TCG
-    #
-    # search for first 1.2.840.113549.1.1.5 (OID for sha1WithRSAEncryption (PKCS #1))
-    start = ekcert.index('2a864886f70d010107'.decode('hex'))
-    # now locate the next 1.2.840.113549.1.1.7 (OID for rsaOAEP (PKCS #1)) afterwards
-    end = ekcert.index('2a864886f70d010105'.decode('hex'),start)
-    
-    if str(pubekmod) not in str(ekcert[start:end]):
-        logger.error("Public EK does not match EK certificate")
-        return False
-    
-    for signer in trusted_certs:
-        signcert = M2Crypto.X509.load_cert_string(trusted_certs[signer])
-        signkey = signcert.get_pubkey()
-        if ek509.verify(signkey) == 1:
-            logger.debug("EK cert matched signer %s"%signer)
-            return True
+        pubekmod = base64.b64decode(get_mod_from_pem(ekpem))
+        
+        ek509 = M2Crypto.X509.load_cert_der_string(ekcert)
+        
+        # locate the region where the pub ek should be and then brute force looking for it.  this is awful!
+        # Sadly TPM ek certificates are corrupted in a way that openssl and most other utilities can't read them.
+        # sigh TCG
+        #
+        # search for first 1.2.840.113549.1.1.5 (OID for sha1WithRSAEncryption (PKCS #1))
+        start = ekcert.index('2a864886f70d010107'.decode('hex'))
+        # now locate the next 1.2.840.113549.1.1.7 (OID for rsaOAEP (PKCS #1)) afterwards
+        end = ekcert.index('2a864886f70d010105'.decode('hex'),start)
+        
+        if str(pubekmod) not in str(ekcert[start:end]):
+            logger.error("Public EK does not match EK certificate")
+            return False
+        
+        for signer in trusted_certs:
+            signcert = M2Crypto.X509.load_cert_string(trusted_certs[signer])
+            signkey = signcert.get_pubkey()
+            if ek509.verify(signkey) == 1:
+                logger.debug("EK cert matched signer %s"%signer)
+                return True
 
-    for key in atmel_trusted_keys:
-        e = m2.bn_to_mpi(m2.hex_to_bn(atmel_trusted_keys[key]['exponent']))
-        n = m2.bn_to_mpi(m2.hex_to_bn(atmel_trusted_keys[key]['key']))
-        rsa = M2Crypto.RSA.new_pub_key((e, n))
-        pubkey = M2Crypto.EVP.PKey()
-        pubkey.assign_rsa(rsa)
-        if ek509.verify(pubkey) == 1:
-            logger.debug("EK cert matched trusted key %s"%key)
-            return True
+        for key in atmel_trusted_keys:
+            e = m2.bn_to_mpi(m2.hex_to_bn(atmel_trusted_keys[key]['exponent']))
+            n = m2.bn_to_mpi(m2.hex_to_bn(atmel_trusted_keys[key]['key']))
+            rsa = M2Crypto.RSA.new_pub_key((e, n))
+            pubkey = M2Crypto.EVP.PKey()
+            pubkey.assign_rsa(rsa)
+            
+            if ek509.verify(pubkey) == 1:
+                logger.debug("EK cert matched trusted key %s"%key)
+                return True
+    except Exception as e:
+        # Log the exception so we don't lose the raw message 
+        logger.exception(e)
+        raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?"), None, sys.exc_info()[2]
+    
     logger.error("No Root CA matched EK Certificate")
     return False
 
@@ -430,6 +395,9 @@ def get_tpm_manufacturer():
             #logger.debug("TPM vendor id: %s",tokens[2])
             return tokens[2]
     return None
+
+def is_emulator():
+    return 'IBM'==get_tpm_manufacturer()
 
 def is_vtpm():
     if common.STUB_VTPM:
@@ -455,7 +423,7 @@ def read_tpm_data():
 def write_tpm_data():
     global global_tpmdata
     os.umask(0o077)
-    if os.geteuid()!=0 and not common.DEVELOP_IN_ECLIPSE:
+    if os.geteuid()!=0 and common.REQUIRE_ROOT:
         logger.warning("Creating tpm metadata file without root.  Sensitive trust roots may be at risk!")
     with open('tpmdata.json','w') as f:
         json.dump(global_tpmdata,f)
@@ -476,21 +444,18 @@ def set_tpm_metadata(key,value):
         write_tpm_data()
 
 def init(self_activate=False,config_pw=None):
-    if not common.STUB_TPM:
-        create_ek()
-        take_ownership(config_pw)
-        
-        get_pub_ek()
+    create_ek()
+    take_ownership(config_pw)
+    
+    get_pub_ek()
 
-        ekcert = tpm_nvram.read_ekcert_nvram()
-        set_tpm_metadata('ekcert',ekcert)
-        
-        # if no AIK created, then create one
-        create_aik(self_activate)
-        
-        return get_tpm_metadata('ek'),get_tpm_metadata('ekcert'),get_tpm_metadata('aik')
-    else:
-        return common.TEST_PUB_EK,common.TEST_EK_CERT,common.TEST_AIK
+    ekcert = tpm_nvram.read_ekcert_nvram()
+    set_tpm_metadata('ekcert',ekcert)
+    
+    # if no AIK created, then create one
+    create_aik(self_activate)
+    
+    return get_tpm_metadata('ek'),get_tpm_metadata('ekcert'),get_tpm_metadata('aik')
     
 if __name__=="__main__":
     try:

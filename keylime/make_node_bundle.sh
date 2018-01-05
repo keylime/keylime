@@ -26,7 +26,15 @@ rm -rf build dist
 # copy in extra pycryptodome libraries
 mkdir -p build/crypto
 
-cd /usr/local/lib/python2.7/dist-packages/
+# find out where the crypto objects are stored 
+if [[ -d "/usr/local/lib/python2.7/dist-packages/" ]] ; then
+    # Typical for Debian-based
+    cd /usr/local/lib/python2.7/dist-packages/
+elif [[ -d "/usr/lib64/python2.7/site-packages/" ]] ; then
+    # Typical for CentOS-based 
+    cd /usr/lib64/python2.7/site-packages/
+fi
+
 find `find -name _BLAKE2b.so | awk -F\/ '{print $2}'` -name "*.so" | xargs cp -t $OLDPWD/build/crypto
 
 cd $OLDPWD

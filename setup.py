@@ -24,6 +24,7 @@ from setuptools import setup, find_packages, Extension
 # To use a consistent encoding
 from codecs import open
 from os import path
+from os import walk
 import sys
 
 here = path.abspath(path.dirname(__file__))
@@ -45,6 +46,10 @@ if 'linux' in sys.platform:
                             runtime_library_dirs = ['/usr/local/lib'],
                             sources = ['keylime/_cLime.c']))
 
+
+# enumerate all of the data files we need to package up 
+data_files = [(d, [path.join(d,f) for f in files]) for d,_,files in walk("keylime/static")]
+data_files.append(('package_default', ['keylime.conf']))
 
 setup(
     name='keylime',
@@ -104,7 +109,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['pycryptodomex>=3.4.1','tornado>=4.3','m2crypto>=0.21.1','pyzmq>=13.0'],
+    install_requires=['pycryptodomex>=3.4.1','tornado>=4.3','m2crypto>=0.21.1','pyzmq>=14.0'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
@@ -123,7 +128,7 @@ setup(
     # need to place data files outside of your packages. See:
     # http://docs.python.org/3.4/distutils/setupscript.html#installing-additional-files # noqa
     # In this case, 'data_file' will be installed into '<sys.prefix>/my_data'
-    data_files=[('package_default', ['keylime.conf'])],
+    data_files=data_files,
 
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
@@ -140,6 +145,7 @@ setup(
             'keylime_provider_vtpm_add=keylime.provider_vtpm_add:main',
             'keylime_ca=keylime.ca_util:main',
             'keylime_ima_emulator=keylime.ima_emulator_adapter:main',
+            'keylime_webapp=keylime.tenant_webapp:main',
         ],
     },
 

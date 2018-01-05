@@ -36,8 +36,12 @@ import ca_util
 import sqlite3
 import revocation_notifier
 import keylime_sqlite
+import ConfigParser
 
 logger = common.init_logging('cloudverifier_common')
+
+config = ConfigParser.SafeConfigParser()
+config.read(common.CONFIG_FILE)
 
 class CloudInstance_Operational_State:
     REGISTERED = 0
@@ -80,7 +84,7 @@ class Timer(object):
         if self.verbose:
             print 'elapsed time: %f ms' % self.msecs
             
-def init_mtls(config,section='cloud_verifier',generatedir='cv_ca'):
+def init_mtls(section='cloud_verifier',generatedir='cv_ca'):
     if not config.getboolean('general',"enable_tls"):
         logger.warning("TLS is currently disabled, keys will be sent in the clear! Should only be used for testing.")
         return None
@@ -146,7 +150,7 @@ def init_mtls(config,section='cloud_verifier',generatedir='cv_ca'):
     context.verify_mode = ssl.CERT_REQUIRED
     return context
 
-def process_quote_response(instance, json_response, config):
+def process_quote_response(instance, json_response):
     """Validates the response from the Cloud node.
     
     This method invokes an Registrar Server call to register, and then check the quote. 
@@ -204,7 +208,11 @@ def process_quote_response(instance, json_response, config):
                                            instance['ima_whitelist'])
     if not validQuote:
         return False
-
+    
+    # set a flag so that we know that the node was verified once.
+    # we only issue notifications for nodes that were at some point good
+    instance['first_verified']=True
+    
     # has public key changed? if so, clear out b64_encrypted_V, it is no longer valid
     if received_public_key != instance.get('public_key',""):
         instance['public_key'] = received_public_key
@@ -217,7 +225,7 @@ def process_quote_response(instance, json_response, config):
 
 def prepare_v(instance):
     # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
-    if common.DEVELOP_IN_ECLIPSE:
+    if common.INSECURE_DEBUG:
         logger.debug("b64_V (non encrypted): " + instance['v'])
         
     if instance.get('b64_encrypted_V',"") !="":
@@ -284,24 +292,28 @@ def get_query_tag_value(path, query_tag):
     return data.get(query_tag,None) 
 
 # sign a message with revocation key.  telling of verification problem
-def handleVerificationError(instance):
+def notifyError(instance,msgtype='revocation'):
+    if not config.getboolean('cloud_verifier', 'revocation_notifier'):
+        return
 
     # prepare the revocation message:
-    revocation = {'ip':instance['ip'],
+    revocation = {
+                'type':msgtype,
+                'ip':instance['ip'],
                 'port':instance['port'],
                 'tpm_policy':instance['tpm_policy'],
                 'vtpm_policy':instance['vtpm_policy'],
                 'metadata':instance['metadata'],
                 } 
     
-    revocation['time_revoked'] = time.asctime()
-    tosend={'revocation': json.dumps(revocation)}
+    revocation['event_time'] = time.asctime()
+    tosend={'msg': json.dumps(revocation)}
             
     #also need to load up private key for signing revocations
     if instance['revocation_key']!="":
         global signing_key
         signing_key = crypto.rsa_import_privkey(instance['revocation_key'])
-        tosend['signature']=crypto.rsa_sign(signing_key,tosend['revocation'])
+        tosend['signature']=crypto.rsa_sign(signing_key,tosend['msg'])
         
         #print "verified? %s"%crypto.rsa_verify(signing_key, tosend['signature'], tosend['revocation'])
     else:
@@ -337,6 +349,7 @@ def init_db(db_filename):
         'provide_V': True,
         'num_retries': 0,
         'pending_event': None,
+        'first_verified':False,
         }
     return keylime_sqlite.KeylimeDB(db_filename,cols_db,json_cols_db,exclude_db)
 

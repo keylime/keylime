@@ -94,7 +94,7 @@ def getKeys(registrar_ip,registrar_port,instance_id):
     global context
     
     #make absolutely sure you don't ask for AIKs unauthenticated
-    if context is not None and context.verify_mode != ssl.CERT_REQUIRED:
+    if context is None or context.verify_mode != ssl.CERT_REQUIRED:
         raise Exception("It is unsafe to use this interface to query AIKs with out server authenticated TLS")
     
     try:
@@ -171,9 +171,11 @@ def doActivateNode(registrar_ip,registrar_port,instance_id,key):
 
     if response.status_code == 200:
         logger.info("Registration activated for node %s."%instance_id)
+        return True
     else:
         logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status_code))
         common.log_http_response(logger,logging.ERROR,response.json())
+        return False
 
 def doActivateVirtualNode(registrar_ip,registrar_port,instance_id,deepquote):
     data = {
@@ -189,9 +191,11 @@ def doActivateVirtualNode(registrar_ip,registrar_port,instance_id,deepquote):
 
     if response.status_code == 200:
         logger.info("Registration activated for node %s."%instance_id)
+        return True
     else:
         logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status_code))
         common.log_http_response(logger,logging.ERROR,response.json())
+        return False
     
 
 def doRegistrarDelete(registrar_ip,registrar_port, instance_id):

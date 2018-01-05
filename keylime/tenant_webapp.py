@@ -76,8 +76,16 @@ class BaseHandler(tornado.web.RequestHandler):
             }))
 
 class MainHandler(tornado.web.RequestHandler):
+    def head(self):
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/ or /v2/nodes interface instead")
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp or /v2/nodes interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/ or /v2/nodes interface instead")
+    def put(self):
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/ or /v2/nodes interface instead")
+    def post(self):
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/ or /v2/nodes interface instead")
+    def delete(self):
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/ or /v2/nodes interface instead")
 
 class WebAppHandler(BaseHandler):       
     def head(self):
@@ -359,6 +367,9 @@ class InstancesHandler(BaseHandler):
         """
         
         rest_params = common.get_restful_params(self.request.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/nodes/ interface")
+            return
         
         if "nodes" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
@@ -428,6 +439,9 @@ class InstancesHandler(BaseHandler):
         """
         
         rest_params = common.get_restful_params(self.request.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/nodes/ interface")
+            return
         
         if "nodes" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
@@ -451,6 +465,9 @@ class InstancesHandler(BaseHandler):
         """
         
         rest_params = common.get_restful_params(self.request.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/nodes/ interface")
+            return
         
         if "nodes" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
@@ -541,7 +558,8 @@ class InstancesHandler(BaseHandler):
             mytenant.do_cv()
             mytenant.do_quote()
         except Exception as e:
-            logger.warning('POST returning 500 response. tenant error')
+            logger.exception(e)
+            logger.warning('POST returning 500 response. Tenant error: %s'%str(e))
             common.echo_json_response(self, 500, "Request failure", str(e))
             return
         
@@ -554,6 +572,9 @@ class InstancesHandler(BaseHandler):
         """
         
         rest_params = common.get_restful_params(self.request.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/nodes/ interface")
+            return
         
         if "nodes" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
@@ -603,15 +624,19 @@ def main(argv=sys.argv):
     config = ConfigParser.SafeConfigParser()
     config.read(common.CONFIG_FILE)
      
-    webapp_port = config.get('general', 'webapp_port')
+    webapp_port = config.getint('general', 'webapp_port')
     
-    logger.info('Starting Tenant WebApp (tornado) on port ' + webapp_port + ', use <Ctrl-C> to stop')
+    if not common.REQUIRE_ROOT and webapp_port < 1024:
+        webapp_port+=2000
+        logger.warn("Running without root, changing port to %d"%webapp_port)
+    
+    logger.info('Starting Tenant WebApp (tornado) on port %d use <Ctrl-C> to stop'%webapp_port)
     
     app = tornado.web.Application([
-        (r"/", MainHandler),                      
         (r"/webapp/.*", WebAppHandler),
         (r"/v2/nodes/.*", InstancesHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': "static/"}),
+        (r".*", MainHandler),
         ])
     
     
@@ -622,7 +647,7 @@ def main(argv=sys.argv):
     
     # Set up server 
     server = tornado.httpserver.HTTPServer(app,ssl_options=server_context)
-    server.bind(int(webapp_port), address='0.0.0.0')
+    server.bind(webapp_port, address='0.0.0.0')
     server.start(config.getint('cloud_verifier','multiprocessing_pool_num_workers')) 
     
     try:

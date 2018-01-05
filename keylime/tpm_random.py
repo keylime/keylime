@@ -36,26 +36,17 @@ warned=False
 
 def get_tpm_rand_block(size=4096):
     global warned
-    randpath = None
-    try:
-        #make a temp file for the output 
-        randfd,randpath = tempfile.mkstemp()
-        command = "getrandom -size %d -out %s" % (size,randpath)
-        tpm_exec.run(command)
-
-        # read in the quote
-        f = open(randpath,"rb")
-        rand = f.read()
-        f.close()
-        os.close(randfd)
-    except Exception as e:
-        if not warned:
-            logger.warn("TPM randomness not available: %s"%e)
-            warned=True
-        return []
-    finally:
-        if randpath is not None:
-            os.remove(randpath)
+    #make a temp file for the output 
+    rand=None
+    with tempfile.NamedTemporaryFile() as randpath:
+        try:
+            command = "getrandom -size %d -out %s" % (size,randpath.name)
+            (retout,code,rand) = tpm_exec.run(command,outputpath=randpath.name)
+        except Exception as e:
+            if not warned:
+                logger.warn("TPM randomness not available: %s"%e)
+                warned=True
+            return []
     return rand
 
 def get_tpm_randomness(size=32):
@@ -64,8 +55,6 @@ def get_tpm_randomness(size=32):
         return ""
     
     sysrand = crypto.generate_random_key(size)
-    if common.STUB_TPM:
-        return sysrand
     
     tpmrand=""
     while size>len(randomness):
@@ -89,12 +78,13 @@ def init_system_rand():
     RNDADDENTROPY=0x40085203
     rand_data = get_tpm_rand_block(128)
     t = struct.pack("ii%ds"%len(rand_data), 8, len(rand_data), str(rand_data))
-    try:
-        with open("/dev/random", mode='wb') as fp:
-            # as fp has a method fileno(), you can pass it to ioctl
-            fcntl.ioctl(fp, RNDADDENTROPY, t)
-    except Exception as e:
-        logger.warn("TPM randomness not added to system entropy pool: %s"%e)
+    if common.REQUIRE_ROOT:
+        try:
+            with open("/dev/random", mode='wb') as fp:
+                # as fp has a method fileno(), you can pass it to ioctl
+                fcntl.ioctl(fp, RNDADDENTROPY, t)
+        except Exception as e:
+            logger.warn("TPM randomness not added to system entropy pool: %s"%e)
     
 
 def main(argv=sys.argv):

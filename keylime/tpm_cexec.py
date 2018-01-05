@@ -28,6 +28,14 @@ os.putenv('TPM_SERVER_PORT', '9999')
 os.putenv('TPM_SERVER_NAME', '9999')
 os.putenv('PATH', os.getenv('PATH') + ':/usr/local/bin')
 def check_quote(aikFile, quoteFile, extData):
+    if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
+        jsonIn = common.TPM_CANNED_VALUES
+        if 'tpmquote' in jsonIn and 'nonce' in jsonIn['tpmquote']:
+            # JSON unicode-ifies strings, and C calls require byte strings (str)
+            extData = str(jsonIn['tpmquote']['nonce'])
+        else:
+            raise Exception("Could not get quote nonce from canned JSON!")
+
     #print('Executing "%s"' % ("checkquote -aik %s -quote %s -nonce %s"%(aikFile, quoteFile, extData),))
     if common.USE_CLIME:
         import _cLime
@@ -36,11 +44,20 @@ def check_quote(aikFile, quoteFile, extData):
         # Try and be transparent to tpm_quote.py
         return retout
     else:
-        retout = tpm_exec.run("checkquote -aik %s -quote %s -nonce %s"%(aikFile, quoteFile, extData))[0]
+        retout = tpm_exec.run("checkquote -aik %s -quote %s -nonce %s"%(aikFile, quoteFile, extData),lock=False)[0]
         return retout
 
 
 def checkdeepquote(hAIK, vAIK, deepquoteFile, nonce):
+    if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
+        jsonIn = common.TPM_CANNED_VALUES
+        if 'deepquote' in jsonIn:
+            # JSON unicode-ifies strings, and C calls require byte strings (str)
+            if 'nonce' in jsonIn['deepquote']:
+                nonce = str(jsonIn['deepquote']['nonce'])
+        else:
+            raise Exception("Could not get deepquote from canned JSON!")
+
     cmd = 'checkdeepquote -aik {0} -deepquote {1} -nonce {2} -vaik {3}'.format(hAIK, deepquoteFile, nonce, vAIK)
     #logger.info('Running cmd %r', cmd)
-    return tpm_exec.run(cmd)[0]
+    return tpm_exec.run(cmd,lock=False)[0]

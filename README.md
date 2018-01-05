@@ -10,7 +10,7 @@ We discovered a typo in Figure 5 of the published ACSAC paper. The final interac
 
 ### Automated
 
-keylime requires Python 2.7.9 or newer for proper TLS support.  
+keylime requires Python 2.7.10 or newer for proper TLS support.  
 
 keylime supports installation via an automated shell script, `installer.sh`.  The following command line options are available: 
 ```
@@ -26,15 +26,15 @@ Options:
 
 ### Manual 
 
-keylime requires Python 2.7.9 or newer for proper TLS support.  This is newer than some LTS distributions like Ubuntu 14.04 or centos 7.  See google for instructions on how to get a newer Python onto those platforms.
+keylime requires Python 2.7.10 or newer for proper TLS support.  This is newer than some LTS distributions like Ubuntu 14.04 or centos 7.  See google for instructions on how to get a newer Python onto those platforms.
 
 It also requires the following python packages:
 
 * pycryptodomex>=3.4.1
 * tornado>=4.3
 * m2crypto>=0.21.1
-* pyzmq>=13.0
-* setuptools
+* pyzmq>=14.0
+* setuptools>=0.7
 * python-dev
 
 The latter of these are usually available as distro packages.
@@ -99,27 +99,38 @@ to obtain these public keys for checking quotes.
 The verifier is the most important component in keylime.  It does initial and periodic checks of system integrity and supports bootstrapping a cryptographic key securely with the node.  The keylime_verifier uses mutual TLS for its control interface.  By default, the verifier will create appropriate TLS certificates for itself in /var/lib/keylime/cv_ca/.  The registrar and tenant will use this as well.
 If you use the generated TLS certificates then all the processes need to run as root to allow reading of private key files in /var/lib/keylime/
 
-to run a basic test, run keylime_verifier, keylime_registrar, and keylime_node.  If the node starts up properly, then you can proceed.
+To run a basic test, run keylime_verifier, keylime_registrar, and keylime_node.  If the node starts up properly, then you can proceed.
 
 The node puts its stuff into /var/lib/keylime/
 
-To kick everything off you need to tell keylime to provision a machine.  The keylime_tenant utility does this.
+### Provisioning
+
+To kick everything off you need to tell keylime to provision a machine. This can be done either with the keylime tenant or webapp.
+
+#### Provisioning with keylime_tenant
+
+The keylime_tenant utility can be used to provision your node.
 
 As an example, the following command tells keylime to provision a new node at 127.0.0.1 with UUID D432FBB3-D2F1-4A97-9EF7-75BD81C00000
 and talk to a cloud verifier at 127.0.0.1.  Finally it will encrypt a file called filetosend and send it
 to the node allowing it to decrypt it only if the configured TPM policy (in /etc/keylime.conf) is satisfied
 
-`keylime_tenant -c add -t 127.0.0.1 -v 127.0.0.1 -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000 -f filetosend `
+`keylime_tenant -c add -t 127.0.0.1 -v 127.0.0.1 -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000 -f filetosend`
 
-to stop keylime from requesting attestations:
+To stop keylime from requesting attestations:
 
 `keylime_tenant -c delete -t 127.0.0.1 -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000`
 
-For additional advanced options for the tenant utility run
+For additional advanced options for the tenant utility run:
 
 `keylime_tenant -h`
 
-There is also a WebApp GUI interface for the tenant, available by running the `tenant_webapp.py` server script, available in the keylime directory.  Next, simply navigate to the WebApp in your web browser (https://localhost by default, as specified in keylime.conf). 
+#### Provisioning with keylime_webapp
+
+There is also a WebApp GUI interface for the tenant, available by running keylime_webapp.  Next, simply navigate to the WebApp in 
+your web browser (https://localhost/webapp/ by default, as specified in /etc/keylime.conf). 
+
+Note that the webapp must be run on the same machine as the tenant, since it uses its keys for TLS authentication (in /var/lib/keylime/).
 
 ## Using keylime CA
 
@@ -183,6 +194,13 @@ Ensure that you have the tools needed to install keylime normally (see section a
 `apt-get install -y python-dev python-setuptools python-tornado python-m2crypto python-zmq`.  Now pull in the rest of the python dependencies with `sudo python setup.py install`
 
 Now you can run `make_node_bundle.sh` in the keylime directory.  The single binary will appear inside the dist folder.  You can distribute this file along with keylime.conf and run the node service without any other Keylime dependencies.  It will look for the conf file in /etc/ first and then in the same directory as the keylime_node binary.
+
+### Notes
+
+*Due to a bug in pyinstaller 3.2.1 and prior, you may receive errors when running keylime_node (e.g., cannot load Cryptodome).  For more information, refer to their patch for this bug (https://github.com/pyinstaller/pyinstaller/pull/2453).*
+
+*For this reason, it is recommended to use at least pyinstaller 3.3.  If your system does not have pyinstaller 3.3+, you can mitigate this issue by copying their hook file [PyInstaller/hooks/hook-Cryptodome.py](https://raw.githubusercontent.com/pyinstaller/pyinstaller/dacc07f49e2c22bba5473f4cb5b2a5194cdae5e1/PyInstaller/hooks/hook-Cryptodome.py) into your ``PyInstaller/hooks/`` directory (e.g.,/usr/local/lib/python2.7/dist-packages/PyInstaller/hooks/ or /usr/lib/python2.7/site-packages/PyInstaller/hooks/).*
+
 
 ## To run on OSX 10.11
 

@@ -22,11 +22,44 @@
 ##########################################################################################
 
 # Configure the installer here
-KEYLIME_GIT=https://llcad-github.llan.ll.mit.edu/LLSRC/LLSRC-tci.git
+KEYLIME_GIT=https://github.com/mit-ll/python-keylime.git
 TPM4720_GIT=https://github.com/mit-ll/tpm4720-keylime.git
+KEYLIME_VER="master"
+TPM4720_VER="master"
 
-# Which extra python packages must be installed? 
-PYTHON_DEPS="python-dev python-setuptools python-tornado python-m2crypto python-zmq"
+# Minimum version requirements 
+MIN_PYTHON_VERSION="2.7.10"
+MIN_PYSETUPTOOLS_VERSION="0.7"
+MIN_PYTORNADO_VERSION="4.3"
+MIN_PYM2CRYPTO_VERSION="0.21.1"
+MIN_PYCRYPTODOMEX_VERSION="3.4.1"
+MIN_GO_VERSION="1.6"
+
+
+# Check to ensure version is at least minversion 
+version_checker () {
+    newest=$( printf "$1\n$2" | sort -V | tail -n1 )
+    [[ "$1" == "$2" || "$1" != "$newest" ]]
+}
+
+
+# Which package management system are we using? 
+if [[ -n "$(command -v yum)" ]]; then
+    PACKAGE_MGR=$(command -v yum)
+    PYTHON_PREIN="epel-release git"
+    PYTHON_DEPS="python python-pip python-devel python-setuptools python-tornado python-zmq gcc openssl-devel"
+    PYTHON_PIPS="pycryptodomex m2crypto"
+    BUILD_TOOLS="openssl-devel libtool gcc automake"
+elif [[ -n "$(command -v apt-get)" ]]; then
+    PACKAGE_MGR=$(command -v apt-get)
+    PYTHON_PREIN="git"
+    PYTHON_DEPS="python python-pip python-dev python-setuptools python-tornado python-m2crypto python-zmq"
+    PYTHON_PIPS="pycryptodomex"
+    BUILD_TOOLS="build-essential libssl-dev libtool automake"
+else
+   echo "No recognized package manager found on this system!" 1>&2
+   exit 1
+fi
 
 
 # Command line params 
@@ -63,9 +96,62 @@ while getopts ":shortkp:" opt; do
 done
 
 if [[ $EUID -ne 0 ]]; then
-   echo "This script must be run as root in order to call apt-get and install python dependencies" 1>&2
+   echo -e "This script must be run as root in order to install keylime and its dependencies" 1>&2
    exit 1
 fi
+
+
+# Keylime python-related dependencies
+echo 
+echo "=================================================================================="
+echo $'\t\t\tInstalling python & crypto libs'
+echo "=================================================================================="
+$PACKAGE_MGR install -y $PYTHON_PREIN
+$PACKAGE_MGR install -y $PYTHON_DEPS
+pip install $PYTHON_PIPS
+
+
+# Ensure Python installed is new enough for us 
+if [[ ! `command -v python` ]] ; then
+    echo "ERROR: Python failed to install properly!"
+    exit 1
+else 
+    # Ensure Python installed meets min requirements 
+    py_ver=$(python -c 'import platform; print platform.python_version()')
+    if ! $(version_checker "$MIN_PYTHON_VERSION" "$py_ver"); then
+        echo "ERROR: Minimum Python version is $MIN_PYTHON_VERSION, but $py_ver is installed!"
+        exit 1
+    fi
+    
+    # Ensure Python setuptools installed meets min requirements 
+    pyset_ver=$(python -c 'import setuptools; print setuptools.__version__')
+    if ! $(version_checker "$MIN_PYSETUPTOOLS_VERSION" "$pyset_ver"); then
+        echo "ERROR: Minimum python-setuptools version is $MIN_PYSETUPTOOLS_VERSION, but $pyset_ver is installed!"
+        exit 1
+    fi
+    
+    # Ensure Python tornado installed meets min requirements 
+    pynado_ver=$(python -c 'import tornado; print tornado.version')
+    if ! $(version_checker "$MIN_PYTORNADO_VERSION" "$pynado_ver"); then
+        echo "ERROR: Minimum python-tornado version is $MIN_PYTORNADO_VERSION, but $pynado_ver is installed!"
+        exit 1
+    fi
+    
+    # Ensure Python M2Crypto installed meets min requirements 
+    pym2_ver=$(python -c 'import M2Crypto; print M2Crypto.version')
+    if ! $(version_checker "$MIN_PYM2CRYPTO_VERSION" "$pym2_ver"); then
+        echo "ERROR: Minimum python-M2Crypto version is $MIN_PYM2CRYPTO_VERSION, but $pym2_ver is installed!"
+        exit 1
+    fi
+    
+    # Ensure Python pycryptodomex installed meets min requirements 
+    pycdom_ver=$(pip freeze | grep pycryptodomex | cut -d"=" -f3)
+    if ! $(version_checker "$MIN_PYCRYPTODOMEX_VERSION" "$pycdom_ver"); then
+        echo "ERROR: Minimum python-pycryptodomex version is $MIN_PYM2CRYPTO_VERSION, but $pycdom_ver is installed!"
+        exit 1
+    fi
+fi
+
 
 # Download Keylime (if necessary) 
 if [[ "$STUB" -eq "1" ]] ; then
@@ -81,8 +167,10 @@ if [[ "$STUB" -eq "1" ]] ; then
     echo "=================================================================================="
     echo $'\t\t\t\tDownloading Keylime'
     echo "=================================================================================="
-    apt-get install -y git
     git clone $KEYLIME_GIT $KEYLIME_DIR
+    pushd $KEYLIME_DIR
+    git checkout $KEYLIME_VER
+    popd
 fi
 
 
@@ -95,29 +183,11 @@ fi
 # Sanity check 
 if [[ ! -d "$KEYLIME_DIR/scripts" || ! -d "$KEYLIME_DIR/keylime" ]] ; then
     echo "ERROR: Invalid keylime directory at $KEYLIME_DIR"
-    exit
+    exit 1
 fi
 
 
 echo "INFO: Using Keylime directory: $KEYLIME_DIR"
-
-
-# Ensure everything is latest 
-echo 
-echo "=================================================================================="
-echo $'\t\t\t\tUpdating apt-get'
-echo "=================================================================================="
-apt-get update
-
-
-# Keylime python-related dependencies
-echo 
-echo "=================================================================================="
-echo $'\t\t\tInstalling python & crypto libs'
-echo "=================================================================================="
-apt-get install -y python python-pip
-pip install pycryptodomex 
-apt-get install -y $PYTHON_DEPS
 
 
 # OpenSSL or cfssl? 
@@ -137,12 +207,19 @@ else
         echo "=================================================================================="
         echo $'\t\t\tInstalling golang (for cfssl)'
         echo "=================================================================================="
-        apt-get install -y golang git
+        $PACKAGE_MGR install -y golang git
         mkdir -p $HOME/.go
         export GOPATH=$HOME/.go
         export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
         echo "export GOPATH=~/.go" >> $HOME/.bashrc
         echo "export PATH=\$PATH:\$GOROOT/bin:\$GOPATH/bin" >> $HOME/.bashrc
+    fi
+    
+    # Ensure Go installed meets min requirements 
+    go_ver=$(go version | cut -d" " -f3 | sed "s/go//")
+    if ! $(version_checker "$MIN_GO_VERSION" "$go_ver"); then
+        echo "ERROR: Minimum Go version is $MIN_GO_VERSION, but $go_ver is installed!"
+        exit 1
     fi
     
     if [[ ! `command -v cfssl` ]] ; then
@@ -168,40 +245,44 @@ TMPDIR=`mktemp -d` || exit 1
 echo -n "INFO: Using temp tpm directory: "
 echo $TMPDIR
 
-apt-get -y install build-essential libssl-dev libtool automake
+$PACKAGE_MGR -y install $BUILD_TOOLS
 mkdir -p $TMPDIR/tpm4720
 cd $TMPDIR/tpm4720
-git clone $TPM4720_GIT
+git clone $TPM4720_GIT tpm4720-keylime
 cd $TMPDIR/tpm4720/tpm4720-keylime
+git checkout $TPM4720_VER
 # Install tpm4720
 cd tpm
 make -f makefile-tpm
 install -c tpm_server /usr/local/bin/tpm_server
 cd ../libtpm
 if [[ "$TPM_SOCKET" -eq "1" ]] ; then
-	chmod +x comp-sockets.sh
-	./comp-sockets.sh
+    chmod +x comp-sockets.sh
+    ./comp-sockets.sh
 else 
-	chmod +x comp-chardev.sh
-	./comp-chardev.sh
+    chmod +x comp-chardev.sh
+    ./comp-chardev.sh
 fi
 make install
 
 if [[ "$TPM_SOCKET" -eq "1" ]] ; then
-	cd ../scripts
-	install -c tpm_serverd /usr/local/bin/tpm_serverd
-	install -c init_tpm_server /usr/local/bin/init_tpm_server
-	
-	# Start tpm4720
-	echo 
-	echo "=================================================================================="
-	echo $'\t\t\t\tStart tpm4720'
-	echo "=================================================================================="
-	chmod +x init_tpm_server
-	chmod +x tpm_serverd
-	# starts emulator and IMA stub at boot
-	cd $KEYLIME_DIR/ima_stub_service
-	./installer.sh
+    cd ../scripts
+    install -c tpm_serverd /usr/local/bin/tpm_serverd
+    install -c init_tpm_server /usr/local/bin/init_tpm_server
+    
+    # clear TPM on first use
+    init_tpm_server 
+    
+    # Start tpm4720
+    echo 
+    echo "=================================================================================="
+    echo $'\t\t\t\tStart tpm4720'
+    echo "=================================================================================="
+    chmod +x init_tpm_server
+    chmod +x tpm_serverd
+    # starts emulator and IMA stub at boot
+    cd $KEYLIME_DIR/ima_stub_service
+    ./installer.sh
 fi
 
 # Install keylime
@@ -213,13 +294,13 @@ cd $KEYLIME_DIR
 python setup.py install
 
 if [ -f /etc/keylime.conf ] ; then
-	if ! cmp -s /etc/keylime.conf keylime.conf ; then
-		echo "Modified keylime.conf found in /etc/, creating /etc/keylime.conf.new instead"
-		cp keylime.conf /etc/keylime.conf.new
-	fi
+    if ! cmp -s /etc/keylime.conf keylime.conf ; then
+        echo "Modified keylime.conf found in /etc/, creating /etc/keylime.conf.new instead"
+        cp keylime.conf /etc/keylime.conf.new
+    fi
 else
-	echo "Installing keylime.conf to /etc/"
-	cp -n keylime.conf /etc/
+    echo "Installing keylime.conf to /etc/"
+    cp -n keylime.conf /etc/
 fi
 
 # Run node packager (tarball)

@@ -314,7 +314,7 @@ def cmd_listen(workingdir,cert_path):
     
     def revoke_callback(revocation):
         serial = revocation.get("metadata",{}).get("cert_serial",None)
-        if serial is None:
+        if revocation.get('type',None) != 'revocation' or serial is None:
             logger.error("Unsupported revocation message: %s"%revocation)
             return
         
@@ -415,7 +415,7 @@ def main(argv=sys.argv):
     args = parser.parse_args(argv)
     
     if args.dir==None:
-        if os.getuid()!=0 and not common.DEVELOP_IN_ECLIPSE:
+        if os.getuid()!=0 and common.REQUIRE_ROOT:
             logger.error("If you don't specify a working directory, this process must be run as root to access %s"%common.WORK_DIR)
             sys.exit(-1)
         workingdir = common.CA_WORK_DIR
@@ -444,9 +444,8 @@ def main(argv=sys.argv):
         cmd_revoke(workingdir, args.name)
     elif args.command=='listen':
         if args.name is None:
-            logger.error("you must pass in the path to the authorized revoker's certificate using -n (or --name)")
-            parser.print_help()
-            sys.exit(-1)
+            args.name = "%s/RevocationNotifier-cert.crt"%workingdir
+            logger.warning("using default name for revocation cert %s"%args.name)
         cmd_listen(workingdir,args.name)
     else:
         logger.error("Invalid command: %s"%args.command)

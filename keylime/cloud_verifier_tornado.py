@@ -62,7 +62,15 @@ class BaseHandler(tornado.web.RequestHandler):
             }))
 
 class MainHandler(tornado.web.RequestHandler):
+    def head(self):
+        common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
     def get(self):
+        common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
+    def delete(self):
+        common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
+    def post(self):
+        common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
+    def put(self):
         common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
 
 class InstancesHandler(BaseHandler):
@@ -84,6 +92,9 @@ class InstancesHandler(BaseHandler):
         to contact the Cloud Node. 
         """
         rest_params = common.get_restful_params(self.request.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            return
         
         if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
@@ -115,6 +126,9 @@ class InstancesHandler(BaseHandler):
         instances requests require a single instance_id parameter which identifies the instance to be deleted.    
         """
         rest_params = common.get_restful_params(self.request.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            return
         
         if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
@@ -153,6 +167,9 @@ class InstancesHandler(BaseHandler):
         """
         try:
             rest_params = common.get_restful_params(self.request.path)
+            if rest_params is None:
+                common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+                return
             
             if "instances" not in rest_params:
                 common.echo_json_response(self, 400, "uri not supported")
@@ -210,6 +227,9 @@ class InstancesHandler(BaseHandler):
         """
         try:
             rest_params = common.get_restful_params(self.request.path)
+            if rest_params is None:
+                common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+                return
             
             if "instances" not in rest_params:
                 common.echo_json_response(self, 400, "uri not supported")
@@ -273,7 +293,7 @@ class InstancesHandler(BaseHandler):
                     json_response = json.loads(response.body)
 
                     # validate the cloud node response
-                    if cloud_verifier_common.process_quote_response(instance, json_response['results'], config):
+                    if cloud_verifier_common.process_quote_response(instance, json_response['results']):
                         #only write timing if the quote was successful
 #                         if self.time_series_log_file_base_name is not None:
 #                             self.time_series_log_file.write("%s\n" % time.time())
@@ -286,8 +306,7 @@ class InstancesHandler(BaseHandler):
                             self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE)
                     else:
                         self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.INVALID_QUOTE)
-                        if config.getboolean('cloud_verifier', 'revocation_notifier'):
-                            cloud_verifier_common.handleVerificationError(instance)
+                        cloud_verifier_common.notifyError(instance)
  
 #                 if self.get_q_log_file_base_name is not None and writeTime:
 #                     self.get_q_log_file.write("%s\n" % t.secs)
@@ -387,7 +406,11 @@ class InstancesHandler(BaseHandler):
             if main_instance_operational_state == cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE and \
                 new_operational_state == cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE_RETRY:
                 if instance['num_retries']>=maxr:
-                    logger.warning("Instance %s was not reachable in %d tries, setting state to FAILED"%(instance['instance_id'],maxr))
+                    logger.warning("Instance %s was not reachable for quote in %d tries, setting state to FAILED"%(instance['instance_id'],maxr))
+                    if instance['first_verified']: # only notify on previously good instances
+                        cloud_verifier_common.notifyError(instance,'comm_error')
+                    else:
+                        logger.debug("Communication error for new node.  no notification will be sent")
                     self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.FAILED)
                 else:
                     cb = functools.partial(self.invoke_get_quote, instance, True)
@@ -399,7 +422,8 @@ class InstancesHandler(BaseHandler):
             if main_instance_operational_state == cloud_verifier_common.CloudInstance_Operational_State.PROVIDE_V and \
                 new_operational_state == cloud_verifier_common.CloudInstance_Operational_State.PROVIDE_V_RETRY:
                 if instance['num_retries']>=maxr:
-                    logger.warning("Instance %s was not reachable in %d tries, setting state to FAILED"%(instance['instance_id'],maxr))
+                    logger.warning("Instance %s was not reachable to provide v in %d tries, setting state to FAILED"%(instance['instance_id'],maxr))
+                    cloud_verifier_common.notifyError(instance,'comm_error')
                     self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.FAILED)
                 else:
                     cb = functools.partial(self.invoke_provide_v, instance)
@@ -442,17 +466,17 @@ def main(argv=sys.argv):
     logger.info('Starting Cloud Verifier (tornado) on port ' + cloudverifier_port + ', use <Ctrl-C> to stop')
 
     app = tornado.web.Application([
-        (r"/", MainHandler),                      
         (r"/v2/instances/.*", InstancesHandler,{'db':db}),
+        (r".*", MainHandler),
         ])
     
-    context = cloud_verifier_common.init_mtls(config)
+    context = cloud_verifier_common.init_mtls()
     server = tornado.httpserver.HTTPServer(app,ssl_options=context)
     server.bind(int(cloudverifier_port), address='0.0.0.0')
     
     #after TLS is up, start revocation notifier
     if config.getboolean('cloud_verifier', 'revocation_notifier'):
-        logger.info("Starting service for revocation notifications")
+        logger.info("Starting service for revocation notifications on port %s"%config.getint('general','revocation_notifier_port'))
         revocation_notifier.start_broker()
         
     server.start(config.getint('cloud_verifier','multiprocessing_pool_num_workers')) 

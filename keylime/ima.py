@@ -266,7 +266,7 @@ def process_whitelists(wl_data, excl_data):
 def read_whitelist(wl_path=None):
     if wl_path is None:
         wl_path = config.get('tenant','ima_whitelist')
-        if common.DEVELOP_IN_ECLIPSE:
+        if common.STUB_IMA:
             wl_path = '../scripts/ima/whitelist.txt'
     
     # Purposefully die if path doesn't exist 
@@ -281,7 +281,7 @@ def read_whitelist(wl_path=None):
 def read_excllist(exclude_path=None):
     if exclude_path is None:
         exclude_path = config.get('tenant','ima_excludelist')
-        if common.DEVELOP_IN_ECLIPSE:
+        if common.STUB_IMA:
             exclude_path = '../scripts/ima/exclude.txt'
     
     excl_list = []

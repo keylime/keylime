@@ -63,8 +63,8 @@ class Handler(BaseHTTPRequestHandler):
     parsed_path = '' 
     
     def do_HEAD(self):
-        """Not supported.  Will always return a 400 response"""
-        self.do_GET()
+        """Not supported"""
+        common.echo_json_response(self, 405, "HEAD not supported")
 
     def do_GET(self):
         """This method services the GET request typically from either the Tenant or the Cloud Verifier.
@@ -76,6 +76,10 @@ class Handler(BaseHTTPRequestHandler):
         logger.info('GET invoked from ' + str(self.client_address)  + ' with uri:' + self.path)
         
         rest_params = common.get_restful_params(self.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/keys/ or /v2/quotes/ interfaces")
+            return
+        
         if "keys" in rest_params and rest_params['keys']=='verify':
             if self.server.K is None:
                 logger.info('GET key challenge returning 400 response. bootstrap key not available')
@@ -158,6 +162,9 @@ class Handler(BaseHTTPRequestHandler):
         The Cloud verifier requires an additional mask parameter.  If the uri or parameters are incorrect, a 400 response is returned.
         """        
         rest_params = common.get_restful_params(self.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/keys/ interface")
+            return
         
         content_length = int(self.headers.get('Content-Length', 0))
         if content_length <= 0:
@@ -363,7 +370,7 @@ class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
         """
         with uvLock:
             # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
-            if common.DEVELOP_IN_ECLIPSE:
+            if common.INSECURE_DEBUG:
                 logger.debug( "Adding U len %d data:%s"%(len(u),base64.b64encode(u)))
             self.u_set.add(u)
 
@@ -375,7 +382,7 @@ class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
         """
         with uvLock:
             # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
-            if common.DEVELOP_IN_ECLIPSE:
+            if common.INSECURE_DEBUG:
                 logger.debug( "Adding V: " + base64.b64encode(v))
             self.v_set.add(v)
 
@@ -420,7 +427,7 @@ class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
         candidate_key = str(crypto.strbitxor(decrypted_U, decrypted_V))
         
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
-        if common.DEVELOP_IN_ECLIPSE:
+        if common.INSECURE_DEBUG:
             logger.debug("U: " + base64.b64encode(decrypted_U))
             logger.debug("V: " + base64.b64encode(decrypted_V))
             logger.debug("K: " + base64.b64encode(candidate_key))
@@ -437,7 +444,7 @@ class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
         return False
                         
 def main(argv=sys.argv):
-    if os.getuid()!=0 and not common.DEVELOP_IN_ECLIPSE:
+    if os.getuid()!=0 and common.REQUIRE_ROOT:
         logger.critical("This process must be run as root.")
         return
 
@@ -457,12 +464,12 @@ def main(argv=sys.argv):
     
     # try to get some TPM randomness into the system entropy pool
     tpm_random.init_system_rand()
-    
-    if common.STUB_TPM:
-        ekcert = common.TEST_EK_CERT
         
-    if virtual_node and (ekcert is None or common.STUB_TPM):
-        ekcert = 'virtual'
+    if ekcert is None:
+        if virtual_node:
+            ekcert = 'virtual'
+        elif tpm_initialize.is_emulator():
+            ekcert = 'emulator'
         
     # now we need the UUID
     try:
@@ -477,7 +484,18 @@ def main(argv=sys.argv):
         node_uuid = str(uuid.uuid4())
     if common.DEVELOP_IN_ECLIPSE:
         node_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
-        
+    if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
+        # Use canned values for stubbing 
+        jsonIn = common.TPM_CANNED_VALUES
+        if "add_vtpm_to_group" in jsonIn:
+            # The value we're looking for has been canned! 
+            node_uuid = jsonIn['add_vtpm_to_group']['retout']
+        else:
+            # Our command hasn't been canned!
+            raise Exception("Command %s not found in canned JSON!"%("add_vtpm_to_group"))
+    
+    logger.info("Node UUID: %s"%node_uuid)
+    
     # register it and get back a blob
     keyblob = registrar_client.doRegisterNode(registrar_ip,registrar_port,node_uuid,ek,ekcert,aik)
     
@@ -488,12 +506,16 @@ def main(argv=sys.argv):
     key = tpm_initialize.activate_identity(keyblob)
     
     # tell the registrar server we know the key
+    retval=False
     if virtual_node:
         deepquote = tpm_quote.create_deep_quote(hashlib.sha1(key).hexdigest(),node_uuid+aik+ek)
-        registrar_client.doActivateVirtualNode(registrar_ip, registrar_port, node_uuid, deepquote)
+        retval = registrar_client.doActivateVirtualNode(registrar_ip, registrar_port, node_uuid, deepquote)
     else:
-        registrar_client.doActivateNode(registrar_ip,registrar_port,node_uuid,key)
+        retval = registrar_client.doActivateNode(registrar_ip,registrar_port,node_uuid,key)
 
+    if not retval:
+        raise Exception("Registration failed on activate")
+    
     serveraddr = ('', config.getint('general', 'cloudnode_port'))
     server = CloudNodeHTTPServer(serveraddr,Handler,node_uuid)
     serverthread = threading.Thread(target=server.serve_forever)

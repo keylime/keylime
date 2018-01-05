@@ -62,6 +62,7 @@ class Tenant():
     cloudverifier_port = None
         
     cloudnode_ip = None
+    cv_cloudnode_ip = None
     cloudnode_port = None
     
     registrar_ip = None
@@ -92,7 +93,9 @@ class Tenant():
         self.cloudverifier_port = config.get('general', 'cloudverifier_port')
         self.cloudnode_port = config.get('general', 'cloudnode_port')
         self.registrar_port = config.get('general', 'registrar_tls_port')
-        self.webapp_port = config.get('general', 'webapp_port')
+        self.webapp_port = config.getint('general', 'webapp_port')
+        if not common.REQUIRE_ROOT and self.webapp_port < 1024:
+            self.webapp_port+=2000
         
         self.cloudverifier_ip = config.get('tenant', 'cloudverifier_ip')
         self.registrar_ip = config.get('general', 'registrar_ip')
@@ -143,6 +146,11 @@ class Tenant():
         # command line options can overwrite config values
         if "node_ip" in args:
             self.cloudnode_ip = args["node_ip"]
+            
+        if 'cv_node_ip' in args and args['cv_node_ip'] is not None:
+            self.cv_cloudnode_ip = args['cv_node_ip']
+        else:
+            self.cv_cloudnode_ip = self.cloudnode_ip
         
         # Make sure all keys exist in dictionary 
         if "file" not in args: 
@@ -323,10 +331,13 @@ class Tenant():
                             for i in range(len(args["incl_dir"]["data"])):
                                 zf.writestr(os.path.basename(args["incl_dir"]["name"][i]),args["incl_dir"]["data"][i])
                     else:
-                        files = next(os.walk(args["incl_dir"]))[2]
-                        for filename in files:
-                            with open("%s/%s"%(args["incl_dir"],filename),'rb') as f:
-                                zf.writestr(os.path.basename(f.name),f.read())
+                        if os.path.exists(args["incl_dir"]):
+                            files = next(os.walk(args["incl_dir"]))[2]
+                            for filename in files:
+                                with open("%s/%s"%(args["incl_dir"],filename),'rb') as f:
+                                    zf.writestr(os.path.basename(f.name),f.read())
+                        else:
+                            logger.warn("Specified include directory %s does not exist.  Skipping..."%args["incl_dir"])
                   
             cert_pkg = sf.getvalue()
             
@@ -348,11 +359,29 @@ class Tenant():
         # encrypt the node UUID as a check for delivering the correct key
         self.auth_tag = crypto.do_hmac(self.K,self.node_uuid)
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
-        if common.DEVELOP_IN_ECLIPSE:
+        if common.INSECURE_DEBUG:
             logger.debug("K:" + base64.b64encode(self.K))
             logger.debug("V:" + base64.b64encode(self.V))
             logger.debug("U:" + base64.b64encode(str(self.U)))
             logger.debug("Auth Tag: " + self.auth_tag)
+
+    def check_ek(self,ek,ekcert):
+        # config option must be on to check for EK certs
+        if config.getboolean('tenant','require_ek_cert'):
+            if common.STUB_TPM:
+                logger.debug("not checking ekcert due to STUB_TPM mode")
+            elif ekcert=='virtual':
+                logger.debug("not checking ekcert of VTPM")
+            elif ekcert=='emulator' and common.DISABLE_EK_CERT_CHECK_EMULATOR:
+                logger.debug("not checking ekcert of TPM emulator")
+            elif ekcert is None:
+                logger.warning("No EK cert provided, require_ek_cert option in config set to True")
+                return False
+            elif not tpm_initialize.verify_ek(base64.b64decode(ekcert), ek):
+                logger.warning("Invalid EK certificate")
+                return False
+
+        return True
 
     def validate_tpm_quote(self,public_key, quote):
         registrar_client.init_client_tls(config,'tenant')
@@ -363,8 +392,19 @@ class Tenant():
         
         if not tpm_quote.check_quote(self.nonce,public_key,quote,reg_keys['aik']):
             return False
+
+        if not common.STUB_TPM and (not config.getboolean('tenant','require_ek_cert') and config.get('tenant', 'ek_check_script')==""):
+            logger.warn("DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
+
+        # check EK cert and make sure it matches EK
+        if not self.check_ek(reg_keys['ek'],reg_keys['ekcert']):
+            return False
+        # if node is virtual, check phyisical EK cert and make sure it matches phyiscal EK
+        if 'provider_keys' in reg_keys:
+            if not self.check_ek(reg_keys['provider_keys']['ek'],reg_keys['provider_keys']['ekcert']):
+                return False
         
-        # check ek with optional script:
+        # check all EKs with optional script:
         script = config.get('tenant', 'ek_check_script')
         if script is not "":
             logger.info("Checking EK with script %s"%script)
@@ -400,7 +440,7 @@ class Tenant():
         logger.debug("b64_v:" + b64_v)
         data = {
             'v': b64_v,
-            'cloudnode_ip': self.cloudnode_ip,
+            'cloudnode_ip': self.cv_cloudnode_ip,
             'cloudnode_port': self.cloudnode_port,
             'tpm_policy': json.dumps(self.tpm_policy),
             'vtpm_policy':json.dumps(self.vtpm_policy),
@@ -578,6 +618,7 @@ def main(argv=sys.argv):
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument('-c', '---command',action='store',dest='command',default='add',help="valid commands are add,delete,status,reactivate. defaults to add")
     parser.add_argument('-t', '--targethost',action='store',dest='node_ip',help="the IP address of the host to provision")
+    parser.add_argument('--cv_targethost',action='store',default=None,dest='cv_node_ip',help='the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost')
     parser.add_argument('-v', '--cv',action='store',dest='verifier_ip',help="the IP address of the cloud verifier")
     parser.add_argument('-u', '--uuid',action='store',dest='node_uuid',help="UUID for the node to provision")
     parser.add_argument('-f', '--file', action='store',default=None,help='Deliver the specified plaintext to the provisioned node')
@@ -591,11 +632,11 @@ def main(argv=sys.argv):
     parser.add_argument('--vtpm_policy',action='store',dest='vtpm_policy',default=None,help="Specify a vTPM policy in JSON format")
     parser.add_argument('--verify',action='store_true',default=False,help='Block on cryptographically checked key derivation confirmation from the node once it has been provisioned')
 
-    if common.DEVELOP_IN_ECLIPSE:
+    if common.DEVELOP_IN_ECLIPSE and len(argv)==1:
         ca_util.setpassword('default')
         #tmp = ['-c','add','-t','127.0.0.1','-v', '127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','-p','content_payload.txt','-k','content_keys.txt']
         #tmp = ['-c','add','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','-f','tenant.py']
-        tmp = ['-c','add','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','--cert','ca/','--include','extras']
+        tmp = ['-c','add','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','--cert','ca/','--include','extras','--cv_targethost','balab']
         #tmp = ['-c','delete','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
         #tmp = ['-c','reactivate','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
         #tmp = ['-c','list','-v', '127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
@@ -618,6 +659,15 @@ def main(argv=sys.argv):
     else:
         logger.warning("Using default UUID D432FBB3-D2F1-4A97-9EF7-75BD81C00000")
         mytenant.node_uuid = "D432FBB3-D2F1-4A97-9EF7-75BD81C00000"
+        
+    if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
+        # Use canned values for node UUID
+        jsonIn = common.TPM_CANNED_VALUES
+        if "add_vtpm_to_group" in jsonIn:
+            mytenant.node_uuid = jsonIn['add_vtpm_to_group']['retout']
+        else:
+            # Our command hasn't been canned!
+            raise Exception("Command %s not found in canned JSON!"%("add_vtpm_to_group"))
     
     if args.verifier_ip is not None:  
         mytenant.cloudverifier_ip = args.verifier_ip
@@ -636,7 +686,7 @@ def main(argv=sys.argv):
                 mytenant.do_cvstatus()
                 time.sleep(1)
                 #invalidate it eventually
-                logger.debug("invalidating PCR 15, staforcing revocation")
+                logger.debug("invalidating PCR 15, forcing revocation")
                 tpm_exec.run("extend -ix 15 -if tenant.py")
                 time.sleep(5)
                 logger.debug("Deleting node from verifier")

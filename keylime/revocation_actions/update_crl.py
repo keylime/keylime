@@ -35,6 +35,9 @@ config.read(common.CONFIG_FILE)
 logger = common.init_logging('update_crl')
 
 def execute(json_revocation):
+    if json_revocation['type']!='revocation':
+        return
+    
     secdir = secure_mount.mount()
     
     cert_path = config.get('cloud_node','revocation_cert')

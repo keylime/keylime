@@ -63,7 +63,7 @@ def main(argv=sys.argv):
         raise Exception("Can't use Xen features in Eclipse without STUB_TPM")
     
     # read in the pubek
-    if common.STUB_TPM or common.DEVELOP_IN_ECLIPSE:
+    if common.DEVELOP_IN_ECLIPSE:
         ek = common.TEST_PUB_EK
         ekcert = common.TEST_EK_CERT
     else:
@@ -71,7 +71,7 @@ def main(argv=sys.argv):
         ek = f.read()
         f.close()
         f = open(argv[2],'r')
-        ek = base64.b64encode(f.read())
+        ekcert = base64.b64encode(f.read())
         f.close()
             
     # fetch configuration parameters 
@@ -90,17 +90,16 @@ def main(argv=sys.argv):
     # tell the registrar server we know the key
     registrar_client.doActivateNode(provider_reg_ip,provider_reg_port,group_uuid,key)
 
-    if not common.STUB_TPM:
-        output= {
-                 'uuid': group_uuid,
-                 'aikpem': group_aik,
-                 'pubekpem': ek,
-                 'ekcert': ekcert,
-                 }
-        
-        # store the key and the group UUID in a file to add to vtpms later
-        with open("group-%d-%s.tpm"%(group_num,group_uuid),'w') as f:
-            json.dump(output,f)
+    output= {
+             'uuid': group_uuid,
+             'aikpem': group_aik,
+             'pubekpem': ek,
+             'ekcert': ekcert,
+             }
+    
+    # store the key and the group UUID in a file to add to vtpms later
+    with open("group-%d-%s.tpm"%(group_num,group_uuid),'w') as f:
+        json.dump(output,f)
 
     logger.info("Activated VTPM group %d, UUID %s"%(group_num,group_uuid))
     if group_num==0:

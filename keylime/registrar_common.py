@@ -66,6 +66,9 @@ class ProtectedHandler(BaseHTTPRequestHandler):
         instance to be returned. If the instance_id is not found, a 404 response is returned.
         """
         rest_params = common.get_restful_params(self.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            return
         
         if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
@@ -124,6 +127,9 @@ class ProtectedHandler(BaseHTTPRequestHandler):
         instances requests require a single instance_id parameter which identifies the instance to be deleted.    
         """
         rest_params = common.get_restful_params(self.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            return
         
         if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
@@ -173,6 +179,9 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
         block sent in the body with 2 entries: ek and aik.  
         """
         rest_params = common.get_restful_params(self.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            return
         
         if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
@@ -200,16 +209,6 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             ekcert = json_body['ekcert']
             aik = json_body['aik']
             
-            # config option must be on to check for EK certs
-            if config.getboolean('registrar','require_ek_cert'):
-                # no EK provided
-                if ekcert is None and not common.DEVELOP_IN_ECLIPSE:
-                    raise Exception("No EK cert provided, require_ek_cert option in config set to True")
-                
-                # there is an EK
-                if not common.STUB_TPM and (ekcert!=None and ekcert!='virtual' and not tpm_initialize.verify_ek(base64.b64decode(ekcert), ek)):
-                        raise Exception("Invalid EK certificate")
-            
             # try to encrypt the AIK
             (blob,key) = tpm_initialize.encryptAIK(instance_id,aik,ek)
             d={}
@@ -231,11 +230,11 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             }
             common.echo_json_response(self, 200, "Success", response)
             
-            logger.info('PUT returning key blob for instance_id: ' + instance_id)
+            logger.info('POST returning key blob for instance_id: ' + instance_id)
             return
         except Exception as e:
             common.echo_json_response(self, 400, "Error: %s"%e)
-            logger.warning("PUT for " + instance_id + " returning 400 response. Error: %s"%e)
+            logger.warning("POST for " + instance_id + " returning 400 response. Error: %s"%e)
             logger.warning(traceback.format_exc())
             return
 
@@ -247,6 +246,9 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
         will return errors.
         """
         rest_params = common.get_restful_params(self.path)
+        if rest_params is None:
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            return
         
         if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
@@ -305,7 +307,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
                 registrar_client.init_client_tls(config, 'registrar')
                 provider_keys = registrar_client.getKeys(config.get('general', 'provider_registrar_ip'), config.get('general', 'provider_registrar_tls_port'), instance_id)
                 # we already have the vaik
-                if not tpm_quote.check_deep_quote(hashlib.sha1(instance['key']),
+                if not tpm_quote.check_deep_quote(hashlib.sha1(instance['key']).hexdigest(),
                                                   instance_id+instance['aik']+instance['ek'], 
                                                   deepquote,  
                                                   instance['aik'],  
@@ -402,8 +404,7 @@ def start(tlsport,port,dbfile):
         logger.info("Loaded %d public keys from database"%count)
     
     server = ProtectedRegistrarServer(serveraddr, db, ProtectedHandler)    
-    context = cloud_verifier_common.init_mtls(config,
-                                             section='registrar',
+    context = cloud_verifier_common.init_mtls(section='registrar',
                                              generatedir='reg_ca')
     if context is not None:
         server.socket = context.wrap_socket (server.socket, server_side=True)
@@ -420,7 +421,6 @@ def start(tlsport,port,dbfile):
     servers.append(server2)
     
     logger.info('Starting Cloud Registrar Server on ports %s and %s (TLS) use <Ctrl-C> to stop'%(port,tlsport))
-    logger.info('Require EK certificates: %s'%config.getboolean('registrar','require_ek_cert'))
     for thread in threads:
         thread.start()
     

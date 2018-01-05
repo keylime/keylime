@@ -30,40 +30,60 @@ import functools
 import time
 import os
 import sys
+from multiprocessing import Process
+import signal
 
 logger = common.init_logging('revocation_notifier')
 
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
-global_socket = None
+broker_proc = None
 
 def start_broker():
-    global global_socket
-    context = zmq.Context()
-    global_socket = context.socket(zmq.PUB)
-    global_socket.bind("tcp://*:%s"%config.getint('general','revocation_notifier_port'))
+    def worker():
+        context = zmq.Context(1)
+        frontend = context.socket(zmq.SUB)
+        frontend.bind("ipc:///tmp/keylime.verifier.ipc")
+        
+        frontend.setsockopt(zmq.SUBSCRIBE, "")
+        
+        # Socket facing services
+        backend = context.socket(zmq.PUB)
+        backend.bind("tcp://*:%s"%config.getint('general','revocation_notifier_port'))
+
+        zmq.device(zmq.FORWARDER, frontend, backend)
+    
+    global broker_proc
+    broker_proc = Process(target=worker)
+    broker_proc.start()
+
     
 def stop_broker():
-    global global_socket
-    global_socket.close()
+    global broker_proc
+    if broker_proc is not None:
+        os.kill(broker_proc.pid,signal.SIGKILL)
 
 def notify(tosend):
     def worker(tosend):
-        global global_socket
-        # now send it out vi 0mq non blocking
+        context = zmq.Context()
+        mysock = context.socket(zmq.PUB)
+        mysock.connect("ipc:///tmp/keylime.verifier.ipc")
+        # wait 100ms for connect to happen
+        time.sleep(0.1)
+        # now send it out vi 0mq
         for i in range(config.getint('cloud_verifier','max_retries')):
             try:
-                global_socket.send(json.dumps(tosend))
+                mysock.send(json.dumps(tosend))
                 break
-            except Exception as _:
-                logger.debug("Unable to publish revocation message %d times, trying again in %f seconds"%(i,config.getfloat('cloud_verifier','retry_interval')))
+            except Exception as e:
+                logger.debug("Unable to publish revocation message %d times, trying again in %f seconds: %s"%(i,config.getfloat('cloud_verifier','retry_interval'),e))
                 time.sleep(config.getfloat('cloud_verifier','retry_interval'))
-    
+        mysock.close()
+        
     cb = functools.partial(worker,tosend)
     t = threading.Thread(target=cb)
     t.start()
-         
 
 cert_key=None
 
@@ -76,7 +96,6 @@ def await_notifications(callback,revocation_cert_path):
     context = zmq.Context()
     mysock = context.socket(zmq.SUB)
     mysock.setsockopt(zmq.SUBSCRIBE, '')
-    
     mysock.connect("tcp://%s:%s"%(config.get('general','revocation_notifier_ip'),config.getint('general','revocation_notifier_port')))
     
     logger.info('Waiting for revocation messages on 0mq %s:%s'%
@@ -84,7 +103,6 @@ def await_notifications(callback,revocation_cert_path):
     
     while True:
         rawbody = mysock.recv()
-        
         body = json.loads(rawbody)
         if cert_key is None:
             # load up the CV signing public key
@@ -98,12 +116,12 @@ def await_notifications(callback,revocation_cert_path):
             logger.warning("Unable to check signature of revocation message: %s not available"%revocation_cert_path)
         elif str(body['signature'])=='none':
             logger.warning("No signature on revocation message from server")
-        elif not crypto.rsa_verify(cert_key,str(body['revocation']),str(body['signature'])):
+        elif not crypto.rsa_verify(cert_key,str(body['msg']),str(body['signature'])):
             logger.error("Invalid revocation message siganture %s"%body)
         else:
-            revocation = json.loads(body['revocation'])
-            logger.debug("Revocation signature validated for revocation: %s"%revocation)
-            callback(revocation)
+            message = json.loads(body['msg'])
+            logger.debug("Revocation signature validated for revocation: %s"%message)
+            callback(message)
 
 def main():
     start_broker()
@@ -119,7 +137,7 @@ def main():
     
     t = threading.Thread(target=worker)
     t.start()
-    time.sleep(0.5)
+    #time.sleep(0.5)
 
     json_body2 = {
         'v': 'vbaby',
@@ -140,7 +158,9 @@ def main():
     time.sleep(2)
     print "shutting down"
     stop_broker()
+    print "exiting..."
     sys.exit(0)
+    print "done"
      
 if __name__=="__main__":
     main()

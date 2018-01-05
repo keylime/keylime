@@ -50,7 +50,7 @@ class KeylimeDB():
         kl_dir = os.path.dirname(os.path.abspath(self.db_filename))
         if not os.path.exists(kl_dir):
             os.makedirs(kl_dir, 0o700)
-        if os.geteuid()!=0 and not common.DEVELOP_IN_ECLIPSE:
+        if os.geteuid()!=0 and common.REQUIRE_ROOT:
             logger.warning("Creating database without root.  Sensitive data may be at risk!")
         
         with sqlite3.connect(self.db_filename) as conn:

@@ -22,21 +22,28 @@
 ##########################################################################################
 
 
-# Which extra python packages must be installed? 
-PYTHON_DEPS="python-dev python-setuptools python-tornado python-m2crypto python-zmq"
-
+# Which package management system are we using? 
+if [[ -n "$(command -v yum)" ]]; then
+    PACKAGE_MGR=$(command -v yum)
+    PACKAGE_INSP="rpm -ql"
+    PYTHON_PREIN="epel-release git gcc" #note: gcc is required for pip to build m2crypto 
+    PYTHON_DEPS="python python-pip upx python-devel python-setuptools python-tornado czmq-devel python-zmq openssl-devel"
+    PYTHON_PIPS="pyinstaller m2crypto"
+elif [[ -n "$(command -v apt-get)" ]]; then
+    PACKAGE_MGR=$(command -v apt-get)
+    PACKAGE_INSP="dpkg -L"
+    PYTHON_PREIN="git"
+    PYTHON_DEPS="python python-pip upx-ucl python-dev python-setuptools python-tornado python-m2crypto python-zmq libssl-dev"
+    PYTHON_PIPS="pyinstaller"
+else
+   echo "No recognized package manager found on this system!" 1>&2
+   exit 1
+fi
 
 if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root in order to call apt-get and install python dependencies" 1>&2
    exit 1
 fi
-
-# Ensure everything is latest 
-echo 
-echo "=================================================================================="
-echo $'\t\t\t\tUpdating apt-get'
-echo "=================================================================================="
-apt-get update
 
 
 # Keylime python-related dependencies
@@ -44,9 +51,9 @@ echo
 echo "=================================================================================="
 echo $'\t\t\tInstalling python & crypto libs'
 echo "=================================================================================="
-apt-get install -y python python-pip upx
-pip install pyinstaller
-apt-get install -y $PYTHON_DEPS
+$PACKAGE_MGR install -y $PYTHON_PREIN
+$PACKAGE_MGR install -y $PYTHON_DEPS
+pip install $PYTHON_PIPS
 
 
 # Build packaged keylime-python installer 
@@ -102,7 +109,7 @@ copy_deps "$PYPATH"
 
 # Python module lib dependencies 
 for pkg in $PYTHON_DEPS ; do
-    SO_LIST=`dpkg -L $pkg | grep '\.so'`
+    SO_LIST=`$PACKAGE_INSP $pkg | grep '\.so'`
     for dep in $SO_LIST ; do
         copy_deps "$dep"
     done
