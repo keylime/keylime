@@ -33,7 +33,7 @@ MIN_PYSETUPTOOLS_VERSION="0.7"
 MIN_PYTORNADO_VERSION="4.3"
 MIN_PYM2CRYPTO_VERSION="0.21.1"
 MIN_PYCRYPTODOMEX_VERSION="3.4.1"
-MIN_GO_VERSION="1.6"
+MIN_GO_VERSION="1.6.3"
 
 
 # Check to ensure version is at least minversion 
@@ -42,19 +42,28 @@ version_checker () {
     [[ "$1" == "$2" || "$1" != "$newest" ]]
 }
 
+confirm_force_install () {
+    echo $1
+    read -r -p "This may introduce security issues, instability or an incomplete install!  Continue? [y/N] " resp
+    case "$resp" in
+        [yY]) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 
 # Which package management system are we using? 
 if [[ -n "$(command -v yum)" ]]; then
     PACKAGE_MGR=$(command -v yum)
     PYTHON_PREIN="epel-release git"
-    PYTHON_DEPS="python python-pip python-devel python-setuptools python-tornado python-zmq gcc openssl-devel"
-    PYTHON_PIPS="pycryptodomex m2crypto"
+    PYTHON_DEPS="python python-pip python-devel python-setuptools python-zmq gcc openssl-devel"
+    PYTHON_PIPS="pycryptodomex m2crypto tornado"
     BUILD_TOOLS="openssl-devel libtool gcc automake"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
     PYTHON_PREIN="git"
-    PYTHON_DEPS="python python-pip python-dev python-setuptools python-tornado python-m2crypto python-zmq"
-    PYTHON_PIPS="pycryptodomex"
+    PYTHON_DEPS="python python-pip python-dev python-setuptools python-m2crypto python-zmq"
+    PYTHON_PIPS="pycryptodomex tornado"
     BUILD_TOOLS="build-essential libssl-dev libtool automake"
 else
    echo "No recognized package manager found on this system!" 1>&2
@@ -119,36 +128,31 @@ else
     # Ensure Python installed meets min requirements 
     py_ver=$(python -c 'import platform; print platform.python_version()')
     if ! $(version_checker "$MIN_PYTHON_VERSION" "$py_ver"); then
-        echo "ERROR: Minimum Python version is $MIN_PYTHON_VERSION, but $py_ver is installed!"
-        exit 1
+        confirm_force_install "ERROR: Minimum Python version is $MIN_PYTHON_VERSION, but $py_ver is installed!" || exit 1
     fi
     
     # Ensure Python setuptools installed meets min requirements 
     pyset_ver=$(python -c 'import setuptools; print setuptools.__version__')
     if ! $(version_checker "$MIN_PYSETUPTOOLS_VERSION" "$pyset_ver"); then
-        echo "ERROR: Minimum python-setuptools version is $MIN_PYSETUPTOOLS_VERSION, but $pyset_ver is installed!"
-        exit 1
+        confirm_force_install "ERROR: Minimum python-setuptools version is $MIN_PYSETUPTOOLS_VERSION, but $pyset_ver is installed!" || exit 1
     fi
     
     # Ensure Python tornado installed meets min requirements 
     pynado_ver=$(python -c 'import tornado; print tornado.version')
     if ! $(version_checker "$MIN_PYTORNADO_VERSION" "$pynado_ver"); then
-        echo "ERROR: Minimum python-tornado version is $MIN_PYTORNADO_VERSION, but $pynado_ver is installed!"
-        exit 1
+        confirm_force_install "ERROR: Minimum python-tornado version is $MIN_PYTORNADO_VERSION, but $pynado_ver is installed!" || exit 1
     fi
     
     # Ensure Python M2Crypto installed meets min requirements 
     pym2_ver=$(python -c 'import M2Crypto; print M2Crypto.version')
     if ! $(version_checker "$MIN_PYM2CRYPTO_VERSION" "$pym2_ver"); then
-        echo "ERROR: Minimum python-M2Crypto version is $MIN_PYM2CRYPTO_VERSION, but $pym2_ver is installed!"
-        exit 1
+        confirm_force_install "ERROR: Minimum python-M2Crypto version is $MIN_PYM2CRYPTO_VERSION, but $pym2_ver is installed!" || exit 1
     fi
     
     # Ensure Python pycryptodomex installed meets min requirements 
     pycdom_ver=$(pip freeze | grep pycryptodomex | cut -d"=" -f3)
     if ! $(version_checker "$MIN_PYCRYPTODOMEX_VERSION" "$pycdom_ver"); then
-        echo "ERROR: Minimum python-pycryptodomex version is $MIN_PYM2CRYPTO_VERSION, but $pycdom_ver is installed!"
-        exit 1
+        confirm_force_install "ERROR: Minimum python-pycryptodomex version is $MIN_PYM2CRYPTO_VERSION, but $pycdom_ver is installed!" || exit 1
     fi
 fi
 
@@ -218,8 +222,7 @@ else
     # Ensure Go installed meets min requirements 
     go_ver=$(go version | cut -d" " -f3 | sed "s/go//")
     if ! $(version_checker "$MIN_GO_VERSION" "$go_ver"); then
-        echo "ERROR: Minimum Go version is $MIN_GO_VERSION, but $go_ver is installed!"
-        exit 1
+        confirm_force_install "ERROR: Minimum Go version is $MIN_GO_VERSION, but $go_ver is installed!" || exit 1
     fi
     
     if [[ ! `command -v cfssl` ]] ; then

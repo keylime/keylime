@@ -227,6 +227,7 @@ def echo_json_response(handler,code,status=None,results=None):
         handler.set_status(code)
         handler.set_header('Content-Type', 'application/json')
         handler.write(json_response)
+        handler.finish()
         return True
     else:
         return False
@@ -264,7 +265,12 @@ def get_restful_params(urlstring):
 LOG_TO_FILE=['cloudnode','registrar','provider_registrar','cloudverifier']
 # not clear that this works right.  console logging may not work
 LOG_TO_SYSCONSOLE=['cloudnode']
+LOG_TO_STREAM=['tenant_webapp']
 LOGDIR='/var/log/keylime'
+if not REQUIRE_ROOT:
+    LOGSTREAM = './keylime-stream.log'
+else:
+    LOGSTREAM=LOGDIR+'/keylime-stream.log'
 
 logging.config.fileConfig(CONFIG_FILE)
 def init_logging(loggername):
@@ -288,7 +294,14 @@ def init_logging(loggername):
                 
         fh = logging.FileHandler(logfilename)
         fh.setLevel(logger.getEffectiveLevel())
-        basic_formatter = logging.Formatter('%(created)s - %(name)s - %(levelname)s - %(message)s')    
+        basic_formatter = logging.Formatter('%(created)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(basic_formatter)
+        mainlogger.addHandler(fh)
+
+    if loggername in LOG_TO_STREAM:
+        fh = logging.FileHandler(filename=LOGSTREAM,mode='w')
+        fh.setLevel(logger.getEffectiveLevel())
+        basic_formatter = logging.Formatter('%(created)s - %(name)s - %(levelname)s - %(message)s')
         fh.setFormatter(basic_formatter)
         mainlogger.addHandler(fh)
 

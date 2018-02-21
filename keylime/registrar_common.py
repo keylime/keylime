@@ -94,6 +94,7 @@ class ProtectedHandler(BaseHTTPRequestHandler):
                 'aik': instance['aik'],
                 'ek': instance['ek'],
                 'ekcert': instance['ekcert'],
+                'regcount': instance['regcount'],
             }
             
             if instance['virtual']:
@@ -211,6 +212,22 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             
             # try to encrypt the AIK
             (blob,key) = tpm_initialize.encryptAIK(instance_id,aik,ek)
+            
+            # special behavior if we've registered this uuid before
+            regcount = 1
+            instance = self.server.db.get_instance(instance_id)
+            if instance is not None:
+                
+                # keep track of how many ek-ekcerts have registered on this uuid
+                regcount = instance['regcount']
+                if instance['ek'] != ek or instance['ekcert'] != ekcert:
+                    logger.warning('WARNING: Overwriting previous registration for this UUID with new ek-ekcert pair!')
+                    regcount += 1
+                
+                # force overwrite
+                logger.info('Overwriting previous registration for this UUID.')
+                self.server.db.remove_instance(instance_id)
+            
             d={}
             d['ek']=ek
             d['aik']=aik
@@ -219,11 +236,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             d['active']=int(False)
             d['key']=key
             d['provider_keys']={}
-            
-            # force overwrite
-            if self.server.db.get_instance(instance_id) is not None:
-                self.server.db.remove_instance(instance_id)
-            
+            d['regcount']=regcount
             self.server.db.add_instance(instance_id, d)
             response = {
                     'blob': blob,
@@ -375,6 +388,7 @@ def init_db(dbname):
         'virtual': 'INT',
         'active': 'INT',
         'provider_keys': 'TEXT',
+        'regcount': 'INT',
         }
      
     # these are the columns that contain json data and need marshalling

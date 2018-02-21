@@ -33,7 +33,7 @@ It also requires the following python packages:
 * pycryptodomex>=3.4.1
 * tornado>=4.3
 * m2crypto>=0.21.1
-* pyzmq>=14.0
+* pyzmq>=14.4
 * setuptools>=0.7
 * python-dev
 

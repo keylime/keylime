@@ -56,36 +56,26 @@ class BaseHandler(tornado.web.RequestHandler):
 
     def write_error(self, status_code, **kwargs):
 
-        self.set_header('Content-Type', 'text/json')
         if self.settings.get("serve_traceback") and "exc_info" in kwargs:
             # in debug mode, try to send a traceback
             lines = []
             for line in traceback.format_exception(*kwargs["exc_info"]):
                 lines.append(line)
-            self.finish(json.dumps({
-                'code': status_code,
-                'status': self._reason,
-                'traceback': lines,
-                'results': {},
-            }))
+            common.echo_json_response(self, status_code, self._reason, lines)
         else:
-            self.finish(json.dumps({
-                'code': status_code,
-                'status': self._reason,
-                'results': {},
-            }))
+            common.echo_json_response(self, status_code, self._reason)
 
 class MainHandler(tornado.web.RequestHandler):
     def head(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/ or /v2/nodes interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /v2/nodes/ or /v2/logs/ interface instead")
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/ or /v2/nodes interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /v2/nodes/ or /v2/logs/  interface instead")
     def put(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/ or /v2/nodes interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /v2/nodes/ or /v2/logs/  interface instead")
     def post(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/ or /v2/nodes interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /v2/nodes/ or /v2/logs/  interface instead")
     def delete(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/ or /v2/nodes interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /v2/nodes/ or /v2/logs/  interface instead")
 
 class WebAppHandler(BaseHandler):       
     def head(self):
@@ -98,29 +88,6 @@ class WebAppHandler(BaseHandler):
         Currently, only the web app is available for GETing, i.e. /webapp. All other GET uri's 
         will return errors. 
         """
-        
-        # Get list of instances from Registrar  
-        try:
-            response = tornado_requests.request("GET",
-                                        "http://%s:%s/v2/nodes/"%(tenant_templ.webapp_ip,tenant_templ.webapp_port),context=tenant_templ.context)
-        except Exception as e:
-            logger.error("Status command response: %s:%s Unexpected response from WebApp API."%(tenant_templ.webapp_ip,tenant_templ.webapp_port))
-            logger.error(traceback.print_exc())
-            logger.error("Error: %s "%str(e))
-            raise e
-        
-        response_body = response.json()
-        
-        if response.status_code != 200:
-            logger.error("Status command response: %d Unexpected response from WebApp API."%response.status_code)
-            common.log_http_response(logger,logging.ERROR,response_body)
-            return None
-        
-        if ("results" not in response_body) or ("uuids" not in response_body["results"]):
-            logger.critical("Error: unexpected http response body from WebApp API: %s"%str(response.status_code))
-            return None 
-        
-        instance_list = response_body["results"]["uuids"]
         
         # Get default policies for TPM/vTPM from config as suggestions to user 
         tpm_policy = json.dumps(json.loads(config.get('tenant', 'tpm_policy')), indent=2)
@@ -290,32 +257,19 @@ class WebAppHandler(BaseHandler):
                             <div class='table_col'>status</div>
                             <br style='clear:both;' />
                         </div>
-                        <div id='node_container'>
-            """
-        )
-        
-        # Print out all instance node entries (if any) 
-        if len(instance_list) == 0:
-            self.write(
-                """
-                            <div style="color:#888;margin-left:15px;padding:10px;">
-                                <i>No nodes registered</i>
-                            </div>
-                """
-            )
-        else:
-            for instance_id in instance_list:
-                self.write(
-                    """
-                            <div id='{0}'>
-                                <div id='{0}-over' style='display:block;cursor:help;width:800px;'></div>
-                                <div id='{0}-det' style='display:none;'></div>
-                            </div>
-                    """.format(instance_id)
-                )
-        
-        self.write(
-            """
+                        <div id='node_template' style='display:none;'>
+                            <li class='node'>
+                                <div style='display:block;cursor:help;width:800px;'></div>
+                                <div style='display:none;'></div>
+                            </li>
+                        </div>
+                        <ol id='node_container'></ol>
+                        <div style="color:#888;margin-left:15px;padding:10px;">
+                            <i>End of results</i>
+                        </div>
+                        <div id="terminal-frame">
+                            <div id="terminal-header" onmousedown="toggleVisibility('terminal')">Tenant Logs</div>
+                            <div id="terminal"></div>
                         </div>
                     </div>
                 </body>
@@ -338,7 +292,8 @@ class InstancesHandler(BaseHandler):
             logger.error("Status command response: %s:%s Unexpected response from Cloud Verifier."%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port))
             logger.error(traceback.print_exc())
             logger.error("Error: %s "%str(e))
-            raise e
+            common.echo_json_response(self, 500, "Unexpected response from Cloud Verifier", str(e))
+            return
         
         inst_response_body = response.json()
         
@@ -368,16 +323,25 @@ class InstancesHandler(BaseHandler):
         
         rest_params = common.get_restful_params(self.request.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/nodes/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /v2/nodes/ or /v2/logs/ interface")
             return
         
-        if "nodes" not in rest_params:
+        if "logs" in rest_params and rest_params["logs"] == "tenant":
+            offset = 0
+            if "pos" in rest_params and rest_params["pos"] is not None and rest_params["pos"].isdigit():
+                offset = int(rest_params["pos"])
+            # intercept requests for logs
+            with open(common.LOGSTREAM,'r') as f:
+                logValue = f.readlines()
+                common.echo_json_response(self, 200, "Success", {'log':logValue[offset:]})
+            return
+        elif "nodes" not in rest_params:
+            # otherwise they must be looking for node info
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.request.path)
             return
         
         instance_id = rest_params["nodes"]
-        
         if instance_id is not None:
             instances = self.get_instance_state(instance_id)
             instances["id"] = instance_id
@@ -392,7 +356,8 @@ class InstancesHandler(BaseHandler):
                 logger.error("Status command response: %s:%s Unexpected response from Registrar."%(tenant_templ.registrar_ip,tenant_templ.registrar_port))
                 logger.error(traceback.print_exc())
                 logger.error("Error: %s "%str(e))
-                raise e
+                common.echo_json_response(self, 500, "Unexpected response from Registrar", str(e))
+                return
             
             response_body = response.json()
             
@@ -423,7 +388,7 @@ class InstancesHandler(BaseHandler):
                 state = instances[instance_id]["operational_state"]
                 sorted_by_state[state][instance_id] = instances[instance_id]
             
-            print_order = [9,7,3,4,5,6,2,1,8,0]
+            print_order = [10,9,7,3,4,5,6,2,1,8,0]
             sorted_instances = []
             for state in print_order:
                 for instance_id in sorted_by_state[state]:
@@ -635,6 +600,7 @@ def main(argv=sys.argv):
     app = tornado.web.Application([
         (r"/webapp/.*", WebAppHandler),
         (r"/v2/nodes/.*", InstancesHandler),
+        (r"/v2/logs/.*", InstancesHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': "static/"}),
         (r".*", MainHandler),
         ])

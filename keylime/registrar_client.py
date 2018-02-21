@@ -200,12 +200,12 @@ def doActivateVirtualNode(registrar_ip,registrar_port,instance_id,deepquote):
 
 def doRegistrarDelete(registrar_ip,registrar_port, instance_id):
     global context
-    response = tornado_requests.request("DELETE", "PUT",
+    response = tornado_requests.request("DELETE",
                                         "http://%s:%s/v2/instances/%s"%(registrar_ip,registrar_port,instance_id),
                                         context=context)
     
     if response.status_code == 200:
         logger.debug("Registrar deleted.")
     else:
-        logger.warn("Status command response: " + str(response.status_code) + " Unexpected response from Cloud Node.") 
+        logger.warn("Status command response: " + str(response.status_code) + " Unexpected response from registrar.") 
         common.log_http_response(logger,logging.WARNING,response.json())

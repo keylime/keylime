@@ -391,8 +391,13 @@ class Tenant():
             return False
         
         if not tpm_quote.check_quote(self.nonce,public_key,quote,reg_keys['aik']):
+            if reg_keys['regcount'] > 1:
+                logger.error("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious node is present.  Run 'regdelete' for this node and restart it to make this message go away!")
             return False
-
+        
+        if reg_keys['regcount'] > 1:
+            logger.warn("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured.  Run 'regdelete' for this node and restart it to make this message go away!")
+        
         if not common.STUB_TPM and (not config.getboolean('tenant','require_ek_cert') and config.get('tenant', 'ek_check_script')==""):
             logger.warn("DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
@@ -407,6 +412,9 @@ class Tenant():
         # check all EKs with optional script:
         script = config.get('tenant', 'ek_check_script')
         if script is not "":
+            if script[0]!='/':
+                script = "%s/%s"%(common.WORK_DIR,script)
+            
             logger.info("Checking EK with script %s"%script)
             #now we need to exec the script with the ek and ek cert in vars
             env = os.environ.copy()
@@ -430,7 +438,13 @@ class Tenant():
                         break
                     logger.debug("ek_check output: %s"%line.strip())
                 return False
-        
+            else:
+                logger.debug("External check script successfully to validated EK")
+                while True:
+                    line = proc.stdout.readline()
+                    if line=="":
+                        break
+                    logger.debug("ek_check output: %s"%line.strip())
         return True
 
     def do_cv(self):
@@ -475,26 +489,33 @@ class Tenant():
         else:
             logger.info("Node Status %d: %s"%(response.status_code,response.json()))
 
-    def do_cvdelete(self):
-        """initiaite v, instance_id and ip
-        initiate the cloudinit sequence"""
-        
+    def do_cvdelete(self):        
         response = tornado_requests.request("DELETE","http://%s:%s/v2/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context)
         if response.status_code != 200:
             logger.error("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
         else:
             logger.info("Node %s deleted from CV"%(self.node_uuid))
+
+    def do_regdelete(self):
+        registrar_client.init_client_tls(config,'tenant')
+        registrar_client.doRegistrarDelete(self.registrar_ip,self.registrar_port,self.node_uuid)
             
     def do_cvreactivate(self):
-        """initiaite v, instance_id and ip
-        initiate the cloudinit sequence"""
-        response = tornado_requests.request("PUT","http://%s:%s/v2/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
+        response = tornado_requests.request("PUT","http://%s:%s/v2/instances/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
         if response.status_code != 200:
             logger.error("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
         else:
             logger.info("Node %s re-activated"%(self.node_uuid))
+            
+    def do_cvstop(self):
+        response = tornado_requests.request("PUT","http://%s:%s/v2/instances/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
+        if response.status_code != 200:
+            logger.error("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
+            common.log_http_response(logger,logging.ERROR,response.json())
+        else:
+            logger.info("Node %s stopped"%(self.node_uuid))
         
     def do_quote(self):
         """initiaite v, instance_id and ip
@@ -502,6 +523,7 @@ class Tenant():
         self.nonce = tpm_initialize.random_password(20)
         
         numtries = 0
+        response = None
         while True:
             # Get quote 
             try:
@@ -521,17 +543,16 @@ class Tenant():
                     continue
                 else:
                     raise e
-            
-            
-            if response.status_code != 200:
-                logger.error("Status command response: %d Unexpected response from Cloud Node."%response.status_code)
-                break
-            
+            break
+        
+        try:   
+            if response is not None and response.status_code != 200:
+                raise Exception("Status command response: %d Unexpected response from Cloud Node."%response.status_code)
+                
             response_body = response.json()
             
             if "results" not in response_body:
-                logger.critical("Error: unexpected http response body from Cloud Node: %s"%str(response.status_code))
-                break
+                raise Exception("Error: unexpected http response body from Cloud Node: %s"%str(response.status_code))
             
             quote = response_body["results"]["quote"]
             logger.debug("cnquote received quote:" + quote)
@@ -540,14 +561,13 @@ class Tenant():
             logger.debug("cnquote received public key:" + public_key)
             
             if not self.validate_tpm_quote(public_key, quote):
-                logger.error("TPM Quote from cloud node is invalid for nonce: %s"%self.nonce)
-                break
+                raise Exception("TPM Quote from cloud node is invalid for nonce: %s"%self.nonce)
         
             logger.info("Quote from %s validated"%self.cloudnode_ip)
-
+    
             # encrypt U with the public key
             encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),str(self.U))
-
+    
             b64_encrypted_u = base64.b64encode(encrypted_U)
             logger.debug("b64_encrypted_u: " + b64_encrypted_u)
             data = {
@@ -564,11 +584,12 @@ class Tenant():
             response = tornado_requests.request("POST", "http://%s:%s/v2/keys/ukey"%(self.cloudnode_ip,self.cloudnode_port),data=u_json_message)
             
             if response.status_code != 200:
-                logger.error("Posting of Encrypted U to the Cloud Node failed with response code %d" %response.status_code)
                 common.log_http_response(logger,logging.ERROR,response_body)
-                break
-            
-            break
+                raise Exception("Posting of Encrypted U to the Cloud Node failed with response code %d" %response.status_code)
+                
+        except Exception as e:
+            logger.error(e)
+            self.do_cvstop() 
        
     def do_verify(self):
         """initiaite v, instance_id and ip
@@ -616,7 +637,7 @@ class Tenant():
 
 def main(argv=sys.argv):    
     parser = argparse.ArgumentParser(argv[0])
-    parser.add_argument('-c', '---command',action='store',dest='command',default='add',help="valid commands are add,delete,status,reactivate. defaults to add")
+    parser.add_argument('-c', '---command',action='store',dest='command',default='add',help="valid commands are add,delete,status,reactivate,regdelete. defaults to add")
     parser.add_argument('-t', '--targethost',action='store',dest='node_ip',help="the IP address of the host to provision")
     parser.add_argument('--cv_targethost',action='store',default=None,dest='cv_node_ip',help='the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost')
     parser.add_argument('-v', '--cv',action='store',dest='verifier_ip',help="the IP address of the cloud verifier")
@@ -636,10 +657,11 @@ def main(argv=sys.argv):
         ca_util.setpassword('default')
         #tmp = ['-c','add','-t','127.0.0.1','-v', '127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','-p','content_payload.txt','-k','content_keys.txt']
         #tmp = ['-c','add','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','-f','tenant.py']
-        tmp = ['-c','add','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','--cert','ca/','--include','extras','--cv_targethost','balab']
+        tmp = ['-c','add','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','--cert','ca/','--include','extras']
         #tmp = ['-c','delete','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
         #tmp = ['-c','reactivate','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
         #tmp = ['-c','list','-v', '127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
+        #tmp = ['-c','regdelete','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
     else:
         tmp = argv[1:]
 
@@ -647,7 +669,7 @@ def main(argv=sys.argv):
     
     mytenant = Tenant()
     
-    if args.command != 'list' and args.node_ip is None:
+    if args.command not in ['list','regdelete'] and args.node_ip is None:
         logger.error("-t/--targethost is required for command %s"%args.command)
         sys.exit(2)
         
@@ -690,7 +712,7 @@ def main(argv=sys.argv):
                 tpm_exec.run("extend -ix 15 -if tenant.py")
                 time.sleep(5)
                 logger.debug("Deleting node from verifier")
-                mytenant.do_cvdelete()
+                #mytenant.do_cvdelete()
         elif args.command=='delete':
             mytenant.do_cvdelete()
         elif args.command=='status':
@@ -699,6 +721,8 @@ def main(argv=sys.argv):
             mytenant.do_cvstatus(listing=True)
         elif args.command=='reactivate':
             mytenant.do_cvreactivate()
+        elif args.command=='regdelete':
+            mytenant.do_regdelete()
         else:
             logger.error("Invalid command specified %s"%(args.command))
             sys.exit(2)

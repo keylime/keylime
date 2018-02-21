@@ -237,24 +237,35 @@ class InstancesHandler(BaseHandler):
                 return
             
             instance_id = rest_params["instances"]
-            
-            if instance_id is not None: # this is for reactivating 
-                new_instance = self.db.get_instance(instance_id)
-                if new_instance is not None:
-                    new_instance['operational_state']=cloud_verifier_common.CloudInstance_Operational_State.START
-                    self.process_instance(new_instance, cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE)
-                    common.echo_json_response(self, 200, "Success")
-                    logger.info('PUT returning 200 response for instance id: ' + instance_id)
-                else:
-                    common.echo_json_response(self, 404, "instance id not found")
-                    logger.info('PUT returning 404 response. instance id: ' + instance_id + ' not found.')
-            else: # this is for new items
+            if instance_id is None:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
+            
+            instance = self.db.get_instance(instance_id)
+            if instance is not None:
+                common.echo_json_response(self, 404, "instance id not found")
+                logger.info('PUT returning 404 response. instance id: ' + instance_id + ' not found.')
+                
+            if "reactivate" in rest_params:
+                instance['operational_state']=cloud_verifier_common.CloudInstance_Operational_State.START
+                self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE)
+                common.echo_json_response(self, 200, "Success")
+                logger.info('PUT returning 200 response for instance id: ' + instance_id)
+            elif "stop" in rest_params:
+                # do stuff for terminate
+                logger.debug("Stopping polling on %s"%instance_id)
+                self.db.update_instance(instance_id,'operational_state',cloud_verifier_common.CloudInstance_Operational_State.TENANT_FAILED)
+                common.echo_json_response(self, 200, "Success")
+                logger.info('PUT returning 200 response for instance id: ' + instance_id)
+            else:
+                common.echo_json_response(self, 400, "uri not supported")
+                logger.warning("PUT returning 400 response. uri not supported")
+                    
         except Exception as e:
             common.echo_json_response(self, 400, "Exception error: %s"%e)
             logger.warning("PUT returning 400 response. Exception error: %s"%e)
             logger.warning(traceback.format_exc())
+            
         
         self.finish()
 
@@ -356,6 +367,13 @@ class InstancesHandler(BaseHandler):
                 if instance['pending_event'] is not None:
                     tornado.ioloop.IOLoop.current().remove_timeout(instance['pending_event'])
                 self.db.remove_instance(instance['instance_id'])
+                return
+            
+            # if the user tells us to stop polling because the tenant quote check failed
+            if stored_instance['operational_state']==cloud_verifier_common.CloudInstance_Operational_State.TENANT_FAILED:
+                logger.warning("Instance %s has failed tenant quote.  stopping polling"%instance['instance_id'])
+                if instance['pending_event'] is not None:
+                    tornado.ioloop.IOLoop.current().remove_timeout(instance['pending_event'])
                 return
             
             # If failed during processing, log regardless and drop it on the floor

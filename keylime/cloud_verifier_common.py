@@ -54,6 +54,7 @@ class CloudInstance_Operational_State:
     FAILED = 7
     TERMINATED = 8   
     INVALID_QUOTE = 9
+    TENANT_FAILED = 10
     
     STR_MAPPINGS = {
         0 : "Registered",
@@ -65,7 +66,8 @@ class CloudInstance_Operational_State:
         6 : "Provide V (retry)",
         7 : "Failed",
         8 : "Terminated",
-        9 : "Invalid Quote"
+        9 : "Invalid Quote",
+        10 : "Tenant Quote Failed"
     }
     
 

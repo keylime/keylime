@@ -106,7 +106,7 @@ def run(cmd,expectedcode=EXIT_SUCESS,raiseOnError=True,lock=True,outputpath=None
             numtries+=1
             maxr = config.getint('cloud_node','max_retries')
             if numtries >= maxr:
-                logger.error("Quitting after max number of retries to call TPM")
+                logger.error("TPM appears to be in use by another application.  Keylime is incompatible with other TPM TSS applications like trousers/tpm-tools. Please uninstall or disable.")
                 break
             retry  = config.getfloat('cloud_node','retry_interval')
             logger.info("Failed to call TPM %d/%d times, trying again in %f seconds..."%(numtries,maxr,retry))

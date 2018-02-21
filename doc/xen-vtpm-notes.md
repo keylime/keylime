@@ -66,7 +66,66 @@ confirm that it is there by looking for `/dev/tpm0` and initialization in dmesg
 
 `dmesg | grep -i tpm`
 
-we want this gone
+we want this gone!
+
+https://wiki.ubuntu.com/Kernel/BuildYourOwnKernel
+
+```
+mkdir ubuntu-kernel
+cd ubuntu-kernel
+apt-get source linux-image-$(uname -r)
+sudo apt-get build-dep linux-image-$(uname -r)
+cd linux-4.4.0
+chmod a+x debian/rules
+chmod a+x debian/scripts/*
+chmod a+x debian/scripts/misc/*
+fakeroot debian/rules clean
+fakeroot debian/rules editconfigs
+```
+
+Edit the amd64 architecture when you do configs.  Leave the others alone.
+
+Turn off IMA:
+secure options->Integrity Subsystem->IMA
+
+Turn off all TPM support:
+device-drivers->character devices->TPM Hardware support
+
+It will complain about various things related to config-checks.  these are for other arch's.  just ignore
+
+Now you need to add a local version extension to the name so that we know which one it is and can boot it
+
+change the first line of debian.master/changelog to add -notpm like 
+
+```$ head debian.master/changelog
+linux (4.4.0-112.135+notpm) xenial; urgency=low
+
+  * linux: 4.4.0-112.135 -proposed tracker (LP: #1744244)
+
+  * CVE-2017-5715 // CVE-2017-5753
+```
+
+We need to remove mention of the tpm modules and symbols from the abi to get it not to complain. this is a bit of a hack.
+
+go to debian.master/abi/4.4.0-111.134/amd64 and get rid of anything that says "tpm from generic or generic.modules
+```
+grep -v tpm generic > tmp && mv tmp generic
+grep -v tpm generic.modules > tmp && tmp generic.modules
+```
+
+now it is time to build. Go back to linux 4.4.0 dir and kick it off.  Took about 20 mins on my rather old machine.
+```
+fakeroot debian/rules clean
+fakeroot debian/rules binary-headers binary-generic binary-perarch
+```
+
+now in the parent directory `ubuntu-kernel` there should be a pkg for the new kernel
+
+`sudo dpkg -i ../linux-image-(VERSION).deb`
+
+### using git
+
+**NOTE that this doesn't seem to work since Meltdown and Spectre got patched.  Try building the 16.04 kernel the ubuntu way above.**
 
 https://wiki.ubuntu.com/KernelTeam/GitKernelBuild
 
@@ -92,6 +151,8 @@ sudo dpkg -i ../linux-image-(VERSION).deb
 ```
 
 ### Boot the new dom0 kernel
+
+if you used the ubuntu kernel build method (as opposed to git) and haven't updated your kernel recently, it should boot up in that kernel (as the latest) automatically.
 
 set default kernel to the one we just built:
 
@@ -216,7 +277,7 @@ we'll use xen-create-image.
 
 ```
 cd /etc/xen/
-xen-create-image --hostname trusty-linux-vtpmmgr --dist=trusty  --ip 10.0.0.3 --netmask 255.255.255.0 --gateway=10.0.0.1 --nameserver="155.34.3.8" --dir /var/lib/xen/ --password=passwd`
+xen-create-image --hostname xenial-linux-vtpmmgr --dist=xenial  --ip 10.0.0.3 --netmask 255.255.255.0 --gateway=10.0.0.1 --nameserver="155.34.3.8" --dir /var/lib/xen/ --password=passwd
 ```
 
 change whatever needs changing for this as needed for your environment.  Note root password.
@@ -228,7 +289,7 @@ put it into the config at the bottom:
 
 now start it up
 
-`xl create -c trusty-linux-vtpmmgr.cfg`
+`xl create -c xenial-linux-vtpmmgr.cfg`
 
 once up you can login, confirm that network is working, setup ssh/keys and then login via ssh. it's much better than the xen console.
 
@@ -237,9 +298,21 @@ once up you can login, confirm that network is working, setup ssh/keys and then 
 bah, now we've got to patch up a kernel to talk to the vtpm in 16.04
 https://patchwork.kernel.org/patch/9485637/
 
-i didn't try to patch and rebuild the kernel for this vm.  instead i just used trusty 14.04 which pre-dates that bug
+using the instructions above, but without the need to change the ABI or tpm config: Apply this patch, update the changelog with +vtpmpatch, and build the kernel.
 
-had to pull in modules from another 14.04 machine with the same kernel isntalled from /lib/modules to get xen-tpmfront.ko driver
+You'll need to install both the linux-image deb and the linux-image-extras deb to get the kernel modules for the TPM driver.
+
+You need to install the crda package before installing these two debs.
+
+```
+apt-get update
+apt-get install crda
+dpkg -i linux-image-*
+```
+
+reboot and confirm that you have the file /dev/tpm0 now.  
+
+Note that 14.04 (trusty) predates this bug.  So, if you don't want to build a new kernel, you can try 14.04.
 
 ### Testing vtpm
 
@@ -269,7 +342,7 @@ Note Vendor ID: ETHZ  that means you're talking to the vtpm
 
 ### Creating a second linux/vtpm combo
 
-now clone the vtpmmgr vm so that we have another one from which to test.  I called this one trusty-linux-keylime
+now clone the vtpmmgr vm so that we have another one from which to test.  I called this one xenial-linux-keylime
 
 i just copied the config file in /etc/xen and the .img file dir in /var/lib/xen/domains/
 update config to have new name, and redirect the swap and disk locations to the place you copied
@@ -292,7 +365,7 @@ also make sure that vtpm_policy is somethign reasonable:
 
 `vtpm_policy = {"23":["ffffffffffffffffffffffffffffffffffffffff","0000000000000000000000000000000000000000"],"15":"0000000000000000000000000000000000000000"}`
 
-on the vtpmmgr domain (which must should have been brought up first before the vtpm attached to the clone trusty-linux-keylime.
+on the vtpmmgr domain (which must should have been brought up first before the vtpm attached to the clone xenial-linux-keylime.
 
 first need to do platform init with the keys from dom0 from way back at the beginning of this guide.  scp them over and then run:
 
