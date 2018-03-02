@@ -24,16 +24,19 @@
 # Configure the installer here
 KEYLIME_GIT=https://github.com/mit-ll/python-keylime.git
 TPM4720_GIT=https://github.com/mit-ll/tpm4720-keylime.git
+GOLANG_SRC=https://dl.google.com/go
 KEYLIME_VER="master"
 TPM4720_VER="master"
+GOLANG_VER="1.10"
 
 # Minimum version requirements 
 MIN_PYTHON_VERSION="2.7.10"
 MIN_PYSETUPTOOLS_VERSION="0.7"
 MIN_PYTORNADO_VERSION="4.3"
 MIN_PYM2CRYPTO_VERSION="0.21.1"
+MIN_PYZMQ_VERSION="14.4"
 MIN_PYCRYPTODOMEX_VERSION="3.4.1"
-MIN_GO_VERSION="1.6.3"
+MIN_GO_VERSION="1.8.4"
 
 
 # Check to ensure version is at least minversion 
@@ -120,7 +123,7 @@ $PACKAGE_MGR install -y $PYTHON_DEPS
 pip install $PYTHON_PIPS
 
 
-# Ensure Python installed is new enough for us 
+# Ensure Python is installed 
 if [[ ! `command -v python` ]] ; then
     echo "ERROR: Python failed to install properly!"
     exit 1
@@ -147,6 +150,12 @@ else
     pym2_ver=$(python -c 'import M2Crypto; print M2Crypto.version')
     if ! $(version_checker "$MIN_PYM2CRYPTO_VERSION" "$pym2_ver"); then
         confirm_force_install "ERROR: Minimum python-M2Crypto version is $MIN_PYM2CRYPTO_VERSION, but $pym2_ver is installed!" || exit 1
+    fi
+    
+    # Ensure Python ZeroMQ installed meets min requirements 
+    pyzmq_ver=$(python -c 'import zmq; print zmq.__version__')
+    if ! $(version_checker "$MIN_PYZMQ_VERSION" "$pyzmq_ver"); then
+        confirm_force_install "ERROR: Minimum python-zmq version is $MIN_PYZMQ_VERSION, but $pyzmq_ver is installed!" || exit 1
     fi
     
     # Ensure Python pycryptodomex installed meets min requirements 
@@ -205,18 +214,73 @@ if [[ "$OPENSSL" -eq "1" ]] ; then
     patch --forward --verbose -s -p1 < $KEYLIME_DIR/patches/opensslconf-patch.txt \
         && echo "INFO: Keylime config patched!"
 else
-    if [[ -z "$GOPATH" ]] ; then
+    # Pull in correct PATH under sudo (mainly for secure_path)
+    if [[ -r "/etc/profile.d/go.sh" ]]; then
+        source "/etc/profile.d/go.sh"
+    fi
+    
+    if [[ ! `command -v go` ]] ; then
         # Install golang (if not already)
         echo 
         echo "=================================================================================="
         echo $'\t\t\tInstalling golang (for cfssl)'
         echo "=================================================================================="
-        $PACKAGE_MGR install -y golang git
-        mkdir -p $HOME/.go
-        export GOPATH=$HOME/.go
-        export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
-        echo "export GOPATH=~/.go" >> $HOME/.bashrc
-        echo "export PATH=\$PATH:\$GOROOT/bin:\$GOPATH/bin" >> $HOME/.bashrc
+        
+        # Where should golang's root be?
+        # NOTE: If this is changed, golang requires GOROOT to be set!
+        GO_INSTALL_TARGET="/usr/local"
+        
+        # Don't risk clobbering anything if there are traces of golang already on the system
+        if [[ -d "$GO_INSTALL_TARGET/go" ]] ; then
+            # They have an install (just not on PATH?)
+            echo "The '$GO_INSTALL_TARGET/go' directory already exists.  Aborting installation attempt."
+            exit 1
+        fi
+        
+        # Figure out which version of golang to download
+        PLATFORM_STR=$( uname -s )-$( uname -m )
+        case "$PLATFORM_STR" in
+            Linux-x86_64) GOFILE_STR="go$GOLANG_VER.linux-amd64.tar.gz" ;;
+            Linux-i686) GOFILE_STR="go$GOLANG_VER.linux-386.tar.gz" ;;
+            Linux-i386) GOFILE_STR="go$GOLANG_VER.linux-386.tar.gz" ;;
+            Darwin-x86_64) GOFILE_STR="go$GOLANG_VER.darwin-amd64.tar.gz" ;;
+            *)
+                echo "ERROR: Cannot install golang for your platform ($PLATFORM_STR)!"
+                echo "Please manually install golang $MIN_GO_VERSION or higher."
+                exit 1
+                ;;
+        esac
+        
+        # Download and unpack/install golang
+        TMPFILE=`mktemp -t go.XXXXXXXXXX.tar.gz` || exit 1
+        wget "$GOLANG_SRC/$GOFILE_STR" -O $TMPFILE
+        if [[ $? -ne 0 ]] ; then
+            echo "ERROR: Failed to download golang!"
+            exit 1
+        fi
+        tar -C "$GO_INSTALL_TARGET" -xzf $TMPFILE
+        
+        # Set up working directory and env vars (+persistence)
+        mkdir -p $HOME/go
+        export GOPATH=$HOME/go
+        export PATH=$PATH:$GO_INSTALL_TARGET/go/bin:$GOPATH/bin:/usr/local/bin
+        {
+            echo $'\n# Golang-related settings'
+            echo 'export GOPATH=$HOME/go'
+            echo "export PATH=\$PATH:$GO_INSTALL_TARGET/go/bin:\$GOPATH/bin:/usr/local/bin"
+        } >> "$HOME/.bashrc"
+        if [[ -d "/etc/profile.d" ]]; then
+            {
+                echo $'\n# Golang-related settings'
+                echo "export PATH=\$PATH:$GO_INSTALL_TARGET/go/bin:/usr/local/bin"
+            } >> "/etc/profile.d/go.sh"
+        fi
+    fi
+    
+    if [[ -z "$GOPATH" ]] ; then
+        # GOPATH is not set up correctly
+        echo "ERROR: GOPATH is not set up correctly!  This is required for cfssl."
+        exit 1
     fi
     
     # Ensure Go installed meets min requirements 
@@ -231,8 +295,11 @@ else
         echo "=================================================================================="
         echo $'\t\t\t\tInstalling cfssl'
         echo "=================================================================================="
-        # Go is stupid with ENV vars, so we have to spawn a child shell 
-        bash -c 'go get -v -u github.com/cloudflare/cfssl/cmd/cfssl'
+        go get -v -u github.com/cloudflare/cfssl/cmd/cfssl
+        if [[ $? -ne 0 ]] ; then
+            echo "ERROR: Failed to install cfssl!"
+            exit 1
+        fi
         install -c $GOPATH/bin/cfssl /usr/local/bin/cfssl
     fi
 fi

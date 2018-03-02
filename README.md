@@ -188,7 +188,7 @@ If only the semi-portable binary is needed (without library dependencies), then 
 
 You can build a single binary for the keylime_node service.  It uses http://www.pyinstaller.org/  Install with `pip install pyinstaller`
 
-Make sure that you have UPX for binary compression.  On ubuntu: `apt-get install upx`.
+Make sure that you have UPX for binary compression.  On ubuntu: `apt-get install upx-ucl`.
 
 Ensure that you have the tools needed to install keylime normally (see section above). On Ubuntu:
 `apt-get install -y python-dev python-setuptools python-tornado python-m2crypto python-zmq`.  Now pull in the rest of the python dependencies with `sudo python setup.py install`
@@ -197,9 +197,17 @@ Now you can run `make_node_bundle.sh` in the keylime directory.  The single bina
 
 ### Notes
 
-*Due to a bug in pyinstaller 3.2.1 and prior, you may receive errors when running keylime_node (e.g., cannot load Cryptodome).  For more information, refer to their patch for this bug (https://github.com/pyinstaller/pyinstaller/pull/2453).*
-
-*For this reason, it is recommended to use at least pyinstaller 3.3.  If your system does not have pyinstaller 3.3+, you can mitigate this issue by copying their hook file [PyInstaller/hooks/hook-Cryptodome.py](https://raw.githubusercontent.com/pyinstaller/pyinstaller/dacc07f49e2c22bba5473f4cb5b2a5194cdae5e1/PyInstaller/hooks/hook-Cryptodome.py) into your ``PyInstaller/hooks/`` directory (e.g.,/usr/local/lib/python2.7/dist-packages/PyInstaller/hooks/ or /usr/lib/python2.7/site-packages/PyInstaller/hooks/).*
+1. *Due to a bug in pyinstaller 3.2.1 and prior, you may receive errors when running keylime_node (e.g., cannot load Cryptodome).  For more information, refer to their patch for this bug (https://github.com/pyinstaller/pyinstaller/pull/2453).*
+    
+    *For this reason, it is recommended to use at least pyinstaller 3.3.  If your system does not have pyinstaller 3.3+, you can mitigate this issue by copying their hook file [PyInstaller/hooks/hook-Cryptodome.py](https://raw.githubusercontent.com/pyinstaller/pyinstaller/dacc07f49e2c22bba5473f4cb5b2a5194cdae5e1/PyInstaller/hooks/hook-Cryptodome.py) into your ``PyInstaller/hooks/`` directory (e.g.,/usr/local/lib/python2.7/dist-packages/PyInstaller/hooks/ or /usr/lib/python2.7/site-packages/PyInstaller/hooks/).*
+    
+2. *In some cases (e.g., if your target machine already has Python installed), it may be necessary to compile Python (on the build machine) with rpath defined for pyinstaller to work properly:*
+    
+    ```
+    ./configure --enable-shared --prefix=<path_to_python> LDFLAGS=-Wl,-rpath=<path_to_python_libs>
+    ```
+    
+    *See https://bugs.python.org/issue27685 for more information.*
 
 
 ## To run on OSX 10.11

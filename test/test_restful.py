@@ -127,10 +127,12 @@ def fileRemove(path):
 # Boring setup stuff 
 def setUpModule():
     try:
+        env = os.environ.copy()
+        env['PATH']=env['PATH']+":/usr/local/bin"
         # Run init_tpm_server and tpm_serverd (start fresh) 
-        its = subprocess.Popen(["init_tpm_server"], shell=False)
+        its = subprocess.Popen(["init_tpm_server"], shell=False, env=env)
         its.wait()
-        tsd = subprocess.Popen(["tpm_serverd"], shell=False)
+        tsd = subprocess.Popen(["tpm_serverd"], shell=False, env=env)
         tsd.wait()
     except Exception as e:
         print "WARNING: Restarting TPM emulator failed!"
@@ -189,7 +191,7 @@ def launch_cloudverifier():
                 sys.stdout.write('\n\033[96m' + line + '\033[0m')
         t = threading.Thread(target=initthread)
         t.start()
-        time.sleep(20)
+        time.sleep(30)
     return True
 
 def launch_registrar():
@@ -216,7 +218,7 @@ def launch_registrar():
                 sys.stdout.write('\n\033[95m' + line + '\033[0m')
         t = threading.Thread(target=initthread)
         t.start()
-        time.sleep(7)
+        time.sleep(10)
     return True
 
 def launch_cloudnode():
@@ -243,7 +245,7 @@ def launch_cloudnode():
                 sys.stdout.write('\n\033[94m' + line + '\033[0m')
         t = threading.Thread(target=initthread)
         t.start()
-        time.sleep(7)
+        time.sleep(10)
     return True
 
 def kill_cloudverifier():

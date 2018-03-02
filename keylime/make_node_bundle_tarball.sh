@@ -27,14 +27,14 @@ if [[ -n "$(command -v yum)" ]]; then
     PACKAGE_MGR=$(command -v yum)
     PACKAGE_INSP="rpm -ql"
     PYTHON_PREIN="epel-release git gcc" #note: gcc is required for pip to build m2crypto 
-    PYTHON_DEPS="python python-pip upx python-devel python-setuptools python-tornado czmq-devel python-zmq openssl-devel"
-    PYTHON_PIPS="pyinstaller m2crypto"
+    PYTHON_DEPS="python python-pip upx python-devel python-setuptools czmq-devel python-zmq openssl-devel"
+    PYTHON_PIPS="pyinstaller m2crypto tornado"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
     PACKAGE_INSP="dpkg -L"
     PYTHON_PREIN="git"
-    PYTHON_DEPS="python python-pip upx-ucl python-dev python-setuptools python-tornado python-m2crypto python-zmq libssl-dev"
-    PYTHON_PIPS="pyinstaller"
+    PYTHON_DEPS="python python-pip upx-ucl python-dev python-setuptools python-m2crypto python-zmq libssl-dev"
+    PYTHON_PIPS="pyinstaller tornado"
 else
    echo "No recognized package manager found on this system!" 1>&2
    exit 1

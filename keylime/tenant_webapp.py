@@ -597,11 +597,21 @@ def main(argv=sys.argv):
     
     logger.info('Starting Tenant WebApp (tornado) on port %d use <Ctrl-C> to stop'%webapp_port)
     
+    # Figure out where our static files are located 
+    if getattr(sys, 'frozen', False):
+        # static directory must be bundled with the script
+        root_dir = os.path.dirname(os.path.abspath(sys.executable))
+    else:
+        # instead try to locate static directory relative to script 
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(root_dir+"/static/"):
+        raise Exception('Static resource directory could not be found in %s!'%(root_dir))
+    
     app = tornado.web.Application([
         (r"/webapp/.*", WebAppHandler),
         (r"/v2/nodes/.*", InstancesHandler),
         (r"/v2/logs/.*", InstancesHandler),
-        (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': "static/"}),
+        (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': root_dir+"/static/"}),
         (r".*", MainHandler),
         ])
     
