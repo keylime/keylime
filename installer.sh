@@ -58,10 +58,10 @@ confirm_force_install () {
 # Which package management system are we using? 
 if [[ -n "$(command -v yum)" ]]; then
     PACKAGE_MGR=$(command -v yum)
-    PYTHON_PREIN="epel-release git"
+    PYTHON_PREIN="epel-release git wget"
     PYTHON_DEPS="python python-pip python-devel python-setuptools python-zmq gcc openssl-devel"
     PYTHON_PIPS="pycryptodomex m2crypto tornado"
-    BUILD_TOOLS="openssl-devel libtool gcc automake"
+    BUILD_TOOLS="openssl-devel libtool gcc automake gcc-c++"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
     PYTHON_PREIN="git"
@@ -353,6 +353,7 @@ if [[ "$TPM_SOCKET" -eq "1" ]] ; then
     # starts emulator and IMA stub at boot
     cd $KEYLIME_DIR/ima_stub_service
     ./installer.sh
+    service tpm_emulator restart
 fi
 
 # Install keylime

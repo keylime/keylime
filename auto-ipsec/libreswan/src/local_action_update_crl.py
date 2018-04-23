@@ -76,6 +76,7 @@ def execute(json_revocation):
         with open("%s/unzipped/cacrl.der"%(secdir),"w") as f:
             f.write(response.body)
         ca_util.convert_crl_to_pem("%s/unzipped/cacrl.der"%(secdir), "%s/unzipped/cacrl.pem"%secdir)
+        
         updated = True
         break
     

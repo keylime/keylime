@@ -20,7 +20,7 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
+import keylime.common as common 
 import ConfigParser
 
 # read the config file

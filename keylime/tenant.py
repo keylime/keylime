@@ -303,12 +303,12 @@ class Tenant():
             if not os.path.exists("%s/%s-private.pem"%(args["ca_dir"],self.node_uuid)):
                 ca_util.cmd_mkcert(args["ca_dir"],self.node_uuid)
                 
-            cert_pkg,serial = ca_util.cmd_certpkg(args["ca_dir"],self.node_uuid)
+            cert_pkg,serial,subject = ca_util.cmd_certpkg(args["ca_dir"],self.node_uuid)
             
             # support revocation
             if not os.path.exists("%s/RevocationNotifier-private.pem"%args["ca_dir"]):
                 ca_util.cmd_mkcert(args["ca_dir"],"RevocationNotifier")
-            rev_package,_ = ca_util.cmd_certpkg(args["ca_dir"],"RevocationNotifier")
+            rev_package,_,_ = ca_util.cmd_certpkg(args["ca_dir"],"RevocationNotifier")
             
             # extract public and private keys from package
             sf = cStringIO.StringIO(rev_package)
@@ -349,7 +349,7 @@ class Tenant():
             self.K = ret['k']
             self.U = ret['u']
             self.V = ret['v']
-            self.metadata = {'cert_serial':serial}
+            self.metadata = {'cert_serial':serial,'subject':subject}
             self.payload = ret['ciphertext']
             
         if self.payload is not None and len(self.payload)>config.getint('tenant','max_payload_size'):
@@ -712,7 +712,7 @@ def main(argv=sys.argv):
                 tpm_exec.run("extend -ix 15 -if tenant.py")
                 time.sleep(5)
                 logger.debug("Deleting node from verifier")
-                #mytenant.do_cvdelete()
+                mytenant.do_cvdelete()
         elif args.command=='delete':
             mytenant.do_cvdelete()
         elif args.command=='status':

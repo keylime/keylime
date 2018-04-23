@@ -5,8 +5,8 @@
 The Node Monitor demo is designed to provide a way for nodes to "phone home", indicating that they have successfully been provisioned.  
 
 It consists of three parts: 
-* **mount.sh**: This file is sent to the cloud node, to be executed during provisioning 
-    * *__NOTE:__ Your keylime.conf file's ```cloud_node.payload_script``` should be set to mount.sh*
+* **autorun.sh**: This file is sent to the cloud node, to be executed during provisioning 
+    * *__NOTE:__ Your keylime.conf file's ```cloud_node.payload_script``` should be set to autorun.sh*
 * **tenant_node_monitor.py**: The Node Monitor server that listens for phone-home requests.  
     * Should be run on the **_same filesystem_** as the tenant (since it shares its CA certs) 
 * **tenant_node_monitor.sh**: The script that the Node Monitor executes each time it receives a phone-home (it is the 'action' portion of phoning home) 

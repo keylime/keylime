@@ -42,6 +42,8 @@ from SocketServer import ThreadingMixIn
 import functools
 import signal
 import time
+import tpm_exec
+import datetime
 
 if common.CA_IMPL=='cfssl':
     import ca_impl_cfssl as ca_impl
@@ -190,6 +192,7 @@ def cmd_certpkg(workingdir,name,insecure=False):
         
         cert_obj = X509.load_cert_string(cert)
         serial = cert_obj.get_serial_number()
+        subject = str(cert_obj.get_subject())
         
         priv = read_private()
         private = priv[0][name]
@@ -232,7 +235,7 @@ def cmd_certpkg(workingdir,name,insecure=False):
 
         logger.info("Creating cert package for %s in %s-pkg.zip"%(name,name))
         
-        return pkg,serial
+        return pkg,serial,subject
     finally:
         os.chdir(cwd)
         
@@ -241,7 +244,6 @@ def convert_crl_to_pem(derfile,pemfile):
         with open(pemfile,'w') as f:
             f.write("")
     else:
-        import tpm_exec
         tpm_exec.run("openssl crl -in %s -inform der -out %s"%(derfile,pemfile),lock=False)
     
 def get_crl_distpoint(cert_path):
@@ -299,19 +301,72 @@ def cmd_revoke(workingdir,name=None,serial=None):
         os.chdir(cwd)
     return crl
 
-def cmd_listen(workingdir,cert_path):  
+# regenerate the crl without revoking anything
+def cmd_regencrl(workingdir):
+    cwd = os.getcwd()
+    try:
+        common.ch_dir(workingdir,logger)
+        priv = read_private()
+            
+        # get the ca key cert and keys as strings
+        with open('cacert.crt','r') as f:
+            cacert = f.read()
+        ca_pk = str(priv[0]['ca'])
+        
+        crl = ca_impl.gencrl(priv[0]['revoked_keys'],cacert,ca_pk)
+         
+        write_private(priv)
+        
+        # write out the CRL to the disk
+        with open('cacrl.der','wb') as f:
+            f.write(crl)
+        convert_crl_to_pem("cacrl.der","cacrl.pem")
+        
+    finally:
+        os.chdir(cwd)
+    return crl
+
+def cmd_listen(workingdir,cert_path):
     #just load up the password for later
     read_private()
     
     serveraddr = ('', common.CRL_PORT)
     server = ThreadedCRLServer(serveraddr,CRLHandler)
     if os.path.exists('%s/cacrl.der'%workingdir):
+        logger.info("Loading existing crl: %s/cacrl.der"%workingdir)
         with open('%s/cacrl.der'%workingdir,'r') as f:
             server.setcrl(f.read())
     t = threading.Thread(target=server.serve_forever)
     logger.info("Hosting CRL on %s:%d"%(socket.getfqdn(),common.CRL_PORT))
     t.start()
     
+    def check_expiration():
+        logger.info("checking CRL for expiration every hour")
+        while True:
+            try:
+                if os.path.exists('%s/cacrl.der'%workingdir):
+                    retout = tpm_exec.run("openssl crl -inform der -in %s/cacrl.der -text -noout"%workingdir,lock=False)[0]
+                    for line in retout:
+                        line = line.strip()
+                        if line.startswith("Next Update:"):
+                            expire = datetime.datetime.strptime(line[13:],"%b %d %H:%M:%S %Y %Z")
+                            # check expiration within 6 hours
+                            in1hour = datetime.datetime.utcnow()+datetime.timedelta(hours=6)
+                            if expire<=in1hour:
+                                logger.info("Certificate to expire soon %s, re-issuing"%expire)
+                                cmd_regencrl(workingdir)
+                # check a little less than every hour
+                time.sleep(3540)
+                
+            except KeyboardInterrupt:
+                logger.info("TERM Signal received, shutting down...")
+                #server.shutdown()
+                break
+    
+    t2 = threading.Thread(target=check_expiration)
+    t2.setDaemon(True)
+    t2.start()
+
     def revoke_callback(revocation):
         serial = revocation.get("metadata",{}).get("cert_serial",None)
         if revocation.get('type',None) != 'revocation' or serial is None:
@@ -332,6 +387,7 @@ def cmd_listen(workingdir,cert_path):
     except KeyboardInterrupt:
         logger.info("TERM Signal received, shutting down...")
         server.shutdown()
+        sys.exit()
     
 class ThreadedCRLServer(ThreadingMixIn, HTTPServer):
     published_crl = None
@@ -404,7 +460,7 @@ def main(argv=sys.argv):
         argv=['-c','create','-n','client']
         #argv=['-c','pkg','-n','client']
         argv=['-c','revoke','-n','client']
-        argv=['-c','listen','-n','ca/RevocationNotifier-public.pem']
+        argv=['-c','listen','-d','myca']
     else:
         argv = argv[1:]
         

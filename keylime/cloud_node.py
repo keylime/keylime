@@ -262,19 +262,24 @@ class Handler(BaseHTTPRequestHandler):
                 if initscript is not "":
                     def initthread():
                         import subprocess
-                        logger.debug("Executing specified script: %s"%initscript)
                         env = os.environ.copy()
                         env['NODE_UUID']=self.server.node_uuid
-                        proc= subprocess.Popen(["/bin/sh",initscript],env=env,shell=False,cwd='%s/unzipped'%secdir,
+                        proc= subprocess.Popen(["/bin/bash",initscript],env=env,shell=False,cwd='%s/unzipped'%secdir,
                                                 stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-                        proc.wait()
                         while True:
-                            line = proc.stdout.readline()
-                            if line=="":
+                            line = proc.stdout.readline();
+                            if line == '' and proc.poll() is not None:
                                 break
-                            logger.debug("init-output: %s"%line.strip())
+                            if line:
+                                logger.debug("init-output: %s"%line.strip())
+                        # should be a no-op as poll already told us it's done
+                        proc.wait()                            
                             
-                    payload_thread = threading.Thread(target=initthread)
+                    if not os.path.exists("%s/unzipped/%s"%(secdir,initscript)):
+                        logger.info("No payload script %s found in %s/unzipped"%(initscript,secdir))
+                    else:
+                        logger.info("Executing payload script: %s/unzipped/%s"%(secdir,initscript))
+                        payload_thread = threading.Thread(target=initthread)
             else:
                 logger.info("Decrypting payload to %s"%dec_path)
                 with open(dec_path,'w') as f:
@@ -533,31 +538,38 @@ def main(argv=sys.argv):
             cert_path = os.path.abspath('%s/%s'%(common.WORK_DIR,cert_path))
             
         def perform_actions(revocation):
-            actionlist = config.get('cloud_node','revocation_actions')
-            if actionlist.strip() == "":
-                logger.debug("No revocation actions specified")
-                return
-            if actionlist =='default':
-                # load actions from unzipped
-                with open("%s/unzipped/action_list"%secdir,'r') as f:
-                    actionlist = f.read()
- 
-                actionlist = actionlist.strip().split(',')
-                uzpath = "%s/unzipped"%secdir
-                if uzpath not in sys.path:
-                    sys.path.append(uzpath)
-            else:
-                # load the actions from inside the keylime module
-                actionlist = actionlist.split(',')
-                actionlist = ["revocation_actions.%s"%i for i in actionlist]
+            actionlist = []
             
+            # load the actions from inside the keylime module
+            actionlisttxt = config.get('cloud_node','revocation_actions')
+            if actionlisttxt.strip() != "":
+                actionlist = actionlisttxt.split(',')
+                actionlist = ["revocation_actions.%s"%i for i in actionlist]
+                
+            # load actions from unzipped
+            if os.path.exists("%s/unzipped/action_list"%secdir):
+                with open("%s/unzipped/action_list"%secdir,'r') as f:
+                    actionlisttxt = f.read()
+                if actionlisttxt.strip()!="":
+                    localactions = actionlisttxt.strip().split(',')
+                    for action in localactions:
+                        if not action.startswith('local_action_'):
+                            logger.warning("invalid local action: %s.  must start with local_action_"%action)
+                        else:
+                            actionlist.append(action)
+                    
+                    uzpath = "%s/unzipped"%secdir
+                    if uzpath not in sys.path:
+                        sys.path.append(uzpath)
+
             for action in actionlist:
-                module = importlib.import_module(action)
-                execute = getattr(module,'execute')
+                logger.debug("executing revocation action %s"%action)
                 try:
+                    module = importlib.import_module(action)
+                    execute = getattr(module,'execute')
                     execute(revocation)
                 except Exception as e:
-                    logger.warn("Exception during exeuction of revocation action %s: %s"%(action,e))
+                    logger.warn("Exception during execution of revocation action %s: %s"%(action,e))
         try:
             while True:
                 try:
