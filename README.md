@@ -2,6 +2,7 @@
 
 A python library to make friends of TPMs and Clouds.  
 
+* Executive summary Keylime slides: [doc/keylime-elevator-slides.pptx](https://github.com/mit-ll/python-keylime/raw/master/doc/keylime-elevator-slides.pptx)
 * See ACSAC 2016 paper in doc directory: [doc/tci-acm.pdf](https://github.com/mit-ll/python-keylime/blob/master/doc/tci-acm.pdf)
 * Presentation on keylime: [doc/llsrc-keylime-acsac-v6.pptx](https://github.com/mit-ll/python-keylime/raw/master/doc/llsrc-keylime-acsac-v6.pptx)
 * Details about Keylime REST API: [doc/keylime RESTful API.docx](https://github.com/mit-ll/python-keylime/raw/master/doc/keylime%20RESTful%20API.docx)
