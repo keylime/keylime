@@ -148,6 +148,7 @@ if [[ "$COVERAGE" -eq "1" ]] ; then
     pushd $COVERAGE_DIR
     coverage combine
     coverage report
+    coverage html
     popd 1>/dev/null
 else 
     # Do generic testing with no coverage 

@@ -25,17 +25,24 @@ rm -rf build dist
 
 # copy in extra pycryptodome libraries
 mkdir -p build/crypto
+CRYPTO_DIR=`pwd`"/build/crypto"
 
-# find out where the crypto objects are stored 
-if [[ -d "/usr/local/lib/python2.7/dist-packages/" ]] ; then
-    # Typical for Debian-based
-    cd /usr/local/lib/python2.7/dist-packages/
-elif [[ -d "/usr/lib64/python2.7/site-packages/" ]] ; then
-    # Typical for CentOS-based 
-    cd /usr/lib64/python2.7/site-packages/
-fi
+# Copy py dependencies to crypto folder
+copy_py_deps () {
+    pushd $1
+    IFS=$'\n'
+    CRYPTO_PY=`find -name _BLAKE2b.so | awk -F\/ '{print $2}'`
+    for dir in $CRYPTO_PY ; do
+        find "$dir" -name "*.so" -exec cp -t $CRYPTO_DIR '{}' \;
+    done
+    popd
+}
 
-find `find -name _BLAKE2b.so | awk -F\/ '{print $2}'` -name "*.so" | xargs cp -t $OLDPWD/build/crypto
+# Find python's dist-packages or site-packages dirs
+IFS=$'\n'
+DIST_PATH=`python -c "import sys;import re;  print '\n'.join(filter(lambda x:re.search(r'(dist|site)-packages$',x), sys.path))"`
+for path in $DIST_PATH ; do
+    copy_py_deps "$path"
+done
 
-cd $OLDPWD
 pyinstaller --clean cn_installer.spec

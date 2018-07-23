@@ -19,14 +19,12 @@ violate any copyrights that exist in this work.
 '''
 
 import time
-from M2Crypto import X509, EVP, RSA, ASN1, BIO
-import common
+from M2Crypto import X509, EVP, RSA, ASN1
 import ConfigParser
 
+import common
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
-
-logger = common.init_logging('ca_impl_openssl')
 
 def mk_cert_valid(cert, days=365):
     """
@@ -68,7 +66,7 @@ def mk_request(bits, cn):
     return x, pk
 
 
-def mk_cacert():
+def mk_cacert(name=None):
     """
     Make a CA certificate.
     Returns the certificate, private key and public key.
@@ -79,10 +77,13 @@ def mk_cacert():
     cert.set_serial_number(1)
     cert.set_version(2)
     mk_cert_valid(cert,config.getint('ca','cert_ca_lifetime'))
+    
+    if name==None:
+        name = config.get('ca','cert_ca_name')
 
     issuer = X509.X509_Name()
     issuer.C = config.get('ca','cert_country')
-    issuer.CN = config.get('ca','cert_ca_name')
+    issuer.CN = name
     issuer.ST = config.get('ca','cert_state')
     issuer.L = config.get('ca','cert_locality')
     issuer.O = config.get('ca','cert_organization')
@@ -91,7 +92,7 @@ def mk_cacert():
     cert.set_subject(cert.get_issuer())
     cert.set_pubkey(pkey)
     cert.add_ext(X509.new_extension('basicConstraints', 'CA:TRUE'))
-    cert.add_ext(X509.new_extension('subjectKeyIdentifier', cert.get_fingerprint()))
+    cert.add_ext(X509.new_extension('subjectKeyIdentifier', str(cert.get_fingerprint())))
     cert.add_ext(X509.new_extension('crlDistributionPoints','URI:http://localhost/crl.pem'))
     cert.add_ext(X509.new_extension('keyUsage', 'keyCertSign, cRLSign'))
     cert.sign(pk, 'sha256')
@@ -119,5 +120,6 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
     return cert, pk
 
 def gencrl(_,a,b):
+    logger = common.init_logging('ca_impl_openssl')
     logger.warning("CRL creation with openssl is not supported")
-    return ""
+    return "" 

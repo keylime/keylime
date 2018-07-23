@@ -29,8 +29,7 @@ from Cryptodome.PublicKey import RSA
 from Cryptodome.Cipher import AES
 from Cryptodome.Protocol import KDF
 from Cryptodome.Signature import pss
- 
-import tpm_random
+
  
 def rsa_import_pubkey(buf):
     return RSA.importKey(buf)
@@ -44,12 +43,8 @@ def rsa_export_pubkey(privkey):
 def rsa_export_privkey(privkey):
     return privkey.exportKey()
      
-def rsa_generate(size,useTPM=False):
-    # warning this can be pretty slow 20-40s
-    if useTPM:
-        return RSA.generate(2048,randfunc=tpm_random.get_tpm_randomness)
-    else:
-        return RSA.generate(2048)
+def rsa_generate(size):
+    return RSA.generate(2048)
 
 def rsa_sign(key,message):
     h = SHA384.new(message)
@@ -58,7 +53,7 @@ def rsa_sign(key,message):
 
 def rsa_verify(pubkey,received_message,signature):
     h = SHA384.new(received_message)
-    verifier = verifier = pss.new(pubkey)
+    verifier = pss.new(pubkey)
     try:
         verifier.verify(h, base64.b64decode(signature))
         return True
@@ -76,7 +71,7 @@ def rsa_decrypt(key,ciphertext):
  
 def generate_random_key(size=32):
     return get_random_bytes(size)
- 
+
 def strbitxor(a,b):
     a = bytearray(a)
     b = bytearray(b)
@@ -146,34 +141,3 @@ def decrypt(ciphertext, key):
     cipher = AES.new(key, AES.MODE_GCM, nonce = nonce)
     cipher_text = bytes(ciphertext[AES.block_size:-AES.block_size])
     return _strip_pad(cipher.decrypt_and_verify(cipher_text, digest))
- 
-def main():
-    message = b"a secret message!"
-    print "testing crypto..."
-     
-    key = rsa_generate(2048)
-    pubkeypem = rsa_export_pubkey(key)
-    print pubkeypem
-    pubkey = rsa_import_pubkey(pubkeypem)
-     
-    keypem = rsa_export_privkey(key)
-    print keypem
-    key = rsa_import_privkey(keypem)
-     
-    ciphertext = rsa_encrypt(pubkey, message)
-    plain = rsa_decrypt(key, ciphertext)
-    print "rsa test %s"%(plain==message)
- 
-    aeskey = kdf(message,'salty-McSaltface')
-    ciphertext = encrypt(message,aeskey)
-    print "aes ciphertext %s"%ciphertext
-    plaintext = decrypt(ciphertext,aeskey)    
-    print "aes test passed %s"%(plaintext==message)
-     
-    digest = do_hmac(aeskey,message)
-    print digest
-    aeskey2 = kdf(message,'salty-McSaltface')
-    print "hmac test passed %s"%(do_hmac(aeskey2,message)==digest)
-     
-if __name__=="__main__":
-    main()

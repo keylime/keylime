@@ -110,6 +110,9 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=['pycryptodomex>=3.4.1','tornado>=4.3','m2crypto>=0.21.1','pyzmq>=14.4'],
+    
+    # test packages required
+    tests_require=['green','coverage'],   
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

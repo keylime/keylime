@@ -65,7 +65,6 @@ class KeylimeDB():
         os.chmod(self.db_filename,0o600)
         
     def print_db(self):
-        return
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
             cur.execute('SELECT * FROM main')
@@ -110,7 +109,6 @@ class KeylimeDB():
             if d[item] is not None and isinstance(d[item],basestring):
                 d[item] = json.loads(d[item])
                                       
-        self.print_db()
         return d
 
     def remove_instance(self,instance_id):
@@ -123,7 +121,6 @@ class KeylimeDB():
             cur.execute('DELETE FROM main WHERE instance_id=?',(instance_id,))
             conn.commit()
         
-        self.print_db()
         return True
         
     def update_instance(self,instance_id, key, value):
@@ -138,7 +135,6 @@ class KeylimeDB():
             cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(value,instance_id))
             conn.commit()
         
-        self.print_db()
         return
     
     def update_all_instances(self,key,value):
@@ -152,7 +148,6 @@ class KeylimeDB():
                 value = json.dumps(value)
             cur.execute('UPDATE main SET %s = ?'%key,(value,))
             conn.commit()
-        self.print_db()
         return
        
     def get_instance(self,instance_id):
@@ -199,6 +194,5 @@ class KeylimeDB():
                 else:
                     cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(instance[key],instance_id))
             conn.commit()
-        self.print_db()
         return
     

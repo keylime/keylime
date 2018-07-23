@@ -118,7 +118,7 @@ def cmd_mkcert(workingdir,name):
         if cc.verify(cacert.get_pubkey()):
             logger.info("Created certificate for name %s successfully in %s"%(name,workingdir))
         else:
-            logger.errro("ERROR: Cert does not validate against CA")
+            logger.error("ERROR: Cert does not validate against CA")
     finally:
         os.chdir(cwd)
 
@@ -449,7 +449,7 @@ def read_private():
 
 def main(argv=sys.argv):
     parser = argparse.ArgumentParser(argv[0])
-    parser.add_argument('-c', '---command',action='store',dest='command',required=True,help="valid commands are init,create,pkg,revoke,listen")
+    parser.add_argument('-c', '--command',action='store',dest='command',required=True,help="valid commands are init,create,pkg,revoke,listen")
     parser.add_argument('-n', '--name',action='store',help='the common name of the certificate to create')
     parser.add_argument('-d','--dir',action='store',help='use a custom directory to store certificates and keys')
     parser.add_argument('-i','--insecure',action='store_true',default=False,help='create cert packages with unprotected private keys and write them to disk.  USE WITH CAUTION!')

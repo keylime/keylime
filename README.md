@@ -30,6 +30,8 @@ have been updated to correct this typo.
 
 ## Installation
 
+***Note***: *The TPM 4720 tools require v1.0 of the OpenSSL development library, and will not compile with the newer v1.1 version!  On more recent operating systems (such as Ubuntu 18+ and Fedora 27+), you will need to update the installer to specify v1.0 instead (e.g., `compat-openssl10-devel` for RPMs or `libssl1.0-dev` for APT).*
+
 ### Automated
 
 keylime requires Python 2.7.10 or newer for proper TLS support.  

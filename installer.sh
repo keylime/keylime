@@ -119,7 +119,15 @@ echo "==========================================================================
 echo $'\t\t\tInstalling python & crypto libs'
 echo "=================================================================================="
 $PACKAGE_MGR install -y $PYTHON_PREIN
+if [[ $? > 0 ]] ; then
+    echo "ERROR: Package(s) failed to install properly!"
+    exit 1
+fi
 $PACKAGE_MGR install -y $PYTHON_DEPS
+if [[ $? > 0 ]] ; then
+    echo "ERROR: Package(s) failed to install properly!"
+    exit 1
+fi
 pip install $PYTHON_PIPS
 
 
@@ -312,15 +320,19 @@ echo $'\t\t\t\tBuild and install tpm4720'
 echo "=================================================================================="
 # Create temp dir for building tpm 
 TMPDIR=`mktemp -d` || exit 1
-echo -n "INFO: Using temp tpm directory: "
-echo $TMPDIR
+echo "INFO: Using temp tpm directory: $TMPDIR"
 
 $PACKAGE_MGR -y install $BUILD_TOOLS
+if [[ $? > 0 ]] ; then
+    echo "ERROR: Package(s) failed to install properly!"
+    exit 1
+fi
 mkdir -p $TMPDIR/tpm4720
 cd $TMPDIR/tpm4720
 git clone $TPM4720_GIT tpm4720-keylime
 cd $TMPDIR/tpm4720/tpm4720-keylime
 git checkout $TPM4720_VER
+
 # Install tpm4720
 cd tpm
 make -f makefile-tpm

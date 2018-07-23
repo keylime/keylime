@@ -27,7 +27,7 @@ if [[ -n "$(command -v yum)" ]]; then
     PACKAGE_MGR=$(command -v yum)
     PACKAGE_INSP="rpm -ql"
     PYTHON_PREIN="epel-release git gcc" #note: gcc is required for pip to build m2crypto 
-    PYTHON_DEPS="python python-pip upx python-devel python-setuptools czmq-devel python-zmq openssl-devel"
+    PYTHON_DEPS="python python-pip upx python-devel python-setuptools czmq-devel zeromq-devel python-zmq openssl-devel"
     PYTHON_PIPS="pyinstaller m2crypto tornado"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)

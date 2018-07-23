@@ -637,7 +637,7 @@ class Tenant():
 
 def main(argv=sys.argv):    
     parser = argparse.ArgumentParser(argv[0])
-    parser.add_argument('-c', '---command',action='store',dest='command',default='add',help="valid commands are add,delete,status,reactivate,regdelete. defaults to add")
+    parser.add_argument('-c', '--command',action='store',dest='command',default='add',help="valid commands are add,delete,status,reactivate,regdelete. defaults to add")
     parser.add_argument('-t', '--targethost',action='store',dest='node_ip',help="the IP address of the host to provision")
     parser.add_argument('--cv_targethost',action='store',default=None,dest='cv_node_ip',help='the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost')
     parser.add_argument('-v', '--cv',action='store',dest='verifier_ip',help="the IP address of the cloud verifier")
