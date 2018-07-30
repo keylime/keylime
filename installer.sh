@@ -169,7 +169,7 @@ else
     # Ensure Python pycryptodomex installed meets min requirements 
     pycdom_ver=$(pip freeze | grep pycryptodomex | cut -d"=" -f3)
     if ! $(version_checker "$MIN_PYCRYPTODOMEX_VERSION" "$pycdom_ver"); then
-        confirm_force_install "ERROR: Minimum python-pycryptodomex version is $MIN_PYM2CRYPTO_VERSION, but $pycdom_ver is installed!" || exit 1
+        confirm_force_install "ERROR: Minimum python-pycryptodomex version is $MIN_PYCRYPTODOMEX_VERSION, but $pycdom_ver is installed!" || exit 1
     fi
 fi
 
