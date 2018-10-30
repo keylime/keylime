@@ -27,7 +27,7 @@ TPM4720_GIT=https://github.com/mit-ll/tpm4720-keylime.git
 GOLANG_SRC=https://dl.google.com/go
 KEYLIME_VER="master"
 TPM4720_VER="master"
-GOLANG_VER="1.10"
+GOLANG_VER="1.11.1"
 
 # Minimum version requirements 
 MIN_PYTHON_VERSION="2.7.10"
