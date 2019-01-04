@@ -14,4 +14,9 @@ before_install:
   - 'sudo docker pull ${image}:${tag}'
 
 script:
-  - docker run --privileged -v $(pwd):/root/python-keylime -it lukehinds/keylime-ci:v01 /bin/sh -c 'cd /root/python-keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh'
+  - |
+    docker run
+    --privileged
+    -v $(pwd):/root/python-keylime
+    -it lukehinds/keylime-ci:v01 /bin/sh
+    -c 'cp /root/python-keylime/keylime.conf / /etc/keylime.conf cd /root/python-keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh'
