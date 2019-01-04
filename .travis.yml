@@ -1,5 +1,4 @@
-language: python
-
+---
 sudo: required
 
 env:
@@ -13,4 +12,5 @@ before_install:
   - 'sudo docker pull ${image}:${tag}'
 
 script:
-  - "sudo docker run -t -i --privileged ${image}:${tag} /bin/sh -c /'cd /root/python-keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh/'"
+  - container_id=$(mktemp)
+  - 'sudo docker run -t -i --privileged ${image}:${tag} /bin/sh -c 'cd /root/python-keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh'
