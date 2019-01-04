@@ -3,10 +3,6 @@ language: ruby
 
 sudo: required
 
-env:
-  - image: lukehinds/keylime-ci
-    tag: v01
-
 services:
   - docker
 
@@ -14,4 +10,4 @@ before_install:
   - 'sudo docker pull ${image}:${tag}'
 
 script:
-  - docker run --privileged -v $(pwd):/root/python-keylime -it $(image):$(tag) /bin/sh -c 'cd /root/python-keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh'
+  - docker run --privileged -v $(pwd):/root/python-keylime -it lukehinds/keylime-ci:v01 /bin/sh -c 'cd /root/python-keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh'
