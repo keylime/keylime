@@ -3,6 +3,10 @@ language: ruby
 
 sudo: required
 
+env:
+  - image: lukehinds/keylime-ci
+    tag: v01
+
 services:
   - docker
 
