@@ -3,7 +3,7 @@ sudo: required
 
 env:
   - image: lukehinds/keylime-ci
-    tag: latest
+    tag: v01
 
 services:
   - docker
