@@ -1,4 +1,4 @@
-STRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
+# DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 #
 # This material is based upon work supported by the Assistant Secretary of Defense for
 # Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
@@ -32,30 +32,46 @@ UMODE_OPT=""
 COVERAGE=0
 COVERAGE_DIR=`pwd`
 unset COVERAGE_FILE
-while getopts ":chu" opt; do
+
+for opt in "$@"; do
+  shift
+  case "$opt" in
+    "--ssl") set -- "$@" "-s" ;;
+    *)       set -- "$@" "$opt"
+  esac
+done
+
+while getopts ":cuhs:" opt; do
     case $opt in
-        c)
+        c) 
             COVERAGE=1
             export COVERAGE_DIR=`mktemp -d`
             export COVERAGE_FILE=$COVERAGE_DIR/.coverage
             echo "INFO: Using Coverage directory: $COVERAGE_DIR"
             ;;
-        u)
+        u)  
             USER_MODE=1
             UMODE_OPT="--user"
             export KEYLIME_TEST=True
+            ;;
+        s)
+            CA_IMP="$OPTARG"
+            case $CA_IMP in
+                (openssl|cfssl) ;; # OK
+                (*) printf >&2 "Invalid: CA Implementation \"$CA_IMP\". Options are openssl or cfssl \n"; exit 1;;
+                esac
             ;;
         h)
             echo "Usage: $0 [option...]"
             echo "Options:"
             echo $'-c \t\t Run Coverage scans'
             echo $'-u \t\t Run in user (non-root) mode'
+            echo $'-s ssl \t\t Select CA implementation (openssl|cfssl)'
             echo $'-h \t\t This help info'
             exit
             ;;
     esac
 done
-
 
 # Permissions-related sanity checking
 if [[ "$USER_MODE" -eq "0" && $EUID -ne 0 ]]; then
@@ -64,7 +80,7 @@ if [[ "$USER_MODE" -eq "0" && $EUID -ne 0 ]]; then
 fi
 
 if [[ "$USER_MODE" -eq "1" && $EUID -eq 0 ]]; then
-   echo "It is not recommended to run as root in non-root mode!" 1>&2
+   echo "It is not recommended to run as root in user mode!" 1>&2
    exit 1
 fi
 
@@ -73,6 +89,23 @@ fi
 if [[ ! -d "$KEYLIME_DIR/test" || ! -d "$KEYLIME_DIR/keylime" ]] ; then
     echo "ERROR: Invalid keylime directory at $KEYLIME_DIR"
     exit 1
+fi
+
+# Copy keyline.conf into place
+if [ ! -f "/etc/keylime.conf" ]; then
+    if [ "$USER_MODE" == "1" ]; then
+        echo -e "keylime.conf cannot be copied as a non-root user, please copy keylime.conf to etc/ and restart script"
+        exit 1
+    else
+        echo -e "Copying keylime.conf into /etc/keylime.conf"
+        cp -n $KEYLIME_DIR/keylime.conf /etc/keylime.conf
+        if [ "$CA_IMP" == "openssl" ]; then
+            echo -e "Setting CA Implementation to OpenSSL"
+            sed -i 's/ca_implementation = cfssl/ca_implementation = openssl/g' /etc/keylime.conf
+        elif [ "$CA_IMP" == "cfssl" ]; then
+            $PACKAGE_MGR install -y golang
+        fi
+    fi     
 fi
 
 
@@ -111,8 +144,7 @@ echo
 echo "=================================================================================="
 echo $'\t\t\tInstalling test requirements'
 echo "=================================================================================="
-pip install $UMODE_OPT -r $KEYLIME_DIR/test/test-requirements.yml
-
+pip install $UMODE_OPT -r $KEYLIME_DIR/test/test-requirements.txt
 
 
 # Run the tests as necessary
