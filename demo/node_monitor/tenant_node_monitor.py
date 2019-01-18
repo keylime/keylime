@@ -22,7 +22,7 @@ violate any copyrights that exist in this work.
 # wget  --ca-certificate=/var/lib/keylime/secure/unzipped/cacert.crt --post-data '{}' 
 #       --certificate=/var/lib/keylime/secure/unzipped/D432FBB3-D2F1-4A97-9EF7-75BD81C00000-cert.crt 
 #       --private-key=/var/lib/keylime/secure/unzipped/D432FBB3-D2F1-4A97-9EF7-75BD81C00000-private.pem
-#        https://localhost:6892/v2/instances/D432FBB3-D2F1-4A97-9EF7-75BD81C00000
+#        https://localhost:6892/instances/D432FBB3-D2F1-4A97-9EF7-75BD81C00000
 
 import sys
 sys.path.insert(0, '../../keylime/')
@@ -70,7 +70,7 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
 
 class InstancesHandler(BaseHandler):  
     def head(self):
@@ -80,7 +80,7 @@ class InstancesHandler(BaseHandler):
     def get(self):
         """This method handles the GET requests to retrieve status on instances from the Node Monitor. 
         
-        Currently, only instances resources are available for GETing, i.e. /v2/instances. All other GET uri's 
+        Currently, only instances resources are available for GETing, i.e. /instances. All other GET uri's 
         will return errors. instances requests require a single instance_id parameter which identifies the 
         instance to be returned. If the instance_id is not found, a 404 response is returned.  If the instance_id
         was not found, it either completed successfully, or failed.  If found, the instance_id is still polling 
@@ -91,7 +91,7 @@ class InstancesHandler(BaseHandler):
     def delete(self):
         """This method handles the DELETE requests to remove instances from the Node Monitor. 
          
-        Currently, only instances resources are available for DELETEing, i.e. /v2/instances. All other DELETE uri's will return errors.
+        Currently, only instances resources are available for DELETEing, i.e. /instances. All other DELETE uri's will return errors.
         instances requests require a single instance_id parameter which identifies the instance to be deleted.    
         """
         common.echo_json_response(self, 405, "DELETE not supported")
@@ -99,7 +99,7 @@ class InstancesHandler(BaseHandler):
     def post(self):
         """This method handles the POST requests to add instances to the Node Monitor. 
          
-        Currently, only instances resources are available for POSTing, i.e. /v2/instances. All other POST uri's will return errors.
+        Currently, only instances resources are available for POSTing, i.e. /instances. All other POST uri's will return errors.
         instances requests require a json block sent in the body
         """
         logger.info('Node Monitor POST')
@@ -157,7 +157,7 @@ class InstancesHandler(BaseHandler):
     def put(self):
         """This method handles the PUT requests to add instances to the Node Monitor. 
          
-        Currently, only instances resources are available for PUTing, i.e. /v2/instances. All other PUT uri's will return errors.
+        Currently, only instances resources are available for PUTing, i.e. /instances. All other PUT uri's will return errors.
         instances requests require a json block sent in the body
         """
         common.echo_json_response(self, 405, "PUT not supported")
@@ -216,7 +216,7 @@ def main(argv=sys.argv):
 
     app = tornado.web.Application([
         (r"/", MainHandler),                      
-        (r"/v2/instances/.*", InstancesHandler),
+        (r"/(?:v[0-9]/)?instances/.*", InstancesHandler),
         ])
     
     context = init_mtls(vars(args))

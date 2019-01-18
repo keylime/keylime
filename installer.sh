@@ -25,9 +25,14 @@
 KEYLIME_GIT=https://github.com/mit-ll/python-keylime.git
 TPM4720_GIT=https://github.com/mit-ll/tpm4720-keylime.git
 GOLANG_SRC=https://dl.google.com/go
+TPM2TSS_GIT=https://github.com/tpm2-software/tpm2-tss.git
+TPM2TOOLS_GIT=https://github.com/mit-ll/tpm2-tools.git
+TPM2SIM_SRC=http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/download
 KEYLIME_VER="master"
 TPM4720_VER="master"
-GOLANG_VER="1.11.1"
+GOLANG_VER="1.11.4"
+TPM2TSS_VER="master"
+TPM2TOOLS_VER="master"
 
 # Minimum version requirements 
 MIN_PYTHON_VERSION="2.7.10"
@@ -56,18 +61,32 @@ confirm_force_install () {
 
 
 # Which package management system are we using? 
-if [[ -n "$(command -v yum)" ]]; then
+if [[ -n "$(command -v dnf)" || -n "$(command -v yum)" ]]; then
+    if [[ -n "$(command -v dnf)" ]]; then
+        PACKAGE_MGR=$(command -v dnf)
+    elif [[ -n "$(command -v yum)" ]]; then
+        PACKAGE_MGR=$(command -v yum)
+    fi 
+    
+    # Only install epel-release if it is available (e.g., not Fedora)
+    EXTRA_PKGS_STR=
+    if [[ -n "$($PACKAGE_MGR search epel-release 2>/dev/null)" ]]; then
+        EXTRA_PKGS_STR="epel-release python python-devel python-setuptools"
+    else
+        EXTRA_PKGS_STR="python2 python2-devel python2-setuptools"
+    fi
+    
     PACKAGE_MGR=$(command -v yum)
-    PYTHON_PREIN="epel-release git wget"
-    PYTHON_DEPS="python python-pip python-devel python-setuptools python-zmq gcc openssl-devel"
-    PYTHON_PIPS="pycryptodomex m2crypto tornado"
-    BUILD_TOOLS="openssl-devel libtool gcc automake gcc-c++"
+    PYTHON_PREIN="$EXTRA_PKGS_STR git wget patch"
+    PYTHON_DEPS="python2-pip gcc gcc-c++ openssl-devel swig"
+    PYTHON_PIPS="pycryptodomex m2crypto tornado pyzmq"
+    BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel python2-pyyaml doxygen"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
-    PYTHON_PREIN="git"
-    PYTHON_DEPS="python python-pip python-dev python-setuptools python-m2crypto python-zmq"
-    PYTHON_PIPS="pycryptodomex tornado"
-    BUILD_TOOLS="build-essential libssl-dev libtool automake"
+    PYTHON_PREIN="git patch"
+    PYTHON_DEPS="python python-pip python-dev python-setuptools python-zmq gcc g++ libssl-dev swig"
+    PYTHON_PIPS="pycryptodomex m2crypto tornado"
+    BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib python-yaml doxygen libdbus-1-dev"
 else
    echo "No recognized package manager found on this system!" 1>&2
    exit 1
@@ -80,7 +99,8 @@ KEYLIME_DIR=
 OPENSSL=0
 TARBALL=0
 TPM_SOCKET=0
-while getopts ":shortkp:" opt; do
+TPM_VERSION=1
+while getopts ":shotkmp:" opt; do
     case $opt in
         k) STUB=1 ;;
         p) 
@@ -92,6 +112,7 @@ while getopts ":shortkp:" opt; do
             ;;
         o) OPENSSL=1 ;;
         t) TARBALL=1 ;;
+        m) TPM_VERSION=2 ;;
         s) TPM_SOCKET=1 ;;
         h) 
             echo "Usage: $0 [option...]"
@@ -99,7 +120,8 @@ while getopts ":shortkp:" opt; do
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
             echo $'-o \t\t\t\t Use OpenSSL instead of CFSSL'
             echo $'-t \t\t\t\t Create tarball with keylime_node'
-            echo $'-s \t\t\t\t Install TPM 4720 in socket mode (vs. chardev)'
+            echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
+            echo $'-s \t\t\t\t Install TPM in socket/simulator mode (vs. chardev)'
             echo $'-p PATH \t\t\t Use PATH as Keylime path'
             echo $'-h \t\t\t\t This help info'
             exit
@@ -313,11 +335,12 @@ else
 fi
 
 
-# Build tpm4720
+# Prepare to build TPM libraries
 echo 
 echo "=================================================================================="
-echo $'\t\t\t\tBuild and install tpm4720'
+echo $'\t\t\tInstalling TPM libraries'
 echo "=================================================================================="
+
 # Create temp dir for building tpm 
 TMPDIR=`mktemp -d` || exit 1
 echo "INFO: Using temp tpm directory: $TMPDIR"
@@ -327,46 +350,144 @@ if [[ $? > 0 ]] ; then
     echo "ERROR: Package(s) failed to install properly!"
     exit 1
 fi
-mkdir -p $TMPDIR/tpm4720
-cd $TMPDIR/tpm4720
-git clone $TPM4720_GIT tpm4720-keylime
-cd $TMPDIR/tpm4720/tpm4720-keylime
-git checkout $TPM4720_VER
+mkdir -p $TMPDIR/tpm
+cd $TMPDIR/tpm
 
-# Install tpm4720
-cd tpm
-make -f makefile-tpm
-install -c tpm_server /usr/local/bin/tpm_server
-cd ../libtpm
-if [[ "$TPM_SOCKET" -eq "1" ]] ; then
-    chmod +x comp-sockets.sh
-    ./comp-sockets.sh
-else 
-    chmod +x comp-chardev.sh
-    ./comp-chardev.sh
+if [[ "$TPM_VERSION" -eq "1" ]] ; then
+    echo 
+    echo "=================================================================================="
+    echo $'\t\t\t\tBuild and install tpm4720'
+    echo "=================================================================================="
+    git clone $TPM4720_GIT tpm4720-keylime
+    pushd tpm4720-keylime
+    git checkout $TPM4720_VER
+
+    # Install tpm4720
+    pushd tpm
+    make -f makefile-tpm
+    install -c tpm_server /usr/local/bin/tpm_server
+    popd # tpm/tpm4720-keylime
+    pushd libtpm
+    if [[ "$TPM_SOCKET" -eq "1" ]] ; then
+        chmod +x comp-sockets.sh
+        ./comp-sockets.sh
+    else 
+        chmod +x comp-chardev.sh
+        ./comp-chardev.sh
+    fi
+    make install
+    popd # tpm/tpm4720-keylime
+elif [[ "$TPM_VERSION" -eq "2" ]] ; then
+    echo 
+    echo "=================================================================================="
+    echo $'\t\t\t\tBuild and install tpm2-tss'
+    echo "=================================================================================="
+    git clone $TPM2TSS_GIT tpm2-tss
+    pushd tpm2-tss
+    git checkout $TPM2TSS_VER
+    ./bootstrap -I /usr/share/gnulib/m4
+    ./configure --prefix=/usr
+    make
+    make install
+    popd # tpm
+    
+    # Example installation instructions for using the tpm2-abrmd resource 
+    # manager for Ubuntu 18 LTS. The tools and Keylime could run without this
+    # by directly communicating with the TPM (though not recommended) by setting: 
+    # for swtpm2 emulator:
+    #   export TPM2TOOLS_TCTI="mssim:port=2321"
+    # for chardev communication:
+    #   export TPM2TOOLS_TCTI="device:/dev/tpm0"
+    #
+    # sudo useradd --system --user-group tss
+    # git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
+    # pushd tpm2-abrmd
+    # ./bootstrap
+    # ./configure --with-dbuspolicydir=/etc/dbus-1/system.d \
+    #             --with-systemdsystemunitdir=/lib/systemd/system \
+    #             --with-systemdpresetdir=/lib/systemd/system-preset \
+    #             --datarootdir=/usr/share
+    # make
+    # sudo make install
+    # sudo ldconfig
+    # sudo pkill -HUP dbus-daemon
+    # sudo systemctl daemon-reload
+    # sudo service tpm2-abrmd start
+    # export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
+    #
+    # NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as: 
+    # sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
+    
+    echo 
+    echo "=================================================================================="
+    echo $'\t\t\t\tBuild and install tpm2-tools'
+    echo "=================================================================================="
+    git clone $TPM2TOOLS_GIT tpm2-tools
+    pushd tpm2-tools
+    git checkout $TPM2TOOLS_VER
+    ./bootstrap
+    ./configure --prefix=/usr/local
+    make
+    make install
+    popd # tpm
+    
+    if [[ "$TPM_SOCKET" -eq "1" ]] ; then
+        echo 
+        echo "=================================================================================="
+        echo $'\t\t\t\tBuild and install TPM2 simulator'
+        echo "=================================================================================="
+        
+        # Download and unpack swtpm2
+        TMPFILE=`mktemp -t swtpm2.XXXXXXXXXX.tar.gz` || exit 1
+        wget "$TPM2SIM_SRC" -O $TMPFILE
+        if [[ $? -ne 0 ]] ; then
+            echo "ERROR: Failed to download TPM2 simulator!"
+            exit 1
+        fi
+        mkdir swtpm2
+        tar -C ./swtpm2 -xzf $TMPFILE
+        pushd swtpm2
+        
+        # Copy over necessary files
+        mkdir scripts
+        cp $KEYLIME_DIR/swtpm2_scripts/* scripts/
+        
+        # Begin building and installing swtpm2
+        pushd src
+        make
+        install -c tpm_server /usr/local/bin/tpm_server
+        
+        popd # tpm/swtpm2
+    fi
+else
+    echo "ERROR: Invalid TPM version chosen: '$TPM_VERSION'"
+    exit 1
 fi
-make install
-
 if [[ "$TPM_SOCKET" -eq "1" ]] ; then
-    cd ../scripts
+    pushd scripts
+    
+    # Ensure everything is executable
+    chmod +x init_tpm_server
+    chmod +x tpm_serverd
+    
+    # Install scripts
     install -c tpm_serverd /usr/local/bin/tpm_serverd
     install -c init_tpm_server /usr/local/bin/init_tpm_server
     
-    # clear TPM on first use
+    # Clear TPM on first use
     init_tpm_server 
     
     # Start tpm4720
     echo 
     echo "=================================================================================="
-    echo $'\t\t\t\tStart tpm4720'
+    echo $'\t\t\t\tStart TPM emulator'
     echo "=================================================================================="
-    chmod +x init_tpm_server
-    chmod +x tpm_serverd
     # starts emulator and IMA stub at boot
     cd $KEYLIME_DIR/ima_stub_service
     ./installer.sh
     service tpm_emulator restart
 fi
+
 
 # Install keylime
 echo 
@@ -376,8 +497,8 @@ echo "==========================================================================
 cd $KEYLIME_DIR
 python setup.py install
 
-if [ -f /etc/keylime.conf ] ; then
-    if ! cmp -s /etc/keylime.conf keylime.conf ; then
+if [[ -f "/etc/keylime.conf" ]] ; then
+    if [[ $(diff -N "/etc/keylime.conf" "keylime.conf") ]] ; then
         echo "Modified keylime.conf found in /etc/, creating /etc/keylime.conf.new instead"
         cp keylime.conf /etc/keylime.conf.new
     fi
@@ -393,7 +514,9 @@ if [[ "$TARBALL" -eq "1" ]] ; then
     echo $'\t\t\t\tGenerate node tarball'
     echo "=================================================================================="
     cd $KEYLIME_DIR/keylime
-    ./make_node_bundle_tarball.sh
+    TAR_BUNDLE_FLAGS=""
+    if [[ "$TPM_VERSION" -eq "2" ]] ; then
+        TAR_BUNDLE_FLAGS="-m"
+    fi
+    ./make_node_bundle_tarball.sh $TAR_BUNDLE_FLAGS
 fi
-
-

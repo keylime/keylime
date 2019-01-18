@@ -4,7 +4,8 @@ A python library to make friends of TPMs and Clouds.
 
 * Executive summary Keylime slides: [doc/keylime-elevator-slides.pptx](https://github.com/mit-ll/python-keylime/raw/master/doc/keylime-elevator-slides.pptx)
 * See ACSAC 2016 paper in doc directory: [doc/tci-acm.pdf](https://github.com/mit-ll/python-keylime/blob/master/doc/tci-acm.pdf)
-* Presentation on keylime: [doc/llsrc-keylime-acsac-v6.pptx](https://github.com/mit-ll/python-keylime/raw/master/doc/llsrc-keylime-acsac-v6.pptx)
+  * and the ACSAC presentation on keylime: [doc/llsrc-keylime-acsac-v6.pptx](https://github.com/mit-ll/python-keylime/raw/master/doc/llsrc-keylime-acsac-v6.pptx)
+* See the HotCloud 2018 paper: [doc/hotcloud18.pdf](https://github.com/mit-ll/python-keylime/blob/master/doc/hotcloud18.pdf)
 * Details about Keylime REST API: [doc/keylime RESTful API.docx](https://github.com/mit-ll/python-keylime/raw/master/doc/keylime%20RESTful%20API.docx)
 
 ### Errata from the ACSAC Paper
@@ -42,7 +43,8 @@ Options:
 -k              Download Keylime (stub installer mode)
 -o              Use OpenSSL instead of CFSSL
 -t              Create tarball with keylime_node
--s              Install TPM 4720 in socket mode (vs. chardev)
+-m              Use modern TPM 2.0 libraries (vs. TPM 1.2)
+-s              Install TPM in socket/simulator mode (vs. chardev)
 -p PATH         Use PATH as Keylime path
 -h              This help info
 ```
@@ -74,18 +76,15 @@ On CentOS: `yum install -y python-devel python-setuptools python-tornado python-
 
 #### TPM utility prerequisites
 
+##### TPM 1.2 Support
+
 You also need a patched version of tpm4720 the IBM software TPM emulator and 
 utilities.  This is available at https://github.com/mit-ll/tpm4720-keylime.  See 
 README.md in that project for detailed instructions on how to build and install it.  
 
-The brief synopsis of a quick build/install is:
+The brief synopsis of a quick build/install (after installing dependencies) is:
 
-On Ubuntu: `apt-get -y install build-essential libssl-dev libtool automake`
-
-On CentOS: `yum install -y openssl-devel libtool gcc automake`
-
-then clone, build, and install with:
-```
+```bash
 git clone https://github.com/mit-ll/tpm4720-keylime.git
 cd tpm4720-keylime/libtpm
 ./comp-chardev.sh
@@ -95,10 +94,78 @@ sudo make install
 To ensure that you have the patched version installed ensure that you have 
 the `encaik` utility in your path.
 
+##### TPM 2.0 Support
+
+Keylime uses the Intel TPM2 software set to provide TPM 2.0 support.  You will 
+need to install the tpm2-tss software stack (available at 
+https://github.com/tpm2-software/tpm2-tss) as well as a patched version of the 
+tpm2-tools utilities available at https://github.com/mit-ll/tpm2-tools. See 
+README.md in these projects for detailed instructions on how to build and install. 
+
+The brief synopsis of a quick build/install (after installing dependencies) is:
+
+```bash
+git clone https://github.com/tpm2-software/tpm2-tss.git tpm2-tss
+pushd tpm2-tss
+./bootstrap -I /usr/share/gnulib/m4
+./configure --prefix=/usr
+make
+sudo make install
+popd
+
+git clone https://github.com/mit-ll/tpm2-tools.git tpm2-tools
+pushd tpm2-tools
+./bootstrap
+./configure --prefix=/usr/local
+make
+sudo make install
+```
+
+To ensure that you have the patched version installed ensure that you have 
+the `tpm2_checkquote` utility in your path.
+
+###### TPM 2.0 Resource Manager
+
+Note that it is recommended that you use the tpm2-abrmd resource manager 
+(available at https://github.com/tpm2-software/tpm2-abrmd) as well instead of 
+communicating directly with the TPM.  See README.md at that project for 
+detailed instructions on how to build and install. 
+
+A brief, workable example for Ubuntu 18 LTS systems is:
+
+```bash
+sudo useradd --system --user-group tss
+git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
+pushd tpm2-abrmd
+./bootstrap
+./configure --with-dbuspolicydir=/etc/dbus-1/system.d \
+            --with-systemdsystemunitdir=/lib/systemd/system \
+            --with-systemdpresetdir=/lib/systemd/system-preset \
+            --datarootdir=/usr/share
+make
+sudo make install
+sudo ldconfig
+sudo pkill -HUP dbus-daemon
+sudo systemctl daemon-reload
+sudo service tpm2-abrmd start
+export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
+
+# NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as: 
+sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
+```
+
+Alternatively, it is also possible, though not recommended, to communicate 
+directly with the TPM (and not use a resource manager).  This can be done by 
+setting the environment var `TPM2TOOLS_TCTI` to the appropriate value: 
+
+For swtpm2 emulators: `export TPM2TOOLS_TCTI="mssim:port=2321"`
+
+For chardev communication: `export TPM2TOOLS_TCTI="device:/dev/tpm0"`
+
 #### Install Keylime
 
 You're finally ready to install keylime!
-```
+```bash
 sudo python setup.py install
 ```
 
@@ -106,7 +173,7 @@ sudo python setup.py install
 
 You need to build m2crypto from source with 
 
-```
+```bash
 brew install openssl
 git clone https://gitlab.com/m2crypto/m2crypto.git
 python setup.py build build_ext --openssl=/usr/local/opt/openssl/
@@ -121,9 +188,9 @@ will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc
 
 ## Making sure your TPM is ready for keylime
 
-The above instructions for installing tpm4720 will be configured to talk to /dev/tpm0.  If 
-this device is not on your system, then you may need to build/install TPM support for 
-your kernel.  You can use: 
+The above instructions for installing the TPM libraries will be configured 
+to talk to /dev/tpm0.  If this device is not on your system, then you may need 
+to build/install TPM support for your kernel.  You can use: 
 
 `dmesg | grep -i tpm`
 
@@ -284,7 +351,7 @@ directory, unless IPsec configuration is being used (see [Additional Reading](#a
 
 ## License
 
-Copyright (c) 2015 Massachusetts Institute of Technology.
+Copyright (c) 2019 Massachusetts Institute of Technology.
 
 All rights reserved.
 

@@ -20,12 +20,15 @@ violate any copyrights that exist in this work.
 
 import sys
 import ima
-import tpm_exec
 import common    
 import select
 import time
 import hashlib
-from keylime import tpm_initialize
+from tpm_abstract import *
+import tpm_obj
+
+# get the tpm object
+tpm = tpm_obj.getTPM(need_hw_tpm=True)
 
 def ml_extend(ml,position,searchHash=None):
     f = open(ml,'r')
@@ -55,7 +58,8 @@ def ml_extend(ml,position,searchHash=None):
         
         if searchHash is None:
             print "extending hash %s for %s"%(template_hash,path)
-            tpm_exec.run("extend -ix %s -ih %s"%(common.IMA_PCR,template_hash))
+            #TODO: Add support for other hash algorithms
+            tpm.extendPCR(common.IMA_PCR, template_hash, Hash_Algorithms.SHA1)
         else:
             runninghash = hashlib.sha1(runninghash+template_hash.decode('hex')).digest()
             if runninghash.encode('hex') == searchHash:
@@ -68,19 +72,18 @@ def ml_extend(ml,position,searchHash=None):
     
     return position+len(rest)
 
- 
+
 def main(argv=sys.argv):
     
-    if tpm_initialize.get_tpm_manufacturer() != 'IBM':
-        raise Exception("This stub should only be used with the IBM TPM emulator")
+    if not tpm.is_emulator():
+        raise Exception("This stub should only be used with a TPM emulator")
 
     # initialize position in ML
     pos=0
 
     # check if pcr is clean
-    output = tpm_exec.run("pcrread -ix %s"%common.IMA_PCR)[0]
-    pcrval = output[0].split()[5]
-    
+    pcrval = tpm.readPCR(common.IMA_PCR, Hash_Algorithms.SHA1)
+
     if pcrval != ima.START_HASH.encode('hex'):
         print "Warning: IMA PCR is not empty, trying to find the last updated file in the measurement list..."
         pos = ml_extend(common.IMA_ML, 0, pcrval)

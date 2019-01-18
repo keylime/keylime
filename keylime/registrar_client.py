@@ -99,7 +99,7 @@ def getKeys(registrar_ip,registrar_port,instance_id):
     
     try:
         response = tornado_requests.request("GET",
-                                            "http://%s:%s/v2/instances/%s"%(registrar_ip,registrar_port,instance_id),
+                                            "http://%s:%s/instances/%s"%(registrar_ip,registrar_port,instance_id),
                                             context=context)
         
         response_body = response.json()
@@ -124,16 +124,19 @@ def getKeys(registrar_ip,registrar_port,instance_id):
         
     return None
 
-def doRegisterNode(registrar_ip,registrar_port,instance_id,pub_ek,ekcert,pub_aik):
+def doRegisterNode(registrar_ip,registrar_port,instance_id,tpm_version,pub_ek,ekcert,pub_aik,pub_ek_tpm=None,aik_name=None):
     data = {
     'ek': pub_ek,
     'ekcert': ekcert,
     'aik': pub_aik,
+    'aik_name': aik_name,
+    'ek_tpm': pub_ek_tpm,
+    'tpm_version': tpm_version,
     }
     v_json_message = json.dumps(data)
     
     response = tornado_requests.request("POST",
-                                        "http://%s:%s/v2/instances/%s"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/instances/%s"%(registrar_ip,registrar_port,instance_id),
                                         data=v_json_message,
                                         context=None)
 
@@ -165,7 +168,7 @@ def doActivateNode(registrar_ip,registrar_port,instance_id,key):
     v_json_message = json.dumps(data)
     
     response = tornado_requests.request("PUT",
-                                        "http://%s:%s/v2/instances/%s/activate"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/instances/%s/activate"%(registrar_ip,registrar_port,instance_id),
                                         data=v_json_message,
                                         context=None)
 
@@ -185,7 +188,7 @@ def doActivateVirtualNode(registrar_ip,registrar_port,instance_id,deepquote):
     v_json_message = json.dumps(data)
     
     response = tornado_requests.request("PUT",
-                                        "http://%s:%s/v2/instances/%s/vactivate"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/instances/%s/vactivate"%(registrar_ip,registrar_port,instance_id),
                                         data=v_json_message,
                                         context=None)
 
@@ -201,7 +204,7 @@ def doActivateVirtualNode(registrar_ip,registrar_port,instance_id,deepquote):
 def doRegistrarDelete(registrar_ip,registrar_port, instance_id):
     global context
     response = tornado_requests.request("DELETE",
-                                        "http://%s:%s/v2/instances/%s"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/instances/%s"%(registrar_ip,registrar_port,instance_id),
                                         context=context)
     
     if response.status_code == 200:

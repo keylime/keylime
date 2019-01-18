@@ -35,17 +35,18 @@ with open(path.join(here, 'DESCRIPTION.md'), encoding='utf-8') as f:
 
 # cLime only builds against glibc at the moment. If we ever want to change this
 # it shouldn't be too hard.
-extensions = []    
-if 'linux' in sys.platform:
-    extensions.append(Extension('_cLime',
-                            define_macros = [('MAJOR_VERSION', '1'),
-                                             ('MINOR_VERSION', '0')],
-                            include_dirs = ['/usr/local/include'],
-                            libraries = ['tpm', 'keylime'],
-                            library_dirs = ['/usr/local/lib'],
-                            runtime_library_dirs = ['/usr/local/lib'],
-                            sources = ['keylime/_cLime.c']))
-
+extensions = []
+if '--with-clime' in sys.argv:
+    if 'linux' in sys.platform:
+        extensions.append(Extension('_cLime',
+                                define_macros = [('MAJOR_VERSION', '1'),
+                                                 ('MINOR_VERSION', '0')],
+                                include_dirs = ['/usr/local/include'],
+                                libraries = ['tpm', 'keylime'],
+                                library_dirs = ['/usr/local/lib'],
+                                runtime_library_dirs = ['/usr/local/lib'],
+                                sources = ['keylime/_cLime.c']))
+    sys.argv.remove('--with-clime')
 
 # enumerate all of the data files we need to package up 
 data_files = [(d, [path.join(d,f) for f in files]) for d,_,files in walk("keylime/static")]

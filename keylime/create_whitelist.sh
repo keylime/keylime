@@ -35,9 +35,9 @@ fi
 
 if [ $# -eq 2 ]
 then
-	ALGO=$2
+    ALGO=$2
 else
-	ALGO=sha1sum
+    ALGO=sha1sum
 fi
 
 OUTPUT=$(readlink -f $1)
@@ -46,7 +46,7 @@ rm -f $OUTPUT
 echo "Writing whitelist to $OUTPUT with $ALGO..."
 
 cd /
-find `ls / | grep -v "\bsys\b\|\brun\b\|\bproc\b\|\blost+found\b\|\bdev\b\|\bmedia\b\|mnt"` \( -fstype rootfs -o -xtype f -type l -o -type f \) -uid 0 -exec $ALGO '/{}' >> $OUTPUT \;
+find `ls / | grep -v "\bsys\b\|\brun\b\|\bproc\b\|\blost+found\b\|\bdev\b\|\bmedia\b\|\bsnap\b\|mnt"` \( -fstype rootfs -o -xtype f -type l -o -type f \) -uid 0 -exec $ALGO '/{}' >> $OUTPUT \;
 
 rm -rf /tmp/ima/
 mkdir -p /tmp/ima
@@ -57,7 +57,22 @@ do
     echo "extracting $i"
     mkdir -p /tmp/ima/$i-extracted
     cd /tmp/ima/$i-extracted
+    
+    # Try standard gzip encoding
     gzip -dc $i | cpio -id 2> /dev/null
+    
+    # if that fails, try xz
+    if [ $? -ne 0 ]
+    then
+        xz -dc $i | cpio -id 2> /dev/null
+    fi
+    
+    # If that fails, maybe it's in raw CPIO format?
+    if [ $? -ne 0 ]
+    then
+        cat $i | cpio -id 2> /dev/null
+    fi
+    
     find -type f -exec sha1sum "./{}" \; | sed "s| \./\./| /|" >> $OUTPUT
 done
 rm -rf /tmp/ima

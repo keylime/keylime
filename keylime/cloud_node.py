@@ -36,10 +36,7 @@ import uuid
 import crypto
 import os
 import sys
-import tpm_quote
-import tpm_initialize
 import registrar_client
-import tpm_nvram
 import secure_mount
 import time
 import hashlib
@@ -49,15 +46,21 @@ import cStringIO
 import revocation_notifier
 import importlib
 import shutil
-import tpm_random
-import tpm_exec
+import tpm_obj
+from tpm_abstract import TPM_Utilities
+
 
 # read the config file
 config = ConfigParser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
+# get the tpm object
+tpm = tpm_obj.getTPM(need_hw_tpm=True)
+tpm_version = tpm.get_tpm_version()
+
 #lock required for multithreaded operation
 uvLock = threading.Lock()
+
 
 class Handler(BaseHTTPRequestHandler):
     parsed_path = '' 
@@ -77,7 +80,7 @@ class Handler(BaseHTTPRequestHandler):
         
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/keys/ or /v2/quotes/ interfaces")
+            common.echo_json_response(self, 405, "Not Implemented: Use /keys/ or /quotes/ interfaces")
             return
         
         if "keys" in rest_params and rest_params['keys']=='verify':
@@ -111,33 +114,44 @@ class Handler(BaseHTTPRequestHandler):
                 common.echo_json_response(self, 400, "nonce not provided as an HTTP parameter in request")
                 return
             
-            # Sanitization assurance (for tpm_exec.run() tasks below) 
+            # Sanitization assurance (for tpm.run() tasks below) 
             if not (nonce.isalnum() and (pcrmask is None or pcrmask.isalnum()) and (vpcrmask is None or vpcrmask.isalnum())):
                 logger.warning('GET quote returning 400 response. parameters should be strictly alphanumeric')
                 common.echo_json_response(self, 400, "parameters should be strictly alphanumeric")
                 return
             
             # identity quotes are always shallow
-            if not tpm_initialize.is_vtpm() or rest_params["quotes"]=='identity':
-                quote = tpm_quote.create_quote(nonce, self.server.rsapublickey_exportable,pcrmask)
+            hash_alg = tpm.defaults['hash']
+            if not tpm.is_vtpm() or rest_params["quotes"]=='identity':
+                quote = tpm.create_quote(nonce, self.server.rsapublickey_exportable, pcrmask, hash_alg)
                 imaMask = pcrmask
             else:
-                quote = tpm_quote.create_deep_quote(nonce, self.server.rsapublickey_exportable, vpcrmask, pcrmask)
+                quote = tpm.create_deep_quote(nonce, self.server.rsapublickey_exportable, vpcrmask, pcrmask)
                 imaMask = vpcrmask
             
             # Allow for a partial quote response (without pubkey) 
+            enc_alg = tpm.defaults['encrypt']
+            sign_alg = tpm.defaults['sign']
             if "partial" in rest_params and (rest_params["partial"] is None or int(rest_params["partial"],0) == 1):
                 response = { 
                     'quote': quote, 
+                    'tpm_version': tpm_version,
+                    'hash_alg': hash_alg,
+                    'enc_alg': enc_alg,
+                    'sign_alg': sign_alg,
                     }
             else:
                 response = {
                     'quote': quote, 
+                    'tpm_version': tpm_version,
+                    'hash_alg': hash_alg,
+                    'enc_alg': enc_alg,
+                    'sign_alg': sign_alg,
                     'pubkey': self.server.rsapublickey_exportable, 
                 }
             
             # return a measurement list if available
-            if tpm_quote.check_mask(imaMask, common.IMA_PCR):
+            if TPM_Utilities.check_mask(imaMask, common.IMA_PCR):
                 if not os.path.exists(common.IMA_ML):
                     logger.warn("IMA measurement list not available: %s"%(common.IMA_ML))
                 else:
@@ -163,7 +177,7 @@ class Handler(BaseHTTPRequestHandler):
         """        
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/keys/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /keys/ interface")
             return
         
         content_length = int(self.headers.get('Content-Length', 0))
@@ -214,7 +228,7 @@ class Handler(BaseHTTPRequestHandler):
         f.close()
         
         #stow the U value for later
-        tpm_nvram.write_key_nvram(self.server.final_U)
+        tpm.write_key_nvram(self.server.final_U)
         
         # optionally extend a hash of they key and payload into specified PCR
         tomeasure = self.server.K
@@ -290,8 +304,8 @@ class Handler(BaseHTTPRequestHandler):
         pcr = config.getint('cloud_node','measure_payload_pcr')
         if pcr>0 and pcr<24:
             logger.info("extending measurement of payload into PCR %s"%pcr)
-            measured = hashlib.sha1(tomeasure).hexdigest()
-            tpm_exec.run("extend -ix %d -ih %s"%(pcr,measured))
+            measured = tpm.hashdigest(tomeasure)
+            tpm.extendPCR(pcr,measured)
             
         if payload_thread is not None:
             payload_thread.start()
@@ -359,7 +373,7 @@ class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
         self.rsapublickey_exportable = crypto.rsa_export_pubkey(self.rsaprivatekey)
         
         #attempt to get a U value from the TPM NVRAM
-        nvram_u = tpm_nvram.read_key_nvram()
+        nvram_u = tpm.read_key_nvram()
         if nvram_u is not None:
             logger.info("Existing U loaded from TPM NVRAM")
             self.add_U(nvram_u)
@@ -464,16 +478,16 @@ def main(argv=sys.argv):
     common.ch_dir(common.WORK_DIR,logger)
     
     #initialize tpm 
-    (ek,ekcert,aik) = tpm_initialize.init(self_activate=False,config_pw=config.get('cloud_node','tpm_ownerpassword')) # this tells initialize not to self activate the AIK
-    virtual_node = tpm_initialize.is_vtpm()
+    (ek,ekcert,aik,ek_tpm,aik_name) = tpm.tpm_init(self_activate=False,config_pw=config.get('cloud_node','tpm_ownerpassword')) # this tells initialize not to self activate the AIK
+    virtual_node = tpm.is_vtpm()
     
     # try to get some TPM randomness into the system entropy pool
-    tpm_random.init_system_rand()
+    tpm.init_system_rand()
         
     if ekcert is None:
         if virtual_node:
             ekcert = 'virtual'
-        elif tpm_initialize.is_emulator():
+        elif tpm.is_emulator():
             ekcert = 'emulator'
         
     # now we need the UUID
@@ -502,18 +516,18 @@ def main(argv=sys.argv):
     logger.info("Node UUID: %s"%node_uuid)
     
     # register it and get back a blob
-    keyblob = registrar_client.doRegisterNode(registrar_ip,registrar_port,node_uuid,ek,ekcert,aik)
+    keyblob = registrar_client.doRegisterNode(registrar_ip,registrar_port,node_uuid,tpm_version,ek,ekcert,aik,ek_tpm,aik_name)
     
     if keyblob is None:
         raise Exception("Registration failed")
     
     # get the ephemeral registrar key
-    key = tpm_initialize.activate_identity(keyblob)
+    key = tpm.activate_identity(keyblob)
     
     # tell the registrar server we know the key
     retval=False
     if virtual_node:
-        deepquote = tpm_quote.create_deep_quote(hashlib.sha1(key).hexdigest(),node_uuid+aik+ek)
+        deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(),node_uuid+aik+ek)
         retval = registrar_client.doActivateVirtualNode(registrar_ip, registrar_port, node_uuid, deepquote)
     else:
         retval = registrar_client.doActivateNode(registrar_ip,registrar_port,node_uuid,key)
@@ -580,7 +594,7 @@ def main(argv=sys.argv):
                     time.sleep(10)
         except KeyboardInterrupt:
             logger.info("TERM Signal received, shutting down...")
-            tpm_initialize.flush_keys()
+            tpm.flush_keys()
             server.shutdown()
     else:  
         try:
@@ -588,7 +602,7 @@ def main(argv=sys.argv):
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("TERM Signal received, shutting down...")
-            tpm_initialize.flush_keys()
+            tpm.flush_keys()
             server.shutdown()
 
 if __name__=="__main__":
@@ -596,4 +610,3 @@ if __name__=="__main__":
         main()
     except Exception as e:
         logger.exception(e)
-
