@@ -25,9 +25,7 @@ import base64
 import ConfigParser
 import common
 import registrar_client
-import tpm_quote
 import sys
-import tpm_initialize
 import argparse
 import crypto
 import traceback
@@ -42,11 +40,13 @@ import ima
 import zipfile
 import cStringIO
 import StringIO
-import tpm_exec
 import logging
 import subprocess
+import tpm_obj
+from tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 
-#setup logging
+
+# setup logging
 logger = common.init_logging('tenant')
 
 # setup config
@@ -84,6 +84,9 @@ class Tenant():
     metadata = {}
     ima_whitelist = {}
     revocation_key = ""
+    accept_tpm_hash_algs = []
+    accept_tpm_encryption_algs = []
+    accept_tpm_signing_algs = []
     
     payload = None
     
@@ -166,18 +169,22 @@ class Tenant():
         if "ca_dir_pw" not in args: 
             args["ca_dir_pw"] = None
         
+        # Set up accepted algorithms
+        self.accept_tpm_hash_algs = config.get('tenant', 'accept_tpm_hash_algs').split(',')
+        self.accept_tpm_encryption_algs = config.get('tenant', 'accept_tpm_encryption_algs').split(',')
+        self.accept_tpm_signing_algs = config.get('tenant', 'accept_tpm_signing_algs').split(',')
         
         # Set up PCR values 
         tpm_policy = config.get('tenant', 'tpm_policy')
         if "tpm_policy" in args and args["tpm_policy"] is not None: 
             tpm_policy = args["tpm_policy"]
-        self.tpm_policy = tpm_quote.readPolicy(tpm_policy)
+        self.tpm_policy = TPM_Utilities.readPolicy(tpm_policy)
         logger.info("TPM PCR Mask from policy is %s"%self.tpm_policy['mask'])
         
         vtpm_policy = config.get('tenant', 'vtpm_policy')
         if "vtpm_policy" in args and args["vtpm_policy"] is not None: 
             vtpm_policy = args["vtpm_policy"]
-        self.vtpm_policy = tpm_quote.readPolicy(vtpm_policy)
+        self.vtpm_policy = TPM_Utilities.readPolicy(vtpm_policy)
         logger.info("vTPM PCR Mask from policy is %s"%self.vtpm_policy['mask'])
         
         
@@ -212,8 +219,8 @@ class Tenant():
                 raise Exception("Invalid exclude list provided")
         
         # Set up IMA 
-        if tpm_quote.check_mask(self.tpm_policy['mask'],common.IMA_PCR) or \
-            tpm_quote.check_mask(self.vtpm_policy['mask'],common.IMA_PCR):
+        if TPM_Utilities.check_mask(self.tpm_policy['mask'],common.IMA_PCR) or \
+            TPM_Utilities.check_mask(self.vtpm_policy['mask'],common.IMA_PCR):
             
             # Process IMA whitelists 
             self.ima_whitelist = ima.process_whitelists(wl_data,excl_data)
@@ -365,7 +372,7 @@ class Tenant():
             logger.debug("U:" + base64.b64encode(str(self.U)))
             logger.debug("Auth Tag: " + self.auth_tag)
 
-    def check_ek(self,ek,ekcert):
+    def check_ek(self,ek,ekcert,tpm):
         # config option must be on to check for EK certs
         if config.getboolean('tenant','require_ek_cert'):
             if common.STUB_TPM:
@@ -377,20 +384,21 @@ class Tenant():
             elif ekcert is None:
                 logger.warning("No EK cert provided, require_ek_cert option in config set to True")
                 return False
-            elif not tpm_initialize.verify_ek(base64.b64decode(ekcert), ek):
+            elif not tpm.verify_ek(base64.b64decode(ekcert), ek):
                 logger.warning("Invalid EK certificate")
                 return False
 
         return True
 
-    def validate_tpm_quote(self,public_key, quote):
+    def validate_tpm_quote(self,public_key,quote,tpm_version,hash_alg):
         registrar_client.init_client_tls(config,'tenant')
         reg_keys = registrar_client.getKeys(self.cloudverifier_ip,self.registrar_port,self.node_uuid)
         if reg_keys is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
         
-        if not tpm_quote.check_quote(self.nonce,public_key,quote,reg_keys['aik']):
+        tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
+        if not tpm.check_quote(self.nonce,public_key,quote,reg_keys['aik'],hash_alg=hash_alg):
             if reg_keys['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious node is present.  Run 'regdelete' for this node and restart it to make this message go away!")
             return False
@@ -402,11 +410,11 @@ class Tenant():
             logger.warn("DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
         # check EK cert and make sure it matches EK
-        if not self.check_ek(reg_keys['ek'],reg_keys['ekcert']):
+        if not self.check_ek(reg_keys['ek'],reg_keys['ekcert'],tpm):
             return False
         # if node is virtual, check phyisical EK cert and make sure it matches phyiscal EK
         if 'provider_keys' in reg_keys:
-            if not self.check_ek(reg_keys['provider_keys']['ek'],reg_keys['provider_keys']['ekcert']):
+            if not self.check_ek(reg_keys['provider_keys']['ek'],reg_keys['provider_keys']['ekcert'],tpm):
                 return False
         
         # check all EKs with optional script:
@@ -461,10 +469,13 @@ class Tenant():
             'ima_whitelist':json.dumps(self.ima_whitelist),
             'metadata':json.dumps(self.metadata),
             'revocation_key':self.revocation_key,
+            'accept_tpm_hash_algs':self.accept_tpm_hash_algs,
+            'accept_tpm_encryption_algs':self.accept_tpm_encryption_algs,
+            'accept_tpm_signing_algs':self.accept_tpm_signing_algs,
         }
         
         json_message = json.dumps(data)
-        response = tornado_requests.request("POST","http://%s:%s/v2/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),data=json_message,context=self.context)
+        response = tornado_requests.request("POST","http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),data=json_message,context=self.context)
         if response.status_code == 409:
             # this is a conflict, delete first then re-add
             logger.warning("Node already existed at CV.  Deleting and re-adding...")
@@ -482,7 +493,7 @@ class Tenant():
         if not listing:
             node_uuid=self.node_uuid
 
-        response = tornado_requests.request("GET", "http://%s:%s/v2/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,node_uuid),context=self.context)
+        response = tornado_requests.request("GET", "http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,node_uuid),context=self.context)
         if response.status_code != 200:
             logger.error("Status command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
@@ -490,7 +501,7 @@ class Tenant():
             logger.info("Node Status %d: %s"%(response.status_code,response.json()))
 
     def do_cvdelete(self):        
-        response = tornado_requests.request("DELETE","http://%s:%s/v2/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context)
+        response = tornado_requests.request("DELETE","http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context)
         if response.status_code != 200:
             logger.error("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
@@ -502,7 +513,7 @@ class Tenant():
         registrar_client.doRegistrarDelete(self.registrar_ip,self.registrar_port,self.node_uuid)
             
     def do_cvreactivate(self):
-        response = tornado_requests.request("PUT","http://%s:%s/v2/instances/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
+        response = tornado_requests.request("PUT","http://%s:%s/instances/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
         if response.status_code != 200:
             logger.error("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
@@ -510,7 +521,7 @@ class Tenant():
             logger.info("Node %s re-activated"%(self.node_uuid))
             
     def do_cvstop(self):
-        response = tornado_requests.request("PUT","http://%s:%s/v2/instances/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
+        response = tornado_requests.request("PUT","http://%s:%s/instances/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
         if response.status_code != 200:
             logger.error("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
@@ -520,7 +531,7 @@ class Tenant():
     def do_quote(self):
         """initiaite v, instance_id and ip
         initiate the cloudinit sequence"""
-        self.nonce = tpm_initialize.random_password(20)
+        self.nonce = TPM_Utilities.random_password(20)
         
         numtries = 0
         response = None
@@ -528,7 +539,7 @@ class Tenant():
             # Get quote 
             try:
                 response = tornado_requests.request("GET",
-                                            "http://%s:%s/v2/quotes/identity/nonce/%s/"%(self.cloudnode_ip,self.cloudnode_port,self.nonce))
+                                            "http://%s:%s/quotes/identity?nonce=%s"%(self.cloudnode_ip,self.cloudnode_port,self.nonce))
             except Exception as e:
                 # this is one exception that should return a 'keep going' response
                 if tornado_requests.is_refused(e):
@@ -560,7 +571,29 @@ class Tenant():
             public_key = response_body["results"]["pubkey"]
             logger.debug("cnquote received public key:" + public_key)
             
-            if not self.validate_tpm_quote(public_key, quote):
+            # Get tpm_version, hash_alg
+            tpm_version = response_body["results"]["tpm_version"]
+            logger.debug("cnquote received tpm version:" + str(tpm_version))
+            
+            # Ensure hash_alg is in accept_tpm_hash_algs list
+            hash_alg = response_body["results"]["hash_alg"]
+            logger.debug("cnquote received hash algorithm:" + hash_alg)
+            if not Hash_Algorithms.is_accepted(hash_alg, config.get('tenant','accept_tpm_hash_algs').split(',')):
+                raise Exception("TPM Quote is using an unaccepted hash algorithm: %s"%hash_alg)
+            
+            # Ensure enc_alg is in accept_tpm_encryption_algs list
+            enc_alg = response_body["results"]["enc_alg"]
+            logger.debug("cnquote received encryption algorithm:" + enc_alg)
+            if not Encrypt_Algorithms.is_accepted(enc_alg, config.get('tenant','accept_tpm_encryption_algs').split(',')):
+                raise Exception("TPM Quote is using an unaccepted encryption algorithm: %s"%enc_alg)
+            
+            # Ensure sign_alg is in accept_tpm_encryption_algs list
+            sign_alg = response_body["results"]["sign_alg"]
+            logger.debug("cnquote received signing algorithm:" + sign_alg)
+            if not Sign_Algorithms.is_accepted(sign_alg, config.get('tenant','accept_tpm_signing_algs').split(',')):
+                raise Exception("TPM Quote is using an unaccepted signing algorithm: %s"%sign_alg)
+            
+            if not self.validate_tpm_quote(public_key, quote, tpm_version, hash_alg):
                 raise Exception("TPM Quote from cloud node is invalid for nonce: %s"%self.nonce)
         
             logger.info("Quote from %s validated"%self.cloudnode_ip)
@@ -581,7 +614,7 @@ class Tenant():
             u_json_message = json.dumps(data)
             
             #post encrypted U back to CloudNode
-            response = tornado_requests.request("POST", "http://%s:%s/v2/keys/ukey"%(self.cloudnode_ip,self.cloudnode_port),data=u_json_message)
+            response = tornado_requests.request("POST", "http://%s:%s/keys/ukey"%(self.cloudnode_ip,self.cloudnode_port),data=u_json_message)
             
             if response.status_code != 200:
                 common.log_http_response(logger,logging.ERROR,response_body)
@@ -594,13 +627,13 @@ class Tenant():
     def do_verify(self):
         """initiaite v, instance_id and ip
         initiate the cloudinit sequence"""
-        challenge = tpm_initialize.random_password(20)
+        challenge = TPM_Utilities.random_password(20)
         
         numtries = 0
         while True: 
             try:
                 response = tornado_requests.request("GET",
-                                            "http://%s:%s/v2/keys/verify/challenge/%s/"%(self.cloudnode_ip,self.cloudnode_port,challenge))
+                                            "http://%s:%s/keys/verify?challenge=%s"%(self.cloudnode_ip,self.cloudnode_port,challenge))
             except Exception as e:
                 # this is one exception that should return a 'keep going' response
                 if tornado_requests.is_refused(e):
@@ -709,7 +742,7 @@ def main(argv=sys.argv):
                 time.sleep(1)
                 #invalidate it eventually
                 logger.debug("invalidating PCR 15, forcing revocation")
-                tpm_exec.run("extend -ix 15 -if tenant.py")
+                tpm.extendPCR(15, tpm.hashdigest("garbage"))
                 time.sleep(5)
                 logger.debug("Deleting node from verifier")
                 mytenant.do_cvdelete()

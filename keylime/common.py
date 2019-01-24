@@ -22,11 +22,12 @@ import os.path
 import ConfigParser
 import logging.config
 import sys
-from urlparse import urlparse
+import urlparse
 import json
 import tornado.web
 from BaseHTTPServer import BaseHTTPRequestHandler
 import httplib
+import yaml
 
 # Current Keylime API version 
 API_VERSION='2'
@@ -125,7 +126,8 @@ try:
     USE_CLIME=True
 except ImportError:
     USE_CLIME=False
-    
+
+TPM_LIBS_PATH = '/usr/local/lib/'
 TPM_TOOLS_PATH = '/usr/local/bin/'
 if getattr(sys, 'frozen', False):
     # we are running in a pyinstaller bundle, redirect tpm tools to bundle
@@ -164,6 +166,7 @@ else:
     WORK_DIR=os.getenv('KEYLIME_DIR','/var/lib/keylime')
 
 CA_WORK_DIR='%s/ca/'%WORK_DIR
+
 
 def chownroot(path,logger):
     if os.geteuid()==0:
@@ -241,25 +244,27 @@ def list_to_dict(list):
         i = i+2
     return params
 
+def yaml_to_dict(arry):
+    return yaml.load("\n".join(arry))
+
 def get_restful_params(urlstring):
     """Returns a dictionary of paired RESTful URI parameters"""
-    parsed_path = urlparse(urlstring.strip("/"))
-    tokens = parsed_path.path.split('/')
+    parsed_path = urlparse.urlsplit(urlstring.strip("/"))
+    query_params = urlparse.parse_qsl(parsed_path.query)
+    path_tokens = parsed_path.path.split('/')
     
-    # Be sure we at least have /v#/opt
-    if len(tokens) < 2:
-        return None
-    
-    # Be sure first token is API version
-    if len(tokens[0]) == 2 and tokens[0][0] == 'v':
+    # If first token is API version, ensure it isn't obsolete
+    api_version = API_VERSION
+    if len(path_tokens[0]) == 2 and path_tokens[0][0] == 'v':
         # Require latest API version 
-        if tokens[0][1] != API_VERSION:
+        if path_tokens[0][1] != API_VERSION:
             return None
-        params = list_to_dict(tokens[1:])
-        params["api_version"] = tokens[0][1]
-        return params
-    else:
-        return None
+        api_version = path_tokens.pop(0)
+    
+    path_params = list_to_dict(path_tokens)
+    path_params["api_version"] = api_version
+    path_params.update(query_params)
+    return path_params
 
 
 LOG_TO_FILE=['cloudnode','registrar','provider_registrar','cloudverifier']

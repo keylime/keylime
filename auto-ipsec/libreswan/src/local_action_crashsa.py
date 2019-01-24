@@ -27,7 +27,7 @@ from M2Crypto import X509
 
 import keylime.secure_mount as secure_mount
 import keylime.common as common
-import keylime.tpm_exec as tpm_exec
+import keylime.cmd_exec as cmd_exec
 
 # read the config file
 config = ConfigParser.RawConfigParser()
@@ -44,10 +44,10 @@ def execute(revocation):
     # import the crl into NSS
     secdir = secure_mount.mount()
     logger.info("loading updated CRL from %s/unzipped/cacrl.der into NSS"%secdir)
-    tpm_exec.run("crlutil -I -i %s/unzipped/cacrl.der -d sql:/etc/ipsec.d"%secdir,lock=False)
+    cmd_exec.run("crlutil -I -i %s/unzipped/cacrl.der -d sql:/etc/ipsec.d"%secdir,lock=False)
     
     # need to find any sa's that were established with that cert subject name
-    output = tpm_exec.run("ipsec whack --trafficstatus",lock=False,raiseOnError=True)[0]
+    output = cmd_exec.run("ipsec whack --trafficstatus",lock=False,raiseOnError=True)['retout']
     deletelist=set()
     for line in output:
         line = line.strip()
@@ -82,4 +82,4 @@ def execute(revocation):
  
     for todelete in deletelist:
         logger.info("deleting IPsec sa with %s"%todelete)
-        tpm_exec.run("ipsec whack --crash %s"%todelete,raiseOnError=False,lock=False) 
+        cmd_exec.run("ipsec whack --crash %s"%todelete,raiseOnError=False,lock=False) 

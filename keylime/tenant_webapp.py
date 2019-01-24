@@ -67,15 +67,15 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(tornado.web.RequestHandler):
     def head(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /v2/nodes/ or /v2/logs/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /nodes/ or /logs/ interface instead")
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /v2/nodes/ or /v2/logs/  interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /nodes/ or /logs/  interface instead")
     def put(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /v2/nodes/ or /v2/logs/  interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /nodes/ or /logs/  interface instead")
     def post(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /v2/nodes/ or /v2/logs/  interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /nodes/ or /logs/  interface instead")
     def delete(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /v2/nodes/ or /v2/logs/  interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /nodes/ or /logs/  interface instead")
 
 class WebAppHandler(BaseHandler):       
     def head(self):
@@ -287,7 +287,7 @@ class InstancesHandler(BaseHandler):
     def get_instance_state(self, instance_id):
         try:
             response = tornado_requests.request("GET",
-                                        "http://%s:%s/v2/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,instance_id),context=tenant_templ.context)
+                                        "http://%s:%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,instance_id),context=tenant_templ.context)
         except Exception as e:
             logger.error("Status command response: %s:%s Unexpected response from Cloud Verifier."%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port))
             logger.error(traceback.print_exc())
@@ -317,13 +317,13 @@ class InstancesHandler(BaseHandler):
     def get(self):
         """This method handles the GET requests to retrieve status on instances from the WebApp. 
         
-        Currently, only the web app is available for GETing, i.e. /v2/nodes. All other GET uri's 
+        Currently, only the web app is available for GETing, i.e. /nodes. All other GET uri's 
         will return errors. 
         """
         
-        rest_params = common.get_restful_params(self.request.path)
+        rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/nodes/ or /v2/logs/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /nodes/ or /logs/ interface")
             return
         
         if "logs" in rest_params and rest_params["logs"] == "tenant":
@@ -343,69 +343,71 @@ class InstancesHandler(BaseHandler):
         
         instance_id = rest_params["nodes"]
         if instance_id is not None:
+            # Handle request for specific node data separately
             instances = self.get_instance_state(instance_id)
             instances["id"] = instance_id
             
             common.echo_json_response(self, 200, "Success", instances)
-        else:
-            # Get list of instances from Registrar  
-            try:
-                response = tornado_requests.request("GET",
-                                            "http://%s:%s/v2/instances/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port),context=tenant_templ.context)
-            except Exception as e:
-                logger.error("Status command response: %s:%s Unexpected response from Registrar."%(tenant_templ.registrar_ip,tenant_templ.registrar_port))
-                logger.error(traceback.print_exc())
-                logger.error("Error: %s "%str(e))
-                common.echo_json_response(self, 500, "Unexpected response from Registrar", str(e))
-                return
-            
-            response_body = response.json()
-            
-            if response.status_code != 200:
-                logger.error("Status command response: %d Unexpected response from Registrar."%response.status_code)
-                common.log_http_response(logger,logging.ERROR,response_body)
-                return None
-            
-            if ("results" not in response_body) or ("uuids" not in response_body["results"]):
-                logger.critical("Error: unexpected http response body from Registrar: %s"%str(response.status_code))
-                return None 
-            
-            instance_list = response_body["results"]["uuids"]
-            
-            # Loop through each instance and ask for status
-            instances = {}
-            for instance in instance_list:
-                instances[instance] = self.get_instance_state(instance_id)
-            
-            # Pre-create sorted instances list 
-            sorted_by_state = {}
-            states = cloud_verifier_common.CloudInstance_Operational_State.STR_MAPPINGS
-            for state in states:
-                sorted_by_state[state] = {}
-            
-            # Build sorted instances list 
-            for instance_id in instances:
-                state = instances[instance_id]["operational_state"]
-                sorted_by_state[state][instance_id] = instances[instance_id]
-            
-            print_order = [10,9,7,3,4,5,6,2,1,8,0]
-            sorted_instances = []
-            for state in print_order:
-                for instance_id in sorted_by_state[state]:
-                    sorted_instances.append(instance_id)
-            
-            common.echo_json_response(self, 200, "Success", {'uuids':sorted_instances})
+            return
+        
+        # If no node ID, get list of all instances from Registrar  
+        try:
+            response = tornado_requests.request("GET",
+                                        "http://%s:%s/instances/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port),context=tenant_templ.context)
+        except Exception as e:
+            logger.error("Status command response: %s:%s Unexpected response from Registrar."%(tenant_templ.registrar_ip,tenant_templ.registrar_port))
+            logger.error(traceback.print_exc())
+            logger.error("Error: %s "%str(e))
+            common.echo_json_response(self, 500, "Unexpected response from Registrar", str(e))
+            return
+        
+        response_body = response.json()
+        
+        if response.status_code != 200:
+            logger.error("Status command response: %d Unexpected response from Registrar."%response.status_code)
+            common.log_http_response(logger,logging.ERROR,response_body)
+            return None
+        
+        if ("results" not in response_body) or ("uuids" not in response_body["results"]):
+            logger.critical("Error: unexpected http response body from Registrar: %s"%str(response.status_code))
+            return None 
+        
+        instance_list = response_body["results"]["uuids"]
+        
+        # Loop through each instance and ask for status
+        instances = {}
+        for instance in instance_list:
+            instances[instance] = self.get_instance_state(instance_id)
+        
+        # Pre-create sorted instances list 
+        sorted_by_state = {}
+        states = cloud_verifier_common.CloudInstance_Operational_State.STR_MAPPINGS
+        for state in states:
+            sorted_by_state[state] = {}
+        
+        # Build sorted instances list 
+        for instance_id in instances:
+            state = instances[instance_id]["operational_state"]
+            sorted_by_state[state][instance_id] = instances[instance_id]
+        
+        print_order = [10,9,7,3,4,5,6,2,1,8,0]
+        sorted_instances = []
+        for state in print_order:
+            for instance_id in sorted_by_state[state]:
+                sorted_instances.append(instance_id)
+        
+        common.echo_json_response(self, 200, "Success", {'uuids':sorted_instances})
 
     def delete(self):
         """This method handles the DELETE requests to remove instances from the Cloud Verifier. 
          
-        Currently, only instances resources are available for DELETEing, i.e. /v2/nodes. All other DELETE uri's will return errors.
+        Currently, only instances resources are available for DELETEing, i.e. /nodes. All other DELETE uri's will return errors.
         instances requests require a single instance_id parameter which identifies the instance to be deleted.    
         """
         
-        rest_params = common.get_restful_params(self.request.path)
+        rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/nodes/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /nodes/ interface")
             return
         
         if "nodes" not in rest_params:
@@ -425,13 +427,13 @@ class InstancesHandler(BaseHandler):
     def post(self):
         """This method handles the POST requests to add instances to the Cloud Verifier. 
          
-        Currently, only instances resources are available for POSTing, i.e. /v2/nodes. All other POST uri's will return errors.
+        Currently, only instances resources are available for POSTing, i.e. /nodes. All other POST uri's will return errors.
         instances requests require a json block sent in the body
         """
         
-        rest_params = common.get_restful_params(self.request.path)
+        rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/nodes/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /nodes/ interface")
             return
         
         if "nodes" not in rest_params:
@@ -533,12 +535,12 @@ class InstancesHandler(BaseHandler):
     def put(self):
         """This method handles the PUT requests to add instances to the Cloud Verifier. 
          
-        Currently, only instances resources are available for PUTing, i.e. /v2/nodes. All other PUT uri's will return errors.
+        Currently, only instances resources are available for PUTing, i.e. /nodes. All other PUT uri's will return errors.
         """
         
-        rest_params = common.get_restful_params(self.request.path)
+        rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/nodes/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /nodes/ interface")
             return
         
         if "nodes" not in rest_params:
@@ -609,8 +611,8 @@ def main(argv=sys.argv):
     
     app = tornado.web.Application([
         (r"/webapp/.*", WebAppHandler),
-        (r"/v2/nodes/.*", InstancesHandler),
-        (r"/v2/logs/.*", InstancesHandler),
+        (r"/(?:v[0-9]/)?nodes/.*", InstancesHandler),
+        (r"/(?:v[0-9]/)?logs/.*", InstancesHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': root_dir+"/static/"}),
         (r".*", MainHandler),
         ])

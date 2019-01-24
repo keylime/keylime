@@ -29,4 +29,4 @@ fi
 wget --ca-certificate=cacert.crt --post-data '{}' \
      --certificate=$NODE_UUID-cert.crt \
      --private-key=$NODE_UUID-private.pem \
-     https://localhost:6892/v2/instances/$NODE_UUID
+     https://localhost:6892/instances/$NODE_UUID

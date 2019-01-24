@@ -21,6 +21,23 @@
 #
 ##########################################################################################
 
+
+# Command line params 
+TPM_VERSION=1
+while getopts ":hm" opt; do
+    case $opt in
+        m) TPM_VERSION=2 ;;
+        h) 
+            echo "Usage: $0 [option...]"
+            echo "Options:"
+            echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
+            echo $'-h \t\t\t\t This help info'
+            exit
+            ;;
+    esac
+done
+
+
 rm -rf build dist
 
 # copy in extra pycryptodome libraries
@@ -45,4 +62,8 @@ for path in $DIST_PATH ; do
     copy_py_deps "$path"
 done
 
-pyinstaller --clean cn_installer.spec
+if [[ "$TPM_VERSION" -eq "2" ]] ; then
+    pyinstaller --clean cn_installer_2.spec
+else
+    pyinstaller --clean cn_installer.spec
+fi

@@ -41,7 +41,7 @@ html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sa
 #node_container {list-style-type: none;}
 #terminal-frame {margin-top:25px;margin-left:10px;background-color:#000088;border:2px solid #dddddd;width:50%;min-width:500px;max-width:750px;}
 #terminal-header {padding:3px;background-color:#dddddd;font-weight:bold;cursor:pointer;}
-#terminal {width:100%;min-width:500px;max-width:750px;min-height:200px;max-height:400px;background-color:#000088;color:#ffff00;overflow-x:auto;font-family:monospace;font-size:medium;}
+#terminal {width:100%;min-width:500px;max-width:750px;height:400px;background-color:#000088;color:#ffff00;overflow-x:auto;font-family:monospace;font-size:medium;}
 
 /* Each node instance for 'instances' table */
 #instance_body {padding:10px;}

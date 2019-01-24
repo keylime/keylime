@@ -20,8 +20,29 @@
 
 'use strict';
 let API_VERSION=2;
-let terminal_offset=0;
+let MAX_TERM_LEN=100;
+let DEBUG=false;
+let gTerminalOffset=0;
 
+
+// Report that error occurred
+function reportIssue(issueStr) {
+    if (!DEBUG) return;
+    if (window.console && window.console.log) {
+        console.log(issueStr);
+    }
+}
+
+// Return items in array #1 but not in array #2
+function arrayDiff(ary1, ary2) {
+    let diffAry = [];
+    for (let i = 0; i < ary1.length; i++) {
+        if (ary2.indexOf(ary1[i]) == -1) {
+            diffAry.push(ary1[i]);
+        }
+    }
+    return diffAry;
+}
 
 // Make AJAX call to submit events 
 function asyncRequest(method, res, resId, body, callback) {
@@ -47,11 +68,12 @@ function asyncRequest(method, res, resId, body, callback) {
                     statusText = json["status"];
                 }
                 
+                // Append error to terminal
                 appendToTerminal(["WEBAPP ERROR (AJAX): code=" + xmlHttp.status + ", statusText=" + statusText + ", results=" + results]);
-                if (window.console && window.console.log) {
-                    console.log("WEBAPP ERROR (AJAX): code=" + xmlHttp.status + ", statusText=" + statusText + ", results:");
-                    console.log(results);
-                }
+                
+                // Report issue to console
+                reportIssue("WEBAPP ERROR (AJAX): code=" + xmlHttp.status + ", statusText=" + statusText + ", results:");
+                reportIssue(results);
             }
         }
     }
@@ -193,13 +215,13 @@ function fileUploadCallback(event) {
     // Ensure a file was given by user 
     let files = event.dataTransfer.files;
     if (files.length == 0) {
-        console.log("fileUploadCallback: No files provided!");
+        reportIssue("fileUploadCallback: No files provided!");
         return false;
     }
     
     // Only multi-files can accept multiple files 
     if (files.length > 1 && !multi) {
-        console.log("fileUploadCallback: Attempted to upload multiple files in a single upload box!");
+        reportIssue("fileUploadCallback: Attempted to upload multiple files in a single upload box!");
         return false;
     }
     
@@ -259,7 +281,7 @@ let STR_MAPPINGS = {
     9 : "Invalid Quote",
     10: "Tenant Quote Failed"
 }
-function updateNodes() {
+function updateNodesInfo() {
     let childNodesObj = document.getElementsByClassName('node');
     for (let i = 0; i < childNodesObj.length; i++) {
         if (typeof childNodesObj[i].id == 'undefined' || childNodesObj[i].id == '') {
@@ -271,14 +293,14 @@ function updateNodes() {
             
             // Ensure response packet isn't malformed
             if (!("results" in json)) {
-                console.log("ERROR updateNodes: Malformed response for node refresh callback!");
+                reportIssue("ERROR updateNodesInfo: Malformed response for node refresh callback!");
                 return;
             }
             let response = json["results"];
             
             // Figure out which instance id we refer to 
             if (!("id" in response)) {
-                console.log("ERROR updateNodes: Cannot determine instance id from callback!");
+                reportIssue("ERROR updateNodesInfo: Cannot determine instance id from callback!");
                 return;
             }
             let instanceId = response["id"];
@@ -293,107 +315,68 @@ function updateNodes() {
             
             // Format status to display 
             let state = response["operational_state"];
-            let stat_str = "<i>N/A</i>";
+            let statStr = "<i>N/A</i>";
             if ("operational_state" in response) {
-                stat_str = response["operational_state"];
-                let readable = STR_MAPPINGS[stat_str];
-                stat_str = stat_str + " (" + readable + ")";
+                statStr = response["operational_state"];
+                let readable = STR_MAPPINGS[statStr];
+                statStr = statStr + " (" + readable + ")";
             }
             
-            let nodeId_short = instanceId.substr(0,8);
+            let nodeIdShort = instanceId.substr(0,8);
             let classSuffix = style_mappings[state]["class"];
             let action = style_mappings[state]["action"];
             
-            let node_overview_insert = "" 
+            let nodeOverviewInsert = "" 
                     + "<div onmousedown=\"asyncRequest('" + action + "','nodes','" + instanceId + "')\" class='tbl_ctrl_" + classSuffix + "'>&nbsp;</div>"
                     + "<div onmousedown=\"toggleVisibility('" + instanceId + "-det')\" style='display:block;float:left;'>"
-                    + "<div class='tbl_col_" + classSuffix + "' title='" + instanceId + "'>" + nodeId_short + "&hellip;</div>"
+                    + "<div class='tbl_col_" + classSuffix + "' title='" + instanceId + "'>" + nodeIdShort + "&hellip;</div>"
                     + "<div class='tbl_col_" + classSuffix + "'>" + fulladdr + "</div>"
-                    + "<div class='tbl_col_" + classSuffix + "'>" + stat_str + "</div>"
+                    + "<div class='tbl_col_" + classSuffix + "'>" + statStr + "</div>"
                     + "<br style='clear:both;'>"
                     + "</div>"
                     + "<br style='clear:both;'>"
                     
-            let node_details_insert = "<div class='tbl_det_" + classSuffix + "'><b><i>Details:</i></b><br><pre>";
+            let nodeDetailsInsert = "<div class='tbl_det_" + classSuffix + "'><b><i>Details:</i></b><br><pre>";
             
             // Parse out detailed specs for node 
             for (let stat in response) {
-                stat_str = response[stat];
+                statStr = response[stat];
                 
                 // Make operational state code more human-readable 
                 if (stat == "operational_state") {
-                    let readable = STR_MAPPINGS[stat_str];
-                    stat_str = stat_str + " (" + readable + ")";
+                    let readable = STR_MAPPINGS[statStr];
+                    statStr = statStr + " (" + readable + ")";
                 }
-                else if (typeof(stat_str) === "object") {
-                    stat_str = JSON.stringify(stat_str, null, 2);
+                else if (typeof(statStr) === "object") {
+                    statStr = JSON.stringify(statStr, null, 2);
                 }
                 
-                node_details_insert += stat + ": " + stat_str + "<br>";
+                nodeDetailsInsert += stat + ": " + statStr + "<br>";
             }
-            node_details_insert += "</pre></div>";
+            nodeDetailsInsert += "</pre></div>";
             
             // Update node on GUI 
-            document.getElementById(instanceId+"-over").innerHTML = node_overview_insert;
-            document.getElementById(instanceId+"-det").innerHTML = node_details_insert;
+            document.getElementById(instanceId+"-over").innerHTML = nodeOverviewInsert;
+            document.getElementById(instanceId+"-det").innerHTML = nodeDetailsInsert;
         });
     }
 }
 
-function appendToTerminal(logLines) {
-    if (typeof(logLines) === 'undefined') {
-        return;
-    }
-    
-    // update terminal display to user
-    let ele = document.getElementById('terminal');
-    ele.innerHTML += logLines.join('<br>') + "<br>";
-    ele.scrollTop = ele.scrollHeight - ele.clientHeight;
-}
-function updateTerminal() {
-    asyncRequest("GET", "logs", "tenant/pos/"+terminal_offset, undefined, function(responseText){
-        let json = JSON.parse(responseText);
-        
-        // Ensure response packet isn't malformed
-        if (!("results" in json)) {
-            console.log("ERROR updateTerminal: Malformed response for log refresh callback!");
-            return;
-        }
-        let response = json["results"];
-        
-        // Figure out which instance id we refer to 
-        if (!("log" in response)) {
-            console.log("ERROR updateTerminal: Cannot get log data from callback!");
-            return;
-        }
-        
-        let newRecords = response["log"].length;
-        if (newRecords == 0) {
-            // nothing new, don't bother!
-            return;
-        }
-        terminal_offset += newRecords; // remember new offset for next request (append logs)
-        
-        // update terminal display to user
-        appendToTerminal(response["log"]);
-    });
-}
-
 // Populate nodes on page (does not handle ordering!)
-function populate() {
+function populateNodes() {
     asyncRequest("GET", "nodes", "", undefined, function(responseText){
         let json = JSON.parse(responseText);
         
         // Ensure response packet isn't malformed
         if (!("results" in json)) {
-            console.log("ERROR populate: Malformed response for node list refresh callback!");
+            reportIssue("ERROR populateNodes: Malformed response for node list refresh callback!");
             return;
         }
         let response = json["results"];
         
         // Figure out which instance id we refer to 
         if (!("uuids" in response)) {
-            console.log("ERROR populate: Cannot get uuid list from callback!");
+            reportIssue("ERROR populateNodes: Cannot get uuid list from callback!");
             return;
         }
         
@@ -431,21 +414,60 @@ function populate() {
         // Remove node
         for (let i = 0; i < removedNodes.length; i++) {
             let ele = document.getElementById(removedNodes[i]);
-            console.log(ele);
+            //console.log(ele);
             ele.parentNode.removeChild(ele);
         }
     });
 }
 
-// Utility: Return items in array #1 but not in array #2
-function arrayDiff(ary1, ary2) {
-    let diffAry = [];
-    for (let i = 0; i < ary1.length; i++) {
-        if (ary2.indexOf(ary1[i]) == -1) {
-            diffAry.push(ary1[i]);
-        }
+// Tenant log "terminal" window functions: append-to and update (periodic)
+function appendToTerminal(logLines) {
+    if (typeof(logLines) === 'undefined') {
+        return;
     }
-    return diffAry;
+    
+    // Get the terminal node
+    let term = document.getElementById('terminal');
+    
+    // Keep list at MAX_TERM_LEN items (prune)
+    while (term.firstChild && (term.childElementCount+logLines.length) > MAX_TERM_LEN) {
+        term.removeChild(term.firstChild);
+    }
+    
+    // Add each new log line to the terminal
+    for (let i = 0; i < logLines.length; i++) {
+        gTerminalOffset++; // remember new offset for next request (append logs)
+        term.innerHTML += "<div>" + logLines[i] + "</div>";
+    }
+    
+    // Scroll so newest are in view
+    term.scrollTop = term.scrollHeight - term.clientHeight;
+}
+function updateTerminal() {
+    asyncRequest("GET", "logs", "tenant?pos="+gTerminalOffset, undefined, function(responseText){
+        let json = JSON.parse(responseText);
+        
+        // Ensure response packet isn't malformed
+        if (!("results" in json)) {
+            reportIssue("ERROR updateTerminal: Malformed response for log refresh callback!");
+            return;
+        }
+        let response = json["results"];
+        
+        // Figure out which instance id we refer to 
+        if (!("log" in response)) {
+            reportIssue("ERROR updateTerminal: Cannot get log data from callback!");
+            return;
+        }
+        
+        if (response["log"].length == 0) {
+            // nothing new, don't bother!
+            return;
+        }
+        
+        // update terminal display to user
+        appendToTerminal(response["log"]);
+    });
 }
 
 // Attach dragging capabilities for payload upload functionality 
@@ -457,9 +479,9 @@ window.onload = function(e) {
         droppable[i].addEventListener('drop', fileUploadCallback, false);
     }
     
-    // Populate nodes on the page (and turn on auto-update)
-    populate();
-    setInterval(populate, 2000);
-    setInterval(updateNodes, 750);
+    // Populate nodes on the page (and turn on auto-updates)
+    populateNodes();
+    setInterval(populateNodes, 2000);
+    setInterval(updateNodesInfo, 750);
     setInterval(updateTerminal, 1000);
 }

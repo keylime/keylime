@@ -23,22 +23,52 @@
 
 
 # Which package management system are we using? 
-if [[ -n "$(command -v yum)" ]]; then
-    PACKAGE_MGR=$(command -v yum)
+if [[ -n "$(command -v dnf)" || -n "$(command -v yum)" ]]; then
+    if [[ -n "$(command -v dnf)" ]]; then
+        PACKAGE_MGR=$(command -v dnf)
+    elif [[ -n "$(command -v yum)" ]]; then
+        PACKAGE_MGR=$(command -v yum)
+    fi 
     PACKAGE_INSP="rpm -ql"
-    PYTHON_PREIN="epel-release git gcc" #note: gcc is required for pip to build m2crypto 
-    PYTHON_DEPS="python python-pip upx python-devel python-setuptools czmq-devel zeromq-devel python-zmq openssl-devel"
-    PYTHON_PIPS="pyinstaller m2crypto tornado"
+    
+    # Only install epel-release if it is available (e.g., not Fedora)
+    EXTRA_PKGS_STR=
+    if [[ -n "$($PACKAGE_MGR search epel-release 2>/dev/null)" ]]; then
+        EXTRA_PKGS_STR="epel-release python python-devel python-setuptools"
+    else
+        EXTRA_PKGS_STR="python2 python2-devel python2-setuptools"
+    fi
+    
+    PACKAGE_MGR=$(command -v yum)
+    PYTHON_PREIN="$EXTRA_PKGS_STR git wget"
+    PYTHON_DEPS="python2-pip gcc gcc-c++ upx czmq-devel zeromq-devel openssl-devel swig"
+    PYTHON_PIPS="pycryptodomex m2crypto tornado pyzmq pyinstaller"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
     PACKAGE_INSP="dpkg -L"
     PYTHON_PREIN="git"
-    PYTHON_DEPS="python python-pip upx-ucl python-dev python-setuptools python-m2crypto python-zmq libssl-dev"
-    PYTHON_PIPS="pyinstaller tornado"
+    PYTHON_DEPS="python python-pip gcc g++ upx-ucl python-dev python-setuptools python-zmq libssl-dev swig"
+    PYTHON_PIPS="pycryptodomex m2crypto tornado pyinstaller"
 else
    echo "No recognized package manager found on this system!" 1>&2
    exit 1
 fi
+
+
+# Command line params 
+TPM_VERSION=1
+while getopts ":hm" opt; do
+    case $opt in
+        m) TPM_VERSION=2 ;;
+        h) 
+            echo "Usage: $0 [option...]"
+            echo "Options:"
+            echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
+            echo $'-h \t\t\t\t This help info'
+            exit
+            ;;
+    esac
+done
 
 if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root in order to call apt-get and install python dependencies" 1>&2
@@ -61,7 +91,11 @@ echo
 echo "=================================================================================="
 echo $'\t\t\tBuilding Keylime installer'
 echo "=================================================================================="
-./make_node_bundle.sh
+BUNDLE_FLAGS=""
+if [[ "$TPM_VERSION" -eq "2" ]] ; then
+    BUNDLE_FLAGS="-m"
+fi
+./make_node_bundle.sh $BUNDLE_FLAGS
 
 
 # Get all dependencies for tarball
@@ -75,7 +109,7 @@ mkdir -p $TMPDIR/keylime
 echo -n "INFO: Using temp directory: "
 echo $TMPDIR
 
-cp dist/keylime_node $TMPDIR/keylime
+cp dist/keylime_node_tpm$TPM_VERSION $TMPDIR/keylime
 if [[ "$?" -ne "0" ]] ; then
     echo "ERROR: Cannot copy keylime_node"
     exit 1

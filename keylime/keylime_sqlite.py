@@ -96,7 +96,7 @@ class KeylimeDB():
             insertlist = []
             for key in sorted(self.cols_db.keys()):
                 v = d[key]
-                if key in self.json_cols_db and isinstance(d[key],dict):
+                if key in self.json_cols_db and (isinstance(d[key],dict) or isinstance(d[key],list)):
                     v = json.dumps(d[key])
                 insertlist.append(v)
             
