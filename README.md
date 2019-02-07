@@ -3,7 +3,7 @@
 [![Build
 Status](https://travis-ci.org/keylime/python-keylime.svg?branch=master)](https://travis-ci.org/keylime/python-keylime)
 
-![keylime](docs/keylime.png?raw=true "Title")
+![keylime](doc/keylime.png?raw=true "Title")
 
 keylime is a scalable trusted cloud key management system. keylime provides an
 end-to-end solution for both bootstrapping hardware rooted cryptographic
@@ -30,7 +30,7 @@ keylime supports both TPM versions 1.2 and 2.0.
 
 ### Automated
 
-keylime requires Python 2.7.10 or newer for proper TLS support.  
+keylime requires Python 2.7.10 or newer for proper TLS support.
 
 Installation can be performed via an automated shell script, `installer.sh`.  The
 following command line options are available:
@@ -77,7 +77,7 @@ On CentOS: `yum install -y python-devel python-setuptools python-tornado python-
 
 You also need a patched version of tpm4720 the IBM software TPM emulator and
 utilities.  This is available at https://github.com/keylime/tpm4720-keylime.  See
-README.md in that project for detailed instructions on how to build and install it.  
+README.md in that project for detailed instructions on how to build and install it.
 
 The brief synopsis of a quick build/install (after installing dependencies) is:
 
@@ -207,7 +207,7 @@ be 1.  If they are not, you may need to reboot into the BIOS to enable and activ
 the TPM.  If you need to both enable and activate, then you must enable first, reboot,
 then activate and finally reboot again.  It is also possible that you may need to
 assert physical presence (see manual for your system on how to do this) in order to
-accomplish these actions in your BIOS.  
+accomplish these actions in your BIOS.
 
 If your system shows enabled and activated, you can next check the "owned"
 status in the /sys directory.  Keylime can take a system that is not owned (i.e., owned = 0)
@@ -234,7 +234,7 @@ presents an interface to obtain these public keys for checking quotes.
 
 * The *verifier* is the most important component in keylime.  It does initial and
 periodic checks of system integrity and supports bootstrapping a cryptographic key
-securely with the node.  The verifier uses mutual TLS for its control interface.  
+securely with the node.  The verifier uses mutual TLS for its control interface.
 
     By default, the verifier will create appropriate TLS certificates for itself
     in `/var/lib/keylime/cv_ca/`.  The registrar and tenant will use this as well.  If
@@ -285,7 +285,7 @@ uses its keys for TLS authentication (in `/var/lib/keylime/`).
 
 A simple certificate authority is available to use with keylime. You can interact
 with it using `keylime_ca` or `keylime_tenant`.  Options for configuring the
-certificates that `keylime_ca` creates are in `/etc/keylime.conf`.  
+certificates that `keylime_ca` creates are in `/etc/keylime.conf`.
 
 NOTE: This CA functionality is different than the TLS support for talking to
 the verifier or registrar (though it uses some of the same config options
@@ -333,7 +333,7 @@ CRL.  To enable this feature, run:
 
 The revocation key will be automatically created by the tenant the first time
 you use the CA with keylime.  Currently the CRL is only written back to the CA
-directory, unless IPsec configuration is being used (see [Additional Reading](#additional-reading)).  
+directory, unless IPsec configuration is being used (see [Additional Reading](#additional-reading)).
 
 ## Additional Reading
 
