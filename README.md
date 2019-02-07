@@ -1,7 +1,7 @@
 # python-keylime
 
 [![Build
-Status](https://travis-ci.org/keylime/python-keylime.svg?branch=master)](https://travis-ci.org/keylime/python-keylime)
+Status](https://travis-ci.org/keylime/python-keylime.svg?branch=master)](https://travis-ci.org/keylime/python-keylime) [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/keylime-project/community)
 
 ![keylime](doc/keylime.png?raw=true "Title")
 
