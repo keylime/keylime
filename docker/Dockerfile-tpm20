@@ -16,7 +16,7 @@ ARG BRANCH=master
 ENV container docker
 ENV HOME /root
 ENV KEYLIME_HOME ${HOME}/python-keylime
-ENV TPM_HOME ${HOME}/ibmtpm974
+ENV TPM_HOME ${HOME}/swtpm2
 ENV TPM2_TSS ${HOME}/tpm2-tss
 ENV TPM2_TOOLS ${HOME}/tpm2-tools
 ENV TPM2_ABRMD ${HOME}/tpm2-abrmd
@@ -30,6 +30,7 @@ RUN dnf -y builddep tpm2-tools
 RUN dnf -y install git \
            dbus-devel \
            golang \
+           openssl-devel \
            python-devel \
            python-pip \
            python-setuptools \
@@ -55,7 +56,6 @@ RUN dnf -y install git \
 
 RUN dnf clean all
 
-# hadolint ignore=SC2164,SC2086
 RUN cd "/lib/systemd/system/sysinit.target.wants/"; \
     for i in *; do [ $i = systemd-tmpfiles-setup.service ] || rm -f "$i"; done
 
@@ -96,25 +96,13 @@ RUN make
 RUN make install
 RUN ldconfig
 
-# Build and install OpenSSL
-RUN git clone --branch OpenSSL_1_0_2-stable --depth=1 https://github.com/openssl/openssl.git ${TPM_HOME}
-WORKDIR ${TPM_HOME}
-RUN pwd
-RUN ./config --prefix="${TPM_HOME}/prefix"
-RUN make
-RUN make install
-
 # Build and install TPM 2.0 simulator
-RUN wget https://downloads.sourceforge.net/project/ibmswtpm2/ibmtpm974.tar.gz
-RUN tar -zxf ibmtpm974.tar.gz
-WORKDIR ${TPM_HOME}/src/
-COPY makefile .
-RUN make -j2
-RUN /usr/bin/install -c tpm_server /usr/local/bin/tpm_server
-
-# Copy in test wrapper script
-COPY test_wrapper.sh ${HOME}
-RUN chmod +x ${HOME}/test_wrapper.sh
+WORKDIR ${TPM_HOME}
+RUN wget --content-disposition http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/download
+RUN tar -zxvf ibmtpm1119.tar.gz
+WORKDIR ${TPM_HOME}/src
+RUN make
+RUN install -c tpm_server /usr/local/bin/tpm_server
 
 VOLUME [ "/sys/fs/cgroup" ]
 
