@@ -34,9 +34,12 @@ import struct
 import sys
 import time
 import tempfile
-import tpm_exec
 from uuid import UUID
 import json
+import tpm_obj
+
+# get the tpm object
+tpm = tpm_obj.getTPM(need_hw_tpm=True)
 
 sys.path.append(os.path.dirname(__file__))
 from tpm_initialize import get_mod_from_pem
@@ -458,7 +461,7 @@ def tpmconv(inmod):
         os.close(infd)
                 
         command = "tpmconv -ik %s -ok %s" % (inFile.name,tmppath)
-        tpm_exec.run(command,lock=False)
+        tpm.__run(command,lock=False)
 
         # read in the pem
         f = open(tmppath,"rb")

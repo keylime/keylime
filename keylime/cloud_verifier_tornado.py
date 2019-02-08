@@ -63,15 +63,15 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(tornado.web.RequestHandler):
     def head(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
     def delete(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
     def post(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
     def put(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
 
 class InstancesHandler(BaseHandler):
     db = None
@@ -85,15 +85,15 @@ class InstancesHandler(BaseHandler):
     def get(self):
         """This method handles the GET requests to retrieve status on instances from the Cloud Verifier. 
         
-        Currently, only instances resources are available for GETing, i.e. /v2/instances. All other GET uri's 
+        Currently, only instances resources are available for GETing, i.e. /instances. All other GET uri's 
         will return errors. instances requests require a single instance_id parameter which identifies the 
         instance to be returned. If the instance_id is not found, a 404 response is returned.  If the instance_id
         was not found, it either completed successfully, or failed.  If found, the instance_id is still polling 
         to contact the Cloud Node. 
         """
-        rest_params = common.get_restful_params(self.request.path)
+        rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
         if "instances" not in rest_params:
@@ -122,12 +122,12 @@ class InstancesHandler(BaseHandler):
     def delete(self):
         """This method handles the DELETE requests to remove instances from the Cloud Verifier. 
          
-        Currently, only instances resources are available for DELETEing, i.e. /v2/instances. All other DELETE uri's will return errors.
+        Currently, only instances resources are available for DELETEing, i.e. /instances. All other DELETE uri's will return errors.
         instances requests require a single instance_id parameter which identifies the instance to be deleted.    
         """
-        rest_params = common.get_restful_params(self.request.path)
+        rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
         if "instances" not in rest_params:
@@ -162,13 +162,13 @@ class InstancesHandler(BaseHandler):
     def post(self):
         """This method handles the POST requests to add instances to the Cloud Verifier. 
          
-        Currently, only instances resources are available for POSTing, i.e. /v2/instances. All other POST uri's will return errors.
+        Currently, only instances resources are available for POSTing, i.e. /instances. All other POST uri's will return errors.
         instances requests require a json block sent in the body
         """
         try:
-            rest_params = common.get_restful_params(self.request.path)
+            rest_params = common.get_restful_params(self.request.uri)
             if rest_params is None:
-                common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+                common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
                 return
             
             if "instances" not in rest_params:
@@ -196,9 +196,16 @@ class InstancesHandler(BaseHandler):
                     d['metadata'] = json_body['metadata']
                     d['ima_whitelist'] = json_body['ima_whitelist']
                     d['revocation_key'] = json_body['revocation_key']
+                    d['tpm_version'] = 0
+                    d['accept_tpm_hash_algs'] = json_body['accept_tpm_hash_algs']
+                    d['accept_tpm_encryption_algs'] = json_body['accept_tpm_encryption_algs']
+                    d['accept_tpm_signing_algs'] = json_body['accept_tpm_signing_algs']
+                    d['hash_alg'] = ""
+                    d['enc_alg'] = ""
+                    d['sign_alg'] = ""
                     
                     new_instance = self.db.add_instance(instance_id,d)
-                   
+                    
                     # don't allow overwriting
                     if new_instance is None:
                         common.echo_json_response(self, 409, "Node of uuid %s already exists"%(instance_id))
@@ -222,13 +229,13 @@ class InstancesHandler(BaseHandler):
     def put(self):
         """This method handles the PUT requests to add instances to the Cloud Verifier. 
          
-        Currently, only instances resources are available for PUTing, i.e. /v2/instances. All other PUT uri's will return errors.
+        Currently, only instances resources are available for PUTing, i.e. /instances. All other PUT uri's will return errors.
         instances requests require a json block sent in the body
         """
         try:
-            rest_params = common.get_restful_params(self.request.path)
+            rest_params = common.get_restful_params(self.request.uri)
             if rest_params is None:
-                common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+                common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
                 return
             
             if "instances" not in rest_params:
@@ -279,7 +286,7 @@ class InstancesHandler(BaseHandler):
         if need_pubkey:
             partial_req = "0"
         
-        url = "http://%s:%d/v2/quotes/integrity/nonce/%s/mask/%s/vmask/%s/partial/%s/"%(instance['ip'],instance['port'],params["nonce"],params["mask"],params['vmask'],partial_req) 
+        url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(instance['ip'],instance['port'],params["nonce"],params["mask"],params['vmask'],partial_req) 
         # the following line adds the instance and params arguments to the callback as a convenience
         cb = functools.partial(self.on_get_quote_response, instance, url)
         client.fetch(url, callback=cb)
@@ -335,7 +342,7 @@ class InstancesHandler(BaseHandler):
         v_json_message = cloud_verifier_common.prepare_v(instance)
         instance['operational_state'] = cloud_verifier_common.CloudInstance_Operational_State.PROVIDE_V
         client = tornado.httpclient.AsyncHTTPClient()
-        url = "http://%s:%d/v2/keys/vkey"%(instance['ip'],instance['port'])
+        url = "http://%s:%d/keys/vkey"%(instance['ip'],instance['port'])
         cb = functools.partial(self.on_provide_v_response, instance, url)
         client.fetch(url, method="POST", callback=cb, headers=None, body=v_json_message)
     
@@ -484,7 +491,7 @@ def main(argv=sys.argv):
     logger.info('Starting Cloud Verifier (tornado) on port ' + cloudverifier_port + ', use <Ctrl-C> to stop')
 
     app = tornado.web.Application([
-        (r"/v2/instances/.*", InstancesHandler,{'db':db}),
+        (r"/(?:v[0-9]/)?instances/.*", InstancesHandler,{'db':db}),
         (r".*", MainHandler),
         ])
     

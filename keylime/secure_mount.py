@@ -20,7 +20,7 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import tpm_exec
+import cmd_exec
 import common
 import os
 import ConfigParser
@@ -32,7 +32,7 @@ config = ConfigParser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 def check_mounted(secdir):
-    whatsmounted = tpm_exec.run("mount",lock=False)[0]
+    whatsmounted = cmd_exec.run("mount",lock=False)['retout']
     for line in whatsmounted:
         tokens = line.split()
         tmpfs = False
@@ -66,6 +66,6 @@ def mount():
         common.chownroot(secdir,logger)
         size = config.get('cloud_node','secure_size')
         logger.info("mounting secure storage location %s on tmpfs"%secdir)
-        tpm_exec.run("mount -t tmpfs -o size=%s,mode=0700 tmpfs %s" %(size,secdir),lock=False)
+        cmd_exec.run("mount -t tmpfs -o size=%s,mode=0700 tmpfs %s" %(size,secdir),lock=False)
     
     return secdir

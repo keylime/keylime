@@ -42,7 +42,7 @@ from SocketServer import ThreadingMixIn
 import functools
 import signal
 import time
-import tpm_exec
+import cmd_exec
 import datetime
 
 if common.CA_IMPL=='cfssl':
@@ -244,7 +244,7 @@ def convert_crl_to_pem(derfile,pemfile):
         with open(pemfile,'w') as f:
             f.write("")
     else:
-        tpm_exec.run("openssl crl -in %s -inform der -out %s"%(derfile,pemfile),lock=False)
+        cmd_exec.run("openssl crl -in %s -inform der -out %s"%(derfile,pemfile),lock=False)
     
 def get_crl_distpoint(cert_path):
     cert_obj = X509.load_cert(cert_path)
@@ -345,7 +345,7 @@ def cmd_listen(workingdir,cert_path):
         while True:
             try:
                 if os.path.exists('%s/cacrl.der'%workingdir):
-                    retout = tpm_exec.run("openssl crl -inform der -in %s/cacrl.der -text -noout"%workingdir,lock=False)[0]
+                    retout = cmd_exec.run("openssl crl -inform der -in %s/cacrl.der -text -noout"%workingdir,lock=False)['retout']
                     for line in retout:
                         line = line.strip()
                         if line.startswith("Next Update:"):

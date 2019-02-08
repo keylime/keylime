@@ -45,7 +45,7 @@ if [ $# -eq 3 ]
 then
 	ALGO=$3
 else
-	ALGO=sha1sum
+    ALGO=sha1sum
 fi
 
 OUTPUT=$(readlink -f $1)
@@ -55,7 +55,7 @@ rm -f $OUTPUT
 echo "Writing whitelist to $OUTPUT with $ALGO..."
 
 cd /
-find `ls / | grep -v "\bsys\b\|\brun\b\|\bproc\b\|\blost+found\b\|\bdev\b\|\bmedia\b\|mnt"` \( -fstype rootfs -o -xtype f -type l -o -type f \) -uid 0 -exec $ALGO '/{}' >> $OUTPUT \;
+find `ls / | grep -v "\bsys\b\|\brun\b\|\bproc\b\|\blost+found\b\|\bdev\b\|\bmedia\b\|\bsnap\b\|mnt"` \( -fstype rootfs -o -xtype f -type l -o -type f \) -uid 0 -exec $ALGO '/{}' >> $OUTPUT \;
 
 rm -rf /tmp/ima/
 mkdir -p /tmp/ima

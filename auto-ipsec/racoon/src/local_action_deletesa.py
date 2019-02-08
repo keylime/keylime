@@ -27,7 +27,7 @@ from M2Crypto import X509
 
 import keylime.secure_mount as secure_mount
 import keylime.common as common
-import keylime.tpm_exec as tpm_exec
+import keylime.cmd_exec as cmd_exec
 
 # read the config file
 config = ConfigParser.RawConfigParser()
@@ -45,11 +45,11 @@ def execute(revocation):
     ca = X509.load_cert('%s/unzipped/cacert.crt'%secdir)
     
     # need to find any sa's that were established with that cert serial
-    output = tpm_exec.run("racoonctl show-sa ipsec",lock=False,raiseOnError=True)[0]
+    output = cmd_exec.run("racoonctl show-sa ipsec",lock=False,raiseOnError=True)['retout']
     deletelist=set()
     for line in output:
         if not line.startswith("\t"):
-            certder = tpm_exec.run("racoonctl get-cert inet %s"%line.strip(),raiseOnError=False,lock=False)[0]
+            certder = cmd_exec.run("racoonctl get-cert inet %s"%line.strip(),raiseOnError=False,lock=False)['retout']
             if len(certder)==0:
                 continue;
             certobj = X509.load_cert_der_string(''.join(certder))
@@ -63,9 +63,9 @@ def execute(revocation):
 
     for todelete in deletelist:
         logger.info("deleting IPsec sa between %s"%todelete)
-        tpm_exec.run("racoonctl delete-sa isakmp inet %s"%todelete,lock=False)
+        cmd_exec.run("racoonctl delete-sa isakmp inet %s"%todelete,lock=False)
         tokens = todelete.split()
-        tpm_exec.run("racoonctl delete-sa isakmp inet %s %s"%(tokens[1],tokens[0]),lock=False)
+        cmd_exec.run("racoonctl delete-sa isakmp inet %s %s"%(tokens[1],tokens[0]),lock=False)
         
     # for each pair returned that doens't start with whitespace
     #racoonctl get-cert inet 192.168.240.128 192.168.240.254 (the pair from before)

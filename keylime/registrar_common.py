@@ -31,21 +31,22 @@ import json
 import threading
 import traceback
 import sys
-import tpm_initialize
 import crypto
 import base64
 import ConfigParser
 import registrar_client
-import tpm_quote
 import signal
 import time
 import hashlib
 import cloud_verifier_common
 import keylime_sqlite
+import tpm_obj
 
+
+# setup config
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
-      
+
 class ProtectedHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
@@ -61,13 +62,13 @@ class ProtectedHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         """This method handles the GET requests to retrieve status on instances from the Registrar Server. 
         
-        Currently, only instances resources are available for GETing, i.e. /v2/instances. All other GET uri's 
+        Currently, only instances resources are available for GETing, i.e. /instances. All other GET uri's 
         will return errors. instances requests require a single instance_id parameter which identifies the 
         instance to be returned. If the instance_id is not found, a 404 response is returned.
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
         if "instances" not in rest_params:
@@ -124,12 +125,12 @@ class ProtectedHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         """This method handles the DELETE requests to remove instances from the Registrar Server. 
         
-        Currently, only instances resources are available for DELETEing, i.e. /v2/instances. All other DELETE uri's will return errors.
+        Currently, only instances resources are available for DELETEing, i.e. /instances. All other DELETE uri's will return errors.
         instances requests require a single instance_id parameter which identifies the instance to be deleted.    
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
         if "instances" not in rest_params:
@@ -175,13 +176,13 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         """This method handles the POST requests to add instances to the Registrar Server.
         
-        Currently, only instances resources are available for POSTing, i.e. /v2/instances. All other POST uri's
+        Currently, only instances resources are available for POSTing, i.e. /instances. All other POST uri's
         will return errors. POST requests require an an instance_id identifying the instance to add, and json
         block sent in the body with 2 entries: ek and aik.  
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
         if "instances" not in rest_params:
@@ -207,11 +208,15 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             json_body = json.loads(post_body)
             
             ek = json_body['ek']
+            ek_tpm = json_body['ek_tpm']
             ekcert = json_body['ekcert']
             aik = json_body['aik']
+            aik_name = json_body['aik_name']
+            tpm_version = int(json_body['tpm_version'])
             
             # try to encrypt the AIK
-            (blob,key) = tpm_initialize.encryptAIK(instance_id,aik,ek)
+            tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
+            (blob,key) = tpm.encryptAIK(instance_id,aik,ek,ek_tpm,aik_name)
             
             # special behavior if we've registered this uuid before
             regcount = 1
@@ -235,6 +240,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             d['virtual']=int(ekcert=='virtual')
             d['active']=int(False)
             d['key']=key
+            d['tpm_version']=tpm_version
             d['provider_keys']={}
             d['regcount']=regcount
             self.server.db.add_instance(instance_id, d)
@@ -255,12 +261,12 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
     def do_PUT(self):
         """This method handles the PUT requests to add instances to the Registrar Server.
         
-        Currently, only instances resources are available for PUTing, i.e. /v2/instances. All other PUT uri's
+        Currently, only instances resources are available for PUTing, i.e. /instances. All other PUT uri's
         will return errors.
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /v2/instances/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
         if "instances" not in rest_params:
@@ -320,7 +326,8 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
                 registrar_client.init_client_tls(config, 'registrar')
                 provider_keys = registrar_client.getKeys(config.get('general', 'provider_registrar_ip'), config.get('general', 'provider_registrar_tls_port'), instance_id)
                 # we already have the vaik
-                if not tpm_quote.check_deep_quote(hashlib.sha1(instance['key']).hexdigest(),
+                tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=instance['tpm_version'])
+                if not tpm.check_deep_quote(hashlib.sha1(instance['key']).hexdigest(),
                                                   instance_id+instance['aik']+instance['ek'], 
                                                   deepquote,  
                                                   instance['aik'],  

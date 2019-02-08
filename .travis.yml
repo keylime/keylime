@@ -1,0 +1,31 @@
+---
+language: ruby
+
+sudo: required
+
+env:
+  global:
+    - container_id: $(mktemp)
+    - tpm12image: lukehinds/keylime-ci-tpm12
+      tpm12tag: v300
+    - tpm20image: lukehinds/keylime-ci-tpm20
+      tpm20tag: v301
+
+services:
+  - docker
+
+before_install:
+  - 'sudo docker pull ${tpm12image}:${tpm12tag}'
+  - 'sudo docker pull ${tpm20image}:${tpm20tag}'
+
+script:
+    # Run TPM 1.2 Tests
+  - >
+    docker run --privileged -v $(pwd):/root/python-keylime -it ${tpm12image}:${tpm12tag}
+    /bin/sh -c 'cd /root/python-keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh -s openssl'
+
+    # Run TPM 2.0 Tests
+  - docker run --detach --privileged -v $(pwd):/root/python-keylime -v /sys/fs/cgroup:/sys/fs/cgroup:ro ${tpm20image}:${tpm20tag} > ${container_id}
+  - docker exec -u 0 -it --tty "$(cat ${container_id})" /bin/bash /root/python-keylime/.ci/test_wrapper.sh
+    # Clean up
+  - 'sudo docker stop "$(cat ${container_id})"'

@@ -26,8 +26,6 @@ import base64
 import time
 import common
 import registrar_client
-import tpm_quote
-import tpm_initialize
 import os
 import crypto
 import ssl
@@ -37,9 +35,14 @@ import sqlite3
 import revocation_notifier
 import keylime_sqlite
 import ConfigParser
+import tpm_obj
+from tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 
+
+# setup logging
 logger = common.init_logging('cloudverifier_common')
 
+# setup config
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
@@ -190,8 +193,32 @@ def process_quote_response(instance, json_response):
             return False
         instance['registrar_keys']  = registrar_keys
         
-    if tpm_quote.is_deep_quote(quote):
-        validQuote = tpm_quote.check_deep_quote(instance['nonce'],
+    tpm_version = json_response.get('tpm_version')
+    tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
+    hash_alg = json_response.get('hash_alg')
+    enc_alg = json_response.get('enc_alg')
+    sign_alg = json_response.get('sign_alg')
+    
+    # Update chosen tpm and algorithms
+    instance['tpm_version'] = tpm_version
+    instance['hash_alg'] = hash_alg
+    instance['enc_alg'] = enc_alg
+    instance['sign_alg'] = sign_alg
+    
+    # Ensure hash_alg is in accept_tpm_hash_alg list
+    if not Hash_Algorithms.is_accepted(hash_alg, instance['accept_tpm_hash_algs']):
+        raise Exception("TPM Quote is using an unaccepted hash algorithm: %s"%hash_alg)
+    
+    # Ensure enc_alg is in accept_tpm_encryption_algs list
+    if not Encrypt_Algorithms.is_accepted(enc_alg, instance['accept_tpm_encryption_algs']):
+        raise Exception("TPM Quote is using an unaccepted encryption algorithm: %s"%enc_alg)
+    
+    # Ensure sign_alg is in accept_tpm_encryption_algs list
+    if not Sign_Algorithms.is_accepted(sign_alg, instance['accept_tpm_signing_algs']):
+        raise Exception("TPM Quote is using an unaccepted signing algorithm: %s"%sign_alg)
+    
+    if tpm.is_deep_quote(quote):
+        validQuote = tpm.check_deep_quote(instance['nonce'],
                                                 received_public_key,
                                                 quote,
                                                 instance['registrar_keys']['aik'],
@@ -201,13 +228,14 @@ def process_quote_response(instance, json_response):
                                                 ima_measurement_list,
                                                 instance['ima_whitelist'])
     else:
-        validQuote = tpm_quote.check_quote(instance['nonce'],
+        validQuote = tpm.check_quote(instance['nonce'],
                                            received_public_key,
                                            quote,
                                            instance['registrar_keys']['aik'],
                                            instance['tpm_policy'],
                                            ima_measurement_list,
-                                           instance['ima_whitelist'])
+                                           instance['ima_whitelist'],
+                                           hash_alg)
     if not validQuote:
         return False
     
@@ -250,7 +278,7 @@ def prepare_get_quote(instance):
     
     This method is part of the polling loop of the thread launched on Tenant POST. 
     """
-    instance['nonce'] = tpm_initialize.random_password(20)
+    instance['nonce'] = TPM_Utilities.random_password(20)
     
     params = {
         'nonce': instance['nonce'],
@@ -273,6 +301,13 @@ def process_get_status(instance):
                 'vtpm_policy':instance['vtpm_policy'],
                 'metadata':instance['metadata'],
                 'ima_whitelist_len':wl_len,
+                'tpm_version':instance['tpm_version'],
+                'accept_tpm_hash_algs':instance['accept_tpm_hash_algs'],
+                'accept_tpm_encryption_algs':instance['accept_tpm_encryption_algs'],
+                'accept_tpm_signing_algs':instance['accept_tpm_signing_algs'],
+                'hash_alg':instance['hash_alg'],
+                'enc_alg':instance['enc_alg'],
+                'sign_alg':instance['sign_alg'],
                 }
     return response  
 
@@ -338,10 +373,17 @@ def init_db(db_filename):
         'metadata' : 'TEXT',
         'ima_whitelist' : 'TEXT',
         'revocation_key': 'TEXT',
+        'tpm_version': 'INT',
+        'accept_tpm_hash_algs': 'TEXT',
+        'accept_tpm_encryption_algs': 'TEXT',
+        'accept_tpm_signing_algs': 'TEXT',
+        'hash_alg': 'TEXT',
+        'enc_alg': 'TEXT',
+        'sign_alg': 'TEXT',
         }
     
     # these are the columns that contain json data and need marshalling
-    json_cols_db = ['tpm_policy','vtpm_policy','metadata','ima_whitelist']
+    json_cols_db = ['tpm_policy','vtpm_policy','metadata','ima_whitelist','accept_tpm_hash_algs', 'accept_tpm_encryption_algs', 'accept_tpm_signing_algs']
     
     # in the form key : default value
     exclude_db = {
