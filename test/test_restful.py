@@ -20,12 +20,12 @@ violate any copyrights that exist in this work.
 
 
 """ NOTE:
-This unittest is being used as a procedural test.  
-The tests must be run in-order and CANNOT be parallelized! 
+This unittest is being used as a procedural test.
+The tests must be run in-order and CANNOT be parallelized!
 
-Tests all but two RESTful interfaces: 
+Tests all but two RESTful interfaces:
     * node's POST /v2/keys/vkey
-        - Done by CV after the CV's POST /v2/instances/{UUID} command is performed 
+        - Done by CV after the CV's POST /v2/instances/{UUID} command is performed
     * CV's PUT /v2/instances/{UUID}
         - POST already bootstraps node, so PUT is redundant in this test
 
@@ -33,20 +33,21 @@ The registrar's PUT vactivate interface is only tested if a vTPM is present!
 """
 
 
-""" USAGE: 
-Should be run in test directory under root privileges with either command: 
+""" USAGE:
+Should be run in test directory under root privileges with either command:
     * python -m unittest -v test_restful
-    * green -vv 
-        (with `pip install green`) 
+    * green -vv
+        (with `pip install green`)
 
 To run without root privileges, be sure to export KEYLIME_TEST=True
 
-For Python Coverage support (pip install coverage), set env COVERAGE_FILE and: 
+For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
     * coverage run --parallel-mode test_restful.py
 """
 
 
 # System imports
+import dbus
 import sys
 import signal
 import unittest
@@ -86,14 +87,14 @@ from tpm_abstract import TPM_Utilities
 # Will be used to communicate with the TPM
 tpm = None
 
-#Ensure this is run as root 
+#Ensure this is run as root
 if os.geteuid() != 0 and common.REQUIRE_ROOT:
     exit("Tests need to be run with root privileges, or set env KEYLIME_TEST=True!")
 
-# Force sorting tests alphabetically 
+# Force sorting tests alphabetically
 unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(x, y)
 
-# Config-related stuff 
+# Config-related stuff
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
@@ -106,7 +107,7 @@ reg_process = None
 cn_process = None
 tenant_templ = None
 
-# Class-level components that are not static (so can't be added to test class) 
+# Class-level components that are not static (so can't be added to test class)
 public_key = None
 keyblob = None
 ek = None
@@ -115,61 +116,79 @@ vtpm = False
 
 
 
-# Like os.remove, but ignore file DNE exceptions 
+# Like os.remove, but ignore file DNE exceptions
 def fileRemove(path):
     try:
         os.remove(path)
     except OSError as e:
-        # Ignore if file does not exist 
+        # Ignore if file does not exist
         if e.errno != errno.ENOENT:
             raise
 
 
-# Boring setup stuff 
+# Boring setup stuff
 def setUpModule():
     try:
         env = os.environ.copy()
         env['PATH']=env['PATH']+":/usr/local/bin"
-        # Run init_tpm_server and tpm_serverd (start fresh) 
+        # Run init_tpm_server and tpm_serverd (start fresh)
         its = subprocess.Popen(["init_tpm_server"], shell=False, env=env)
         its.wait()
         tsd = subprocess.Popen(["tpm_serverd"], shell=False, env=env)
         tsd.wait()
     except Exception as e:
         print "WARNING: Restarting TPM emulator failed!"
-    
+    # Note: the following is required as abrmd is failing to reconnect to MSSIM, once
+    # MSSIM is killed and restarted. If this is an proved an actual bug and is
+    # fixed upstream, the following dbus restart call can be removed.
     try:
-        # Start with a clean slate for this test 
+        sysbus = dbus.SystemBus()
+        systemd1 = sysbus.get_object('org.freedesktop.systemd1', '/org/freedesktop/systemd1')
+        manager = dbus.Interface(systemd1, 'org.freedesktop.systemd1.Manager')
+        # If the systemd service exists, let's restart it.
+        for service in sysbus.list_names():
+            if "com.intel.tss2.Tabrmd" in service:
+                print("Found dbus service: %s", str(service))
+                try:
+                    print("Restarting tpm2-abrmd.service.")
+                    job = manager.RestartUnit('tpm2-abrmd.service', 'fail')
+                except dbus.exceptions.DBusException as e:
+                    print(e)
+    except Exception as e:
+        print("Non systemd instance detected, no tpm2-abrmd restart required.")
+
+    try:
+        # Start with a clean slate for this test
         fileRemove(common.WORK_DIR + "/tpmdata.json")
         fileRemove(common.WORK_DIR + "/cv_data.sqlite")
         fileRemove(common.WORK_DIR + "/reg_data.sqlite")
         shutil.rmtree(common.WORK_DIR + "/cv_ca", True)
     except Exception as e:
         print "WARNING: Cleanup of TPM files failed!"
-    
+
     # CV must be run first to create CA and certs!
     launch_cloudverifier()
     launch_registrar()
     #launch_cloudnode()
-    
+
     # get the tpm object
     global tpm
     tpm = tpm_obj.getTPM(need_hw_tpm=True)
 
-    # Make the Tenant do a lot of set-up work for us 
+    # Make the Tenant do a lot of set-up work for us
     global tenant_templ
     tenant_templ = tenant.Tenant()
     tenant_templ.cloudnode_ip = "localhost"
     tenant_templ.node_uuid = config.get('cloud_node', 'node_uuid')
     tenant_templ.registrar_boot_port = config.get('general', 'registrar_port')
 
-# Destroy everything on teardown 
+# Destroy everything on teardown
 def tearDownModule():
-    # Tear down in reverse order of dependencies 
+    # Tear down in reverse order of dependencies
     kill_cloudnode()
     kill_cloudverifier()
     kill_registrar()
-    
+
 
 
 def launch_cloudverifier():
@@ -178,10 +197,10 @@ def launch_cloudverifier():
     if cv_process is None:
         filename = ["%s/cloud_verifier_tornado.py"%(KEYLIME_DIR)]
         cv_process = subprocess.Popen(
-                                        FORK_ARGS + filename, 
-                                        shell=False, 
-                                        preexec_fn=os.setsid, 
-                                        stdout=subprocess.PIPE, 
+                                        FORK_ARGS + filename,
+                                        shell=False,
+                                        preexec_fn=os.setsid,
+                                        stdout=subprocess.PIPE,
                                         stderr=subprocess.STDOUT,
                                         env=script_env
                                     )
@@ -205,10 +224,10 @@ def launch_registrar():
     if reg_process is None:
         filename = ["%s/registrar.py"%(KEYLIME_DIR)]
         reg_process = subprocess.Popen(
-                                        FORK_ARGS + filename, 
-                                        shell=False, 
-                                        preexec_fn=os.setsid, 
-                                        stdout=subprocess.PIPE, 
+                                        FORK_ARGS + filename,
+                                        shell=False,
+                                        preexec_fn=os.setsid,
+                                        stdout=subprocess.PIPE,
                                         stderr=subprocess.STDOUT,
                                         env=script_env
                                     )
@@ -232,10 +251,10 @@ def launch_cloudnode():
     if cn_process is None:
         filename = ["%s/cloud_node.py"%(KEYLIME_DIR)]
         cn_process = subprocess.Popen(
-                                        FORK_ARGS + filename, 
-                                        shell=False, 
-                                        preexec_fn=os.setsid, 
-                                        stdout=subprocess.PIPE, 
+                                        FORK_ARGS + filename,
+                                        shell=False,
+                                        preexec_fn=os.setsid,
+                                        stdout=subprocess.PIPE,
                                         stderr=subprocess.STDOUT,
                                         env=script_env
                                     )
@@ -288,8 +307,8 @@ def services_running():
 
 
 class TestRestful(unittest.TestCase):
-    
-    # Static class members (won't change between tests) 
+
+    # Static class members (won't change between tests)
     payload = None
     auth_tag = None
     tpm_policy = None
@@ -301,8 +320,8 @@ class TestRestful(unittest.TestCase):
     U = None
     V = None
     api_version = common.API_VERSION
-    
-    
+
+
     @classmethod
     def setUpClass(cls):
         """Prepare the keys and payload to give to the CV"""
@@ -312,59 +331,59 @@ class TestRestful(unittest.TestCase):
         cls.U = ret['u']
         cls.V = ret['v']
         cls.payload = ret['ciphertext']
-        
+
         """Set up to register a node"""
         cls.auth_tag = crypto.do_hmac(cls.K,tenant_templ.node_uuid)
-        
+
         """Prepare policies for node"""
         cls.tpm_policy = config.get('tenant', 'tpm_policy')
         cls.vtpm_policy = config.get('tenant', 'vtpm_policy')
         cls.tpm_policy = TPM_Utilities.readPolicy(cls.tpm_policy)
         cls.vtpm_policy = TPM_Utilities.readPolicy(cls.vtpm_policy)
-        
+
         """Allow targeting a specific API version (default latest)"""
         cls.api_version = common.API_VERSION
-    
+
     def setUp(self):
         """Nothing to set up before each test"""
         pass
-    
-    
-    
+
+
+
     """Ensure everyone is running before doing tests"""
     def test_000_services(self):
         self.assertTrue(services_running(), "Not all services started successfully!")
-    
-    
-    
+
+
+
     """Registrar Testset"""
     def test_010_reg_instance_post(self):
         """Test registrar's POST /v2/instances/{UUID} Interface"""
         global keyblob, aik, vtpm, ek
-        
-        # Change CWD for TPM-related operations 
+
+        # Change CWD for TPM-related operations
         cwd = os.getcwdu()
         common.ch_dir(common.WORK_DIR,None)
         secdir = secure_mount.mount()
-        
-        # Initialize the TPM with AIK 
+
+        # Initialize the TPM with AIK
         (ek,ekcert,aik,ek_tpm,aik_name) = tpm.tpm_init(self_activate=False,config_pw=config.get('cloud_node','tpm_ownerpassword'))
         vtpm = tpm.is_vtpm()
-        
-        # Seed RNG (root only) 
+
+        # Seed RNG (root only)
         if common.REQUIRE_ROOT:
             tpm.init_system_rand()
-        
-        # Handle virtualized and emulated TPMs 
+
+        # Handle virtualized and emulated TPMs
         if ekcert is None:
             if vtpm:
                 ekcert = 'virtual'
             elif tpm.is_emulator():
                 ekcert = 'emulator'
-        
-        # Get back to our original CWD 
+
+        # Get back to our original CWD
         common.ch_dir(cwd,None)
-        
+
         data = {
             'ek': ek,
             'ekcert': ekcert,
@@ -374,7 +393,7 @@ class TestRestful(unittest.TestCase):
             'tpm_version': tpm.get_tpm_version(),
         }
         v_json_message = json.dumps(data)
-        
+
         response = tornado_requests.request(
                                             "POST",
                                             "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.node_uuid),
@@ -382,29 +401,29 @@ class TestRestful(unittest.TestCase):
                                             context=None
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance Add return code!")
-        response_body = response.json() 
-        
+        response_body = response.json()
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
         self.assertIn("blob", response_body["results"], "Malformed response body!")
-        
+
         keyblob = response_body["results"]["blob"]
         self.assertIsNotNone(keyblob, "Malformed response body!")
-    
+
     @unittest.skipIf(vtpm == True, "Registrar's PUT /v2/instances/{UUID}/activate only for non-vTPMs!")
     def test_011_reg_instance_activate_put(self):
         """Test registrar's PUT /v2/instances/{UUID}/activate Interface"""
         global keyblob, aik
-        
+
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
-        
+
         key = tpm.activate_identity(keyblob)
         data = {
             'auth_tag': crypto.do_hmac(base64.b64decode(key),tenant_templ.node_uuid),
         }
         v_json_message = json.dumps(data)
-        
+
         response = tornado_requests.request(
                                             "PUT",
                                             "http://%s:%s/v%s/instances/%s/activate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.node_uuid),
@@ -412,27 +431,27 @@ class TestRestful(unittest.TestCase):
                                             context=None
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance Activate return code!")
-        response_body = response.json() 
-        
+        response_body = response.json()
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
-    
+
     @unittest.skipIf(vtpm == False, "Registrar's PUT /v2/instances/{UUID}/vactivate only for vTPMs!")
     def test_012_reg_instance_vactivate_put(self):
         """Test registrar's PUT /v2/instances/{UUID}/vactivate Interface"""
         global keyblob, aik, ek
-        
+
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(ek, "Required value not set.  Previous step may have failed?")
-        
+
         key = tpm.activate_identity(keyblob)
         deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(),tenant_templ.node_uuid+aik+ek)
         data = {
             'deepquote': deepquote,
         }
         v_json_message = json.dumps(data)
-        
+
         response = tornado_requests.request(
                                             "PUT",
                                             "http://%s:%s/v%s/instances/%s/vactivate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.node_uuid),
@@ -440,11 +459,11 @@ class TestRestful(unittest.TestCase):
                                             context=None
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance vActivate return code!")
-        response_body = response.json() 
-        
+        response_body = response.json()
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
-    
+
     def test_013_reg_instances_get(self):
         """Test registrar's GET /v2/instances Interface"""
         response = tornado_requests.request(
@@ -454,18 +473,18 @@ class TestRestful(unittest.TestCase):
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance List return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
         self.assertIn("uuids", response_body["results"], "Malformed response body!")
-        
-        # We registered exactly one node so far 
+
+        # We registered exactly one node so far
         self.assertEqual(1, len(response_body["results"]["uuids"]), "Incorrect system state!")
-    
+
     def test_014_reg_instance_get(self):
         """Test registrar's GET /v2/instances/{UUID} Interface"""
         global aik
-        
+
         response = tornado_requests.request(
                                             "GET",
                                             "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.node_uuid),
@@ -473,16 +492,16 @@ class TestRestful(unittest.TestCase):
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
         self.assertIn("aik", response_body["results"], "Malformed response body!")
         self.assertIn("ek", response_body["results"], "Malformed response body!")
         self.assertIn("ekcert", response_body["results"], "Malformed response body!")
-        
+
         aik = response_body["results"]["aik"]
-        #TODO: results->provider_keys is only for virtual mode 
-    
+        #TODO: results->provider_keys is only for virtual mode
+
     def test_015_reg_instance_delete(self):
         """Test registrar's DELETE /v2/instances/{UUID} Interface"""
         response = tornado_requests.request(
@@ -492,19 +511,19 @@ class TestRestful(unittest.TestCase):
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Delete return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
-    
-    
-    
+
+
+
     """Node Setup Testset"""
     def test_020_node_keys_pubkey_get(self):
         """Test node's GET /v2/keys/pubkey Interface"""
-        
-        # We want a real cloud node to communicate with! 
+
+        # We want a real cloud node to communicate with!
         launch_cloudnode()
-        
+
         response = tornado_requests.request(
                                             "GET",
                                             "http://%s:%s/v%s/keys/pubkey"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version),
@@ -512,27 +531,27 @@ class TestRestful(unittest.TestCase):
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Node pubkey return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
         self.assertIn("pubkey", response_body["results"], "Malformed response body!")
-        
+
         global public_key
         public_key = response_body["results"]["pubkey"]
         self.assertNotEqual(public_key, None, "Malformed response body!")
-    
+
     def test_021_reg_instance_get(self):
         # We need to refresh the aik value we've stored in case it changed
         self.test_014_reg_instance_get()
-    
+
     def test_022_node_quotes_identity_get(self):
         """Test node's GET /v2/quotes/identity Interface"""
         global aik
-        
+
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
-        
+
         nonce = TPM_Utilities.random_password(20)
-        
+
         numretries = config.getint('tenant','max_retries')
         while numretries >= 0:
             response = tornado_requests.request(
@@ -545,51 +564,51 @@ class TestRestful(unittest.TestCase):
             time.sleep(config.getint('tenant','max_retries'))
         self.assertEqual(response.status_code, 200, "Non-successful Node identity return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
         self.assertIn("quote", response_body["results"], "Malformed response body!")
         self.assertIn("pubkey", response_body["results"], "Malformed response body!")
-        
-        # Check the quote identity 
+
+        # Check the quote identity
         self.assertTrue(tpm.check_quote(nonce,response_body["results"]["pubkey"],response_body["results"]["quote"],aik), "Invalid quote!")
-    
+
     @unittest.skip("Testing of nodes's POST /v2/keys/vkey disabled!  (spawned CV should do this already)")
     def test_023_node_keys_vkey_post(self):
         """Test node's POST /v2/keys/vkey Interface"""
         # CV should do this (during CV POST/PUT test)
-        # Running this test might hide problems with the CV sending the V key 
+        # Running this test might hide problems with the CV sending the V key
         global public_key
-        
+
         self.assertIsNotNone(self.V, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(public_key, "Required value not set.  Previous step may have failed?")
-        
+
         encrypted_V = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),str(self.V))
         b64_encrypted_V = base64.b64encode(encrypted_V)
         data = {
                   'encrypted_key': b64_encrypted_V
                 }
         v_json_message = json.dumps(data)
-        
+
         response = tornado_requests.request(
                                             "POST", "http://%s:%s/v%s/keys/vkey"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version),
                                             data=v_json_message
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Node vkey post return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
-    
+
     def test_024_node_keys_ukey_post(self):
         """Test node's POST /v2/keys/ukey Interface"""
         global public_key
-        
+
         self.assertIsNotNone(public_key, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(self.U, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(self.auth_tag, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(self.payload, "Required value not set.  Previous step may have failed?")
-        
+
         encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),str(self.U))
         b64_encrypted_u = base64.b64encode(encrypted_U)
         data = {
@@ -598,24 +617,24 @@ class TestRestful(unittest.TestCase):
                   'payload': self.payload
                 }
         u_json_message = json.dumps(data)
-        
+
         response = tornado_requests.request(
                                             "POST", "http://%s:%s/v%s/keys/ukey"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version),
                                             data=u_json_message
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Node ukey post return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
-    
-    
-    
+
+
+
     """Cloud Verifier Testset"""
     def test_030_cv_instance_post(self):
         """Test CV's POST /v2/instances/{UUID} Interface"""
         self.assertIsNotNone(self.V, "Required value not set.  Previous step may have failed?")
-        
+
         b64_v = base64.b64encode(self.V)
         data = {
             'v': b64_v,
@@ -631,7 +650,7 @@ class TestRestful(unittest.TestCase):
             'accept_tpm_signing_algs': config.get('tenant','accept_tpm_signing_algs').split(','),
         }
         json_message = json.dumps(data)
-        
+
         response = tornado_requests.request(
                                             "POST",
                                             "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.node_uuid),
@@ -640,16 +659,16 @@ class TestRestful(unittest.TestCase):
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful CV Instance Post return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
-        
+
         time.sleep(10)
-    
+
     @unittest.skip("Testing of CV's PUT /v2/instances/{UUID} disabled!")
     def test_031_cv_instance_put(self):
         """Test CV's PUT /v2/instances/{UUID} Interface"""
-        #TODO: this should actually test PUT functionality (e.g., make node fail and then PUT back up) 
+        #TODO: this should actually test PUT functionality (e.g., make node fail and then PUT back up)
         response = tornado_requests.request(
                                             "PUT",
                                             "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.node_uuid),
@@ -658,10 +677,10 @@ class TestRestful(unittest.TestCase):
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful CV Instance Post return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
-    
+
     def test_032_cv_instances_get(self):
         """Test CV's GET /v2/instances Interface"""
         response = tornado_requests.request(
@@ -671,14 +690,14 @@ class TestRestful(unittest.TestCase):
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful CV Instance List return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
         self.assertIn("uuids", response_body["results"], "Malformed response body!")
-        
+
         # Be sure our node is registered
         self.assertEqual(1, len(response_body["results"]["uuids"]))
-    
+
     def test_033_cv_instance_get(self):
         """Test CV's GET /v2/instances/{UUID} Interface"""
         response = tornado_requests.request(
@@ -688,38 +707,38 @@ class TestRestful(unittest.TestCase):
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful CV Instance return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
-        
-        # Check a few of the important properties are present 
+
+        # Check a few of the important properties are present
         self.assertIn("operational_state", response_body["results"], "Malformed response body!")
         self.assertIn("ip", response_body["results"], "Malformed response body!")
         self.assertIn("port", response_body["results"], "Malformed response body!")
-    
-    
-    
+
+
+
     """Node Poll Testset"""
     def test_040_node_quotes_integrity_get(self):
         """Test node's GET /v2/quotes/integrity Interface"""
         global public_key, aik
-        
+
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
-        
+
         nonce = TPM_Utilities.random_password(20)
         mask = self.tpm_policy["mask"]
         vmask = self.vtpm_policy["mask"]
         partial = "1"
         if public_key is None:
             partial = "0"
-        
+
         response = tornado_requests.request(
                                             "GET",
                                             "http://%s:%s/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version,nonce,mask,vmask,partial)
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Node Integrity Get return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
         self.assertIn("quote", response_body["results"], "Malformed response body!")
@@ -728,11 +747,11 @@ class TestRestful(unittest.TestCase):
             public_key = response_body["results"]["pubkey"]
         self.assertIn("tpm_version", response_body["results"], "Malformed response body!")
         self.assertIn("hash_alg", response_body["results"], "Malformed response body!")
-        
+
         quote = response_body["results"]["quote"]
         tpm_version = response_body["results"]["tpm_version"]
         hash_alg = response_body["results"]["hash_alg"]
-        
+
         validQuote = tpm.check_quote(nonce,
                                             public_key,
                                             quote,
@@ -740,31 +759,31 @@ class TestRestful(unittest.TestCase):
                                             self.tpm_policy,
                                             hash_alg=hash_alg)
         self.assertTrue(validQuote)
-    
+
     def test_041_node_keys_verify_get(self):
         """Test node's GET /v2/keys/verify Interface"""
         self.assertIsNotNone(self.K, "Required value not set.  Previous step may have failed?")
-        
+
         challenge = TPM_Utilities.random_password(20)
-        
+
         response = tornado_requests.request(
                                             "GET",
                                             "http://%s:%s/v%s/keys/verify?challenge=%s"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version,challenge)
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Node verify return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
         self.assertIn("hmac", response_body["results"], "Malformed response body!")
-        
-        # Be sure response is valid 
+
+        # Be sure response is valid
         mac = response_body['results']['hmac']
         ex_mac = crypto.do_hmac(self.K, challenge)
         self.assertEqual(mac, ex_mac, "Node failed to validate challenge code!")
-    
-    
-    
+
+
+
     """CV Cleanup Testset"""
     def test_050_cv_instance_delete(self):
         """Test CV's DELETE /v2/instances/{UUID} Interface"""
@@ -776,16 +795,16 @@ class TestRestful(unittest.TestCase):
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful CV Instance Delete return code!")
         response_body = response.json()
-        
+
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
-    
-    
-    
+
+
+
     def tearDown(self):
         """Nothing to bring down after each test"""
         pass
-    
+
     @classmethod
     def tearDownClass(cls):
         """Nothing to bring down"""

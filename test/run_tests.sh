@@ -1,3 +1,6 @@
+#!/bin/bash
+##########################################################################################
+#
 # DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 #
 # This material is based upon work supported by the Assistant Secretary of Defense for
@@ -43,13 +46,13 @@ done
 
 while getopts ":cuhs:" opt; do
     case $opt in
-        c) 
+        c)
             COVERAGE=1
             export COVERAGE_DIR=`mktemp -d`
             export COVERAGE_FILE=$COVERAGE_DIR/.coverage
             echo "INFO: Using Coverage directory: $COVERAGE_DIR"
             ;;
-        u)  
+        u)
             USER_MODE=1
             UMODE_OPT="--user"
             export KEYLIME_TEST=True
@@ -72,6 +75,35 @@ while getopts ":cuhs:" opt; do
             ;;
     esac
 done
+
+# Determine distibution (using systemd standard `os-release`):
+if [ -f /etc/os-release ]; then
+        . /etc/os-release
+    else
+        echo "Not able to determine your OS or Distribution"
+        exit 1
+fi
+
+# Set OS specifics (for now the package manager)
+
+case "$ID" in
+    debian | ubuntu)
+        PACKAGE_MGR="apt-get"
+    ;;
+
+    redhat | centos)
+        PACKAGE_MGR="yum"
+    ;;
+
+    fedora)
+        PACKAGE_MGR="dnf"
+
+    ;;
+
+    *)
+        echo "${ID} is not currently supported."
+        exit 1
+esac
 
 # Permissions-related sanity checking
 if [[ "$USER_MODE" -eq "0" && $EUID -ne 0 ]]; then
@@ -105,39 +137,38 @@ if [ ! -f "/etc/keylime.conf" ]; then
         elif [ "$CA_IMP" == "cfssl" ]; then
             $PACKAGE_MGR install -y golang
         fi
-    fi     
+    fi
 fi
 
-
-# pip-related dependencies
-if [[ -z "$(command -v pip)" ]] ; then
-    # Which package management system are we using?
-    if [[ -n "$(command -v yum)" ]]; then
-        PACKAGE_MGR=$(command -v yum)
-        PYTHON_PREIN="epel-release python"
-        PYTHON_DEPS="python-pip"
-    elif [[ -n "$(command -v apt-get)" ]]; then
-        PACKAGE_MGR=$(command -v apt-get)
-        PYTHON_PREIN="python"
-        PYTHON_DEPS="python-pip"
-    else
-       echo "No recognized package manager found on this system!" 1>&2
-       exit 1
-    fi
-
-    if [[ "$USER_MODE" -ne "0" ]] ; then
-        echo -e "Packages '$PYTHON_DEPS' are required for this script.  Please manually install them, or run this script as root." 1>&2
-        exit 1
-    fi
-
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\tInstalling python and pip'
-    echo "=================================================================================="
-    $PACKAGE_MGR install -y $PYTHON_PREIN
-    $PACKAGE_MGR install -y $PYTHON_DEPS
+# Set correct dependencies
+# Fedora
+if [ $PACKAGE_MGR = "dnf" ]; then
+    PYTHON_PREIN="python"
+    PYTHON_DEPS="python-pip python2-dbus"
+# RHEL / CentOS etc
+elif [ $PACKAGE_MGR = "yum" ]; then
+    PYTHON_PREIN="epel-release python"
+    PYTHON_DEPS="python-pip dbus-python"
+# Ubuntu / Debian
+elif [ $PACKAGE_MGR = "apt-get" ]; then
+    PYTHON_PREIN="python"
+    PYTHON_DEPS="python-pip python-dbus"
+else
+    echo "No recognized package manager found on this system!" 1>&2
+    exit 1
 fi
 
+if [[ "$USER_MODE" -ne "0" ]] ; then
+    echo -e "Packages '$PYTHON_DEPS' are required for this script.  Please manually install them, or run this script as root." 1>&2
+    exit 1
+fi
+
+echo
+echo "=================================================================================="
+echo $'\t\t\tInstalling python and dependencies'
+echo "=================================================================================="
+$PACKAGE_MGR install -y $PYTHON_PREIN
+$PACKAGE_MGR install -y $PYTHON_DEPS
 
 # Install test dependencies
 echo
