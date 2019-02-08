@@ -86,8 +86,16 @@ while getopts ":yniwthfp:N:T:" opt; do
 done
 
 if [[ $EUID -ne 0 ]]; then
-   echo "This script must be run as root in order to call apt-get and install python dependencies" 1>&2
+   echo "This script must be run as root in order to call ${NAME}'s package manager and install python dependencies" 1>&2
    exit 1
+fi
+
+# Determine distibution (using systemd standard `os-release`):
+if [ -f /etc/os-release ]; then
+        . /etc/os-release
+    else
+        echo "Not able to determine your OS or Distribution"
+        exit 1
 fi
 
 # Ensure the nopasswd sudo user is defined 
@@ -139,21 +147,42 @@ fi
 echo "INFO: Using Keylime directory: $KEYLIME_DIR"
 
 
+# Set OS specifics (for now the package manager)
+
+case "$ID" in
+    debian | ubuntu)
+        PACKAGE_MANAGER="apt-get"
+    ;;
+
+    redhat | centos)
+        PACKAGE_MANAGER="yum"
+    ;;
+
+    fedora)
+        PACKAGE_MANAGER="dnf"
+    
+    ;;
+
+    *)
+        echo "${ID} is not currently supported."
+        exit 1
+esac
+
 # Ensure everything is latest 
+
 echo 
 echo "=================================================================================="
-echo $'\t\t\t\tUpdating apt-get'
+echo $'\t\t\t\tUpdating $NAME packages'
 echo "=================================================================================="
-apt-get update
+${PACKAGE_MANAGER} update -y 
 
-
-# Keylime webserver-related apt dependencies
+# Keylime webserver-related dependencies
 if [[ "$WEBSERVER" -eq "1" ]] ; then
     echo 
     echo "=================================================================================="
     echo $'\t\t\tInstalling nginx and cryptsetup'
     echo "=================================================================================="
-    apt-get install -y nginx cryptsetup
+    ${PACKAGE_MANAGER} install -y nginx cryptsetup
 
 
     # Install demo files to respective directories
@@ -180,8 +209,22 @@ if [[ "$TRUSTED_GRUB" -eq "1" ]] ; then
     echo $TMPDIR
     
     # Install dependencies
-    apt-get -y install git autogen autoconf automake gcc bison flex 
-    apt-get -y install libdevmapper-dev vflib3-dev libfuse-dev xfonts-utils libzfslinux-dev liblzma-dev ttf-dejavu ttf-unifont
+    ${PACKAGE_MANAGER} -y install git autogen autoconf automake gcc bison flex 
+
+    case "$ID" in
+    debian | ubuntu)
+        ${PACKAGE_MANAGER} -y install libdevmapper-dev vflib3-dev libfuse-dev xfonts-utils libzfslinux-dev liblzma-dev ttf-dejavu ttf-unifont
+    ;;
+
+    redhat | centos | fedora)
+        ${PACKAGE_MANAGER} -y install device-mapper-libs freetype fuse-devel xorg-x11-font-utils zfs-fuse  lzma-devel dejavu-fonts-common unifont-fonts
+    ;;
+
+    *)
+        echo "${ID} is not currently supported."
+        exit 1
+    esac
+    
     
     # Build TrustedGRUB2
     mkdir -p $TMPDIR/TrustedGRUB2
@@ -241,5 +284,17 @@ if [[ "$IMA_ENABLE" -eq "1" ]] ; then
     echo $'\t\t\t\tGenerating IMA whitelist'
     echo "=================================================================================="
     cd $KEYLIME_DIR/keylime/
-    ./create_whitelist.sh whitelist.sh
+    case "$ID" in
+    debian | ubuntu)
+        initdisk="initrd"
+    ;;
+
+    redhat | centos | fedora)
+        initdisk="initramfs"
+    ;;
+    *)
+        echo "${ID} is not currently supported."
+        exit 1
+    esac
+    ./create_whitelist.sh whitelist.sh ${initdisk}
 fi

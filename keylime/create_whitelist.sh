@@ -3,20 +3,20 @@
 #
 # DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 #
-# This material is based upon work supported by the Assistant Secretary of Defense for 
-# Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
-# FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in 
-# this material are those of the author(s) and do not necessarily reflect the views of the 
+# This material is based upon work supported by the Assistant Secretary of Defense for
+# Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
+# FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in
+# this material are those of the author(s) and do not necessarily reflect the views of the
 # Assistant Secretary of Defense for Research and Engineering.
 #
 # Copyright 2016 Massachusetts Institute of Technology.
 #
 # The software/firmware is provided to you on an As-Is basis
 #
-# Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-# 252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-# rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-# above. Use of this work other than as specifically authorized by the U.S. Government may 
+# Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
+# 252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
+# rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
+# above. Use of this work other than as specifically authorized by the U.S. Government may
 # violate any copyrights that exist in this work.
 #
 ##########################################################################################
@@ -27,21 +27,30 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-if [ $# -lt 1 ]
+if [ $# -lt 2 ]
 then
-    echo "Usage:  `basename $0` list.txt [hash-algo]" >&2
+    echo "Usage:  `basename $0` list.txt initrd|initramfs [hash-algo]" >&2
     exit $NOARGS;
 fi
 
-if [ $# -eq 2 ]
+case $2 in
+  (initrd|initramfs) ;;
+    (*) echo -e 'Unknown init ram disk: '$2; >&2
+        echo 'Please use 'initrd' or initramfs only'; >&2
+        exit 1;;
+esac
+
+
+if [ $# -eq 3 ]
 then
-    ALGO=$2
+	ALGO=$3
 else
     ALGO=sha1sum
 fi
 
 OUTPUT=$(readlink -f $1)
 rm -f $OUTPUT
+
 
 echo "Writing whitelist to $OUTPUT with $ALGO..."
 
@@ -51,28 +60,17 @@ find `ls / | grep -v "\bsys\b\|\brun\b\|\bproc\b\|\blost+found\b\|\bdev\b\|\bmed
 rm -rf /tmp/ima/
 mkdir -p /tmp/ima
 
-echo "Creating whitelist for initrd..."
-for i in `ls /boot/initrd*`
+echo "Creating whitelist for init ram disk"
+for i in `ls /boot/${2}*`
 do
     echo "extracting $i"
     mkdir -p /tmp/ima/$i-extracted
     cd /tmp/ima/$i-extracted
-    
-    # Try standard gzip encoding
-    gzip -dc $i | cpio -id 2> /dev/null
-    
-    # if that fails, try xz
-    if [ $? -ne 0 ]
-    then
-        xz -dc $i | cpio -id 2> /dev/null
+    if  [ $i == "initrd" ]; then
+      gzip -dc $i | cpio -id 2> /dev/null
+    else
+      /usr/lib/dracut/skipcpio $i | gunzip -c | cpio -i -d 2> /dev/null
     fi
-    
-    # If that fails, maybe it's in raw CPIO format?
-    if [ $? -ne 0 ]
-    then
-        cat $i | cpio -id 2> /dev/null
-    fi
-    
     find -type f -exec sha1sum "./{}" \; | sed "s| \./\./| /|" >> $OUTPUT
 done
 rm -rf /tmp/ima
