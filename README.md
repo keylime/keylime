@@ -23,6 +23,7 @@ keylime supports both TPM versions 1.2 and 2.0.
   * [Running keylime](#running-keylime)
   * [Provisioning](#provisioning)
   * [Using keylime CA](#using-keylime-ca)
+* [Report a Security Vulnerability](#report-a-security-vulnerability)
 * [Additional Reading](#additional-reading)
 * [License](#license)
 
@@ -334,6 +335,12 @@ CRL.  To enable this feature, run:
 The revocation key will be automatically created by the tenant the first time
 you use the CA with keylime.  Currently the CRL is only written back to the CA
 directory, unless IPsec configuration is being used (see [Additional Reading](#additional-reading)).
+
+## Report a Security Vulnerability
+
+Please contact us directly at [security@keylime.groups.io](mailto:security@keylime.groups.io)
+for any bug that might impact the security of this project. **Do not** use a
+github issue to report any potential security bugs.
 
 ## Additional Reading
 
