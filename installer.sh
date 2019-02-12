@@ -385,7 +385,7 @@ elif [[ "$TPM_VERSION" -eq "2" ]] ; then
     git clone $TPM2TSS_GIT tpm2-tss
     pushd tpm2-tss
     git checkout $TPM2TSS_VER
-    ./bootstrap -I /usr/share/gnulib/m4
+    ./bootstrap
     ./configure --prefix=/usr
     make
     make install

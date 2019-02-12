@@ -105,7 +105,7 @@ The brief synopsis of a quick build/install (after installing dependencies) is:
 ```bash
 git clone https://github.com/tpm2-software/tpm2-tss.git tpm2-tss
 pushd tpm2-tss
-./bootstrap -I /usr/share/gnulib/m4
+./bootstrap
 ./configure --prefix=/usr
 make
 sudo make install
