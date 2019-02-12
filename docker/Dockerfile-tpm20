@@ -74,7 +74,7 @@ ENV init /lib/systemd/systemd
 
 RUN git clone https://github.com/tpm2-software/tpm2-tss.git ${TPM2_TSS}
 WORKDIR ${TPM2_TSS}
-RUN ./bootstrap -I /usr/share/gnulib/m4
+RUN ./bootstrap
 RUN ./configure --prefix=/usr --disable-doxygen-doc
 RUN make
 RUN make install
