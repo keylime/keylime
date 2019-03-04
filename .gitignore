@@ -41,3 +41,9 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+
+# Keylime specifics
+swtpm2_scripts/NVChip
+test/.auditing-*
+test/NVChip
+test/testdata.sqlite
