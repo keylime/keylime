@@ -1,29 +1,31 @@
 # Deluxe Demo Bundle Setup
 
-## Introduction 
+## Introduction
 
-The Deluxe Demo Bundle shows off the fancy technology that Keylime is capable of.  It is intended to be installed on a throwaway demo machine! 
+The Deluxe Demo Bundle shows off the fancy technology that Keylime is capable of.
+It is intended to be installed on a throwaway demo machine!
 
-It includes the following demos: 
-* IMA Demo 
-* Webserver Demo (using nginx) 
-* TrustedGRUB Demo 
+It includes the following demos:
+* [IMA Demo](ima/README.md)
+* [Webserver Demo using nginx](webserver_demo/README.md)
+* [TrustedGRUB Demo](trusted_grub/README.md)
+* [Node Monitor - Phone Home Demo](node_monitor/README.md)
 
-The bundle contains the following files: 
-* **demo_setup.sh**: This sets up and installs the demos (on top of an existing Keylime installation) 
-* **ima-policy**: IMA policy file (less burdensome than the IMA TCB policy) 
-* **keyfile.txt**: Keyfile that decrypts the payload.enc and payload.txt files 
-* **autorun.sh**: This file is sent to the cloud node, which will decrypt and mount the payload.enc 
+The bundle contains the following files:
+* **demo_setup.sh**: This sets up and installs the demos (on top of an existing Keylime installation)
+* **ima/ima-policy**: IMA policy file (less burdensome than the IMA TCB policy)
+* **keyfile.txt**: Keyfile that decrypts the payload.enc and payload.txt files
+* **autorun.sh**: This file is sent to the cloud node, which will decrypt and mount the payload.enc
     * *__NOTE:__ Your keylime.conf file's ```cloud_node.payload_script``` should be set to autorun.sh*
-* **payload.enc**: The target of the mount.sh script (LUKS encrypted payload), containing the "protected" website 
-* **payload.txt**: A simple encrypted payload to demonstrate the "Keyfile" payload type 
-* **payload/**: Directory containing the "unprotected" website 
+* **payload.enc**: The target of the mount.sh script (LUKS encrypted payload), containing the "protected" website
+* **payload.txt**: A simple encrypted payload to demonstrate the "Keyfile" payload type
+* **payload/**: Directory containing the "unprotected" website
 
-Also, see the **demo/node_monitor** directory for a node "phone-home" demo! 
+Also, see the **demo/node_monitor** directory for a node "phone-home" demo!
 
-## Usage 
+## Usage
 
-The demo_setup.sh script can be executed with the following options: 
+The demo_setup.sh script can be executed with the following options:
 ```
 Usage: ./demo_setup.sh [option...]
 Options:
@@ -39,27 +41,11 @@ Options:
 -h              This help info
 ```
 
-## Important Notes
-
-### Webserver Demo
-
-Both the keyfile.txt and autorun.sh files should be sent to the node (via "CA Dir" mode provisioning).  
-
-`keylime_tenant -t 192.168.0.100 -u my_node_id --cert default --include node_files_dir`
-
-The payload.enc file should be in the web server HTML directory (demo_setup.sh will put it there). 
-
-### TrustedGRUB
-
-Defaults to using https://github.com/Rohde-Schwarz-Cybersecurity/TrustedGRUB2 
-
-Caveats: This requires a physical TPM, otherwise your system will be *unbootable*.  
-It also does not support UEFI mode booting, so make sure you are using legacy boot in your BIOS settings.  
-It will be built for the i386-pc platform.
-
 ### No-password sudo
 
-Obviously a bad idea unless done on a scrappable, demo-only system! 
+Should you wish to have sudo'less access, then pass the args `-n` or `-N <user>`
+
+For a demo-only system!
 
 ## License
 
@@ -78,15 +64,14 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
-This material is based upon work supported by the Assistant Secretary of Defense for 
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
+This material is based upon work supported by the Assistant Secretary of Defense for
+Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
 FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the 
+material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
 
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-above. Use of this work other than as specifically authorized by the U.S. Government may 
+Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
+252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
+rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
+above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
-

@@ -1,31 +1,31 @@
 # Node Monitor Demo
 
-## Introduction 
+## Introduction
 
 The Node Monitor demo is designed to provide a way for nodes to "phone home", indicating that they have successfully been provisioned.  
 
-It consists of three parts: 
-* **autorun.sh**: This file is sent to the cloud node, to be executed during provisioning 
+It consists of three parts:
+* **autorun.sh**: This file is sent to the cloud node, to be executed during provisioning
     * *__NOTE:__ Your keylime.conf file's ```cloud_node.payload_script``` should be set to autorun.sh*
 * **tenant_node_monitor.py**: The Node Monitor server that listens for phone-home requests.  
-    * Should be run on the **_same filesystem_** as the tenant (since it shares its CA certs) 
-* **tenant_node_monitor.sh**: The script that the Node Monitor executes each time it receives a phone-home (it is the 'action' portion of phoning home) 
+    * Should be run on the **_same filesystem_** as the tenant (since it shares its CA certs)
+* **tenant_node_monitor.sh**: The script that the Node Monitor executes each time it receives a phone-home (it is the 'action' portion of phoning home)
 
-## Usage 
+## Usage
 
-The Node Monitor server can be started with the following options: 
+The Node Monitor server can be started with the following options:
 ```
 Usage: python tenant_node_monitor.py [option...]
 Options:
 -p PORT         Port for the Node Monitor to listen on (defaults to 6892)
 -i IP           IP address for the Node Monitor (defaults to localhost)
 -s SCRIPT       Specify the script to execute when the node phones home
--c CA_DIR       Tenant-generated certificate. Pass in the CA directory or 
+-c CA_DIR       Tenant-generated certificate. Pass in the CA directory or
                 use "default" to use the standard dir
 -h              This help info
 ```
 
-For example: 
+For example:
 ```
 python tenant_node_monitor.py -s tenant_node_monitor.sh
 ```
@@ -47,15 +47,14 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
-This material is based upon work supported by the Assistant Secretary of Defense for 
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
+This material is based upon work supported by the Assistant Secretary of Defense for
+Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
 FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the 
+material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
 
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-above. Use of this work other than as specifically authorized by the U.S. Government may 
+Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
+252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
+rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
+above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
-
