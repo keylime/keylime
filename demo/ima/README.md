@@ -5,7 +5,7 @@
 
 ---
 
-The following steps are required to peform the IMA demo on a Fedora 29
+The following steps are required to peform the IMA demo on a Fedora 28
 Machine. This should also work for other distrbutions. If you get this working
 on a different variant, please feel free to make a pull request and add the
 addition steps required.
