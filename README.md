@@ -49,6 +49,26 @@ Options:
 
 Note that CFSSL is required if you want to support revocation.
 
+
+### Ansible
+
+Ansible roles are available to deploy keylime in either TPM 1.2 or 2.0 mode
+(with the relevant TPM 1.2 or 2.0 Emulator).
+
+Please proceed to the [Keylime Ansible
+Repository](https://github.com/keylime/ansible-keylime).
+
+### Docker
+
+Python keylime and related emulators can also be deployed using Docker. However
+note this is only as a sandbox / development enviroment.
+
+Please see either the Dockerfiles
+[here](https://github.com/keylime/python-keylime/tree/master/docker) or our
+local CI script
+[here](https://github.com/keylime/python-keylime/blob/master/.ci/run_local.sh)
+which will automate the build and pull of keylime on TPM 1.2 or 2.0.
+
 ### Manual
 
 Keylime requires Python 2.7.10 or newer for proper TLS support.  This is newer than
