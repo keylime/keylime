@@ -24,6 +24,7 @@ keylime supports both TPM versions 1.2 and 2.0.
   * [Provisioning](#provisioning)
   * [Using keylime CA](#using-keylime-ca)
 * [Report a Security Vulnerability](#report-a-security-vulnerability)
+* [Meeting Information](#project-meetings)
 * [Additional Reading](#additional-reading)
 * [License](#license)
 
@@ -361,6 +362,14 @@ directory, unless IPsec configuration is being used (see [Additional Reading](#a
 Please contact us directly at [security@keylime.groups.io](mailto:security@keylime.groups.io)
 for any bug that might impact the security of this project. **Do not** use a
 github issue to report any potential security bugs.
+
+## Project Meetings
+
+We meet every Wednesday @ 15:00 UTC to 15:30. Anyone is welcome to join the meeting.
+
+The meeting is hosted in [gitter chat](https://gitter.im/keylime-project/community)
+
+Meeting agenda are hosted and archived in the [meetings repo](https://github.com/keylime/meetings) as github issues.
 
 ## Additional Reading
 
