@@ -780,7 +780,7 @@ def main(argv=sys.argv):
             logger.error("Invalid command specified %s"%(args.command))
             sys.exit(2)
     except Exception as e:
-        logger.error(traceback.print_exc())
+        logger.debug(traceback.print_exc())
         logger.error("Error: %s "%str(e))
     
 if __name__=="__main__":
