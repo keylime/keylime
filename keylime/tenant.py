@@ -500,24 +500,23 @@ class Tenant():
 
     def do_cvdelete(self):        
         response = tornado_requests.request("DELETE","http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context)
-        if response.status_code != 200:
-            logger.error("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
-            common.log_http_response(logger,logging.ERROR,response.json())
-            return
-        
-        deleted = False
-        for _ in range(12):
-            response = tornado_requests.request("GET", "http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context)
-            if response.status_code == 404:
-                deleted=True
-                break
-            time.sleep(.4)
-            
-        if deleted:
+        if response.status_code == 202:
+            deleted = False
+            for _ in range(12):
+                response = tornado_requests.request("GET", "http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context)
+                if response.status_code == 404:
+                    deleted=True
+                    break
+                time.sleep(.4)
+            if deleted:
+                logger.info("CV completed deletion of node %s"%(self.node_uuid))
+            else:
+                logger.error("Timed out waiting for delete of node %s to complete at CV"%self.node_uuid)
+        elif response.status_code == 200:
             logger.info("Node %s deleted from the CV"%(self.node_uuid))
         else:
-            logger.error("Timed out waiting for delete of node %s to complete at CV"%self.node_uuid)
-
+            #logger.error("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
+            common.log_http_response(logger,logging.ERROR,response.json())
 
     def do_regdelete(self):
         registrar_client.init_client_tls(config,'tenant')
