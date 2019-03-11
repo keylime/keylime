@@ -53,10 +53,6 @@ logger = common.init_logging('tenant')
 config = ConfigParser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
-# get the tpm object
-tpm = tpm_obj.getTPM(need_hw_tpm=True)
-tpm_version = tpm.get_tpm_version()
-
 class Tenant():
     """Simple command processor example."""
     
@@ -757,6 +753,7 @@ def main(argv=sys.argv):
                 time.sleep(1)
                 #invalidate it eventually
                 logger.debug("invalidating PCR 15, forcing revocation")
+                tpm = tpm_obj.getTPM(need_hw_tpm=True)
                 tpm.extendPCR(15, tpm.hashdigest("garbage"))
                 time.sleep(5)
                 logger.debug("Deleting node from verifier")
