@@ -51,10 +51,10 @@ config.read(common.CONFIG_FILE)
 class tpm1(AbstractTPM):
 
     def __init__(self, need_hw_tpm=False):
+        AbstractTPM.__init__(self, need_hw_tpm)
+        
         # shared lock to serialize access to tools
         self.tpmutilLock = threading.Lock()
-        
-        AbstractTPM.__init__(self, need_hw_tpm)
         
         # TPM 1.2 supports fixed set of algorithms
         self.supported['hash'] = Set([Hash_Algorithms.SHA1])
