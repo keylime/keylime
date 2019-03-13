@@ -194,6 +194,11 @@ class AbstractTPM(object):
         self.defaults['encrypt'] = Encrypt_Algorithms.RSA
         self.defaults['sign'] = Sign_Algorithms.RSASSA
         self.supported = {}
+        
+        if self.is_emulator():
+            logger.warning("INSECURE: Keylime is using a software TPM emulator rather than a real hardware TPM.")
+            logger.warning("INSECURE: The security of Keylime is NOT linked to a hardware root of trust.")
+            logger.warning("INSECURE: Only use Keylime in this mode for testing or debugging purposes.")
 
     @abstractmethod
     def get_tpm_version(self):
