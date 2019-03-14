@@ -41,7 +41,6 @@ MIN_PYTORNADO_VERSION="4.3"
 MIN_PYM2CRYPTO_VERSION="0.21.1"
 MIN_PYZMQ_VERSION="14.4"
 MIN_PYCRYPTODOMEX_VERSION="3.4.1"
-MIN_PYYAML_VERSION="3.13"
 MIN_GO_VERSION="1.8.4"
 
 
@@ -193,12 +192,6 @@ else
     pycdom_ver=$(pip freeze | grep pycryptodomex | cut -d"=" -f3)
     if ! $(version_checker "$MIN_PYCRYPTODOMEX_VERSION" "$pycdom_ver"); then
         confirm_force_install "ERROR: Minimum python-pycryptodomex version is $MIN_PYCRYPTODOMEX_VERSION, but $pycdom_ver is installed!" || exit 1
-    fi
-    
-    # Ensure Python pyyaml installed meets min requirements 
-    pyyaml_ver=$(python -c 'import yaml; print yaml.__version__')
-    if ! $(version_checker "$MIN_PYYAML_VERSION" "$pyyaml_ver"); then
-        confirm_force_install "ERROR: Minimum python-pyyaml version is $MIN_PYYAML_VERSION, but $pyyaml_ver is installed!" || exit 1
     fi
 fi
 
