@@ -86,12 +86,10 @@ The following python packages are required:
 * pyzmq>=14.4
 * setuptools>=0.7
 * python-dev
+* pyyaml
 
-The latter of these are usually available as distro packages.
-
-On Ubuntu: `apt-get install -y python-dev python-setuptools python-tornado python-m2crypto python-zmq`
-
-On CentOS: `yum install -y python-devel python-setuptools python-tornado python-m2crypto python-zmq`
+The latter of these are usually available as distro packages. See [installer.sh](https://github.com/keylime/python-keylime/blob/master/installer.sh) for more information if you want to install them this way.
+You can also let keylime's `setup.py` install them via PyPI.
 
 #### TPM utility prerequisites
 
