@@ -245,7 +245,7 @@ def list_to_dict(list):
     return params
 
 def yaml_to_dict(arry):
-    return yaml.load("\n".join(arry))
+    return yaml.safe_load("\n".join(arry))
 
 def get_restful_params(urlstring):
     """Returns a dictionary of paired RESTful URI parameters"""

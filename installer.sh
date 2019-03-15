@@ -78,15 +78,15 @@ if [[ -n "$(command -v dnf)" || -n "$(command -v yum)" ]]; then
     
     PACKAGE_MGR=$(command -v yum)
     PYTHON_PREIN="$EXTRA_PKGS_STR git wget patch"
-    PYTHON_DEPS="python2-pip gcc gcc-c++ openssl-devel swig"
+    PYTHON_DEPS="python2-pip gcc gcc-c++ openssl-devel swig python2-pyyaml"
     PYTHON_PIPS="pycryptodomex m2crypto tornado pyzmq"
-    BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel python2-pyyaml doxygen"
+    BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
     PYTHON_PREIN="git patch"
-    PYTHON_DEPS="python python-pip python-dev python-setuptools python-zmq gcc g++ libssl-dev swig"
+    PYTHON_DEPS="python python-pip python-dev python-setuptools python-zmq gcc g++ libssl-dev swig python-yaml"
     PYTHON_PIPS="pycryptodomex m2crypto tornado"
-    BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib python-yaml doxygen libdbus-1-dev"
+    BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev"
 else
    echo "No recognized package manager found on this system!" 1>&2
    exit 1
