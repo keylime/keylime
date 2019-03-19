@@ -361,6 +361,15 @@ Please contact us directly at [security@keylime.groups.io](mailto:security@keyli
 for any bug that might impact the security of this project. **Do not** use a
 github issue to report any potential security bugs.
 
+## TPM Emulator use.
+
+Do not use TPM emulators in production!
+
+All TPM emulators should only be used for testing or demo environments. They
+should never be used in a production environment. A software emulated TPM does not have anywhere
+near the level of data protection  that a hardware TPM provides.
+
+
 ## Project Meetings
 
 We meet every Wednesday @ 15:00 UTC to 15:30. Anyone is welcome to join the meeting.
