@@ -227,6 +227,13 @@ class AbstractTPM(object):
     @abstractmethod
     def is_vtpm(self):
         pass
+    
+    def warn_emulator(self):
+        if self.is_emulator():
+            logger.warning("INSECURE: Keylime is using a software TPM emulator rather than a real hardware TPM.")
+            logger.warning("INSECURE: The security of Keylime is NOT linked to a hardware root of trust.")
+            logger.warning("INSECURE: Only use Keylime in this mode for testing or debugging purposes.")
+
 
     def __read_tpm_data(self):
         if os.path.exists('tpmdata.json'):

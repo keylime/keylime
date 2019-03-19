@@ -659,6 +659,7 @@ class tpm2(AbstractTPM):
 
     def tpm_init(self, self_activate=False, config_pw=None):
         # this was called tpm_initialize.init before
+        self.warn_emulator()
         self.__take_ownership(config_pw)
 
         self.__create_ek()
