@@ -793,7 +793,7 @@ class TestRestful(unittest.TestCase):
                                             "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.node_uuid),
                                             context=tenant_templ.context
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful CV Instance Delete return code!")
+        self.assertEqual(response.status_code, 202, "Non-successful CV Instance Delete return code!")
         response_body = response.json()
 
         # Ensure response is well-formed

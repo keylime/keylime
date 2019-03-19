@@ -477,10 +477,8 @@ class Tenant():
         json_message = json.dumps(data)
         response = tornado_requests.request("POST","http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),data=json_message,context=self.context)
         if response.status_code == 409:
-            # this is a conflict, delete first then re-add
-            logger.warning("Node already existed at CV.  Deleting and re-adding...")
-            self.do_cvdelete()
-            self.do_cv()
+            # this is a conflict, need to update or delete it
+            raise Exception("Node %s already existed at CV.  Please use delete or update."%self.node_uuid)
         elif response.status_code != 200:
             common.log_http_response(logger,logging.ERROR,response.json())
             raise Exception("POST command response: %d Unexpected response from Cloud Verifier: %s"%(response.status_code,response.body))
@@ -502,11 +500,23 @@ class Tenant():
 
     def do_cvdelete(self):        
         response = tornado_requests.request("DELETE","http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context)
-        if response.status_code != 200:
-            logger.error("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
-            common.log_http_response(logger,logging.ERROR,response.json())
+        if response.status_code == 202:
+            deleted = False
+            for _ in range(12):
+                response = tornado_requests.request("GET", "http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context)
+                if response.status_code == 404:
+                    deleted=True
+                    break
+                time.sleep(.4)
+            if deleted:
+                logger.info("CV completed deletion of node %s"%(self.node_uuid))
+            else:
+                logger.error("Timed out waiting for delete of node %s to complete at CV"%self.node_uuid)
+        elif response.status_code == 200:
+            logger.info("Node %s deleted from the CV"%(self.node_uuid))
         else:
-            logger.info("Node %s deleted from CV"%(self.node_uuid))
+            #logger.error("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
+            common.log_http_response(logger,logging.ERROR,response.json())
 
     def do_regdelete(self):
         registrar_client.init_client_tls(config,'tenant')
@@ -670,7 +680,7 @@ class Tenant():
 
 def main(argv=sys.argv):    
     parser = argparse.ArgumentParser(argv[0])
-    parser.add_argument('-c', '--command',action='store',dest='command',default='add',help="valid commands are add,delete,status,reactivate,regdelete. defaults to add")
+    parser.add_argument('-c', '--command',action='store',dest='command',default='add',help="valid commands are add,delete,update,status,reactivate,regdelete. defaults to add")
     parser.add_argument('-t', '--targethost',action='store',dest='node_ip',help="the IP address of the host to provision")
     parser.add_argument('--cv_targethost',action='store',default=None,dest='cv_node_ip',help='the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost')
     parser.add_argument('-v', '--cv',action='store',dest='verifier_ip',help="the IP address of the cloud verifier")
@@ -742,10 +752,19 @@ def main(argv=sys.argv):
                 time.sleep(1)
                 #invalidate it eventually
                 logger.debug("invalidating PCR 15, forcing revocation")
+                tpm = tpm_obj.getTPM(need_hw_tpm=True)
                 tpm.extendPCR(15, tpm.hashdigest("garbage"))
                 time.sleep(5)
                 logger.debug("Deleting node from verifier")
                 mytenant.do_cvdelete()
+        elif args.command=='update':
+            mytenant.init_add(vars(args))
+            mytenant.do_cvdelete()
+            mytenant.preloop()
+            mytenant.do_cv()
+            mytenant.do_quote()
+            if args.verify:
+                mytenant.do_verify()
         elif args.command=='delete':
             mytenant.do_cvdelete()
         elif args.command=='status':
@@ -760,7 +779,7 @@ def main(argv=sys.argv):
             logger.error("Invalid command specified %s"%(args.command))
             sys.exit(2)
     except Exception as e:
-        logger.error(traceback.print_exc())
+        logger.debug(traceback.print_exc())
         logger.error("Error: %s "%str(e))
     
 if __name__=="__main__":

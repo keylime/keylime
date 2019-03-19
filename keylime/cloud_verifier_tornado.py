@@ -152,11 +152,12 @@ class InstancesHandler(BaseHandler):
         op_state == cloud_verifier_common.CloudInstance_Operational_State.FAILED or \
         op_state == cloud_verifier_common.CloudInstance_Operational_State.INVALID_QUOTE:
             self.db.remove_instance(instance_id)
+            common.echo_json_response(self, 200, "Success")
+            logger.info('DELETE returning 200 response for instance id: ' + instance_id)
         else:            
             self.db.update_instance(instance_id, 'operational_state',cloud_verifier_common.CloudInstance_Operational_State.TERMINATED)
-
-        common.echo_json_response(self, 200, "Success")
-        logger.info('DELETE returning 200 response for instance id: ' + instance_id)
+            common.echo_json_response(self, 202, "Accepted")
+            logger.info('DELETE returning 202 response for instance id: ' + instance_id)
 
     @tornado.web.asynchronous                   
     def post(self):
