@@ -24,6 +24,7 @@ import common
 import select
 import time
 import hashlib
+import itertools
 from tpm_abstract import *
 import tpm_obj
 
@@ -33,9 +34,7 @@ tpm = tpm_obj.getTPM(need_hw_tpm=True)
 def ml_extend(ml,position,searchHash=None):
     f = open(ml,'r')
     
-    f.seek(position)
-    rest = f.read()
-    lines = rest.split('\n')
+    lines = itertools.islice(f, position, None)
     runninghash = ima.START_HASH
     
     for line in lines:
@@ -47,6 +46,7 @@ def ml_extend(ml,position,searchHash=None):
         if len(tokens)<5:
             print "ERROR: invalid measurement list file line: -%s-"%(line)
             return position
+        position += 1
         
         # get the filename roughly
         path = str(line[line.rfind(tokens[3])+len(tokens[3])+1:])        
@@ -63,14 +63,13 @@ def ml_extend(ml,position,searchHash=None):
         else:
             runninghash = hashlib.sha1(runninghash+template_hash.decode('hex')).digest()
             if runninghash.encode('hex') == searchHash:
-                position = rest.index(line)+len(line)
                 print "Located last IMA file updated: %s"%(path)
                 return position
     
     if searchHash is not None:
         raise Exception("Unable to find current measurement list position, Resetting the TPM emulator may be neccesary")
     
-    return position+len(rest)
+    return position
 
 
 def main(argv=sys.argv):
