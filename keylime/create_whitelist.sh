@@ -23,27 +23,19 @@
 
 
 if [[ $EUID -ne 0 ]]; then
-   echo "This script must be run as root" 1>&2
-   exit 1
+    echo "This script must be run as root" 1>&2
+    exit 1
 fi
 
-if [ $# -lt 2 ]
+if [ $# -lt 1 ]
 then
-    echo "Usage:  `basename $0` list.txt initrd|initramfs [hash-algo]" >&2
+    echo "Usage:  `basename $0` list.txt [hash-algo]" >&2
     exit $NOARGS;
 fi
 
-case $2 in
-  (initrd|initramfs) ;;
-    (*) echo -e 'Unknown init ram disk: '$2; >&2
-        echo 'Please use 'initrd' or initramfs only'; >&2
-        exit 1;;
-esac
-
-
-if [ $# -eq 3 ]
+if [ $# -eq 2 ]
 then
-	ALGO=$3
+    ALGO=$2
 else
     ALGO=sha1sum
 fi
@@ -61,16 +53,24 @@ rm -rf /tmp/ima/
 mkdir -p /tmp/ima
 
 echo "Creating whitelist for init ram disk"
-for i in `ls /boot/${2}*`
+for i in `ls /boot/initr*`
 do
     echo "extracting $i"
     mkdir -p /tmp/ima/$i-extracted
     cd /tmp/ima/$i-extracted
-    if  [ $i == "initrd" ]; then
-      gzip -dc $i | cpio -id 2> /dev/null
+
+    # platform-specific handling of init ram disk images
+    if [[ `command -v unmkinitramfs` ]] ; then
+        mkdir -p /tmp/ima/$i-extracted-unmk
+        unmkinitramfs $i /tmp/ima/$i-extracted-unmk
+        cp -r /tmp/ima/$i-extracted-unmk/main/. /tmp/ima/$i-extracted
+    elif [[ -x "/usr/lib/dracut/skipcpio" ]] ; then
+        /usr/lib/dracut/skipcpio $i | gunzip -c | cpio -i -d 2> /dev/null
     else
-      /usr/lib/dracut/skipcpio $i | gunzip -c | cpio -i -d 2> /dev/null
+        gzip -dc $i | cpio -id 2> /dev/null
     fi
+
     find -type f -exec sha1sum "./{}" \; | sed "s| \./\./| /|" >> $OUTPUT
 done
 rm -rf /tmp/ima
+
