@@ -10,7 +10,12 @@ end-to-end solution for both bootstrapping hardware rooted cryptographic
 identities for IaaS nodes and for system integrity monitoring of those nodes via
 periodic attestation.
 
-keylime supports both TPM versions 1.2 and 2.0.
+keylime supports both TPM versions 1.2 and 2.0.  
+
+keylime can be used with a software TPM emulator
+for development, testing, or demonstration purposes.  However, DO NOT USE keylime in 
+production with a TPM emulator!  A software TPM emulator does not provide a hardware root
+of trust and dramatically lowers the security benefits of using keylime.
 
 ## Table of Contents
 
@@ -48,21 +53,23 @@ Options:
 -h              This help info
 ```
 
-Note that CFSSL is required if you want to support revocation.
+Note that CFSSL is required if you want to support revocation. As noted above, do not use
+the TPM emulator option `-s` in production systems.
 
-
-### Ansible
+### Ansible (Development Only)
 
 Ansible roles are available to deploy keylime in either TPM 1.2 or 2.0 mode
-(with the relevant TPM 1.2 or 2.0 Emulator).
+(with the relevant TPM 1.2 or 2.0 Emulator).  Since this role currently uses a TPM emulator,
+it should only be used for development or testing and NOT in production.
 
 Please proceed to the [Keylime Ansible
 Repository](https://github.com/keylime/ansible-keylime).
 
-### Docker
+### Docker (Development Only)
 
-Python keylime and related emulators can also be deployed using Docker. However
-note this is only as a sandbox / development enviroment.
+Python keylime and related emulators can also be deployed using Docker. 
+Since this docker configuration currently uses a TPM emulator,
+it should only be used for development or testing and NOT in production.
 
 Please see either the Dockerfiles
 [here](https://github.com/keylime/python-keylime/tree/master/docker) or our
@@ -96,8 +103,10 @@ You can also let keylime's `setup.py` install them via PyPI.
 ##### TPM 1.2 Support
 
 You also need a patched version of tpm4720 the IBM software TPM emulator and
-utilities.  This is available at https://github.com/keylime/tpm4720-keylime.  See
-README.md in that project for detailed instructions on how to build and install it.
+utilities.  This is available at https://github.com/keylime/tpm4720-keylime.  
+Even if you are using keylime with a real TPM, you must install the IBM emulator
+because keylime uses the command line utilities that come with it.  
+See README.md in that project for detailed instructions on how to build and install it.
 
 The brief synopsis of a quick build/install (after installing dependencies) is:
 
@@ -107,6 +116,8 @@ cd tpm4720-keylime/libtpm
 ./comp-chardev.sh
 sudo make install
 ```
+
+To build tpm4720 to use the TPM emulator replace `./comp-chardev.sh` with `./comp-sockets.sh`.
 
 To ensure that you have the patched version installed ensure that you have
 the `encaik` utility in your path.
@@ -175,9 +186,9 @@ Alternatively, it is also possible, though not recommended, to communicate
 directly with the TPM (and not use a resource manager).  This can be done by
 setting the environment var `TPM2TOOLS_TCTI` to the appropriate value:
 
-For swtpm2 emulators: `export TPM2TOOLS_TCTI="mssim:port=2321"`
+To talk directly to the swtpm2 emulator: `export TPM2TOOLS_TCTI="mssim:port=2321"`
 
-For chardev communication: `export TPM2TOOLS_TCTI="device:/dev/tpm0"`
+To talk directly to a real TPM: `export TPM2TOOLS_TCTI="device:/dev/tpm0"`
 
 #### Install Keylime
 
@@ -360,14 +371,6 @@ directory, unless IPsec configuration is being used (see [Additional Reading](#a
 Please contact us directly at [security@keylime.groups.io](mailto:security@keylime.groups.io)
 for any bug that might impact the security of this project. **Do not** use a
 github issue to report any potential security bugs.
-
-## TPM Emulator use.
-
-Do not use TPM emulators in production!
-
-All TPM emulators should only be used for testing or demo environments. They
-should never be used in a production environment. A software emulated TPM does not have anywhere
-near the level of data protection  that a hardware TPM provides.
 
 
 ## Project Meetings
