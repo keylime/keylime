@@ -131,6 +131,8 @@ if [ ! -f "/etc/keylime.conf" ]; then
     else
         echo -e "Copying keylime.conf into /etc/keylime.conf"
         cp -n $KEYLIME_DIR/keylime.conf /etc/keylime.conf
+        echo -e "Setting require_ek_cert to False"
+        sed -i 's/require_ek_cert = True/require_ek_cert = False/g' /etc/keylime.conf
         if [ "$CA_IMP" == "openssl" ]; then
             echo -e "Setting CA Implementation to OpenSSL"
             sed -i 's/ca_implementation = cfssl/ca_implementation = openssl/g' /etc/keylime.conf
