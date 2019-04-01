@@ -21,12 +21,12 @@
 #
 ##########################################################################################
 
-if [ "$NODE_UUID" = "" ]
+if [ "$AGENT_UUID" = "" ]
 then
-   NODE_UUID=D432FBB3-D2F1-4A97-9EF7-75BD81C00000
+   AGENT_UUID=D432FBB3-D2F1-4A97-9EF7-75BD81C00000
 fi
 
 wget --ca-certificate=cacert.crt --post-data '{}' \
-     --certificate=$NODE_UUID-cert.crt \
-     --private-key=$NODE_UUID-private.pem \
-     https://localhost:6892/instances/$NODE_UUID
+     --certificate=$AGENT_UUID-cert.crt \
+     --private-key=$AGENT_UUID-private.pem \
+     https://localhost:6892/instances/$AGENT_UUID

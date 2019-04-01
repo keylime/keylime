@@ -40,11 +40,11 @@ NUM=$3
 PORT_END=$(($PORT_START+$NUM))
 
 # truncate files
-> cloudnode_port.txt
-> cloudnode_ip.txt
+> cloudagent_port.txt
+> cloudagent_ip.txt
 
 for i in `seq $PORT_START $PORT_END`
 do
-	echo $i >> cloudnode_port.txt
-	echo $IP >> cloudnode_ip.txt
+	echo $i >> cloudagent_port.txt
+	echo $IP >> cloudagent_ip.txt
 done

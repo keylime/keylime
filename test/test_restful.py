@@ -24,10 +24,10 @@ This unittest is being used as a procedural test.
 The tests must be run in-order and CANNOT be parallelized!
 
 Tests all but two RESTful interfaces:
-    * node's POST /v2/keys/vkey
+    * agent's POST /v2/keys/vkey
         - Done by CV after the CV's POST /v2/instances/{UUID} command is performed
     * CV's PUT /v2/instances/{UUID}
-        - POST already bootstraps node, so PUT is redundant in this test
+        - POST already bootstraps agent, so PUT is redundant in this test
 
 The registrar's PUT vactivate interface is only tested if a vTPM is present!
 """
@@ -169,7 +169,7 @@ def setUpModule():
     # CV must be run first to create CA and certs!
     launch_cloudverifier()
     launch_registrar()
-    #launch_cloudnode()
+    #launch_cloudagent()
 
     # get the tpm object
     global tpm
@@ -178,14 +178,14 @@ def setUpModule():
     # Make the Tenant do a lot of set-up work for us
     global tenant_templ
     tenant_templ = tenant.Tenant()
-    tenant_templ.cloudnode_ip = "localhost"
-    tenant_templ.node_uuid = config.get('cloud_node', 'node_uuid')
+    tenant_templ.cloudagent_ip = "localhost"
+    tenant_templ.AGENT_UUID = config.get('cloud_agent', 'AGENT_UUID')
     tenant_templ.registrar_boot_port = config.get('general', 'registrar_port')
 
 # Destroy everything on teardown
 def tearDownModule():
     # Tear down in reverse order of dependencies
-    kill_cloudnode()
+    kill_cloudagent()
     kill_cloudverifier()
     kill_registrar()
 
@@ -245,11 +245,11 @@ def launch_registrar():
         time.sleep(10)
     return True
 
-def launch_cloudnode():
-    """Start up the cloud node"""
+def launch_cloudagent():
+    """Start up the cloud agent"""
     global cn_process, script_env, FORK_ARGS
     if cn_process is None:
-        filename = ["%s/cloud_node.py"%(KEYLIME_DIR)]
+        filename = ["%s/cloud_agent.py"%(KEYLIME_DIR)]
         cn_process = subprocess.Popen(
                                         FORK_ARGS + filename,
                                         shell=False,
@@ -259,7 +259,7 @@ def launch_cloudnode():
                                         env=script_env
                                     )
         def initthread():
-            sys.stdout.write('\033[94m' + "\nCloud Node Thread" + '\033[0m')
+            sys.stdout.write('\033[94m' + "\nCloud agent Thread" + '\033[0m')
             while True:
                 line = cn_process.stdout.readline()
                 if line=="":
@@ -290,8 +290,8 @@ def kill_registrar():
     reg_process.wait()
     reg_process = None
 
-def kill_cloudnode():
-    """Kill the cloud node"""
+def kill_cloudagent():
+    """Kill the cloud agent"""
     global cn_process
     if cn_process is None:
         return
@@ -332,10 +332,10 @@ class TestRestful(unittest.TestCase):
         cls.V = ret['v']
         cls.payload = ret['ciphertext']
 
-        """Set up to register a node"""
-        cls.auth_tag = crypto.do_hmac(cls.K,tenant_templ.node_uuid)
+        """Set up to register a agent"""
+        cls.auth_tag = crypto.do_hmac(cls.K,tenant_templ.AGENT_UUID)
 
-        """Prepare policies for node"""
+        """Prepare policies for agent"""
         cls.tpm_policy = config.get('tenant', 'tpm_policy')
         cls.vtpm_policy = config.get('tenant', 'vtpm_policy')
         cls.tpm_policy = TPM_Utilities.readPolicy(cls.tpm_policy)
@@ -367,7 +367,7 @@ class TestRestful(unittest.TestCase):
         secdir = secure_mount.mount()
 
         # Initialize the TPM with AIK
-        (ek,ekcert,aik,ek_tpm,aik_name) = tpm.tpm_init(self_activate=False,config_pw=config.get('cloud_node','tpm_ownerpassword'))
+        (ek,ekcert,aik,ek_tpm,aik_name) = tpm.tpm_init(self_activate=False,config_pw=config.get('cloud_agent','tpm_ownerpassword'))
         vtpm = tpm.is_vtpm()
 
         # Seed RNG (root only)
@@ -396,7 +396,7 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "POST",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.node_uuid),
+                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
                                             data=v_json_message,
                                             context=None
                                         )
@@ -420,13 +420,13 @@ class TestRestful(unittest.TestCase):
 
         key = tpm.activate_identity(keyblob)
         data = {
-            'auth_tag': crypto.do_hmac(base64.b64decode(key),tenant_templ.node_uuid),
+            'auth_tag': crypto.do_hmac(base64.b64decode(key),tenant_templ.AGENT_UUID),
         }
         v_json_message = json.dumps(data)
 
         response = tornado_requests.request(
                                             "PUT",
-                                            "http://%s:%s/v%s/instances/%s/activate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.node_uuid),
+                                            "http://%s:%s/v%s/instances/%s/activate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
                                             data=v_json_message,
                                             context=None
                                         )
@@ -446,7 +446,7 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(ek, "Required value not set.  Previous step may have failed?")
 
         key = tpm.activate_identity(keyblob)
-        deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(),tenant_templ.node_uuid+aik+ek)
+        deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(),tenant_templ.AGENT_UUID+aik+ek)
         data = {
             'deepquote': deepquote,
         }
@@ -454,7 +454,7 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "PUT",
-                                            "http://%s:%s/v%s/instances/%s/vactivate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.node_uuid),
+                                            "http://%s:%s/v%s/instances/%s/vactivate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
                                             data=v_json_message,
                                             context=None
                                         )
@@ -478,7 +478,7 @@ class TestRestful(unittest.TestCase):
         self.assertIn("results", response_body, "Malformed response body!")
         self.assertIn("uuids", response_body["results"], "Malformed response body!")
 
-        # We registered exactly one node so far
+        # We registered exactly one agent so far
         self.assertEqual(1, len(response_body["results"]["uuids"]), "Incorrect system state!")
 
     def test_014_reg_instance_get(self):
@@ -487,7 +487,7 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.node_uuid),
+                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.AGENT_UUID),
                                             context=tenant_templ.context
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance return code!")
@@ -506,7 +506,7 @@ class TestRestful(unittest.TestCase):
         """Test registrar's DELETE /v2/instances/{UUID} Interface"""
         response = tornado_requests.request(
                                             "DELETE",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.node_uuid),
+                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.AGENT_UUID),
                                             context=tenant_templ.context
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Delete return code!")
@@ -517,19 +517,19 @@ class TestRestful(unittest.TestCase):
 
 
 
-    """Node Setup Testset"""
-    def test_020_node_keys_pubkey_get(self):
-        """Test node's GET /v2/keys/pubkey Interface"""
+    """agent Setup Testset"""
+    def test_020_agent_keys_pubkey_get(self):
+        """Test agent's GET /v2/keys/pubkey Interface"""
 
-        # We want a real cloud node to communicate with!
-        launch_cloudnode()
+        # We want a real cloud agent to communicate with!
+        launch_cloudagent()
 
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/keys/pubkey"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version),
+                                            "http://%s:%s/v%s/keys/pubkey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version),
                                             context=None
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful Node pubkey return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful agent pubkey return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -544,8 +544,8 @@ class TestRestful(unittest.TestCase):
         # We need to refresh the aik value we've stored in case it changed
         self.test_014_reg_instance_get()
 
-    def test_022_node_quotes_identity_get(self):
-        """Test node's GET /v2/quotes/identity Interface"""
+    def test_022_agent_quotes_identity_get(self):
+        """Test agent's GET /v2/quotes/identity Interface"""
         global aik
 
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
@@ -556,13 +556,13 @@ class TestRestful(unittest.TestCase):
         while numretries >= 0:
             response = tornado_requests.request(
                                                 "GET",
-                                                "http://%s:%s/v%s/quotes/identity?nonce=%s"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version,nonce)
+                                                "http://%s:%s/v%s/quotes/identity?nonce=%s"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version,nonce)
                                             )
             if response.status_code == 200:
                 break
             numretries-=1
             time.sleep(config.getint('tenant','max_retries'))
-        self.assertEqual(response.status_code, 200, "Non-successful Node identity return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful agent identity return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -573,9 +573,9 @@ class TestRestful(unittest.TestCase):
         # Check the quote identity
         self.assertTrue(tpm.check_quote(nonce,response_body["results"]["pubkey"],response_body["results"]["quote"],aik), "Invalid quote!")
 
-    @unittest.skip("Testing of nodes's POST /v2/keys/vkey disabled!  (spawned CV should do this already)")
-    def test_023_node_keys_vkey_post(self):
-        """Test node's POST /v2/keys/vkey Interface"""
+    @unittest.skip("Testing of agents's POST /v2/keys/vkey disabled!  (spawned CV should do this already)")
+    def test_023_agent_keys_vkey_post(self):
+        """Test agent's POST /v2/keys/vkey Interface"""
         # CV should do this (during CV POST/PUT test)
         # Running this test might hide problems with the CV sending the V key
         global public_key
@@ -591,17 +591,17 @@ class TestRestful(unittest.TestCase):
         v_json_message = json.dumps(data)
 
         response = tornado_requests.request(
-                                            "POST", "http://%s:%s/v%s/keys/vkey"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version),
+                                            "POST", "http://%s:%s/v%s/keys/vkey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version),
                                             data=v_json_message
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful Node vkey post return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful agent vkey post return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
 
-    def test_024_node_keys_ukey_post(self):
-        """Test node's POST /v2/keys/ukey Interface"""
+    def test_024_agent_keys_ukey_post(self):
+        """Test agent's POST /v2/keys/ukey Interface"""
         global public_key
 
         self.assertIsNotNone(public_key, "Required value not set.  Previous step may have failed?")
@@ -619,10 +619,10 @@ class TestRestful(unittest.TestCase):
         u_json_message = json.dumps(data)
 
         response = tornado_requests.request(
-                                            "POST", "http://%s:%s/v%s/keys/ukey"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version),
+                                            "POST", "http://%s:%s/v%s/keys/ukey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version),
                                             data=u_json_message
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful Node ukey post return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful agent ukey post return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -638,8 +638,8 @@ class TestRestful(unittest.TestCase):
         b64_v = base64.b64encode(self.V)
         data = {
             'v': b64_v,
-            'cloudnode_ip': tenant_templ.cloudnode_ip,
-            'cloudnode_port': tenant_templ.cloudnode_port,
+            'cloudagent_ip': tenant_templ.cloudagent_ip,
+            'cloudagent_port': tenant_templ.cloudagent_port,
             'tpm_policy': json.dumps(self.tpm_policy),
             'vtpm_policy':json.dumps(self.vtpm_policy),
             'ima_whitelist':json.dumps(self.ima_whitelist),
@@ -653,7 +653,7 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "POST",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.node_uuid),
+                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
                                             data=json_message,
                                             context=tenant_templ.context
                                         )
@@ -668,10 +668,10 @@ class TestRestful(unittest.TestCase):
     @unittest.skip("Testing of CV's PUT /v2/instances/{UUID} disabled!")
     def test_031_cv_instance_put(self):
         """Test CV's PUT /v2/instances/{UUID} Interface"""
-        #TODO: this should actually test PUT functionality (e.g., make node fail and then PUT back up)
+        #TODO: this should actually test PUT functionality (e.g., make agent fail and then PUT back up)
         response = tornado_requests.request(
                                             "PUT",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.node_uuid),
+                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
                                             data=b'',
                                             context=tenant_templ.context
                                         )
@@ -695,14 +695,14 @@ class TestRestful(unittest.TestCase):
         self.assertIn("results", response_body, "Malformed response body!")
         self.assertIn("uuids", response_body["results"], "Malformed response body!")
 
-        # Be sure our node is registered
+        # Be sure our agent is registered
         self.assertEqual(1, len(response_body["results"]["uuids"]))
 
     def test_033_cv_instance_get(self):
         """Test CV's GET /v2/instances/{UUID} Interface"""
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.node_uuid),
+                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
                                             context=tenant_templ.context
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful CV Instance return code!")
@@ -718,9 +718,9 @@ class TestRestful(unittest.TestCase):
 
 
 
-    """Node Poll Testset"""
-    def test_040_node_quotes_integrity_get(self):
-        """Test node's GET /v2/quotes/integrity Interface"""
+    """agent Poll Testset"""
+    def test_040_agent_quotes_integrity_get(self):
+        """Test agent's GET /v2/quotes/integrity Interface"""
         global public_key, aik
 
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
@@ -734,9 +734,9 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version,nonce,mask,vmask,partial)
+                                            "http://%s:%s/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version,nonce,mask,vmask,partial)
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful Node Integrity Get return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful agent Integrity Get return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -760,17 +760,17 @@ class TestRestful(unittest.TestCase):
                                             hash_alg=hash_alg)
         self.assertTrue(validQuote)
 
-    def test_041_node_keys_verify_get(self):
-        """Test node's GET /v2/keys/verify Interface"""
+    def test_041_agent_keys_verify_get(self):
+        """Test agent's GET /v2/keys/verify Interface"""
         self.assertIsNotNone(self.K, "Required value not set.  Previous step may have failed?")
 
         challenge = TPM_Utilities.random_password(20)
 
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/keys/verify?challenge=%s"%(tenant_templ.cloudnode_ip,tenant_templ.cloudnode_port,self.api_version,challenge)
+                                            "http://%s:%s/v%s/keys/verify?challenge=%s"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version,challenge)
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful Node verify return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful agent verify return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -780,7 +780,7 @@ class TestRestful(unittest.TestCase):
         # Be sure response is valid
         mac = response_body['results']['hmac']
         ex_mac = crypto.do_hmac(self.K, challenge)
-        self.assertEqual(mac, ex_mac, "Node failed to validate challenge code!")
+        self.assertEqual(mac, ex_mac, "agent failed to validate challenge code!")
 
 
 
@@ -790,7 +790,7 @@ class TestRestful(unittest.TestCase):
         time.sleep(5)
         response = tornado_requests.request(
                                             "DELETE",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.node_uuid),
+                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
                                             context=tenant_templ.context
                                         )
         self.assertEqual(response.status_code, 202, "Non-successful CV Instance Delete return code!")

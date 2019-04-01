@@ -156,7 +156,7 @@ def init_mtls(section='cloud_verifier',generatedir='cv_ca'):
     return context
 
 def process_quote_response(instance, json_response):
-    """Validates the response from the Cloud node.
+    """Validates the response from the Cloud agent.
     
     This method invokes an Registrar Server call to register, and then check the quote. 
     """
@@ -180,7 +180,7 @@ def process_quote_response(instance, json_response):
     # if no public key provided, then ensure we have cached it
     if received_public_key is None:
         if instance.get('public_key',"") == "" or instance.get('b64_encrypted_V',"")=="":
-            logger.error("node did not provide public key and no key or encrypted_v was cached at CV")
+            logger.error("agent did not provide public key and no key or encrypted_v was cached at CV")
             return False
         instance['provide_V'] = False
         received_public_key = instance['public_key']
@@ -239,8 +239,8 @@ def process_quote_response(instance, json_response):
     if not validQuote:
         return False
     
-    # set a flag so that we know that the node was verified once.
-    # we only issue notifications for nodes that were at some point good
+    # set a flag so that we know that the agent was verified once.
+    # we only issue notifications for agents that were at some point good
     instance['first_verified']=True
     
     # has public key changed? if so, clear out b64_encrypted_V, it is no longer valid
@@ -274,7 +274,7 @@ def prepare_v(instance):
     return v_json_message
     
 def prepare_get_quote(instance):
-    """This method encapsulates the action required to invoke a quote request on the Cloud Node.
+    """This method encapsulates the action required to invoke a quote request on the Cloud agent.
     
     This method is part of the polling loop of the thread launched on Tenant POST. 
     """

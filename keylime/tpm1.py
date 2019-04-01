@@ -150,11 +150,11 @@ class tpm1(AbstractTPM):
             # keep trying to communicate with TPM if there was an I/O error 
             if code==AbstractTPM.TPM_IO_ERR:
                 numtries+=1
-                maxr = self.config.getint('cloud_node','max_retries')
+                maxr = self.config.getint('cloud_agent','max_retries')
                 if numtries >= maxr:
                     logger.error("TPM appears to be in use by another application.  Keylime is incompatible with other TPM TSS applications like trousers/tpm-tools. Please uninstall or disable.")
                     break
-                retry  = self.config.getfloat('cloud_node','retry_interval')
+                retry  = self.config.getfloat('cloud_agent','retry_interval')
                 logger.info("Failed to call TPM %d/%d times, trying again in %f seconds..."%(numtries,maxr,retry))
                 time.sleep(retry)
                 continue

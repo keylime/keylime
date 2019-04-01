@@ -59,8 +59,8 @@ class Sqlite_Test(unittest.TestCase):
         json_body = {
             'v': 'vbaby',
             'instance_id': '209483',
-            'cloudnode_ip': 'ipaddy',
-            'cloudnode_port': '39843',
+            'cloudagent_ip': 'ipaddy',
+            'cloudagent_port': '39843',
             'tpm_policy': '{"atpm":"1"}',
             'vtpm_policy': '{"abv":"1"}',
             'ima_whitelist': '{"abi":"1"}',
@@ -75,8 +75,8 @@ class Sqlite_Test(unittest.TestCase):
         json_body2 = {
             'v': 'vbaby',
             'instance_id': '2094aqrea3',
-            'cloudnode_ip': 'ipaddy',
-            'cloudnode_port': '39843',
+            'cloudagent_ip': 'ipaddy',
+            'cloudagent_port': '39843',
             'tpm_policy': '{"a":"1"}',
             'vtpm_policy': '{"ab":"1"}',
             'ima_whitelist': '{"ab":"1"}',

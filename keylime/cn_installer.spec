@@ -25,7 +25,7 @@ added_files = [
 		( 'build/crypto/*.so', '.' ),
          ]
 
-a = Analysis(['cloud_node.py'],
+a = Analysis(['cloud_agent.py'],
              pathex=['.'],
              binaries=None,
              datas=added_files,
@@ -44,7 +44,7 @@ exe = EXE(pyz,
           a.zipfiles,
           a.datas,
 #          exclude_binaries=True,
-          name='keylime_node_tpm1',
+          name='keylime_agent_tpm1',
           debug=False,
           strip=False,
           upx=True,
@@ -56,4 +56,4 @@ exe = EXE(pyz,
 #               a.datas,
 #               strip=False,
 #               upx=True,
-#               name='cloud_node')
+#               name='cloud_agent')

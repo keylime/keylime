@@ -95,7 +95,7 @@ BUNDLE_FLAGS=""
 if [[ "$TPM_VERSION" -eq "2" ]] ; then
     BUNDLE_FLAGS="-m"
 fi
-./make_node_bundle.sh $BUNDLE_FLAGS
+./make_agent_bundle.sh $BUNDLE_FLAGS
 
 
 # Get all dependencies for tarball
@@ -109,9 +109,9 @@ mkdir -p $TMPDIR/keylime
 echo -n "INFO: Using temp directory: "
 echo $TMPDIR
 
-cp dist/keylime_node_tpm$TPM_VERSION $TMPDIR/keylime
+cp dist/keylime_agent_tpm$TPM_VERSION $TMPDIR/keylime
 if [[ "$?" -ne "0" ]] ; then
-    echo "ERROR: Cannot copy keylime_node"
+    echo "ERROR: Cannot copy keylime_agent"
     exit 1
 fi
 cp ../keylime.conf $TMPDIR/keylime

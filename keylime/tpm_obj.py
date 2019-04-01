@@ -71,7 +71,7 @@ def __guess_tpm_version():
 def getTPM(need_hw_tpm, tpm_version=None):
     global __tpm1, __tpm2
     
-    # figure out TCG TPM version for this node
+    # figure out TCG TPM version for this agent
     if tpm_version is None:
         if need_hw_tpm:
             tpm_version = __guess_tpm_version()

@@ -89,7 +89,7 @@ class InstancesHandler(BaseHandler):
         will return errors. instances requests require a single instance_id parameter which identifies the 
         instance to be returned. If the instance_id is not found, a 404 response is returned.  If the instance_id
         was not found, it either completed successfully, or failed.  If found, the instance_id is still polling 
-        to contact the Cloud Node. 
+        to contact the Cloud agent. 
         """
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
@@ -188,8 +188,8 @@ class InstancesHandler(BaseHandler):
                     json_body = json.loads(self.request.body)
                     d = {}
                     d['v'] = json_body['v']
-                    d['ip'] = json_body['cloudnode_ip']
-                    d['port'] = int(json_body['cloudnode_port'])
+                    d['ip'] = json_body['cloudagent_ip']
+                    d['port'] = int(json_body['cloudagent_port'])
                     d['operational_state'] = cloud_verifier_common.CloudInstance_Operational_State.START
                     d['public_key'] = ""
                     d['tpm_policy'] = json_body['tpm_policy']
@@ -209,8 +209,8 @@ class InstancesHandler(BaseHandler):
                     
                     # don't allow overwriting
                     if new_instance is None:
-                        common.echo_json_response(self, 409, "Node of uuid %s already exists"%(instance_id))
-                        logger.warning("Node of uuid %s already exists"%(instance_id))
+                        common.echo_json_response(self, 409, "agent of uuid %s already exists"%(instance_id))
+                        logger.warning("agent of uuid %s already exists"%(instance_id))
                     else:    
                         self.process_instance(new_instance, cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE)
                         common.echo_json_response(self, 200, "Success")
@@ -311,7 +311,7 @@ class InstancesHandler(BaseHandler):
 #                with cloud_verifier_common.Timer() as t:
                     json_response = json.loads(response.body)
 
-                    # validate the cloud node response
+                    # validate the cloud agent response
                     if cloud_verifier_common.process_quote_response(instance, json_response['results']):
                         #only write timing if the quote was successful
 #                         if self.time_series_log_file_base_name is not None:
@@ -436,7 +436,7 @@ class InstancesHandler(BaseHandler):
                     if instance['first_verified']: # only notify on previously good instances
                         cloud_verifier_common.notifyError(instance,'comm_error')
                     else:
-                        logger.debug("Communication error for new node.  no notification will be sent")
+                        logger.debug("Communication error for new agent.  no notification will be sent")
                     self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.FAILED)
                 else:
                     cb = functools.partial(self.invoke_get_quote, instance, True)
