@@ -95,7 +95,7 @@ class tpm1(AbstractTPM):
         env['PATH']=env['PATH']+":%s"%common.TPM_TOOLS_PATH
 
         # Backwards compat with string input (force all to be dict)
-        if isagent(outputpaths, basestring):
+        if isinstance(outputpaths, basestring):
             outputpaths = [outputpaths]
 
         # Handle stubbing the TPM out

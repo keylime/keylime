@@ -289,7 +289,7 @@ def prepare_get_quote(agent):
     return params
 
 def process_get_status(agent):
-    if isagent(agent['ima_whitelist'],dict) and 'whitelist' in agent['ima_whitelist']:
+    if isinstance(agent['ima_whitelist'],dict) and 'whitelist' in agent['ima_whitelist']:
         wl_len = len(agent['ima_whitelist']['whitelist'])
     else:
         wl_len = 0

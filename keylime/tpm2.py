@@ -143,7 +143,7 @@ class tpm2(AbstractTPM):
         env['LD_LIBRARY_PATH'] = lib_path+":%s"%common.TPM_LIBS_PATH
 
         # Convert single outputpath to list
-        if isagent(outputpaths, basestring):
+        if isinstance(outputpaths, basestring):
             outputpaths = [outputpaths]
 
         # Handle stubbing the TPM out

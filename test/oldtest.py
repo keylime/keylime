@@ -689,11 +689,11 @@ class Test(unittest.TestCase):
             
     def modify_persistence_file(self, argument):
         string_to_write = None
-        if isagent(argument, dict):
+        if isinstance(argument, dict):
             string_to_write = json.dumps(argument)
-        elif isagent(argument, str):
+        elif isinstance(argument, str):
             string_to_write = argument
-        elif isagent(argument, file):
+        elif isinstance(argument, file):
             string_to_write = argument.read()
             argument.close()
         elif argument is None:

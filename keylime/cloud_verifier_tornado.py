@@ -297,7 +297,7 @@ class AgentsHandler(BaseHandler):
             raise Exception("agent deleted while being processed")
         if response.error: 
             # this is a connection error, retry get quote
-            if isagent(response.error, IOError) or (isagent(response.error, tornado.web.HTTPError) and response.error.code == 599):
+            if isinstance(response.error, IOError) or (isinstance(response.error, tornado.web.HTTPError) and response.error.code == 599):
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE_RETRY)
             else:
                 #catastrophic error, do not continue
@@ -351,7 +351,7 @@ class AgentsHandler(BaseHandler):
         if agent is None:
             raise Exception("agent deleted while being processed")
         if response.error: 
-            if isagent(response.error, IOError) or (isagent(response.error, tornado.web.HTTPError) and response.error.code == 599):
+            if isinstance(response.error, IOError) or (isinstance(response.error, tornado.web.HTTPError) and response.error.code == 599):
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY)
             else:
                 #catastrophic error, do not continue

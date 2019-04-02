@@ -96,7 +96,7 @@ class KeylimeDB():
             insertlist = []
             for key in sorted(self.cols_db.keys()):
                 v = d[key]
-                if key in self.json_cols_db and (isagent(d[key],dict) or isagent(d[key],list)):
+                if key in self.json_cols_db and (isinstance(d[key],dict) or isinstance(d[key],list)):
                     v = json.dumps(d[key])
                 insertlist.append(v)
             
@@ -106,7 +106,7 @@ class KeylimeDB():
             
         # these are JSON strings and should be converted to dictionaries
         for item in self.json_cols_db:
-            if d[item] is not None and isagent(d[item],basestring):
+            if d[item] is not None and isinstance(d[item],basestring):
                 d[item] = json.loads(d[item])
                                       
         return d

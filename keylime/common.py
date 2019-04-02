@@ -220,13 +220,13 @@ def echo_json_response(handler,code,status=None,results=None):
     json_res = {'code': code, 'status': status, 'results' : results}
     json_response = json.dumps(json_res)
     
-    if isagent(handler, BaseHTTPRequestHandler):
+    if isinstance(handler, BaseHTTPRequestHandler):
         handler.send_response(code)
         handler.send_header('Content-Type', 'application/json')
         handler.end_headers()
         handler.wfile.write(json_response)
         return True
-    elif isagent(handler, tornado.web.RequestHandler):
+    elif isinstance(handler, tornado.web.RequestHandler):
         handler.set_status(code)
         handler.set_header('Content-Type', 'application/json')
         handler.write(json_response)

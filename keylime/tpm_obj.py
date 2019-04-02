@@ -59,7 +59,7 @@ def __guess_tpm_version():
         try:
             temp_tpm1 = tpm1.tpm1(True)
             manufacturer = temp_tpm1.get_tpm_manufacturer()
-            if isagent(manufacturer, basestring):
+            if isinstance(manufacturer, basestring):
                 return 1
             else:
                 return 2

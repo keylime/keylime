@@ -59,9 +59,9 @@ def run(cmd,expectedcode=EXIT_SUCESS,raiseOnError=True,lock=True,outputpaths=Non
 
     # Prepare to return their file contents (if requested)
     fileouts={}
-    if isagent(outputpaths, basestring):
+    if isinstance(outputpaths, basestring):
         outputpaths = [outputpaths]
-    if isagent(outputpaths, list):
+    if isinstance(outputpaths, list):
         for thispath in outputpaths:
             with open(thispath, "rb") as f:
                 fileouts[thispath] = f.read()
