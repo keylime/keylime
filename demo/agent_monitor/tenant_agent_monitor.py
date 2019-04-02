@@ -191,7 +191,7 @@ def init_mtls(config):
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
     print "Starting Torando on port " + str(port)
-    tornado.ioloop.IOLoop.agent().start()
+    tornado.ioloop.IOLoop.instance().start()
     print "Tornado finished"
 
 def main(argv=sys.argv):
@@ -225,9 +225,9 @@ def main(argv=sys.argv):
     server.start(0)
 
     try:
-        tornado.ioloop.IOLoop.agent().start()
+        tornado.ioloop.IOLoop.instance().start()
     except KeyboardInterrupt:
-        tornado.ioloop.IOLoop.agent().stop()
+        tornado.ioloop.IOLoop.instance().stop()
 
 if __name__=="__main__":
     try:
