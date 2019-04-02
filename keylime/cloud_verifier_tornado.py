@@ -508,9 +508,9 @@ def main(argv=sys.argv):
     server.start(config.getint('cloud_verifier','multiprocessing_pool_num_workers')) 
         
     try:
-        tornado.ioloop.IOLoop.agent().start()
+        tornado.ioloop.IOLoop.instance().start()
     except KeyboardInterrupt:
-        tornado.ioloop.IOLoop.agent().stop()
+        tornado.ioloop.IOLoop.instance().stop()
         if config.getboolean('cloud_verifier', 'revocation_notifier'):
             revocation_notifier.stop_broker()
 
