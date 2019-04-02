@@ -120,7 +120,7 @@ class WebAppHandler(BaseHandler):
                             </center>
                             <form id='add_agent' name='add_agent' onsubmit='submitAddAgentForm(this); return false;'>
                                 <div class="form_block">
-                                    <label for='agent_ip'>agent IP: </label>
+                                    <label for='agent_ip'>Agent IP: </label>
                                     <input type='text' id='agent_ip' name='agent_ip' value='127.0.0.1' required onfocus='this.select()'>
                                     <br>
                                 </div>

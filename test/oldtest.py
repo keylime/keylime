@@ -378,13 +378,13 @@ class Test(unittest.TestCase):
 
 #                     parser = ConfigParser.RawConfigParser()
 #                     parser.read(common.CONFIG_FILE)
-#                     test_AGENT_UUID = parser.get('general', 'AGENT_UUID')
+#                     test_agent_uuid = parser.get('general', 'agent_uuid')
                     
-                    test_AGENT_UUID = json_request_body['agent_id']
+                    test_agent_uuid = json_request_body['agent_id']
                     
                     
                     port_string_length = len(str(json_request_body['cloudagent_port']))
-                    contrived_uuid = test_AGENT_UUID[:-port_string_length]
+                    contrived_uuid = test_agent_uuid[:-port_string_length]
                     contrived_uuid = contrived_uuid + str(json_request_body['cloudagent_port'])   
                     json_request_body['agent_id'] = contrived_uuid
                         
@@ -500,14 +500,14 @@ class Test(unittest.TestCase):
                     # command line options can overwrite config values
                     mytenant.cloudagent_ip = cloudagent_ip
                     mytenant.cloudverifier_ip = cloudverifier_ip
-                    mytenant.AGENT_UUID = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
+                    mytenant.agent_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
                     
                     if mytenant.validate_tpm_quote(public_key, quote): 
                         # encrypt U with the public key
                         global U, K
                         
                         encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),str(U))
-                        encrypt_check = crypto.do_hmac(K,mytenant.AGENT_UUID)
+                        encrypt_check = crypto.do_hmac(K,mytenant.agent_uuid)
                         b64_encrypted_u = base64.b64encode(encrypted_U)
                         data = {
                                   'encrypted_key': b64_encrypted_u,
@@ -746,7 +746,7 @@ class Test(unittest.TestCase):
             parser = ConfigParser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             original_cloudagent_port = parser.get('general', 'cloudagent_port')
-            test_AGENT_UUID = parser.get('general', 'AGENT_UUID')
+            test_agent_uuid = parser.get('general', 'agent_uuid')
       
       
             for cn in range(num_cloudagent_agents): 
@@ -759,9 +759,9 @@ class Test(unittest.TestCase):
                 #shutil.copyfile(r'../keylime.conf', new_dir + r'/keylime.conf')
                 self.overwrite_config_file(config_file_path, 'general', 'cloudagent_port', str(cloudagent_start_port))
                 port_string_length = len(str(cloudagent_start_port))
-                contrived_uuid = test_AGENT_UUID[:-port_string_length]
+                contrived_uuid = test_agent_uuid[:-port_string_length]
                 contrived_uuid = contrived_uuid + str(cloudagent_start_port)
-                self.overwrite_config_file(config_file_path, 'general', 'AGENT_UUID', contrived_uuid)  
+                self.overwrite_config_file(config_file_path, 'general', 'agent_uuid', contrived_uuid)  
                           
                 cn_process_list.append(subprocess.Popen("python cloud_agent.py", shell=True, cwd=new_dir, preexec_fn=os.setsid).pid) 
                 cloudagent_start_port = cloudagent_start_port + 1
@@ -774,7 +774,7 @@ class Test(unittest.TestCase):
             parser = ConfigParser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             original_cloudagent_port = parser.get('general', 'cloudagent_port')
-            test_AGENT_UUID = parser.get('general', 'AGENT_UUID')
+            test_agent_uuid = parser.get('general', 'agent_uuid')
       
       
             for cn in range(num_cloudagent_agents): 
@@ -789,9 +789,9 @@ class Test(unittest.TestCase):
                 #shutil.copyfile(r'../keylime.conf', new_dir + r'/keylime.conf')
                 self.overwrite_config_file(config_file_path, 'general', 'cloudagent_port', cloudagent_port_read_from_file)
                 port_string_length = len(cloudagent_port_read_from_file)
-                contrived_uuid = test_AGENT_UUID[:-port_string_length]
+                contrived_uuid = test_agent_uuid[:-port_string_length]
                 contrived_uuid = contrived_uuid + cloudagent_port_read_from_file
-                self.overwrite_config_file(config_file_path, 'general', 'AGENT_UUID', contrived_uuid)  
+                self.overwrite_config_file(config_file_path, 'general', 'agent_uuid', contrived_uuid)  
                           
                 cn_process_list.append(subprocess.Popen("python cloud_agent.py", shell=True, cwd=new_dir, preexec_fn=os.setsid).pid) 
                 cloudagent_port = int(cloudagent_port_read_from_file) + 1
@@ -833,13 +833,13 @@ class Test(unittest.TestCase):
 
             parser = ConfigParser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
-            test_AGENT_UUID = parser.get('general', 'AGENT_UUID')
+            test_agent_uuid = parser.get('general', 'agent_uuid')
       
       
             for cn in range(num_cloudagent_agents): 
                 cloudagent_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
                 port_string_length = len(cloudagent_port_read_from_file)
-                contrived_uuid = test_AGENT_UUID[:-port_string_length]
+                contrived_uuid = test_agent_uuid[:-port_string_length]
                 contrived_uuid = contrived_uuid + cloudagent_port_read_from_file
                 params = {
                     'agent_id': contrived_uuid,

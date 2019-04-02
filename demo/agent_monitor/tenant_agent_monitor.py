@@ -132,7 +132,7 @@ class AgentsHandler(BaseHandler):
                             import subprocess
                             logger.debug("Executing specified script: %s"%initscript)
                             env = os.environ.copy()
-                            env['AGENT_UUID']=agent_id
+                            env['agent_uuid']=agent_id
                             proc= subprocess.Popen(["/bin/sh",initscript],env=env,shell=False,
                                                     stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
                             proc.wait()

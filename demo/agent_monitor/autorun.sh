@@ -21,12 +21,12 @@
 #
 ##########################################################################################
 
-if [ "$AGENT_UUID" = "" ]
+if [ "$agent_uuid" = "" ]
 then
-   AGENT_UUID=D432FBB3-D2F1-4A97-9EF7-75BD81C00000
+   agent_uuid=D432FBB3-D2F1-4A97-9EF7-75BD81C00000
 fi
 
 wget --ca-certificate=cacert.crt --post-data '{}' \
-     --certificate=$AGENT_UUID-cert.crt \
-     --private-key=$AGENT_UUID-private.pem \
-     https://localhost:6892/agents/$AGENT_UUID
+     --certificate=$agent_uuid-cert.crt \
+     --private-key=$agent_uuid-private.pem \
+     https://localhost:6892/agents/$agent_uuid

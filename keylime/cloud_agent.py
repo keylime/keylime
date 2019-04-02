@@ -277,7 +277,7 @@ class Handler(BaseHTTPRequestHandler):
                     def initthread():
                         import subprocess
                         env = os.environ.copy()
-                        env['AGENT_UUID']=self.server.agent_uuid
+                        env['agent_uuid']=self.server.agent_uuid
                         proc= subprocess.Popen(["/bin/bash",initscript],env=env,shell=False,cwd='%s/unzipped'%secdir,
                                                 stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
                         while True:

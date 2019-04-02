@@ -72,7 +72,7 @@ class Tenant():
     webapp_port = None
 
     uuid_service_generate_locally = None
-    AGENT_UUID = None
+    agent_uuid = None
     
     K = None
     V = None
@@ -307,10 +307,10 @@ class Tenant():
                 ca_util.cmd_init(args["ca_dir"])
             
             
-            if not os.path.exists("%s/%s-private.pem"%(args["ca_dir"],self.AGENT_UUID)):
-                ca_util.cmd_mkcert(args["ca_dir"],self.AGENT_UUID)
+            if not os.path.exists("%s/%s-private.pem"%(args["ca_dir"],self.agent_uuid)):
+                ca_util.cmd_mkcert(args["ca_dir"],self.agent_uuid)
                 
-            cert_pkg,serial,subject = ca_util.cmd_certpkg(args["ca_dir"],self.AGENT_UUID)
+            cert_pkg,serial,subject = ca_util.cmd_certpkg(args["ca_dir"],self.agent_uuid)
             
             # support revocation
             if not os.path.exists("%s/RevocationNotifier-private.pem"%args["ca_dir"]):
@@ -364,7 +364,7 @@ class Tenant():
     
     def preloop(self):
         # encrypt the agent UUID as a check for delivering the correct key
-        self.auth_tag = crypto.do_hmac(self.K,self.AGENT_UUID)
+        self.auth_tag = crypto.do_hmac(self.K,self.agent_uuid)
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
         if common.INSECURE_DEBUG:
             logger.debug("K:" + base64.b64encode(self.K))
@@ -392,7 +392,7 @@ class Tenant():
 
     def validate_tpm_quote(self,public_key,quote,tpm_version,hash_alg):
         registrar_client.init_client_tls(config,'tenant')
-        reg_keys = registrar_client.getKeys(self.cloudverifier_ip,self.registrar_port,self.AGENT_UUID)
+        reg_keys = registrar_client.getKeys(self.cloudverifier_ip,self.registrar_port,self.agent_uuid)
         if reg_keys is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
@@ -426,7 +426,7 @@ class Tenant():
             logger.info("Checking EK with script %s"%script)
             #now we need to exec the script with the ek and ek cert in vars
             env = os.environ.copy()
-            env['AGENT_UUID']=self.AGENT_UUID
+            env['agent_uuid']=self.agent_uuid
             env['EK'] = reg_keys['ek']
             if reg_keys['ekcert'] is not None:
                 env['EK_CERT'] = reg_keys['ekcert']
@@ -475,10 +475,10 @@ class Tenant():
         }
         
         json_message = json.dumps(data)
-        response = tornado_requests.request("POST","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),data=json_message,context=self.context)
+        response = tornado_requests.request("POST","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),data=json_message,context=self.context)
         if response.status_code == 409:
             # this is a conflict, need to update or delete it
-            raise Exception("agent %s already existed at CV.  Please use delete or update."%self.AGENT_UUID)
+            raise Exception("agent %s already existed at CV.  Please use delete or update."%self.agent_uuid)
         elif response.status_code != 200:
             common.log_http_response(logger,logging.ERROR,response.json())
             raise Exception("POST command response: %d Unexpected response from Cloud Verifier: %s"%(response.status_code,response.body))
@@ -487,11 +487,11 @@ class Tenant():
     def do_cvstatus(self,listing=False):
         """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
-        AGENT_UUID = ""
+        agent_uuid = ""
         if not listing:
-            AGENT_UUID=self.AGENT_UUID
+            agent_uuid=self.agent_uuid
 
-        response = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,AGENT_UUID),context=self.context)
+        response = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,agent_uuid),context=self.context)
         if response.status_code != 200:
             logger.error("Status command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
@@ -499,44 +499,44 @@ class Tenant():
             logger.info("agent Status %d: %s"%(response.status_code,response.json()))
 
     def do_cvdelete(self):        
-        response = tornado_requests.request("DELETE","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context)
+        response = tornado_requests.request("DELETE","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context)
         if response.status_code == 202:
             deleted = False
             for _ in range(12):
-                response = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context)
+                response = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context)
                 if response.status_code == 404:
                     deleted=True
                     break
                 time.sleep(.4)
             if deleted:
-                logger.info("CV completed deletion of agent %s"%(self.AGENT_UUID))
+                logger.info("CV completed deletion of agent %s"%(self.agent_uuid))
             else:
-                logger.error("Timed out waiting for delete of agent %s to complete at CV"%self.AGENT_UUID)
+                logger.error("Timed out waiting for delete of agent %s to complete at CV"%self.agent_uuid)
         elif response.status_code == 200:
-            logger.info("agent %s deleted from the CV"%(self.AGENT_UUID))
+            logger.info("agent %s deleted from the CV"%(self.agent_uuid))
         else:
             #logger.error("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
 
     def do_regdelete(self):
         registrar_client.init_client_tls(config,'tenant')
-        registrar_client.doRegistrarDelete(self.registrar_ip,self.registrar_port,self.AGENT_UUID)
+        registrar_client.doRegistrarDelete(self.registrar_ip,self.registrar_port,self.agent_uuid)
             
     def do_cvreactivate(self):
-        response = tornado_requests.request("PUT","http://%s:%s/agents/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context,data=b'')
+        response = tornado_requests.request("PUT","http://%s:%s/agents/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context,data=b'')
         if response.status_code != 200:
             logger.error("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
         else:
-            logger.info("agent %s re-activated"%(self.AGENT_UUID))
+            logger.info("agent %s re-activated"%(self.agent_uuid))
             
     def do_cvstop(self):
-        response = tornado_requests.request("PUT","http://%s:%s/agents/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context,data=b'')
+        response = tornado_requests.request("PUT","http://%s:%s/agents/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context,data=b'')
         if response.status_code != 200:
             logger.error("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
         else:
-            logger.info("agent %s stopped"%(self.AGENT_UUID))
+            logger.info("agent %s stopped"%(self.agent_uuid))
         
     def do_quote(self):
         """initiaite v, agent_id and ip
@@ -684,7 +684,7 @@ def main(argv=sys.argv):
     parser.add_argument('-t', '--targethost',action='store',dest='agent_ip',help="the IP address of the host to provision")
     parser.add_argument('--cv_targethost',action='store',default=None,dest='cv_agent_ip',help='the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost')
     parser.add_argument('-v', '--cv',action='store',dest='verifier_ip',help="the IP address of the cloud verifier")
-    parser.add_argument('-u', '--uuid',action='store',dest='AGENT_UUID',help="UUID for the agent to provision")
+    parser.add_argument('-u', '--uuid',action='store',dest='agent_uuid',help="UUID for the agent to provision")
     parser.add_argument('-f', '--file', action='store',default=None,help='Deliver the specified plaintext to the provisioned agent')
     parser.add_argument('--cert',action='store',dest='ca_dir',default=None,help='Create and deliver a certificate using a CA created by ca-util. Pass in the CA directory or use "default" to use the standard dir')
     parser.add_argument('-k', '--key',action='store',dest='keyfile',help='an intermedia key file produced by user_data_encrypt')
@@ -716,20 +716,20 @@ def main(argv=sys.argv):
         logger.error("-t/--targethost is required for command %s"%args.command)
         sys.exit(2)
         
-    if args.AGENT_UUID is not None:
-        mytenant.AGENT_UUID = args.AGENT_UUID
+    if args.agent_uuid is not None:
+        mytenant.agent_uuid = args.agent_uuid
         # if the uuid is actually a public key, then hash it
-        if mytenant.AGENT_UUID.startswith('-----BEGIN PUBLIC KEY-----'):
-            mytenant.AGENT_UUID = hashlib.sha256(mytenant.AGENT_UUID).hexdigest()
+        if mytenant.agent_uuid.startswith('-----BEGIN PUBLIC KEY-----'):
+            mytenant.agent_uuid = hashlib.sha256(mytenant.agent_uuid).hexdigest()
     else:
         logger.warning("Using default UUID D432FBB3-D2F1-4A97-9EF7-75BD81C00000")
-        mytenant.AGENT_UUID = "D432FBB3-D2F1-4A97-9EF7-75BD81C00000"
+        mytenant.agent_uuid = "D432FBB3-D2F1-4A97-9EF7-75BD81C00000"
         
     if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
         # Use canned values for agent UUID
         jsonIn = common.TPM_CANNED_VALUES
         if "add_vtpm_to_group" in jsonIn:
-            mytenant.AGENT_UUID = jsonIn['add_vtpm_to_group']['retout']
+            mytenant.agent_uuid = jsonIn['add_vtpm_to_group']['retout']
         else:
             # Our command hasn't been canned!
             raise Exception("Command %s not found in canned JSON!"%("add_vtpm_to_group"))

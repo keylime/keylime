@@ -179,7 +179,7 @@ def setUpModule():
     global tenant_templ
     tenant_templ = tenant.Tenant()
     tenant_templ.cloudagent_ip = "localhost"
-    tenant_templ.AGENT_UUID = config.get('cloud_agent', 'AGENT_UUID')
+    tenant_templ.agent_uuid = config.get('cloud_agent', 'agent_uuid')
     tenant_templ.registrar_boot_port = config.get('general', 'registrar_port')
 
 # Destroy everything on teardown
@@ -333,7 +333,7 @@ class TestRestful(unittest.TestCase):
         cls.payload = ret['ciphertext']
 
         """Set up to register a agent"""
-        cls.auth_tag = crypto.do_hmac(cls.K,tenant_templ.AGENT_UUID)
+        cls.auth_tag = crypto.do_hmac(cls.K,tenant_templ.agent_uuid)
 
         """Prepare policies for agent"""
         cls.tpm_policy = config.get('tenant', 'tpm_policy')
@@ -396,7 +396,7 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "POST",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.agent_uuid),
                                             data=v_json_message,
                                             context=None
                                         )
@@ -420,13 +420,13 @@ class TestRestful(unittest.TestCase):
 
         key = tpm.activate_identity(keyblob)
         data = {
-            'auth_tag': crypto.do_hmac(base64.b64decode(key),tenant_templ.AGENT_UUID),
+            'auth_tag': crypto.do_hmac(base64.b64decode(key),tenant_templ.agent_uuid),
         }
         v_json_message = json.dumps(data)
 
         response = tornado_requests.request(
                                             "PUT",
-                                            "http://%s:%s/v%s/agents/%s/activate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s/activate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.agent_uuid),
                                             data=v_json_message,
                                             context=None
                                         )
@@ -446,7 +446,7 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(ek, "Required value not set.  Previous step may have failed?")
 
         key = tpm.activate_identity(keyblob)
-        deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(),tenant_templ.AGENT_UUID+aik+ek)
+        deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(),tenant_templ.agent_uuid+aik+ek)
         data = {
             'deepquote': deepquote,
         }
@@ -454,7 +454,7 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "PUT",
-                                            "http://%s:%s/v%s/agents/%s/vactivate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s/vactivate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.agent_uuid),
                                             data=v_json_message,
                                             context=None
                                         )
@@ -487,7 +487,7 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.agent_uuid),
                                             context=tenant_templ.context
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Agent return code!")
@@ -506,7 +506,7 @@ class TestRestful(unittest.TestCase):
         """Test registrar's DELETE /v2/agents/{UUID} Interface"""
         response = tornado_requests.request(
                                             "DELETE",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.agent_uuid),
                                             context=tenant_templ.context
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Delete return code!")
@@ -653,7 +653,7 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "POST",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.agent_uuid),
                                             data=json_message,
                                             context=tenant_templ.context
                                         )
@@ -671,7 +671,7 @@ class TestRestful(unittest.TestCase):
         #TODO: this should actually test PUT functionality (e.g., make agent fail and then PUT back up)
         response = tornado_requests.request(
                                             "PUT",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.agent_uuid),
                                             data=b'',
                                             context=tenant_templ.context
                                         )
@@ -702,7 +702,7 @@ class TestRestful(unittest.TestCase):
         """Test CV's GET /v2/agents/{UUID} Interface"""
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.agent_uuid),
                                             context=tenant_templ.context
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful CV Agent return code!")
@@ -790,7 +790,7 @@ class TestRestful(unittest.TestCase):
         time.sleep(5)
         response = tornado_requests.request(
                                             "DELETE",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.agent_uuid),
                                             context=tenant_templ.context
                                         )
         self.assertEqual(response.status_code, 202, "Non-successful CV Agent Delete return code!")

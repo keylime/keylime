@@ -21,5 +21,5 @@
 #
 ##########################################################################################
 
-echo "Agent $AGENT_UUID has phoned home!"
+echo "Agent $agent_uuid has phoned home!"
 
