@@ -18,9 +18,9 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
+from . import common
 import uuid
-import tornado_requests
+from . import tornado_requests
 import traceback
 
 logger = common.init_logging('openstack')

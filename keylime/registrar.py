@@ -20,14 +20,14 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
+from . import common
 logger = common.init_logging('registrar')
 
-import registrar_common
-import ConfigParser
+from . import registrar_common
+import configparser
 import sys
 
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 def main(argv=sys.argv):

@@ -19,14 +19,14 @@ violate any copyrights that exist in this work.
 '''
 
 import os.path
-import ConfigParser
+import configparser
 import logging.config
 import sys
-import urlparse
+import urllib.parse
 import json
 import tornado.web
-from BaseHTTPServer import BaseHTTPRequestHandler
-import httplib
+from http.server import BaseHTTPRequestHandler
+import http.client
 import yaml
 
 # Current Keylime API version 
@@ -87,7 +87,7 @@ if STUB_TPM:
 # allow testing mode
 TEST_MODE = os.getenv('KEYLIME_TEST', 'False')
 if TEST_MODE.upper()=='TRUE':
-    print "WARNING: running keylime in testing mode.\nkeylime will not run as root and ekcert checking for the TPM emulator is disabled"
+    print("WARNING: running keylime in testing mode.\nkeylime will not run as root and ekcert checking for the TPM emulator is disabled")
     REQUIRE_ROOT=False
     DISABLE_EK_CERT_CHECK_EMULATOR = True
 
@@ -98,7 +98,7 @@ MOUNT_SECURE=True
 TPM_CANNED_VALUES=None
 if STUB_TPM and TPM_CANNED_VALUES_PATH is not None:
     with open(TPM_CANNED_VALUES_PATH, "rb") as can:
-        print "WARNING: using canned values in stub mode from file '%s'"%(TPM_CANNED_VALUES_PATH)
+        print("WARNING: using canned values in stub mode from file '%s'"%(TPM_CANNED_VALUES_PATH))
         # Read in JSON and strip trailing extraneous commas 
         jsonInTxt = can.read().rstrip(',\r\n')
         # Saved JSON is missing surrounding braces, so add them here 
@@ -118,7 +118,7 @@ if not REQUIRE_ROOT:
     MOUNT_SECURE=False
     
 if not REQUIRE_ROOT:
-    print "WARNING: running without root access"
+    print("WARNING: running without root access")
 
 # Try and import cLime, if it fails set USE_CLIME to False.
 try:
@@ -152,12 +152,12 @@ if not os.path.exists(CONFIG_FILE):
         
 if not os.path.exists(CONFIG_FILE):
     raise Exception('%s does not exist. Please set environment variable KEYLIME_CONFIG or see %s for more details'%(CONFIG_FILE, __file__))
-print("Using config file %s"%(CONFIG_FILE,))
+print(("Using config file %s"%(CONFIG_FILE,)))
 if WARN:
     print("WARNING: Keylime is using the config file from its installation location. \n\tWe recommend you copy keylime.conf to /etc/ to customize it.")
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(CONFIG_FILE)
 
 if not REQUIRE_ROOT:
@@ -213,7 +213,7 @@ def echo_json_response(handler,code,status=None,results=None):
     if handler is None or code is None:
         return False
     if status is None:
-        status = httplib.responses[code]
+        status = http.client.responses[code]
     if results is None:
         results = {}
     
@@ -249,8 +249,8 @@ def yaml_to_dict(arry):
 
 def get_restful_params(urlstring):
     """Returns a dictionary of paired RESTful URI parameters"""
-    parsed_path = urlparse.urlsplit(urlstring.strip("/"))
-    query_params = urlparse.parse_qsl(parsed_path.query)
+    parsed_path = urllib.parse.urlsplit(urlstring.strip("/"))
+    query_params = urllib.parse.parse_qsl(parsed_path.query)
     path_tokens = parsed_path.path.split('/')
     
     # If first token is API version, ensure it isn't obsolete

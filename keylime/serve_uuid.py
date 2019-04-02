@@ -20,7 +20,7 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import sys
 import uuid
@@ -28,7 +28,7 @@ import uuid
 TESTING_MODE = False
 
 if not TESTING_MODE:
-    import provider_vtpm_add
+    from . import provider_vtpm_add
 
 class myHandler(BaseHTTPRequestHandler):
     
@@ -46,17 +46,17 @@ class myHandler(BaseHTTPRequestHandler):
 try:
     port_number = None
     if (len(sys.argv) < 2 and not TESTING_MODE): 
-        print "Requests vtpm uuid from vtpm manager"
-        print "Usage: serve_uuid.py port_number"
+        print("Requests vtpm uuid from vtpm manager")
+        print("Usage: serve_uuid.py port_number")
         sys.exit(-1)
     else:
         port_number = int(sys.argv[1])
 
     server = HTTPServer(('', port_number), myHandler)
-    print 'Started httpserver on port ', port_number
+    print('Started httpserver on port ', port_number)
 
     server.serve_forever()
 
 except KeyboardInterrupt:
-    print '^C received, shutting down the server'
+    print('^C received, shutting down the server')
     server.socket.close()

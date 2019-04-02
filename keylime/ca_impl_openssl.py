@@ -20,10 +20,10 @@ violate any copyrights that exist in this work.
 
 import time
 from M2Crypto import X509, EVP, RSA, ASN1
-import ConfigParser
+import configparser
 
-import common
-config = ConfigParser.SafeConfigParser()
+from . import common
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 def mk_cert_valid(cert, days=365):
@@ -33,7 +33,7 @@ def mk_cert_valid(cert, days=365):
        cert -- cert to make valid
        days -- number of days cert is valid for from now.
     """
-    t = long(time.time())
+    t = int(time.time())
     now = ASN1.ASN1_UTCTIME()
     now.set_time(t)
     expire = ASN1.ASN1_UTCTIME()

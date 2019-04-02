@@ -20,10 +20,10 @@ violate any copyrights that exist in this work.
 '''
 
 import sys
-import common
-import ConfigParser
-import registrar_client
-import vtpm_manager
+from . import common
+import configparser
+from . import registrar_client
+from . import vtpm_manager
 import base64
 import os
 import errno
@@ -31,13 +31,13 @@ import json
 
 logger = common.init_logging('provider_platform_init')
 
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 def symlink_force(target, link_name):
     try:
         os.symlink(target, link_name)
-    except OSError, e:
+    except OSError as e:
         if e.errno == errno.EEXIST:
             os.remove(link_name)
             os.symlink(target, link_name)
@@ -49,14 +49,14 @@ def main(argv=sys.argv):
         argv = ['provider_platform_init.py','1','2']
     
     if len(argv)<3:
-        print "usage: provider_platform_init.py pubek.pem tpm_ekcert.der"
-        print "\tassociates a hypervisor host to its TPM and registers it"
-        print 
-        print "\tYou must obtain the public EK and the EK certificate from outside of Xen"
-        print "\ttake ownership first, then obtain pubek, and ekcert as follows"
-        print "\t takeown -pwdo <owner_password>"
-        print "\t getpubek -pwdo <owner-password>"
-        print "\t nv_readvalue -pwdo <owner-password> -in 1000f000 -cert -of tpm_ekcert.der"
+        print("usage: provider_platform_init.py pubek.pem tpm_ekcert.der")
+        print("\tassociates a hypervisor host to its TPM and registers it")
+        print() 
+        print("\tYou must obtain the public EK and the EK certificate from outside of Xen")
+        print("\ttake ownership first, then obtain pubek, and ekcert as follows")
+        print("\t takeown -pwdo <owner_password>")
+        print("\t getpubek -pwdo <owner-password>")
+        print("\t nv_readvalue -pwdo <owner-password> -in 1000f000 -cert -of tpm_ekcert.der")
         sys.exit(-1)
         
     if common.DEVELOP_IN_ECLIPSE and not common.STUB_TPM:

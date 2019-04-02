@@ -21,15 +21,15 @@ violate any copyrights that exist in this work.
 '''
 
 import sys
-import common
-import ConfigParser
-import registrar_client
-import vtpm_manager
+from . import common
+import configparser
+from . import registrar_client
+from . import vtpm_manager
 import base64
 import json
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 logger = common.init_logging('platform-init')
@@ -67,8 +67,8 @@ def main(argv=sys.argv):
         argv = ['provider_platform_register.py','current_group.tpm']
         
     if len(argv)<2:
-        print "usage: provider_vtpm_add.py [uuid].tpm"
-        print "\tassociates creates a vtpm and adds it to the specified group \n\tusing JSON data in the .tpm file for aik, uuid, and activation key"
+        print("usage: provider_vtpm_add.py [uuid].tpm")
+        print("\tassociates creates a vtpm and adds it to the specified group \n\tusing JSON data in the .tpm file for aik, uuid, and activation key")
         sys.exit(-1)
 
     add_vtpm(argv[1])

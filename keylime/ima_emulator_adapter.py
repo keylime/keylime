@@ -19,14 +19,14 @@ violate any copyrights that exist in this work.
 '''
 
 import sys
-import ima
-import common    
+from . import ima
+from . import common    
 import select
 import time
 import hashlib
 import itertools
-from tpm_abstract import *
-import tpm_obj
+from .tpm_abstract import *
+from . import tpm_obj
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)
@@ -44,7 +44,7 @@ def ml_extend(ml,position,searchHash=None):
         if line =='':
             continue
         if len(tokens)<5:
-            print "ERROR: invalid measurement list file line: -%s-"%(line)
+            print("ERROR: invalid measurement list file line: -%s-"%(line))
             return position
         position += 1
         
@@ -57,13 +57,13 @@ def ml_extend(ml,position,searchHash=None):
         template_hash = template_hash.encode('hex')
         
         if searchHash is None:
-            print "extending hash %s for %s"%(template_hash,path)
+            print("extending hash %s for %s"%(template_hash,path))
             #TODO: Add support for other hash algorithms
             tpm.extendPCR(common.IMA_PCR, template_hash, Hash_Algorithms.SHA1)
         else:
             runninghash = hashlib.sha1(runninghash+template_hash.decode('hex')).digest()
             if runninghash.encode('hex') == searchHash:
-                print "Located last IMA file updated: %s"%(path)
+                print("Located last IMA file updated: %s"%(path))
                 return position
     
     if searchHash is not None:
@@ -84,10 +84,10 @@ def main(argv=sys.argv):
     pcrval = tpm.readPCR(common.IMA_PCR, Hash_Algorithms.SHA1)
 
     if pcrval != ima.START_HASH.encode('hex'):
-        print "Warning: IMA PCR is not empty, trying to find the last updated file in the measurement list..."
+        print("Warning: IMA PCR is not empty, trying to find the last updated file in the measurement list...")
         pos = ml_extend(common.IMA_ML, 0, pcrval)
     
-    print "Monitoring %s"%(common.IMA_ML)
+    print("Monitoring %s"%(common.IMA_ML))
     poll_object = select.poll()
     fd_object = file(common.IMA_ML, "r")
     number = fd_object.fileno()

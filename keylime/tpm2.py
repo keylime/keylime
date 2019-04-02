@@ -19,7 +19,7 @@ violate any copyrights that exist in this work.
 
 import base64
 import binascii
-import ConfigParser
+import configparser
 import hashlib
 import json
 import os
@@ -34,16 +34,16 @@ import traceback
 import M2Crypto
 from M2Crypto import m2
 
-import cmd_exec
-import common
-import secure_mount
-from tpm_abstract import Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms, AbstractTPM, TPM_Utilities
-from tpm_ek_ca import atmel_trusted_keys, trusted_certs
+from . import cmd_exec
+from . import common
+from . import secure_mount
+from .tpm_abstract import Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms, AbstractTPM, TPM_Utilities
+from .tpm_ek_ca import atmel_trusted_keys, trusted_certs
 
 logger = common.init_logging('tpm2')
 
 # Read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 
@@ -100,7 +100,7 @@ class tpm2(AbstractTPM):
             raise Exception("get_tpm_algorithms failed with code "+str(code)+": "+str(output))
         
         retyaml = common.yaml_to_dict(output)
-        for algorithm,details in retyaml.iteritems():
+        for algorithm,details in retyaml.items():
             if details["asymmetric"] == 1 and details["object"] == 1 and Encrypt_Algorithms.is_recognized(algorithm):
                 self.supported['encrypt'].add(algorithm)
             elif details["hash"] == 1 and Hash_Algorithms.is_recognized(algorithm):
@@ -143,7 +143,7 @@ class tpm2(AbstractTPM):
         env['LD_LIBRARY_PATH'] = lib_path+":%s"%common.TPM_LIBS_PATH
 
         # Convert single outputpath to list
-        if isinstance(outputpaths, basestring):
+        if isinstance(outputpaths, str):
             outputpaths = [outputpaths]
 
         # Handle stubbing the TPM out
@@ -162,7 +162,7 @@ class tpm2(AbstractTPM):
                 # Decode files that are supplied (and requested)
                 if outputpaths is not None and len(outputpaths) > 0:
                     if len(thisFileout) == 1 and len(outputpaths) == 1:
-                        fileoutEncoded[outputpaths[0]] = base64.b64decode(thisFileout.itervalues().next()).decode("zlib")
+                        fileoutEncoded[outputpaths[0]] = base64.b64decode(next(iter(thisFileout.values()))).decode("zlib")
                     elif fprt == "tpm2_deluxequote":
                         # quotes need 3 outputs, so we need a consistent way to match them back up when reading
                         quote_msg = ""
@@ -264,7 +264,7 @@ class tpm2(AbstractTPM):
                     # Process files
                     if outputpaths is not None and len(outputpaths) > 0:
                         if len(fileouts) == 1 and len(outputpaths) == 1:
-                            fileoutEncoded[outputpaths[0]] = base64.b64encode(fileouts.itervalues().next().encode("zlib"))
+                            fileoutEncoded[outputpaths[0]] = base64.b64encode(iter(fileouts.values()).next().encode("zlib"))
                         elif fprt == "tpm2_deluxequote":
                             # quotes need 3 outputs, so we need a consistent way to match them back up when reading
                             quote_msg = ""
@@ -631,7 +631,7 @@ class tpm2(AbstractTPM):
         except Exception as e:
             # Log the exception so we don't lose the raw message 
             logger.exception(e)
-            raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?"), None, sys.exc_info()[2]
+            raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?").with_traceback(sys.exc_info()[2])
         
         logger.error("No Root CA matched EK Certificate")
         return False
@@ -835,7 +835,7 @@ class tpm2(AbstractTPM):
         if "pcrs" in yamlout:
             if hash_alg in yamlout["pcrs"]:
                 alg_size = Hash_Algorithms.get_hash_size(hash_alg)/4
-                for pcrval, hashval in yamlout["pcrs"][hash_alg].iteritems():
+                for pcrval, hashval in yamlout["pcrs"][hash_alg].items():
                     pcrs.append("PCR " + str(pcrval) + " " + '{0:0{1}x}'.format(hashval, alg_size))
             # IMA is always in SHA1 format, so don't leave it behind!
             if hash_alg != Hash_Algorithms.SHA1:

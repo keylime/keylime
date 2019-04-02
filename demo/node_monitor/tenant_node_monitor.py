@@ -190,9 +190,9 @@ def init_mtls(config):
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
-    print "Starting Torando on port " + str(port)
+    print("Starting Torando on port " + str(port))
     tornado.ioloop.IOLoop.instance().start()
-    print "Tornado finished"
+    print("Tornado finished")
 
 def main(argv=sys.argv):
     """Main method of Node Monitor.  This method is encapsulated in a function for packaging to allow it to be 

@@ -20,40 +20,40 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
+from . import common
 logger = common.init_logging('ca-util')
 
 import sys
 import os
-import crypto
+from . import crypto
 import base64
 import argparse
-import ConfigParser
+import configparser
 import getpass
 import json
 import zipfile
-import cStringIO
+import io
 import socket
-import revocation_notifier
+from . import revocation_notifier
 import threading
-import BaseHTTPServer
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-from SocketServer import ThreadingMixIn
+import http.server
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 import functools
 import signal
 import time
-import cmd_exec
+from . import cmd_exec
 import datetime
 
 if common.CA_IMPL=='cfssl':
-    import ca_impl_cfssl as ca_impl
+    from . import ca_impl_cfssl as ca_impl
 elif common.CA_IMPL=='openssl':
-    import ca_impl_openssl as ca_impl
+    from . import ca_impl_openssl as ca_impl
 else:
     raise Exception("Unknown CA implementation: %s"%common.CA_IMPL)
 from M2Crypto import X509, EVP, BIO
 
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 """
@@ -106,7 +106,7 @@ def cmd_mkcert(workingdir,name):
         write_private(priv)
         
         # write out the private key with password
-        with os.fdopen(os.open("%s-private.pem"%name,os.O_WRONLY | os.O_CREAT,0600), 'w') as f:
+        with os.fdopen(os.open("%s-private.pem"%name,os.O_WRONLY | os.O_CREAT,0o600), 'w') as f:
             biofile = BIO.File(f)
             pk.save_key_bio(biofile, 'aes_256_cbc', globalcb)
             biofile.close()
@@ -209,7 +209,7 @@ def cmd_certpkg(workingdir,name,insecure=False):
     #     f.close()
         
         # no compression to avoid extraction errors in tmpfs
-        sf = cStringIO.StringIO()
+        sf = io.StringIO()
         with zipfile.ZipFile(sf,'w',compression=zipfile.ZIP_STORED) as f:
             f.writestr('%s-public.pem'%name,pub)
             f.writestr('%s-cert.crt'%name,cert)
@@ -425,7 +425,7 @@ def write_private(inp):
     ciphertext = crypto.encrypt(priv_encoded,key)
     towrite = {'salt':salt,'priv':ciphertext}
     
-    with os.fdopen(os.open('private.json',os.O_WRONLY | os.O_CREAT,0600), 'w') as f:
+    with os.fdopen(os.open('private.json',os.O_WRONLY | os.O_CREAT,0o600), 'w') as f:
         json.dump(towrite,f)
 
 def read_private():

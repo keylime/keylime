@@ -21,7 +21,7 @@ violate any copyrights that exist in this work.
 '''
 
 
-import ConfigParser
+import configparser
 import os
 from M2Crypto import X509
 
@@ -30,7 +30,7 @@ import keylime.common as common
 import keylime.cmd_exec as cmd_exec
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 logger = common.init_logging('delete-sa')

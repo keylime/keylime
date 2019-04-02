@@ -20,31 +20,31 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
+from . import common
 logger = common.init_logging('registrar-common')
 
-import BaseHTTPServer
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-from SocketServer import ThreadingMixIn
-from urlparse import urlparse
+import http.server
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
+from urllib.parse import urlparse
 import json
 import threading
 import traceback
 import sys
-import crypto
+from . import crypto
 import base64
-import ConfigParser
-import registrar_client
+import configparser
+from . import registrar_client
 import signal
 import time
 import hashlib
-import cloud_verifier_common
-import keylime_sqlite
-import tpm_obj
+from . import cloud_verifier_common
+from . import keylime_sqlite
+from . import tpm_obj
 
 
 # setup config
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 class ProtectedHandler(BaseHTTPRequestHandler):
@@ -366,10 +366,10 @@ class ProtectedRegistrarServer(ThreadingMixIn, HTTPServer):
     def __init__(self, server_address, db,RequestHandlerClass):
         """Constructor overridden to provide ability to read file"""
         self.db = db
-        BaseHTTPServer.HTTPServer.__init__(self, server_address, RequestHandlerClass)
+        http.server.HTTPServer.__init__(self, server_address, RequestHandlerClass)
 
     def shutdown(self):
-        BaseHTTPServer.HTTPServer.shutdown(self)
+        http.server.HTTPServer.shutdown(self)
         
 class UnprotectedRegistrarServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
@@ -379,10 +379,10 @@ class UnprotectedRegistrarServer(ThreadingMixIn, HTTPServer):
     def __init__(self, server_address,db,RequestHandlerClass):
         """Constructor overridden to provide ability to read file"""
         self.db = db
-        BaseHTTPServer.HTTPServer.__init__(self, server_address, RequestHandlerClass)
+        http.server.HTTPServer.__init__(self, server_address, RequestHandlerClass)
 
     def shutdown(self):
-        BaseHTTPServer.HTTPServer.shutdown(self)
+        http.server.HTTPServer.shutdown(self)
 
 def init_db(dbname):
     # in the form key, SQL type

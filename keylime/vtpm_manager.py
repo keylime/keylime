@@ -20,10 +20,10 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-from __future__ import print_function
+
 
 import base64
-import common
+from . import common
 import errno
 import hashlib
 import inspect
@@ -36,7 +36,7 @@ import time
 import tempfile
 from uuid import UUID
 import json
-import tpm_obj
+from . import tpm_obj
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)

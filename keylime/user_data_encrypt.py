@@ -22,11 +22,11 @@ violate any copyrights that exist in this work.
 
 import sys
 import os
-import crypto
+from . import crypto
 import base64
 
 def usage():
-	print "please pass in a file input file to encrypt"
+	print("please pass in a file input file to encrypt")
 	sys.exit(-1)
 	
 def encrypt(contents):
@@ -46,7 +46,7 @@ def main(argv=sys.argv):
 	infile = argv[1]
 			
 	if not os.path.isfile(infile):
-		print "ERROR: File %s not found."%infile
+		print("ERROR: File %s not found."%infile)
 		usage()
 
 	f = open(infile,'r')
@@ -54,7 +54,7 @@ def main(argv=sys.argv):
 	
 	ret = encrypt(contents)
 	
-	print "Writing keys to content_keys.txt"
+	print("Writing keys to content_keys.txt")
 	f = open('content_keys.txt','w')
 	f.write(base64.b64encode(ret['k']))
 	f.write('\n')
@@ -64,7 +64,7 @@ def main(argv=sys.argv):
 	f.write('\n')
 	f.close()
 
-	print "Writing encrypted data to content_payload.txt"
+	print("Writing encrypted data to content_payload.txt")
 	f = open('content_payload.txt','w')
 	f.write(ret['ciphertext'])
 	f.close()

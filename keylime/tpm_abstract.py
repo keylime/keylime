@@ -19,7 +19,7 @@ violate any copyrights that exist in this work.
 
 from abc import ABCMeta, abstractmethod
 import base64
-import ConfigParser
+import configparser
 import fcntl
 import hashlib
 import json
@@ -28,9 +28,9 @@ import sets
 import string
 import struct
 
-import common
-import crypto
-import ima
+from . import common
+from . import crypto
+from . import ima
 
 logger = common.init_logging('tpm')
 
@@ -149,7 +149,7 @@ class TPM_Utilities:
         
         # compute PCR mask from tpm_policy
         mask = 0
-        for key in policy.keys():
+        for key in list(policy.keys()):
             if not key.isdigit() or int(key) > 24:
                 raise Exception("Invalid tpm policy pcr number: %s"%(key))
             
@@ -161,7 +161,7 @@ class TPM_Utilities:
             mask = mask + (1<<int(key))
             
             # wrap it in a list if it is a singleton
-            if isinstance(policy[key], basestring):
+            if isinstance(policy[key], str):
                 policy[key] = [policy[key]]
              
             # convert all hash values to lowercase
@@ -171,11 +171,8 @@ class TPM_Utilities:
         return policy
 
 
-class AbstractTPM(object):
+class AbstractTPM(object, metaclass=ABCMeta):
     # Abstract base class
-    __metaclass__ = ABCMeta
-
-    # Class members
     EXIT_SUCESS = 0
     TPM_IO_ERR = 5
     EMPTYMASK = "1"
@@ -184,7 +181,7 @@ class AbstractTPM(object):
     # constructor
     def __init__(self, need_hw_tpm=True):
         # read the config file
-        self.config = ConfigParser.RawConfigParser()
+        self.config = configparser.RawConfigParser()
         self.config.read(common.CONFIG_FILE)
         self.need_hw_tpm = need_hw_tpm
         self.global_tpmdata = None
@@ -332,7 +329,7 @@ class AbstractTPM(object):
         pcrWhiteList = tpm_policy.copy()
         if 'mask' in pcrWhiteList: del pcrWhiteList['mask']
         # convert all pcr num keys to integers
-        pcrWhiteList = {int(k):v for k, v in pcrWhiteList.items()}
+        pcrWhiteList = {int(k):v for k, v in list(pcrWhiteList.items())}
         
         pcrsInQuote = sets.Set()
         for line in pcrs:
@@ -370,8 +367,8 @@ class AbstractTPM(object):
                 else:
                     return False
                     
-            if pcrnum not in pcrWhiteList.keys():
-                if not common.STUB_TPM and len(tpm_policy.keys()) > 0:
+            if pcrnum not in list(pcrWhiteList.keys()):
+                if not common.STUB_TPM and len(list(tpm_policy.keys())) > 0:
                     logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping."%(("", "v")[virtual], pcrnum, ("", "v")[virtual]))
                 continue
             elif pcrval not in pcrWhiteList[pcrnum] and not common.STUB_TPM:
@@ -383,7 +380,7 @@ class AbstractTPM(object):
         if common.STUB_TPM:
             return True
 
-        missing = list(sets.Set(pcrWhiteList.keys()).difference(pcrsInQuote))
+        missing = list(sets.Set(list(pcrWhiteList.keys())).difference(pcrsInQuote))
         if len(missing) > 0:
             logger.error("%sPCRs specified in policy not in quote: %s"%(("", "v")[virtual], missing))
             return False

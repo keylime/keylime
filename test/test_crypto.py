@@ -3,7 +3,7 @@ import os
 import sys
 
 # Useful constants for the test
-KEYLIME_DIR=os.getcwdu()+"/../keylime/"
+KEYLIME_DIR=os.getcwd()+"/../keylime/"
 
 # Custom imports
 sys.path.insert(0, KEYLIME_DIR)
@@ -35,7 +35,7 @@ class Crypto_Test(unittest.TestCase):
         message = b"a secret message!"
         aeskey=kdf(message,'salty-McSaltface')
         digest = do_hmac(aeskey,message)
-        print digest
+        print(digest)
         aeskey2 = kdf(message,'salty-McSaltface')
         self.assertEqual(do_hmac(aeskey2,message), digest)
         

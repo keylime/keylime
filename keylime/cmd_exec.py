@@ -20,7 +20,7 @@ violate any copyrights that exist in this work.
 import os
 import subprocess
 import threading
-import common
+from . import common
 import time
 
 
@@ -59,7 +59,7 @@ def run(cmd,expectedcode=EXIT_SUCESS,raiseOnError=True,lock=True,outputpaths=Non
 
     # Prepare to return their file contents (if requested)
     fileouts={}
-    if isinstance(outputpaths, basestring):
+    if isinstance(outputpaths, str):
         outputpaths = [outputpaths]
     if isinstance(outputpaths, list):
         for thispath in outputpaths:

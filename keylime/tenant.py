@@ -22,35 +22,35 @@ violate any copyrights that exist in this work.
 
 import json
 import base64
-import ConfigParser
-import common
-import registrar_client
+import configparser
+from . import common
+from . import registrar_client
 import sys
 import argparse
-import crypto
+from . import crypto
 import traceback
 import time
-import user_data_encrypt
-import ca_util
+from . import user_data_encrypt
+from . import ca_util
 import os
 import ssl
-import tornado_requests
+from . import tornado_requests
 import hashlib
-import ima
+from . import ima
 import zipfile
-import cStringIO
-import StringIO
+import io
+import io
 import logging
 import subprocess
-import tpm_obj
-from tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+from . import tpm_obj
+from .tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 
 
 # setup logging
 logger = common.init_logging('tenant')
 
 # setup config
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 class Tenant():
@@ -195,7 +195,7 @@ class Tenant():
             # Auto-enable IMA (or-bit mask)
             self.tpm_policy['mask'] = "0x%X"%(int(self.tpm_policy['mask'],0) + (1 << common.IMA_PCR))
             
-            if type(args["ima_whitelist"]) in [str,unicode]:
+            if type(args["ima_whitelist"]) in [str,str]:
                 if args["ima_whitelist"] == "default":
                     args["ima_whitelist"] = config.get('tenant', 'ima_whitelist')
                 wl_data = ima.read_whitelist(args["ima_whitelist"])
@@ -208,7 +208,7 @@ class Tenant():
         # Read command-line path string IMA exclude list 
         excl_data = None
         if "ima_exclude" in args and args["ima_exclude"] is not None:
-            if type(args["ima_exclude"]) in [str,unicode]:
+            if type(args["ima_exclude"]) in [str,str]:
                 if args["ima_exclude"] == "default":
                     args["ima_exclude"] = config.get('tenant', 'ima_excludelist')
                 excl_data = ima.read_excllist(args["ima_exclude"])
@@ -245,7 +245,7 @@ class Tenant():
                     if keyfile is None:
                         logger.error("Invalid key file contents")
                         raise Exception("Invalid key file contents")
-                    f = StringIO.StringIO(keyfile)
+                    f = io.StringIO(keyfile)
                 else:
                     logger.error("Invalid key file provided")
                     raise Exception("Invalid key file provided")
@@ -318,13 +318,13 @@ class Tenant():
             rev_package,_,_ = ca_util.cmd_certpkg(args["ca_dir"],"RevocationNotifier")
             
             # extract public and private keys from package
-            sf = cStringIO.StringIO(rev_package)
+            sf = io.StringIO(rev_package)
             with zipfile.ZipFile(sf) as zf:
                 privkey = zf.read("RevocationNotifier-private.pem")
                 cert = zf.read("RevocationNotifier-cert.crt")
             
             # put the cert of the revoker into the cert package
-            sf = StringIO.StringIO(cert_pkg)
+            sf = io.StringIO(cert_pkg)
             with zipfile.ZipFile(sf,'a',compression=zipfile.ZIP_STORED) as zf:
                 zf.writestr('RevocationNotifier-cert.crt',cert)
                 

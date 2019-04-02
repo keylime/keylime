@@ -20,7 +20,7 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-from __future__ import print_function
+
 import keylime.common
 keylime.common.USE_CLIME=True
 from keylime.tpm_quote import check_deep_quote, check_quote

@@ -18,21 +18,21 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
+from . import common
 import json
-import ConfigParser
+import configparser
 import os
 import subprocess
-import tornado_requests
+from . import tornado_requests
 from M2Crypto import EVP, X509
-import secure_mount
+from . import secure_mount
 import base64
 import time
 import socket
 
 logger = common.init_logging('ca_impl_cfssl')
 
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 cfsslproc = None

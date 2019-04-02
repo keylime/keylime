@@ -20,38 +20,38 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
+from . import common
 logger = common.init_logging('cloudnode')
 
 
-import BaseHTTPServer
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-from SocketServer import ThreadingMixIn
+import http.server
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 import threading
-from urlparse import urlparse
+from urllib.parse import urlparse
 import json
 import base64
-import ConfigParser
+import configparser
 import uuid
-import crypto
+from . import crypto
 import os
 import sys
-import registrar_client
-import secure_mount
+from . import registrar_client
+from . import secure_mount
 import time
 import hashlib
-import openstack
+from . import openstack
 import zipfile
-import cStringIO
-import revocation_notifier
+import io
+from . import revocation_notifier
 import importlib
 import shutil
-import tpm_obj
-from tpm_abstract import TPM_Utilities
+from . import tpm_obj
+from .tpm_abstract import TPM_Utilities
 
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 # get the tpm object
@@ -265,7 +265,7 @@ class Handler(BaseHTTPRequestHandler):
         if dec_payload is not None:
             tomeasure += dec_payload
             # see if payload is a zip
-            zfio = cStringIO.StringIO(dec_payload)
+            zfio = io.StringIO(dec_payload)
             if config.getboolean('cloud_node','extract_payload_zip') and zipfile.is_zipfile(zfio):
                 logger.info("Decrypting and unzipping payload to %s/unzipped"%secdir)
                 with zipfile.ZipFile(zfio,'r')as f:
@@ -377,7 +377,7 @@ class CloudNodeHTTPServer(ThreadingMixIn, HTTPServer):
         if nvram_u is not None:
             logger.info("Existing U loaded from TPM NVRAM")
             self.add_U(nvram_u)
-        BaseHTTPServer.HTTPServer.__init__(self, server_address, RequestHandlerClass)
+        http.server.HTTPServer.__init__(self, server_address, RequestHandlerClass)
         self.enc_keyname = config.get('cloud_node','enc_keyname')
         self.node_uuid = node_uuid
 
@@ -493,7 +493,7 @@ def main(argv=sys.argv):
     # now we need the UUID
     try:
         node_uuid = config.get('cloud_node','node_uuid')
-    except ConfigParser.NoOptionError:
+    except configparser.NoOptionError:
         node_uuid = None
     if node_uuid == 'openstack':
         node_uuid = openstack.get_openstack_uuid()

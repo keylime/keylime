@@ -3,7 +3,7 @@ import sys
 import os
 
 # Useful constants for the test
-KEYLIME_DIR=os.getcwdu()+"/../keylime/"
+KEYLIME_DIR=os.getcwd()+"/../keylime/"
 
 # Custom imports
 sys.path.insert(0, KEYLIME_DIR)
@@ -17,7 +17,7 @@ class Sqlite_Test(unittest.TestCase):
             'instance_ids': 'TEXT PRIMARY_KEY',
             }
         
-        with self.assertRaisesRegexp(Exception,'the primary key of the database must be instance_id'):
+        with self.assertRaisesRegex(Exception,'the primary key of the database must be instance_id'):
             _ = KeylimeDB(None,cols_db,[],{})
             
         # testing

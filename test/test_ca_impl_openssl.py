@@ -3,7 +3,7 @@ import os
 import sys
 
 # Useful constants for the test
-KEYLIME_DIR=os.getcwdu()+"/../keylime/"
+KEYLIME_DIR=os.getcwd()+"/../keylime/"
 
 # Custom imports
 sys.path.insert(0, KEYLIME_DIR)

@@ -21,10 +21,10 @@ violate any copyrights that exist in this work.
 '''
 
 import zmq
-import common
-import ConfigParser
+from . import common
+import configparser
 import json
-import crypto
+from . import crypto
 import threading
 import functools
 import time
@@ -35,7 +35,7 @@ import signal
 
 logger = common.init_logging('revocation_notifier')
 
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 broker_proc = None
@@ -126,7 +126,7 @@ def await_notifications(callback,revocation_cert_path):
 def main():
     start_broker()
     
-    import secure_mount
+    from . import secure_mount
     
     def worker():
         def print_notification(revocation):
@@ -152,15 +152,15 @@ def main():
         'revocation': '{"cert_serial":"1"}',
         }
     
-    print "sending notification"
+    print("sending notification")
     notify(json_body2)
     
     time.sleep(2)
-    print "shutting down"
+    print("shutting down")
     stop_broker()
-    print "exiting..."
+    print("exiting...")
     sys.exit(0)
-    print "done"
+    print("done")
      
 if __name__=="__main__":
     main()

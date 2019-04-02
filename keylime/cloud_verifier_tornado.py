@@ -19,11 +19,11 @@ rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as d
 above. Use of this work other than as specifically authorized by the U.S. Government may 
 violate any copyrights that exist in this work.
 '''
-import common
+from . import common
 logger = common.init_logging('cloudverifier')
 
 import json
-import ConfigParser
+import configparser
 import traceback
 import sys
 import tornado.ioloop
@@ -32,10 +32,10 @@ import functools
 from tornado import httpserver
 from tornado.httpclient import AsyncHTTPClient
 from tornado.httputil import url_concat
-import cloud_verifier_common
-import revocation_notifier
+from . import cloud_verifier_common
+from . import revocation_notifier
 
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -458,7 +458,7 @@ class InstancesHandler(BaseHandler):
                     tornado.ioloop.IOLoop.current().call_later(retry,cb)
                 return
             
-            print instance
+            print(instance)
             raise Exception("nothing should ever fall out of this!")
    
         except Exception as e:
@@ -467,15 +467,15 @@ class InstancesHandler(BaseHandler):
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
-    print "Starting Torando on port " + str(port)
+    print("Starting Torando on port " + str(port))
     tornado.ioloop.IOLoop.instance().start()
-    print "Tornado finished"
+    print("Tornado finished")
      
 def main(argv=sys.argv):
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be 
     called as a function by an external program."""
 
-    config = ConfigParser.SafeConfigParser()
+    config = configparser.SafeConfigParser()
     config.read(common.CONFIG_FILE)
      
     cloudverifier_port = config.get('general', 'cloudverifier_port')

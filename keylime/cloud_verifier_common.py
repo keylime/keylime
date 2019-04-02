@@ -20,30 +20,30 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-from urlparse import urlparse
+from urllib.parse import urlparse
 import json
 import base64
 import time
-import common
-import registrar_client
+from . import common
+from . import registrar_client
 import os
-import crypto
+from . import crypto
 import ssl
 import socket
-import ca_util
+from . import ca_util
 import sqlite3
-import revocation_notifier
-import keylime_sqlite
-import ConfigParser
-import tpm_obj
-from tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+from . import revocation_notifier
+from . import keylime_sqlite
+import configparser
+from . import tpm_obj
+from .tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 
 
 # setup logging
 logger = common.init_logging('cloudverifier_common')
 
 # setup config
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 class CloudInstance_Operational_State:
@@ -87,7 +87,7 @@ class Timer(object):
         self.secs = self.end - self.start
         self.msecs = self.secs * 1000  # millisecs
         if self.verbose:
-            print 'elapsed time: %f ms' % self.msecs
+            print('elapsed time: %f ms' % self.msecs)
             
 def init_mtls(section='cloud_verifier',generatedir='cv_ca'):
     if not config.getboolean('general',"enable_tls"):

@@ -55,7 +55,7 @@ import subprocess
 import time
 import json
 import os
-import ConfigParser
+import configparser
 import base64
 import threading
 import shutil
@@ -70,7 +70,7 @@ else:
     FORK_ARGS = ["python"]
 
 # Useful constants for the test
-KEYLIME_DIR=os.getcwdu()+"/../keylime/"
+KEYLIME_DIR=os.getcwd()+"/../keylime/"
 
 # Custom imports
 sys.path.insert(0, KEYLIME_DIR)
@@ -95,7 +95,7 @@ if os.geteuid() != 0 and common.REQUIRE_ROOT:
 unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(x, y)
 
 # Config-related stuff
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 # Environment to pass to services
@@ -137,7 +137,7 @@ def setUpModule():
         tsd = subprocess.Popen(["tpm_serverd"], shell=False, env=env)
         tsd.wait()
     except Exception as e:
-        print "WARNING: Restarting TPM emulator failed!"
+        print("WARNING: Restarting TPM emulator failed!")
     # Note: the following is required as abrmd is failing to reconnect to MSSIM, once
     # MSSIM is killed and restarted. If this is an proved an actual bug and is
     # fixed upstream, the following dbus restart call can be removed.
@@ -148,7 +148,7 @@ def setUpModule():
         # If the systemd service exists, let's restart it.
         for service in sysbus.list_names():
             if "com.intel.tss2.Tabrmd" in service:
-                print("Found dbus service: %s", str(service))
+                print(("Found dbus service: %s", str(service)))
                 try:
                     print("Restarting tpm2-abrmd.service.")
                     job = manager.RestartUnit('tpm2-abrmd.service', 'fail')
@@ -164,7 +164,7 @@ def setUpModule():
         fileRemove(common.WORK_DIR + "/reg_data.sqlite")
         shutil.rmtree(common.WORK_DIR + "/cv_ca", True)
     except Exception as e:
-        print "WARNING: Cleanup of TPM files failed!"
+        print("WARNING: Cleanup of TPM files failed!")
 
     # CV must be run first to create CA and certs!
     launch_cloudverifier()
@@ -362,7 +362,7 @@ class TestRestful(unittest.TestCase):
         global keyblob, aik, vtpm, ek
 
         # Change CWD for TPM-related operations
-        cwd = os.getcwdu()
+        cwd = os.getcwd()
         common.ch_dir(common.WORK_DIR,None)
         secdir = secure_mount.mount()
 

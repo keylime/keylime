@@ -22,9 +22,9 @@ import json
 
 def request(method,url,params=None,data=None,context=None):
     http_client = httpclient.HTTPClient()        
-    if params is not None and len(params.keys())>0:
+    if params is not None and len(list(params.keys()))>0:
         url+='?'
-        for key in params.keys():
+        for key in list(params.keys()):
             url+="%s=%s&"%(key,params[key])
         url=url[:-1]
     

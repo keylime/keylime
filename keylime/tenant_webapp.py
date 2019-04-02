@@ -23,25 +23,25 @@ violate any copyrights that exist in this work.
 import os
 import ssl
 import json
-import ConfigParser
+import configparser
 import traceback
 import sys
 import tornado.ioloop
 import tornado.web
-import tornado_requests
+from . import tornado_requests
 import functools
 from tornado import httpserver
 from tornado.httpclient import AsyncHTTPClient
 from tornado.httputil import url_concat
-import revocation_notifier
-import cloud_verifier_common
-import tenant
+from . import revocation_notifier
+from . import cloud_verifier_common
+from . import tenant
 import base64
-import common
+from . import common
 
 logger = common.init_logging('tenant_webapp')
 
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 tenant_templ = tenant.Tenant()
@@ -580,15 +580,15 @@ def parse_data_uri(data_uri):
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
-    print "Starting Torando on port " + str(port)
+    print("Starting Torando on port " + str(port))
     tornado.ioloop.IOLoop.instance().start()
-    print "Tornado finished"
+    print("Tornado finished")
      
 def main(argv=sys.argv):
     """Main method of the Tenant Webapp Server.  This method is encapsulated in a function for packaging to allow it to be 
     called as a function by an external program."""
 
-    config = ConfigParser.SafeConfigParser()
+    config = configparser.SafeConfigParser()
     config.read(common.CONFIG_FILE)
      
     webapp_port = config.getint('general', 'webapp_port')
