@@ -576,30 +576,30 @@ class Tenant():
                 raise Exception("Error: unexpected http response body from Cloud agent: %s"%str(response.status_code))
             
             quote = response_body["results"]["quote"]
-            logger.debug("cnquote received quote:" + quote)
+            logger.debug("agent_quote received quote:" + quote)
             
             public_key = response_body["results"]["pubkey"]
-            logger.debug("cnquote received public key:" + public_key)
+            logger.debug("agent_quote received public key:" + public_key)
             
             # Get tpm_version, hash_alg
             tpm_version = response_body["results"]["tpm_version"]
-            logger.debug("cnquote received tpm version:" + str(tpm_version))
+            logger.debug("agent_quote received tpm version:" + str(tpm_version))
             
             # Ensure hash_alg is in accept_tpm_hash_algs list
             hash_alg = response_body["results"]["hash_alg"]
-            logger.debug("cnquote received hash algorithm:" + hash_alg)
+            logger.debug("agent_quote received hash algorithm:" + hash_alg)
             if not Hash_Algorithms.is_accepted(hash_alg, config.get('tenant','accept_tpm_hash_algs').split(',')):
                 raise Exception("TPM Quote is using an unaccepted hash algorithm: %s"%hash_alg)
             
             # Ensure enc_alg is in accept_tpm_encryption_algs list
             enc_alg = response_body["results"]["enc_alg"]
-            logger.debug("cnquote received encryption algorithm:" + enc_alg)
+            logger.debug("agent_quote received encryption algorithm:" + enc_alg)
             if not Encrypt_Algorithms.is_accepted(enc_alg, config.get('tenant','accept_tpm_encryption_algs').split(',')):
                 raise Exception("TPM Quote is using an unaccepted encryption algorithm: %s"%enc_alg)
             
             # Ensure sign_alg is in accept_tpm_encryption_algs list
             sign_alg = response_body["results"]["sign_alg"]
-            logger.debug("cnquote received signing algorithm:" + sign_alg)
+            logger.debug("agent_quote received signing algorithm:" + sign_alg)
             if not Sign_Algorithms.is_accepted(sign_alg, config.get('tenant','accept_tpm_signing_algs').split(',')):
                 raise Exception("TPM Quote is using an unaccepted signing algorithm: %s"%sign_alg)
             

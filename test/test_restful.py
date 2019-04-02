@@ -104,7 +104,7 @@ script_env = os.environ.copy()
 # Globals to keep track of Keylime components
 cv_process = None
 reg_process = None
-cn_process = None
+agent_process = None
 tenant_templ = None
 
 # Class-level components that are not static (so can't be added to test class)
@@ -247,10 +247,10 @@ def launch_registrar():
 
 def launch_cloudagent():
     """Start up the cloud agent"""
-    global cn_process, script_env, FORK_ARGS
-    if cn_process is None:
+    global agent_process, script_env, FORK_ARGS
+    if agent_process is None:
         filename = ["%s/cloud_agent.py"%(KEYLIME_DIR)]
-        cn_process = subprocess.Popen(
+        agent_process = subprocess.Popen(
                                         FORK_ARGS + filename,
                                         shell=False,
                                         preexec_fn=os.setsid,
@@ -261,7 +261,7 @@ def launch_cloudagent():
         def initthread():
             sys.stdout.write('\033[94m' + "\nCloud agent Thread" + '\033[0m')
             while True:
-                line = cn_process.stdout.readline()
+                line = agent_process.stdout.readline()
                 if line=="":
                     break
                 line = line.rstrip(os.linesep)
@@ -292,12 +292,12 @@ def kill_registrar():
 
 def kill_cloudagent():
     """Kill the cloud agent"""
-    global cn_process
-    if cn_process is None:
+    global agent_process
+    if agent_process is None:
         return
-    os.killpg(os.getpgid(cn_process.pid), signal.SIGINT)
-    cn_process.wait()
-    cn_process = None
+    os.killpg(os.getpgid(agent_process.pid), signal.SIGINT)
+    agent_process.wait()
+    agent_process = None
 
 def services_running():
     if reg_process.poll() is None and cv_process.poll() is None:

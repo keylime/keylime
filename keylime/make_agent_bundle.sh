@@ -63,7 +63,7 @@ for path in $DIST_PATH ; do
 done
 
 if [[ "$TPM_VERSION" -eq "2" ]] ; then
-    pyinstaller --clean cn_installer_2.spec
+    pyinstaller --clean agent_installer_2.spec
 else
-    pyinstaller --clean cn_installer.spec
+    pyinstaller --clean agent_installer.spec
 fi
