@@ -404,6 +404,10 @@ between the Tenant and Cloud Verifier showed an HMAC of the agent's ID using the
 K_e.  This should be using K_b. The paper in this repository and the ACSAC presentation
 have been updated to correct this typo.
 
+The software that runs on the system with the TPM is now called the keylime *agent* rather
+than the *node*.  We have made this change in the documentation and code.  The ACSAC paper
+will remain as it was published using *node*.
+
 ## License
 
 Copyright (c) 2019 Massachusetts Institute of Technology.
