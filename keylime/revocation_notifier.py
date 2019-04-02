@@ -141,7 +141,7 @@ def main():
 
     json_body2 = {
         'v': 'vbaby',
-        'instance_id': '2094aqrea3',
+        'agent_id': '2094aqrea3',
         'cloudagent_ip': 'ipaddy',
         'cloudagent_port': '39843',
         'tpm_policy': '{"ab":"1"}',

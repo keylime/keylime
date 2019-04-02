@@ -456,7 +456,7 @@ class Tenant():
         return True
 
     def do_cv(self):
-        """initiaite v, instance_id and ip
+        """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         b64_v = base64.b64encode(self.V)
         logger.debug("b64_v:" + b64_v)
@@ -475,7 +475,7 @@ class Tenant():
         }
         
         json_message = json.dumps(data)
-        response = tornado_requests.request("POST","http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),data=json_message,context=self.context)
+        response = tornado_requests.request("POST","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),data=json_message,context=self.context)
         if response.status_code == 409:
             # this is a conflict, need to update or delete it
             raise Exception("agent %s already existed at CV.  Please use delete or update."%self.AGENT_UUID)
@@ -485,13 +485,13 @@ class Tenant():
 
 
     def do_cvstatus(self,listing=False):
-        """initiaite v, instance_id and ip
+        """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         AGENT_UUID = ""
         if not listing:
             AGENT_UUID=self.AGENT_UUID
 
-        response = tornado_requests.request("GET", "http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,AGENT_UUID),context=self.context)
+        response = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,AGENT_UUID),context=self.context)
         if response.status_code != 200:
             logger.error("Status command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
@@ -499,11 +499,11 @@ class Tenant():
             logger.info("agent Status %d: %s"%(response.status_code,response.json()))
 
     def do_cvdelete(self):        
-        response = tornado_requests.request("DELETE","http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context)
+        response = tornado_requests.request("DELETE","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context)
         if response.status_code == 202:
             deleted = False
             for _ in range(12):
-                response = tornado_requests.request("GET", "http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context)
+                response = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context)
                 if response.status_code == 404:
                     deleted=True
                     break
@@ -523,7 +523,7 @@ class Tenant():
         registrar_client.doRegistrarDelete(self.registrar_ip,self.registrar_port,self.AGENT_UUID)
             
     def do_cvreactivate(self):
-        response = tornado_requests.request("PUT","http://%s:%s/instances/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context,data=b'')
+        response = tornado_requests.request("PUT","http://%s:%s/agents/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context,data=b'')
         if response.status_code != 200:
             logger.error("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
@@ -531,7 +531,7 @@ class Tenant():
             logger.info("agent %s re-activated"%(self.AGENT_UUID))
             
     def do_cvstop(self):
-        response = tornado_requests.request("PUT","http://%s:%s/instances/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context,data=b'')
+        response = tornado_requests.request("PUT","http://%s:%s/agents/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.AGENT_UUID),context=self.context,data=b'')
         if response.status_code != 200:
             logger.error("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
@@ -539,7 +539,7 @@ class Tenant():
             logger.info("agent %s stopped"%(self.AGENT_UUID))
         
     def do_quote(self):
-        """initiaite v, instance_id and ip
+        """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         self.nonce = TPM_Utilities.random_password(20)
         
@@ -635,7 +635,7 @@ class Tenant():
             self.do_cvstop() 
        
     def do_verify(self):
-        """initiaite v, instance_id and ip
+        """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         challenge = TPM_Utilities.random_password(20)
         

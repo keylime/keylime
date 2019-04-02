@@ -25,8 +25,8 @@ The tests must be run in-order and CANNOT be parallelized!
 
 Tests all but two RESTful interfaces:
     * agent's POST /v2/keys/vkey
-        - Done by CV after the CV's POST /v2/instances/{UUID} command is performed
-    * CV's PUT /v2/instances/{UUID}
+        - Done by CV after the CV's POST /v2/agents/{UUID} command is performed
+    * CV's PUT /v2/agents/{UUID}
         - POST already bootstraps agent, so PUT is redundant in this test
 
 The registrar's PUT vactivate interface is only tested if a vTPM is present!
@@ -155,7 +155,7 @@ def setUpModule():
                 except dbus.exceptions.DBusException as e:
                     print(e)
     except Exception as e:
-        print("Non systemd instance detected, no tpm2-abrmd restart required.")
+        print("Non systemd agent detected, no tpm2-abrmd restart required.")
 
     try:
         # Start with a clean slate for this test
@@ -357,8 +357,8 @@ class TestRestful(unittest.TestCase):
 
 
     """Registrar Testset"""
-    def test_010_reg_instance_post(self):
-        """Test registrar's POST /v2/instances/{UUID} Interface"""
+    def test_010_reg_agent_post(self):
+        """Test registrar's POST /v2/agents/{UUID} Interface"""
         global keyblob, aik, vtpm, ek
 
         # Change CWD for TPM-related operations
@@ -396,11 +396,11 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "POST",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
                                             data=v_json_message,
                                             context=None
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance Add return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar Agent Add return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -410,9 +410,9 @@ class TestRestful(unittest.TestCase):
         keyblob = response_body["results"]["blob"]
         self.assertIsNotNone(keyblob, "Malformed response body!")
 
-    @unittest.skipIf(vtpm == True, "Registrar's PUT /v2/instances/{UUID}/activate only for non-vTPMs!")
-    def test_011_reg_instance_activate_put(self):
-        """Test registrar's PUT /v2/instances/{UUID}/activate Interface"""
+    @unittest.skipIf(vtpm == True, "Registrar's PUT /v2/agents/{UUID}/activate only for non-vTPMs!")
+    def test_011_reg_agent_activate_put(self):
+        """Test registrar's PUT /v2/agents/{UUID}/activate Interface"""
         global keyblob, aik
 
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
@@ -426,19 +426,19 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "PUT",
-                                            "http://%s:%s/v%s/instances/%s/activate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s/activate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
                                             data=v_json_message,
                                             context=None
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance Activate return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar Agent Activate return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
 
-    @unittest.skipIf(vtpm == False, "Registrar's PUT /v2/instances/{UUID}/vactivate only for vTPMs!")
-    def test_012_reg_instance_vactivate_put(self):
-        """Test registrar's PUT /v2/instances/{UUID}/vactivate Interface"""
+    @unittest.skipIf(vtpm == False, "Registrar's PUT /v2/agents/{UUID}/vactivate only for vTPMs!")
+    def test_012_reg_agent_vactivate_put(self):
+        """Test registrar's PUT /v2/agents/{UUID}/vactivate Interface"""
         global keyblob, aik, ek
 
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
@@ -454,24 +454,24 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "PUT",
-                                            "http://%s:%s/v%s/instances/%s/vactivate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s/vactivate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.AGENT_UUID),
                                             data=v_json_message,
                                             context=None
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance vActivate return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar Agent vActivate return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
 
-    def test_013_reg_instances_get(self):
-        """Test registrar's GET /v2/instances Interface"""
+    def test_013_reg_agents_get(self):
+        """Test registrar's GET /v2/agents Interface"""
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/instances/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version),
+                                            "http://%s:%s/v%s/agents/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version),
                                             context=tenant_templ.context
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance List return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar Agent List return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -481,16 +481,16 @@ class TestRestful(unittest.TestCase):
         # We registered exactly one agent so far
         self.assertEqual(1, len(response_body["results"]["uuids"]), "Incorrect system state!")
 
-    def test_014_reg_instance_get(self):
-        """Test registrar's GET /v2/instances/{UUID} Interface"""
+    def test_014_reg_agent_get(self):
+        """Test registrar's GET /v2/agents/{UUID} Interface"""
         global aik
 
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.AGENT_UUID),
                                             context=tenant_templ.context
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar Instance return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar Agent return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -502,11 +502,11 @@ class TestRestful(unittest.TestCase):
         aik = response_body["results"]["aik"]
         #TODO: results->provider_keys is only for virtual mode
 
-    def test_015_reg_instance_delete(self):
-        """Test registrar's DELETE /v2/instances/{UUID} Interface"""
+    def test_015_reg_agent_delete(self):
+        """Test registrar's DELETE /v2/agents/{UUID} Interface"""
         response = tornado_requests.request(
                                             "DELETE",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.AGENT_UUID),
                                             context=tenant_templ.context
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Delete return code!")
@@ -540,9 +540,9 @@ class TestRestful(unittest.TestCase):
         public_key = response_body["results"]["pubkey"]
         self.assertNotEqual(public_key, None, "Malformed response body!")
 
-    def test_021_reg_instance_get(self):
+    def test_021_reg_agent_get(self):
         # We need to refresh the aik value we've stored in case it changed
-        self.test_014_reg_instance_get()
+        self.test_014_reg_agent_get()
 
     def test_022_agent_quotes_identity_get(self):
         """Test agent's GET /v2/quotes/identity Interface"""
@@ -631,8 +631,8 @@ class TestRestful(unittest.TestCase):
 
 
     """Cloud Verifier Testset"""
-    def test_030_cv_instance_post(self):
-        """Test CV's POST /v2/instances/{UUID} Interface"""
+    def test_030_cv_agent_post(self):
+        """Test CV's POST /v2/agents/{UUID} Interface"""
         self.assertIsNotNone(self.V, "Required value not set.  Previous step may have failed?")
 
         b64_v = base64.b64encode(self.V)
@@ -653,11 +653,11 @@ class TestRestful(unittest.TestCase):
 
         response = tornado_requests.request(
                                             "POST",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
                                             data=json_message,
                                             context=tenant_templ.context
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful CV Instance Post return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful CV Agent Post return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -665,30 +665,30 @@ class TestRestful(unittest.TestCase):
 
         time.sleep(10)
 
-    @unittest.skip("Testing of CV's PUT /v2/instances/{UUID} disabled!")
-    def test_031_cv_instance_put(self):
-        """Test CV's PUT /v2/instances/{UUID} Interface"""
+    @unittest.skip("Testing of CV's PUT /v2/agents/{UUID} disabled!")
+    def test_031_cv_agent_put(self):
+        """Test CV's PUT /v2/agents/{UUID} Interface"""
         #TODO: this should actually test PUT functionality (e.g., make agent fail and then PUT back up)
         response = tornado_requests.request(
                                             "PUT",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
                                             data=b'',
                                             context=tenant_templ.context
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful CV Instance Post return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful CV Agent Post return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
 
-    def test_032_cv_instances_get(self):
-        """Test CV's GET /v2/instances Interface"""
+    def test_032_cv_agents_get(self):
+        """Test CV's GET /v2/agents Interface"""
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/instances/"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version),
+                                            "http://%s:%s/v%s/agents/"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version),
                                             context=tenant_templ.context
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful CV Instance List return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful CV Agent List return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -698,14 +698,14 @@ class TestRestful(unittest.TestCase):
         # Be sure our agent is registered
         self.assertEqual(1, len(response_body["results"]["uuids"]))
 
-    def test_033_cv_instance_get(self):
-        """Test CV's GET /v2/instances/{UUID} Interface"""
+    def test_033_cv_agent_get(self):
+        """Test CV's GET /v2/agents/{UUID} Interface"""
         response = tornado_requests.request(
                                             "GET",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
                                             context=tenant_templ.context
                                         )
-        self.assertEqual(response.status_code, 200, "Non-successful CV Instance return code!")
+        self.assertEqual(response.status_code, 200, "Non-successful CV Agent return code!")
         response_body = response.json()
 
         # Ensure response is well-formed
@@ -785,15 +785,15 @@ class TestRestful(unittest.TestCase):
 
 
     """CV Cleanup Testset"""
-    def test_050_cv_instance_delete(self):
-        """Test CV's DELETE /v2/instances/{UUID} Interface"""
+    def test_050_cv_agent_delete(self):
+        """Test CV's DELETE /v2/agents/{UUID} Interface"""
         time.sleep(5)
         response = tornado_requests.request(
                                             "DELETE",
-                                            "http://%s:%s/v%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
+                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.AGENT_UUID),
                                             context=tenant_templ.context
                                         )
-        self.assertEqual(response.status_code, 202, "Non-successful CV Instance Delete return code!")
+        self.assertEqual(response.status_code, 202, "Non-successful CV Agent Delete return code!")
         response_body = response.json()
 
         # Ensure response is well-formed

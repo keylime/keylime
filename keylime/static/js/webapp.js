@@ -298,12 +298,12 @@ function updateAgentsInfo() {
             }
             let response = json["results"];
             
-            // Figure out which instance id we refer to 
+            // Figure out which agent id we refer to 
             if (!("id" in response)) {
-                reportIssue("ERROR updateAgentsInfo: Cannot determine instance id from callback!");
+                reportIssue("ERROR updateAgentsInfo: Cannot determine agent id from callback!");
                 return;
             }
-            let instanceId = response["id"];
+            let agentId = response["id"];
             
             // Format address to display 
             let fulladdr = "<i>N/A</i>";
@@ -322,14 +322,14 @@ function updateAgentsInfo() {
                 statStr = statStr + " (" + readable + ")";
             }
             
-            let agentIdShort = instanceId.substr(0,8);
+            let agentIdShort = agentId.substr(0,8);
             let classSuffix = style_mappings[state]["class"];
             let action = style_mappings[state]["action"];
             
             let agentOverviewInsert = "" 
-                    + "<div onmousedown=\"asyncRequest('" + action + "','agents','" + instanceId + "')\" class='tbl_ctrl_" + classSuffix + "'>&nbsp;</div>"
-                    + "<div onmousedown=\"toggleVisibility('" + instanceId + "-det')\" style='display:block;float:left;'>"
-                    + "<div class='tbl_col_" + classSuffix + "' title='" + instanceId + "'>" + agentIdShort + "&hellip;</div>"
+                    + "<div onmousedown=\"asyncRequest('" + action + "','agents','" + agentId + "')\" class='tbl_ctrl_" + classSuffix + "'>&nbsp;</div>"
+                    + "<div onmousedown=\"toggleVisibility('" + agentId + "-det')\" style='display:block;float:left;'>"
+                    + "<div class='tbl_col_" + classSuffix + "' title='" + agentId + "'>" + agentIdShort + "&hellip;</div>"
                     + "<div class='tbl_col_" + classSuffix + "'>" + fulladdr + "</div>"
                     + "<div class='tbl_col_" + classSuffix + "'>" + statStr + "</div>"
                     + "<br style='clear:both;'>"
@@ -356,8 +356,8 @@ function updateAgentsInfo() {
             agentDetailsInsert += "</pre></div>";
             
             // Update agent on GUI 
-            document.getElementById(instanceId+"-over").innerHTML = agentOverviewInsert;
-            document.getElementById(instanceId+"-det").innerHTML = agentDetailsInsert;
+            document.getElementById(agentId+"-over").innerHTML = agentOverviewInsert;
+            document.getElementById(agentId+"-det").innerHTML = agentDetailsInsert;
         });
     }
 }
@@ -374,31 +374,31 @@ function populateAgents() {
         }
         let response = json["results"];
         
-        // Figure out which instance id we refer to 
+        // Figure out which agent id we refer to 
         if (!("uuids" in response)) {
             reportIssue("ERROR populateAgents: Cannot get uuid list from callback!");
             return;
         }
         
-        // Get list of instance ids from server
-        let instanceIds = response["uuids"];
-        //console.log(instanceIds);
+        // Get list of agent ids from server
+        let agentIds = response["uuids"];
+        //console.log(agentIds);
         
-        // Get all existing instance ids
+        // Get all existing agent ids
         let childAgentsObj = document.getElementsByClassName('agent');
-        let existingInstanceIds = [];
+        let existingAgentIds = [];
         for (let i = 0; i < childAgentsObj.length; i++) {
             if (typeof childAgentsObj[i].id != 'undefined' && childAgentsObj[i].id != '') {
-                existingInstanceIds.push(childAgentsObj[i].id);
+                existingAgentIds.push(childAgentsObj[i].id);
             }
         }
-        //console.log(existingInstanceIds);
+        //console.log(existingAgentIds);
         
         // Find new agents (in new, not in old)
-        let newAgents = arrayDiff(instanceIds, existingInstanceIds);
+        let newAgents = arrayDiff(agentIds, existingAgentIds);
         //console.log(newAgents);
         // Find removed agents (in old, not in new)
-        let removedAgents = arrayDiff(existingInstanceIds, instanceIds);
+        let removedAgents = arrayDiff(existingAgentIds, agentIds);
         //console.log(removedAgents);
         
         // Add agent
@@ -454,7 +454,7 @@ function updateTerminal() {
         }
         let response = json["results"];
         
-        // Figure out which instance id we refer to 
+        // Figure out which agent id we refer to 
         if (!("log" in response)) {
             reportIssue("ERROR updateTerminal: Cannot get log data from callback!");
             return;

@@ -29,4 +29,4 @@ fi
 wget --ca-certificate=cacert.crt --post-data '{}' \
      --certificate=$AGENT_UUID-cert.crt \
      --private-key=$AGENT_UUID-private.pem \
-     https://localhost:6892/instances/$AGENT_UUID
+     https://localhost:6892/agents/$AGENT_UUID

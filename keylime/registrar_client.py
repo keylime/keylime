@@ -83,14 +83,14 @@ def init_client_tls(config,section):
 
     context.load_cert_chain(certfile=my_cert,keyfile=my_priv_key,password=my_key_pw)
 
-def getAIK(registrar_ip,registrar_port,instance_id):
-    retval = getKeys(registrar_ip,registrar_port,instance_id)
+def getAIK(registrar_ip,registrar_port,agent_id):
+    retval = getKeys(registrar_ip,registrar_port,agent_id)
     if retval is None:
         return retval
     else:
         return retval['aik']
 
-def getKeys(registrar_ip,registrar_port,instance_id):
+def getKeys(registrar_ip,registrar_port,agent_id):
     global context
 
     #make absolutely sure you don't ask for AIKs unauthenticated
@@ -99,7 +99,7 @@ def getKeys(registrar_ip,registrar_port,instance_id):
 
     try:
         response = tornado_requests.request("GET",
-                                            "http://%s:%s/instances/%s"%(registrar_ip,registrar_port,instance_id),
+                                            "http://%s:%s/agents/%s"%(registrar_ip,registrar_port,agent_id),
                                             context=context)
 
         response_body = response.json()
@@ -124,7 +124,7 @@ def getKeys(registrar_ip,registrar_port,instance_id):
 
     return None
 
-def doRegisterAgent(registrar_ip,registrar_port,instance_id,tpm_version,pub_ek,ekcert,pub_aik,pub_ek_tpm=None,aik_name=None):
+def doRegisterAgent(registrar_ip,registrar_port,agent_id,tpm_version,pub_ek,ekcert,pub_aik,pub_ek_tpm=None,aik_name=None):
     data = {
     'ek': pub_ek,
     'ekcert': ekcert,
@@ -136,7 +136,7 @@ def doRegisterAgent(registrar_ip,registrar_port,instance_id,tpm_version,pub_ek,e
     v_json_message = json.dumps(data)
 
     response = tornado_requests.request("POST",
-                                        "http://%s:%s/instances/%s"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/agents/%s"%(registrar_ip,registrar_port,agent_id),
                                         data=v_json_message,
                                         context=None)
 
@@ -147,7 +147,7 @@ def doRegisterAgent(registrar_ip,registrar_port,instance_id,tpm_version,pub_ek,e
         common.log_http_response(logger,logging.ERROR,response_body)
         return None
 
-    logger.info("Agent registration requested for %s"%instance_id)
+    logger.info("Agent registration requested for %s"%agent_id)
 
     if "results" not in response_body:
         logger.critical("Error: unexpected http response body from Registrar Server: %s"%str(response.status_code))
@@ -160,27 +160,27 @@ def doRegisterAgent(registrar_ip,registrar_port,instance_id,tpm_version,pub_ek,e
     return response_body["results"]["blob"]
 
 
-def doActivateAgent(registrar_ip,registrar_port,instance_id,key):
+def doActivateAgent(registrar_ip,registrar_port,agent_id,key):
     data = {
-    'auth_tag': crypto.do_hmac(base64.b64decode(key),instance_id),
+    'auth_tag': crypto.do_hmac(base64.b64decode(key),agent_id),
     }
 
     v_json_message = json.dumps(data)
 
     response = tornado_requests.request("PUT",
-                                        "http://%s:%s/instances/%s/activate"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/agents/%s/activate"%(registrar_ip,registrar_port,agent_id),
                                         data=v_json_message,
                                         context=None)
 
     if response.status_code == 200:
-        logger.info("Registration activated for agent %s."%instance_id)
+        logger.info("Registration activated for agent %s."%agent_id)
         return True
     else:
         logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status_code))
         common.log_http_response(logger,logging.ERROR,response.json())
         return False
 
-def doActivateVirtualAgent(registrar_ip,registrar_port,instance_id,deepquote):
+def doActivateVirtualAgent(registrar_ip,registrar_port,agent_id,deepquote):
     data = {
     'deepquote': deepquote,
     }
@@ -188,12 +188,12 @@ def doActivateVirtualAgent(registrar_ip,registrar_port,instance_id,deepquote):
     v_json_message = json.dumps(data)
 
     response = tornado_requests.request("PUT",
-                                        "http://%s:%s/instances/%s/vactivate"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/agents/%s/vactivate"%(registrar_ip,registrar_port,agent_id),
                                         data=v_json_message,
                                         context=None)
 
     if response.status_code == 200:
-        logger.info("Registration activated for agent %s."%instance_id)
+        logger.info("Registration activated for agent %s."%agent_id)
         return True
     else:
         logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status_code))
@@ -201,10 +201,10 @@ def doActivateVirtualAgent(registrar_ip,registrar_port,instance_id,deepquote):
         return False
 
 
-def doRegistrarDelete(registrar_ip,registrar_port, instance_id):
+def doRegistrarDelete(registrar_ip,registrar_port, agent_id):
     global context
     response = tornado_requests.request("DELETE",
-                                        "http://%s:%s/instances/%s"%(registrar_ip,registrar_port,instance_id),
+                                        "http://%s:%s/agents/%s"%(registrar_ip,registrar_port,agent_id),
                                         context=context)
 
     if response.status_code == 200:

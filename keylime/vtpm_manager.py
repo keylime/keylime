@@ -78,7 +78,7 @@ uuid_fmt = '4s2s2s2s6s'
 #     """A class that represents a groupof VTPMs managed by the VTPM Manager
 # 
 #     This class is not intended to be instantiated directly.
-#     `VTPMManager`` returns objects that are instances of this class.
+#     `VTPMManager`` returns objects that are agents of this class.
 #     """
 #     _groups = { }
 # 

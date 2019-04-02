@@ -8,7 +8,7 @@ Stubbing can be easily accomplished by modifying some variables in your `keylime
 
 ### TPM Stubbing 
 
-Changing the `STUB_TPM` variable to 'True', for instance, will stub out functionality of the TPM and cause Keylime to use canned values instead of communicating with a TPM.  When `STUB_TPM` mode is enabled, *a canned values file is also required to be specified* using the `TPM_CANNED_VALUES_PATH` variable.  You can find sample canned values in the `test-data/` folder.  
+Changing the `STUB_TPM` variable to 'True', for agent, will stub out functionality of the TPM and cause Keylime to use canned values instead of communicating with a TPM.  When `STUB_TPM` mode is enabled, *a canned values file is also required to be specified* using the `TPM_CANNED_VALUES_PATH` variable.  You can find sample canned values in the `test-data/` folder.  
 
 For example: 
 ````python

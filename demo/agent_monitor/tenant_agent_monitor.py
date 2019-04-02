@@ -22,7 +22,7 @@ violate any copyrights that exist in this work.
 # wget  --ca-certificate=/var/lib/keylime/secure/unzipped/cacert.crt --post-data '{}'
 #       --certificate=/var/lib/keylime/secure/unzipped/D432FBB3-D2F1-4A97-9EF7-75BD81C00000-cert.crt
 #       --private-key=/var/lib/keylime/secure/unzipped/D432FBB3-D2F1-4A97-9EF7-75BD81C00000-private.pem
-#        https://localhost:6892/instances/D432FBB3-D2F1-4A97-9EF7-75BD81C00000
+#        https://localhost:6892/agents/D432FBB3-D2F1-4A97-9EF7-75BD81C00000
 
 import sys
 sys.path.insert(0, '../../keylime/')
@@ -70,50 +70,50 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
-class InstancesHandler(BaseHandler):
+class AgentsHandler(BaseHandler):
     def head(self):
         """HEAD not supported"""
         common.echo_json_response(self, 405, "HEAD not supported")
 
     def get(self):
-        """This method handles the GET requests to retrieve status on instances from the Agent Monitor.
+        """This method handles the GET requests to retrieve status on agents from the Agent Monitor.
 
-        Currently, only instances resources are available for GETing, i.e. /instances. All other GET uri's
-        will return errors. instances requests require a single instance_id parameter which identifies the
-        instance to be returned. If the instance_id is not found, a 404 response is returned.  If the instance_id
-        was not found, it either completed successfully, or failed.  If found, the instance_id is still polling
+        Currently, only agents resources are available for GETing, i.e. /agents. All other GET uri's
+        will return errors. agents requests require a single agent_id parameter which identifies the
+        agent to be returned. If the agent_id is not found, a 404 response is returned.  If the agent_id
+        was not found, it either completed successfully, or failed.  If found, the agent_id is still polling
         to contact the Cloud Agent.
         """
         common.echo_json_response(self, 405, "GET not supported")
 
     def delete(self):
-        """This method handles the DELETE requests to remove instances from the Agent Monitor.
+        """This method handles the DELETE requests to remove agents from the Agent Monitor.
 
-        Currently, only instances resources are available for DELETEing, i.e. /instances. All other DELETE uri's will return errors.
-        instances requests require a single instance_id parameter which identifies the instance to be deleted.
+        Currently, only agents resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
+        agents requests require a single agent_id parameter which identifies the agent to be deleted.
         """
         common.echo_json_response(self, 405, "DELETE not supported")
 
     def post(self):
-        """This method handles the POST requests to add instances to the Agent Monitor.
+        """This method handles the POST requests to add agents to the Agent Monitor.
 
-        Currently, only instances resources are available for POSTing, i.e. /instances. All other POST uri's will return errors.
-        instances requests require a json block sent in the body
+        Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's will return errors.
+        agents requests require a json block sent in the body
         """
         logger.info('Agent Monitor POST')
         try:
             rest_params = common.get_restful_params(self.request.path)
 
-            if "instances" not in rest_params:
+            if "agents" not in rest_params:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning('POST returning 400 response. uri not supported: ' + self.request.path)
                 return
 
-            instance_id = rest_params["instances"]
+            agent_id = rest_params["agents"]
 
-            if instance_id is not None: # we have to know who phoned home
+            if agent_id is not None: # we have to know who phoned home
                 content_length = len(self.request.body)
                 if content_length==0:
                     common.echo_json_response(self, 400, "Expected non zero content length")
@@ -121,9 +121,9 @@ class InstancesHandler(BaseHandler):
                 else:
                     json_body = json.loads(self.request.body)
 
-                    # VERIFY CLIENT CERT ID MATCHES Agent ID (instance_id)
+                    # VERIFY CLIENT CERT ID MATCHES Agent ID (agent_id)
                     client_cert = self.request.get_ssl_certificate()
-                    ssl.match_hostname(client_cert, instance_id)
+                    ssl.match_hostname(client_cert, agent_id)
 
                     # Execute specified script if all is well
                     global initscript
@@ -132,7 +132,7 @@ class InstancesHandler(BaseHandler):
                             import subprocess
                             logger.debug("Executing specified script: %s"%initscript)
                             env = os.environ.copy()
-                            env['AGENT_UUID']=instance_id
+                            env['AGENT_UUID']=agent_id
                             proc= subprocess.Popen(["/bin/sh",initscript],env=env,shell=False,
                                                     stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
                             proc.wait()
@@ -145,7 +145,7 @@ class InstancesHandler(BaseHandler):
                         t.start()
 
                     common.echo_json_response(self, 200, "Success", json_body)
-                    logger.info('POST returning 200 response for Agent Monitor connection as ' + instance_id)
+                    logger.info('POST returning 200 response for Agent Monitor connection as ' + agent_id)
             else:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
@@ -155,10 +155,10 @@ class InstancesHandler(BaseHandler):
             logger.warning(traceback.format_exc())
 
     def put(self):
-        """This method handles the PUT requests to add instances to the Agent Monitor.
+        """This method handles the PUT requests to add agents to the Agent Monitor.
 
-        Currently, only instances resources are available for PUTing, i.e. /instances. All other PUT uri's will return errors.
-        instances requests require a json block sent in the body
+        Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
+        agents requests require a json block sent in the body
         """
         common.echo_json_response(self, 405, "PUT not supported")
 
@@ -191,7 +191,7 @@ def init_mtls(config):
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
     print "Starting Torando on port " + str(port)
-    tornado.ioloop.IOLoop.instance().start()
+    tornado.ioloop.IOLoop.agent().start()
     print "Tornado finished"
 
 def main(argv=sys.argv):
@@ -216,7 +216,7 @@ def main(argv=sys.argv):
 
     app = tornado.web.Application([
         (r"/", MainHandler),
-        (r"/(?:v[0-9]/)?instances/.*", InstancesHandler),
+        (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
         ])
 
     context = init_mtls(vars(args))
@@ -225,9 +225,9 @@ def main(argv=sys.argv):
     server.start(0)
 
     try:
-        tornado.ioloop.IOLoop.instance().start()
+        tornado.ioloop.IOLoop.agent().start()
     except KeyboardInterrupt:
-        tornado.ioloop.IOLoop.instance().stop()
+        tornado.ioloop.IOLoop.agent().stop()
 
 if __name__=="__main__":
     try:

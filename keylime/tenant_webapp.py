@@ -83,7 +83,7 @@ class WebAppHandler(BaseHandler):
         common.echo_json_response(self, 405, "HEAD not supported")
 
     def get(self):
-        """This method handles the GET requests to retrieve status on instances for all agents in a Web-based GUI.
+        """This method handles the GET requests to retrieve status on agents for all agents in a Web-based GUI.
 
         Currently, only the web app is available for GETing, i.e. /webapp. All other GET uri's
         will return errors.
@@ -248,8 +248,8 @@ class WebAppHandler(BaseHandler):
                        <br style="clear:both;">
                     </div>
 
-                    <div id="instance_body">
-                        <h2>Instances</h2>
+                    <div id="agent_body">
+                        <h2>Agents</h2>
                         <div class='table_header'>
                             <div class='table_control'>&nbsp;</div>
                             <div class='table_col'>UUID</div>
@@ -278,16 +278,16 @@ class WebAppHandler(BaseHandler):
         )
 
 
-class InstancesHandler(BaseHandler):
+class AgentsHandler(BaseHandler):
     def head(self):
         """HEAD not supported"""
         common.echo_json_response(self, 405, "HEAD not supported")
 
 
-    def get_instance_state(self, instance_id):
+    def get_agent_state(self, agent_id):
         try:
             response = tornado_requests.request("GET",
-                                        "http://%s:%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,instance_id),context=tenant_templ.context)
+                                        "http://%s:%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,agent_id),context=tenant_templ.context)
         except Exception as e:
             logger.error("Status command response: %s:%s Unexpected response from Cloud Verifier."%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port))
             logger.error(traceback.print_exc())
@@ -308,14 +308,14 @@ class InstancesHandler(BaseHandler):
 
         # agent not added to CV (but still registered)
         if response.status_code == 404:
-            return {"operational_state" : cloud_verifier_common.CloudInstance_Operational_State.REGISTERED}
+            return {"operational_state" : cloud_verifier_common.CloudAgent_Operational_State.REGISTERED}
         else:
             return inst_response_body["results"]
 
         return None
 
     def get(self):
-        """This method handles the GET requests to retrieve status on instances from the WebApp.
+        """This method handles the GET requests to retrieve status on agents from the WebApp.
 
         Currently, only the web app is available for GETing, i.e. /agents. All other GET uri's
         will return errors.
@@ -341,19 +341,19 @@ class InstancesHandler(BaseHandler):
             logger.warning('GET returning 400 response. uri not supported: ' + self.request.path)
             return
 
-        instance_id = rest_params["agents"]
-        if instance_id is not None:
+        agent_id = rest_params["agents"]
+        if agent_id is not None:
             # Handle request for specific agent data separately
-            instances = self.get_instance_state(instance_id)
-            instances["id"] = instance_id
+            agents = self.get_agent_state(agent_id)
+            agents["id"] = agent_id
 
-            common.echo_json_response(self, 200, "Success", instances)
+            common.echo_json_response(self, 200, "Success", agents)
             return
 
-        # If no agent ID, get list of all instances from Registrar
+        # If no agent ID, get list of all agents from Registrar
         try:
             response = tornado_requests.request("GET",
-                                        "http://%s:%s/instances/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port),context=tenant_templ.context)
+                                        "http://%s:%s/agents/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port),context=tenant_templ.context)
         except Exception as e:
             logger.error("Status command response: %s:%s Unexpected response from Registrar."%(tenant_templ.registrar_ip,tenant_templ.registrar_port))
             logger.error(traceback.print_exc())
@@ -372,37 +372,37 @@ class InstancesHandler(BaseHandler):
             logger.critical("Error: unexpected http response body from Registrar: %s"%str(response.status_code))
             return None
 
-        instance_list = response_body["results"]["uuids"]
+        agent_list = response_body["results"]["uuids"]
 
-        # Loop through each instance and ask for status
-        instances = {}
-        for instance in instance_list:
-            instances[instance] = self.get_instance_state(instance_id)
+        # Loop through each agent and ask for status
+        agents = {}
+        for agent in agent_list:
+            agents[agent] = self.get_agent_state(agent_id)
 
-        # Pre-create sorted instances list
+        # Pre-create sorted agents list
         sorted_by_state = {}
-        states = cloud_verifier_common.CloudInstance_Operational_State.STR_MAPPINGS
+        states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
         for state in states:
             sorted_by_state[state] = {}
 
-        # Build sorted instances list
-        for instance_id in instances:
-            state = instances[instance_id]["operational_state"]
-            sorted_by_state[state][instance_id] = instances[instance_id]
+        # Build sorted agents list
+        for agent_id in agents:
+            state = agents[agent_id]["operational_state"]
+            sorted_by_state[state][agent_id] = agents[agent_id]
 
         print_order = [10,9,7,3,4,5,6,2,1,8,0]
-        sorted_instances = []
+        sorted_agents = []
         for state in print_order:
-            for instance_id in sorted_by_state[state]:
-                sorted_instances.append(instance_id)
+            for agent_id in sorted_by_state[state]:
+                sorted_agents.append(agent_id)
 
-        common.echo_json_response(self, 200, "Success", {'uuids':sorted_instances})
+        common.echo_json_response(self, 200, "Success", {'uuids':sorted_agents})
 
     def delete(self):
-        """This method handles the DELETE requests to remove instances from the Cloud Verifier.
+        """This method handles the DELETE requests to remove agents from the Cloud Verifier.
 
-        Currently, only instances resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
-        instances requests require a single instance_id parameter which identifies the instance to be deleted.
+        Currently, only agents resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
+        agents requests require a single agent_id parameter which identifies the agent to be deleted.
         """
 
         rest_params = common.get_restful_params(self.request.uri)
@@ -415,20 +415,20 @@ class InstancesHandler(BaseHandler):
             logger.warning('DELETE returning 400 response. uri not supported: ' + self.request.path)
             return
 
-        instance_id = rest_params["agents"]
+        agent_id = rest_params["agents"]
 
         # let Tenant do dirty work of deleting agent
         mytenant = tenant.Tenant()
-        mytenant.agent_uuid = instance_id
+        mytenant.agent_uuid = agent_id
         mytenant.do_cvdelete()
 
         common.echo_json_response(self, 200, "Success")
 
     def post(self):
-        """This method handles the POST requests to add instances to the Cloud Verifier.
+        """This method handles the POST requests to add agents to the Cloud Verifier.
 
-        Currently, only instances resources are available for POSTing, i.e. /agents. All other POST uri's will return errors.
-        instances requests require a json block sent in the body
+        Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's will return errors.
+        agents requests require a json block sent in the body
         """
 
         rest_params = common.get_restful_params(self.request.uri)
@@ -441,7 +441,7 @@ class InstancesHandler(BaseHandler):
             logger.warning('POST returning 400 response. uri not supported: ' + self.request.path)
             return
 
-        instance_id = rest_params["agents"]
+        agent_id = rest_params["agents"]
 
         # Parse payload files (base64 data-uri)
         if self.get_argument("ptype", Agent_Init_Types.FILE, True) == Agent_Init_Types.FILE:
@@ -519,7 +519,7 @@ class InstancesHandler(BaseHandler):
         # let Tenant do dirty work of adding agent
         try:
             mytenant = tenant.Tenant()
-            mytenant.agent_uuid = instance_id
+            mytenant.agent_uuid = agent_id
             mytenant.init_add(args)
             mytenant.preloop()
             mytenant.do_cv()
@@ -533,9 +533,9 @@ class InstancesHandler(BaseHandler):
         common.echo_json_response(self, 200, "Success")
 
     def put(self):
-        """This method handles the PUT requests to add instances to the Cloud Verifier.
+        """This method handles the PUT requests to add agents to the Cloud Verifier.
 
-        Currently, only instances resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
+        Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
         """
 
         rest_params = common.get_restful_params(self.request.uri)
@@ -548,11 +548,11 @@ class InstancesHandler(BaseHandler):
             logger.warning('PUT returning 400 response. uri not supported: ' + self.request.path)
             return
 
-        instance_id = rest_params["agents"]
+        agent_id = rest_params["agents"]
 
         # let Tenant do dirty work of reactivating agent
         mytenant = tenant.Tenant()
-        mytenant.agent_uuid = instance_id
+        mytenant.agent_uuid = agent_id
         mytenant.do_cvreactivate()
 
         common.echo_json_response(self, 200, "Success")
@@ -581,7 +581,7 @@ def parse_data_uri(data_uri):
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
     print "Starting Torando on port " + str(port)
-    tornado.ioloop.IOLoop.instance().start()
+    tornado.ioloop.IOLoop.agent().start()
     print "Tornado finished"
 
 def main(argv=sys.argv):
@@ -611,8 +611,8 @@ def main(argv=sys.argv):
 
     app = tornado.web.Application([
         (r"/webapp/.*", WebAppHandler),
-        (r"/(?:v[0-9]/)?agents/.*", InstancesHandler),
-        (r"/(?:v[0-9]/)?logs/.*", InstancesHandler),
+        (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
+        (r"/(?:v[0-9]/)?logs/.*", AgentsHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': root_dir+"/static/"}),
         (r".*", MainHandler),
         ])
@@ -629,9 +629,9 @@ def main(argv=sys.argv):
     server.start(config.getint('cloud_verifier','multiprocessing_pool_num_workers'))
 
     try:
-        tornado.ioloop.IOLoop.instance().start()
+        tornado.ioloop.IOLoop.agent().start()
     except KeyboardInterrupt:
-        tornado.ioloop.IOLoop.instance().stop()
+        tornado.ioloop.IOLoop.agent().stop()
 
 if __name__=="__main__":
     try:

@@ -43,8 +43,8 @@ html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sa
 #terminal-header {padding:3px;background-color:#dddddd;font-weight:bold;cursor:pointer;}
 #terminal {width:100%;min-width:500px;max-width:750px;height:400px;background-color:#000088;color:#ffff00;overflow-x:auto;font-family:monospace;font-size:medium;}
 
-/* Each agent instance for 'instances' table */
-#instance_body {padding:10px;}
+/* Each agent agent for 'agents' table */
+#agent_body {padding:10px;}
 .table_header {font-weight:bold;}
 .table_control {width:50px;display:block;float:left;text-align:center;padding:5px;}
 .table_col {width:200px;display:block;float:left;text-align:center;padding:5px;}

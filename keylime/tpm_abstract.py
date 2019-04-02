@@ -161,7 +161,7 @@ class TPM_Utilities:
             mask = mask + (1<<int(key))
             
             # wrap it in a list if it is a singleton
-            if isinstance(policy[key], basestring):
+            if isagent(policy[key], basestring):
                 policy[key] = [policy[key]]
              
             # convert all hash values to lowercase
