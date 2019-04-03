@@ -221,7 +221,7 @@ class InstancesHandler(BaseHandler):
         except Exception as e:
             common.echo_json_response(self, 400, "Exception error: %s"%e)
             logger.warning("POST returning 400 response. Exception error: %s"%e)
-            logger.warning(traceback.format_exc())
+            logger.exception(e)
         
         self.finish()
         
@@ -272,7 +272,7 @@ class InstancesHandler(BaseHandler):
         except Exception as e:
             common.echo_json_response(self, 400, "Exception error: %s"%e)
             logger.warning("PUT returning 400 response. Exception error: %s"%e)
-            logger.warning(traceback.format_exc())
+            logger.exception(e)
             
         
         self.finish()
@@ -332,8 +332,7 @@ class InstancesHandler(BaseHandler):
 #                     self.get_q_log_file.flush()  
                  
             except Exception as e:
-                logger.debug(traceback.print_exc())
-                logger.critical("Unexpected exception occurred in worker_get_quote.  Error: %s"%e )            
+                logger.exception(e)            
 
 
 
@@ -364,8 +363,6 @@ class InstancesHandler(BaseHandler):
     def process_instance(self, instance, new_operational_state):
         try:
             if instance is None:
-                #import traceback
-                traceback.print_stack()
             main_instance_operational_state = instance['operational_state']
             stored_instance = self.db.get_instance(instance['instance_id'])
             
@@ -462,8 +459,8 @@ class InstancesHandler(BaseHandler):
             raise Exception("nothing should ever fall out of this!")
    
         except Exception as e:
-            logger.warning("Polling thread Exception error: %s"%e)
-            logger.warning("Polling thread trace: " + traceback.format_exc())        
+            logger.error("Polling thread error: %s"%e)
+            logger.exception(e)      
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)

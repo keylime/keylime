@@ -29,7 +29,6 @@ import sys
 import tempfile
 import threading
 import time
-import traceback
 
 import M2Crypto
 from M2Crypto import m2
@@ -553,7 +552,7 @@ class tpm2(AbstractTPM):
             
         except Exception as e:
             logger.error("Error encrypting AIK: "+str(e))
-            logger.error(traceback.format_exc())
+            logger.exception(e)
             return None
         finally:
             if pubekFile is not None:
@@ -597,7 +596,7 @@ class tpm2(AbstractTPM):
             
         except Exception as e:
             logger.error("Error decrypting AIK: "+str(e))
-            logger.error(traceback.format_exc())
+            logger.exception(e)
             return False
         finally:
             if keyblobFile is not None:
@@ -814,7 +813,7 @@ class tpm2(AbstractTPM):
             code = retDict['code']
         except Exception as e:
             logger.error("Error verifying quote: "+str(e))
-            logger.error(traceback.format_exc())
+            logger.exception(e)
             return False
         finally:
             if aikFile is not None:

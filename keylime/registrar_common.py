@@ -29,7 +29,6 @@ from SocketServer import ThreadingMixIn
 from urlparse import urlparse
 import json
 import threading
-import traceback
 import sys
 import crypto
 import base64
@@ -254,7 +253,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
         except Exception as e:
             common.echo_json_response(self, 400, "Error: %s"%e)
             logger.warning("POST for " + instance_id + " returning 400 response. Error: %s"%e)
-            logger.warning(traceback.format_exc())
+            logger.exception(e)
             return
 
 
@@ -344,7 +343,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
         except Exception as e:
             common.echo_json_response(self, 400, "Error: %s"%e)
             logger.warning("PUT for " + instance_id + " returning 400 response. Error: %s"%e)
-            logger.warning(traceback.format_exc())
+            logger.exception(e)
             return
             
 

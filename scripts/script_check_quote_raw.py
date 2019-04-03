@@ -31,7 +31,6 @@ import sys
 import os
 import tempfile
 import subprocess
-import traceback
 import base64
 
 logging.basicConfig(stream=sys.stdout, level=logging.WARN,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -75,8 +74,7 @@ try:
         print("=output="+line)
     print("check_quote (raw sig): %d runs, total time %f, avg %f us per run" % (runs,c,c/runs*1000*1000))
 except Exception as e:
-    logger.error("Error verifying quote: "+str(e))
-    logger.error(traceback.format_exc())
+    logger.exception(e)
 finally:
     if aikFile is not None:
         os.remove(aikFile.name)
@@ -133,8 +131,7 @@ try:
     print("check_deep_quote (raw sig): %d runs, total time %f, avg %f us per run" % (runs,c,c/runs*1000*1000))
              
 except Exception as e:
-    logger.error("Error verifying quote: "+str(e))
-    logger.error(traceback.format_exc())
+    logger.exception(e)
 finally:
     if vAIKFile is not None:
         os.remove(vAIKFile.name)

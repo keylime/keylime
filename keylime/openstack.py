@@ -21,7 +21,6 @@ violate any copyrights that exist in this work.
 import common
 import uuid
 import tornado_requests
-import traceback
 
 logger = common.init_logging('openstack')
 
@@ -37,6 +36,5 @@ def get_openstack_uuid(uuid_service_ip='169.254.169.254',
         logger.debug("Forcing using locally generated uuid.")
         return str(uuid.uuid4())
     except Exception:
-        logger.debug(traceback.format_exc())
-        logger.debug("Exception: Using locally generated uuid.")
+        logger.debug("Using locally generated uuid.  Error getting UUID from openstack: %s\n"%(e))
         return str(uuid.uuid4())

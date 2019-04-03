@@ -290,8 +290,7 @@ class InstancesHandler(BaseHandler):
                                         "http://%s:%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,instance_id),context=tenant_templ.context)
         except Exception as e:
             logger.error("Status command response: %s:%s Unexpected response from Cloud Verifier."%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port))
-            logger.error(traceback.print_exc())
-            logger.error("Error: %s "%str(e))
+            logger.exception(e)
             common.echo_json_response(self, 500, "Unexpected response from Cloud Verifier", str(e))
             return
         
@@ -356,8 +355,7 @@ class InstancesHandler(BaseHandler):
                                         "http://%s:%s/instances/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port),context=tenant_templ.context)
         except Exception as e:
             logger.error("Status command response: %s:%s Unexpected response from Registrar."%(tenant_templ.registrar_ip,tenant_templ.registrar_port))
-            logger.error(traceback.print_exc())
-            logger.error("Error: %s "%str(e))
+            logger.exception(e)
             common.echo_json_response(self, 500, "Unexpected response from Registrar", str(e))
             return
         
