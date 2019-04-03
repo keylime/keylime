@@ -362,7 +362,6 @@ class InstancesHandler(BaseHandler):
  
     def process_instance(self, instance, new_operational_state):
         try:
-            if instance is None:
             main_instance_operational_state = instance['operational_state']
             stored_instance = self.db.get_instance(instance['instance_id'])
             
