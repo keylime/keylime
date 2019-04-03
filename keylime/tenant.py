@@ -553,7 +553,7 @@ class Tenant():
                     time.sleep(retry)
                     continue
                 else:
-                    raise UserError(e)
+                    raise e
             break
         
         try:   
@@ -621,8 +621,8 @@ class Tenant():
                 raise UserError("Posting of Encrypted U to the Cloud Node failed with response code %d" %response.status_code)
                 
         except Exception as e:
-            logger.exception(e)
             self.do_cvstop() 
+            raise e
        
     def do_verify(self):
         """initiaite v, instance_id and ip
@@ -646,7 +646,7 @@ class Tenant():
                     time.sleep(retry)
                     continue
                 else:
-                    raise UserError(e)
+                    raise e
                 
             response_body = response.json()
             if response.status_code == 200:
