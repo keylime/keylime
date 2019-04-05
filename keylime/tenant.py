@@ -28,7 +28,6 @@ import registrar_client
 import sys
 import argparse
 import crypto
-import traceback
 import time
 import user_data_encrypt
 import ca_util
@@ -52,6 +51,10 @@ logger = common.init_logging('tenant')
 # setup config
 config = ConfigParser.RawConfigParser()
 config.read(common.CONFIG_FILE)
+
+# special exception that suppresses stack traces when it happens
+class UserError(Exception):
+    pass
 
 class Tenant():
     """Simple command processor example."""
@@ -202,8 +205,7 @@ class Tenant():
             elif type(args["ima_whitelist"]) is list:
                 wl_data = args["ima_whitelist"]
             else:
-                logger.error("Invalid whitelist provided")
-                raise Exception("Invalid whitelist provided")
+                raise UserError("Invalid whitelist provided")
         
         # Read command-line path string IMA exclude list 
         excl_data = None
@@ -215,8 +217,7 @@ class Tenant():
             elif type(args["ima_exclude"]) is list:
                 excl_data = args["ima_exclude"]
             else:
-                logger.error("Invalid exclude list provided")
-                raise Exception("Invalid exclude list provided")
+                raise UserError("Invalid exclude list provided")
         
         # Set up IMA 
         if TPM_Utilities.check_mask(self.tpm_policy['mask'],common.IMA_PCR) or \
@@ -230,25 +231,21 @@ class Tenant():
         if (args["file"] is None and 
             args["keyfile"] is None and 
             args["ca_dir"] is None):
-            logger.error("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
-            raise Exception("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
+            raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
 
         if args["keyfile"] is not None:
             if args["file"] is not None or args["ca_dir"] is not None:
-                logger.error("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
-                raise Exception("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
+                raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
             
             # read the keys in
             if type(args["keyfile"]) is dict and "data" in args["keyfile"]:
                 if type(args["keyfile"]["data"]) is list and len(args["keyfile"]["data"]) == 1:
                     keyfile = args["keyfile"]["data"][0]
                     if keyfile is None:
-                        logger.error("Invalid key file contents")
-                        raise Exception("Invalid key file contents")
+                        raise UserError("Invalid key file contents")
                     f = StringIO.StringIO(keyfile)
                 else:
-                    logger.error("Invalid key file provided")
-                    raise Exception("Invalid key file provided")
+                    raise UserError("Invalid key file provided")
             else:
                 f = open(args["keyfile"],'r')
             self.K = base64.b64decode(f.readline())
@@ -268,18 +265,15 @@ class Tenant():
         
         if args["file"] is not None:
             if args["keyfile"] is not None or args["ca_dir"] is not None:
-                logger.error("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
-                raise Exception("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
+                raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
                 
             if type(args["file"]) is dict and "data" in args["file"]:
                 if type(args["file"]["data"]) is list and len(args["file"]["data"]) > 0:
                     contents = args["file"]["data"][0]
                     if contents is None:
-                        logger.error("Invalid file payload contents")
-                        raise Exception("Invalid file payload contents")
+                        raise UserError("Invalid file payload contents")
                 else:
-                    logger.error("Invalid file payload provided")
-                    raise Exception("Invalid file payload provided")
+                    raise UserError("Invalid file payload provided")
             else:
                 with open(args["file"],'r') as f:
                     contents = f.read()
@@ -290,12 +284,10 @@ class Tenant():
             self.payload = ret['ciphertext']
         
         if args["ca_dir"] is None and args["incl_dir"] is not None:
-            logger.error("--include option is only valid when used with --cert")
-            raise Exception("--include option is only valid when used with --cert")    
+            raise UserError("--include option is only valid when used with --cert")    
         if args["ca_dir"] is not None:
             if args["file"] is not None or args["keyfile"] is not None:
-                logger.error("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
-                raise Exception("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
+                raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
             if args["ca_dir"]=='default':
                 args["ca_dir"] = common.CA_WORK_DIR
             
@@ -333,8 +325,7 @@ class Tenant():
                     if type(args["incl_dir"]) is dict and "data" in args["incl_dir"] and "name" in args["incl_dir"]:
                         if type(args["incl_dir"]["data"]) is list and type(args["incl_dir"]["name"]) is list:
                             if len(args["incl_dir"]["data"]) != len(args["incl_dir"]["name"]):
-                                logger.error("Invalid incl_dir provided")
-                                raise Exception("Invalid incl_dir provided")
+                                raise UserError("Invalid incl_dir provided")
                             for i in range(len(args["incl_dir"]["data"])):
                                 zf.writestr(os.path.basename(args["incl_dir"]["name"][i]),args["incl_dir"]["data"][i])
                     else:
@@ -360,7 +351,7 @@ class Tenant():
             self.payload = ret['ciphertext']
             
         if self.payload is not None and len(self.payload)>config.getint('tenant','max_payload_size'):
-            raise Exception("Payload size %s exceeds max size %d"%(len(self.payload),config.getint('tenant','max_payload_size'))) 
+            raise UserError("Payload size %s exceeds max size %d"%(len(self.payload),config.getint('tenant','max_payload_size')))
     
     def preloop(self):
         # encrypt the node UUID as a check for delivering the correct key
@@ -400,7 +391,7 @@ class Tenant():
         tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
         if not tpm.check_quote(self.nonce,public_key,quote,reg_keys['aik'],hash_alg=hash_alg):
             if reg_keys['regcount'] > 1:
-                logger.error("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious node is present.  Run 'regdelete' for this node and restart it to make this message go away!")
+                raise UserError("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious node is present.  Run 'regdelete' for this node and restart it to make this message go away!")
             return False
         
         if reg_keys['regcount'] > 1:
@@ -439,7 +430,7 @@ class Tenant():
             retval = proc.wait()
             
             if retval != 0:
-                logger.error("External check script failed to validate EK")
+                raise UserError("External check script failed to validate EK")
                 while True:
                     line = proc.stdout.readline()
                     if line=="":
@@ -478,10 +469,10 @@ class Tenant():
         response = tornado_requests.request("POST","http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),data=json_message,context=self.context)
         if response.status_code == 409:
             # this is a conflict, need to update or delete it
-            raise Exception("Node %s already existed at CV.  Please use delete or update."%self.node_uuid)
+            raise UserError("Node %s already existed at CV.  Please use delete or update."%self.node_uuid)
         elif response.status_code != 200:
             common.log_http_response(logger,logging.ERROR,response.json())
-            raise Exception("POST command response: %d Unexpected response from Cloud Verifier: %s"%(response.status_code,response.body))
+            raise UserError("POST command response: %d Unexpected response from Cloud Verifier: %s"%(response.status_code,response.body))
 
 
     def do_cvstatus(self,listing=False):
@@ -493,7 +484,7 @@ class Tenant():
 
         response = tornado_requests.request("GET", "http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,node_uuid),context=self.context)
         if response.status_code != 200:
-            logger.error("Status command response: %d Unexpected response from Cloud Verifier."%response.status_code)
+            raise UserError("Status command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
         else:
             logger.info("Node Status %d: %s"%(response.status_code,response.json()))
@@ -511,11 +502,11 @@ class Tenant():
             if deleted:
                 logger.info("CV completed deletion of node %s"%(self.node_uuid))
             else:
-                logger.error("Timed out waiting for delete of node %s to complete at CV"%self.node_uuid)
+                raise UserError("Timed out waiting for delete of node %s to complete at CV"%self.node_uuid)
         elif response.status_code == 200:
             logger.info("Node %s deleted from the CV"%(self.node_uuid))
         else:
-            #logger.error("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
+            #raise UserError("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
 
     def do_regdelete(self):
@@ -525,7 +516,7 @@ class Tenant():
     def do_cvreactivate(self):
         response = tornado_requests.request("PUT","http://%s:%s/instances/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
         if response.status_code != 200:
-            logger.error("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
+            raise UserError("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
         else:
             logger.info("Node %s re-activated"%(self.node_uuid))
@@ -533,7 +524,7 @@ class Tenant():
     def do_cvstop(self):
         response = tornado_requests.request("PUT","http://%s:%s/instances/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
         if response.status_code != 200:
-            logger.error("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
+            raise UserError("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
         else:
             logger.info("Node %s stopped"%(self.node_uuid))
@@ -556,8 +547,7 @@ class Tenant():
                     numtries+=1
                     maxr = config.getint('tenant','max_retries')
                     if numtries >= maxr:
-                        logger.error("Quitting after max number of retries to connect to %s"%(self.cloudnode_ip))
-                        raise e
+                        raise UserError("Quitting after max number of retries to connect to %s"%(self.cloudnode_ip))
                     retry  = config.getfloat('tenant','retry_interval')
                     logger.info("Connection to %s refused %d/%d times, trying again in %f seconds..."%(self.cloudnode_ip,numtries,maxr,retry))
                     time.sleep(retry)
@@ -568,12 +558,12 @@ class Tenant():
         
         try:   
             if response is not None and response.status_code != 200:
-                raise Exception("Status command response: %d Unexpected response from Cloud Node."%response.status_code)
+                raise UserError("Status command response: %d Unexpected response from Cloud Node."%response.status_code)
                 
             response_body = response.json()
             
             if "results" not in response_body:
-                raise Exception("Error: unexpected http response body from Cloud Node: %s"%str(response.status_code))
+                raise UserError("Error: unexpected http response body from Cloud Node: %s"%str(response.status_code))
             
             quote = response_body["results"]["quote"]
             logger.debug("cnquote received quote:" + quote)
@@ -589,22 +579,22 @@ class Tenant():
             hash_alg = response_body["results"]["hash_alg"]
             logger.debug("cnquote received hash algorithm:" + hash_alg)
             if not Hash_Algorithms.is_accepted(hash_alg, config.get('tenant','accept_tpm_hash_algs').split(',')):
-                raise Exception("TPM Quote is using an unaccepted hash algorithm: %s"%hash_alg)
+                raise UserError("TPM Quote is using an unaccepted hash algorithm: %s"%hash_alg)
             
             # Ensure enc_alg is in accept_tpm_encryption_algs list
             enc_alg = response_body["results"]["enc_alg"]
             logger.debug("cnquote received encryption algorithm:" + enc_alg)
             if not Encrypt_Algorithms.is_accepted(enc_alg, config.get('tenant','accept_tpm_encryption_algs').split(',')):
-                raise Exception("TPM Quote is using an unaccepted encryption algorithm: %s"%enc_alg)
+                raise UserError("TPM Quote is using an unaccepted encryption algorithm: %s"%enc_alg)
             
             # Ensure sign_alg is in accept_tpm_encryption_algs list
             sign_alg = response_body["results"]["sign_alg"]
             logger.debug("cnquote received signing algorithm:" + sign_alg)
             if not Sign_Algorithms.is_accepted(sign_alg, config.get('tenant','accept_tpm_signing_algs').split(',')):
-                raise Exception("TPM Quote is using an unaccepted signing algorithm: %s"%sign_alg)
+                raise UserError("TPM Quote is using an unaccepted signing algorithm: %s"%sign_alg)
             
             if not self.validate_tpm_quote(public_key, quote, tpm_version, hash_alg):
-                raise Exception("TPM Quote from cloud node is invalid for nonce: %s"%self.nonce)
+                raise UserError("TPM Quote from cloud node is invalid for nonce: %s"%self.nonce)
         
             logger.info("Quote from %s validated"%self.cloudnode_ip)
     
@@ -628,11 +618,11 @@ class Tenant():
             
             if response.status_code != 200:
                 common.log_http_response(logger,logging.ERROR,response_body)
-                raise Exception("Posting of Encrypted U to the Cloud Node failed with response code %d" %response.status_code)
+                raise UserError("Posting of Encrypted U to the Cloud Node failed with response code %d" %response.status_code)
                 
         except Exception as e:
-            logger.error(e)
             self.do_cvstop() 
+            raise e
        
     def do_verify(self):
         """initiaite v, instance_id and ip
@@ -650,8 +640,7 @@ class Tenant():
                     numtries+=1
                     maxr = config.getint('tenant','max_retries')
                     if numtries >= maxr:
-                        logger.error("Quitting after max number of retries to connect to %s"%(self.cloudnode_ip))
-                        raise e
+                        raise UserError("Quitting after max number of retries to connect to %s"%(self.cloudnode_ip))
                     retry  = config.getfloat('tenant','retry_interval')
                     logger.info("Connection to %s refused %d/%d times, trying again in %f seconds..."%(self.cloudnode_ip,numtries,maxr,retry))
                     time.sleep(retry)
@@ -669,11 +658,11 @@ class Tenant():
                 if mac == ex_mac:
                     logger.info("Key derivation successful")
                 else:
-                    logger.error("Key derivation failed")
+                    raise UserError("Key derivation failed")
             else:
                 common.log_http_response(logger,logging.ERROR,response_body)
                 retry  = config.getfloat('tenant','retry_interval')
-                logger.error("Key derivation not yet complete...trying again in %s seconds...Ctrl-C to stop"%retry)
+                raise UserError("Key derivation not yet complete...trying again in %s seconds...Ctrl-C to stop"%retry)
                 time.sleep(retry)
                 continue
             break;
@@ -713,8 +702,7 @@ def main(argv=sys.argv):
     mytenant = Tenant()
     
     if args.command not in ['list','regdelete'] and args.node_ip is None:
-        logger.error("-t/--targethost is required for command %s"%args.command)
-        sys.exit(2)
+        raise UserError("-t/--targethost is required for command %s"%args.command)
         
     if args.node_uuid is not None:
         mytenant.node_uuid = args.node_uuid
@@ -732,58 +720,55 @@ def main(argv=sys.argv):
             mytenant.node_uuid = jsonIn['add_vtpm_to_group']['retout']
         else:
             # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!"%("add_vtpm_to_group"))
+            raise UserError("Command %s not found in canned JSON!"%("add_vtpm_to_group"))
     
     if args.verifier_ip is not None:  
         mytenant.cloudverifier_ip = args.verifier_ip
     
-    try:
-        if args.command=='add':
-            mytenant.init_add(vars(args))
-            mytenant.preloop()
-            mytenant.do_cv()
-            mytenant.do_quote()
-            if args.verify:
-                mytenant.do_verify()
-                
-            if common.DEVELOP_IN_ECLIPSE:
-                time.sleep(2)
-                mytenant.do_cvstatus()
-                time.sleep(1)
-                #invalidate it eventually
-                logger.debug("invalidating PCR 15, forcing revocation")
-                tpm = tpm_obj.getTPM(need_hw_tpm=True)
-                tpm.extendPCR(15, tpm.hashdigest("garbage"))
-                time.sleep(5)
-                logger.debug("Deleting node from verifier")
-                mytenant.do_cvdelete()
-        elif args.command=='update':
-            mytenant.init_add(vars(args))
-            mytenant.do_cvdelete()
-            mytenant.preloop()
-            mytenant.do_cv()
-            mytenant.do_quote()
-            if args.verify:
-                mytenant.do_verify()
-        elif args.command=='delete':
-            mytenant.do_cvdelete()
-        elif args.command=='status':
+    if args.command=='add':
+        mytenant.init_add(vars(args))
+        mytenant.preloop()
+        mytenant.do_cv()
+        mytenant.do_quote()
+        if args.verify:
+            mytenant.do_verify()
+            
+        if common.DEVELOP_IN_ECLIPSE:
+            time.sleep(2)
             mytenant.do_cvstatus()
-        elif args.command=='list':
-            mytenant.do_cvstatus(listing=True)
-        elif args.command=='reactivate':
-            mytenant.do_cvreactivate()
-        elif args.command=='regdelete':
-            mytenant.do_regdelete()
-        else:
-            logger.error("Invalid command specified %s"%(args.command))
-            sys.exit(2)
-    except Exception as e:
-        logger.debug(traceback.print_exc())
-        logger.error("Error: %s "%str(e))
+            time.sleep(1)
+            #invalidate it eventually
+            logger.debug("invalidating PCR 15, forcing revocation")
+            tpm = tpm_obj.getTPM(need_hw_tpm=True)
+            tpm.extendPCR(15, tpm.hashdigest("garbage"))
+            time.sleep(5)
+            logger.debug("Deleting node from verifier")
+            mytenant.do_cvdelete()
+    elif args.command=='update':
+        mytenant.init_add(vars(args))
+        mytenant.do_cvdelete()
+        mytenant.preloop()
+        mytenant.do_cv()
+        mytenant.do_quote()
+        if args.verify:
+            mytenant.do_verify()
+    elif args.command=='delete':
+        mytenant.do_cvdelete()
+    elif args.command=='status':
+        mytenant.do_cvstatus()
+    elif args.command=='list':
+        mytenant.do_cvstatus(listing=True)
+    elif args.command=='reactivate':
+        mytenant.do_cvreactivate()
+    elif args.command=='regdelete':
+        mytenant.do_regdelete()
+    else:
+        raise UserError("Invalid command specified: %s"%(args.command))
     
 if __name__=="__main__":
     try:
         main()
+    except UserError as ue:
+        logger.error(str(ue))
     except Exception as e:
         logger.exception(e)

@@ -152,7 +152,7 @@ class InstancesHandler(BaseHandler):
         except Exception as e:
             common.echo_json_response(self, 400, "Exception error: %s"%e)
             logger.warning("POST returning 400 response. Exception error: %s"%e)
-            logger.warning(traceback.format_exc())
+            logger.exception(e)
                
     def put(self):
         """This method handles the PUT requests to add instances to the Node Monitor. 

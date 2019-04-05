@@ -20,7 +20,6 @@ violate any copyrights that exist in this work.
 
 import json
 import tornado_requests
-import traceback
 import crypto
 import base64
 import common
@@ -119,8 +118,7 @@ def getKeys(registrar_ip,registrar_port,instance_id):
         
         return response_body["results"]
     except Exception as e:
-        logger.critical(traceback.format_exc())
-        logger.critical("An unexpected error occurred: " + str(e))
+        logger.exception(e)
         
     return None
 

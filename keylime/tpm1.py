@@ -39,7 +39,6 @@ import threading
 import time
 from tpm_abstract import *
 from tpm_ek_ca import *
-import traceback
 
 logger = common.init_logging('tpm1')
 
@@ -418,7 +417,7 @@ class tpm1(AbstractTPM):
             
         except Exception as e:
             logger.error("Error encrypting AIK: "+str(e))
-            logger.error(traceback.format_exc())
+            logger.exception(e)
             return False
         finally:
             if pubaikFile is not None:
@@ -465,7 +464,7 @@ class tpm1(AbstractTPM):
             
         except Exception as e:
             logger.error("Error decrypting AIK: "+str(e))
-            logger.error(traceback.format_exc())
+            logger.exception(e)
             return False
         finally:
             if keyblobFile is not None:
@@ -682,7 +681,7 @@ class tpm1(AbstractTPM):
             retout = self.__checkdeepquote_c(hAIKFile.name, vAIKFile.name, quoteFile.name, nonce)
         except Exception as e:
             logger.error("Error verifying quote: %s"%(e))
-            logger.error(traceback.format_exc())
+            logger.exception(e)
             return False
         finally:
             if vAIKFile is not None:
@@ -770,7 +769,7 @@ class tpm1(AbstractTPM):
             retout = self.__check_quote_c(aikFile.name, quoteFile.name, nonce)
         except Exception as e:
             logger.error("Error verifying quote: "+str(e))
-            logger.error(traceback.format_exc())
+            logger.exception(e)
             return False
         finally:
             if aikFile is not None:
