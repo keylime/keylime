@@ -172,7 +172,7 @@ esac
 
 echo 
 echo "=================================================================================="
-echo $'\t\t\t\tUpdating $NAME packages'
+echo $'\t\t\t\tUpdating packages'
 echo "=================================================================================="
 ${PACKAGE_MANAGER} update -y 
 
@@ -284,17 +284,5 @@ if [[ "$IMA_ENABLE" -eq "1" ]] ; then
     echo $'\t\t\t\tGenerating IMA whitelist'
     echo "=================================================================================="
     cd $KEYLIME_DIR/keylime/
-    case "$ID" in
-    debian | ubuntu)
-        initdisk="initrd"
-    ;;
-
-    redhat | centos | fedora)
-        initdisk="initramfs"
-    ;;
-    *)
-        echo "${ID} is not currently supported."
-        exit 1
-    esac
-    ./create_whitelist.sh whitelist.sh ${initdisk}
+    ./create_whitelist.sh whitelist.txt
 fi
