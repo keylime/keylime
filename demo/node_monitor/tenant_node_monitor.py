@@ -3,24 +3,24 @@
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
-This material is based upon work supported by the Assistant Secretary of Defense for 
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
+This material is based upon work supported by the Assistant Secretary of Defense for
+Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
 FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the 
+material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
 
 Copyright 2015 Massachusetts Institute of Technology.
 
 The software/firmware is provided to you on an As-Is basis
 
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-above. Use of this work other than as specifically authorized by the U.S. Government may 
+Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
+252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
+rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
+above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
 '''
-# wget  --ca-certificate=/var/lib/keylime/secure/unzipped/cacert.crt --post-data '{}' 
-#       --certificate=/var/lib/keylime/secure/unzipped/D432FBB3-D2F1-4A97-9EF7-75BD81C00000-cert.crt 
+# wget  --ca-certificate=/var/lib/keylime/secure/unzipped/cacert.crt --post-data '{}'
+#       --certificate=/var/lib/keylime/secure/unzipped/D432FBB3-D2F1-4A97-9EF7-75BD81C00000-cert.crt
 #       --private-key=/var/lib/keylime/secure/unzipped/D432FBB3-D2F1-4A97-9EF7-75BD81C00000-private.pem
 #        https://localhost:6892/instances/D432FBB3-D2F1-4A97-9EF7-75BD81C00000
 
@@ -72,60 +72,60 @@ class MainHandler(tornado.web.RequestHandler):
     def get(self):
         common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
 
-class InstancesHandler(BaseHandler):  
+class InstancesHandler(BaseHandler):
     def head(self):
         """HEAD not supported"""
         common.echo_json_response(self, 405, "HEAD not supported")
-  
+
     def get(self):
-        """This method handles the GET requests to retrieve status on instances from the Node Monitor. 
-        
-        Currently, only instances resources are available for GETing, i.e. /instances. All other GET uri's 
-        will return errors. instances requests require a single instance_id parameter which identifies the 
+        """This method handles the GET requests to retrieve status on instances from the Node Monitor.
+
+        Currently, only instances resources are available for GETing, i.e. /instances. All other GET uri's
+        will return errors. instances requests require a single instance_id parameter which identifies the
         instance to be returned. If the instance_id is not found, a 404 response is returned.  If the instance_id
-        was not found, it either completed successfully, or failed.  If found, the instance_id is still polling 
-        to contact the Cloud Node. 
+        was not found, it either completed successfully, or failed.  If found, the instance_id is still polling
+        to contact the Cloud Node.
         """
         common.echo_json_response(self, 405, "GET not supported")
-            
+
     def delete(self):
-        """This method handles the DELETE requests to remove instances from the Node Monitor. 
-         
+        """This method handles the DELETE requests to remove instances from the Node Monitor.
+
         Currently, only instances resources are available for DELETEing, i.e. /instances. All other DELETE uri's will return errors.
-        instances requests require a single instance_id parameter which identifies the instance to be deleted.    
+        instances requests require a single instance_id parameter which identifies the instance to be deleted.
         """
         common.echo_json_response(self, 405, "DELETE not supported")
-                            
+
     def post(self):
-        """This method handles the POST requests to add instances to the Node Monitor. 
-         
+        """This method handles the POST requests to add instances to the Node Monitor.
+
         Currently, only instances resources are available for POSTing, i.e. /instances. All other POST uri's will return errors.
         instances requests require a json block sent in the body
         """
         logger.info('Node Monitor POST')
         try:
             rest_params = common.get_restful_params(self.request.path)
-            
+
             if "instances" not in rest_params:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning('POST returning 400 response. uri not supported: ' + self.request.path)
                 return
-            
+
             instance_id = rest_params["instances"]
-            
-            if instance_id is not None: # we have to know who phoned home 
+
+            if instance_id is not None: # we have to know who phoned home
                 content_length = len(self.request.body)
                 if content_length==0:
                     common.echo_json_response(self, 400, "Expected non zero content length")
                     logger.warning('POST returning 400 response. Expected non zero content length.')
                 else:
                     json_body = json.loads(self.request.body)
-                    
+
                     # VERIFY CLIENT CERT ID MATCHES NODE ID (instance_id)
                     client_cert = self.request.get_ssl_certificate()
                     ssl.match_hostname(client_cert, instance_id)
-                    
-                    # Execute specified script if all is well 
+
+                    # Execute specified script if all is well
                     global initscript
                     if initscript is not None and initscript is not "":
                         def initthread():
@@ -143,7 +143,7 @@ class InstancesHandler(BaseHandler):
                                 logger.debug("init-output: %s"%line.strip())
                         t = threading.Thread(target=initthread)
                         t.start()
-                    
+
                     common.echo_json_response(self, 200, "Success", json_body)
                     logger.info('POST returning 200 response for Node Monitor connection as ' + instance_id)
             else:
@@ -152,11 +152,11 @@ class InstancesHandler(BaseHandler):
         except Exception as e:
             common.echo_json_response(self, 400, "Exception error: %s"%e)
             logger.warning("POST returning 400 response. Exception error: %s"%e)
-            logger.warning(traceback.format_exc())
+            logger.exception(e)
 
     def put(self):
-        """This method handles the PUT requests to add instances to the Node Monitor. 
-         
+        """This method handles the PUT requests to add instances to the Node Monitor.
+
         Currently, only instances resources are available for PUTing, i.e. /instances. All other PUT uri's will return errors.
         instances requests require a json block sent in the body
         """
@@ -164,24 +164,24 @@ class InstancesHandler(BaseHandler):
 
 def init_mtls(config):
     logger.info("Setting up mTLS...")
-    
+
     tls_dir = config["ca_dir"]
     if tls_dir[0]!='/':
         tls_dir = os.path.abspath('%s/%s'%(common.WORK_DIR,tls_dir))
-    
-    # We need to securely pull in the ca password 
+
+    # We need to securely pull in the ca password
     my_key_pw = getpass.getpass("Please enter the password to decrypt your keystore: ")
     ca_util.setpassword(my_key_pw)
-    
-    # Create HIL Server Connect certs (if not already present) 
+
+    # Create HIL Server Connect certs (if not already present)
     if not os.path.exists("%s/%s-cert.crt"%(tls_dir,config["ip"])):
         logger.info("Generating new Node Monitor TLS Certs in %s for connecting"%tls_dir)
         ca_util.cmd_mkcert(tls_dir,config["ip"])
-    
+
     ca_path = "%s/cacert.crt"%(tls_dir)
     my_cert = "%s/%s-cert.crt"%(tls_dir,config["ip"])
     my_priv_key = "%s/%s-private.pem"%(tls_dir,config["ip"])
-    
+
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.load_verify_locations(cafile=ca_path)
     context.load_cert_chain(certfile=my_cert,keyfile=my_priv_key,password=my_key_pw)
@@ -195,7 +195,7 @@ def start_tornado(tornado_server, port):
     print "Tornado finished"
 
 def main(argv=sys.argv):
-    """Main method of Node Monitor.  This method is encapsulated in a function for packaging to allow it to be 
+    """Main method of Node Monitor.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument('-p', '--port',action='store',default='6892',help="Port for the Node Monitor to listen on (defaults to 6892)")
@@ -203,27 +203,27 @@ def main(argv=sys.argv):
     parser.add_argument('-s', '--script', action='store',default=None,help='Specify the script to execute when the node phones home')
     parser.add_argument('-c', '--cert',action='store',dest='ca_dir',default=None,help='Tenant-generated certificate. Pass in the CA directory or use "default" to use the standard dir')
     args = parser.parse_args(argv[1:])
-    
-    # Find out where the certs are stored by tenant 
+
+    # Find out where the certs are stored by tenant
     if args.ca_dir is None or args.ca_dir=='default':
         args.ca_dir = common.CA_WORK_DIR
-    
-    # Make initscript available to tornado callback 
+
+    # Make initscript available to tornado callback
     global initscript
     initscript = args.script
-    
+
     logger.info('Starting Node Monitor (tornado) on port ' + args.port + ', use <Ctrl-C> to stop')
 
     app = tornado.web.Application([
-        (r"/", MainHandler),                      
+        (r"/", MainHandler),
         (r"/(?:v[0-9]/)?instances/.*", InstancesHandler),
         ])
-    
+
     context = init_mtls(vars(args))
     server = tornado.httpserver.HTTPServer(app,ssl_options=context)
     server.bind(int(args.port), address='0.0.0.0')
-    server.start(0) 
-    
+    server.start(0)
+
     try:
         tornado.ioloop.IOLoop.instance().start()
     except KeyboardInterrupt:
