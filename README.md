@@ -10,10 +10,10 @@ end-to-end solution for both bootstrapping hardware rooted cryptographic
 identities for IaaS nodes and for system integrity monitoring of those nodes via
 periodic attestation.
 
-keylime supports both TPM versions 1.2 and 2.0.
+keylime supports both TPM versions 1.2 and 2.0.  
 
 keylime can be used with a software TPM emulator
-for development, testing, or demonstration purposes.  However, DO NOT USE keylime in
+for development, testing, or demonstration purposes.  However, DO NOT USE keylime in 
 production with a TPM emulator!  A software TPM emulator does not provide a hardware root
 of trust and dramatically lowers the security benefits of using keylime.
 
@@ -46,7 +46,7 @@ Usage: ./installer.sh [option...]
 Options:
 -k              Download Keylime (stub installer mode)
 -o              Use OpenSSL instead of CFSSL
--t              Create tarball with keylime_agent
+-t              Create tarball with keylime_node
 -m              Use modern TPM 2.0 libraries (vs. TPM 1.2)
 -s              Install TPM in socket/simulator mode (vs. chardev)
 -p PATH         Use PATH as Keylime path
@@ -67,7 +67,7 @@ Repository](https://github.com/keylime/ansible-keylime).
 
 ### Docker (Development Only)
 
-Python keylime and related emulators can also be deployed using Docker.
+Python keylime and related emulators can also be deployed using Docker. 
 Since this docker configuration currently uses a TPM emulator,
 it should only be used for development or testing and NOT in production.
 
@@ -103,9 +103,9 @@ You can also let keylime's `setup.py` install them via PyPI.
 ##### TPM 1.2 Support
 
 You also need a patched version of tpm4720 the IBM software TPM emulator and
-utilities.  This is available at https://github.com/keylime/tpm4720-keylime.
+utilities.  This is available at https://github.com/keylime/tpm4720-keylime.  
 Even if you are using keylime with a real TPM, you must install the IBM emulator
-because keylime uses the command line utilities that come with it.
+because keylime uses the command line utilities that come with it.  
 See README.md in that project for detailed instructions on how to build and install it.
 
 The brief synopsis of a quick build/install (after installing dependencies) is:
@@ -211,7 +211,7 @@ sudo -E python setup.py install build_ext --openssl=/usr/local/opt/openssl/
 #### Optional Requirements
 
 If you want to support revocation, you also need to have cfssl installed and in your
-path on the tenant agent.  It can be obtained from https://github.com/cloudflare/cfssl.  You
+path on the tenant node.  It can be obtained from https://github.com/cloudflare/cfssl.  You
 will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc/keylime.conf`.
 
 ## Making sure your TPM is ready for keylime
@@ -258,25 +258,25 @@ This file is documented with comments and should be self-explanatory.
 
 ### Running keylime
 
-Keylime has three major component services that run: the registrar, verifier, and the agent:
+Keylime has three major component services that run: the registrar, verifier, and the node:
 
 * The *registrar* is a simple HTTPS service that accepts TPM public keys.  It then
 presents an interface to obtain these public keys for checking quotes.
 
 * The *verifier* is the most important component in keylime.  It does initial and
 periodic checks of system integrity and supports bootstrapping a cryptographic key
-securely with the agent.  The verifier uses mutual TLS for its control interface.
+securely with the node.  The verifier uses mutual TLS for its control interface.
 
     By default, the verifier will create appropriate TLS certificates for itself
     in `/var/lib/keylime/cv_ca/`.  The registrar and tenant will use this as well.  If
     you use the generated TLS certificates then all the processes need to run as root
     to allow reading of private key files in `/var/lib/keylime/`.
 
-* The *agent* is the target of bootstrapping and integrity measurements.  It puts
+* The *node* is the target of bootstrapping and integrity measurements.  It puts
     its stuff into `/var/lib/keylime/`.
 
-To run a basic test, run `keylime_verifier`, `keylime_registrar`, and `keylime_agent`.  If
-the agent starts up properly, then you can proceed.
+To run a basic test, run `keylime_verifier`, `keylime_registrar`, and `keylime_node`.  If
+the node starts up properly, then you can proceed.
 
 ### Provisioning
 
@@ -285,12 +285,12 @@ done either with the keylime tenant or webapp.
 
 #### Provisioning with keylime_tenant
 
-The `keylime_tenant` utility can be used to provision your agent.
+The `keylime_tenant` utility can be used to provision your node.
 
-As an example, the following command tells keylime to provision a new agent
+As an example, the following command tells keylime to provision a new node
 at 127.0.0.1 with UUID D432FBB3-D2F1-4A97-9EF7-75BD81C00000 and talk to a
 cloud verifier at 127.0.0.1.  Finally it will encrypt a file called filetosend
-and send it to the agent allowing it to decrypt it only if the configured TPM
+and send it to the node allowing it to decrypt it only if the configured TPM
 policy (in `/etc/keylime.conf`) is satisfied:
 
 `keylime_tenant -c add -t 127.0.0.1 -v 127.0.0.1 -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000 -f filetosend`
@@ -320,8 +320,8 @@ certificates that `keylime_ca` creates are in `/etc/keylime.conf`.
 
 NOTE: This CA functionality is different than the TLS support for talking to
 the verifier or registrar (though it uses some of the same config options
-in `/etc/keylime.conf`).  This CA is for the cloud agents you provision and
-you can use keylime to bootstrap the private keys into agents.
+in `/etc/keylime.conf`).  This CA is for the cloud nodes you provision and
+you can use keylime to bootstrap the private keys into nodes.
 
 To initialize a new certificate authority run:
 
@@ -346,13 +346,13 @@ This will zip the above files and place them in /var/lib/keylime/ca/certname.hos
 private key will be protected by the key that you were prompted with.
 
 You may wonder why this is in keylime at all?  Well, you can tell `keylime_tenant` to
-automatically create a key and then provision an agent with it.  Use the --cert
+automatically create a key and then provision a node with it.  Use the --cert
 option in `keylime_tenant` to do this.  This takes in the directory of the CA:
 
 `keylime_tenant -c add -t 127.0.0.1 -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --cert /var/lib/keylime/ca`
 
 If you also have the option extract_payload_zip in `/etc/keylime.conf` set to `True` on
-the cloud agent, then it will automatically extract the zip containing an unprotected
+the cloud node, then it will automatically extract the zip containing an unprotected
 private key, public key, certificate and CA certificate to `/var/lib/keylime/secure/unzipped`.
 
 If the cloud verifier option `revocation_notifier` is set to `True`, then
@@ -388,7 +388,7 @@ Meeting agenda are hosted and archived in the [meetings repo](https://github.com
   * and the ACSAC presentation on keylime: [doc/llsrc-keylime-acsac-v6.pptx](https://github.com/keylime/python-keylime/raw/master/doc/llsrc-keylime-acsac-v6.pptx)
 * See the HotCloud 2018 paper: [doc/hotcloud18.pdf](https://github.com/keylime/python-keylime/blob/master/doc/hotcloud18.pdf)
 * Details about Keylime REST API: [doc/keylime RESTful API.docx](https://github.com/keylime/python-keylime/raw/master/doc/keylime%20RESTful%20API.docx)
-* [Bundling a portable Cloud Agent](doc/cloud-agent-tarball-notes.md) - Create portable tarball of Cloud Agent, for usage on systems without python and other dependencies.
+* [Bundling a portable Cloud Node](doc/cloud-node-tarball-notes.md) - Create portable tarball of Cloud Node, for usage on systems without python and other dependencies.
 * [Xen vTPM setup notes](doc/xen-vtpm-notes.md) - Guidance on getting Xen set up with vTPM support for Keylime.
 * IPsec Configurations
   * [IPsec with Libreswan](auto-ipsec/libreswan) - Configuring Keylime with a Libreswan backend for IPsec functionality.
@@ -400,13 +400,9 @@ Meeting agenda are hosted and archived in the [meetings repo](https://github.com
 #### Errata from the ACSAC Paper
 
 We discovered a typo in Figure 5 of the published ACSAC paper. The final interaction
-between the Tenant and Cloud Verifier showed an HMAC of the agent's ID using the key
+between the Tenant and Cloud Verifier showed an HMAC of the node's ID using the key
 K_e.  This should be using K_b. The paper in this repository and the ACSAC presentation
 have been updated to correct this typo.
-
-The software that runs on the system with the TPM is now called the keylime *agent* rather
-than the *node*.  We have made this change in the documentation and code.  The ACSAC paper
-will remain as it was published using *node*.
 
 ## License
 

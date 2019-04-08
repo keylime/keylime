@@ -39,8 +39,8 @@ class KeylimeDB():
         self.json_cols_db = json_cols_db
         self.exclude_db = exclude_db
         
-        if 'agent_id' not in cols_db or 'PRIMARY_KEY' not in cols_db['agent_id']:
-            raise Exception("the primary key of the database must be agent_id")
+        if 'instance_id' not in cols_db or 'PRIMARY_KEY' not in cols_db['instance_id']:
+            raise Exception("the primary key of the database must be instance_id")
         
         # turn off persistence by default in development mode
         if common.DEVELOP_IN_ECLIPSE and os.path.exists(self.db_filename):
@@ -75,19 +75,19 @@ class KeylimeDB():
             for row in rows:
                 print row
             
-    def add_defaults(self,agent):
+    def add_defaults(self,instance):
         for key in self.exclude_db.keys():
-            agent[key] = self.exclude_db[key]
-        return agent
+            instance[key] = self.exclude_db[key]
+        return instance
             
-    def add_agent(self,agent_id, d):        
+    def add_instance(self,instance_id, d):        
         d = self.add_defaults(d)
         
-        d['agent_id']=agent_id
+        d['instance_id']=instance_id
     
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
-            cur.execute('SELECT * from main where agent_id=?',(d['agent_id'],))
+            cur.execute('SELECT * from main where instance_id=?',(d['instance_id'],))
             rows = cur.fetchall()
             # don't allow overwrite
             if len(rows)>0:
@@ -111,19 +111,19 @@ class KeylimeDB():
                                       
         return d
 
-    def remove_agent(self,agent_id):
+    def remove_instance(self,instance_id):
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
-            cur.execute('SELECT * from main where agent_id=?',(agent_id,))
+            cur.execute('SELECT * from main where instance_id=?',(instance_id,))
             rows = cur.fetchall()
             if len(rows)==0:
                 return False
-            cur.execute('DELETE FROM main WHERE agent_id=?',(agent_id,))
+            cur.execute('DELETE FROM main WHERE instance_id=?',(instance_id,))
             conn.commit()
         
         return True
         
-    def update_agent(self,agent_id, key, value):
+    def update_instance(self,instance_id, key, value):
         if key not in self.cols_db.keys():
             raise Exception("Database key %s not in schema: %s"%(key,self.cols_db.keys()))
         
@@ -132,12 +132,12 @@ class KeylimeDB():
             # marshall back to string
             if key in self.json_cols_db:
                 value = json.dumps(value)
-            cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(value,agent_id))
+            cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(value,instance_id))
             conn.commit()
         
         return
     
-    def update_all_agents(self,key,value):
+    def update_all_instances(self,key,value):
         if key not in self.cols_db.keys():
             raise Exception("Database key %s not in schema: %s"%(key,self.cols_db.keys()))
         
@@ -150,10 +150,10 @@ class KeylimeDB():
             conn.commit()
         return
        
-    def get_agent(self,agent_id):
+    def get_instance(self,instance_id):
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
-            cur.execute('SELECT * from main where agent_id=?',(agent_id,))
+            cur.execute('SELECT * from main where instance_id=?',(instance_id,))
             rows = cur.fetchall()
             if len(rows)==0:
                 return None
@@ -168,11 +168,11 @@ class KeylimeDB():
             d = self.add_defaults(d)
             return d
     
-    def get_agent_ids(self):
+    def get_instance_ids(self):
         with sqlite3.connect(self.db_filename) as conn:
             retval = []
             cur = conn.cursor()
-            cur.execute('SELECT agent_id from main')
+            cur.execute('SELECT instance_id from main')
             rows = cur.fetchall()
             if len(rows)==0:
                 return retval
@@ -180,19 +180,19 @@ class KeylimeDB():
                 retval.append(i[0])
             return retval
 
-    def count_agents(self):
-        return len(self.get_agent_ids())
+    def count_instances(self):
+        return len(self.get_instance_ids())
 
-    def overwrite_agent(self,agent_id,agent):
+    def overwrite_instance(self,instance_id,instance):
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
             for key in self.cols_db.keys():
-                if key is 'agent_id':
+                if key is 'instance_id':
                     continue
                 if key in self.json_cols_db:
-                    cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(json.dumps(agent[key]),agent_id))
+                    cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(json.dumps(instance[key]),instance_id))
                 else:
-                    cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(agent[key],agent_id))
+                    cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(instance[key],instance_id))
             conn.commit()
         return
     

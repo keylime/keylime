@@ -82,13 +82,13 @@ def main(argv=sys.argv):
     (group_uuid,group_aik,group_num,_) = vtpm_manager.add_vtpm_group()
 
     # registrar it and get back a blob
-    keyblob = registrar_client.doRegisterAgent(provider_reg_ip,provider_reg_port,group_uuid,ek,ekcert,group_aik)
+    keyblob = registrar_client.doRegisterNode(provider_reg_ip,provider_reg_port,group_uuid,ek,ekcert,group_aik)
     
     # get the ephemeral registrar key by activating in the hardware tpm
     key = base64.b64encode(vtpm_manager.activate_group(group_uuid, keyblob))
     
     # tell the registrar server we know the key
-    registrar_client.doActivateAgent(provider_reg_ip,provider_reg_port,group_uuid,key)
+    registrar_client.doActivateNode(provider_reg_ip,provider_reg_port,group_uuid,key)
 
     output= {
              'uuid': group_uuid,

@@ -5,12 +5,12 @@ Cloud Verifier -added 3 configuration items:
 #get_q_log_file_base_name = get_q_log_file
 
 These config fields specify the base file name for the time series log files, the provide v log files, and the get q log files.  Each of these base file names will be postpended with a unique identifier followed by “.txt”.
-The time_series_log_files contain the overall time for a Cloud Verifier to complete a quote/validation cycle in fractional seconds since epoch. One unique file for each Cloud Verifier Process.
-The provide_v_log_files contain the time for a Cloud Verifier to complete a provide v operation in fractional seconds since epoch. One unique file for each Cloud Verifier Process.
-The get_q_log_files contain the time for a Cloud Verifier to complete a get quote operation in fractional seconds since epoch. One unique file for each Cloud Verifier Process.
+The time_series_log_files contain the overall time for a Cloud Verifier to complete a quote/validation cycle in fractional seconds since epoch. One unique file for each Cloud Verifier Process. 
+The provide_v_log_files contain the time for a Cloud Verifier to complete a provide v operation in fractional seconds since epoch. One unique file for each Cloud Verifier Process. 
+The get_q_log_files contain the time for a Cloud Verifier to complete a get quote operation in fractional seconds since epoch. One unique file for each Cloud Verifier Process. 
 
 utility_average_logged_deltas.py
-=================================
+================================= 
 usage: keylime-utility-average_logged_deltas [-h] -f FILENAME
  argument -f/--filename is required
 
@@ -19,16 +19,16 @@ usage: keylime-utility-average_logged_deltas [-h] -f FILENAME
 
 utility_make_1_second_interval_average_list.py
 ==============================================
-usage: keylime-utility-make_1_second_interval_average_list [-h] -i INFILE [-o OUTFILE]
+usage: keylime-utility-make_1_second_interval_average_list [-h] -i INFILE [-o OUTFILE]                                       
 argument -i/--infile is required,  -o/—outfile is required
 
 –This utility takes a base filename argument. The file structure is a series of floating point numbers,  one on each line, representing the time in fractional seconds since epoch of each Quote/verify cycle. The utility will produce a set of quote/verify cycle quantities per second from multiple input files of the current directory which share the same base name.  For instance an output file with the following content:
 
 300
 302
-301
+301 
 
-means that 300 quote/validation operations were performed in the first full second of operation, 302 quote/validation operations during the second full second of operation, and so on.   The utility_average_logged_deltas.py may be run on this file to produce a all-encompassing average quote/validation cycles per second.
+means that 300 quote/validation operations were performed in the first full second of operation, 302 quote/validation operations during the second full second of operation, and so on.   The utility_average_logged_deltas.py may be run on this file to produce a all-encompassing average quote/validation cycles per second. 
 
 utility_plot_time_series.py
 ===========================
@@ -45,36 +45,36 @@ time_series_log_file_base_name = <your_time_series_log_file_base_name>
 provide_v_log_file_base_name = <your_provide_v_log_file_base_name>
 get_q_log_file_base_name = <your_get_q_log_file_base_name>
 
-2. Start the Cloud Verifier, after specifying [cloud_verifier] multiprocessing_pool_num_workers
+2. Start the Cloud Verifier, after specifying [cloud_verifier] multiprocessing_pool_num_workers 
 
-3. launch the "test_concurrent_cloudnodiness" test in test.py, after selecting desired options in test definition. Note that the "num_cloudagent_agents" field (2) and "test_iterations" fields (1) shoud be the same value
+3. launch the "test_concurrent_cloudnodiness" test in test.py, after selecting desired options in test definition. Note that the "num_cloudnode_instances" field (2) and "test_iterations" fields (1) shoud be the same value
             "test_concurrent_cloudnodiness" : {
-                "prerun_function"  : {"name":"launch_cloudagents", "args": {'port_file':'cloudagent_port.txt', 'num_cloudagent_agents':10}},
+                "prerun_function"  : {"name":"launch_cloudnodes", "args": {'port_file':'cloudnode_port.txt', 'num_cloudnode_instances':10}},
                 "state_change_functions": [
-
+ 
                     {
                         "pre_function" : {"name":"test_concurrent_cloudnodiness_modify_request", "argument": None},
                         "function_name": "test_concurrent_cloudnodiness",
                         "http_request_verb":"POST",
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
-                        "http_request_path": "/v1/agents",
-                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","agent_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C00000","cloudagent_ip":"cloudagent_ip.txt","cloudagent_port":"cloudagent_port.txt","tpm_policy": {"22":"ffffffffffffffffffffffffffffffffffffffff","16":"0000000000000000000000000000000000000000"} }',
+                        "http_request_path": "/v1/instances",
+                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C00000","cloudnode_ip":"cloudnode_ip.txt","cloudnode_port":"cloudnode_port.txt","tpm_policy": {"22":"ffffffffffffffffffffffffffffffffffffffff","16":"0000000000000000000000000000000000000000"} }',
                         "http_result_status_expected": 200,
                         "test_iterations" : 10,
-                        "post_function" : {"name":"test_concurrent_cloudnodiness_reset_request", "args": {"ip_file": "cloudagent_ip.txt","port_file":"cloudagent_port.txt"} },
-                    },
-                ],
-                "postrun_function"  : {"name":"kill_cloudagents_after_delay", "args": {'sleep': 10, 'port_file':'cloudagent_port.txt', 'num_cloudagent_agents':10} },
+                        "post_function" : {"name":"test_concurrent_cloudnodiness_reset_request", "args": {"ip_file": "cloudnode_ip.txt","port_file":"cloudnode_port.txt"} },
+                    },                    
+                ],   
+                "postrun_function"  : {"name":"kill_cloudnodes_after_delay", "args": {'sleep': 10, 'port_file':'cloudnode_port.txt', 'num_cloudnode_instances':10} },              
             },
-4. Wait until test ends, then kill cloud verifier.  After the test ends, cv connection error messages are expected as the Cloud agents are killed.
+4. Wait until test ends, then kill cloud verifier.  After the test ends, cv connection error messages are expected as the Cloud Nodes are killed.              
+            
+5. To get average provide v performance'python utility_average_logged_deltas.py  -f your_provide_v_log_file_base_name' 
 
-5. To get average provide v performance'python utility_average_logged_deltas.py  -f your_provide_v_log_file_base_name'
+6. To get average get quote performance 'python utility_average_logged_deltas.py  -f your_get_q_log_file_base_name' 
 
-6. To get average get quote performance 'python utility_average_logged_deltas.py  -f your_get_q_log_file_base_name'
+7. To consolidate time series data 'python utility_make_1_second_interval_average_list.py -i your_time_series_log_file_base_name -o time_series_results.txt 
 
-7. To consolidate time series data 'python utility_make_1_second_interval_average_list.py -i your_time_series_log_file_base_name -o time_series_results.txt
+8. To get quote/verifiy cycles per second performance average 'python utility_average_logged_deltas.py  -f time_series_results.txt' 
 
-8. To get quote/verifiy cycles per second performance average 'python utility_average_logged_deltas.py  -f time_series_results.txt'
-
-9. To produce an on-screen plot of the data and save it to file'python utility_plot_time_series.py  -i your_time_series_log_file_base_name -o myplot.jpg' .
+9. To produce an on-screen plot of the data and save it to file'python utility_plot_time_series.py  -i your_time_series_log_file_base_name -o myplot.jpg' . 

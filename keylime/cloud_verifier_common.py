@@ -46,7 +46,7 @@ logger = common.init_logging('cloudverifier_common')
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
-class CloudAgent_Operational_State:
+class CloudInstance_Operational_State:
     REGISTERED = 0
     START = 1
     SAVED = 2
@@ -155,8 +155,8 @@ def init_mtls(section='cloud_verifier',generatedir='cv_ca'):
     context.verify_mode = ssl.CERT_REQUIRED
     return context
 
-def process_quote_response(agent, json_response):
-    """Validates the response from the Cloud agent.
+def process_quote_response(instance, json_response):
+    """Validates the response from the Cloud node.
     
     This method invokes an Registrar Server call to register, and then check the quote. 
     """
@@ -171,7 +171,7 @@ def process_quote_response(agent, json_response):
         ima_measurement_list = json_response.get("ima_measurement_list",None)
         
         logger.debug("received quote:      %s"%quote)
-        logger.debug("for nonce:           %s"%agent['nonce'])
+        logger.debug("for nonce:           %s"%instance['nonce'])
         logger.debug("received public key: %s"%received_public_key)
         logger.debug("received ima_measurement_list    %s"%(ima_measurement_list!=None))
     except Exception:
@@ -179,19 +179,19 @@ def process_quote_response(agent, json_response):
     
     # if no public key provided, then ensure we have cached it
     if received_public_key is None:
-        if agent.get('public_key',"") == "" or agent.get('b64_encrypted_V',"")=="":
-            logger.error("agent did not provide public key and no key or encrypted_v was cached at CV")
+        if instance.get('public_key',"") == "" or instance.get('b64_encrypted_V',"")=="":
+            logger.error("node did not provide public key and no key or encrypted_v was cached at CV")
             return False
-        agent['provide_V'] = False
-        received_public_key = agent['public_key']
+        instance['provide_V'] = False
+        received_public_key = instance['public_key']
     
-    if agent.get('registrar_keys',"") is "":
+    if instance.get('registrar_keys',"") is "":
         registrar_client.init_client_tls(config,'cloud_verifier')
-        registrar_keys = registrar_client.getKeys(config.get("general","registrar_ip"),config.get("general","registrar_tls_port"),agent['agent_id'])
+        registrar_keys = registrar_client.getKeys(config.get("general","registrar_ip"),config.get("general","registrar_tls_port"),instance['instance_id'])
         if registrar_keys is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
-        agent['registrar_keys']  = registrar_keys
+        instance['registrar_keys']  = registrar_keys
         
     tpm_version = json_response.get('tpm_version')
     tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
@@ -200,71 +200,71 @@ def process_quote_response(agent, json_response):
     sign_alg = json_response.get('sign_alg')
     
     # Update chosen tpm and algorithms
-    agent['tpm_version'] = tpm_version
-    agent['hash_alg'] = hash_alg
-    agent['enc_alg'] = enc_alg
-    agent['sign_alg'] = sign_alg
+    instance['tpm_version'] = tpm_version
+    instance['hash_alg'] = hash_alg
+    instance['enc_alg'] = enc_alg
+    instance['sign_alg'] = sign_alg
     
     # Ensure hash_alg is in accept_tpm_hash_alg list
-    if not Hash_Algorithms.is_accepted(hash_alg, agent['accept_tpm_hash_algs']):
+    if not Hash_Algorithms.is_accepted(hash_alg, instance['accept_tpm_hash_algs']):
         raise Exception("TPM Quote is using an unaccepted hash algorithm: %s"%hash_alg)
     
     # Ensure enc_alg is in accept_tpm_encryption_algs list
-    if not Encrypt_Algorithms.is_accepted(enc_alg, agent['accept_tpm_encryption_algs']):
+    if not Encrypt_Algorithms.is_accepted(enc_alg, instance['accept_tpm_encryption_algs']):
         raise Exception("TPM Quote is using an unaccepted encryption algorithm: %s"%enc_alg)
     
     # Ensure sign_alg is in accept_tpm_encryption_algs list
-    if not Sign_Algorithms.is_accepted(sign_alg, agent['accept_tpm_signing_algs']):
+    if not Sign_Algorithms.is_accepted(sign_alg, instance['accept_tpm_signing_algs']):
         raise Exception("TPM Quote is using an unaccepted signing algorithm: %s"%sign_alg)
     
     if tpm.is_deep_quote(quote):
-        validQuote = tpm.check_deep_quote(agent['nonce'],
+        validQuote = tpm.check_deep_quote(instance['nonce'],
                                                 received_public_key,
                                                 quote,
-                                                agent['registrar_keys']['aik'],
-                                                agent['registrar_keys']['provider_keys']['aik'],
-                                                agent['vtpm_policy'],
-                                                agent['tpm_policy'],
+                                                instance['registrar_keys']['aik'],
+                                                instance['registrar_keys']['provider_keys']['aik'],
+                                                instance['vtpm_policy'],
+                                                instance['tpm_policy'],
                                                 ima_measurement_list,
-                                                agent['ima_whitelist'])
+                                                instance['ima_whitelist'])
     else:
-        validQuote = tpm.check_quote(agent['nonce'],
+        validQuote = tpm.check_quote(instance['nonce'],
                                            received_public_key,
                                            quote,
-                                           agent['registrar_keys']['aik'],
-                                           agent['tpm_policy'],
+                                           instance['registrar_keys']['aik'],
+                                           instance['tpm_policy'],
                                            ima_measurement_list,
-                                           agent['ima_whitelist'],
+                                           instance['ima_whitelist'],
                                            hash_alg)
     if not validQuote:
         return False
     
-    # set a flag so that we know that the agent was verified once.
-    # we only issue notifications for agents that were at some point good
-    agent['first_verified']=True
+    # set a flag so that we know that the node was verified once.
+    # we only issue notifications for nodes that were at some point good
+    instance['first_verified']=True
     
     # has public key changed? if so, clear out b64_encrypted_V, it is no longer valid
-    if received_public_key != agent.get('public_key',""):
-        agent['public_key'] = received_public_key
-        agent['b64_encrypted_V'] = ""
-        agent['provide_V'] = True
+    if received_public_key != instance.get('public_key',""):
+        instance['public_key'] = received_public_key
+        instance['b64_encrypted_V'] = ""
+        instance['provide_V'] = True
     
     # ok we're done
     return validQuote
 
 
-def prepare_v(agent):
+def prepare_v(instance):
     # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
     if common.INSECURE_DEBUG:
-        logger.debug("b64_V (non encrypted): " + agent['v'])
+        logger.debug("b64_V (non encrypted): " + instance['v'])
         
-    if agent.get('b64_encrypted_V',"") !="":
-        b64_encrypted_V = agent['b64_encrypted_V']
+    if instance.get('b64_encrypted_V',"") !="":
+        b64_encrypted_V = instance['b64_encrypted_V']
         logger.debug("Re-using cached encrypted V")
     else:
         # encrypt V with the public key
-        b64_encrypted_V = base64.b64encode(crypto.rsa_encrypt(crypto.rsa_import_pubkey(agent['public_key']),str(base64.b64decode(agent['v']))))
-        agent['b64_encrypted_V'] = b64_encrypted_V
+        b64_encrypted_V = base64.b64encode(crypto.rsa_encrypt(crypto.rsa_import_pubkey(instance['public_key']),str(base64.b64decode(instance['v']))))
+        instance['b64_encrypted_V'] = b64_encrypted_V
         
     logger.debug("b64_encrypted_V:" + b64_encrypted_V)
     post_data = {
@@ -273,41 +273,41 @@ def prepare_v(agent):
     v_json_message = json.dumps(post_data)
     return v_json_message
     
-def prepare_get_quote(agent):
-    """This method encapsulates the action required to invoke a quote request on the Cloud agent.
+def prepare_get_quote(instance):
+    """This method encapsulates the action required to invoke a quote request on the Cloud Node.
     
     This method is part of the polling loop of the thread launched on Tenant POST. 
     """
-    agent['nonce'] = TPM_Utilities.random_password(20)
+    instance['nonce'] = TPM_Utilities.random_password(20)
     
     params = {
-        'nonce': agent['nonce'],
-        'mask': agent['tpm_policy']['mask'],
-        'vmask': agent['vtpm_policy']['mask'],
+        'nonce': instance['nonce'],
+        'mask': instance['tpm_policy']['mask'],
+        'vmask': instance['vtpm_policy']['mask'],
         }
     
     return params
 
-def process_get_status(agent):
-    if isinstance(agent['ima_whitelist'],dict) and 'whitelist' in agent['ima_whitelist']:
-        wl_len = len(agent['ima_whitelist']['whitelist'])
+def process_get_status(instance):
+    if isinstance(instance['ima_whitelist'],dict) and 'whitelist' in instance['ima_whitelist']:
+        wl_len = len(instance['ima_whitelist']['whitelist'])
     else:
         wl_len = 0
-    response = {'operational_state':agent['operational_state'],
-                'v':agent['v'],
-                'ip':agent['ip'],
-                'port':agent['port'],
-                'tpm_policy':agent['tpm_policy'],
-                'vtpm_policy':agent['vtpm_policy'],
-                'metadata':agent['metadata'],
+    response = {'operational_state':instance['operational_state'],
+                'v':instance['v'],
+                'ip':instance['ip'],
+                'port':instance['port'],
+                'tpm_policy':instance['tpm_policy'],
+                'vtpm_policy':instance['vtpm_policy'],
+                'metadata':instance['metadata'],
                 'ima_whitelist_len':wl_len,
-                'tpm_version':agent['tpm_version'],
-                'accept_tpm_hash_algs':agent['accept_tpm_hash_algs'],
-                'accept_tpm_encryption_algs':agent['accept_tpm_encryption_algs'],
-                'accept_tpm_signing_algs':agent['accept_tpm_signing_algs'],
-                'hash_alg':agent['hash_alg'],
-                'enc_alg':agent['enc_alg'],
-                'sign_alg':agent['sign_alg'],
+                'tpm_version':instance['tpm_version'],
+                'accept_tpm_hash_algs':instance['accept_tpm_hash_algs'],
+                'accept_tpm_encryption_algs':instance['accept_tpm_encryption_algs'],
+                'accept_tpm_signing_algs':instance['accept_tpm_signing_algs'],
+                'hash_alg':instance['hash_alg'],
+                'enc_alg':instance['enc_alg'],
+                'sign_alg':instance['sign_alg'],
                 }
     return response  
 
@@ -329,27 +329,27 @@ def get_query_tag_value(path, query_tag):
     return data.get(query_tag,None) 
 
 # sign a message with revocation key.  telling of verification problem
-def notifyError(agent,msgtype='revocation'):
+def notifyError(instance,msgtype='revocation'):
     if not config.getboolean('cloud_verifier', 'revocation_notifier'):
         return
 
     # prepare the revocation message:
     revocation = {
                 'type':msgtype,
-                'ip':agent['ip'],
-                'port':agent['port'],
-                'tpm_policy':agent['tpm_policy'],
-                'vtpm_policy':agent['vtpm_policy'],
-                'metadata':agent['metadata'],
+                'ip':instance['ip'],
+                'port':instance['port'],
+                'tpm_policy':instance['tpm_policy'],
+                'vtpm_policy':instance['vtpm_policy'],
+                'metadata':instance['metadata'],
                 } 
     
     revocation['event_time'] = time.asctime()
     tosend={'msg': json.dumps(revocation)}
             
     #also need to load up private key for signing revocations
-    if agent['revocation_key']!="":
+    if instance['revocation_key']!="":
         global signing_key
-        signing_key = crypto.rsa_import_privkey(agent['revocation_key'])
+        signing_key = crypto.rsa_import_privkey(instance['revocation_key'])
         tosend['signature']=crypto.rsa_sign(signing_key,tosend['msg'])
         
         #print "verified? %s"%crypto.rsa_verify(signing_key, tosend['signature'], tosend['revocation'])
@@ -362,7 +362,7 @@ def notifyError(agent,msgtype='revocation'):
 def init_db(db_filename):
     # in the form key, SQL type
     cols_db = {
-        'agent_id': 'TEXT PRIMARY_KEY',
+        'instance_id': 'TEXT PRIMARY_KEY',
         'v': 'TEXT',
         'ip': 'TEXT',
         'port': 'INT',

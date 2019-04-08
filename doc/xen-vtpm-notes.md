@@ -351,7 +351,7 @@ Make another vtpm (follow procedure above including makeing a fresh disk image) 
 
 ## Running keylime with vtpms
 
-we're going to run all of the keylime services on dom0 of the xen machine.  Only client and cloud agent processes will run on the vms.
+we're going to run all of the keylime services on dom0 of the xen machine.  Only client and cloud node processes will run on the vms.
 
 So, on dom0 of the xen box start up the following:
 ```
@@ -388,15 +388,15 @@ Copy this uuid.  Shutdown the keylime vm and its vtpm.  Put this UUID into the c
     
 Boot the vtpm back up.  then boot up the linux machine.  Now you must put this UUID into the keylime vm /etc/keylime.conf.
 
-`agent_uuid=33C6AD2C-F20D-40B0-B3F6-BC0FB0627637`
+`node_uuid=33C6AD2C-F20D-40B0-B3F6-BC0FB0627637`
 
-Ok, now it is time to start up the agent process.  (this is where it all comes together, so if this works, the rest likely will too)
+Ok, now it is time to start up the node process.  (this is where it all comes together, so if this works, the rest likely will too)
 
 watch for any 400 errors from registration.
 
 if you see the following:  
 
-keylime.cloudagent - INFO - Starting Cloud agent on port 9002 use <Ctrl-C> to stop
+keylime.cloudnode - INFO - Starting Cloud Node on port 9002 use <Ctrl-C> to stop
 
 then it's good.
 
@@ -406,7 +406,7 @@ back on dom0 xen machine we want to run the tenant:
 
 `keylime_tenant -u 33C6AD2C-F20D-40B0-B3F6-BC0FB0627637 -t 10.0.0.4 --verify -f SOMEFILE.txt`
 
-where SOMEFILE.txt is any old file that you want delivered securely to the agent.  The --verify option will poll the agent to make sure everything worked
+where SOMEFILE.txt is any old file that you want delivered securely to the node.  The --verify option will poll the node to make sure everything worked
 
 if all goes well you should see:
 keylime.tenant - INFO - Key derivation successful

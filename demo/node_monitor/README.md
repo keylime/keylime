@@ -1,65 +1,34 @@
-# Deluxe Demo Bundle Setup
+# Node Monitor Demo
 
 ## Introduction 
 
-The Deluxe Demo Bundle shows off the fancy technology that Keylime is capable of.  It is intended to be installed on a throwaway demo machine! 
+The Node Monitor demo is designed to provide a way for nodes to "phone home", indicating that they have successfully been provisioned.  
 
-It includes the following demos: 
-* IMA Demo 
-* Webserver Demo (using nginx) 
-* TrustedGRUB Demo 
-
-The bundle contains the following files: 
-* **demo_setup.sh**: This sets up and installs the demos (on top of an existing Keylime installation) 
-* **ima-policy**: IMA policy file (less burdensome than the IMA TCB policy) 
-* **keyfile.txt**: Keyfile that decrypts the payload.enc and payload.txt files 
-* **autorun.sh**: This file is sent to the cloud node, which will decrypt and mount the payload.enc 
+It consists of three parts: 
+* **autorun.sh**: This file is sent to the cloud node, to be executed during provisioning 
     * *__NOTE:__ Your keylime.conf file's ```cloud_node.payload_script``` should be set to autorun.sh*
-* **payload.enc**: The target of the mount.sh script (LUKS encrypted payload), containing the "protected" website 
-* **payload.txt**: A simple encrypted payload to demonstrate the "Keyfile" payload type 
-* **payload/**: Directory containing the "unprotected" website 
-
-Also, see the **demo/node_monitor** directory for a node "phone-home" demo! 
+* **tenant_node_monitor.py**: The Node Monitor server that listens for phone-home requests.  
+    * Should be run on the **_same filesystem_** as the tenant (since it shares its CA certs) 
+* **tenant_node_monitor.sh**: The script that the Node Monitor executes each time it receives a phone-home (it is the 'action' portion of phoning home) 
 
 ## Usage 
 
-The demo_setup.sh script can be executed with the following options: 
+The Node Monitor server can be started with the following options: 
 ```
-Usage: ./demo_setup.sh [option...]
+Usage: python tenant_node_monitor.py [option...]
 Options:
--p PATH         Use PATH as Keylime path
--i              Install IMA-related demo
--w              Install webserver-related demo
--t              Install TrustedGRUB2 (i386-pc w/ TPM) to /dev/sda
--T PATH         Install TrustedGRUB2 (i386-pc w/ TPM) to PATH
--n              No-password sudo for current user
--N USER         No-password sudo for user USER
--f              Full install (same as -niwt)
--y              No confirmations (feeling lucky)
+-p PORT         Port for the Node Monitor to listen on (defaults to 6892)
+-i IP           IP address for the Node Monitor (defaults to localhost)
+-s SCRIPT       Specify the script to execute when the node phones home
+-c CA_DIR       Tenant-generated certificate. Pass in the CA directory or 
+                use "default" to use the standard dir
 -h              This help info
 ```
 
-## Important Notes
-
-### Webserver Demo
-
-Both the keyfile.txt and autorun.sh files should be sent to the node (via "CA Dir" mode provisioning).  
-
-`keylime_tenant -t 192.168.0.100 -u my_node_id --cert default --include node_files_dir`
-
-The payload.enc file should be in the web server HTML directory (demo_setup.sh will put it there). 
-
-### TrustedGRUB
-
-Defaults to using https://github.com/Rohde-Schwarz-Cybersecurity/TrustedGRUB2 
-
-Caveats: This requires a physical TPM, otherwise your system will be *unbootable*.  
-It also does not support UEFI mode booting, so make sure you are using legacy boot in your BIOS settings.  
-It will be built for the i386-pc platform.
-
-### No-password sudo
-
-Obviously a bad idea unless done on a scrappable, demo-only system! 
+For example: 
+```
+python tenant_node_monitor.py -s tenant_node_monitor.sh
+```
 
 ## License
 

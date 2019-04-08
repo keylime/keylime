@@ -63,17 +63,17 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(tornado.web.RequestHandler):
     def head(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
     def delete(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
     def post(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
     def put(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface instead")
 
-class AgentsHandler(BaseHandler):
+class InstancesHandler(BaseHandler):
     db = None
     def initialize(self, db):
         self.db = db
@@ -83,103 +83,103 @@ class AgentsHandler(BaseHandler):
         common.echo_json_response(self, 405, "HEAD not supported")
   
     def get(self):
-        """This method handles the GET requests to retrieve status on agents from the Cloud Verifier. 
+        """This method handles the GET requests to retrieve status on instances from the Cloud Verifier. 
         
-        Currently, only agents resources are available for GETing, i.e. /agents. All other GET uri's 
-        will return errors. agents requests require a single agent_id parameter which identifies the 
-        agent to be returned. If the agent_id is not found, a 404 response is returned.  If the agent_id
-        was not found, it either completed successfully, or failed.  If found, the agent_id is still polling 
-        to contact the Cloud agent. 
+        Currently, only instances resources are available for GETing, i.e. /instances. All other GET uri's 
+        will return errors. instances requests require a single instance_id parameter which identifies the 
+        instance to be returned. If the instance_id is not found, a 404 response is returned.  If the instance_id
+        was not found, it either completed successfully, or failed.  If found, the instance_id is still polling 
+        to contact the Cloud Node. 
         """
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
-        if "agents" not in rest_params:
+        if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.request.path)
             return
         
-        agent_id = rest_params["agents"]
+        instance_id = rest_params["instances"]
         
-        if agent_id is not None:
-            agent = self.db.get_agent(agent_id)
-            if agent != None:
-                response = cloud_verifier_common.process_get_status(agent)
+        if instance_id is not None:
+            instance = self.db.get_instance(instance_id)
+            if instance != None:
+                response = cloud_verifier_common.process_get_status(instance)
                 common.echo_json_response(self, 200, "Success", response)
-                #logger.info('GET returning 200 response for agent_id: ' + agent_id)
+                #logger.info('GET returning 200 response for instance_id: ' + instance_id)
                 
             else:
-                #logger.info('GET returning 404 response. agent id: ' + agent_id + ' not found.')
-                common.echo_json_response(self, 404, "agent id not found")
+                #logger.info('GET returning 404 response. instance id: ' + instance_id + ' not found.')
+                common.echo_json_response(self, 404, "instance id not found")
         else:
             # return the available keys in the DB
-            json_response = self.db.get_agent_ids()
+            json_response = self.db.get_instance_ids()
             common.echo_json_response(self, 200, "Success", {'uuids':json_response})
-            logger.info('GET returning 200 response for agent_id list')
+            logger.info('GET returning 200 response for instance_id list')
             
     def delete(self):
-        """This method handles the DELETE requests to remove agents from the Cloud Verifier. 
+        """This method handles the DELETE requests to remove instances from the Cloud Verifier. 
          
-        Currently, only agents resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
-        agents requests require a single agent_id parameter which identifies the agent to be deleted.    
+        Currently, only instances resources are available for DELETEing, i.e. /instances. All other DELETE uri's will return errors.
+        instances requests require a single instance_id parameter which identifies the instance to be deleted.    
         """
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
-        if "agents" not in rest_params:
+        if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
             return
         
-        agent_id = rest_params["agents"]
+        instance_id = rest_params["instances"]
         
-        if agent_id is None:
+        if instance_id is None:
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('DELETE returning 400 response. uri not supported: ' + self.request.path)
                         
-        agent = self.db.get_agent(agent_id)
+        instance = self.db.get_instance(instance_id)
         
-        if agent is None:
-            common.echo_json_response(self, 404, "agent id not found")
-            logger.info('DELETE returning 404 response. agent id: ' + agent_id + ' not found.')
+        if instance is None:
+            common.echo_json_response(self, 404, "instance id not found")
+            logger.info('DELETE returning 404 response. instance id: ' + instance_id + ' not found.')
             return
                 
-        op_state =  agent['operational_state']
-        if op_state == cloud_verifier_common.CloudAgent_Operational_State.SAVED or \
-        op_state == cloud_verifier_common.CloudAgent_Operational_State.FAILED or \
-        op_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
-            self.db.remove_agent(agent_id)
+        op_state =  instance['operational_state']
+        if op_state == cloud_verifier_common.CloudInstance_Operational_State.SAVED or \
+        op_state == cloud_verifier_common.CloudInstance_Operational_State.FAILED or \
+        op_state == cloud_verifier_common.CloudInstance_Operational_State.INVALID_QUOTE:
+            self.db.remove_instance(instance_id)
             common.echo_json_response(self, 200, "Success")
-            logger.info('DELETE returning 200 response for agent id: ' + agent_id)
+            logger.info('DELETE returning 200 response for instance id: ' + instance_id)
         else:            
-            self.db.update_agent(agent_id, 'operational_state',cloud_verifier_common.CloudAgent_Operational_State.TERMINATED)
+            self.db.update_instance(instance_id, 'operational_state',cloud_verifier_common.CloudInstance_Operational_State.TERMINATED)
             common.echo_json_response(self, 202, "Accepted")
-            logger.info('DELETE returning 202 response for agent id: ' + agent_id)
+            logger.info('DELETE returning 202 response for instance id: ' + instance_id)
 
     @tornado.web.asynchronous                   
     def post(self):
-        """This method handles the POST requests to add agents to the Cloud Verifier. 
+        """This method handles the POST requests to add instances to the Cloud Verifier. 
          
-        Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's will return errors.
-        agents requests require a json block sent in the body
+        Currently, only instances resources are available for POSTing, i.e. /instances. All other POST uri's will return errors.
+        instances requests require a json block sent in the body
         """
         try:
             rest_params = common.get_restful_params(self.request.uri)
             if rest_params is None:
-                common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+                common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
                 return
             
-            if "agents" not in rest_params:
+            if "instances" not in rest_params:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning('POST returning 400 response. uri not supported: ' + self.request.path)
                 return
             
-            agent_id = rest_params["agents"]
+            instance_id = rest_params["instances"]
             
-            if agent_id is not None: # this is for new items
+            if instance_id is not None: # this is for new items
                 content_length = len(self.request.body)
                 if content_length==0:
                     common.echo_json_response(self, 400, "Expected non zero content length")
@@ -188,9 +188,9 @@ class AgentsHandler(BaseHandler):
                     json_body = json.loads(self.request.body)
                     d = {}
                     d['v'] = json_body['v']
-                    d['ip'] = json_body['cloudagent_ip']
-                    d['port'] = int(json_body['cloudagent_port'])
-                    d['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.START
+                    d['ip'] = json_body['cloudnode_ip']
+                    d['port'] = int(json_body['cloudnode_port'])
+                    d['operational_state'] = cloud_verifier_common.CloudInstance_Operational_State.START
                     d['public_key'] = ""
                     d['tpm_policy'] = json_body['tpm_policy']
                     d['vtpm_policy'] = json_body['vtpm_policy']
@@ -205,16 +205,16 @@ class AgentsHandler(BaseHandler):
                     d['enc_alg'] = ""
                     d['sign_alg'] = ""
                     
-                    new_agent = self.db.add_agent(agent_id,d)
+                    new_instance = self.db.add_instance(instance_id,d)
                     
                     # don't allow overwriting
-                    if new_agent is None:
-                        common.echo_json_response(self, 409, "agent of uuid %s already exists"%(agent_id))
-                        logger.warning("agent of uuid %s already exists"%(agent_id))
+                    if new_instance is None:
+                        common.echo_json_response(self, 409, "Node of uuid %s already exists"%(instance_id))
+                        logger.warning("Node of uuid %s already exists"%(instance_id))
                     else:    
-                        self.process_agent(new_agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
+                        self.process_instance(new_instance, cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE)
                         common.echo_json_response(self, 200, "Success")
-                        logger.info('POST returning 200 response for adding agent id: ' + agent_id)
+                        logger.info('POST returning 200 response for adding instance id: ' + instance_id)
             else:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
@@ -228,43 +228,43 @@ class AgentsHandler(BaseHandler):
 
     @tornado.web.asynchronous                   
     def put(self):
-        """This method handles the PUT requests to add agents to the Cloud Verifier. 
+        """This method handles the PUT requests to add instances to the Cloud Verifier. 
          
-        Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
-        agents requests require a json block sent in the body
+        Currently, only instances resources are available for PUTing, i.e. /instances. All other PUT uri's will return errors.
+        instances requests require a json block sent in the body
         """
         try:
             rest_params = common.get_restful_params(self.request.uri)
             if rest_params is None:
-                common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+                common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
                 return
             
-            if "agents" not in rest_params:
+            if "instances" not in rest_params:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning('PUT returning 400 response. uri not supported: ' + self.request.path)
                 return
             
-            agent_id = rest_params["agents"]
-            if agent_id is None:
+            instance_id = rest_params["instances"]
+            if instance_id is None:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
             
-            agent = self.db.get_agent(agent_id)
-            if agent is not None:
-                common.echo_json_response(self, 404, "agent id not found")
-                logger.info('PUT returning 404 response. agent id: ' + agent_id + ' not found.')
+            instance = self.db.get_instance(instance_id)
+            if instance is not None:
+                common.echo_json_response(self, 404, "instance id not found")
+                logger.info('PUT returning 404 response. instance id: ' + instance_id + ' not found.')
                 
             if "reactivate" in rest_params:
-                agent['operational_state']=cloud_verifier_common.CloudAgent_Operational_State.START
-                self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
+                instance['operational_state']=cloud_verifier_common.CloudInstance_Operational_State.START
+                self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE)
                 common.echo_json_response(self, 200, "Success")
-                logger.info('PUT returning 200 response for agent id: ' + agent_id)
+                logger.info('PUT returning 200 response for instance id: ' + instance_id)
             elif "stop" in rest_params:
                 # do stuff for terminate
-                logger.debug("Stopping polling on %s"%agent_id)
-                self.db.update_agent(agent_id,'operational_state',cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED)
+                logger.debug("Stopping polling on %s"%instance_id)
+                self.db.update_instance(instance_id,'operational_state',cloud_verifier_common.CloudInstance_Operational_State.TENANT_FAILED)
                 common.echo_json_response(self, 200, "Success")
-                logger.info('PUT returning 200 response for agent id: ' + agent_id)
+                logger.info('PUT returning 200 response for instance id: ' + instance_id)
             else:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
@@ -278,32 +278,32 @@ class AgentsHandler(BaseHandler):
         self.finish()
 
 
-    def invoke_get_quote(self, agent, need_pubkey):
-        params = cloud_verifier_common.prepare_get_quote(agent)
-        agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
+    def invoke_get_quote(self, instance, need_pubkey):
+        params = cloud_verifier_common.prepare_get_quote(instance)
+        instance['operational_state'] = cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE
         client = tornado.httpclient.AsyncHTTPClient()
         
         partial_req = "1"
         if need_pubkey:
             partial_req = "0"
         
-        url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(agent['ip'],agent['port'],params["nonce"],params["mask"],params['vmask'],partial_req) 
-        # the following line adds the agent and params arguments to the callback as a convenience
-        cb = functools.partial(self.on_get_quote_response, agent, url)
+        url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(instance['ip'],instance['port'],params["nonce"],params["mask"],params['vmask'],partial_req) 
+        # the following line adds the instance and params arguments to the callback as a convenience
+        cb = functools.partial(self.on_get_quote_response, instance, url)
         client.fetch(url, callback=cb)
     
-    def on_get_quote_response(self, agent, url, response):
-        if agent is None:
-            raise Exception("agent deleted while being processed")
+    def on_get_quote_response(self, instance, url, response):
+        if instance is None:
+            raise Exception("instance deleted while being processed")
         if response.error: 
             # this is a connection error, retry get quote
             if isinstance(response.error, IOError) or (isinstance(response.error, tornado.web.HTTPError) and response.error.code == 599):
-                self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE_RETRY)
+                self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE_RETRY)
             else:
                 #catastrophic error, do not continue
-                error = "Unexpected Get Quote response error for cloud agent " + agent['agent_id']  + ", Error: " + str(response.error)
+                error = "Unexpected Get Quote response error for cloud instance " + instance['instance_id']  + ", Error: " + str(response.error)
                 logger.critical(error)
-                self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
+                self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.FAILED)
         else:
             try:
  
@@ -311,21 +311,21 @@ class AgentsHandler(BaseHandler):
 #                with cloud_verifier_common.Timer() as t:
                     json_response = json.loads(response.body)
 
-                    # validate the cloud agent response
-                    if cloud_verifier_common.process_quote_response(agent, json_response['results']):
+                    # validate the cloud node response
+                    if cloud_verifier_common.process_quote_response(instance, json_response['results']):
                         #only write timing if the quote was successful
 #                         if self.time_series_log_file_base_name is not None:
 #                             self.time_series_log_file.write("%s\n" % time.time())
 #                             self.time_series_log_file.flush()
 #                         writeTime=True
                          
-                        if agent['provide_V']:
-                            self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V)
+                        if instance['provide_V']:
+                            self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.PROVIDE_V)
                         else:
-                            self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
+                            self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE)
                     else:
-                        self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE)
-                        cloud_verifier_common.notifyError(agent)
+                        self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.INVALID_QUOTE)
+                        cloud_verifier_common.notifyError(instance)
  
 #                 if self.get_q_log_file_base_name is not None and writeTime:
 #                     self.get_q_log_file.write("%s\n" % t.secs)
@@ -337,31 +337,31 @@ class AgentsHandler(BaseHandler):
 
 
 
-    def invoke_provide_v(self, agent):
-        if agent['pending_event'] is not None:
-            agent['pending_event'] = None
-        v_json_message = cloud_verifier_common.prepare_v(agent)
-        agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V
+    def invoke_provide_v(self, instance):
+        if instance['pending_event'] is not None:
+            instance['pending_event'] = None
+        v_json_message = cloud_verifier_common.prepare_v(instance)
+        instance['operational_state'] = cloud_verifier_common.CloudInstance_Operational_State.PROVIDE_V
         client = tornado.httpclient.AsyncHTTPClient()
-        url = "http://%s:%d/keys/vkey"%(agent['ip'],agent['port'])
-        cb = functools.partial(self.on_provide_v_response, agent, url)
+        url = "http://%s:%d/keys/vkey"%(instance['ip'],instance['port'])
+        cb = functools.partial(self.on_provide_v_response, instance, url)
         client.fetch(url, method="POST", callback=cb, headers=None, body=v_json_message)
     
-    def on_provide_v_response(self, agent, url_with_params, response):
-        if agent is None:
-            raise Exception("agent deleted while being processed")
+    def on_provide_v_response(self, instance, url_with_params, response):
+        if instance is None:
+            raise Exception("instance deleted while being processed")
         if response.error: 
             if isinstance(response.error, IOError) or (isinstance(response.error, tornado.web.HTTPError) and response.error.code == 599):
-                self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY)
+                self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.PROVIDE_V_RETRY)
             else:
                 #catastrophic error, do not continue
-                error = "Unexpected Provide V response error for cloud agent " + agent['agent_id']  + ", Error: " + str(response.error)
+                error = "Unexpected Provide V response error for cloud instance " + instance['instance_id']  + ", Error: " + str(response.error)
                 logger.critical(error)
-                self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
+                self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.FAILED)
         else:
-            self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
+            self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE)
  
-    def process_agent(self, agent, new_operational_state):
+    def process_instance(self, instance, new_operational_state):
         try:
             if agent is None:
                 #import traceback
@@ -369,96 +369,96 @@ class AgentsHandler(BaseHandler):
             main_agent_operational_state = agent['operational_state']
             stored_agent = self.db.get_agent(agent['agent_id'])
             
-            # if the user did terminated this agent
-            if stored_agent['operational_state'] == cloud_verifier_common.CloudAgent_Operational_State.TERMINATED:
-                logger.warning("Agent %s terminated by user."%agent['agent_id'])
-                if agent['pending_event'] is not None:
-                    tornado.ioloop.IOLoop.current().remove_timeout(agent['pending_event'])
-                self.db.remove_agent(agent['agent_id'])
+            # if the user did terminated this instance
+            if stored_instance['operational_state'] == cloud_verifier_common.CloudInstance_Operational_State.TERMINATED:
+                logger.warning("Instance %s terminated by user."%instance['instance_id'])
+                if instance['pending_event'] is not None:
+                    tornado.ioloop.IOLoop.current().remove_timeout(instance['pending_event'])
+                self.db.remove_instance(instance['instance_id'])
                 return
             
             # if the user tells us to stop polling because the tenant quote check failed
-            if stored_agent['operational_state']==cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED:
-                logger.warning("Agent %s has failed tenant quote.  stopping polling"%agent['agent_id'])
-                if agent['pending_event'] is not None:
-                    tornado.ioloop.IOLoop.current().remove_timeout(agent['pending_event'])
+            if stored_instance['operational_state']==cloud_verifier_common.CloudInstance_Operational_State.TENANT_FAILED:
+                logger.warning("Instance %s has failed tenant quote.  stopping polling"%instance['instance_id'])
+                if instance['pending_event'] is not None:
+                    tornado.ioloop.IOLoop.current().remove_timeout(instance['pending_event'])
                 return
             
             # If failed during processing, log regardless and drop it on the floor
             # The administration application (tenant) can GET the status and act accordingly (delete/retry/etc).  
-            if new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.FAILED or \
-                new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
-                agent['operational_state'] = new_operational_state
-                if agent['pending_event'] is not None:
-                    tornado.ioloop.IOLoop.current().remove_timeout(agent['pending_event'])
-                self.db.overwrite_agent(agent['agent_id'], agent)
-                logger.warning("Agent %s failed, stopping polling"%agent['agent_id'])
+            if new_operational_state == cloud_verifier_common.CloudInstance_Operational_State.FAILED or \
+                new_operational_state == cloud_verifier_common.CloudInstance_Operational_State.INVALID_QUOTE:
+                instance['operational_state'] = new_operational_state
+                if instance['pending_event'] is not None:
+                    tornado.ioloop.IOLoop.current().remove_timeout(instance['pending_event'])
+                self.db.overwrite_instance(instance['instance_id'], instance)
+                logger.warning("Instance %s failed, stopping polling"%instance['instance_id'])
                 return
             
             # propagate all state 
-            self.db.overwrite_agent(agent['agent_id'], agent)
+            self.db.overwrite_instance(instance['instance_id'], instance)
             
             # if new, get a quote
-            if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.START and \
-                new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE:
-                agent['num_retries']=0
-                self.invoke_get_quote(agent, True)
+            if main_instance_operational_state == cloud_verifier_common.CloudInstance_Operational_State.START and \
+                new_operational_state == cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE:
+                instance['num_retries']=0
+                self.invoke_get_quote(instance, True)
                 return
             
-            if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE and \
-                (new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V): 
-                agent['num_retries']=0
-                self.invoke_provide_v(agent)
+            if main_instance_operational_state == cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE and \
+                (new_operational_state == cloud_verifier_common.CloudInstance_Operational_State.PROVIDE_V): 
+                instance['num_retries']=0
+                self.invoke_provide_v(instance)
                 return
             
-            if (main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V or
-               main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE) and \
-                new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE: 
-                agent['num_retries']=0
+            if (main_instance_operational_state == cloud_verifier_common.CloudInstance_Operational_State.PROVIDE_V or
+               main_instance_operational_state == cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE) and \
+                new_operational_state == cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE: 
+                instance['num_retries']=0
                 interval = config.getfloat('cloud_verifier','quote_interval')
                 
                 if interval==0:
-                    self.invoke_get_quote(agent, False)
+                    self.invoke_get_quote(instance, False)
                 else:
                     #logger.debug("Setting up callback to check again in %f seconds"%interval)
                     # set up a call back to check again
-                    cb = functools.partial(self.invoke_get_quote, agent, False)
+                    cb = functools.partial(self.invoke_get_quote, instance, False)
                     pending = tornado.ioloop.IOLoop.current().call_later(interval,cb)
-                    agent['pending_event'] = pending
+                    instance['pending_event'] = pending
                 return
             
             maxr = config.getint('cloud_verifier','max_retries')
             retry = config.getfloat('cloud_verifier','retry_interval')
-            if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE and \
-                new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE_RETRY:
-                if agent['num_retries']>=maxr:
-                    logger.warning("Agent %s was not reachable for quote in %d tries, setting state to FAILED"%(agent['agent_id'],maxr))
-                    if agent['first_verified']: # only notify on previously good agents
-                        cloud_verifier_common.notifyError(agent,'comm_error')
+            if main_instance_operational_state == cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE and \
+                new_operational_state == cloud_verifier_common.CloudInstance_Operational_State.GET_QUOTE_RETRY:
+                if instance['num_retries']>=maxr:
+                    logger.warning("Instance %s was not reachable for quote in %d tries, setting state to FAILED"%(instance['instance_id'],maxr))
+                    if instance['first_verified']: # only notify on previously good instances
+                        cloud_verifier_common.notifyError(instance,'comm_error')
                     else:
-                        logger.debug("Communication error for new agent.  no notification will be sent")
-                    self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
+                        logger.debug("Communication error for new node.  no notification will be sent")
+                    self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.FAILED)
                 else:
-                    cb = functools.partial(self.invoke_get_quote, agent, True)
-                    agent['num_retries']+=1
-                    logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(agent['ip'],agent['num_retries'],maxr,retry))
+                    cb = functools.partial(self.invoke_get_quote, instance, True)
+                    instance['num_retries']+=1
+                    logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(instance['ip'],instance['num_retries'],maxr,retry))
                     tornado.ioloop.IOLoop.current().call_later(retry,cb)
                 return   
             
-            if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V and \
-                new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY:
-                if agent['num_retries']>=maxr:
-                    logger.warning("Agent %s was not reachable to provide v in %d tries, setting state to FAILED"%(agent['agent_id'],maxr))
-                    cloud_verifier_common.notifyError(agent,'comm_error')
-                    self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
+            if main_instance_operational_state == cloud_verifier_common.CloudInstance_Operational_State.PROVIDE_V and \
+                new_operational_state == cloud_verifier_common.CloudInstance_Operational_State.PROVIDE_V_RETRY:
+                if instance['num_retries']>=maxr:
+                    logger.warning("Instance %s was not reachable to provide v in %d tries, setting state to FAILED"%(instance['instance_id'],maxr))
+                    cloud_verifier_common.notifyError(instance,'comm_error')
+                    self.process_instance(instance, cloud_verifier_common.CloudInstance_Operational_State.FAILED)
                 else:
-                    cb = functools.partial(self.invoke_provide_v, agent)
-                    agent['num_retries']+=1
-                    logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(agent['ip'],agent['num_retries'],maxr,retry))
+                    cb = functools.partial(self.invoke_provide_v, instance)
+                    instance['num_retries']+=1
+                    logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(instance['ip'],instance['num_retries'],maxr,retry))
                     tornado.ioloop.IOLoop.current().call_later(retry,cb)
                 return
             
-            print agent
+            print instance
             raise Exception("nothing should ever fall out of this!")
    
         except Exception as e:
@@ -482,17 +482,17 @@ def main(argv=sys.argv):
     
     db_filename = "%s/%s"%(common.WORK_DIR,config.get('cloud_verifier','db_filename'))
     db = cloud_verifier_common.init_db(db_filename)
-    db.update_all_agents('operational_state', cloud_verifier_common.CloudAgent_Operational_State.SAVED)
+    db.update_all_instances('operational_state', cloud_verifier_common.CloudInstance_Operational_State.SAVED)
     
-    num = db.count_agents()
+    num = db.count_instances()
     if num>0:
-        logger.info("Agent ids in db loaded from file: %s"%db.get_agent_ids())
+        logger.info("Instance ids in db loaded from file: %s"%db.get_instance_ids())
 
     
     logger.info('Starting Cloud Verifier (tornado) on port ' + cloudverifier_port + ', use <Ctrl-C> to stop')
 
     app = tornado.web.Application([
-        (r"/(?:v[0-9]/)?agents/.*", AgentsHandler,{'db':db}),
+        (r"/(?:v[0-9]/)?instances/.*", InstancesHandler,{'db':db}),
         (r".*", MainHandler),
         ])
     

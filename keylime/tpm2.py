@@ -61,9 +61,9 @@ class tpm2(AbstractTPM):
         self.supported['sign'] = Set()
         
         # Grab which default algs the config requested
-        defaultHash = config.get('cloud_agent', "tpm_hash_alg")
-        defaultEncrypt = config.get('cloud_agent', "tpm_encryption_alg")
-        defaultSign = config.get('cloud_agent', "tpm_signing_alg")
+        defaultHash = config.get('cloud_node', "tpm_hash_alg")
+        defaultEncrypt = config.get('cloud_node', "tpm_encryption_alg")
+        defaultSign = config.get('cloud_node', "tpm_signing_alg")
         
         if self.need_hw_tpm:
             # Start up the TPM
@@ -220,11 +220,11 @@ class tpm2(AbstractTPM):
             # keep trying to get quote if a PCR race condition occurred in deluxe quote
             if fprt == "tpm2_deluxequote" and "Error validating calculated PCR composite with quote" in retout:
                 numtries += 1
-                maxr = self.config.getint('cloud_agent', 'max_retries')
+                maxr = self.config.getint('cloud_node', 'max_retries')
                 if numtries >= maxr:
-                    logger.error("agent did not return proper quote due to PCR race condition.")
+                    logger.error("Node did not return proper quote due to PCR race condition.")
                     break
-                retry = self.config.getfloat('cloud_agent', 'retry_interval')
+                retry = self.config.getfloat('cloud_node', 'retry_interval')
                 logger.info("Failed to get quote %d/%d times, trying again in %f seconds..."%(numtries, maxr, retry))
                 time.sleep(retry)
                 continue

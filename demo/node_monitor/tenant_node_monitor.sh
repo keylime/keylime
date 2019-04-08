@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 ##########################################################################################
 #
 # DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
@@ -9,7 +9,7 @@
 # this material are those of the author(s) and do not necessarily reflect the views of the 
 # Assistant Secretary of Defense for Research and Engineering.
 #
-# Copyright 2015 Massachusetts Institute of Technology.
+# Copyright 2017 Massachusetts Institute of Technology.
 #
 # The software/firmware is provided to you on an As-Is basis
 #
@@ -21,30 +21,5 @@
 #
 ##########################################################################################
 
+echo "Node $NODE_UUID has phoned home!"
 
-
-if [ $# -lt 3 ]
-then
-    echo "Usage:  `basename $0` ip port_range_start number_of_entries" >&2
-    exit $NOARGS;
-fi
-
-
-# usage ip port_start number
-
-IP=$1
-PORT_START=$2
-NUM=$3
-
-
-PORT_END=$(($PORT_START+$NUM))
-
-# truncate files
-> cloudnode_port.txt
-> cloudnode_ip.txt
-
-for i in `seq $PORT_START $PORT_END`
-do
-	echo $i >> cloudnode_port.txt
-	echo $IP >> cloudnode_ip.txt
-done

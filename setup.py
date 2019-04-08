@@ -140,7 +140,7 @@ setup(
     entry_points={
         'console_scripts': [
             'keylime_verifier=keylime.cloud_verifier_tornado:main',
-            'keylime_agent=keylime.cloud_agent:main',
+            'keylime_node=keylime.cloud_node:main',
             'keylime_tenant=keylime.tenant:main',
             'keylime_userdata_encrypt=keylime.user_data_encrypt:main',
             'keylime_registrar=keylime.registrar:main',

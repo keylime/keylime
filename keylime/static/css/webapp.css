@@ -1,26 +1,26 @@
-/*
+/* 
  * DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
  *
- * This material is based upon work supported by the Assistant Secretary of Defense for
- * Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
- * FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in
- * this material are those of the author(s) and do not necessarily reflect the views of the
+ * This material is based upon work supported by the Assistant Secretary of Defense for 
+ * Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
+ * FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in 
+ * this material are those of the author(s) and do not necessarily reflect the views of the 
  * Assistant Secretary of Defense for Research and Engineering.
  *
  * Copyright 2017 Massachusetts Institute of Technology.
  *
  * The software/firmware is provided to you on an As-Is basis
  *
- * Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
- * 252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
- * rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
- * above. Use of this work other than as specifically authorized by the U.S. Government may
+ * Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
+ * 252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
+ * rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
+ * above. Use of this work other than as specifically authorized by the U.S. Government may 
  * violate any copyrights that exist in this work.
 */
 
 html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sans-serif;}
 
-/* 'Add agent' modal dialogue box theme */
+/* 'Add node' modal dialogue box theme */
 #modal_box {display:none;position:fixed;z-index:1;left:0;top:0;width:100%;height:100%;overflow:auto;background-color:#000000;background-color:rgba(0,0,0,0.6);}
 #modal_body  {width:50%;min-width:500px;max-width:750px;min-height:300px;max-height:500px;overflow:auto;border:2px solid #112299;padding:15px;margin:5% auto;background-color:#ffffff;}
 .form_block {padding:10px;}
@@ -37,20 +37,20 @@ html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sa
 #header_banner {background:#dda;width:65%;float:left;text-align:center;padding:5px;color:#000;min-height:100px;line-height:100px;vertical-align:middle;}
 .logo {background:#dda url('/static/icons/png/keylime.png') no-repeat center;background-size:110px 110px;padding:5px;width:15%;float:left;min-height:145px;line-height:145px;vertical-align:middle;}
 
-/* agent boxes and containers */
-#agent_container {list-style-type: none;}
+/* Node boxes and containers */
+#node_container {list-style-type: none;}
 #terminal-frame {margin-top:25px;margin-left:10px;background-color:#000088;border:2px solid #dddddd;width:50%;min-width:500px;max-width:750px;}
 #terminal-header {padding:3px;background-color:#dddddd;font-weight:bold;cursor:pointer;}
 #terminal {width:100%;min-width:500px;max-width:750px;height:400px;background-color:#000088;color:#ffff00;overflow-x:auto;font-family:monospace;font-size:medium;}
 
-/* Each agent instance for the 'agents' table */
-#agent_body {padding:10px;}
+/* Each node instance for 'instances' table */
+#instance_body {padding:10px;}
 .table_header {font-weight:bold;}
 .table_control {width:50px;display:block;float:left;text-align:center;padding:5px;}
 .table_col {width:200px;display:block;float:left;text-align:center;padding:5px;}
 
-.tbl_ctrl, .tbl_ctrl_inactive,
-    .tbl_ctrl_processing, .tbl_ctrl_processed,
+.tbl_ctrl, .tbl_ctrl_inactive, 
+    .tbl_ctrl_processing, .tbl_ctrl_processed, 
     .tbl_ctrl_failed, .tbl_ctrl_invalid {margin:2px;width:50px;display:block;float:left;text-align:center;padding:5px;cursor:pointer;}
 .tbl_ctrl_inactive {background:#BEBEBE url('/static/icons/png/plus-2x.png') no-repeat center;}
 .tbl_ctrl_processing {background:#FFFF00 url('/static/icons/png/trash-2x.png') no-repeat center;}
@@ -58,8 +58,8 @@ html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sa
 .tbl_ctrl_failed {background:#FF6666 url('/static/icons/png/bug-2x.png') no-repeat center;}
 .tbl_ctrl_invalid {background:#FF6666 url('/static/icons/png/ban-2x.png') no-repeat center;}
 
-.tbl_col, .tbl_col_inactive,
-    .tbl_col_processing, .tbl_col_processed,
+.tbl_col, .tbl_col_inactive, 
+    .tbl_col_processing, .tbl_col_processed, 
     .tbl_col_failed, .tbl_col_invalid {margin:2px;width:200px;display:block;float:left;text-align:center;padding:5px;}
 .tbl_col_inactive {background-color:#BEBEBE;}
 .tbl_col_processing {background-color:#FFFF00;}
@@ -67,8 +67,8 @@ html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sa
 .tbl_col_failed {background-color:#FF6666;}
 .tbl_col_invalid {background-color:#FF6666;}
 
-.tbl_det, .tbl_det_inactive,
-    .tbl_det_processing, .tbl_det_processed,
+.tbl_det, .tbl_det_inactive, 
+    .tbl_det_processing, .tbl_det_processed, 
     .tbl_det_failed, .tbl_det_invalid {margin-left:66px;padding:15px;width:608px;overflow:auto;}
 .tbl_det_inactive {background-color:#BEBEBE;}
 .tbl_det_processing {background-color:#FFFF00;}

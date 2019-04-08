@@ -60,54 +60,54 @@ class ProtectedHandler(BaseHTTPRequestHandler):
         return  
        
     def do_GET(self):
-        """This method handles the GET requests to retrieve status on agents from the Registrar Server. 
+        """This method handles the GET requests to retrieve status on instances from the Registrar Server. 
         
-        Currently, only agents resources are available for GETing, i.e. /agents. All other GET uri's 
-        will return errors. agents requests require a single agent_id parameter which identifies the 
-        agent to be returned. If the agent_id is not found, a 404 response is returned.
+        Currently, only instances resources are available for GETing, i.e. /instances. All other GET uri's 
+        will return errors. instances requests require a single instance_id parameter which identifies the 
+        instance to be returned. If the instance_id is not found, a 404 response is returned.
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
-        if "agents" not in rest_params:
+        if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.path)
             return
         
-        agent_id = rest_params["agents"]
+        instance_id = rest_params["instances"]
         
-        if agent_id is not None:
-            agent = self.server.db.get_agent(agent_id)
+        if instance_id is not None:
+            instance = self.server.db.get_instance(instance_id)
             
-            if agent is None:
-                common.echo_json_response(self, 404, "agent_id not found")
-                logger.warning('GET returning 404 response. agent_id ' + agent_id + ' not found.')  
+            if instance is None:
+                common.echo_json_response(self, 404, "instance_id not found")
+                logger.warning('GET returning 404 response. instance_id ' + instance_id + ' not found.')  
                 return      
             
-            if not agent['active']:
-                common.echo_json_response(self, 404, "agent_id not yet active")
-                logger.warning('GET returning 404 response. agent_id ' + agent_id + ' not yet active.')  
+            if not instance['active']:
+                common.echo_json_response(self, 404, "instance_id not yet active")
+                logger.warning('GET returning 404 response. instance_id ' + instance_id + ' not yet active.')  
                 return      
             
             response = {
-                'aik': agent['aik'],
-                'ek': agent['ek'],
-                'ekcert': agent['ekcert'],
-                'regcount': agent['regcount'],
+                'aik': instance['aik'],
+                'ek': instance['ek'],
+                'ekcert': instance['ekcert'],
+                'regcount': instance['regcount'],
             }
             
-            if agent['virtual']:
-                response['provider_keys']= agent['provider_keys']
+            if instance['virtual']:
+                response['provider_keys']= instance['provider_keys']
             
             common.echo_json_response(self, 200, "Success", response)
-            logger.info('GET returning 200 response for agent_id:' + agent_id)
+            logger.info('GET returning 200 response for instance_id:' + instance_id)
         else:
             # return the available registered uuids from the DB
-            json_response = self.server.db.get_agent_ids()
+            json_response = self.server.db.get_instance_ids()
             common.echo_json_response(self, 200, "Success", {'uuids':json_response})
-            logger.info('GET returning 200 response for agent_id list')
+            logger.info('GET returning 200 response for instance_id list')
         
         return
 
@@ -123,25 +123,25 @@ class ProtectedHandler(BaseHTTPRequestHandler):
         return 
 
     def do_DELETE(self):
-        """This method handles the DELETE requests to remove agents from the Registrar Server. 
+        """This method handles the DELETE requests to remove instances from the Registrar Server. 
         
-        Currently, only agents resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
-        agents requests require a single agent_id parameter which identifies the agent to be deleted.    
+        Currently, only instances resources are available for DELETEing, i.e. /instances. All other DELETE uri's will return errors.
+        instances requests require a single instance_id parameter which identifies the instance to be deleted.    
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
-        if "agents" not in rest_params:
+        if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
-            logger.warning('DELETE agent returning 400 response. uri not supported: ' + self.path)
+            logger.warning('DELETE instance returning 400 response. uri not supported: ' + self.path)
             return
         
-        agent_id = rest_params["agents"]
+        instance_id = rest_params["instances"]
         
-        if agent_id is not None:
-            if self.server.db.remove_agent(agent_id):
+        if instance_id is not None:
+            if self.server.db.remove_instance(instance_id):
                 #send response
                 common.echo_json_response(self, 200, "Success")
                 return
@@ -174,34 +174,34 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
         return  
 
     def do_POST(self):
-        """This method handles the POST requests to add agents to the Registrar Server.
+        """This method handles the POST requests to add instances to the Registrar Server.
         
-        Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's
-        will return errors. POST requests require an an agent_id identifying the agent to add, and json
+        Currently, only instances resources are available for POSTing, i.e. /instances. All other POST uri's
+        will return errors. POST requests require an an instance_id identifying the instance to add, and json
         block sent in the body with 2 entries: ek and aik.  
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
-        if "agents" not in rest_params:
+        if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
-            logger.warning('POST agent returning 400 response. uri not supported: ' + self.path)
+            logger.warning('POST instance returning 400 response. uri not supported: ' + self.path)
             return
         
-        agent_id = rest_params["agents"]
+        instance_id = rest_params["instances"]
         
-        if agent_id is None:
-            common.echo_json_response(self, 400, "agent id not found in uri")
-            logger.warning('POST agent returning 400 response. agent id not found in uri ' + self.path)
+        if instance_id is None:
+            common.echo_json_response(self, 400, "instance id not found in uri")
+            logger.warning('POST instance returning 400 response. instance id not found in uri ' + self.path)
             return
         
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             if content_length == 0:
                 common.echo_json_response(self, 400, "Expected non zero content length")
-                logger.warning('POST for ' + agent_id + ' returning 400 response. Expected non zero content length.')
+                logger.warning('POST for ' + instance_id + ' returning 400 response. Expected non zero content length.')
                 return
             
             post_body = self.rfile.read(content_length)
@@ -216,22 +216,22 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             
             # try to encrypt the AIK
             tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
-            (blob,key) = tpm.encryptAIK(agent_id,aik,ek,ek_tpm,aik_name)
+            (blob,key) = tpm.encryptAIK(instance_id,aik,ek,ek_tpm,aik_name)
             
             # special behavior if we've registered this uuid before
             regcount = 1
-            agent = self.server.db.get_agent(agent_id)
-            if agent is not None:
+            instance = self.server.db.get_instance(instance_id)
+            if instance is not None:
                 
                 # keep track of how many ek-ekcerts have registered on this uuid
-                regcount = agent['regcount']
-                if agent['ek'] != ek or agent['ekcert'] != ekcert:
+                regcount = instance['regcount']
+                if instance['ek'] != ek or instance['ekcert'] != ekcert:
                     logger.warning('WARNING: Overwriting previous registration for this UUID with new ek-ekcert pair!')
                     regcount += 1
                 
                 # force overwrite
                 logger.info('Overwriting previous registration for this UUID.')
-                self.server.db.remove_agent(agent_id)
+                self.server.db.remove_instance(instance_id)
             
             d={}
             d['ek']=ek
@@ -243,13 +243,13 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             d['tpm_version']=tpm_version
             d['provider_keys']={}
             d['regcount']=regcount
-            self.server.db.add_agent(agent_id, d)
+            self.server.db.add_instance(instance_id, d)
             response = {
                     'blob': blob,
             }
             common.echo_json_response(self, 200, "Success", response)
             
-            logger.info('POST returning key blob for agent_id: ' + agent_id)
+            logger.info('POST returning key blob for instance_id: ' + instance_id)
             return
         except Exception as e:
             common.echo_json_response(self, 400, "Error: %s"%e)
@@ -259,33 +259,33 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
 
 
     def do_PUT(self):
-        """This method handles the PUT requests to add agents to the Registrar Server.
+        """This method handles the PUT requests to add instances to the Registrar Server.
         
-        Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's
+        Currently, only instances resources are available for PUTing, i.e. /instances. All other PUT uri's
         will return errors.
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /instances/ interface")
             return
         
-        if "agents" not in rest_params:
+        if "instances" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
-            logger.warning('PUT agent returning 400 response. uri not supported: ' + self.path)
+            logger.warning('PUT instance returning 400 response. uri not supported: ' + self.path)
             return
         
-        agent_id = rest_params["agents"]
+        instance_id = rest_params["instances"]
         
-        if agent_id is None:
-            common.echo_json_response(self, 400, "agent id not found in uri")
-            logger.warning('PUT agent returning 400 response. agent id not found in uri ' + self.path)
+        if instance_id is None:
+            common.echo_json_response(self, 400, "instance id not found in uri")
+            logger.warning('PUT instance returning 400 response. instance id not found in uri ' + self.path)
             return
 
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             if content_length == 0:
                 common.echo_json_response(self, 400, "Expected non zero content length")
-                logger.warning('PUT for ' + agent_id + ' returning 400 response. Expected non zero content length.')
+                logger.warning('PUT for ' + instance_id + ' returning 400 response. Expected non zero content length.')
                 return 
         
             post_body = self.rfile.read(content_length)
@@ -294,51 +294,51 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             if "activate" in rest_params:
                 auth_tag=json_body['auth_tag']
                 
-                agent = self.server.db.get_agent(agent_id)
-                if agent is None:
-                    raise Exception("attempting to activate agent before requesting registrar for %s"%agent_id)
+                instance = self.server.db.get_instance(instance_id)
+                if instance is None:
+                    raise Exception("attempting to activate instance before requesting registrar for %s"%instance_id)
          
-                if agent['virtual']:
-                    raise Exception("attempting to activate virtual AIK using physical interface for %s"%agent_id)
+                if instance['virtual']:
+                    raise Exception("attempting to activate virtual AIK using physical interface for %s"%instance_id)
                 
                 if common.STUB_TPM:
-                    self.server.db.update_agent(agent_id, 'active',True)
+                    self.server.db.update_instance(instance_id, 'active',True)
                 else:
-                    ex_mac = crypto.do_hmac(base64.b64decode(agent['key']),agent_id)
+                    ex_mac = crypto.do_hmac(base64.b64decode(instance['key']),instance_id)
                     if ex_mac == auth_tag:
-                        self.server.db.update_agent(agent_id, 'active',True)
+                        self.server.db.update_instance(instance_id, 'active',True)
                     else:
                         raise Exception("Auth tag %s does not match expected value %s"%(auth_tag,ex_mac))
                 
                 common.echo_json_response(self, 200, "Success")
-                logger.info('PUT activated: ' + agent_id)      
+                logger.info('PUT activated: ' + instance_id)      
             elif "vactivate" in rest_params:
                 deepquote = json_body.get('deepquote',None)
 
-                agent = self.server.db.get_agent(agent_id)
-                if agent is None:
-                    raise Exception("attempting to activate agent before requesting registrar for %s"%agent_id)
+                instance = self.server.db.get_instance(instance_id)
+                if instance is None:
+                    raise Exception("attempting to activate instance before requesting registrar for %s"%instance_id)
                       
-                if not agent['virtual']:
-                    raise Exception("attempting to activate physical AIK using virtual interface for %s"%agent_id)
+                if not instance['virtual']:
+                    raise Exception("attempting to activate physical AIK using virtual interface for %s"%instance_id)
                 
                 # get an physical AIK for this host
                 registrar_client.init_client_tls(config, 'registrar')
-                provider_keys = registrar_client.getKeys(config.get('general', 'provider_registrar_ip'), config.get('general', 'provider_registrar_tls_port'), agent_id)
+                provider_keys = registrar_client.getKeys(config.get('general', 'provider_registrar_ip'), config.get('general', 'provider_registrar_tls_port'), instance_id)
                 # we already have the vaik
-                tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=agent['tpm_version'])
-                if not tpm.check_deep_quote(hashlib.sha1(agent['key']).hexdigest(),
-                                                  agent_id+agent['aik']+agent['ek'], 
+                tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=instance['tpm_version'])
+                if not tpm.check_deep_quote(hashlib.sha1(instance['key']).hexdigest(),
+                                                  instance_id+instance['aik']+instance['ek'], 
                                                   deepquote,  
-                                                  agent['aik'],  
+                                                  instance['aik'],  
                                                   provider_keys['aik']):
                     raise Exception("Deep quote invalid")
                 
-                self.server.db.update_agent(agent_id, 'active',True)
-                self.server.db.update_agent(agent_id, 'provider_keys',provider_keys)
+                self.server.db.update_instance(instance_id, 'active',True)
+                self.server.db.update_instance(instance_id, 'provider_keys',provider_keys)
                 
                 common.echo_json_response(self, 200, "Success")
-                logger.info('PUT activated: ' + agent_id)           
+                logger.info('PUT activated: ' + instance_id)           
             else:
                 pass           
         except Exception as e:
@@ -387,7 +387,7 @@ class UnprotectedRegistrarServer(ThreadingMixIn, HTTPServer):
 def init_db(dbname):
     # in the form key, SQL type
     cols_db = {
-        'agent_id': 'TEXT PRIMARY_KEY',
+        'instance_id': 'TEXT PRIMARY_KEY',
         'key': 'TEXT',
         'aik': 'TEXT',
         'ek': 'TEXT',
@@ -420,7 +420,7 @@ def start(tlsport,port,dbfile):
     
     
     db = init_db("%s/%s"%(common.WORK_DIR,dbfile))
-    count = db.count_agents()
+    count = db.count_instances()
     if count>0:
         logger.info("Loaded %d public keys from database"%count)
     

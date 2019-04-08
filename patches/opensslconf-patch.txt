@@ -8,6 +8,6 @@ index c643e6b..5c731d2 100644
  # revocation list generation is only supported by cfssl
 -ca_implementation = cfssl
 +ca_implementation = openssl
-
+ 
  #=============================================================================
- [cloud_agent]
+ [cloud_node]

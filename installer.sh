@@ -119,7 +119,7 @@ while getopts ":shotkmp:" opt; do
             echo "Options:"
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
             echo $'-o \t\t\t\t Use OpenSSL instead of CFSSL'
-            echo $'-t \t\t\t\t Create tarball with keylime_agent'
+            echo $'-t \t\t\t\t Create tarball with keylime_node'
             echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
             echo $'-s \t\t\t\t Install TPM in socket/simulator mode (vs. chardev)'
             echo $'-p PATH \t\t\t Use PATH as Keylime path'
@@ -507,16 +507,16 @@ else
     cp -n keylime.conf /etc/
 fi
 
-# Run agent packager (tarball)
+# Run node packager (tarball)
 if [[ "$TARBALL" -eq "1" ]] ; then
     echo 
     echo "=================================================================================="
-    echo $'\t\t\t\tGenerate agent tarball'
+    echo $'\t\t\t\tGenerate node tarball'
     echo "=================================================================================="
     cd $KEYLIME_DIR/keylime
     TAR_BUNDLE_FLAGS=""
     if [[ "$TPM_VERSION" -eq "2" ]] ; then
         TAR_BUNDLE_FLAGS="-m"
     fi
-    ./make_agent_bundle_tarball.sh $TAR_BUNDLE_FLAGS
+    ./make_node_bundle_tarball.sh $TAR_BUNDLE_FLAGS
 fi

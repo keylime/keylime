@@ -14,10 +14,10 @@ class Sqlite_Test(unittest.TestCase):
     def test_sql(self):
         # test invalid coldb
         cols_db = {
-            'agent_ids': 'TEXT PRIMARY_KEY',
+            'instance_ids': 'TEXT PRIMARY_KEY',
             }
         
-        with self.assertRaisesRegexp(Exception,'the primary key of the database must be agent_id'):
+        with self.assertRaisesRegexp(Exception,'the primary key of the database must be instance_id'):
             _ = KeylimeDB(None,cols_db,[],{})
             
         # testing
@@ -28,7 +28,7 @@ class Sqlite_Test(unittest.TestCase):
             
         # in the form key, SQL type
         cols_db = {
-            'agent_id': 'TEXT PRIMARY_KEY',
+            'instance_id': 'TEXT PRIMARY_KEY',
             'v': 'TEXT',
             'ip': 'TEXT',
             'port': 'INT',
@@ -58,9 +58,9 @@ class Sqlite_Test(unittest.TestCase):
         
         json_body = {
             'v': 'vbaby',
-            'agent_id': '209483',
-            'cloudagent_ip': 'ipaddy',
-            'cloudagent_port': '39843',
+            'instance_id': '209483',
+            'cloudnode_ip': 'ipaddy',
+            'cloudnode_port': '39843',
             'tpm_policy': '{"atpm":"1"}',
             'vtpm_policy': '{"abv":"1"}',
             'ima_whitelist': '{"abi":"1"}',
@@ -74,9 +74,9 @@ class Sqlite_Test(unittest.TestCase):
         
         json_body2 = {
             'v': 'vbaby',
-            'agent_id': '2094aqrea3',
-            'cloudagent_ip': 'ipaddy',
-            'cloudagent_port': '39843',
+            'instance_id': '2094aqrea3',
+            'cloudnode_ip': 'ipaddy',
+            'cloudnode_port': '39843',
             'tpm_policy': '{"a":"1"}',
             'vtpm_policy': '{"ab":"1"}',
             'ima_whitelist': '{"ab":"1"}',
@@ -92,61 +92,61 @@ class Sqlite_Test(unittest.TestCase):
         
         #some DB testing stuff
         # test add/get
-        db.add_agent('209483',json_body)
-        got= db.get_agent(209483)
+        db.add_instance('209483',json_body)
+        got= db.get_instance(209483)
         self.assertEqual(json_body['metadata'], got['metadata'])
         
         # test disallowed overwrite
-        self.assertEqual(db.add_agent('209483',json_body), None)
+        self.assertEqual(db.add_instance('209483',json_body), None)
         
         # test update
-        db.update_agent('209483','v','NEWVVV')
-        got= db.get_agent(209483)
+        db.update_instance('209483','v','NEWVVV')
+        got= db.get_instance(209483)
         self.assertEqual(got['v'], 'NEWVVV')
         
         # test invalid update
         with self.assertRaises(Exception):
-            db.update_agent('209483','vee','NEWVVV')
+            db.update_instance('209483','vee','NEWVVV')
         
         #test remove
-        db.remove_agent('209483')
-        self.assertEqual(db.get_agent_ids(),[])
+        db.remove_instance('209483')
+        self.assertEqual(db.get_instance_ids(),[])
         
         # test remove nothing
-        self.assertEqual(db.remove_agent('209483'), False)
+        self.assertEqual(db.remove_instance('209483'), False)
 
         # test get multiple ids
-        db.add_agent('209483',json_body)
-        db.add_agent('2094aqrea3',json_body2)
-        self.assertEqual(db.get_agent_ids(),['209483','2094aqrea3'])
+        db.add_instance('209483',json_body)
+        db.add_instance('2094aqrea3',json_body2)
+        self.assertEqual(db.get_instance_ids(),['209483','2094aqrea3'])
     
         #testing overwrite
-        agent = db.get_agent('2094aqrea3')
-        agent['agent_id']=209483
-        agent['v']='OVERWRITTENVVVV'
-        db.overwrite_agent(209483, agent)
-        self.assertEqual(db.get_agent(209483)['v'],'OVERWRITTENVVVV')
+        instance = db.get_instance('2094aqrea3')
+        instance['instance_id']=209483
+        instance['v']='OVERWRITTENVVVV'
+        db.overwrite_instance(209483, instance)
+        self.assertEqual(db.get_instance(209483)['v'],'OVERWRITTENVVVV')
         
         # test update all
-        db.update_all_agents('operational_state', 2)
+        db.update_all_instances('operational_state', 2)
         
-        self.assertEqual(db.get_agent(209483)['operational_state'], 2)
-        self.assertEqual(db.get_agent('2094aqrea3')['operational_state'], 2)
+        self.assertEqual(db.get_instance(209483)['operational_state'], 2)
+        self.assertEqual(db.get_instance('2094aqrea3')['operational_state'], 2)
         
         with self.assertRaises(Exception):
-            db.update_all_agents('operational_stateaaaa', 2)
+            db.update_all_instances('operational_stateaaaa', 2)
             
         # test count
-        self.assertEqual(db.count_agents(), 2)
+        self.assertEqual(db.count_instances(), 2)
         
         # test print
         db.print_db()
         
         # test update all with json
-        db.update_all_agents('vtpm_policy', '{"abv":"2"}')
+        db.update_all_instances('vtpm_policy', '{"abv":"2"}')
         
-        self.assertEqual(db.get_agent(209483)['vtpm_policy'], '{"abv":"2"}')
-        self.assertEqual(db.get_agent('2094aqrea3')['vtpm_policy'], '{"abv":"2"}')
+        self.assertEqual(db.get_instance(209483)['vtpm_policy'], '{"abv":"2"}')
+        self.assertEqual(db.get_instance('2094aqrea3')['vtpm_policy'], '{"abv":"2"}')
 
 if __name__ == '__main__':
     unittest.main()

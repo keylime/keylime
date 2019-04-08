@@ -206,7 +206,7 @@
 10 d09349a60461558c35a7d54a5e5fc46e78ddd621 ima 0633935bea94ffa21495127c859c4744338dd796 /lib/systemd/system/sys-kernel-config.mount
 10 010ce5b9e6e47fbba9570bb94c4d02b4cfee1534 ima c5e2ba84c06e1340aa2cee4917f034fbc52432cb /lib/systemd/system/systemd-hwdb-update.service
 10 02889950415fd92d9efde3b73be6786155b5ca2d ima ab99878d8d7a7831665f9afda53c26a06d5d308a /lib/systemd/system/systemd-tmpfiles-setup-dev.service
-10 e348f50c7298d33e2e99ea882e4666e70f7f45dc ima 4ede83c2caf9602514a436189756db673a570b14 /lib/systemd/system/kmod-static-agents.service
+10 e348f50c7298d33e2e99ea882e4666e70f7f45dc ima 4ede83c2caf9602514a436189756db673a570b14 /lib/systemd/system/kmod-static-nodes.service
 10 3e22704a9d2bd591029477a5d85056487722f320 ima be2b142b0a380548e921df7aea4e4027a40fc86a /lib/systemd/system/systemd-journal-flush.service
 10 7b3cfd705d874c16ee3bd4f04ec27df0405a5ce6 ima 7cf16de7cd158f9ba4264a9dc62155f3e8880ea7 /lib/systemd/system/systemd-user-sessions.service
 10 e20d02b7ab62fdb486a7793a33517345f818cf1c ima 9df3df9e7a45a23aebe6c8e6d63d8fa124df3f50 /lib/systemd/system/nss-user-lookup.target
