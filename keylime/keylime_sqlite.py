@@ -39,8 +39,8 @@ class KeylimeDB():
         self.json_cols_db = json_cols_db
         self.exclude_db = exclude_db
         
-        if 'instance_id' not in cols_db or 'PRIMARY_KEY' not in cols_db['instance_id']:
-            raise Exception("the primary key of the database must be instance_id")
+        if 'agent_id' not in cols_db or 'PRIMARY_KEY' not in cols_db['agent_id']:
+            raise Exception("the primary key of the database must be agent_id")
         
         # turn off persistence by default in development mode
         if common.DEVELOP_IN_ECLIPSE and os.path.exists(self.db_filename):
@@ -75,19 +75,19 @@ class KeylimeDB():
             for row in rows:
                 print row
             
-    def add_defaults(self,instance):
+    def add_defaults(self,agent):
         for key in self.exclude_db.keys():
-            instance[key] = self.exclude_db[key]
-        return instance
+            agent[key] = self.exclude_db[key]
+        return agent
             
-    def add_instance(self,instance_id, d):        
+    def add_agent(self,agent_id, d):        
         d = self.add_defaults(d)
         
-        d['instance_id']=instance_id
+        d['agent_id']=agent_id
     
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
-            cur.execute('SELECT * from main where instance_id=?',(d['instance_id'],))
+            cur.execute('SELECT * from main where agent_id=?',(d['agent_id'],))
             rows = cur.fetchall()
             # don't allow overwrite
             if len(rows)>0:
@@ -96,7 +96,7 @@ class KeylimeDB():
             insertlist = []
             for key in sorted(self.cols_db.keys()):
                 v = d[key]
-                if key in self.json_cols_db and (isinstance(d[key],dict) or isinstance(d[key],list)):
+                if key in self.json_cols_db and (isagent(d[key],dict) or isagent(d[key],list)):
                     v = json.dumps(d[key])
                 insertlist.append(v)
             
@@ -106,24 +106,24 @@ class KeylimeDB():
             
         # these are JSON strings and should be converted to dictionaries
         for item in self.json_cols_db:
-            if d[item] is not None and isinstance(d[item],basestring):
+            if d[item] is not None and isagent(d[item],basestring):
                 d[item] = json.loads(d[item])
                                       
         return d
 
-    def remove_instance(self,instance_id):
+    def remove_agent(self,agent_id):
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
-            cur.execute('SELECT * from main where instance_id=?',(instance_id,))
+            cur.execute('SELECT * from main where agent_id=?',(agent_id,))
             rows = cur.fetchall()
             if len(rows)==0:
                 return False
-            cur.execute('DELETE FROM main WHERE instance_id=?',(instance_id,))
+            cur.execute('DELETE FROM main WHERE agent_id=?',(agent_id,))
             conn.commit()
         
         return True
         
-    def update_instance(self,instance_id, key, value):
+    def update_agent(self,agent_id, key, value):
         if key not in self.cols_db.keys():
             raise Exception("Database key %s not in schema: %s"%(key,self.cols_db.keys()))
         
@@ -132,12 +132,12 @@ class KeylimeDB():
             # marshall back to string
             if key in self.json_cols_db:
                 value = json.dumps(value)
-            cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(value,instance_id))
+            cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(value,agent_id))
             conn.commit()
         
         return
     
-    def update_all_instances(self,key,value):
+    def update_all_agents(self,key,value):
         if key not in self.cols_db.keys():
             raise Exception("Database key %s not in schema: %s"%(key,self.cols_db.keys()))
         
@@ -150,10 +150,10 @@ class KeylimeDB():
             conn.commit()
         return
        
-    def get_instance(self,instance_id):
+    def get_agent(self,agent_id):
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
-            cur.execute('SELECT * from main where instance_id=?',(instance_id,))
+            cur.execute('SELECT * from main where agent_id=?',(agent_id,))
             rows = cur.fetchall()
             if len(rows)==0:
                 return None
@@ -168,11 +168,11 @@ class KeylimeDB():
             d = self.add_defaults(d)
             return d
     
-    def get_instance_ids(self):
+    def get_agent_ids(self):
         with sqlite3.connect(self.db_filename) as conn:
             retval = []
             cur = conn.cursor()
-            cur.execute('SELECT instance_id from main')
+            cur.execute('SELECT agent_id from main')
             rows = cur.fetchall()
             if len(rows)==0:
                 return retval
@@ -180,19 +180,19 @@ class KeylimeDB():
                 retval.append(i[0])
             return retval
 
-    def count_instances(self):
-        return len(self.get_instance_ids())
+    def count_agents(self):
+        return len(self.get_agent_ids())
 
-    def overwrite_instance(self,instance_id,instance):
+    def overwrite_agent(self,agent_id,agent):
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
             for key in self.cols_db.keys():
-                if key is 'instance_id':
+                if key is 'agent_id':
                     continue
                 if key in self.json_cols_db:
-                    cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(json.dumps(instance[key]),instance_id))
+                    cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(json.dumps(agent[key]),agent_id))
                 else:
-                    cur.execute('UPDATE main SET %s = ? where instance_id = ?'%(key),(instance[key],instance_id))
+                    cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(agent[key],agent_id))
             conn.commit()
         return
     

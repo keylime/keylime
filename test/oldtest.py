@@ -58,17 +58,17 @@ config = ConfigParser.RawConfigParser()
 config.read(common.CONFIG_FILE)
   
 cloudverifier_port = config.get('general', 'cloudverifier_port')
-cloudnode_port = config.get('general', 'cloudnode_port')
+cloudagent_port = config.get('general', 'cloudagent_port')
 registrar_port = config.get('general', 'registrar_port')
 
-cloudnode_ip = config.get('tenant', 'cloudnode_ip')
+cloudagent_ip = config.get('tenant', 'cloudagent_ip')
 cloudverifier_ip = config.get('tenant', 'cloudverifier_ip')
 registrar_ip = config.get('tenant', 'cloudverifier_ip')
 tpm_policy = json.loads(config.get('tenant', 'tpm_policy'))
 my_cert = config.get('tenant', 'my_cert')
 ca_cert = config.get('tenant', 'ca_cert')
 private_key = config.get('tenant', 'private_key')
-test_num_cloudnodes = config.getint('general','test_num_cloudnodes')
+test_num_cloudagents = config.getint('general','test_num_cloudagents')
 test_duration = config.getint('general','test_duration')
 # cv_persistence_filename = config.get('cloud_verifier', 'persistence_filename')
 # en_persistence_filename = config.get('registrar', 'persistence_filename')
@@ -102,38 +102,38 @@ class Test(unittest.TestCase):
     def setUpClass(cls):
 
         cls.test_table = {
-            "test_cloudnode_tenant_get_nonce" : {
-                "prerun_function"  : {"name":"launch_cloudnode", "argument": None},                             
+            "test_cloudagent_tenant_get_nonce" : {
+                "prerun_function"  : {"name":"launch_cloudagent", "argument": None},                             
                 "state_change_functions": [
 
                     {
-                        "function_name": "test_cloudnode_tenant_get_nonce",
+                        "function_name": "test_cloudagent_tenant_get_nonce",
                         "http_request_verb":"GET",
-                        "http_request_ip": cloudnode_ip,
-                        "http_request_port": cloudnode_port,
+                        "http_request_ip": cloudagent_ip,
+                        "http_request_port": cloudagent_port,
                         "http_request_query": {"nonce":"ThisIsThePasswordABC"},
                         "http_request_path": "/v1/quotes/tenant",
                         "http_result_status_expected": 200,
-                        "check_function" : {"name":"check_test_cloudnode_tenant_get_nonce"},
+                        "check_function" : {"name":"check_test_cloudagent_tenant_get_nonce"},
                     }
                 ],
-                "postrun_function"  : {"name":"kill_cloudnode", "argument": None},                                
+                "postrun_function"  : {"name":"kill_cloudagent", "argument": None},                                
             },
-            "test_cloudnode_tenant_get_quote" : {
-                "prerun_function"  : {"name":"launch_cloudnode", "argument": None},    
+            "test_cloudagent_tenant_get_quote" : {
+                "prerun_function"  : {"name":"launch_cloudagent", "argument": None},    
                 "state_change_functions": [
 
                     {
-                        "function_name": "test_cloudnode_tenant_get_quote",
+                        "function_name": "test_cloudagent_tenant_get_quote",
                         "http_request_verb":"POST",
-                        "http_request_ip": cloudnode_ip,
-                        "http_request_port":cloudnode_port,
+                        "http_request_ip": cloudagent_ip,
+                        "http_request_port":cloudagent_port,
                         "http_request_path": "/v1/quotes/tenant",
                         "http_request_body": '{"encrypt_check": "K+oD4GfBMAdOFy94ZxTU2hB77tySSB75VVz2Zo4jN02txhNK2KiO5JhE1SRIUVASMZMW/VQUS9WgWdCUaJ+LOTWSuQ13alG4P4cLoamBr9c=","encrypted_key":"rBWIxK4i6zTl/M69Yyh2hmX+itDR9QCx4CIqmuRrEN3JAIUc2M+balr8gPD9r3Bs0OxYRC8/kcxBNo9Bsm93WZKwlmbZt2uVxhfaAqXwdGVpMBnM3bQnAEj1LIFoZZyQ48PVIdrEO4WW73Z2X3fplEFgOC3YT3lzluYgrn8iBkMRm+o2pJMdhynh6xLguszLX7qDOccPIIJch14ftWlsy6Ya9a6LHr9+hIfs4p2ATVVSl1wtUbf/ouNJdqUPAiFc4oXsg+kHQzWWiipjsAm871cA4wlvUb+/D4mFz1p3PRAK9hcICGwKoanWh8jbeuYnoqkch2EoHeLqayrisfNogg=="}',
                         "http_result_status_expected": 200,
                     }
                 ],
-                "postrun_function"  : {"name":"kill_cloudnode", "argument": None}, 
+                "postrun_function"  : {"name":"kill_cloudagent", "argument": None}, 
             }, 
             "test_cloudverifier_tenant_provide_v" : {
                 #"prerun_function"  : {"name":"launch_cloudverifier", "argument": None},
@@ -146,7 +146,7 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudnode_ip":"127.0.0.1","cloudnode_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         #"concurrent_instances" : 10,
                         #"concurrent_new_thread_function" : "new_thread",
@@ -164,7 +164,7 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudnode_ip":"127.0.0.1","cloudnode_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         "concurrency" : {"instances": 5, "new_thread_function":"new_thread"},
                         "test_iterations" : 100,
@@ -177,7 +177,7 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        #"http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudnode_ip":"127.0.0.1","cloudnode_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+                        #"http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"check_and_delete_all_entries", "argument": 500}
                     },                               
@@ -185,8 +185,8 @@ class Test(unittest.TestCase):
                 "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},              
             },
             "test_concurrent_cloudnodiness" : {
-                #"prerun_function"  : {"name":"launch_cloudnodes", "args": {'starting_port':9000, 'num_cloudnode_instances':250}},
-                "prerun_function"  : {"name":"launch_cloudnodes", "args": {'port_file':'cloudnode_port.txt', 'num_cloudnode_instances':test_num_cloudnodes}},
+                #"prerun_function"  : {"name":"launch_cloudagents", "args": {'starting_port':9000, 'num_cloudagent_instances':250}},
+                "prerun_function"  : {"name":"launch_cloudagents", "args": {'port_file':'cloudagent_port.txt', 'num_cloudagent_instances':test_num_cloudagents}},
                 "state_change_functions": [
  
                     {
@@ -196,23 +196,23 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C00000","cloudnode_ip":"cloudnode_ip.txt","cloudnode_port":"cloudnode_port.txt","tpm_policy": {"22":"ffffffffffffffffffffffffffffffffffffffff","16":"0000000000000000000000000000000000000000"} }',
+                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C00000","cloudagent_ip":"cloudagent_ip.txt","cloudagent_port":"cloudagent_port.txt","tpm_policy": {"22":"ffffffffffffffffffffffffffffffffffffffff","16":"0000000000000000000000000000000000000000"} }',
                         "http_result_status_expected": 200,
-                        "test_iterations" : test_num_cloudnodes,
-                        "post_function" : {"name":"test_concurrent_cloudnodiness_reset_request", "args": {"ip_file": "cloudnode_ip.txt","port_file":"cloudnode_port.txt"} },
+                        "test_iterations" : test_num_cloudagents,
+                        "post_function" : {"name":"test_concurrent_cloudnodiness_reset_request", "args": {"ip_file": "cloudagent_ip.txt","port_file":"cloudagent_port.txt"} },
                     },                    
                 ],   
-                "postrun_function"  : {"name":"kill_cloudnodes_after_delay", "args": {'sleep': test_duration, 'port_file':'cloudnode_port.txt', 'num_cloudnode_instances':test_num_cloudnodes} },              
+                "postrun_function"  : {"name":"kill_cloudagents_after_delay", "args": {'sleep': test_duration, 'port_file':'cloudagent_port.txt', 'num_cloudagent_instances':test_num_cloudagents} },              
             },
             "test_full_integration_happy_path" : {
                 #"prerun_function"  : {"name":"launch_required_servers", "argument": None},
                 "state_change_functions": [
 
                     {
-                        "function_name": "do_cloudnode_part",
+                        "function_name": "do_cloudagent_part",
                         "http_request_verb":"GET",
-                        "http_request_ip": cloudnode_ip,
-                        "http_request_port":cloudnode_port,
+                        "http_request_ip": cloudagent_ip,
+                        "http_request_port":cloudagent_port,
                         "http_request_path": "/v1/quotes/tenant",
                         "http_request_query": {"nonce":"ThisIsThePasswordABC"},
                         "http_result_status_expected": 200,
@@ -226,7 +226,7 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "XrNfEiODfu1fdXGtWbA+Wk02UhBxx1jTq7zhbC54ROA=","instance_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C866E9","cloudnode_ip":"127.0.0.1","cloudnode_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+                        "http_request_body": '{"v": "XrNfEiODfu1fdXGtWbA+Wk02UhBxx1jTq7zhbC54ROA=","instance_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C866E9","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"check_test_sleep", "argument": 5},
                         #"concurrent_new_thread_function" : "new_thread",
@@ -261,7 +261,7 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudnode_ip":"127.0.0.1","cloudnode_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"check_test_persistance_file_write", "argument": "06480EC4-6BF3-4F00-8323-FE6AE5868297"},
                     },                     
@@ -305,9 +305,9 @@ class Test(unittest.TestCase):
 
     def test_concurrent_cloudnodiness(self):
         self.execute_test_definition() 
-    def test_cloudnode_tenant_get_nonce(self):
+    def test_cloudagent_tenant_get_nonce(self):
         self.execute_test_definition()        
-    def test_cloudnode_tenant_get_quote(self):
+    def test_cloudagent_tenant_get_quote(self):
         self.execute_test_definition() 
     def test_cloudverifier_tenant_provide_v(self):
         self.execute_test_definition()
@@ -327,13 +327,13 @@ class Test(unittest.TestCase):
         self.execute_test_definition() 
 
         
-    def test_cloudnode_cloud_verifier_get_quote(self):
+    def test_cloudagent_cloud_verifier_get_quote(self):
         pass  
 
     def check_test_sleep(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         time.sleep(argument)
 
-#'{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudnode_ip":"127.0.0.1","cloudnode_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+#'{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
 
     def read_line_in_file(self, infile, line_number):
         with open(infile) as fp:
@@ -363,36 +363,36 @@ class Test(unittest.TestCase):
                     tmpp_policy['mask'] = mask_str
                     json_request_body['tpm_policy'] = tmpp_policy
                     
-                    cloudnode_ip = json_request_body['cloudnode_ip']                                      
-                    if cloudnode_ip.endswith('.txt'):
-                        cloudnode_ip_file = cloudnode_ip
-                        cloudnode_ip_read_from_file = self.read_line_in_file(cloudnode_ip_file, test_iteration)
-                        json_request_body['cloudnode_ip'] = cloudnode_ip_read_from_file.strip()  
+                    cloudagent_ip = json_request_body['cloudagent_ip']                                      
+                    if cloudagent_ip.endswith('.txt'):
+                        cloudagent_ip_file = cloudagent_ip
+                        cloudagent_ip_read_from_file = self.read_line_in_file(cloudagent_ip_file, test_iteration)
+                        json_request_body['cloudagent_ip'] = cloudagent_ip_read_from_file.strip()  
                              
  
-                    cloudnode_port = json_request_body['cloudnode_port']                                      
-                    if cloudnode_port.endswith('.txt'):
-                        cloudnode_port_file = cloudnode_port
-                        cloudnode_port_read_from_file = self.read_line_in_file(cloudnode_port_file, test_iteration)
-                        json_request_body['cloudnode_port'] = cloudnode_port_read_from_file.strip() 
+                    cloudagent_port = json_request_body['cloudagent_port']                                      
+                    if cloudagent_port.endswith('.txt'):
+                        cloudagent_port_file = cloudagent_port
+                        cloudagent_port_read_from_file = self.read_line_in_file(cloudagent_port_file, test_iteration)
+                        json_request_body['cloudagent_port'] = cloudagent_port_read_from_file.strip() 
 
 #                     parser = ConfigParser.RawConfigParser()
 #                     parser.read(common.CONFIG_FILE)
-#                     test_node_uuid = parser.get('general', 'node_uuid')
+#                     test_agent_uuid = parser.get('general', 'agent_uuid')
                     
-                    test_node_uuid = json_request_body['instance_id']
+                    test_agent_uuid = json_request_body['instance_id']
                     
                     
-                    port_string_length = len(str(json_request_body['cloudnode_port']))
-                    contrived_uuid = test_node_uuid[:-port_string_length]
-                    contrived_uuid = contrived_uuid + str(json_request_body['cloudnode_port'])   
+                    port_string_length = len(str(json_request_body['cloudagent_port']))
+                    contrived_uuid = test_agent_uuid[:-port_string_length]
+                    contrived_uuid = contrived_uuid + str(json_request_body['cloudagent_port'])   
                     json_request_body['instance_id'] = contrived_uuid
                         
                     test_functions['http_request_body'] = json.dumps(json_request_body)        
                                                            
                     
                 except Exception as e:
-                    self.fail("Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudnode_ip or cloudnode_port.  Error: %s"%e)         
+                    self.fail("Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudagent_ip or cloudagent_port.  Error: %s"%e)         
 
     def test_concurrent_cloudnodiness_reset_request(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
 
@@ -407,13 +407,13 @@ class Test(unittest.TestCase):
                     json_request_body = json.loads(request_body)
                     
                     #reset the request body to file arguments for next iteration
-                    json_request_body['cloudnode_ip'] =  argument["ip_file"]                                
-                    json_request_body['cloudnode_port'] = argument["port_file"]
+                    json_request_body['cloudagent_ip'] =  argument["ip_file"]                                
+                    json_request_body['cloudagent_port'] = argument["port_file"]
 
                     test_functions['http_request_body'] = json.dumps(json_request_body)  
 
                 except Exception as e:
-                    self.fail("Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudnode_ip or cloudnode_port.  Error: %s"%e) 
+                    self.fail("Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudagent_ip or cloudagent_port.  Error: %s"%e) 
 
 
     def test_check_persistance_file_empty(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
@@ -473,8 +473,8 @@ class Test(unittest.TestCase):
 #         global text_callback
 #         nonce = tpm_initialize.random_password(20)
 #         tpm_policy = {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff" }
-#         #theurl = 'http://' + cloudnode_ip + ':' + cloudnode_port + "/v1/quotes/cloudverifier" + "?nonce=" + nonce + "&mask=" + tpm_policy['mask']
-#         theurl = 'http://' + cloudnode_ip + ':' + cloudnode_port + "/v1/quotes/cloudverifier" 
+#         #theurl = 'http://' + cloudagent_ip + ':' + cloudagent_port + "/v1/quotes/cloudverifier" + "?nonce=" + nonce + "&mask=" + tpm_policy['mask']
+#         theurl = 'http://' + cloudagent_ip + ':' + cloudagent_port + "/v1/quotes/cloudverifier" 
 #         with requests_mock.Mocker(real_http=True) as m:
 #             m.get(requests_mock.ANY, text=text_callback)       
 
@@ -498,16 +498,16 @@ class Test(unittest.TestCase):
                     mytenant = tenant.Tenant()
     
                     # command line options can overwrite config values
-                    mytenant.cloudnode_ip = cloudnode_ip
+                    mytenant.cloudagent_ip = cloudagent_ip
                     mytenant.cloudverifier_ip = cloudverifier_ip
-                    mytenant.node_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
+                    mytenant.agent_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
                     
                     if mytenant.validate_tpm_quote(public_key, quote): 
                         # encrypt U with the public key
                         global U, K
                         
                         encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),str(U))
-                        encrypt_check = crypto.do_hmac(K,mytenant.node_uuid)
+                        encrypt_check = crypto.do_hmac(K,mytenant.agent_uuid)
                         b64_encrypted_u = base64.b64encode(encrypted_U)
                         data = {
                                   'encrypted_key': b64_encrypted_u,
@@ -515,15 +515,15 @@ class Test(unittest.TestCase):
                                 }
                         u_json_message = json.dumps(data)
                         
-                        #post encrypted U back to CloudNode
-                        response = tornado_requests.request("POST", "http://%s:%s/v1/quotes/tenant"%(cloudnode_ip,cloudnode_port),data=u_json_message)
+                        #post encrypted U back to Cloud Agent
+                        response = tornado_requests.request("POST", "http://%s:%s/v1/quotes/tenant"%(cloudagent_ip,cloudagent_port),data=u_json_message)
                         
                         if response.status_code != 200:
-                            self.fail("Posting of Encrypted U to the Cloud Node failed with response code %d" %response.status_code )                 
+                            self.fail("Posting of Encrypted U to the Cloud Agent failed with response code %d" %response.status_code )                 
                     else:
-                        self.fail("TPM Quote from cloud node is invalid for nonce: %s"%self.nonce )                                
+                        self.fail("TPM Quote from cloud agent is invalid for nonce: %s"%self.nonce )                                
 
-    def check_test_cloudnode_tenant_get_nonce(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
+    def check_test_cloudagent_tenant_get_nonce(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         test_record = self.test_table.get(test_method_name)
 
         #perform each of the test functions and store the results
@@ -733,77 +733,77 @@ class Test(unittest.TestCase):
             parser.write(configfile)
 
 
-    def launch_cloudnodes(self, argument):
+    def launch_cloudagents(self, argument):
         
         
         #self.launch_cloudverifier(None)
         port_file = argument.get('port_file')
-        cloudnode_start_port = argument.get('starting_port')
-        num_cloudnode_instances =  argument['num_cloudnode_instances']
+        cloudagent_start_port = argument.get('starting_port')
+        num_cloudagent_instances =  argument['num_cloudagent_instances']
         
-        if cloudnode_start_port is not None:
+        if cloudagent_start_port is not None:
 
             parser = ConfigParser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
-            original_cloudnode_port = parser.get('general', 'cloudnode_port')
-            test_node_uuid = parser.get('general', 'node_uuid')
+            original_cloudagent_port = parser.get('general', 'cloudagent_port')
+            test_agent_uuid = parser.get('general', 'agent_uuid')
       
       
-            for cn in range(num_cloudnode_instances): 
-                new_dir = r'../cloudnode_on_port_' + str(cloudnode_start_port)
+            for cn in range(num_cloudagent_instances): 
+                new_dir = r'../cloudagent_on_port_' + str(cloudagent_start_port)
                 config_file_path = new_dir + "/keylime.conf"
                 copy_tree('.', new_dir)
                 shutil.copyfile(common.CONFIG_FILE, config_file_path)
                 if not os.path.isdir(new_dir):
                     os.mkdir(new_dir)
                 #shutil.copyfile(r'../keylime.conf', new_dir + r'/keylime.conf')
-                self.overwrite_config_file(config_file_path, 'general', 'cloudnode_port', str(cloudnode_start_port))
-                port_string_length = len(str(cloudnode_start_port))
-                contrived_uuid = test_node_uuid[:-port_string_length]
-                contrived_uuid = contrived_uuid + str(cloudnode_start_port)
-                self.overwrite_config_file(config_file_path, 'general', 'node_uuid', contrived_uuid)  
+                self.overwrite_config_file(config_file_path, 'general', 'cloudagent_port', str(cloudagent_start_port))
+                port_string_length = len(str(cloudagent_start_port))
+                contrived_uuid = test_agent_uuid[:-port_string_length]
+                contrived_uuid = contrived_uuid + str(cloudagent_start_port)
+                self.overwrite_config_file(config_file_path, 'general', 'agent_uuid', contrived_uuid)  
                           
-                cn_process_list.append(subprocess.Popen("python cloud_node.py", shell=True, cwd=new_dir, preexec_fn=os.setsid).pid) 
-                cloudnode_start_port = cloudnode_start_port + 1
+                cn_process_list.append(subprocess.Popen("python cloud_agent.py", shell=True, cwd=new_dir, preexec_fn=os.setsid).pid) 
+                cloudagent_start_port = cloudagent_start_port + 1
                 #time.sleep(2)
     
-            self.overwrite_config_file(common.CONFIG_FILE, 'general', 'cloudnode_port', str(original_cloudnode_port))
+            self.overwrite_config_file(common.CONFIG_FILE, 'general', 'cloudagent_port', str(original_cloudagent_port))
             
         elif port_file is not None:
 
             parser = ConfigParser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
-            original_cloudnode_port = parser.get('general', 'cloudnode_port')
-            test_node_uuid = parser.get('general', 'node_uuid')
+            original_cloudagent_port = parser.get('general', 'cloudagent_port')
+            test_agent_uuid = parser.get('general', 'agent_uuid')
       
       
-            for cn in range(num_cloudnode_instances): 
-                cloudnode_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
+            for cn in range(num_cloudagent_instances): 
+                cloudagent_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
                 
-                new_dir = r'../cloudnode_on_port_' + cloudnode_port_read_from_file
+                new_dir = r'../cloudagent_on_port_' + cloudagent_port_read_from_file
                 config_file_path = new_dir + "/keylime.conf"
                 copy_tree('.', new_dir)
                 shutil.copyfile(common.CONFIG_FILE, config_file_path)
                 if not os.path.isdir(new_dir):
                     os.mkdir(new_dir)
                 #shutil.copyfile(r'../keylime.conf', new_dir + r'/keylime.conf')
-                self.overwrite_config_file(config_file_path, 'general', 'cloudnode_port', cloudnode_port_read_from_file)
-                port_string_length = len(cloudnode_port_read_from_file)
-                contrived_uuid = test_node_uuid[:-port_string_length]
-                contrived_uuid = contrived_uuid + cloudnode_port_read_from_file
-                self.overwrite_config_file(config_file_path, 'general', 'node_uuid', contrived_uuid)  
+                self.overwrite_config_file(config_file_path, 'general', 'cloudagent_port', cloudagent_port_read_from_file)
+                port_string_length = len(cloudagent_port_read_from_file)
+                contrived_uuid = test_agent_uuid[:-port_string_length]
+                contrived_uuid = contrived_uuid + cloudagent_port_read_from_file
+                self.overwrite_config_file(config_file_path, 'general', 'agent_uuid', contrived_uuid)  
                           
-                cn_process_list.append(subprocess.Popen("python cloud_node.py", shell=True, cwd=new_dir, preexec_fn=os.setsid).pid) 
-                cloudnode_port = int(cloudnode_port_read_from_file) + 1
+                cn_process_list.append(subprocess.Popen("python cloud_agent.py", shell=True, cwd=new_dir, preexec_fn=os.setsid).pid) 
+                cloudagent_port = int(cloudagent_port_read_from_file) + 1
                 #time.sleep(2)
     
-            self.overwrite_config_file(common.CONFIG_FILE, 'general', 'cloudnode_port', str(original_cloudnode_port))            
-        print "done creating cloud nodes, waiting for them to start..."
+            self.overwrite_config_file(common.CONFIG_FILE, 'general', 'cloudagent_port', str(original_cloudagent_port))            
+        print "done creating cloud agents, waiting for them to start..."
         time.sleep(10)
         print "starting test..."
         
         
-    def kill_cloudnodes_after_delay(self, argument):
+    def kill_cloudagents_after_delay(self, argument):
         
         sleep_time = argument.get('sleep')
         time.sleep(sleep_time)
@@ -812,20 +812,20 @@ class Test(unittest.TestCase):
         
         #self.launch_cloudverifier(None)
         port_file = argument.get('port_file')
-        cloudnode_start_port = argument.get('starting_port')
-        num_cloudnode_instances =  argument['num_cloudnode_instances']
+        cloudagent_start_port = argument.get('starting_port')
+        num_cloudagent_instances =  argument['num_cloudagent_instances']
         
-        if cloudnode_start_port is not None:
+        if cloudagent_start_port is not None:
 
             parser = ConfigParser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
 
       
       
-            for cn in range(num_cloudnode_instances): 
-                new_dir = r'../cloudnode_on_port_' + str(cloudnode_start_port)
+            for cn in range(num_cloudagent_instances): 
+                new_dir = r'../cloudagent_on_port_' + str(cloudagent_start_port)
                 shutil.rmtree(new_dir)
-                cloudnode_port = cloudnode_start_port + 1
+                cloudagent_port = cloudagent_start_port + 1
 
 
             
@@ -833,14 +833,14 @@ class Test(unittest.TestCase):
 
             parser = ConfigParser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
-            test_node_uuid = parser.get('general', 'node_uuid')
+            test_agent_uuid = parser.get('general', 'agent_uuid')
       
       
-            for cn in range(num_cloudnode_instances): 
-                cloudnode_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
-                port_string_length = len(cloudnode_port_read_from_file)
-                contrived_uuid = test_node_uuid[:-port_string_length]
-                contrived_uuid = contrived_uuid + cloudnode_port_read_from_file
+            for cn in range(num_cloudagent_instances): 
+                cloudagent_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
+                port_string_length = len(cloudagent_port_read_from_file)
+                contrived_uuid = test_agent_uuid[:-port_string_length]
+                contrived_uuid = contrived_uuid + cloudagent_port_read_from_file
                 params = {
                     'instance_id': contrived_uuid,
                     }
@@ -857,9 +857,9 @@ class Test(unittest.TestCase):
                     self.fail("Delete of instance_id " + contrived_uuid + " failed with exception: %s"%e)  
                 
 
-            for cn in range(num_cloudnode_instances): 
-                cloudnode_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
-                new_dir = r'../cloudnode_on_port_' + cloudnode_port_read_from_file
+            for cn in range(num_cloudagent_instances): 
+                cloudagent_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
+                new_dir = r'../cloudagent_on_port_' + cloudagent_port_read_from_file
                 shutil.rmtree(new_dir)
 
         for the_pid in cn_process_list:
@@ -870,26 +870,26 @@ class Test(unittest.TestCase):
         cv_process.kill()
         return True
 
-    def launch_cloudnode(self, argument):
+    def launch_cloudagent(self, argument):
         
         readKUV()
         
         global cn_process 
-        cn_process = subprocess.Popen("python cloud_node.py", shell=True) 
+        cn_process = subprocess.Popen("python cloud_agent.py", shell=True) 
         time.sleep(1)
         return True
 
-    def kill_cloudnode(self, argument):
+    def kill_cloudagent(self, argument):
         cn_process.kill()
         return True
 
     def launch_required_servers(self, argument):
-        self.launch_cloudnode(argument)
+        self.launch_cloudagent(argument)
         self.launch_cloudverifier(argument)
         return True
 
     def kill_required_servers(self, argument):
-        self.kill_cloudnode(argument)
+        self.kill_cloudagent(argument)
         self.kill_cloudverifier(argument)
         return True
         
@@ -935,7 +935,7 @@ class Test(unittest.TestCase):
                     concurrent_new_thread_function = concurrency_dict.get("new_thread_function") 
                 
                     if concurrent_instances is None or concurrent_new_thread_function is None:
-                        self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ' contains concurrency node without mandatory \\"instances\\" or and \\"new_thread_function\\" specifiers' )
+                        self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ' contains concurrency agent without mandatory \\"instances\\" or and \\"new_thread_function\\" specifiers' )
 
                 for test_iteration in range(int(test_functions.get("test_iterations","1"))):
                     

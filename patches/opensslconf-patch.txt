@@ -10,4 +10,4 @@ index c643e6b..5c731d2 100644
 +ca_implementation = openssl
  
  #=============================================================================
- [cloud_node]
+ [cloud_agent]

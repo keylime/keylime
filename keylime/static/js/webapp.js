@@ -46,9 +46,9 @@ function arrayDiff(ary1, ary2) {
 
 // Make AJAX call to submit events 
 function asyncRequest(method, res, resId, body, callback) {
-    // Need more details before we can do an ADD node 
+    // Need more details before we can do an ADD agent 
     if (method == 'POST' && typeof(body) === 'undefined') {
-        return addNodeDialog(resId);
+        return addAgentDialog(resId);
     }
     
     let xmlHttp = new XMLHttpRequest();
@@ -106,31 +106,31 @@ function validateForm(form) {
     return true;
 }
 
-// Wrapper to submit Add Node form 
-function submitAddNodeForm(form) {
+// Wrapper to submit Add Agent form 
+function submitAddAgentForm(form) {
     // Ensure inputs validate 
     if (!validateForm(form)) return;
     
     // Build POST string and send request (generic/default response handler) 
     let data = new FormData(form);
-    asyncRequest("POST", "nodes", form.uuid.value, data, defaultReqCallback);
+    asyncRequest("POST", "agents", form.uuid.value, data, defaultReqCallback);
     
     // Cleanup 
     toggleVisibility('modal_box');
-    resetAddNodeForm();
+    resetAddAgentForm();
 }
 
-// Modal dialog box to add new node (more details needed) 
-function addNodeDialog(uuid) {
+// Modal dialog box to add new agent (more details needed) 
+function addAgentDialog(uuid) {
     document.getElementById('uuid').value = uuid;
     document.getElementById('uuid_str').innerHTML = "("+uuid+")";
     toggleVisibility('modal_box');
 }
 
 // When closing modal dialog, reset form 
-function resetAddNodeForm() {
+function resetAddAgentForm() {
     // Overall form reset (puts HTML-input values to defaults) 
-    document.getElementById('add_node').reset();
+    document.getElementById('add_agent').reset();
     document.getElementById('uuid').value = '';
     
     // Auto-collapse IMA-related inputs 
@@ -155,7 +155,7 @@ function resetAddNodeForm() {
     }
 }
 
-// Toggle visibility of requested node 
+// Toggle visibility of requested agent 
 function toggleVisibility(eleId) {
     if (document.getElementById(eleId).style.display != 'block') {
         document.getElementById(eleId).style.display = 'block';
@@ -197,7 +197,7 @@ function dragoverCallback(event) {
 function fileUploadCallback(event) {
     let target = event.target;
     
-    // Bubble up to find the file_drop node 
+    // Bubble up to find the file_drop agent 
     if (target.classList.contains) {
         while (!target.classList.contains("file_drop")) {
             target = target.parentNode;
@@ -254,7 +254,7 @@ function fileUploadCallback(event) {
     return true;
 }
 
-// Update node boxes on page with details
+// Update agent boxes on page with details
 let style_mappings = {
     0 : {"class":"inactive","action":"POST"},
     1 : {"class":"processing","action":"DELETE"}, 
@@ -281,29 +281,29 @@ let STR_MAPPINGS = {
     9 : "Invalid Quote",
     10: "Tenant Quote Failed"
 }
-function updateNodesInfo() {
-    let childNodesObj = document.getElementsByClassName('node');
-    for (let i = 0; i < childNodesObj.length; i++) {
-        if (typeof childNodesObj[i].id == 'undefined' || childNodesObj[i].id == '') {
+function updateAgentsInfo() {
+    let childAgentsObj = document.getElementsByClassName('agent');
+    for (let i = 0; i < childAgentsObj.length; i++) {
+        if (typeof childAgentsObj[i].id == 'undefined' || childAgentsObj[i].id == '') {
             continue;
         }
         
-        asyncRequest("GET", "nodes", childNodesObj[i].id, undefined, function(responseText){
+        asyncRequest("GET", "agents", childAgentsObj[i].id, undefined, function(responseText){
             let json = JSON.parse(responseText);
             
             // Ensure response packet isn't malformed
             if (!("results" in json)) {
-                reportIssue("ERROR updateNodesInfo: Malformed response for node refresh callback!");
+                reportIssue("ERROR updateAgentsInfo: Malformed response for agent refresh callback!");
                 return;
             }
             let response = json["results"];
             
-            // Figure out which instance id we refer to 
+            // Figure out which agent id we refer to 
             if (!("id" in response)) {
-                reportIssue("ERROR updateNodesInfo: Cannot determine instance id from callback!");
+                reportIssue("ERROR updateAgentInfo: Cannot determine agent id from callback!");
                 return;
             }
-            let instanceId = response["id"];
+            let agentId = response["id"];
             
             // Format address to display 
             let fulladdr = "<i>N/A</i>";
@@ -322,23 +322,23 @@ function updateNodesInfo() {
                 statStr = statStr + " (" + readable + ")";
             }
             
-            let nodeIdShort = instanceId.substr(0,8);
+            let agentIdShort = agentId.substr(0,8);
             let classSuffix = style_mappings[state]["class"];
             let action = style_mappings[state]["action"];
             
-            let nodeOverviewInsert = "" 
-                    + "<div onmousedown=\"asyncRequest('" + action + "','nodes','" + instanceId + "')\" class='tbl_ctrl_" + classSuffix + "'>&nbsp;</div>"
-                    + "<div onmousedown=\"toggleVisibility('" + instanceId + "-det')\" style='display:block;float:left;'>"
-                    + "<div class='tbl_col_" + classSuffix + "' title='" + instanceId + "'>" + nodeIdShort + "&hellip;</div>"
+            let agentOverviewInsert = "" 
+                    + "<div onmousedown=\"asyncRequest('" + action + "','agents','" + agentId + "')\" class='tbl_ctrl_" + classSuffix + "'>&nbsp;</div>"
+                    + "<div onmousedown=\"toggleVisibility('" + agentId + "-det')\" style='display:block;float:left;'>"
+                    + "<div class='tbl_col_" + classSuffix + "' title='" + agentId + "'>" + agentIdShort + "&hellip;</div>"
                     + "<div class='tbl_col_" + classSuffix + "'>" + fulladdr + "</div>"
                     + "<div class='tbl_col_" + classSuffix + "'>" + statStr + "</div>"
                     + "<br style='clear:both;'>"
                     + "</div>"
                     + "<br style='clear:both;'>"
                     
-            let nodeDetailsInsert = "<div class='tbl_det_" + classSuffix + "'><b><i>Details:</i></b><br><pre>";
+            let agentDetailsInsert = "<div class='tbl_det_" + classSuffix + "'><b><i>Details:</i></b><br><pre>";
             
-            // Parse out detailed specs for node 
+            // Parse out detailed specs for agent 
             for (let stat in response) {
                 statStr = response[stat];
                 
@@ -351,69 +351,69 @@ function updateNodesInfo() {
                     statStr = JSON.stringify(statStr, null, 2);
                 }
                 
-                nodeDetailsInsert += stat + ": " + statStr + "<br>";
+                agentDetailsInsert += stat + ": " + statStr + "<br>";
             }
-            nodeDetailsInsert += "</pre></div>";
+            agentDetailsInsert += "</pre></div>";
             
-            // Update node on GUI 
-            document.getElementById(instanceId+"-over").innerHTML = nodeOverviewInsert;
-            document.getElementById(instanceId+"-det").innerHTML = nodeDetailsInsert;
+            // Update agent on GUI 
+            document.getElementById(agentId+"-over").innerHTML = agentOverviewInsert;
+            document.getElementById(agentId+"-det").innerHTML = agentDetailsInsert;
         });
     }
 }
 
-// Populate nodes on page (does not handle ordering!)
-function populateNodes() {
-    asyncRequest("GET", "nodes", "", undefined, function(responseText){
+// Populate agents on page (does not handle ordering!)
+function populateAgents() {
+    asyncRequest("GET", "agents", "", undefined, function(responseText){
         let json = JSON.parse(responseText);
         
         // Ensure response packet isn't malformed
         if (!("results" in json)) {
-            reportIssue("ERROR populateNodes: Malformed response for node list refresh callback!");
+            reportIssue("ERROR populateAgents: Malformed response for agent list refresh callback!");
             return;
         }
         let response = json["results"];
         
-        // Figure out which instance id we refer to 
+        // Figure out which agent id we refer to 
         if (!("uuids" in response)) {
-            reportIssue("ERROR populateNodes: Cannot get uuid list from callback!");
+            reportIssue("ERROR populateAgents: Cannot get uuid list from callback!");
             return;
         }
         
-        // Get list of instance ids from server
-        let instanceIds = response["uuids"];
-        //console.log(instanceIds);
+        // Get list of agent ids from server
+        let agentIds = response["uuids"];
+        //console.log(agentIds);
         
-        // Get all existing instance ids
-        let childNodesObj = document.getElementsByClassName('node');
-        let existingInstanceIds = [];
-        for (let i = 0; i < childNodesObj.length; i++) {
-            if (typeof childNodesObj[i].id != 'undefined' && childNodesObj[i].id != '') {
-                existingInstanceIds.push(childNodesObj[i].id);
+        // Get all existing agent ids
+        let childAgentsObj = document.getElementsByClassName('agent');
+        let existingagentIds = [];
+        for (let i = 0; i < childAgentsObj.length; i++) {
+            if (typeof childAgentssObj[i].id != 'undefined' && childAgentsObj[i].id != '') {
+                existingAgentIds.push(childAgentsObj[i].id);
             }
         }
-        //console.log(existingInstanceIds);
+        //console.log(existingAgentIds);
         
-        // Find new nodes (in new, not in old)
-        let newNodes = arrayDiff(instanceIds, existingInstanceIds);
-        //console.log(newNodes);
-        // Find removed nodes (in old, not in new)
-        let removedNodes = arrayDiff(existingInstanceIds, instanceIds);
-        //console.log(removedNodes);
+        // Find new agents (in new, not in old)
+        let newAgents = arrayDiff(agentIds, existingAgentIds);
+        //console.log(newAgents);
+        // Find removed agents (in old, not in new)
+        let removedAgents = arrayDiff(existingAgentIds, agentIds);
+        //console.log(removedAgentss);
         
-        // Add node
-        for (let i = 0; i < newNodes.length; i++) {
-            let ele = document.getElementById('node_template').firstElementChild.cloneNode(true);
+        // Add agent
+        for (let i = 0; i < newAgents.length; i++) {
+            let ele = document.getElementById('agent_template').firstElementChild.cloneAgent(true);
             ele.style.display = "block";
-            ele.id = newNodes[i];
-            ele.firstElementChild.id = newNodes[i] + "-over";
-            ele.lastElementChild.id = newNodes[i] + "-det";
-            document.getElementById('node_container').appendChild(ele);
+            ele.id = newAgentss[i];
+            ele.firstElementChild.id = newAgents[i] + "-over";
+            ele.lastElementChild.id = newAgents[i] + "-det";
+            document.getElementById('agent_container').appendChild(ele);
         }
         
-        // Remove node
-        for (let i = 0; i < removedNodes.length; i++) {
-            let ele = document.getElementById(removedNodes[i]);
+        // Remove agents
+        for (let i = 0; i < removedAgents.length; i++) {
+            let ele = document.getElementById(removedAgents[i]);
             //console.log(ele);
             ele.parentNode.removeChild(ele);
         }
@@ -426,7 +426,7 @@ function appendToTerminal(logLines) {
         return;
     }
     
-    // Get the terminal node
+    // Get the terminal agent
     let term = document.getElementById('terminal');
     
     // Keep list at MAX_TERM_LEN items (prune)
@@ -454,7 +454,7 @@ function updateTerminal() {
         }
         let response = json["results"];
         
-        // Figure out which instance id we refer to 
+        // Figure out which agent id we refer to 
         if (!("log" in response)) {
             reportIssue("ERROR updateTerminal: Cannot get log data from callback!");
             return;
@@ -472,16 +472,16 @@ function updateTerminal() {
 
 // Attach dragging capabilities for payload upload functionality 
 window.onload = function(e) { 
-    // Add node drag-drop functionality 
+    // Add agent drag-drop functionality 
     let droppable = document.getElementsByClassName("file_drop");
     for (let i = 0; i < droppable.length; i++) {
         droppable[i].addEventListener('dragover', dragoverCallback, false);
         droppable[i].addEventListener('drop', fileUploadCallback, false);
     }
     
-    // Populate nodes on the page (and turn on auto-updates)
-    populateNodes();
-    setInterval(populateNodes, 2000);
-    setInterval(updateNodesInfo, 750);
+    // Populate agents on the page (and turn on auto-updates)
+    populateAgents();
+    setInterval(populateAgents, 2000);
+    setInterval(updateAgentsInfo, 750);
     setInterval(updateTerminal, 1000);
 }

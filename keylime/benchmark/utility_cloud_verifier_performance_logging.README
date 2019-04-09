@@ -47,9 +47,9 @@ get_q_log_file_base_name = <your_get_q_log_file_base_name>
 
 2. Start the Cloud Verifier, after specifying [cloud_verifier] multiprocessing_pool_num_workers 
 
-3. launch the "test_concurrent_cloudnodiness" test in test.py, after selecting desired options in test definition. Note that the "num_cloudnode_instances" field (2) and "test_iterations" fields (1) shoud be the same value
+3. launch the "test_concurrent_cloudnodiness" test in test.py, after selecting desired options in test definition. Note that the "num_cloudagent_agents" field (2) and "test_iterations" fields (1) shoud be the same value
             "test_concurrent_cloudnodiness" : {
-                "prerun_function"  : {"name":"launch_cloudnodes", "args": {'port_file':'cloudnode_port.txt', 'num_cloudnode_instances':10}},
+                "prerun_function"  : {"name":"launch_cloudagents", "args": {'port_file':'cloudagent_port.txt', 'num_cloudagent_agents':10}},
                 "state_change_functions": [
  
                     {
@@ -58,16 +58,16 @@ get_q_log_file_base_name = <your_get_q_log_file_base_name>
                         "http_request_verb":"POST",
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
-                        "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C00000","cloudnode_ip":"cloudnode_ip.txt","cloudnode_port":"cloudnode_port.txt","tpm_policy": {"22":"ffffffffffffffffffffffffffffffffffffffff","16":"0000000000000000000000000000000000000000"} }',
+                        "http_request_path": "/v1/agents",
+                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C00000","cloudagent_ip":"cloudagent_ip.txt","cloudagent_port":"cloudagent_port.txt","tpm_policy": {"22":"ffffffffffffffffffffffffffffffffffffffff","16":"0000000000000000000000000000000000000000"} }',
                         "http_result_status_expected": 200,
                         "test_iterations" : 10,
-                        "post_function" : {"name":"test_concurrent_cloudnodiness_reset_request", "args": {"ip_file": "cloudnode_ip.txt","port_file":"cloudnode_port.txt"} },
+                        "post_function" : {"name":"test_concurrent_cloudnodiness_reset_request", "args": {"ip_file": "cloudagent_ip.txt","port_file":"cloudagent_port.txt"} },
                     },                    
                 ],   
-                "postrun_function"  : {"name":"kill_cloudnodes_after_delay", "args": {'sleep': 10, 'port_file':'cloudnode_port.txt', 'num_cloudnode_instances':10} },              
+                "postrun_function"  : {"name":"kill_cloudagents_after_delay", "args": {'sleep': 10, 'port_file':'cloudagent_port.txt', 'num_cloudagent_agents':10} },              
             },
-4. Wait until test ends, then kill cloud verifier.  After the test ends, cv connection error messages are expected as the Cloud Nodes are killed.              
+4. Wait until test ends, then kill cloud verifier.  After the test ends, cv connection error messages are expected as the Cloud Agents are killed.              
             
 5. To get average provide v performance'python utility_average_logged_deltas.py  -f your_provide_v_log_file_base_name' 
 

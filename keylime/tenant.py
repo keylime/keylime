@@ -64,9 +64,9 @@ class Tenant():
     cloudverifier_ip = None
     cloudverifier_port = None
         
-    cloudnode_ip = None
-    cv_cloudnode_ip = None
-    cloudnode_port = None
+    cloudagent_ip = None
+    cv_cloudagent_ip = None
+    cloudagent_port = None
     
     registrar_ip = None
     registrar_port = None
@@ -75,7 +75,7 @@ class Tenant():
     webapp_port = None
 
     uuid_service_generate_locally = None
-    node_uuid = None
+    agent_uuid = None
     
     K = None
     V = None
@@ -97,7 +97,7 @@ class Tenant():
     
     def __init__(self):
         self.cloudverifier_port = config.get('general', 'cloudverifier_port')
-        self.cloudnode_port = config.get('general', 'cloudnode_port')
+        self.cloudagent_port = config.get('general', 'cloudagent_port')
         self.registrar_port = config.get('general', 'registrar_tls_port')
         self.webapp_port = config.getint('general', 'webapp_port')
         if not common.REQUIRE_ROOT and self.webapp_port < 1024:
@@ -150,13 +150,13 @@ class Tenant():
     
     def init_add(self, args):
         # command line options can overwrite config values
-        if "node_ip" in args:
-            self.cloudnode_ip = args["node_ip"]
+        if "agent_ip" in args:
+            self.cloudagent_ip = args["agent_ip"]
             
-        if 'cv_node_ip' in args and args['cv_node_ip'] is not None:
-            self.cv_cloudnode_ip = args['cv_node_ip']
+        if 'cv_agent_ip' in args and args['cv_agent_ip'] is not None:
+            self.cv_cloudagent_ip = args['cv_agent_ip']
         else:
-            self.cv_cloudnode_ip = self.cloudnode_ip
+            self.cv_cloudagent_ip = self.cloudagent_ip
         
         # Make sure all keys exist in dictionary 
         if "file" not in args: 
@@ -231,11 +231,11 @@ class Tenant():
         if (args["file"] is None and 
             args["keyfile"] is None and 
             args["ca_dir"] is None):
-            raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
+            raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent")
 
         if args["keyfile"] is not None:
             if args["file"] is not None or args["ca_dir"] is not None:
-                raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
+                raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent")
             
             # read the keys in
             if type(args["keyfile"]) is dict and "data" in args["keyfile"]:
@@ -265,7 +265,7 @@ class Tenant():
         
         if args["file"] is not None:
             if args["keyfile"] is not None or args["ca_dir"] is not None:
-                raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
+                raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent")
                 
             if type(args["file"]) is dict and "data" in args["file"]:
                 if type(args["file"]["data"]) is list and len(args["file"]["data"]) > 0:
@@ -287,7 +287,7 @@ class Tenant():
             raise UserError("--include option is only valid when used with --cert")    
         if args["ca_dir"] is not None:
             if args["file"] is not None or args["keyfile"] is not None:
-                raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the node")
+                raise UserError("You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent")
             if args["ca_dir"]=='default':
                 args["ca_dir"] = common.CA_WORK_DIR
             
@@ -299,10 +299,10 @@ class Tenant():
                 ca_util.cmd_init(args["ca_dir"])
             
             
-            if not os.path.exists("%s/%s-private.pem"%(args["ca_dir"],self.node_uuid)):
-                ca_util.cmd_mkcert(args["ca_dir"],self.node_uuid)
+            if not os.path.exists("%s/%s-private.pem"%(args["ca_dir"],self.agent_uuid)):
+                ca_util.cmd_mkcert(args["ca_dir"],self.agent_uuid)
                 
-            cert_pkg,serial,subject = ca_util.cmd_certpkg(args["ca_dir"],self.node_uuid)
+            cert_pkg,serial,subject = ca_util.cmd_certpkg(args["ca_dir"],self.agent_uuid)
             
             # support revocation
             if not os.path.exists("%s/RevocationNotifier-private.pem"%args["ca_dir"]):
@@ -354,8 +354,8 @@ class Tenant():
             raise UserError("Payload size %s exceeds max size %d"%(len(self.payload),config.getint('tenant','max_payload_size')))
     
     def preloop(self):
-        # encrypt the node UUID as a check for delivering the correct key
-        self.auth_tag = crypto.do_hmac(self.K,self.node_uuid)
+        # encrypt the agent UUID as a check for delivering the correct key
+        self.auth_tag = crypto.do_hmac(self.K,self.agent_uuid)
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
         if common.INSECURE_DEBUG:
             logger.debug("K:" + base64.b64encode(self.K))
@@ -383,7 +383,7 @@ class Tenant():
 
     def validate_tpm_quote(self,public_key,quote,tpm_version,hash_alg):
         registrar_client.init_client_tls(config,'tenant')
-        reg_keys = registrar_client.getKeys(self.cloudverifier_ip,self.registrar_port,self.node_uuid)
+        reg_keys = registrar_client.getKeys(self.cloudverifier_ip,self.registrar_port,self.agent_uuid)
         if reg_keys is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
@@ -391,11 +391,11 @@ class Tenant():
         tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
         if not tpm.check_quote(self.nonce,public_key,quote,reg_keys['aik'],hash_alg=hash_alg):
             if reg_keys['regcount'] > 1:
-                raise UserError("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious node is present.  Run 'regdelete' for this node and restart it to make this message go away!")
+                raise UserError("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious agent is present.  Run 'regdelete' for this agent and restart it to make this message go away!")
             return False
         
         if reg_keys['regcount'] > 1:
-            logger.warn("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured.  Run 'regdelete' for this node and restart it to make this message go away!")
+            logger.warn("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured.  Run 'regdelete' for this agent and restart it to make this message go away!")
         
         if not common.STUB_TPM and (not config.getboolean('tenant','require_ek_cert') and config.get('tenant', 'ek_check_script')==""):
             logger.warn("DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
@@ -403,7 +403,7 @@ class Tenant():
         # check EK cert and make sure it matches EK
         if not self.check_ek(reg_keys['ek'],reg_keys['ekcert'],tpm):
             return False
-        # if node is virtual, check phyisical EK cert and make sure it matches phyiscal EK
+        # if agent is virtual, check phyisical EK cert and make sure it matches phyiscal EK
         if 'provider_keys' in reg_keys:
             if not self.check_ek(reg_keys['provider_keys']['ek'],reg_keys['provider_keys']['ekcert'],tpm):
                 return False
@@ -417,7 +417,7 @@ class Tenant():
             logger.info("Checking EK with script %s"%script)
             #now we need to exec the script with the ek and ek cert in vars
             env = os.environ.copy()
-            env['NODE_UUID']=self.node_uuid
+            env['AGENT_UUID']=self.agent_uuid
             env['EK'] = reg_keys['ek']
             if reg_keys['ekcert'] is not None:
                 env['EK_CERT'] = reg_keys['ekcert']
@@ -447,14 +447,14 @@ class Tenant():
         return True
 
     def do_cv(self):
-        """initiaite v, instance_id and ip
+        """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         b64_v = base64.b64encode(self.V)
         logger.debug("b64_v:" + b64_v)
         data = {
             'v': b64_v,
-            'cloudnode_ip': self.cv_cloudnode_ip,
-            'cloudnode_port': self.cloudnode_port,
+            'cloudagent_ip': self.cv_cloudagent_ip,
+            'cloudagent_port': self.cloudagent_port,
             'tpm_policy': json.dumps(self.tpm_policy),
             'vtpm_policy':json.dumps(self.vtpm_policy),
             'ima_whitelist':json.dumps(self.ima_whitelist),
@@ -466,71 +466,71 @@ class Tenant():
         }
         
         json_message = json.dumps(data)
-        response = tornado_requests.request("POST","http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),data=json_message,context=self.context)
+        response = tornado_requests.request("POST","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),data=json_message,context=self.context)
         if response.status_code == 409:
             # this is a conflict, need to update or delete it
-            raise UserError("Node %s already existed at CV.  Please use delete or update."%self.node_uuid)
+            raise UserError("Agent %s already existed at CV.  Please use delete or update."%self.agent_uuid)
         elif response.status_code != 200:
             common.log_http_response(logger,logging.ERROR,response.json())
             raise UserError("POST command response: %d Unexpected response from Cloud Verifier: %s"%(response.status_code,response.body))
 
 
     def do_cvstatus(self,listing=False):
-        """initiaite v, instance_id and ip
+        """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
-        node_uuid = ""
+        agent_uuid = ""
         if not listing:
-            node_uuid=self.node_uuid
+            agent_uuid=self.agent_uuid
 
-        response = tornado_requests.request("GET", "http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,node_uuid),context=self.context)
+        response = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,agent_uuid),context=self.context)
         if response.status_code != 200:
             raise UserError("Status command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
         else:
-            logger.info("Node Status %d: %s"%(response.status_code,response.json()))
+            logger.info("Agent Status %d: %s"%(response.status_code,response.json()))
 
     def do_cvdelete(self):        
-        response = tornado_requests.request("DELETE","http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context)
+        response = tornado_requests.request("DELETE","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context)
         if response.status_code == 202:
             deleted = False
             for _ in range(12):
-                response = tornado_requests.request("GET", "http://%s:%s/instances/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context)
+                response = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context)
                 if response.status_code == 404:
                     deleted=True
                     break
                 time.sleep(.4)
             if deleted:
-                logger.info("CV completed deletion of node %s"%(self.node_uuid))
+                logger.info("CV completed deletion of agent %s"%(self.agent_uuid))
             else:
-                raise UserError("Timed out waiting for delete of node %s to complete at CV"%self.node_uuid)
+                raise UserError("Timed out waiting for delete of agent %s to complete at CV"%self.agent_uuid)
         elif response.status_code == 200:
-            logger.info("Node %s deleted from the CV"%(self.node_uuid))
+            logger.info("Agent %s deleted from the CV"%(self.agent_uuid))
         else:
             #raise UserError("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
 
     def do_regdelete(self):
         registrar_client.init_client_tls(config,'tenant')
-        registrar_client.doRegistrarDelete(self.registrar_ip,self.registrar_port,self.node_uuid)
+        registrar_client.doRegistrarDelete(self.registrar_ip,self.registrar_port,self.agent_uuid)
             
     def do_cvreactivate(self):
-        response = tornado_requests.request("PUT","http://%s:%s/instances/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
+        response = tornado_requests.request("PUT","http://%s:%s/agents/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context,data=b'')
         if response.status_code != 200:
             raise UserError("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
         else:
-            logger.info("Node %s re-activated"%(self.node_uuid))
+            logger.info("Agent %s re-activated"%(self.agent_uuid))
             
     def do_cvstop(self):
-        response = tornado_requests.request("PUT","http://%s:%s/instances/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.node_uuid),context=self.context,data=b'')
+        response = tornado_requests.request("PUT","http://%s:%s/agents/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context,data=b'')
         if response.status_code != 200:
             raise UserError("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
             common.log_http_response(logger,logging.ERROR,response.json())
         else:
-            logger.info("Node %s stopped"%(self.node_uuid))
+            logger.info("Agent %s stopped"%(self.agent_uuid))
         
     def do_quote(self):
-        """initiaite v, instance_id and ip
+        """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         self.nonce = TPM_Utilities.random_password(20)
         
@@ -540,16 +540,16 @@ class Tenant():
             # Get quote 
             try:
                 response = tornado_requests.request("GET",
-                                            "http://%s:%s/quotes/identity?nonce=%s"%(self.cloudnode_ip,self.cloudnode_port,self.nonce))
+                                            "http://%s:%s/quotes/identity?nonce=%s"%(self.cloudagent_ip,self.cloudagent_port,self.nonce))
             except Exception as e:
                 # this is one exception that should return a 'keep going' response
                 if tornado_requests.is_refused(e):
                     numtries+=1
                     maxr = config.getint('tenant','max_retries')
                     if numtries >= maxr:
-                        raise UserError("Quitting after max number of retries to connect to %s"%(self.cloudnode_ip))
+                        raise UserError("Quitting after max number of retries to connect to %s"%(self.cloudagent_ip))
                     retry  = config.getfloat('tenant','retry_interval')
-                    logger.info("Connection to %s refused %d/%d times, trying again in %f seconds..."%(self.cloudnode_ip,numtries,maxr,retry))
+                    logger.info("Connection to %s refused %d/%d times, trying again in %f seconds..."%(self.cloudagent_ip,numtries,maxr,retry))
                     time.sleep(retry)
                     continue
                 else:
@@ -558,45 +558,45 @@ class Tenant():
         
         try:   
             if response is not None and response.status_code != 200:
-                raise UserError("Status command response: %d Unexpected response from Cloud Node."%response.status_code)
+                raise UserError("Status command response: %d Unexpected response from Cloud Agent."%response.status_code)
                 
             response_body = response.json()
             
             if "results" not in response_body:
-                raise UserError("Error: unexpected http response body from Cloud Node: %s"%str(response.status_code))
+                raise UserError("Error: unexpected http response body from Cloud Agent: %s"%str(response.status_code))
             
             quote = response_body["results"]["quote"]
-            logger.debug("cnquote received quote:" + quote)
+            logger.debug("agent_quote received quote:" + quote)
             
             public_key = response_body["results"]["pubkey"]
-            logger.debug("cnquote received public key:" + public_key)
+            logger.debug("agent_quote received public key:" + public_key)
             
             # Get tpm_version, hash_alg
             tpm_version = response_body["results"]["tpm_version"]
-            logger.debug("cnquote received tpm version:" + str(tpm_version))
+            logger.debug("agent_quote received tpm version:" + str(tpm_version))
             
             # Ensure hash_alg is in accept_tpm_hash_algs list
             hash_alg = response_body["results"]["hash_alg"]
-            logger.debug("cnquote received hash algorithm:" + hash_alg)
+            logger.debug("agent_quote received hash algorithm:" + hash_alg)
             if not Hash_Algorithms.is_accepted(hash_alg, config.get('tenant','accept_tpm_hash_algs').split(',')):
                 raise UserError("TPM Quote is using an unaccepted hash algorithm: %s"%hash_alg)
             
             # Ensure enc_alg is in accept_tpm_encryption_algs list
             enc_alg = response_body["results"]["enc_alg"]
-            logger.debug("cnquote received encryption algorithm:" + enc_alg)
+            logger.debug("agent_quote received encryption algorithm:" + enc_alg)
             if not Encrypt_Algorithms.is_accepted(enc_alg, config.get('tenant','accept_tpm_encryption_algs').split(',')):
                 raise UserError("TPM Quote is using an unaccepted encryption algorithm: %s"%enc_alg)
             
             # Ensure sign_alg is in accept_tpm_encryption_algs list
             sign_alg = response_body["results"]["sign_alg"]
-            logger.debug("cnquote received signing algorithm:" + sign_alg)
+            logger.debug("agent_quote received signing algorithm:" + sign_alg)
             if not Sign_Algorithms.is_accepted(sign_alg, config.get('tenant','accept_tpm_signing_algs').split(',')):
                 raise UserError("TPM Quote is using an unaccepted signing algorithm: %s"%sign_alg)
             
             if not self.validate_tpm_quote(public_key, quote, tpm_version, hash_alg):
-                raise UserError("TPM Quote from cloud node is invalid for nonce: %s"%self.nonce)
+                raise UserError("TPM Quote from cloud agent is invalid for nonce: %s"%self.nonce)
         
-            logger.info("Quote from %s validated"%self.cloudnode_ip)
+            logger.info("Quote from %s validated"%self.cloudagent_ip)
     
             # encrypt U with the public key
             encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),str(self.U))
@@ -613,19 +613,19 @@ class Tenant():
             
             u_json_message = json.dumps(data)
             
-            #post encrypted U back to CloudNode
-            response = tornado_requests.request("POST", "http://%s:%s/keys/ukey"%(self.cloudnode_ip,self.cloudnode_port),data=u_json_message)
+            #post encrypted U back to CloudAgent
+            response = tornado_requests.request("POST", "http://%s:%s/keys/ukey"%(self.cloudagent_ip,self.cloudagent_port),data=u_json_message)
             
             if response.status_code != 200:
                 common.log_http_response(logger,logging.ERROR,response_body)
-                raise UserError("Posting of Encrypted U to the Cloud Node failed with response code %d" %response.status_code)
+                raise UserError("Posting of Encrypted U to the Cloud Agent failed with response code %d" %response.status_code)
                 
         except Exception as e:
             self.do_cvstop() 
             raise e
        
     def do_verify(self):
-        """initiaite v, instance_id and ip
+        """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         challenge = TPM_Utilities.random_password(20)
         
@@ -633,16 +633,16 @@ class Tenant():
         while True: 
             try:
                 response = tornado_requests.request("GET",
-                                            "http://%s:%s/keys/verify?challenge=%s"%(self.cloudnode_ip,self.cloudnode_port,challenge))
+                                            "http://%s:%s/keys/verify?challenge=%s"%(self.cloudagent_ip,self.cloudagent_port,challenge))
             except Exception as e:
                 # this is one exception that should return a 'keep going' response
                 if tornado_requests.is_refused(e):
                     numtries+=1
                     maxr = config.getint('tenant','max_retries')
                     if numtries >= maxr:
-                        raise UserError("Quitting after max number of retries to connect to %s"%(self.cloudnode_ip))
+                        raise UserError("Quitting after max number of retries to connect to %s"%(self.cloudagent_ip))
                     retry  = config.getfloat('tenant','retry_interval')
-                    logger.info("Connection to %s refused %d/%d times, trying again in %f seconds..."%(self.cloudnode_ip,numtries,maxr,retry))
+                    logger.info("Connection to %s refused %d/%d times, trying again in %f seconds..."%(self.cloudagent_ip,numtries,maxr,retry))
                     time.sleep(retry)
                     continue
                 else:
@@ -651,7 +651,7 @@ class Tenant():
             response_body = response.json()
             if response.status_code == 200:
                 if "results" not in response_body or 'hmac' not in response_body['results']:
-                    logger.critical("Error: unexpected http response body from Cloud Node: %s"%str(response.status_code))
+                    logger.critical("Error: unexpected http response body from Cloud Agent: %s"%str(response.status_code))
                     break
                 mac = response_body['results']['hmac']
                 ex_mac = crypto.do_hmac(self.K,challenge)
@@ -670,11 +670,11 @@ class Tenant():
 def main(argv=sys.argv):    
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument('-c', '--command',action='store',dest='command',default='add',help="valid commands are add,delete,update,status,reactivate,regdelete. defaults to add")
-    parser.add_argument('-t', '--targethost',action='store',dest='node_ip',help="the IP address of the host to provision")
-    parser.add_argument('--cv_targethost',action='store',default=None,dest='cv_node_ip',help='the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost')
+    parser.add_argument('-t', '--targethost',action='store',dest='agent_ip',help="the IP address of the host to provision")
+    parser.add_argument('--cv_targethost',action='store',default=None,dest='cv_agent_ip',help='the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost')
     parser.add_argument('-v', '--cv',action='store',dest='verifier_ip',help="the IP address of the cloud verifier")
-    parser.add_argument('-u', '--uuid',action='store',dest='node_uuid',help="UUID for the node to provision")
-    parser.add_argument('-f', '--file', action='store',default=None,help='Deliver the specified plaintext to the provisioned node')
+    parser.add_argument('-u', '--uuid',action='store',dest='agent_uuid',help="UUID for the agent to provision")
+    parser.add_argument('-f', '--file', action='store',default=None,help='Deliver the specified plaintext to the provisioned agent')
     parser.add_argument('--cert',action='store',dest='ca_dir',default=None,help='Create and deliver a certificate using a CA created by ca-util. Pass in the CA directory or use "default" to use the standard dir')
     parser.add_argument('-k', '--key',action='store',dest='keyfile',help='an intermedia key file produced by user_data_encrypt')
     parser.add_argument('-p', '--payload', action='store',default=None,help='Specify the encrypted payload to deliver with encrypted keys specified by -k')
@@ -683,7 +683,7 @@ def main(argv=sys.argv):
     parser.add_argument('--exclude',action='store',dest='ima_exclude',default=None,help="Specify the location of an IMA exclude list")
     parser.add_argument('--tpm_policy',action='store',dest='tpm_policy',default=None,help="Specify a TPM policy in JSON format. e.g., {\"15\":\"0000000000000000000000000000000000000000\"}")
     parser.add_argument('--vtpm_policy',action='store',dest='vtpm_policy',default=None,help="Specify a vTPM policy in JSON format")
-    parser.add_argument('--verify',action='store_true',default=False,help='Block on cryptographically checked key derivation confirmation from the node once it has been provisioned')
+    parser.add_argument('--verify',action='store_true',default=False,help='Block on cryptographically checked key derivation confirmation from the agent once it has been provisioned')
 
     if common.DEVELOP_IN_ECLIPSE and len(argv)==1:
         ca_util.setpassword('default')
@@ -701,23 +701,23 @@ def main(argv=sys.argv):
     
     mytenant = Tenant()
     
-    if args.command not in ['list','regdelete'] and args.node_ip is None:
+    if args.command not in ['list','regdelete'] and args.agent_ip is None:
         raise UserError("-t/--targethost is required for command %s"%args.command)
         
-    if args.node_uuid is not None:
-        mytenant.node_uuid = args.node_uuid
+    if args.agent_uuid is not None:
+        mytenant.agent_uuid = args.agent_uuid
         # if the uuid is actually a public key, then hash it
-        if mytenant.node_uuid.startswith('-----BEGIN PUBLIC KEY-----'):
-            mytenant.node_uuid = hashlib.sha256(mytenant.node_uuid).hexdigest()
+        if mytenant.agent_uuid.startswith('-----BEGIN PUBLIC KEY-----'):
+            mytenant.agent_uuid = hashlib.sha256(mytenant.agent_uuid).hexdigest()
     else:
         logger.warning("Using default UUID D432FBB3-D2F1-4A97-9EF7-75BD81C00000")
-        mytenant.node_uuid = "D432FBB3-D2F1-4A97-9EF7-75BD81C00000"
+        mytenant.agent_uuid = "D432FBB3-D2F1-4A97-9EF7-75BD81C00000"
         
     if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
-        # Use canned values for node UUID
+        # Use canned values for agent UUID
         jsonIn = common.TPM_CANNED_VALUES
         if "add_vtpm_to_group" in jsonIn:
-            mytenant.node_uuid = jsonIn['add_vtpm_to_group']['retout']
+            mytenant.agent_uuid = jsonIn['add_vtpm_to_group']['retout']
         else:
             # Our command hasn't been canned!
             raise UserError("Command %s not found in canned JSON!"%("add_vtpm_to_group"))
@@ -742,7 +742,7 @@ def main(argv=sys.argv):
             tpm = tpm_obj.getTPM(need_hw_tpm=True)
             tpm.extendPCR(15, tpm.hashdigest("garbage"))
             time.sleep(5)
-            logger.debug("Deleting node from verifier")
+            logger.debug("Deleting agent from verifier")
             mytenant.do_cvdelete()
     elif args.command=='update':
         mytenant.init_add(vars(args))

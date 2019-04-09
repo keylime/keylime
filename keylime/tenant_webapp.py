@@ -47,7 +47,7 @@ config.read(common.CONFIG_FILE)
 tenant_templ = tenant.Tenant()
 
 
-class Node_Init_Types:
+class Agent_Init_Types:
     FILE = '0'
     KEYFILE = '1'
     CA_DIR = '2'
@@ -67,15 +67,15 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(tornado.web.RequestHandler):
     def head(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /nodes/ or /logs/ interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/ interface instead")
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /nodes/ or /logs/  interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
     def put(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /nodes/ or /logs/  interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
     def post(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /nodes/ or /logs/  interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
     def delete(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /nodes/ or /logs/  interface instead")
+        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
 
 class WebAppHandler(BaseHandler):       
     def head(self):
@@ -83,7 +83,7 @@ class WebAppHandler(BaseHandler):
         common.echo_json_response(self, 405, "HEAD not supported")
   
     def get(self):
-        """This method handles the GET requests to retrieve status on instances for all nodes in a Web-based GUI.
+        """This method handles the GET requests to retrieve status on agents for all agents in a Web-based GUI.
         
         Currently, only the web app is available for GETing, i.e. /webapp. All other GET uri's 
         will return errors. 
@@ -106,7 +106,7 @@ class WebAppHandler(BaseHandler):
                     <link href='/static/css/webapp.css' rel='stylesheet' type='text/css'/>
                 </head>
                 <body>
-                    <div id='modal_box' onclick="if (event.target == this) {toggleVisibility(this.id);resetAddNodeForm();return false;}">
+                    <div id='modal_box' onclick="if (event.target == this) {toggleVisibility(this.id);resetAddAgentForm();return false;}">
                     
             """
         )
@@ -115,13 +115,13 @@ class WebAppHandler(BaseHandler):
             """
                         <div id='modal_body'>
                             <center>
-                                <h3>Add Node</h3>
+                                <h3>Add Agent</h3>
                                 <h4 id='uuid_str'></h4>
                             </center>
-                            <form id='add_node' name='add_node' onsubmit='submitAddNodeForm(this); return false;'>
+                            <form id='add_agent' name='add_agent' onsubmit='submitAddAgentForm(this); return false;'>
                                 <div class="form_block">
-                                    <label for='node_ip'>Node IP: </label>
-                                    <input type='text' id='node_ip' name='node_ip' value='127.0.0.1' required onfocus='this.select()'>
+                                    <label for='agent_ip'>Agent IP: </label>
+                                    <input type='text' id='agent_ip' name='agent_ip' value='127.0.0.1' required onfocus='this.select()'>
                                     <br>
                                 </div>
                                 
@@ -181,7 +181,7 @@ class WebAppHandler(BaseHandler):
                                         <label><input type='radio' name='ptype' value='{2}' onclick='toggleTabs(this.value)'> CA Dir </label>&nbsp;
                                         <br>
                                     </div>
-            """.format(Node_Init_Types.FILE, Node_Init_Types.KEYFILE, Node_Init_Types.CA_DIR)
+            """.format(Agent_Init_Types.FILE, Agent_Init_Types.KEYFILE, Agent_Init_Types.CA_DIR)
         )
         
         self.write(
@@ -233,7 +233,7 @@ class WebAppHandler(BaseHandler):
                                 <br>
                                 
                                 <input type='hidden' name='uuid' id='uuid' value=''>
-                                <center><button type="submit" value="Add Node">Add Node</button></center>
+                                <center><button type="submit" value="Add Agent">Add Agent</button></center>
                                 <br>
                             </form>
                         </div>
@@ -248,8 +248,8 @@ class WebAppHandler(BaseHandler):
                        <br style="clear:both;">
                     </div>
                     
-                    <div id="instance_body">
-                        <h2>Instances</h2>
+                    <div id="agent_body">
+                        <h2>Agents</h2>
                         <div class='table_header'>
                             <div class='table_control'>&nbsp;</div>
                             <div class='table_col'>UUID</div>
@@ -257,13 +257,13 @@ class WebAppHandler(BaseHandler):
                             <div class='table_col'>status</div>
                             <br style='clear:both;' />
                         </div>
-                        <div id='node_template' style='display:none;'>
-                            <li class='node'>
+                        <div id='agent_template' style='display:none;'>
+                            <li class='agent'>
                                 <div style='display:block;cursor:help;width:800px;'></div>
                                 <div style='display:none;'></div>
                             </li>
                         </div>
-                        <ol id='node_container'></ol>
+                        <ol id='agent_container'></ol>
                         <div style="color:#888;margin-left:15px;padding:10px;">
                             <i>End of results</i>
                         </div>
@@ -278,16 +278,16 @@ class WebAppHandler(BaseHandler):
         )
         
 
-class InstancesHandler(BaseHandler):       
+class AgentssHandler(BaseHandler):       
     def head(self):
         """HEAD not supported"""
         common.echo_json_response(self, 405, "HEAD not supported")
     
     
-    def get_instance_state(self, instance_id):
+    def get_agent_state(self, agent_id):
         try:
             response = tornado_requests.request("GET",
-                                        "http://%s:%s/instances/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,instance_id),context=tenant_templ.context)
+                                        "http://%s:%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,agent_id),context=tenant_templ.context)
         except Exception as e:
             logger.error("Status command response: %s:%s Unexpected response from Cloud Verifier."%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port))
             logger.exception(e)
@@ -305,24 +305,24 @@ class InstancesHandler(BaseHandler):
             logger.critical("Error: unexpected http response body from Cloud Verifier: %s"%str(response.status_code))
             return None 
         
-        # Node not added to CV (but still registered) 
+        # Agent not added to CV (but still registered) 
         if response.status_code == 404:
-            return {"operational_state" : cloud_verifier_common.CloudInstance_Operational_State.REGISTERED}
+            return {"operational_state" : cloud_verifier_common.CloudAgent_Operational_State.REGISTERED}
         else:
             return inst_response_body["results"]
         
         return None
     
     def get(self):
-        """This method handles the GET requests to retrieve status on instances from the WebApp. 
+        """This method handles the GET requests to retrieve status on agents from the WebApp. 
         
-        Currently, only the web app is available for GETing, i.e. /nodes. All other GET uri's 
+        Currently, only the web app is available for GETing, i.e. /agents. All other GET uri's 
         will return errors. 
         """
         
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /nodes/ or /logs/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ or /logs/ interface")
             return
         
         if "logs" in rest_params and rest_params["logs"] == "tenant":
@@ -334,25 +334,25 @@ class InstancesHandler(BaseHandler):
                 logValue = f.readlines()
                 common.echo_json_response(self, 200, "Success", {'log':logValue[offset:]})
             return
-        elif "nodes" not in rest_params:
-            # otherwise they must be looking for node info
+        elif "agents" not in rest_params:
+            # otherwise they must be looking for agent info
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.request.path)
             return
         
-        instance_id = rest_params["nodes"]
-        if instance_id is not None:
-            # Handle request for specific node data separately
-            instances = self.get_instance_state(instance_id)
-            instances["id"] = instance_id
+        agent_id = rest_params["agents"]
+        if agent_id is not None:
+            # Handle request for specific agent data separately
+            agents = self.get_agent_state(agent_id)
+            agents["id"] = agent_id
             
-            common.echo_json_response(self, 200, "Success", instances)
+            common.echo_json_response(self, 200, "Success", agents)
             return
         
-        # If no node ID, get list of all instances from Registrar  
+        # If no agent ID, get list of all agents from Registrar  
         try:
             response = tornado_requests.request("GET",
-                                        "http://%s:%s/instances/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port),context=tenant_templ.context)
+                                        "http://%s:%s/agents/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port),context=tenant_templ.context)
         except Exception as e:
             logger.error("Status command response: %s:%s Unexpected response from Registrar."%(tenant_templ.registrar_ip,tenant_templ.registrar_port))
             logger.exception(e)
@@ -370,93 +370,93 @@ class InstancesHandler(BaseHandler):
             logger.critical("Error: unexpected http response body from Registrar: %s"%str(response.status_code))
             return None 
         
-        instance_list = response_body["results"]["uuids"]
+        agent_list = response_body["results"]["uuids"]
         
-        # Loop through each instance and ask for status
-        instances = {}
-        for instance in instance_list:
-            instances[instance] = self.get_instance_state(instance_id)
+        # Loop through each agent and ask for status
+        agents = {}
+        for agent in agent_list:
+            agents[agent] = self.get_agent_state(agent_id)
         
-        # Pre-create sorted instances list 
+        # Pre-create sorted agents list 
         sorted_by_state = {}
-        states = cloud_verifier_common.CloudInstance_Operational_State.STR_MAPPINGS
+        states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
         for state in states:
             sorted_by_state[state] = {}
         
-        # Build sorted instances list 
-        for instance_id in instances:
-            state = instances[instance_id]["operational_state"]
-            sorted_by_state[state][instance_id] = instances[instance_id]
+        # Build sorted agents list 
+        for agent_id in agents:
+            state = agents[agent_id]["operational_state"]
+            sorted_by_state[state][agent_id] = agents[agent_id]
         
         print_order = [10,9,7,3,4,5,6,2,1,8,0]
-        sorted_instances = []
+        sorted_agents = []
         for state in print_order:
-            for instance_id in sorted_by_state[state]:
-                sorted_instances.append(instance_id)
+            for agent_id in sorted_by_state[state]:
+                sorted_agents.append(agent_id)
         
-        common.echo_json_response(self, 200, "Success", {'uuids':sorted_instances})
+        common.echo_json_response(self, 200, "Success", {'uuids':sorted_agents})
 
     def delete(self):
-        """This method handles the DELETE requests to remove instances from the Cloud Verifier. 
+        """This method handles the DELETE requests to remove agents from the Cloud Verifier. 
          
-        Currently, only instances resources are available for DELETEing, i.e. /nodes. All other DELETE uri's will return errors.
-        instances requests require a single instance_id parameter which identifies the instance to be deleted.    
+        Currently, only agents resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
+        agents requests require a single agent_id parameter which identifies the agent to be deleted.    
         """
         
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /nodes/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
-        if "nodes" not in rest_params:
+        if "agents" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('DELETE returning 400 response. uri not supported: ' + self.request.path)
             return
         
-        instance_id = rest_params["nodes"]
+        agent_id = rest_params["agents"]
         
-        # let Tenant do dirty work of deleting node 
+        # let Tenant do dirty work of deleting agent 
         mytenant = tenant.Tenant()
-        mytenant.node_uuid = instance_id
+        mytenant.agent_uuid = agent_id
         mytenant.do_cvdelete()
         
         common.echo_json_response(self, 200, "Success")
     
     def post(self):
-        """This method handles the POST requests to add instances to the Cloud Verifier. 
+        """This method handles the POST requests to add agents to the Cloud Verifier. 
          
-        Currently, only instances resources are available for POSTing, i.e. /nodes. All other POST uri's will return errors.
-        instances requests require a json block sent in the body
+        Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's will return errors.
+        agents requests require a json block sent in the body
         """
         
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /nodes/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
-        if "nodes" not in rest_params:
+        if "agents" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('POST returning 400 response. uri not supported: ' + self.request.path)
             return
         
-        instance_id = rest_params["nodes"]
+        agent_id = rest_params["agents"]
         
         # Parse payload files (base64 data-uri) 
-        if self.get_argument("ptype", Node_Init_Types.FILE, True) == Node_Init_Types.FILE:
+        if self.get_argument("ptype", Agent_Init_Types.FILE, True) == Agent_Init_Types.FILE:
             keyfile = None
             payload = None
             data = {'data': parse_data_uri(self.get_argument("file_data", None, True))}
             ca_dir = None
             incl_dir = None
             ca_dir_pw = None
-        elif self.get_argument("ptype", Node_Init_Types.FILE, True) == Node_Init_Types.KEYFILE:
+        elif self.get_argument("ptype", Agent_Init_Types.FILE, True) == Agent_Init_Types.KEYFILE:
             keyfile = {'data': parse_data_uri(self.get_argument("keyfile_data", None, True)),}
             payload = {'data': parse_data_uri(self.get_argument("file_data", None, True))}
             data = None
             ca_dir = None
             incl_dir = None
             ca_dir_pw = None
-        elif self.get_argument("ptype", Node_Init_Types.FILE, True) == Node_Init_Types.CA_DIR:
+        elif self.get_argument("ptype", Agent_Init_Types.FILE, True) == Agent_Init_Types.CA_DIR:
             keyfile = None
             payload = None
             data = None
@@ -501,7 +501,7 @@ class InstancesHandler(BaseHandler):
         
         # Build args to give to Tenant's init_add method 
         args = {
-            'node_ip': self.get_argument("node_ip", None, True),
+            'agent_ip': self.get_argument("agent_ip", None, True),
             'file': data,
             'keyfile': keyfile,
             'payload': payload,
@@ -514,10 +514,10 @@ class InstancesHandler(BaseHandler):
             'ima_exclude': ima_exclude,
         }
         
-        # let Tenant do dirty work of adding node 
+        # let Tenant do dirty work of adding agent 
         try:
             mytenant = tenant.Tenant()
-            mytenant.node_uuid = instance_id
+            mytenant.agent_uuid = agent_id
             mytenant.init_add(args)
             mytenant.preloop()
             mytenant.do_cv()
@@ -531,26 +531,26 @@ class InstancesHandler(BaseHandler):
         common.echo_json_response(self, 200, "Success")
     
     def put(self):
-        """This method handles the PUT requests to add instances to the Cloud Verifier. 
+        """This method handles the PUT requests to add agents to the Cloud Verifier. 
          
-        Currently, only instances resources are available for PUTing, i.e. /nodes. All other PUT uri's will return errors.
+        Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
         """
         
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /nodes/ interface")
+            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
-        if "nodes" not in rest_params:
+        if "agents" not in rest_params:
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('PUT returning 400 response. uri not supported: ' + self.request.path)
             return
         
-        instance_id = rest_params["nodes"]
+        agent_id = rest_params["agents"]
         
-        # let Tenant do dirty work of reactivating node 
+        # let Tenant do dirty work of reactivating agent 
         mytenant = tenant.Tenant()
-        mytenant.node_uuid = instance_id
+        mytenant.agent_uuid = agent_id
         mytenant.do_cvreactivate()
         
         common.echo_json_response(self, 200, "Success")
@@ -609,8 +609,8 @@ def main(argv=sys.argv):
     
     app = tornado.web.Application([
         (r"/webapp/.*", WebAppHandler),
-        (r"/(?:v[0-9]/)?nodes/.*", InstancesHandler),
-        (r"/(?:v[0-9]/)?logs/.*", InstancesHandler),
+        (r"/(?:v[0-9]/)?agents/.*", AgentssHandler),
+        (r"/(?:v[0-9]/)?logs/.*", AgentssHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': root_dir+"/static/"}),
         (r".*", MainHandler),
         ])
