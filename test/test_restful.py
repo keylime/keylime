@@ -619,7 +619,7 @@ class TestRestful(unittest.TestCase):
         u_json_message = json.dumps(data)
 
         response = tornado_requests.request(
-                                            "POST", "http://%s:%s/v%s/keys/ukey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudaagent_port,self.api_version),
+                                            "POST", "http://%s:%s/v%s/keys/ukey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version),
                                             data=u_json_message
                                         )
         self.assertEqual(response.status_code, 200, "Non-successful Agent ukey post return code!")
