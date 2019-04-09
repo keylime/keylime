@@ -7,7 +7,7 @@ Status](https://travis-ci.org/keylime/python-keylime.svg?branch=master)](https:/
 
 keylime is a scalable trusted cloud key management system. keylime provides an
 end-to-end solution for both bootstrapping hardware rooted cryptographic
-identities for IaaS agents and for system integrity monitoring of those agent via
+identities for IaaS nodes and for system integrity monitoring of those nodes via
 periodic attestation.
 
 keylime supports both TPM versions 1.2 and 2.0.  
@@ -346,7 +346,7 @@ This will zip the above files and place them in /var/lib/keylime/ca/certname.hos
 private key will be protected by the key that you were prompted with.
 
 You may wonder why this is in keylime at all?  Well, you can tell `keylime_tenant` to
-automatically create a key and then provision a agent with it.  Use the --cert
+automatically create a key and then provision an agent with it.  Use the --cert
 option in `keylime_tenant` to do this.  This takes in the directory of the CA:
 
 `keylime_tenant -c add -t 127.0.0.1 -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --cert /var/lib/keylime/ca`

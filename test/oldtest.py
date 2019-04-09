@@ -146,7 +146,7 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","agent_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         #"concurrent_instances" : 10,
                         #"concurrent_new_thread_function" : "new_thread",
@@ -164,7 +164,7 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","agent_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         "concurrency" : {"instances": 5, "new_thread_function":"new_thread"},
                         "test_iterations" : 100,
@@ -172,12 +172,12 @@ class Test(unittest.TestCase):
                 ],   
                 "state_validation_functions": [
                     {
-                        "function_name": "test_instance_id_list",
+                        "function_name": "test_agent_id_list",
                         "http_request_verb":"GET",
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        #"http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+                        #"http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","agent_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"check_and_delete_all_entries", "argument": 500}
                     },                               
@@ -196,7 +196,7 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C00000","cloudagent_ip":"cloudagent_ip.txt","cloudagent_port":"cloudagent_port.txt","tpm_policy": {"22":"ffffffffffffffffffffffffffffffffffffffff","16":"0000000000000000000000000000000000000000"} }',
+                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","agent_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C00000","cloudagent_ip":"cloudagent_ip.txt","cloudagent_port":"cloudagent_port.txt","tpm_policy": {"22":"ffffffffffffffffffffffffffffffffffffffff","16":"0000000000000000000000000000000000000000"} }',
                         "http_result_status_expected": 200,
                         "test_iterations" : test_num_cloudagents,
                         "post_function" : {"name":"test_concurrent_cloudnodiness_reset_request", "args": {"ip_file": "cloudagent_ip.txt","port_file":"cloudagent_port.txt"} },
@@ -226,7 +226,7 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "XrNfEiODfu1fdXGtWbA+Wk02UhBxx1jTq7zhbC54ROA=","instance_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C866E9","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+                        "http_request_body": '{"v": "XrNfEiODfu1fdXGtWbA+Wk02UhBxx1jTq7zhbC54ROA=","agent_id":"C432FBB3-D2F1-4A97-9EF7-75BD81C866E9","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"check_test_sleep", "argument": 5},
                         #"concurrent_new_thread_function" : "new_thread",
@@ -261,7 +261,7 @@ class Test(unittest.TestCase):
                         "http_request_ip": cloudverifier_ip,
                         "http_request_port":cloudverifier_port,
                         "http_request_path": "/v1/instances",
-                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+                        "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","agent_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"check_test_persistance_file_write", "argument": "06480EC4-6BF3-4F00-8323-FE6AE5868297"},
                     },                     
@@ -333,7 +333,7 @@ class Test(unittest.TestCase):
     def check_test_sleep(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         time.sleep(argument)
 
-#'{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","instance_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
+#'{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","agent_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
 
     def read_line_in_file(self, infile, line_number):
         with open(infile) as fp:
@@ -380,13 +380,13 @@ class Test(unittest.TestCase):
 #                     parser.read(common.CONFIG_FILE)
 #                     test_agent_uuid = parser.get('general', 'agent_uuid')
                     
-                    test_agent_uuid = json_request_body['instance_id']
+                    test_agent_uuid = json_request_body['agent_id']
                     
                     
                     port_string_length = len(str(json_request_body['cloudagent_port']))
                     contrived_uuid = test_agent_uuid[:-port_string_length]
                     contrived_uuid = contrived_uuid + str(json_request_body['cloudagent_port'])   
-                    json_request_body['instance_id'] = contrived_uuid
+                    json_request_body['agent_id'] = contrived_uuid
                         
                     test_functions['http_request_body'] = json.dumps(json_request_body)        
                                                            
@@ -467,7 +467,7 @@ class Test(unittest.TestCase):
                 jsondecoded = json.loads(target_body)
                 # test to make sure these two keys (and values) are in the return
                 if len(jsondecoded) != 1 or jsondecoded.get(uuid_str) is None :
-                    self.fail("Expected " + uuid_str + " to be in the list of active instance_ids")   
+                    self.fail("Expected " + uuid_str + " to be in the list of active agent_ids")   
 
 #     def do_mock_for_test_cloudverifier_tenant_provide_v(self, argument):
 #         global text_callback
@@ -565,16 +565,16 @@ class Test(unittest.TestCase):
         for test_functions in test_record[state_change_or_validation]:
             if test_functions.get("function_name") == test_function_name:
                 target_body = test_functions.get("http_result_body_actual")
-                instance_id_list = json.loads(target_body)
+                agent_id_list = json.loads(target_body)
                 
                 expected_len = argument
-                actual_len = len(instance_id_list)
+                actual_len = len(agent_id_list)
                 if actual_len != expected_len:
                     self.fail("Expected " +  str(expected_len) +" instance id's but received " + str(actual_len))  
                 
-                for instance_id in instance_id_list:
+                for agent_id in agent_id_list:
                     params = {
-                        'instance_id': instance_id,
+                        'agent_id': agent_id,
                         }
                     try:  
                         response = tornado_requests.request("DELETE",
@@ -582,10 +582,10 @@ class Test(unittest.TestCase):
                         params=params)  
                         
                         if response.status_code != 200:
-                            self.fail("Delete of instance_id " + instance_id + " failed.")  
+                            self.fail("Delete of agent_id " + agent_id + " failed.")  
   
                     except Exception as e:
-                        self.fail("Delete of instance_id " + instance_id + " failed with exception: %s"%e)                    
+                        self.fail("Delete of agent_id " + agent_id + " failed with exception: %s"%e)                    
                        
     
 
@@ -660,9 +660,9 @@ class Test(unittest.TestCase):
 
     def request_task(self, queue, setup_or_state_change_or_validation, test_functions, test_iteration):
         try:
-            # Table data does not provide ability to inject unique instance_id's for each concurrent instance.
-            # The queue stores unique instance_id objects, injected by the new_thread function.
-            # Get the instance_id from the Queue and modify the original table data to change the instance_id to something unique.
+            # Table data does not provide ability to inject unique agent_id's for each concurrent instance.
+            # The queue stores unique agent_id objects, injected by the new_thread function.
+            # Get the agent_id from the Queue and modify the original table data to change the agent_id to something unique.
             http_request_body_tag = test_functions.get("http_request_body") 
             http_request_body_file_tag = test_functions.get("http_request_body_file")
             if http_request_body_tag != None and http_request_body_file_tag != None :
@@ -676,10 +676,10 @@ class Test(unittest.TestCase):
 
             the_uid = queue.get()
             jsondata = json.loads(thedata)
-            jsondata['instance_id'] = the_uid
+            jsondata['agent_id'] = the_uid
             newdata = json.dumps(jsondata)
             
-            # call the inline task passing the new data with the unique instance_id
+            # call the inline task passing the new data with the unique agent_id
             self.execute_the_test(setup_or_state_change_or_validation, test_functions, test_iteration )
 
         except Exception as e:
@@ -842,7 +842,7 @@ class Test(unittest.TestCase):
                 contrived_uuid = test_agent_uuid[:-port_string_length]
                 contrived_uuid = contrived_uuid + cloudagent_port_read_from_file
                 params = {
-                    'instance_id': contrived_uuid,
+                    'agent_id': contrived_uuid,
                     }
                 try:
                     print "Sending #" + str(cn) + " DELETE request to CV for uuid: " +  contrived_uuid
@@ -851,10 +851,10 @@ class Test(unittest.TestCase):
                     params=params)  
                     
                     if response.status_code != 200:
-                        self.fail("Delete of instance_id " + contrived_uuid + " failed.")  
+                        self.fail("Delete of agent_id " + contrived_uuid + " failed.")  
                 
                 except Exception as e:
-                    self.fail("Delete of instance_id " + contrived_uuid + " failed with exception: %s"%e)  
+                    self.fail("Delete of agent_id " + contrived_uuid + " failed with exception: %s"%e)  
                 
 
             for cn in range(num_cloudagent_instances): 

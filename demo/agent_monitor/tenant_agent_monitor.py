@@ -81,9 +81,9 @@ class AgentsHandler(BaseHandler):
         """This method handles the GET requests to retrieve status on agents from the Agent Monitor. 
         
         Currently, only agents resources are available for GETing, i.e. /agents. All other GET uri's 
-        will return errors. agents requests require a single instance_id parameter which identifies the 
-        instance to be returned. If the instance_id is not found, a 404 response is returned.  If the instance_id
-        was not found, it either completed successfully, or failed.  If found, the instance_id is still polling 
+        will return errors. agents requests require a single agent_id parameter which identifies the 
+        instance to be returned. If the agent_id is not found, a 404 response is returned.  If the agent_id
+        was not found, it either completed successfully, or failed.  If found, the agent_id is still polling 
         to contact the Cloud Agent. 
         """
         common.echo_json_response(self, 405, "GET not supported")
@@ -92,7 +92,7 @@ class AgentsHandler(BaseHandler):
         """This method handles the DELETE requests to remove agents from the Agent Monitor. 
          
         Currently, only agents resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
-        agents requests require a single instance_id parameter which identifies the instance to be deleted.    
+        agents requests require a single agent_id parameter which identifies the instance to be deleted.    
         """
         common.echo_json_response(self, 405, "DELETE not supported")
                             
@@ -111,9 +111,9 @@ class AgentsHandler(BaseHandler):
                 logger.warning('POST returning 400 response. uri not supported: ' + self.request.path)
                 return
             
-            instance_id = rest_params["agents"]
+            agent_id = rest_params["agents"]
             
-            if instance_id is not None: # we have to know who phoned home 
+            if agent_id is not None: # we have to know who phoned home 
                 content_length = len(self.request.body)
                 if content_length==0:
                     common.echo_json_response(self, 400, "Expected non zero content length")
@@ -121,9 +121,9 @@ class AgentsHandler(BaseHandler):
                 else:
                     json_body = json.loads(self.request.body)
                     
-                    # VERIFY CLIENT CERT ID MATCHES AGENT ID (instance_id)
+                    # VERIFY CLIENT CERT ID MATCHES AGENT ID (agent_id)
                     client_cert = self.request.get_ssl_certificate()
-                    ssl.match_hostname(client_cert, instance_id)
+                    ssl.match_hostname(client_cert, agent_id)
                     
                     # Execute specified script if all is well 
                     global initscript
@@ -132,7 +132,7 @@ class AgentsHandler(BaseHandler):
                             import subprocess
                             logger.debug("Executing specified script: %s"%initscript)
                             env = os.environ.copy()
-                            env['AGENT_UUID']=instance_id
+                            env['AGENT_UUID']=agent_id
                             proc= subprocess.Popen(["/bin/sh",initscript],env=env,shell=False,
                                                     stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
                             proc.wait()
@@ -145,7 +145,7 @@ class AgentsHandler(BaseHandler):
                         t.start()
                     
                     common.echo_json_response(self, 200, "Success", json_body)
-                    logger.info('POST returning 200 response for Agent Monitor connection as ' + instance_id)
+                    logger.info('POST returning 200 response for Agent Monitor connection as ' + agent_id)
             else:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")

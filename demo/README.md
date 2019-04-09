@@ -19,7 +19,7 @@ The bundle contains the following files:
 * **payload.txt**: A simple encrypted payload to demonstrate the "Keyfile" payload type 
 * **payload/**: Directory containing the "unprotected" website 
 
-Also, see the **demo/agent_monitor** directory for a agent "phone-home" demo! 
+Also, see the **demo/agent_monitor** directory for an agent "phone-home" demo! 
 
 ## Usage 
 

@@ -278,7 +278,7 @@ class WebAppHandler(BaseHandler):
         )
         
 
-class AgentssHandler(BaseHandler):       
+class AgentsHandler(BaseHandler):       
     def head(self):
         """HEAD not supported"""
         common.echo_json_response(self, 405, "HEAD not supported")
@@ -609,8 +609,8 @@ def main(argv=sys.argv):
     
     app = tornado.web.Application([
         (r"/webapp/.*", WebAppHandler),
-        (r"/(?:v[0-9]/)?agents/.*", AgentssHandler),
-        (r"/(?:v[0-9]/)?logs/.*", AgentssHandler),
+        (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
+        (r"/(?:v[0-9]/)?logs/.*", AgentsHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': root_dir+"/static/"}),
         (r".*", MainHandler),
         ])
