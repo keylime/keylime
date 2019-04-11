@@ -43,12 +43,12 @@ extensions = [
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.githubpages',
     'sphinxcontrib.httpdomain',
     'sphinx_tabs.tabs',
     'sphinx-prompt',
     'recommonmark',
     'notfound.extension',
-    'sphinx.ext.githubpages',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
