@@ -40,6 +40,16 @@ release = '3.0.0'
 # ones.
 extensions = [
     'sphinx.ext.viewcode',
+    'sphinx.ext.autosectionlabel',
+    'sphinx.ext.autodoc',
+    'sphinx.ext.intersphinx',
+    'sphinxcontrib.httpdomain',
+    'djangodocs',
+    'doc_extensions',
+    'sphinx_tabs.tabs',
+    'sphinx-prompt',
+    'recommonmark',
+    'notfound.extension',
     'sphinx.ext.githubpages',
 ]
 
