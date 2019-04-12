@@ -11,8 +11,8 @@ nodes using a hardware based cryptographic root of trust.
 Keylime was originally born out of the security research team in MIT's Lincoln
 Laboratory and is not developed and maintained by the Keylime community.
 
-This Documentation site contains user guides to install, use and adminster
-keylime as well as guides to enable developers to make contributions to keylime
+This Documentation site contains guides to install, use and administer keylime
+as well as guides to enable developers to make contributions to keylime
 or develop services against Keylimes Rest API(s).
 
 
@@ -23,7 +23,6 @@ or develop services against Keylimes Rest API(s).
    installation
    user_guide
    rest_apis
-   certificate_authority
    developers
    security
 
