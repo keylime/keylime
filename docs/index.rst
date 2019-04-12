@@ -23,6 +23,7 @@ or develop services against Keylimes Rest API(s).
    installation
    user_guide
    rest_apis
+   certificate_authority
    developers
    security
 
