@@ -839,8 +839,8 @@ class tpm1(AbstractTPM):
             keyFile.write(key)
             keyFile.flush()
             
-            self.__run("nv_definespace -pwdo %s -in 1 -sz %d -pwdd %s -per 40004"%(owner_pw,common.BOOTSTRAP_KEY_SIZE,owner_pw))
-            self.__run("nv_writevalue -pwdd %s -in 1 -if %s"%(owner_pw,keyFile.name))
+            self.__run("nv_definespace -pwdo %s -in 1 -sz %d -pwdd %s -per 40004"%(owner_pw,common.BOOTSTRAP_KEY_SIZE,owner_pw),raiseOnError=False)
+            self.__run("nv_writevalue -pwdd %s -in 1 -if %s"%(owner_pw,keyFile.name),raiseOnError=False)
         return
 
     def read_ekcert_nvram(self):
