@@ -25,7 +25,8 @@ Usage
 
 Run the example playbook against your target remote node(s).
 
-    ansible-playbook -i your_hosts playbook.yml
+.. code-block:: rst
+  ansible-playbook -i your_hosts playbook.yml
 
 
 TPM Version Control
