@@ -25,7 +25,6 @@ Usage
 
 Run the example playbook against your target remote node(s).
 
-.. code-block:: bash
     ansible-playbook -i your_hosts playbook.yml
 
 
@@ -37,13 +36,11 @@ the role in the `playbook.yml` file `here <https://github.com/keylime/ansible-ke
 
 For TPM 2.0 use:
 
-.. code-block:: bash
     - ansible-keylime-tpm20
 
 
 For TPM 1.20 use:
 
-.. code-block:: bash
     - ansible-keylime-tpm12
 
 
@@ -51,7 +48,7 @@ Both roles will deploy the relevant TPM 1.2 Emulator (tpm4720) or 2.0 Emulator
 (IBM software TPM).
 
 Vagrant
--------
+~~~~~~~
 
 If you prefer, a Vagrantfile is available for provisioning.
 
@@ -59,13 +56,11 @@ Clone the repository and then simply run `vagrant up --provider <provider> --pro
 
 For example, using libvirt:
 
-.. code-block:: bash
     vagrant up --provider libvirt --provision
 
 
 For example, using VirtualBox:
 
-.. code-block:: bash
     vagrant up --provider virtualbox --provision
 
 Once the VM is started, vagrant ssh into the VM and run `sudo su` - to
@@ -73,7 +68,6 @@ become root.
 
 You can then start the various components using commands:
 
-.. code-block:: bash
     keylime_verifier
     keylime_registrar
     keylime_node
@@ -95,7 +89,6 @@ Rust Cloud node
 To start the rust cloud node, navigate to it's repository directory and use
 cargo to run:
 
-.. code-block:: bash
     [root@localhost rust-keylime]# RUST_LOG=keylime_node=trace cargo run
         Finished dev [unoptimized + debuginfo] target(s) in 0.28s
          Running `target/debug/keylime_node`
@@ -111,7 +104,6 @@ Keylime requires Python 2.7.10 or newer for proper TLS support.
 Installation can be performed via an automated shell script, `installer.sh`. The
 following command line options are available:
 
-.. code-block:: bash
     Usage: ./installer.sh [option...]
     Options:
     -k              Download Keylime (stub installer mode)
@@ -172,7 +164,6 @@ See README.md in that project for detailed instructions on how to build and inst
 
 The brief synopsis of a quick build/install (after installing dependencies) is:
 
-.. code-block:: bash
     git clone https://github.com/keylime/tpm4720-keylime.git
     cd tpm4720-keylime/libtpm
     ./comp-chardev.sh
@@ -194,7 +185,6 @@ README.md in these projects for detailed instructions on how to build and instal
 
 The brief synopsis of a quick build/install (after installing dependencies) is:
 
-.. code-block:: bash
     git clone https://github.com/tpm2-software/tpm2-tss.git tpm2-tss
     pushd tpm2-tss
     ./bootstrap
@@ -224,7 +214,6 @@ detailed instructions on how to build and install.
 
 A brief, workable example for Ubuntu 18 LTS systems is:
 
-.. code-block:: bash
     sudo useradd --system --user-group tss
     git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
     pushd tpm2-abrmd
@@ -242,8 +231,7 @@ A brief, workable example for Ubuntu 18 LTS systems is:
     export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
 
 # NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as:
-sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
-```
+    sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
 
 Alternatively, it is also possible, though not recommended, to communicate
 directly with the TPM (and not use a resource manager).  This can be done by
@@ -258,7 +246,6 @@ Install Keylime
 
 You're finally ready to install keylime!
 
-.. code-block:: bash
     sudo python setup.py install
 
 To run on OSX 10.11+
@@ -266,12 +253,12 @@ To run on OSX 10.11+
 
 You need to build m2crypto from source with
 
-```bash
-brew install openssl
-git clone https://gitlab.com/m2crypto/m2crypto.git
-python setup.py build build_ext --openssl=/usr/local/opt/openssl/
-sudo -E python setup.py install build_ext --openssl=/usr/local/opt/openssl/
-```
+
+    brew install openssl
+    git clone https://gitlab.com/m2crypto/m2crypto.git
+    python setup.py build build_ext --openssl=/usr/local/opt/openssl/
+    sudo -E python setup.py install build_ext --openssl=/usr/local/opt/openssl/
+
 
 Optional Requirements
 ~~~~~~~~~~~~~~~~~~~~~

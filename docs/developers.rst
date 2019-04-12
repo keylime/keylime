@@ -9,7 +9,8 @@ When contributing to this repository, please first discuss the change you wish
 to make via an issue in the relevant repository for your change or email to the
 [keylime mailing list](https://groups.io/g/keylime).
 
-## Pull Request Process
+Pull Request Process
+~~~~~~~~~~~~~~~~~~~~
 
 1. Create an [issue](https://github.com/keylime/python-keylime/issues)
    outlining the fix or feature.
@@ -39,7 +40,7 @@ how to set that up.
 
 As an example, on Fedora 29:
 
-.. code-block:: bash
+
     sudo dnf -y install dnf-plugins-core
     sudo dnf install docker-ce docker-ce-cli containerd.io
     sudo usermod -aG docker $USER
@@ -52,7 +53,6 @@ Note: login and out of your shell, if you want to run docker as `$USER`
 Save the following script to your local machine (tip: create an alias to call the
 script in an easy to remember way)
 
-.. code-block:: bash
     #!/bin/bash
 
     # Your local python-keylime (you should likely change this)
