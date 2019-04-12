@@ -82,7 +82,7 @@ class AgentsHandler(BaseHandler):
         
         Currently, only agents resources are available for GETing, i.e. /agents. All other GET uri's 
         will return errors. agents requests require a single agent_id parameter which identifies the 
-        instance to be returned. If the agent_id is not found, a 404 response is returned.  If the agent_id
+        agent to be returned. If the agent_id is not found, a 404 response is returned.  If the agent_id
         was not found, it either completed successfully, or failed.  If found, the agent_id is still polling 
         to contact the Cloud Agent. 
         """
@@ -92,7 +92,7 @@ class AgentsHandler(BaseHandler):
         """This method handles the DELETE requests to remove agents from the Agent Monitor. 
          
         Currently, only agents resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
-        agents requests require a single agent_id parameter which identifies the instance to be deleted.    
+        agents requests require a single agent_id parameter which identifies the agent to be deleted.    
         """
         common.echo_json_response(self, 405, "DELETE not supported")
                             
