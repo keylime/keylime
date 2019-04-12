@@ -21,7 +21,7 @@ python based cloud node `keylime_node` until later notice.
 The TPM Emulator should never be used ina production scenario.
 
 Usage
------
+~~~~~
 
 Run the example playbook against your target remote node(s).
 
@@ -30,7 +30,7 @@ Run the example playbook against your target remote node(s).
 
 
 TPM Version Control
--------------------
+~~~~~~~~~~~~~~~~~~~
 
 Either TPM version 1.2 or TPM 2.0 support can be configured by simply changing
 the role in the `playbook.yml` file `here <https://github.com/keylime/ansible-keylime/blob/master/playbook.yml#L11>_
@@ -80,7 +80,7 @@ You can then start the various components using commands:
 
 
 WebApp
-------
+~~~~~~
 
 The web application can be started with the command `keylime_webapp`. If using
 Vagrant, port 443 will be forwarded from the guest to port 8443 on the host.
@@ -90,7 +90,7 @@ This will result in the web application being available on url:
 https://localhost:8443/webapp/
 
 Rust Cloud node
----------------
+~~~~~~~~~~~~~~~
 
 To start the rust cloud node, navigate to it's repository directory and use
 cargo to run:
@@ -137,13 +137,15 @@ local CI script
 `here <https://github.com/keylime/python-keylime/blob/master/.ci/run_local.sh>_
 which will automate the build and pull of keylime on TPM 1.2 or 2.0.
 
-### Manual
+Manual
+------
 
 Keylime requires Python 2.7.10 or newer for proper TLS support.  This is newer than
 some LTS distributions like Ubuntu 14.04 or CentOS 7.  See google for instructions
 on how to get a newer Python onto those platforms.
 
-#### Python-based prerequisites
+Python-based prerequisites
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following python packages are required:
 
@@ -251,7 +253,8 @@ To talk directly to the swtpm2 emulator: `export TPM2TOOLS_TCTI="mssim:port=2321
 
 To talk directly to a real TPM: `export TPM2TOOLS_TCTI="device:/dev/tpm0"`
 
-#### Install Keylime
+Install Keylime
+~~~~~~~~~~~~~~~
 
 You're finally ready to install keylime!
 
@@ -259,7 +262,7 @@ You're finally ready to install keylime!
     sudo python setup.py install
 
 To run on OSX 10.11+
----------------------
+~~~~~~~~~~~~~~~~~~~~
 
 You need to build m2crypto from source with
 
@@ -270,7 +273,8 @@ python setup.py build build_ext --openssl=/usr/local/opt/openssl/
 sudo -E python setup.py install build_ext --openssl=/usr/local/opt/openssl/
 ```
 
-#### Optional Requirements
+Optional Requirements
+~~~~~~~~~~~~~~~~~~~~~
 
 If you want to support revocation, you also need to have cfssl installed and in your
 path on the tenant node.  It can be obtained from https://github.com/cloudflare/cfssl.  You
