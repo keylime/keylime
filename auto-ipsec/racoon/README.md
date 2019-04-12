@@ -57,7 +57,7 @@ Importantly, the following option must be set with the ip/port of the crl listen
 
 `cert_crl_dist = http://xxx.xxx.xxx.xxx:port/crl`
 
-## Bootstrapping a agent with IPsec Configuration
+## Bootstrapping an agent with IPsec Configuration
 
 First, generate the ipsec config files using generate.py in this directory.  It takes in a file with 1 or more subnets to enable IPsec to/from.
 You can also specify single hosts using the notation `192.168.1.1/32`  The order in which the lines in the file are specified is how they'll be encoded into ipsec-tools.conf.  
@@ -79,7 +79,7 @@ exclude
 
 This script will output the files you need to include into the directory `ipsec-extra`
 
-Next provision a agent as you would normally.  Be sure to use the `--cert` option to generate a certificate.  Also include the files generated above using `--include`.
+Next provision an agent as you would normally.  Be sure to use the `--cert` option to generate a certificate.  Also include the files generated above using `--include`.
 
 `keylime_tenant -t 192.168.0.100 -u agent1 --cert myca --include ipsec-extra`
 
@@ -91,7 +91,7 @@ To support revocation, you must run a CRL host/listener.  This will host a copy 
  
 It will start up a web server and listen for notifications.  Be sure that the cert_crl_dist option is set to point to this server.
 
-If a agent is revoked, the listener will update the CRL.  All the agents will run their configured revocation actions:
+If an agent is revoked, the listener will update the CRL.  All the agents will run their configured revocation actions:
 
 ```
 local_action_update_crl

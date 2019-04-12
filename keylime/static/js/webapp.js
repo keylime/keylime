@@ -386,9 +386,9 @@ function populateAgents() {
 
         // Get all existing agent ids
         let childAgentsObj = document.getElementsByClassName('agent');
-        let existingagentIds = [];
+        let existingAgentIds = [];
         for (let i = 0; i < childAgentsObj.length; i++) {
-            if (typeof childAgentssObj[i].id != 'undefined' && childAgentsObj[i].id != '') {
+            if (typeof childAgentsObj[i].id != 'undefined' && childAgentsObj[i].id != '') {
                 existingAgentIds.push(childAgentsObj[i].id);
             }
         }

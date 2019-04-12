@@ -400,7 +400,7 @@ Meeting agenda are hosted and archived in the [meetings repo](https://github.com
 #### Errata from the ACSAC Paper
 
 We discovered a typo in Figure 5 of the published ACSAC paper. The final interaction
-between the Tenant and Cloud Verifier showed an HMAC of the agent's ID using the key
+between the Tenant and Cloud Verifier showed an HMAC of the nodes's ID using the key
 K_e.  This should be using K_b. The paper in this repository and the ACSAC presentation
 have been updated to correct this typo.
 
