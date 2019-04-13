@@ -17,7 +17,7 @@ python based cloud node `keylime_node` until later notice.
 This role deploys keylime for use with a Hardware TPM Emulator
 
 Should you wish tto deploy Keylime with a software TPM emulator for development
-or getting your feet wet, use the`Ansible Keylime Soft TPM <https://github.com/keylime/ansible-keylime-soft-tpm>`_
+or getting your feet wet, use the `Ansible Keylime Soft TPM <https://github.com/keylime/ansible-keylime-soft-tpm>`_
 role instead.
 
 Download or clone `Ansible Keylime <https://github.com/keylime/ansible-keylime>`_
@@ -26,9 +26,8 @@ from its repository and follow the usage section.
 Usage
 ~~~~~
 
-Run the example playbook against your target remote node(s).
+Run the example playbook against your target remote node(s)::
 
-.. highlight:: rst
     ansible-playbook -i your_hosts playbook.yml
 
 TPM Version Control (Software TPM)
