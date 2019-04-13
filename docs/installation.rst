@@ -239,9 +239,13 @@ Alternatively, it is also possible, though not recommended, to communicate
 directly with the TPM (and not use a resource manager).  This can be done by
 setting the environment var `TPM2TOOLS_TCTI` to the appropriate value:
 
-To talk directly to the swtpm2 emulator: `export TPM2TOOLS_TCTI="mssim:port=2321"`
+To talk directly to the swtpm2 emulator::
 
-To talk directly to a real TPM: `export TPM2TOOLS_TCTI="device:/dev/tpm0"`
+    export TPM2TOOLS_TCTI="mssim:port=2321"`
+
+To talk directly to a real TPM::
+
+    export TPM2TOOLS_TCTI="device:/dev/tpm0"
 
 Install Keylime
 ~~~~~~~~~~~~~~~
