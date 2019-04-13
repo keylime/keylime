@@ -1,49 +1,53 @@
-============
 Installation
 ============
 
 There are three current methods for installing Keylime, the ansible role, the
 keylime installer or a manual installation.
 
-Ansible Keylime
----------------
+Ansible Keylime Roles
+---------------------
 
-Download or clone `Ansible Keylime <https://github.com/keylime/ansible-keylime>`_
-from its repository.
-
-This Ansible role to deploy `Python Keylime <https://github.com/keylime/python-keylime>_
-and a TPM Emulator, alongside the `Keylime rust cloud node <https://github.com/keylime/rust-keylime>_
+An Ansible role to deploy `Python Keylime <https://github.com/keylime/python-keylime>`_
+, alongside the `Keylime rust cloud node <https://github.com/keylime/rust-keylime>`_
 
 Please note that the rust cloud node is still under early stages of Development.
 Those wishing to test drive keylimes functionality should use the existing
 python based cloud node `keylime_node` until later notice.
 
-The TPM Emulator should never be used ina production scenario.
+This role deploys keylime for use with a Hardware TPM Emulator
+
+Should you wish tto deploy Keylime with a software TPM emulator for development
+or getting your feet wet, use the`Ansible Keylime Soft TPM <https://github.com/keylime/ansible-keylime-soft-tpm>`_
+role instead.
+
+Download or clone `Ansible Keylime <https://github.com/keylime/ansible-keylime>`_
+from its repository and follow the usage section.
 
 Usage
 ~~~~~
 
 Run the example playbook against your target remote node(s).
 
-.. code-block:: rst
-  ansible-playbook -i your_hosts playbook.yml
+.. code-block:: bash
+    ansible-playbook -i your_hosts playbook.yml
 
+TPM Version Control (Software TPM)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-TPM Version Control
-~~~~~~~~~~~~~~~~~~~
+Ansible Keylime Soft TPM provides two role types for both 1.2 and 2.0 TPM versions.
 
 Either TPM version 1.2 or TPM 2.0 support can be configured by simply changing
-the role in the `playbook.yml` file `here <https://github.com/keylime/ansible-keylime/blob/master/playbook.yml#L11>_
+the role in the `playbook.yml` file `here <https://github.com/keylime/ansible-keylime/blob/master/playbook.yml#L11>`_
 
 For TPM 2.0 use:
 
+.. code-block:: bash
     - ansible-keylime-tpm20
-
 
 For TPM 1.20 use:
 
+.. code-block:: bash
     - ansible-keylime-tpm12
-
 
 Both roles will deploy the relevant TPM 1.2 Emulator (tpm4720) or 2.0 Emulator
 (IBM software TPM).
@@ -57,11 +61,13 @@ Clone the repository and then simply run `vagrant up --provider <provider> --pro
 
 For example, using libvirt:
 
+.. code-block:: bash
     vagrant up --provider libvirt --provision
 
 
 For example, using VirtualBox:
 
+.. code-block:: bash
     vagrant up --provider virtualbox --provision
 
 Once the VM is started, vagrant ssh into the VM and run `sudo su` - to
@@ -69,10 +75,10 @@ become root.
 
 You can then start the various components using commands:
 
+.. code-block:: bash
     keylime_verifier
     keylime_registrar
     keylime_node
-
 
 WebApp
 ~~~~~~
@@ -90,12 +96,12 @@ Rust Cloud node
 To start the rust cloud node, navigate to it's repository directory and use
 cargo to run:
 
+.. code-block:: bash
     [root@localhost rust-keylime]# RUST_LOG=keylime_node=trace cargo run
         Finished dev [unoptimized + debuginfo] target(s) in 0.28s
-         Running `target/debug/keylime_node`
-     INFO  keylime_node > Starting server...
-     INFO  keylime_node > Listening on http://127.0.0.1:1337
-
+        Running `target/debug/keylime_node`
+        INFO  keylime_node > Starting server...
+        INFO  keylime_node > Listening on http://127.0.0.1:1337
 
 Keylime Bash installer
 ----------------------
@@ -105,6 +111,7 @@ Keylime requires Python 2.7.10 or newer for proper TLS support.
 Installation can be performed via an automated shell script, `installer.sh`. The
 following command line options are available:
 
+.. code-block:: bash
     Usage: ./installer.sh [option...]
     Options:
     -k              Download Keylime (stub installer mode)
@@ -118,16 +125,17 @@ following command line options are available:
 Note that CFSSL is required if you want to support revocation. As noted above, do not use
 the TPM emulator option `-s` in production systems.
 
-### Docker (Development Only)
+Docker (Development Only)
+-------------------------
 
 Python keylime and related emulators can also be deployed using Docker.
 Since this docker configuration currently uses a TPM emulator,
 it should only be used for development or testing and NOT in production.
 
 Please see either the Dockerfiles
-`[`here <https://github.com/keylime/python-keylime/tree/master/docker>_ or our
+`here <https://github.com/keylime/python-keylime/tree/master/docker>`_ or our
 local CI script
-`here <https://github.com/keylime/python-keylime/blob/master/.ci/run_local.sh>_
+`here <https://github.com/keylime/python-keylime/blob/master/.ci/run_local.sh>`_
 which will automate the build and pull of keylime on TPM 1.2 or 2.0.
 
 Manual
@@ -150,7 +158,7 @@ The following python packages are required:
 * python-dev
 * pyyaml
 
-The latter of these are usually available as distro packages. See `installer.sh <https://github.com/keylime/python-keylime/blob/master/installer.sh>_
+The latter of these are usually available as distro packages. See `installer.sh <https://github.com/keylime/python-keylime/blob/master/installer.sh>`_
 for more information if you want to install them this way. You can also let keylime's `setup.py`
 install them via PyPI.
 
@@ -158,7 +166,7 @@ TPM 1.2 Support
 ~~~~~~~~~~~~~~~
 
 You also need a patched version of tpm4720 the IBM software TPM emulator and
-utilities.  This is available at https://github.com/keylime/tpm4720-keylime.
+utilities.  This is available `here <https://github.com/keylime/tpm4720-keylime>`_
 Even if you are using keylime with a real TPM, you must install the IBM emulator
 because keylime uses the command line utilities that come with it.
 See README.md in that project for detailed instructions on how to build and install it.
@@ -179,13 +187,13 @@ TPM 2.0 Support
 ~~~~~~~~~~~~~~~
 
 Keylime uses the Intel TPM2 software set to provide TPM 2.0 support.  You will
-need to install the tpm2-tss software stack (available at
-https://github.com/tpm2-software/tpm2-tss) as well as a patched version of the
-tpm2-tools utilities available at https://github.com/keylime/tpm2-tools. See
-README.md in these projects for detailed instructions on how to build and install.
+need to install the tpm2-tss software stack (available `here <https://github.com/tpm2-software/tpm2-tss>`_) as well as a patched version of the
+tpm2-tools utilities available `here<https://github.com/keylime/tpm2-tools>`_. 
+See README.md in these projects for detailed instructions on how to build and install.
 
 The brief synopsis of a quick build/install (after installing dependencies) is:
 
+.. code-block:: bash
     git clone https://github.com/tpm2-software/tpm2-tss.git tpm2-tss
     pushd tpm2-tss
     ./bootstrap
@@ -194,6 +202,7 @@ The brief synopsis of a quick build/install (after installing dependencies) is:
     sudo make install
     popd
 
+.. code-block:: bash
     git clone https://github.com/keylime/tpm2-tools.git tpm2-tools
     pushd tpm2-tools
     ./bootstrap
@@ -215,6 +224,7 @@ detailed instructions on how to build and install.
 
 A brief, workable example for Ubuntu 18 LTS systems is:
 
+.. code-block:: bash
     sudo useradd --system --user-group tss
     git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
     pushd tpm2-abrmd
@@ -232,6 +242,7 @@ A brief, workable example for Ubuntu 18 LTS systems is:
     export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
 
 # NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as:
+.. code-block:: bash
     sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
 
 Alternatively, it is also possible, though not recommended, to communicate
@@ -247,6 +258,7 @@ Install Keylime
 
 You're finally ready to install keylime!
 
+.. code-block:: bash
     sudo python setup.py install
 
 To run on OSX 10.11+
@@ -254,7 +266,7 @@ To run on OSX 10.11+
 
 You need to build m2crypto from source with
 
-
+.. code-block:: bash
     brew install openssl
     git clone https://gitlab.com/m2crypto/m2crypto.git
     python setup.py build build_ext --openssl=/usr/local/opt/openssl/
@@ -265,5 +277,5 @@ Optional Requirements
 ~~~~~~~~~~~~~~~~~~~~~
 
 If you want to support revocation, you also need to have cfssl installed and in your
-path on the tenant node.  It can be obtained from https://github.com/cloudflare/cfssl.  You
+path on the tenant node.  It can be obtained from `here <https://github.com/cloudflare/cfssl>`_.  You
 will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc/keylime.conf`.
