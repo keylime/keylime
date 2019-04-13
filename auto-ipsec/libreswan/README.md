@@ -1,36 +1,36 @@
 # Automatic IPsec Configuration with Libreswan
 
-Using the certificate distribution mechanism built into keylime, you can automatically configure keylime to use IPsec to securely communicate with other hosts in a network.  
+Using the certificate distribution mechanism built into keylime, you can automatically configure keylime to use IPsec to securely communicate with other machines in a network.  
 
 ## Overview
 
-These scripts allow keylime agents to create a virtual private network between them that is protected by cryptographic keys bootstrapped by keylime.  Keylime will also automatically remove failed agents from the network.  The scripts work by leveraging two features of keylime: automatic certificate generation/delivery, and the ability run scripts provided in the payload after successful bootstrapping.  The following high level actions will happen:
+These scripts allow machines running keylime agent to create a virtual private network between them that is protected by cryptographic keys bootstrapped by keylime.  Keylime will also automatically remove failed machines from the network.  The scripts work by leveraging two features of keylime: automatic certificate generation/delivery, and the ability run scripts provided in the payload after successful bootstrapping.  The following high level actions will happen:
 
-* the tenant will first run generate.py in this folder to generate the IPsec configuration files to pass to the tenant.  the tenant must specify the subnets/ips that they wish for agents to always use IPsec to communicate.
-* the tenant will generate a new CA (if one hasn't been generated yet) and then generate a new cert/key combo for the agent to be bootstrapped
-* the tenant will include the IPsec config files generated above with the `--include` option
-* tenant and verifier will bootstrap the agent and derive a key as normal
-* once the bootstrap key has been derived, keylime will decrypt and extract the zipped payload that includes both the cert/key and the ipsec config.
+* The tenant will first run generate.py in this folder to generate the IPsec configuration files to pass to the tenant. The tenant must specify the subnets/ips that they wish for agents to always use IPsec to communicate.
+* The tenant will generate a new CA (if one hasn't been generated yet) and then generate a new cert/key combo for the agent to be bootstrapped
+* The tenant will include the IPsec config files generated above with the `--include` option
+* Tenant and verifier will bootstrap the agent and derive a key as normal
+* Once the bootstrap key has been derived, keylime will decrypt and extract the zipped payload that includes both the cert/key and the ipsec config.
 * Then keylime will run the provided autorun.sh script.  This script will install/configure IPsec using the certificate provided.
-* at this point, IPsec will initialize and run between any specified IPs or subnets.
+* At this point, IPsec will initialize and run between any specified IPs or subnets.
 
 To support revocation:
 
-* the tenant must host the CA's CRL and listen for revocations.  `keylime_ca -c listen` will do this job
+* The tenant must host the CA's CRL and listen for revocations.  `keylime_ca -c listen` will do this job
 * If the verifier determines that an agent has failed its integrity check, it will create and sign a revocation notice that it will distribute to all the agents over 0mq
-* the tenant's CRL listener will receive and validate the revocation, update the CRL using the CA private key, and publish it to a locally running websever.
-* in parallel, all the other agents in the network will also receive the revocation notice and retrieve the new CRL from the tenant.  It is important that the certificates include the appropriate address for the CRL or this won't work.
-* the other agents in the network will also search their active IPsec security associations for the revoked agent and force IKE re-negotiation with them.  Because the CRL has also been updated, this will cause the agents to be unable to do key agreement with the revoked agent and block any traffic to it.
+* The tenant's CRL listener will receive and validate the revocation, update the CRL using the CA private key, and publish it to a locally running websever.
+* In parallel, all the other agents in the network will also receive the revocation notice and retrieve the new CRL from the tenant.  It is important that the certificates include the appropriate address for the CRL or this won't work.
+* The other machines in the network will also search their active IPsec security associations for the revoked agent and force IKE re-negotiation with them.  Because the CRL has also been updated, this will cause the agents to be unable to do key agreement with the revoked agent and block any traffic to it.
 
 ## Pre-requisites
 
-This set of scripts works with Ubuntu Linux 16.04 and Centos/RHEL 7.  It may work with other versions of centos, but they have not been tested.  Keylime will install libreswan package and configure it.
+This set of scripts works with Ubuntu Linux 16.04 and CentOS/RHEL 7.  It may work with other versions of CentOS, but they have not been tested.  Keylime will install libreswan package and configure it.
 
 In addition to basic keylime setup, the following configuration options must be set in the keylime.conf.  Many of these are defaults, so it shouldn't be hard to achieve this configuration.
 
 ### keylime.conf on each agent
 
-to support automatic revocation, the revocation notifier must be enabled and reachable by agents.  Set the IP/port to the verifier that hosts the revocation notifier:
+To support automatic revocation, the revocation notifier must be enabled and reachable by machines running the Keylime agent.  Set the IP/port to the verifier that hosts the revocation notifier:
 ```
 revocation_notifier_ip = xxx.xxx.xxx.xxx
 revocation_notifier_port = xxxx
