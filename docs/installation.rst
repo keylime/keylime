@@ -28,7 +28,7 @@ Usage
 
 Run the example playbook against your target remote node(s).
 
-.. code-block:: bash
+.. highlight:: rst
     ansible-playbook -i your_hosts playbook.yml
 
 TPM Version Control (Software TPM)
