@@ -38,7 +38,7 @@ Ansible Keylime Soft TPM provides two role types for both 1.2 and 2.0 TPM versio
 Either TPM version 1.2 or TPM 2.0 support can be configured by simply changing
 the role in the `playbook.yml` file `here <https://github.com/keylime/ansible-keylime/blob/master/playbook.yml#L11>`_
 
-For TPM 2.0 use:
+For TPM 2.0 use::
 
 .. code-block:: bash
     - ansible-keylime-tpm20
