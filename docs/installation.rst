@@ -8,25 +8,25 @@ Ansible Keylime Roles
 ---------------------
 
 An Ansible role to deploy `Python Keylime <https://github.com/keylime/python-keylime>`_
-, alongside the `Keylime rust cloud node <https://github.com/keylime/rust-keylime>`_
+, alongside the `Keylime rust cloud agent <https://github.com/keylime/rust-keylime>`_
 
-Please note that the rust cloud node is still under early stages of Development.
+Please note that the rust cloud agent is still under early stages of Development.
 Those wishing to test drive keylimes functionality should use the existing
-python based cloud node `keylime_node` until later notice.
+python based cloud agent `keylime_agent` until later notice.
 
 This role deploys keylime for use with a Hardware TPM Emulator
 
-Should you wish tto deploy Keylime with a software TPM emulator for development
+Should you wish to deploy Keylime with a software TPM emulator for development
 or getting your feet wet, use the `Ansible Keylime Soft TPM <https://github.com/keylime/ansible-keylime-soft-tpm>`_
 role instead.
-
-Download or clone `Ansible Keylime <https://github.com/keylime/ansible-keylime>`_
-from its repository and follow the usage section.
 
 Usage
 ~~~~~
 
-Run the example playbook against your target remote node(s)::
+Download or clone `Ansible Keylime <https://github.com/keylime/ansible-keylime>`_
+from its repository and follow the usage section.
+
+Run the example playbook against your target remote host(s)::
 
     ansible-playbook -i your_hosts playbook.yml
 
@@ -72,7 +72,7 @@ You can then start the various components using commands::
 
     keylime_verifier
     keylime_registrar
-    keylime_node
+    keylime_agent
 
 WebApp
 ~~~~~~
@@ -84,17 +84,17 @@ This will result in the web application being available on url:
 
 https://localhost:8443/webapp/
 
-Rust Cloud node
+Rust Cloud agent
 ~~~~~~~~~~~~~~~
 
-To start the rust cloud node, navigate to it's repository directory and use
+To start the rust cloud agent, navigate to it's repository directory and use
 cargo to run::
 
-    [root@localhost rust-keylime]# RUST_LOG=keylime_node=trace cargo run
+    [root@localhost rust-keylime]# RUST_LOG=keylime_agent=trace cargo run
         Finished dev [unoptimized + debuginfo] target(s) in 0.28s
-        Running `target/debug/keylime_node`
-        INFO  keylime_node > Starting server...
-        INFO  keylime_node > Listening on http://127.0.0.1:1337
+        Running `target/debug/keylime_agent`
+        INFO  keylime_agent > Starting server...
+        INFO  keylime_agent > Listening on http://127.0.0.1:1337
 
 Keylime Bash installer
 ----------------------
@@ -108,7 +108,7 @@ following command line options are available::
     Options:
     -k              Download Keylime (stub installer mode)
     -o              Use OpenSSL instead of CFSSL
-    -t              Create tarball with keylime_node
+    -t              Create tarball with keylime_agent
     -m              Use modern TPM 2.0 libraries (vs. TPM 1.2)
     -s              Install TPM in socket/simulator mode (vs. chardev)
     -p PATH         Use PATH as Keylime path
@@ -269,5 +269,5 @@ Optional Requirements
 ~~~~~~~~~~~~~~~~~~~~~
 
 If you want to support revocation, you also need to have cfssl installed and in your
-path on the tenant node.  It can be obtained from `here <https://github.com/cloudflare/cfssl>`_.  You
+path on the tenant agent.  It can be obtained from `here <https://github.com/cloudflare/cfssl>`_.  You
 will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc/keylime.conf`.
