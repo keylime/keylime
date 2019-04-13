@@ -17,10 +17,10 @@ These scripts allow machines running the keylime agent to create a virtual priva
 To support revocation:
 
 * The tenant must host the CA's CRL and listen for revocations.  `keylime_ca -c listen` will do this job
-* If the verifier determines that an agent has failed its integrity check, it will create and sign a revocation notice that it will distribute to all the agents over 0mq
+* If the verifier determines that an agent has failed its integrity check, it will create and sign a revocation notice that it will distribute to all the machines over 0mq
 * The tenant's CRL listener will receive and validate the revocation, update the CRL using the CA private key, and publish it to a locally running websever.
-* In parallel, all the other agents in the network will also receive the revocation notice and retrieve the new CRL from the tenant.  It is important that the certificates include the appropriate address for the CRL or this won't work.
-* The other agents in the network will also search their active IPsec security associations for the revoked agent and force IKE re-negotiation with them.  Because the CRL has also been updated, this will cause the machines to be unable to do key agreement with the machine running the revoked agent and block any traffic to it.
+* In parallel, all the other machines in the network will also receive the revocation notice and retrieve the new CRL from the tenant.  It is important that the certificates include the appropriate address for the CRL or this won't work.
+* The other machines in the network will also search their active IPsec security associations for the revoked machine and force IKE re-negotiation with them.  Because the CRL has also been updated, this will cause the machines to be unable to do key agreement with the machine running the revoked machine and block any traffic to it.
 
 ## Pre-requisites
 
@@ -30,7 +30,7 @@ In addition to basic keylime setup, the following configuration options must be 
 
 ### keylime.conf on each agent
 
-To support automatic revocation, the revocation notifier must be enabled and reachable by agents.  Set the IP/port to the verifier that hosts the revocation notifier:
+To support automatic revocation, the revocation notifier must be enabled and reachable by machines.  Set the IP/port to the verifier that hosts the revocation notifier:
 ```
 revocation_notifier_ip = xxx.xxx.xxx.xxx
 revocation_notifier_port = xxxx
@@ -98,7 +98,7 @@ local_action_update_crl
 local_action_deletesa
 ```
 
-These actions update the CRL by curling it from the tenant service and then search for and delete any IPsec security associations that were created using the revoked certificate serial number.  Within a second or two, all agents in the network should stop communicating with the revoked host. 
+These actions update the CRL by curling it from the tenant service and then search for and delete any IPsec security associations that were created using the revoked certificate serial number.  Within a second or two, all machines in the network should stop communicating with the revoked host. 
 
 ## IPsec Configuration
 
