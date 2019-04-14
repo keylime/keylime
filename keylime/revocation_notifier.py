@@ -141,9 +141,9 @@ def main():
 
     json_body2 = {
         'v': 'vbaby',
-        'instance_id': '2094aqrea3',
-        'cloudnode_ip': 'ipaddy',
-        'cloudnode_port': '39843',
+        'agent_id': '2094aqrea3',
+        'cloudagent_ip': 'ipaddy',
+        'cloudagent_port': '39843',
         'tpm_policy': '{"ab":"1"}',
         'vtpm_policy': '{"ab":"1"}',
         'metadata': '{"cert_serial":"1"}',

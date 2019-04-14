@@ -13,13 +13,13 @@ The bundle contains the following files:
 * **demo_setup.sh**: This sets up and installs the demos (on top of an existing Keylime installation) 
 * **ima-policy**: IMA policy file (less burdensome than the IMA TCB policy) 
 * **keyfile.txt**: Keyfile that decrypts the payload.enc and payload.txt files 
-* **autorun.sh**: This file is sent to the cloud node, which will decrypt and mount the payload.enc 
-    * *__NOTE:__ Your keylime.conf file's ```cloud_node.payload_script``` should be set to autorun.sh*
+* **autorun.sh**: This file is sent to the cloud agent, which will decrypt and mount the payload.enc 
+    * *__NOTE:__ Your keylime.conf file's ```cloud_agent.payload_script``` should be set to autorun.sh*
 * **payload.enc**: The target of the mount.sh script (LUKS encrypted payload), containing the "protected" website 
 * **payload.txt**: A simple encrypted payload to demonstrate the "Keyfile" payload type 
 * **payload/**: Directory containing the "unprotected" website 
 
-Also, see the **demo/node_monitor** directory for a node "phone-home" demo! 
+Also, see the **demo/agent_monitor** directory for an agent "phone-home" demo! 
 
 ## Usage 
 
@@ -43,9 +43,9 @@ Options:
 
 ### Webserver Demo
 
-Both the keyfile.txt and autorun.sh files should be sent to the node (via "CA Dir" mode provisioning).  
+Both the keyfile.txt and autorun.sh files should be sent to the agent (via "CA Dir" mode provisioning).  
 
-`keylime_tenant -t 192.168.0.100 -u my_node_id --cert default --include node_files_dir`
+`keylime_tenant -t 192.168.0.100 -u my_agent_id --cert default --include agent_files_dir`
 
 The payload.enc file should be in the web server HTML directory (demo_setup.sh will put it there). 
 

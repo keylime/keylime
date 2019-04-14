@@ -42,12 +42,12 @@ API_VERSION='2'
 # it also does the following:
 # default ca_util password is set to 'default' to suppress prompts
 # ca_util if passed no args will default to some args listed in ca_util.py
-# node uuid will be set to C432FBB3-D2F1-4A97-9EF7-75BD81C866E9
+# agent uuid will be set to C432FBB3-D2F1-4A97-9EF7-75BD81C866E9
 # data_base files from previous runs will be cleared on startup
 # vtpm operations and vtpmmgr commands are all stubbed
 # ek certs are not required
 # tenant if provided no args will use some args listed in tenant.py
-# tenant will also sleep, check status, and then delete the node after
+# tenant will also sleep, check status, and then delete the agent after
 # a few seconds
 DEVELOP_IN_ECLIPSE=False
 
@@ -267,9 +267,9 @@ def get_restful_params(urlstring):
     return path_params
 
 
-LOG_TO_FILE=['cloudnode','registrar','provider_registrar','cloudverifier']
+LOG_TO_FILE=['cloudagent','registrar','provider_registrar','cloudverifier']
 # not clear that this works right.  console logging may not work
-LOG_TO_SYSCONSOLE=['cloudnode']
+LOG_TO_SYSCONSOLE=['cloudagent']
 LOG_TO_STREAM=['tenant_webapp']
 LOGDIR='/var/log/keylime'
 if not REQUIRE_ROOT:
