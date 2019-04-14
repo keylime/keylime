@@ -13,7 +13,7 @@ periodic attestation.
 keylime supports both TPM versions 1.2 and 2.0.  
 
 keylime can be used with a software TPM emulator
-for development, testing, or demonstration purposes.  However, DO NOT USE keylime in 
+for development, testing, or demonstration purposes.  However, DO NOT USE keylime in
 production with a TPM emulator!  A software TPM emulator does not provide a hardware root
 of trust and dramatically lowers the security benefits of using keylime.
 
@@ -67,7 +67,7 @@ Repository](https://github.com/keylime/ansible-keylime).
 
 ### Docker (Development Only)
 
-Python keylime and related emulators can also be deployed using Docker. 
+Python keylime and related emulators can also be deployed using Docker.
 Since this docker configuration currently uses a TPM emulator,
 it should only be used for development or testing and NOT in production.
 
@@ -400,7 +400,7 @@ Meeting agenda are hosted and archived in the [meetings repo](https://github.com
 #### Errata from the ACSAC Paper
 
 We discovered a typo in Figure 5 of the published ACSAC paper. The final interaction
-between the Tenant and Cloud Verifier showed an HMAC of the nodes's ID using the key
+between the Tenant and Cloud Verifier showed an HMAC of the node's ID using the key
 K_e.  This should be using K_b. The paper in this repository and the ACSAC presentation
 have been updated to correct this typo.
 

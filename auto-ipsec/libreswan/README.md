@@ -90,7 +90,7 @@ Next provision an agent as you would normally.  Be sure to use the `--cert` opti
 To support revocation, you must run a CRL host/listener.  This will host a copy of the CRL on a web server and listen for notification of revocation from the verifier.  To run this service:
 
 `keylime_ca -c listen -d myca`
- 
+
 It will start up a web server and listen for notifications.  Be sure that the cert_crl_dist option in keylime.conf is set to point to this server.
 
 If an agent is revoked, the listener will update the CRL.  All the agents will run their configured revocation actions:
@@ -100,7 +100,7 @@ local_action_update_crl
 local_action_crashsa
 ```
 
-The first action updates the CRL stored locally.  The second action will update the CRL in the NSS database and then force a rekey with any agents communicating with the revoked server. It will match the certificate by its x509 distinguished name. Within a second or two, all agents in the network should stop communicating with the revoked host. 
+The first action updates the CRL stored locally.  The second action will update the CRL in the NSS database and then force a rekey with any machines communicating with the revoked server. It will match the certificate by its x509 distinguished name. Within a second or two, all machines in the network should stop communicating with the revoked machine.
 
 ## IPsec Configuration
 
