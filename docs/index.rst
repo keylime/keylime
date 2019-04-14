@@ -9,7 +9,7 @@ integrity measurement solution. Keylime enables cloud users to monitor remote
 nodes using a hardware based cryptographic root of trust.
 
 Keylime was originally born out of the security research team in MIT's Lincoln
-Laboratory and is not developed and maintained by the Keylime community.
+Laboratory and is now developed and maintained by the Keylime community.
 
 This Documentation site contains guides to install, use and administer keylime
 as well as guides to enable developers to make contributions to keylime
