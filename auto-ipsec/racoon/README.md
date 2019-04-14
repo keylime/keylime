@@ -4,7 +4,7 @@ Using the certificate distribution mechanism built into keylime, you can automat
 
 ## Overview
 
-These scripts allow machines running the keylime agent to create a virtual private network between them that is protected by cryptographic keys bootstrapped by keylime.  Keylime will also automatically remove failed machines from the network.  The scripts work by leveraging two features of keylime: automatic certificate generation/delivery, and the ability run scripts provided in the payload after successful bootstrapping.  The following high level actions will happen:
+These scripts allow machines running the keylime agent to create a virtual private network between them, that is protected by cryptographic keys bootstrapped by keylime.  Keylime will also automatically remove failed machines from the network.  The scripts work by leveraging two features of keylime: automatic certificate generation/delivery, and the ability run scripts provided in the payload after successful bootstrapping.  The following high level actions will happen:
 
 * The tenant will first run generate.py in this folder to generate the IPsec configuration files to pass to the tenant. The tenant must specify the subnets/ips that they wish for machines to always use IPsec to communicate.
 * The tenant will generate a new CA (if one hasn't been generated yet) and then generate a new cert/key combo for the agent to be bootstrapped
@@ -20,7 +20,7 @@ To support revocation:
 * If the verifier determines that an agent has failed its integrity check, it will create and sign a revocation notice that it will distribute to all the machines over 0mq
 * The tenant's CRL listener will receive and validate the revocation, update the CRL using the CA private key, and publish it to a locally running websever.
 * In parallel, all the other machines in the network will also receive the revocation notice and retrieve the new CRL from the tenant.  It is important that the certificates include the appropriate address for the CRL or this won't work.
-* The other machines in the network will also search their active IPsec security associations for the revoked machine and force IKE re-negotiation with them.  Because the CRL has also been updated, this will cause the machines to be unable to do key agreement with the machine running the revoked machine and block any traffic to it.
+* The other machines in the network will also search their active IPsec security associations for the revoked machine and force IKE re-negotiation with them.  Because the CRL has also been updated, this will cause the machines to be unable to do key agreement with the machine running the revoked agent and block any traffic to it.
 
 ## Pre-requisites
 
@@ -30,7 +30,7 @@ In addition to basic keylime setup, the following configuration options must be 
 
 ### keylime.conf on each agent
 
-To support automatic revocation, the revocation notifier must be enabled and reachable by machines.  Set the IP/port to the verifier that hosts the revocation notifier:
+To support automatic revocation, the revocation notifier must be enabled and reachable by all machines.  Set the IP/port to the verifier that hosts the revocation notifier:
 ```
 revocation_notifier_ip = xxx.xxx.xxx.xxx
 revocation_notifier_port = xxxx
@@ -88,7 +88,7 @@ Next provision an agent as you would normally.  Be sure to use the `--cert` opti
 To support revocation, you must run a CRL host/listener.  This will host a copy of the CRL on a web server and listen for notification of revocation from the verifier.  To run this service:
 
 `keylime_ca -c listen -d myca`
- 
+
 It will start up a web server and listen for notifications.  Be sure that the cert_crl_dist option is set to point to this server.
 
 If an agent is revoked, the listener will update the CRL.  All the agents will run their configured revocation actions:
@@ -98,7 +98,7 @@ local_action_update_crl
 local_action_deletesa
 ```
 
-These actions update the CRL by curling it from the tenant service and then search for and delete any IPsec security associations that were created using the revoked certificate serial number.  Within a second or two, all machines in the network should stop communicating with the revoked host. 
+These actions update the CRL by curling it from the tenant service and then search for and delete any IPsec security associations that were created using the revoked certificate serial number.  Within a second or two, all machines in the network should stop communicating with the revoked machine.
 
 ## IPsec Configuration
 
