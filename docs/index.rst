@@ -2,6 +2,10 @@
 Keylime Documentation
 =====================
 
+.. warning::
+    This documentation is still under development and not complete. It will be
+    so until this warning is removed.
+
 Welcome to Keylimes Documentation site!
 
 Keylime is a TPM based highly scaleable remote boot attestation and runtime
@@ -21,7 +25,10 @@ or develop services against Keylimes Rest API(s).
    :caption: Contents:
 
    installation
-   user_guide
+   user_guide/trusted_boot.rst
+   user_guide/runtime_ima.rst
+   user_guide/encrypted_payload.rst
+   user_guide/revocation.rst
    rest_apis
    developers
    security
