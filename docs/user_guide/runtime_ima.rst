@@ -62,8 +62,8 @@ Keylime will load the whitelist into the Keylime Verifier. Keylime will then
 poll tpm quotes to `PCR 10` on the agents TPM and validate the agents file(s)
 state against the whitelist. If the object has been tampered with, the hashes
 will not match and Keylime will place the agent into a failed state. Likewise,
-if any files invoke the actions stated in `ima-policy` that are situated in the
-whitelist, keylime will place the agent into a failed state.
+if any files invoke the actions stated in `ima-policy` that are not matched in
+the whitelist, keylime will place the agent into a failed state.
 
 Generate a whitelist
 ~~~~~~~~~~~~~~~~~~~~
@@ -74,7 +74,7 @@ up with their own process for securely creating and maintaining a whitelist.
 
 The `create_whitelist.sh` script is `available here <https://github.com/keylime/python-keylime/blob/master/keylime/create_whitelist.sh>`_
 
-Run the script as follows:
+Run the script as follows::
 
   # create_whitelist.sh  whitelist.txt [hash-algo]
 
