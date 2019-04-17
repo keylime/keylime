@@ -1,11 +1,11 @@
 # Contributing
 
 When contributing to this repository, please first discuss the change you wish
-to make via an [issue](https://github.com/keylime/python-keylime/issues) or email to the [keylime mailing list](https://groups.io/g/keylime).
+to make via an [issue](https://github.com/keylime/keylime/issues) or email to the [keylime mailing list](https://groups.io/g/keylime).
 
 ## Pull Request Process
 
-1. Create an [issue](https://github.com/keylime/python-keylime/issues)
+1. Create an [issue](https://github.com/keylime/keylime/issues)
    outlining the fix or feature.
 2. Fork the keylime repository to your own github account and clone it locally.
 3. Hack on your changes.

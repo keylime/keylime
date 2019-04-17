@@ -72,9 +72,9 @@ Since this docker configuration currently uses a TPM emulator,
 it should only be used for development or testing and NOT in production.
 
 Please see either the Dockerfiles
-[here](https://github.com/keylime/python-keylime/tree/master/docker) or our
+[here](https://github.com/keylime/keylime/tree/master/docker) or our
 local CI script
-[here](https://github.com/keylime/python-keylime/blob/master/.ci/run_local.sh)
+[here](https://github.com/keylime/keylime/blob/master/.ci/run_local.sh)
 which will automate the build and pull of keylime on TPM 1.2 or 2.0.
 
 ### Manual
@@ -95,7 +95,7 @@ The following python packages are required:
 * python-dev
 * pyyaml
 
-The latter of these are usually available as distro packages. See [installer.sh](https://github.com/keylime/python-keylime/blob/master/installer.sh) for more information if you want to install them this way.
+The latter of these are usually available as distro packages. See [installer.sh](https://github.com/keylime/keylime/blob/master/installer.sh) for more information if you want to install them this way.
 You can also let keylime's `setup.py` install them via PyPI.
 
 #### TPM utility prerequisites
@@ -383,11 +383,11 @@ Meeting agenda are hosted and archived in the [meetings repo](https://github.com
 
 ## Additional Reading
 
-* Executive summary Keylime slides: [doc/keylime-elevator-slides.pptx](https://github.com/keylime/python-keylime/raw/master/doc/keylime-elevator-slides.pptx)
-* See ACSAC 2016 paper in doc directory: [doc/tci-acm.pdf](https://github.com/keylime/python-keylime/blob/master/doc/tci-acm.pdf)
-  * and the ACSAC presentation on keylime: [doc/llsrc-keylime-acsac-v6.pptx](https://github.com/keylime/python-keylime/raw/master/doc/llsrc-keylime-acsac-v6.pptx)
-* See the HotCloud 2018 paper: [doc/hotcloud18.pdf](https://github.com/keylime/python-keylime/blob/master/doc/hotcloud18.pdf)
-* Details about Keylime REST API: [doc/keylime RESTful API.docx](https://github.com/keylime/python-keylime/raw/master/doc/keylime%20RESTful%20API.docx)
+* Executive summary Keylime slides: [doc/keylime-elevator-slides.pptx](https://github.com/keylime/keylime/raw/master/doc/keylime-elevator-slides.pptx)
+* See ACSAC 2016 paper in doc directory: [doc/tci-acm.pdf](https://github.com/keylime/keylime/blob/master/doc/tci-acm.pdf)
+  * and the ACSAC presentation on keylime: [doc/llsrc-keylime-acsac-v6.pptx](https://github.com/keylime/keylime/raw/master/doc/llsrc-keylime-acsac-v6.pptx)
+* See the HotCloud 2018 paper: [doc/hotcloud18.pdf](https://github.com/keylime/keylime/blob/master/doc/hotcloud18.pdf)
+* Details about Keylime REST API: [doc/keylime RESTful API.docx](https://github.com/keylime/keylime/raw/master/doc/keylime%20RESTful%20API.docx)
 * [Bundling a portable Cloud Agent](doc/cloud-agent-tarball-notes.md) - Create portable tarball of Cloud Agent, for usage on systems without python and other dependencies.
 * [Xen vTPM setup notes](doc/xen-vtpm-notes.md) - Guidance on getting Xen set up with vTPM support for Keylime.
 * IPsec Configurations
