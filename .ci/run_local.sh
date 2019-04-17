@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Your local python-keylime (you should likely change this)
-REPO="/home/${USER}/python-keylime"
+# Your local keylime (you should likely change this)
+REPO="/home/${USER}/keylime"
 
 # keylime images
 tpm12image="lukehinds/keylime-ci-tpm12"
@@ -17,10 +17,10 @@ docker pull ${tpm20image}:${tpm20tag}
 function tpm1 {
     container_id=$(mktemp)
     docker run --detach --privileged \
-        -v $REPO:/root/python-keylime \
+        -v $REPO:/root/keylime \
         -it ${tpm12image}:${tpm12tag} >> ${container_id}
     docker exec -u 0 -it --tty "$(cat ${container_id})" \
-        /bin/sh -c 'cd /root/python-keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh -s openssl'
+        /bin/sh -c 'cd /root/keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh -s openssl'
     docker stop "$(cat ${container_id})"
     docker rm "$(cat ${container_id})"
 }
@@ -28,11 +28,11 @@ function tpm1 {
 function tpm2 {
     container_id=$(mktemp)
     docker run --detach --privileged \
-        -v $REPO:/root/python-keylime \
+        -v $REPO:/root/keylime \
         -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
         -it ${tpm20image}:${tpm20tag} >> ${container_id}
     docker exec -u 0 -it --tty "$(cat ${container_id})" \
-        /bin/bash /root/python-keylime/.ci/test_wrapper.sh
+        /bin/bash /root/keylime/.ci/test_wrapper.sh
     docker stop "$(cat ${container_id})"
     docker rm "$(cat ${container_id})"
 }

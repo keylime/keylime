@@ -1,6 +1,6 @@
 #!/bin/bash
 
-KEYLIME_HOME=/root/python-keylime
+KEYLIME_HOME=/root/keylime
 
 # Configure swtpm2
 cd ${KEYLIME_HOME}/swtpm2_scripts

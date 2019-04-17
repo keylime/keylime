@@ -1,7 +1,7 @@
-# python-keylime
+# keylime
 
 [![Build
-Status](https://travis-ci.org/keylime/python-keylime.svg?branch=master)](https://travis-ci.org/keylime/python-keylime) [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/keylime-project/community)
+Status](https://travis-ci.org/keylime/keylime.svg?branch=master)](https://travis-ci.org/keylime/keylime) [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/keylime-project/community)
 
 ![keylime](doc/keylime.png?raw=true "Title")
 
@@ -10,7 +10,7 @@ end-to-end solution for both bootstrapping hardware rooted cryptographic
 identities for IaaS nodes and for system integrity monitoring of those nodes via
 periodic attestation.
 
-keylime supports both TPM versions 1.2 and 2.0.  
+keylime supports both TPM versions 1.2 and 2.0.
 
 keylime can be used with a software TPM emulator
 for development, testing, or demonstration purposes.  However, DO NOT USE keylime in
@@ -103,9 +103,9 @@ You can also let keylime's `setup.py` install them via PyPI.
 ##### TPM 1.2 Support
 
 You also need a patched version of tpm4720 the IBM software TPM emulator and
-utilities.  This is available at https://github.com/keylime/tpm4720-keylime.  
+utilities.  This is available at https://github.com/keylime/tpm4720-keylime.
 Even if you are using keylime with a real TPM, you must install the IBM emulator
-because keylime uses the command line utilities that come with it.  
+because keylime uses the command line utilities that come with it.
 See README.md in that project for detailed instructions on how to build and install it.
 
 The brief synopsis of a quick build/install (after installing dependencies) is:

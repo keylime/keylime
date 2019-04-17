@@ -1,5 +1,5 @@
 ##############################################################################
-# python-keylime TPM 2.0 Dockerfile
+# keylime TPM 2.0 Dockerfile
 #
 # This file is for automatic test running of Keylime.
 # It is not recommended for use beyond testing scenarios.
@@ -15,7 +15,7 @@ ARG BRANCH=master
 
 ENV container docker
 ENV HOME /root
-ENV KEYLIME_HOME ${HOME}/python-keylime
+ENV KEYLIME_HOME ${HOME}/keylime
 ENV TPM_HOME ${HOME}/swtpm2
 ENV TPM2_TSS ${HOME}/tpm2-tss
 ENV TPM2_TOOLS ${HOME}/tpm2-tools

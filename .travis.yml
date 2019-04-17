@@ -21,11 +21,11 @@ before_install:
 script:
     # Run TPM 1.2 Tests
   - >
-    docker run --privileged -v $(pwd):/root/python-keylime -it ${tpm12image}:${tpm12tag}
-    /bin/sh -c 'cd /root/python-keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh -s openssl'
+    docker run --privileged -v $(pwd):/root/keylime -it ${tpm12image}:${tpm12tag}
+    /bin/sh -c 'cd /root/keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh -s openssl'
 
     # Run TPM 2.0 Tests
-  - docker run --detach --privileged -v $(pwd):/root/python-keylime -v /sys/fs/cgroup:/sys/fs/cgroup:ro ${tpm20image}:${tpm20tag} > ${container_id}
-  - docker exec -u 0 -it --tty "$(cat ${container_id})" /bin/bash /root/python-keylime/.ci/test_wrapper.sh
+  - docker run --detach --privileged -v $(pwd):/root/keylime -v /sys/fs/cgroup:/sys/fs/cgroup:ro ${tpm20image}:${tpm20tag} > ${container_id}
+  - docker exec -u 0 -it --tty "$(cat ${container_id})" /bin/bash /root/keylime/.ci/test_wrapper.sh
     # Clean up
   - 'sudo docker stop "$(cat ${container_id})"'

@@ -201,7 +201,7 @@ git checkout stable-4.8
 need to patch up stubdom/vtpmmgr/mgmt_authority.c
 ```
 cd xen
-wget https://raw.githubusercontent.com/mit-ll/python-keylime/master/patches/xen-vtpmmgr-patch.txt
+wget https://raw.githubusercontent.com/mit-ll/keylime/master/patches/xen-vtpmmgr-patch.txt
 patch -p1 < ../xen-vtpmmgr-patch.txt
 make build-stubdom
 ```
