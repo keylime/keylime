@@ -1,5 +1,5 @@
 ##############################################################################
-# python-keylime TPM 1.2 Dockerfile
+# keylime TPM 1.2 Dockerfile
 #
 # This file is for automatic test running of Keylime.
 # It is not recommended for use beyond testing scenarios.

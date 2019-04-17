@@ -1,20 +1,20 @@
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
-This material is based upon work supported by the Assistant Secretary of Defense for 
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
+This material is based upon work supported by the Assistant Secretary of Defense for
+Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
 FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the 
+material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
 
 Copyright 2015 Massachusetts Institute of Technology.
 
 The software/firmware is provided to you on an As-Is basis
 
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-above. Use of this work other than as specifically authorized by the U.S. Government may 
+Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
+252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
+rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
+above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
 '''
 
@@ -48,7 +48,7 @@ if '--with-clime' in sys.argv:
                                 sources = ['keylime/_cLime.c']))
     sys.argv.remove('--with-clime')
 
-# enumerate all of the data files we need to package up 
+# enumerate all of the data files we need to package up
 data_files = [(d, [path.join(d,f) for f in files]) for d,_,files in walk("keylime/static")]
 data_files.append(('package_default', ['keylime.conf']))
 
@@ -64,7 +64,7 @@ setup(
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://github.com/mit-ll/python-keylime',
+    url='https://github.com/keylime/keylime',
 
     # Author details
     author='MIT Lincoln Laboratory',
@@ -84,12 +84,12 @@ setup(
         # Indicate who your project is intended for
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
-        
+
         # where does it run
         'Environment :: Console',
         'Operating System :: POSIX',
         'Operating System :: POSIX :: Linux',
-        
+
         # Pick your license as you wish (should match "license" above)
         'License :: OSI Approved :: BSD License',
 
@@ -111,9 +111,9 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=['pycryptodomex>=3.4.1','tornado>=4.3','m2crypto>=0.21.1','pyzmq>=14.4','pyyaml>=3.11'],
-    
+
     # test packages required
-    tests_require=['green','coverage'],   
+    tests_require=['green','coverage'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
