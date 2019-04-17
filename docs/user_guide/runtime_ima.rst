@@ -123,7 +123,7 @@ within `/etc/keylime.conf`, you can then use `default` as follows::
 
 The whitelist can also be uploaded using the WebApp:
 
-.. image:: images/whitelist_ui.png
+.. image:: ../images/whitelist_ui.png
 
 How can I test this?
 --------------------
