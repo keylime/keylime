@@ -1,17 +1,14 @@
 Run-time Integrity Monitoring
 =============================
 
-A feature of Keylime is runtime integrity monitoring, using the integrity
-management architecture (IMA).
-
 Keylimes run-time integrity monitoring requires the set up of Linux IMA.
 
 You should refer to your Linux Distributions documentation to enable IMA, but
 as a general guide most recent versions already have `CONFIG_IMA` toggled to
 `Y` as a value during Kernel compile.
 
-It is then just a case of deploying an `ima-policy` file. On a Fedora system,
-this is situated in `/etc/ima/ima-policy`.
+It is then just a case of deploying an `ima-policy` file. On a Fedora or Debian
+system, the file is situated in `/etc/ima/ima-policy`.
 
 For configuration of your IMA policy, please refer to the `IMA Documentation <https://github.com/torvalds/linux/blob/6f0d349d922ba44e4348a17a78ea51b7135965b1/Documentation/ABI/testing/ima_policy>`_
 
@@ -35,15 +32,15 @@ Within Keylime we use the following for demonstration::
   measure func=MODULE_CHECK uid=0
 
 This default policy measures all executables in `bprm_check`, all files `mmapped`
-executable in `file_mmap`, and all files open for read by root in `do_filp_open`.
+executable in `file_mmap` and module checks.
 
-Once your ima-policy is in place, reboot your machine (or even better have it
-present in your image for first boot)
+Once your `ima-policy` is in place, reboot your machine (or even better have it
+present in your image for first boot).
 
 You can then verify IMA is measuring your system::
 
   # head -5 /sys/kernel/security/ima/ascii_runtime_measurements
-  PCR                                  template-hash filedata-hash                                  filename-hint
+  PCR                                  template-hash filedata-hash                                 filename-hint
   10 3c93cea361cd6892bc8b9e3458e22ce60ef2e632 ima-ng sha1:ac7dd11bf0e3bec9a7eb2c01e495072962fb9dfa boot_aggregate
   10 3d1452eb1fcbe51ad137f3fc21d3cf4a7c2e625b ima-ng sha1:a212d835ca43d7deedd4ee806898e77eab53dafa /usr/lib/systemd/systemd
   10 e213099a2bf6d88333446c5da617e327696f9eb4 ima-ng sha1:6da34b1b7d2ca0d5ca19e68119c262556a15171d /usr/lib64/ld-2.28.so
@@ -52,8 +49,6 @@ You can then verify IMA is measuring your system::
 
 Keylime IMA whitelists
 ----------------------
-
-For keylime's runt-time integrity monitoring to function, it requires a whitelist.
 
 A whitelist is a set of "golden" cryptographic hashes of a files un-tampered
 state.
@@ -64,11 +59,11 @@ file::
   ffe3ad4c395985d143bd0e45a9a1dd09aac21b91 /path/to/file
 
 Keylime will load the whitelist into the Keylime Verifier. Keylime will then
-query `PCR 10` on the agents TPM and validate the Agents file(s) state against
-the whitelist. If the object has been tampered with, the hashes will not match
-and Keylime will place the agent into a failed state. Likewise, if any files
-invoke the actions stated in `ima-policy` that are situated in the whitelist,
-keylime will place the agent into a failed state.
+poll tpm quotes to `PCR 10` on the agents TPM and validate the agents file(s)
+state against the whitelist. If the object has been tampered with, the hashes
+will not match and Keylime will place the agent into a failed state. Likewise,
+if any files invoke the actions stated in `ima-policy` that are situated in the
+whitelist, keylime will place the agent into a failed state.
 
 Generate a whitelist
 ~~~~~~~~~~~~~~~~~~~~
