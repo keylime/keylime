@@ -25,10 +25,7 @@ or develop services against Keylimes Rest API(s).
    :caption: Contents:
 
    installation
-   user_guide/trusted_boot.rst
-   user_guide/runtime_ima.rst
-   user_guide/encrypted_payload.rst
-   user_guide/revocation.rst
+   user_guide
    rest_apis
    certificate_authority
    developers
