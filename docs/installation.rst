@@ -7,7 +7,7 @@ keylime installer or a manual installation.
 Ansible Keylime Roles
 ---------------------
 
-An Ansible role to deploy `Python Keylime <https://github.com/keylime/python-keylime>`_
+An Ansible role to deploy `Python Keylime <https://github.com/keylime/keylime>`_
 , alongside the `Keylime rust cloud agent <https://github.com/keylime/rust-keylime>`_
 
 Please note that the rust cloud agent is still under early stages of Development.
@@ -125,9 +125,9 @@ Since this docker configuration currently uses a TPM emulator,
 it should only be used for development or testing and NOT in production.
 
 Please see either the Dockerfiles
-`here <https://github.com/keylime/python-keylime/tree/master/docker>`_ or our
+`here <https://github.com/keylime/keylime/tree/master/docker>`_ or our
 local CI script
-`here <https://github.com/keylime/python-keylime/blob/master/.ci/run_local.sh>`_
+`here <https://github.com/keylime/keylime/blob/master/.ci/run_local.sh>`_
 which will automate the build and pull of keylime on TPM 1.2 or 2.0.
 
 Manual
@@ -150,7 +150,7 @@ The following python packages are required:
 * python-dev
 * pyyaml
 
-The latter of these are usually available as distro packages. See `installer.sh <https://github.com/keylime/python-keylime/blob/master/installer.sh>`_
+The latter of these are usually available as distro packages. See `installer.sh <https://github.com/keylime/keylime/blob/master/installer.sh>`_
 for more information if you want to install them this way. You can also let keylime's `setup.py`
 install them via PyPI.
 
