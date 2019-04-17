@@ -12,7 +12,7 @@ to make via an issue in the relevant repository for your change or email to the
 Pull Request Process
 ~~~~~~~~~~~~~~~~~~~~
 
-1. Create an [issue](https://github.com/keylime/python-keylime/issues)
+1. Create an [issue](https://github.com/keylime/keylime/issues)
    outlining the fix or feature.
 2. Fork the keylime repository to your own github account and clone it locally.
 3. Hack on your changes.
@@ -31,7 +31,7 @@ Docker Development Environment
 
 The following is a guide to mounting your local repository as a Docker volume
 and performing a test run using a TPM simulator. This will replicate the same
-test that occurs within the KeyLime CI gate for python-KeyLime
+test that occurs within the KeyLime CI gate for keylime.
 
 * ToDo: Also run rust checks
 
@@ -55,8 +55,8 @@ script in an easy to remember way)
 
     #!/bin/bash
 
-    # Your local python-keylime (you should likely change this)
-    REPO="/home/${USER}/python-keylime"
+    # Your local keylime. (you should likely change this)
+    REPO="/home/${USER}/keylime."
 
     # keylime images
     tpm12image="lukehinds/keylime-ci-tpm12"
@@ -72,10 +72,10 @@ script in an easy to remember way)
     function tpm1 {
         container_id=$(mktemp)
         docker run --detach --privileged \
-            -v $REPO:/root/python-keylime \
+            -v $REPO:/root/keylime. \
             -it ${tpm12image}:${tpm12tag} >> ${container_id}
         docker exec -u 0 -it --tty "$(cat ${container_id})" \
-            /bin/sh -c 'cd /root/python-keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh -s openssl'
+            /bin/sh -c 'cd /root/keylime./test; chmod +x ./run_tests.sh; ./run_tests.sh -s openssl'
         docker stop "$(cat ${container_id})"
         docker rm "$(cat ${container_id})"
     }
@@ -83,11 +83,11 @@ script in an easy to remember way)
     function tpm2 {
         container_id=$(mktemp)
         docker run --detach --privileged \
-            -v $REPO:/root/python-keylime \
+            -v $REPO:/root/keylime. \
             -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
             -it ${tpm20image}:${tpm20tag} >> ${container_id}
         docker exec -u 0 -it --tty "$(cat ${container_id})" \
-            /bin/bash /root/python-keylime/.ci/test_wrapper.sh
+            /bin/bash /root/keylime./.ci/test_wrapper.sh
         docker stop "$(cat ${container_id})"
         docker rm "$(cat ${container_id})"
     }
