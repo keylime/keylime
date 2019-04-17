@@ -40,7 +40,7 @@ Semver is realised using git tags:
 Alternatively, you can use the github UI to create a tag, at the same time as
 the release.
 
-Go to the [new release page](https://github.com/keylime/python-keylime/releases/new)
+Go to the [new release page](https://github.com/keylime/keylime/releases/new)
 and  enter a Tag, provide a title (Keylime vx.x.x) and list the changes in the release,
 linking to commits.
 
