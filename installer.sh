@@ -26,13 +26,13 @@ KEYLIME_GIT=https://github.com/mit-ll/keylime.git
 TPM4720_GIT=https://github.com/mit-ll/tpm4720-keylime.git
 GOLANG_SRC=https://dl.google.com/go
 TPM2TSS_GIT=https://github.com/tpm2-software/tpm2-tss.git
-TPM2TOOLS_GIT=https://github.com/mit-ll/tpm2-tools.git
+TPM2TOOLS_GIT=https://github.com/tpm2-software/tpm2-tools.git
 TPM2SIM_SRC=http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/download
 KEYLIME_VER="master"
 TPM4720_VER="master"
-GOLANG_VER="1.11.4"
-TPM2TSS_VER="master"
-TPM2TOOLS_VER="master"
+GOLANG_VER="1.12.4"
+TPM2TSS_VER="2.0.x"
+TPM2TOOLS_VER="3.X"
 
 # Minimum version requirements
 MIN_PYTHON_VERSION="2.7.10"
