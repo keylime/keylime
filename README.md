@@ -24,12 +24,11 @@ Keylime can be driven with a CLI application, web front end and a set of
 RESTful APIs.
 
 Keylime consists of three main components; The verifier, registrar and the
-agent. The verifier computes the measurements of the cryptographic TPM
-quotes accessed by the agents communication with the hosts TPM chip. The
-registrar is a database of all agents registered with Keylime and hosts the
-public keys of the TPM vendors.
+agent. The verifier continuously verifies the integrity state of the machine that
+the agent is running on. The registrar is a database of all agents registered
+with Keylime and hosts the public keys of the TPM vendors.
 
-Lastly is the agent, which is deployed to the remote machine that is to be
+The agent is deployed to the remote machine that is to be
 measured or provisoned with secrets stored within an encrypted payload released
 by the TPM.
 
@@ -38,14 +37,14 @@ by the TPM.
 The verifier, registrar and agent are all developed in Python and situated
 in this repository `keylime`. The agent is currently undergoing a port to the
 [Rust programming language](https://www.rust-lang.org), with this work taking
-place in the [keylime-rust repository](https://github.com/keylime/rust-keylime).
+place in the [rust-keylime repository](https://github.com/keylime/rust-keylime).
 
 The decision was made to port the agent to Rust, as rust is a low level
 performant systems language designed with security as a central tenet, by means
 of the rust compilers ownership model.
 
-When the rust-agent port is completed, the rust-keylime agent will become
-the recommended ongoing agent within Keylime. Until then the Python agent is
+When the rust agent work is complete, the rust-keylime agent will become the
+recommended ongoing agent within Keylime. Until then the Python agent is
 fully functioning and available to use as a remote monitoring system to interact
 with the keylime verifier and registrar.
 
