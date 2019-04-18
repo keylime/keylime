@@ -1,21 +1,65 @@
-# keylime
+# Keylime
 
 [![Build
 Status](https://travis-ci.org/keylime/keylime.svg?branch=master)](https://travis-ci.org/keylime/keylime) [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/keylime-project/community)
 
 ![keylime](doc/keylime.png?raw=true "Title")
 
-keylime is a scalable trusted cloud key management system. keylime provides an
-end-to-end solution for both bootstrapping hardware rooted cryptographic
-identities for IaaS nodes and for system integrity monitoring of those nodes via
-periodic attestation.
+Keylime is an open source scalable cloud trust system harnessing TPM Technology.
 
-keylime supports both TPM versions 1.2 and 2.0.
+Keylime provides an end-to-end solution for bootstrapping hardware rooted
+cryptographic trust for remote machines, the provisioning of encrypted payloads
+and run-time system integrity monitoring. It also provides a flexible
+framework for the remote attestation of any given `PCR` (Platform Configuration
+Register). Users can create their own customized actions that will trigger when
+a machine fails its attested measurements.
 
-keylime can be used with a software TPM emulator
-for development, testing, or demonstration purposes.  However, DO NOT USE keylime in
-production with a TPM emulator!  A software TPM emulator does not provide a hardware root
-of trust and dramatically lowers the security benefits of using keylime.
+Keylime's mission is to make TPM Technology easily accessible to developers and
+users alike, without the need for a deep understanding of the lower levels of a
+TPM's operations. Amongst many scenarios, it well suited to tenants who need to
+remotely attest machines not under their own full control (such as a consumer of
+hybrid cloud.)
+
+Keylime can be driven with a CLI application, web front end and a set of
+RESTful APIs.
+
+Keylime consists of three main components; The verifier, registrar and the
+agent. The verifier continuously verifies the integrity state of the machine that
+the agent is running on. The registrar is a database of all agents registered
+with Keylime and hosts the public keys of the TPM vendors.
+
+The agent is deployed to the remote machine that is to be
+measured or provisoned with secrets stored within an encrypted payload released
+by the TPM.
+
+### Rust based Keylime Agent
+
+The verifier, registrar and agent are all developed in Python and situated
+in this repository `keylime`. The agent is currently undergoing a port to the
+[Rust programming language](https://www.rust-lang.org), with this work taking
+place in the [rust-keylime repository](https://github.com/keylime/rust-keylime).
+
+The decision was made to port the agent to Rust, as rust is a low level
+performant systems language designed with security as a central tenet, by means
+of the rust compilers ownership model.
+
+When the rust agent work is complete, the rust-keylime agent will become the
+recommended ongoing agent within Keylime. Until then the Python agent is
+fully functioning and available to use as a remote monitoring system to interact
+with the keylime verifier and registrar.
+
+### TPM 1.2 & 2.0 support
+
+Keylime supports both TPM versions 1.2 and 2.0. Although going forwards
+new feature development will be more focused on the newer TPM 2.0 version.
+
+Keylime can be used with a hardware TPM, or a software TPM emulator for
+development, testing, or demonstration purposes.  However, DO NOT USE keylime in
+production with a TPM emulator!  A software TPM emulator does not provide a
+hardware root of trust and dramatically lowers the security benefits of using
+keylime.
+
+A hardware TPM should always be used when real secrets and trust is required.
 
 ## Table of Contents
 
@@ -37,7 +81,7 @@ of trust and dramatically lowers the security benefits of using keylime.
 
 ### Automated
 
-keylime requires Python 2.7.10 or newer for proper TLS support.
+Keylime requires Python 2.7.10 or newer for proper TLS support.
 
 Installation can be performed via an automated shell script, `installer.sh`.  The
 following command line options are available:
