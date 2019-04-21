@@ -5,7 +5,7 @@ KeyLime Development
 Contributing
 ------------
 
-When contributing to this repository, please first discuss the change you wish
+When contributing any keylime repository, please first discuss the change you wish
 to make via an issue in the relevant repository for your change or email to the
 `keylime mailing list <https://groups.io/g/keylime>`_
 
@@ -26,9 +26,10 @@ Pull Request Process
 6. Ensure that CI passes, if it fails, fix the failures.
 7. Every pull request requires a review from the `core keylime team <https://github.com/orgs/keylime/teams/core>`_
 8. If your pull request consists of more than one commit, please squash your
-   commits as described in [Squash Commits](#Squash Commits)
+   commits as described in see :ref:`squash-commits`.
 
-## Commit Message Guidelines
+Commit Message Guidelines
+-------------------------
 
 We follow the commit formatting recommendations found on `Chris Beams' How to Write a Git Commit Message article <https://chris.beams.io/posts/git-commit>`_.
 
@@ -71,6 +72,8 @@ ensure issues are associated and closed when a pull request is merged.
 
 Please refer to `the github help page on message types <https://help.github.com/articles/closing-issues-using-keywords>`_
 for a complete list of issue references.
+
+.. _squash-commits:
 
 Squash Commits
 --------------
