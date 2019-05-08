@@ -428,6 +428,7 @@ Meeting agenda are hosted and archived in the [meetings repo](https://github.com
 ## Additional Reading
 
 * Executive summary Keylime slides: [doc/keylime-elevator-slides.pptx](https://github.com/keylime/keylime/raw/master/doc/keylime-elevator-slides.pptx)
+* Detailed Keylime Architecture slides: [doc/keylime-detailed-architecture-v7.pptx](https://github.com/keylime/keylime/raw/master/doc/keylime-detailed-architecture-v7.pptx)
 * See ACSAC 2016 paper in doc directory: [doc/tci-acm.pdf](https://github.com/keylime/keylime/blob/master/doc/tci-acm.pdf)
   * and the ACSAC presentation on keylime: [doc/llsrc-keylime-acsac-v6.pptx](https://github.com/keylime/keylime/raw/master/doc/llsrc-keylime-acsac-v6.pptx)
 * See the HotCloud 2018 paper: [doc/hotcloud18.pdf](https://github.com/keylime/keylime/blob/master/doc/hotcloud18.pdf)
