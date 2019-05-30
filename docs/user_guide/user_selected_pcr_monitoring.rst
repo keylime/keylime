@@ -1,4 +1,4 @@
-User Selected PRC Monitoring
+User Selected PCR Monitoring
 ============================
 
 .. warning::
@@ -21,7 +21,7 @@ Now you can set the PCR values as an array in either the `keylime.conf` file::
 
     tpm_policy = {"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}
 
-Or you can add a node to using `keylime_tenant`
+Or you can add a node to using `keylime_tenant`::
 
     keylime_tenant -v 127.0.0.1 -t 127.0.0.1 -f /root/excludes.txt \
     --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 \
