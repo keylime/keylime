@@ -7,14 +7,15 @@ keylime installer or a manual installation.
 Ansible Keylime Roles
 ---------------------
 
-An Ansible role to deploy `Python Keylime <https://github.com/keylime/keylime>`_
+An Ansible role to deploy `Keylime <https://github.com/keylime/keylime>`_
 , alongside the `Keylime rust cloud agent <https://github.com/keylime/rust-keylime>`_
 
-Please note that the rust cloud agent is still under early stages of Development.
-Those wishing to test drive keylimes functionality should use the existing
-python based cloud agent `keylime_agent` until later notice.
+.. warning::
+    Please note that the rust cloud agent is still under early stages of Development.
+    Those wishing to test drive keylimes functionality should use the existing
+    python based cloud agent `keylime_agent` until later notice.
 
-This role deploys keylime for use with a Hardware TPM Emulator
+This role deploys keylime for use with a Hardware TPM Emulator.
 
 Should you wish to deploy Keylime with a software TPM emulator for development
 or getting your feet wet, use the `Ansible Keylime Soft TPM <https://github.com/keylime/ansible-keylime-soft-tpm>`_
@@ -33,7 +34,8 @@ Run the example playbook against your target remote host(s)::
 TPM Version Control (Software TPM)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Ansible Keylime Soft TPM provides two role types for both 1.2 and 2.0 TPM versions.
+**Ansible Keylime Soft TPM** provides two role types for both 1.2 and 2.0 TPM
+versions.
 
 Either TPM version 1.2 or TPM 2.0 support can be configured by simply changing
 the role in the `playbook.yml` file `here <https://github.com/keylime/ansible-keylime/blob/master/playbook.yml#L11>`_
@@ -52,9 +54,11 @@ Both roles will deploy the relevant TPM 1.2 Emulator (tpm4720) or 2.0 Emulator
 Vagrant
 ~~~~~~~
 
-If you prefer, a Vagrantfile is available for provisioning.
+If you prefer, a `Vagrantfile` is available for provisioning.
 
-Clone the repository and then simply run `vagrant up --provider <provider> --provision`
+Clone the repository and then simply run::
+
+    vagrant up --provider <provider> --provision
 
 For example, using libvirt::
 
@@ -140,6 +144,10 @@ on how to get a newer Python onto those platforms.
 Python-based prerequisites
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. note::
+    The following outlines installing Keylime under the Python 2 environment,
+    work is underway to port Keylime to Python 3.
+
 The following python packages are required:
 
 * pycryptodomex>=3.4.1
@@ -180,11 +188,11 @@ TPM 2.0 Support
 
 Keylime uses the Intel TPM2 software set to provide TPM 2.0 support.  You will
 need to install the tpm2-tss software stack (available `here <https://github.com/tpm2-software/tpm2-tss>`_) as well as a patched version of the
-tpm2-tools utilities available `here<https://github.com/keylime/tpm2-tools>`_. 
+tpm2-tools utilities available `here<https://github.com/keylime/tpm2-tools>`_.
 See README.md in these projects for detailed instructions on how to build and install.
 
 The brief synopsis of a quick build/install (after installing dependencies) is::
-    
+
     # tpm2-tss
     git clone https://github.com/tpm2-software/tpm2-tss.git tpm2-tss
     pushd tpm2-tss
