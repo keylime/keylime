@@ -1,4 +1,4 @@
-User Selected PRC Monitoring
+User Selected PCR Monitoring
 ============================
 
 .. warning::
