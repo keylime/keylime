@@ -1,0 +1,76 @@
+User Selected PRC Monitoring
+============================
+
+.. warning::
+    This page is still under development and not complete. It will be so until
+    this warning is removed.
+
+Using use the `tpm_policy` feature in Keylime, it is possible to mointor a
+remote machine for any given PCR.
+
+This can be used for Trusted Boot checks for both the `rhboot` shim loader and
+Trusted Grub 2.
+
+How to use
+----------
+
+Select which PCRs you would like Keylime to measure, by using the `tpm2_pcrlist`
+tool.
+
+Now you can set the PCR values as an array in either the `keylime.conf` file::
+
+    tpm_policy = {"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}
+
+Or you can add a node to using `keylime_tenant`
+
+    keylime_tenant -v 127.0.0.1 -t 127.0.0.1 -f /root/excludes.txt \
+    --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 \
+    --whitelist /root/whitelist.txt \
+    --exclude /root/exclude.txt \
+    --tpm_policy  {"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]} \
+    -c add
+
+rhboot shim-loader
+------------------
+
+The following is sourced from the `rhboot shim repository <https://github.com/rhboot/shim/blob/master/README.tpm`>_
+please visit the upstream README to ensure information is still accurate
+
+The following PCRs are extended by shim:
+
+PCR4:
+- the Authenticode hash of the binary being loaded will be extended into
+  PCR4 before SB verification.
+- the hash of any binary for which Verify is called through the shim_lock
+  protocol
+
+PCR7:
+- Any certificate in one of our certificate databases that matches a binary
+  we try to load will be extended into PCR7.  That includes:
+  - DBX - the system blacklist, logged as "dbx"
+  - MokListX - the Mok blacklist, logged as "MokListX"
+  - vendor_dbx - shim's built-in vendor blacklist, logged as "dbx"
+  - DB - the system whitelist, logged as "db"
+  - MokList the Mok whitelist, logged as "MokList"
+  - vendor_cert - shim's built-in vendor whitelist, logged as "Shim"
+  - shim_cert - shim's build-time generated whitelist, logged as "Shim"
+- MokSBState will be extended into PCR7 if it is set, logged as
+  "MokSBState".
+
+PCR8:
+- If you're using the grub2 TPM patchset we cary in Fedora, the kernel command
+  line and all grub commands (including all of grub.cfg that gets run) are
+  measured into PCR8.
+
+PCR9:
+- If you're using the grub2 TPM patchset we cary in Fedora, the kernel,
+  initramfs, and any multiboot modules loaded are measured into PCR9.
+
+PCR14:
+- MokList, MokListX, and MokSBState will be extended into PCR14 if they are
+  set.
+  
+
+
+
+e
