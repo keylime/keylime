@@ -81,7 +81,7 @@ A hardware TPM should always be used when real secrets and trust is required.
 
 ### Automated
 
-Keylime requires Python 2.7.10 or newer for proper TLS support.
+Keylime requires Python 3.6 or newer for proper TLS support.
 
 Installation can be performed via an automated shell script, `installer.sh`.  The
 following command line options are available:
@@ -111,7 +111,7 @@ Repository](https://github.com/keylime/ansible-keylime).
 
 ### Docker (Development Only)
 
-Python keylime and related emulators can also be deployed using Docker.
+keylime and related emulators can also be deployed using Docker.
 Since this docker configuration currently uses a TPM emulator,
 it should only be used for development or testing and NOT in production.
 
@@ -123,16 +123,14 @@ which will automate the build and pull of keylime on TPM 1.2 or 2.0.
 
 ### Manual
 
-Keylime requires Python 2.7.10 or newer for proper TLS support.  This is newer than
-some LTS distributions like Ubuntu 14.04 or CentOS 7.  See google for instructions
-on how to get a newer Python onto those platforms.
+Keylime requires Python 3.6.
 
 #### Python-based prerequisites
 
 The following python packages are required:
 
 * pycryptodomex>=3.4.1
-* tornado>=4.3
+* tornado>=5.0.2
 * m2crypto>=0.21.1
 * pyzmq>=14.4
 * setuptools>=0.7
@@ -168,10 +166,21 @@ the `encaik` utility in your path.
 
 ##### TPM 2.0 Support
 
-Keylime uses the Intel TPM2 software set to provide TPM 2.0 support.  You will
-need to install the tpm2-tss software stack (available at
-https://github.com/tpm2-software/tpm2-tss) as well as a patched version of the
-tpm2-tools utilities available at https://github.com/keylime/tpm2-tools. See
+Keylime uses the Intel TPM2 software set to provide TPM 2.0 support.
+
+These can be installed using your package manager.
+
+On Fedora 30 (and greater):
+
+`sudo dnf install tpm2-tss tpm2-tools tpm2-abrmd'
+
+On Ubuntu Ubuntu 18 LTS:
+
+`sudo apt-get install tpm2-tss tpm2-tools tpm2-abrmd'
+
+You can also build the tpm2-tss software stack (available at
+https://github.com/tpm2-software/tpm2-tss) as well as the
+tpm2-tools utilities available at https://github.com/tpm2-software/tpm2-tools. See
 README.md in these projects for detailed instructions on how to build and install.
 
 The brief synopsis of a quick build/install (after installing dependencies) is:
@@ -225,6 +234,32 @@ export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
 # NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as:
 sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
 ```
+
+A brief, workable example for Fedora is:
+
+```bash
+git clone https://github.com/tpm2-software/tpm2-abrmd.git ${TPM2_ABRMD}
+pushd tpm2-abrmd
+./bootstrap
+./configure --prefix=/usr
+make
+make install
+ldconfig
+pkill -HUP dbus-daemon
+systemctl enable tpm2-abrmd
+systemctl start tpm2-abrmd
+```
+
+Note: if you use an emulator, you will need to add the `--tcti=mssim` argument to `ExecStart` within the systemd file: `/usr/lib/systemd/system/tpm2-abrmd.service`:
+
+`ExecStart=/usr/sbin/tpm2-abrmd --tcti=mssim`
+
+After this reload systemd to pick up the above changes
+
+systemctl daemon-reload
+systemctl restart tpm2-abrmd
+
+###### TPM 2.0 Direct Access (without tpm2-abrmd)
 
 Alternatively, it is also possible, though not recommended, to communicate
 directly with the TPM (and not use a resource manager).  This can be done by

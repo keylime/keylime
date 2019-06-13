@@ -5,9 +5,9 @@
 # It is not recommended for use beyond testing scenarios.
 ##############################################################################
 
-FROM fedora:29
+FROM fedora:30
 MAINTAINER Luke Hinds <lhinds@redhat.com>
-LABEL version="0.1" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
+LABEL version="0.2" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
 # environment variables
 ARG BRANCH=master
@@ -19,12 +19,12 @@ ENV TPM_HOME ${HOME}/tpm4720-keylime
 RUN dnf -y update
 RUN dnf -y install git \
            golang \
-           python-devel \
-           python-pip \
-           python-setuptools \
-           python-tornado \
-           python-virtualenv \
-           python2-zmq \
+           python3-devel \
+           python3-pip \
+           python3-setuptools \
+           python3-tornado \
+           python3-virtualenv \
+           python3-zmq \
            procps \
            openssl-devel \
            libtool \

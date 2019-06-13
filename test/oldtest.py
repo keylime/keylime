@@ -25,7 +25,7 @@ import os
 
 import json
 import base64
-import ConfigParser
+import configparser
 import common
 import crypto
 import tempfile
@@ -33,7 +33,7 @@ import tempfile
 import signal
 import subprocess
 
-import Queue
+import queue
 
 import uuid
 import time
@@ -49,12 +49,12 @@ cv_process = None
 cn_process = None
 cn_process_list = []
 
-queue = Queue.Queue()
+queue = queue.Queue()
 num_threads = 5
 
 
 
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
   
 cloudverifier_port = config.get('general', 'cloudverifier_port')
@@ -355,7 +355,7 @@ class Test(unittest.TestCase):
                     tmpp_policy = json_request_body['tpm_policy']
                     
                     mask = 0
-                    for key in tmpp_policy.keys():
+                    for key in list(tmpp_policy.keys()):
                         if key.isdigit() :
                             mask = mask + (1<<int(key))
 
@@ -634,7 +634,7 @@ class Test(unittest.TestCase):
         if test_functions["http_result_status_actual"] != test_functions["http_result_status_expected"]:
             self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + " expected " + str(test_functions["http_result_status_expected"]) + " but received " + str(test_functions["http_result_status_actual"])) # reset the file marker for reading
         #validate response headers
-        if test_functions.get("http_result_header_expected") is not None and not (all(item in response.headers.items() for item in test_functions["http_result_header_expected"].items())):
+        if test_functions.get("http_result_header_expected") is not None and not (all(item in list(response.headers.items()) for item in list(test_functions["http_result_header_expected"].items()))):
             self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ", didn't receive expected headers.")
         #validate (shallow) response body
         if test_functions.get("http_result_body_expected") is not None and json.loads(test_functions.get("http_result_body_expected")) != json.loads(test_functions.get("http_result_body_actual")):
@@ -722,7 +722,7 @@ class Test(unittest.TestCase):
         return True
 
     def overwrite_config_file(self, path, section, option, value):
-        parser = ConfigParser.RawConfigParser()
+        parser = configparser.RawConfigParser()
         parser.read(path)
         
         
@@ -743,7 +743,7 @@ class Test(unittest.TestCase):
         
         if cloudagent_start_port is not None:
 
-            parser = ConfigParser.RawConfigParser()
+            parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             original_cloudagent_port = parser.get('general', 'cloudagent_port')
             test_agent_uuid = parser.get('general', 'agent_uuid')
@@ -771,7 +771,7 @@ class Test(unittest.TestCase):
             
         elif port_file is not None:
 
-            parser = ConfigParser.RawConfigParser()
+            parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             original_cloudagent_port = parser.get('general', 'cloudagent_port')
             test_agent_uuid = parser.get('general', 'agent_uuid')
@@ -798,9 +798,9 @@ class Test(unittest.TestCase):
                 #time.sleep(2)
     
             self.overwrite_config_file(common.CONFIG_FILE, 'general', 'cloudagent_port', str(original_cloudagent_port))            
-        print "done creating cloud agents, waiting for them to start..."
+        print("done creating cloud agents, waiting for them to start...")
         time.sleep(10)
-        print "starting test..."
+        print("starting test...")
         
         
     def kill_cloudagents_after_delay(self, argument):
@@ -817,7 +817,7 @@ class Test(unittest.TestCase):
         
         if cloudagent_start_port is not None:
 
-            parser = ConfigParser.RawConfigParser()
+            parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
 
       
@@ -831,7 +831,7 @@ class Test(unittest.TestCase):
             
         elif port_file is not None:
 
-            parser = ConfigParser.RawConfigParser()
+            parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             test_agent_uuid = parser.get('general', 'agent_uuid')
       
@@ -845,7 +845,7 @@ class Test(unittest.TestCase):
                     'agent_id': contrived_uuid,
                     }
                 try:
-                    print "Sending #" + str(cn) + " DELETE request to CV for uuid: " +  contrived_uuid
+                    print(("Sending #" + str(cn) + " DELETE request to CV for uuid: " +  contrived_uuid))
                     response = tornado_requests.request("DELETE",
                     "http://" + cloudverifier_ip + ":" + cloudverifier_port + "/v1/instances",
                     params=params)  
@@ -863,7 +863,7 @@ class Test(unittest.TestCase):
                 shutil.rmtree(new_dir)
 
         for the_pid in cn_process_list:
-            print "killing pid" + str(the_pid)
+            print(("killing pid" + str(the_pid)))
             os.killpg(the_pid, signal.SIGTERM)
 
     def kill_cloudverifier(self, argument):
