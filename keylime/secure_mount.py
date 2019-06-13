@@ -20,15 +20,17 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import cmd_exec
-import common
+
 import os
-import ConfigParser
+import configparser
+
+from keylime import cmd_exec
+from keylime import common
 
 logger = common.init_logging('secure_mount')
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 def check_mounted(secdir):

@@ -18,32 +18,32 @@ violate any copyrights that exist in this work.
 '''
 
 import base64
-import cmd_exec
-import common
-import ConfigParser
-import crypto
+from . import cmd_exec
+from . import common
+import configparser
+from . import crypto
 import hashlib
-import ima
+from . import ima
 import json
 import M2Crypto
 from M2Crypto import m2
 import os
 import re
-import secure_mount
-from sets import Set
+from . import secure_mount
 import string
 import subprocess
 import sys
 import tempfile
 import threading
 import time
-from tpm_abstract import *
-from tpm_ek_ca import *
+import yaml
+from .tpm_abstract import *
+from .tpm_ek_ca import *
 
 logger = common.init_logging('tpm1')
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 
@@ -94,7 +94,7 @@ class tpm1(AbstractTPM):
         env['PATH']=env['PATH']+":%s"%common.TPM_TOOLS_PATH
 
         # Backwards compat with string input (force all to be dict)
-        if isinstance(outputpaths, basestring):
+        if isinstance(outputpaths, str):
             outputpaths = [outputpaths]
 
         # Handle stubbing the TPM out
@@ -191,7 +191,7 @@ class tpm1(AbstractTPM):
                     fileoutEncoded = ""
                     if outputpaths is not None and len(outputpaths) > 0:
                         if len(fileouts) == 1 and len(outputpaths) == 1:
-                            fileoutEncoded = base64.b64encode(fileouts.itervalues().next().encode("zlib"))
+                            fileoutEncoded = base64.b64encode(iter(fileouts.values()).next().encode("zlib"))
                         else:
                             raise Exception("Command %s is using multiple files unexpectedly!"%(fprt))
 
@@ -518,7 +518,7 @@ class tpm1(AbstractTPM):
         except Exception as e:
             # Log the exception so we don't lose the raw message 
             logger.exception(e)
-            raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?"), None, sys.exc_info()[2]
+            raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?").with_traceback(sys.exc_info()[2])
         
         logger.error("No Root CA matched EK Certificate")
         return False

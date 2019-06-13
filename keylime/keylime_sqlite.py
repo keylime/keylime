@@ -18,25 +18,26 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
-logger = common.init_logging('keylime_sqlite')
 import os
 import sqlite3
-import json
+import yaml
+
+from keylime import common
+logger = common.init_logging('keylime_sqlite')
 
 class KeylimeDB():
     db_filename = None
     # in the form key, SQL type
     cols_db = None
-    # these are the columns that contain json data and need marshalling
-    json_cols_db = None
+    # these are the columns that contain yaml data and need marshalling
+    yaml_cols_db = None
     # in the form key : default value
     exclude_db = None
 
-    def __init__(self,dbname,cols_db,json_cols_db,exclude_db):
+    def __init__(self,dbname,cols_db,yaml_cols_db,exclude_db):
         self.db_filename = dbname
         self.cols_db = cols_db
-        self.json_cols_db = json_cols_db
+        self.yaml_cols_db = yaml_cols_db
         self.exclude_db = exclude_db
 
         if 'agent_id' not in cols_db or 'PRIMARY_KEY' not in cols_db['agent_id']:
@@ -71,12 +72,12 @@ class KeylimeDB():
             rows = cur.fetchall()
 
             colnames = [description[0] for description in cur.description]
-            print colnames
+            print(colnames)
             for row in rows:
-                print row
+                print(row)
 
     def add_defaults(self,agent):
-        for key in self.exclude_db.keys():
+        for key in list(self.exclude_db.keys()):
             agent[key] = self.exclude_db[key]
         return agent
 
@@ -96,18 +97,18 @@ class KeylimeDB():
             insertlist = []
             for key in sorted(self.cols_db.keys()):
                 v = d[key]
-                if key in self.json_cols_db and (isinstance(d[key],dict) or isinstance(d[key],list)):
-                    v = json.dumps(d[key])
+                if key in self.yaml_cols_db and (isinstance(d[key],dict) or isinstance(d[key],list)):
+                    v = yaml.dump(d[key])
                 insertlist.append(v)
 
             cur.execute('INSERT INTO main VALUES(?%s)'%(",?"*(len(insertlist)-1)),insertlist)
 
             conn.commit()
 
-        # these are JSON strings and should be converted to dictionaries
-        for item in self.json_cols_db:
-            if d[item] is not None and isinstance(d[item],basestring):
-                d[item] = json.loads(d[item])
+        # these are yaml strings and should be converted to dictionaries
+        for item in self.yaml_cols_db:
+            if d[item] is not None and isinstance(d[item],str):
+                d[item] = yaml.safe_load(d[item])
 
         return d
 
@@ -124,28 +125,28 @@ class KeylimeDB():
         return True
 
     def update_agent(self,agent_id, key, value):
-        if key not in self.cols_db.keys():
-            raise Exception("Database key %s not in schema: %s"%(key,self.cols_db.keys()))
+        if key not in list(self.cols_db.keys()):
+            raise Exception("Database key %s not in schema: %s"%(key,list(self.cols_db.keys())))
 
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
             # marshall back to string
-            if key in self.json_cols_db:
-                value = json.dumps(value)
+            if key in self.yaml_cols_db:
+                value = yaml.dump(value)
             cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(value,agent_id))
             conn.commit()
 
         return
 
     def update_all_agents(self,key,value):
-        if key not in self.cols_db.keys():
-            raise Exception("Database key %s not in schema: %s"%(key,self.cols_db.keys()))
+        if key not in list(self.cols_db.keys()):
+            raise Exception("Database key %s not in schema: %s"%(key,list(self.cols_db.keys())))
 
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
             # marshall back to string if needed
-            if key in self.json_cols_db:
-                value = json.dumps(value)
+            if key in self.yaml_cols_db:
+                value = yaml.dump(value)
             cur.execute('UPDATE main SET %s = ?'%key,(value,))
             conn.commit()
         return
@@ -161,8 +162,8 @@ class KeylimeDB():
             colnames = [description[0] for description in cur.description]
             d ={}
             for i in range(len(colnames)):
-                if colnames[i] in self.json_cols_db:
-                    d[colnames[i]] = json.loads(rows[0][i])
+                if colnames[i] in self.yaml_cols_db:
+                    d[colnames[i]] = yaml.safe_load(rows[0][i])
                 else:
                     d[colnames[i]]=rows[0][i]
             d = self.add_defaults(d)
@@ -186,11 +187,11 @@ class KeylimeDB():
     def overwrite_agent(self,agent_id,agent):
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
-            for key in self.cols_db.keys():
+            for key in list(self.cols_db.keys()):
                 if key is 'agent_id':
                     continue
-                if key in self.json_cols_db:
-                    cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(json.dumps(agent[key]),agent_id))
+                if key in self.yaml_cols_db:
+                    cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(yaml.dump(agent[key]),agent_id))
                 else:
                     cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(agent[key],agent_id))
             conn.commit()

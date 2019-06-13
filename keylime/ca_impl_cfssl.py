@@ -18,21 +18,22 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
-import json
-import ConfigParser
+import base64
+import configparser
 import os
 import subprocess
-import tornado_requests
-from M2Crypto import EVP, X509
-import secure_mount
-import base64
-import time
 import socket
+import time
+import yaml
+
+from keylime import common
+from keylime import secure_mount
+from keylime import tornado_requests
+from M2Crypto import EVP, X509
 
 logger = common.init_logging('ca_impl_cfssl')
 
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 cfsslproc = None
@@ -102,7 +103,7 @@ def mk_cacert():
                    }
                      ]
            }
-    data = json.dumps(csr)
+    data = yaml.dump(csr)
     try:
         start_cfssl()
         response = post_cfssl("http://127.0.0.1:8888/api/v1/cfssl/init_ca",data=data)
@@ -111,7 +112,7 @@ def mk_cacert():
 
     if response.status_code!=200:
         raise Exception("Unable to create CA  Error: %s"%(response.body))
-    body = json.loads(response.body)
+    body = yaml.safe_load(response.body)
     
     if body['success']:        
         pk = EVP.load_key_string(str(body['result']['private_key']))
@@ -160,16 +161,16 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
             }
         }
     }
-    data = json.dumps(csr)
+    data = yaml.dump(csr)
     secdir = secure_mount.mount()
     try:    
         # need to temporarily write out the private key with no password
         # to tmpfs 
         ca_pk.save_key('%s/ca-key.pem'%secdir, None)
-        with open('%s/cfsslconfig.json'%secdir,'w') as f:
-            json.dump(cfsslconfig, f)
+        with open('%s/cfsslconfig.yml'%secdir,'w') as f:
+            yaml.dump(cfsslconfig, f)
             
-        cmdline = "-config=%s/cfsslconfig.json"%secdir
+        cmdline = "-config=%s/cfsslconfig.yml"%secdir
         
         priv_key = os.path.abspath("%s/ca-key.pem"%secdir)
         cmdline += " -ca-key %s -ca cacert.crt"%(priv_key)
@@ -179,11 +180,11 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
     finally:
         stop_cfssl()
         os.remove('%s/ca-key.pem'%secdir)
-        os.remove('%s/cfsslconfig.json'%secdir)
+        os.remove('%s/cfsslconfig.yml'%secdir)
         
     if response.status_code!=200:
         raise Exception("Unable to create cert for %s.  Error: %s"%(name,response.body))
-    body = json.loads(response.body)
+    body = yaml.safe_load(response.body)
     
     if body['success']:
         pk = EVP.load_key_string(str(body['result']['private_key']))
@@ -198,7 +199,7 @@ def gencrl(serials,cert,ca_pk):
                "issuingKey": ca_pk,
                "expireTime": ""
                }
-    data = json.dumps(request)
+    data = yaml.dump(request)
     secdir = secure_mount.mount()
     try:            
         # need to temporarily write out the private key with no password
@@ -216,7 +217,7 @@ def gencrl(serials,cert,ca_pk):
 
     if response.status_code!=200:
         raise Exception("Unable to create crl for cert serials %s.  Error: %s"%(serials,response.body))
-    body = json.loads(response.body)
+    body = yaml.safe_load(response.body)
     
     if body['success']:
         #pk = EVP.load_key_string(str(body['result']['private_key']))

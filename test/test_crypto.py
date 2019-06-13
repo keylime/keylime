@@ -1,13 +1,14 @@
 import unittest
 import os
 import sys
+from pathlib import Path
 
 # Useful constants for the test
-KEYLIME_DIR=os.getcwdu()+"/../keylime/"
+KEYLIME_DIR = Path(__file__).parents[1]
 
 # Custom imports
 sys.path.insert(0, KEYLIME_DIR)
-from crypto import *
+from keylime.crypto import *
 
 
 class Crypto_Test(unittest.TestCase):
@@ -32,10 +33,9 @@ class Crypto_Test(unittest.TestCase):
         self.assertEqual(plaintext, message)
         
     def test_hmac(self):
-        message = b"a secret message!"
+        message = "a secret message!"
         aeskey=kdf(message,'salty-McSaltface')
         digest = do_hmac(aeskey,message)
-        print digest
         aeskey2 = kdf(message,'salty-McSaltface')
         self.assertEqual(do_hmac(aeskey2,message), digest)
         
@@ -58,7 +58,6 @@ class Crypto_Test(unittest.TestCase):
     def test_rsa_sign(self):
         message = b"a secret message!" 
         key = rsa_generate(2048)
-             
         sig = rsa_sign(key, message)
         self.assertTrue(rsa_verify(key, message,sig))
         

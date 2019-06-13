@@ -20,22 +20,24 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import zmq
-import common
-import ConfigParser
-import json
-import crypto
+import configparser
 import threading
 import functools
 import time
 import os
 import sys
-from multiprocessing import Process
 import signal
+import yaml
+import zmq
+
+from multiprocessing import Process
+
+from keylime import common
+from keylime import crypto
 
 logger = common.init_logging('revocation_notifier')
 
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 broker_proc = None
@@ -46,7 +48,7 @@ def start_broker():
         frontend = context.socket(zmq.SUB)
         frontend.bind("ipc:///tmp/keylime.verifier.ipc")
         
-        frontend.setsockopt(zmq.SUBSCRIBE, "")
+        frontend.setsockopt(zmq.SUBSCRIBE, b'')
         
         # Socket facing services
         backend = context.socket(zmq.PUB)
@@ -74,7 +76,7 @@ def notify(tosend):
         # now send it out vi 0mq
         for i in range(config.getint('cloud_verifier','max_retries')):
             try:
-                mysock.send(json.dumps(tosend))
+                mysock.send(yaml.dump(tosend))
                 break
             except Exception as e:
                 logger.debug("Unable to publish revocation message %d times, trying again in %f seconds: %s"%(i,config.getfloat('cloud_verifier','retry_interval'),e))
@@ -95,7 +97,7 @@ def await_notifications(callback,revocation_cert_path):
     
     context = zmq.Context()
     mysock = context.socket(zmq.SUB)
-    mysock.setsockopt(zmq.SUBSCRIBE, '')
+    mysock.setsockopt(zmq.SUBSCRIBE, b'')
     mysock.connect("tcp://%s:%s"%(config.get('general','revocation_notifier_ip'),config.getint('general','revocation_notifier_port')))
     
     logger.info('Waiting for revocation messages on 0mq %s:%s'%
@@ -103,7 +105,7 @@ def await_notifications(callback,revocation_cert_path):
     
     while True:
         rawbody = mysock.recv()
-        body = json.loads(rawbody)
+        body = yaml.safe_load(rawbody)
         if cert_key is None:
             # load up the CV signing public key
             if revocation_cert_path is not None and os.path.exists(revocation_cert_path):
@@ -119,14 +121,14 @@ def await_notifications(callback,revocation_cert_path):
         elif not crypto.rsa_verify(cert_key,str(body['msg']),str(body['signature'])):
             logger.error("Invalid revocation message siganture %s"%body)
         else:
-            message = json.loads(body['msg'])
+            message = yaml.safe_load(body['msg'])
             logger.debug("Revocation signature validated for revocation: %s"%message)
             callback(message)
 
 def main():
     start_broker()
     
-    import secure_mount
+    from . import secure_mount
     
     def worker():
         def print_notification(revocation):
@@ -139,7 +141,7 @@ def main():
     t.start()
     #time.sleep(0.5)
 
-    json_body2 = {
+    yaml_body2 = {
         'v': 'vbaby',
         'agent_id': '2094aqrea3',
         'cloudagent_ip': 'ipaddy',
@@ -152,15 +154,15 @@ def main():
         'revocation': '{"cert_serial":"1"}',
         }
     
-    print "sending notification"
-    notify(json_body2)
+    print("sending notification")
+    notify(yaml_body2)
     
     time.sleep(2)
-    print "shutting down"
+    print("shutting down")
     stop_broker()
-    print "exiting..."
+    print("exiting...")
     sys.exit(0)
-    print "done"
+    print("done")
      
 if __name__=="__main__":
     main()

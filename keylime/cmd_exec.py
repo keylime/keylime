@@ -20,9 +20,9 @@ violate any copyrights that exist in this work.
 import os
 import subprocess
 import threading
-import common
 import time
 
+from keylime import common
 
 # shared lock to serialize access to tools
 utilLock = threading.Lock()
@@ -49,7 +49,7 @@ def run(cmd,expectedcode=EXIT_SUCESS,raiseOnError=True,lock=True,outputpaths=Non
     retout = []
     while True:
         line = proc.stdout.readline()
-        if line=="":
+        if line==b'':
             break
         retout.append(line)
 
@@ -59,7 +59,7 @@ def run(cmd,expectedcode=EXIT_SUCESS,raiseOnError=True,lock=True,outputpaths=Non
 
     # Prepare to return their file contents (if requested)
     fileouts={}
-    if isinstance(outputpaths, basestring):
+    if isinstance(outputpaths, str):
         outputpaths = [outputpaths]
     if isinstance(outputpaths, list):
         for thispath in outputpaths:

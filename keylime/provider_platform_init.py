@@ -19,44 +19,46 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
+import asyncio
 import sys
-import common
-import ConfigParser
-import registrar_client
-import vtpm_manager
+import configparser
 import base64
 import os
 import errno
 import json
 
+from keylime import common
+from keylime import registrar_client
+from keylime.keylime_sqlite import vtpm_manager
+
 logger = common.init_logging('provider_platform_init')
 
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 def symlink_force(target, link_name):
     try:
         os.symlink(target, link_name)
-    except OSError, e:
+    except OSError as e:
         if e.errno == errno.EEXIST:
             os.remove(link_name)
             os.symlink(target, link_name)
         else:
             raise e
 
-def main(argv=sys.argv):    
+async def main(argv=sys.argv):    
     if common.DEVELOP_IN_ECLIPSE:
         argv = ['provider_platform_init.py','1','2']
     
     if len(argv)<3:
-        print "usage: provider_platform_init.py pubek.pem tpm_ekcert.der"
-        print "\tassociates a hypervisor host to its TPM and registers it"
-        print 
-        print "\tYou must obtain the public EK and the EK certificate from outside of Xen"
-        print "\ttake ownership first, then obtain pubek, and ekcert as follows"
-        print "\t takeown -pwdo <owner_password>"
-        print "\t getpubek -pwdo <owner-password>"
-        print "\t nv_readvalue -pwdo <owner-password> -in 1000f000 -cert -of tpm_ekcert.der"
+        print("usage: provider_platform_init.py pubek.pem tpm_ekcert.der")
+        print("\tassociates a hypervisor host to its TPM and registers it")
+        print() 
+        print("\tYou must obtain the public EK and the EK certificate from outside of Xen")
+        print("\ttake ownership first, then obtain pubek, and ekcert as follows")
+        print("\t takeown -pwdo <owner_password>")
+        print("\t getpubek -pwdo <owner-password>")
+        print("\t nv_readvalue -pwdo <owner-password> -in 1000f000 -cert -of tpm_ekcert.der")
         sys.exit(-1)
         
     if common.DEVELOP_IN_ECLIPSE and not common.STUB_TPM:
@@ -83,7 +85,8 @@ def main(argv=sys.argv):
 
     # registrar it and get back a blob
     keyblob = registrar_client.doRegisterAgent(provider_reg_ip,provider_reg_port,group_uuid,ek,ekcert,group_aik)
-    
+    keyblob = await keyblob
+
     # get the ephemeral registrar key by activating in the hardware tpm
     key = base64.b64encode(vtpm_manager.activate_group(group_uuid, keyblob))
     
@@ -99,7 +102,7 @@ def main(argv=sys.argv):
     
     # store the key and the group UUID in a file to add to vtpms later
     with open("group-%d-%s.tpm"%(group_num,group_uuid),'w') as f:
-        json.dump(output,f)
+        yaml.dump(output,f)
 
     logger.info("Activated VTPM group %d, UUID %s"%(group_num,group_uuid))
     if group_num==0:

@@ -18,12 +18,13 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
+import configparser
 import time
-from M2Crypto import X509, EVP, RSA, ASN1
-import ConfigParser
 
-import common
-config = ConfigParser.SafeConfigParser()
+from M2Crypto import X509, EVP, RSA, ASN1
+from keylime import common
+
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 def mk_cert_valid(cert, days=365):
@@ -33,7 +34,7 @@ def mk_cert_valid(cert, days=365):
        cert -- cert to make valid
        days -- number of days cert is valid for from now.
     """
-    t = long(time.time())
+    t = int(time.time())
     now = ASN1.ASN1_UTCTIME()
     now.set_time(t)
     expire = ASN1.ASN1_UTCTIME()

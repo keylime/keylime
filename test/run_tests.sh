@@ -21,6 +21,8 @@
 #
 ##########################################################################################
 
+# Set python3 as default
+alias python='/usr/bin/python3'
 
 # Find Keylime directory (we're in test/ directory)
 KEYLIME_DIR=`pwd`/../
@@ -145,8 +147,8 @@ fi
 # Set correct dependencies
 # Fedora
 if [ $PACKAGE_MGR = "dnf" ]; then
-    PYTHON_PREIN="python"
-    PYTHON_DEPS="python-pip python2-dbus"
+    PYTHON_PREIN="python3"
+    PYTHON_DEPS="python3-pip python3-dbus"
 # RHEL / CentOS etc
 elif [ $PACKAGE_MGR = "yum" ]; then
     PYTHON_PREIN="epel-release python"
@@ -177,7 +179,7 @@ echo
 echo "=================================================================================="
 echo $'\t\t\tInstalling test requirements'
 echo "=================================================================================="
-pip install $UMODE_OPT -r $KEYLIME_DIR/test/test-requirements.txt
+pip3 install $UMODE_OPT -r $KEYLIME_DIR/test/test-requirements.txt
 
 
 # Run the tests as necessary

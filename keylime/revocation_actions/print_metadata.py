@@ -21,13 +21,13 @@ violate any copyrights that exist in this work.
 '''
 
 import keylime.common as common 
-import ConfigParser
+import configparser
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 logger = common.init_logging('print_metadata')
 
 def execute(json_revocation):
-    print json_revocation.get("metadata",{})
+    print(json_revocation.get("metadata",{}))

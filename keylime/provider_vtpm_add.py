@@ -20,24 +20,26 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
+import asyncio
 import sys
-import common
-import ConfigParser
-import registrar_client
-import vtpm_manager
+import configparser
 import base64
-import json
+import yaml
+
+from keylime import common
+from keylime import registrar_client
+from keylime import vtpm_manager
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 logger = common.init_logging('platform-init')
 
-def add_vtpm(inputfile):
+async def add_vtpm(inputfile):
     # read in the file
     with open(inputfile,'r') as f:
-        group = json.load(f)
+        group = yaml.safe_load(f)
     
     # fetch configuration parameters 
     provider_reg_port = config.get('general', 'provider_registrar_port')
@@ -48,7 +50,8 @@ def add_vtpm(inputfile):
     
     # registrar it and get back a blob
     keyblob = registrar_client.doRegisterAgent(provider_reg_ip,provider_reg_port,vtpm_uuid,group['pubekpem'],group['ekcert'],group['aikpem'])
-    
+    keyblob = await keyblob
+
     # get the ephemeral registrar key by activating in the hardware tpm
     key = base64.b64encode(vtpm_manager.activate_group(group['uuid'], keyblob))
     
@@ -67,8 +70,8 @@ def main(argv=sys.argv):
         argv = ['provider_platform_register.py','current_group.tpm']
         
     if len(argv)<2:
-        print "usage: provider_vtpm_add.py [uuid].tpm"
-        print "\tassociates creates a vtpm and adds it to the specified group \n\tusing JSON data in the .tpm file for aik, uuid, and activation key"
+        print("usage: provider_vtpm_add.py [uuid].tpm")
+        print("\tassociates creates a vtpm and adds it to the specified group \n\tusing YAML data in the .tpm file for aik, uuid, and activation key")
         sys.exit(-1)
 
     add_vtpm(argv[1])

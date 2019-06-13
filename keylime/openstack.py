@@ -17,10 +17,10 @@ rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as d
 above. Use of this work other than as specifically authorized by the U.S. Government may 
 violate any copyrights that exist in this work.
 '''
-
-import common
 import uuid
-import tornado_requests
+
+from keylime import common
+from keylime import tornado_requests
 
 logger = common.init_logging('openstack')
 
@@ -31,7 +31,7 @@ def get_openstack_uuid(uuid_service_ip='169.254.169.254',
     try:                      
         response = tornado_requests.request("GET", "http://" + uuid_service_ip + uuid_service_resource)        
         if response.status_code == 200:
-            response_body = response.json()
+            response_body = response.yaml()
             return response_body["uuid"]
         logger.debug("Forcing using locally generated uuid.")
         return str(uuid.uuid4())

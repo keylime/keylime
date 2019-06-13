@@ -84,8 +84,12 @@ def kdf(password,salt):
     return KDF.PBKDF2(password, salt, dkLen=32, count=2000)
      
 def do_hmac(key,value):
-    h = HMAC.new(key,str(value),digestmod=SHA384.new())
+    value = value.encode('utf-8')
+    h = HMAC.new(key,value,digestmod=SHA384.new())
     return h.hexdigest()
+
+def sha2(value):
+    return SHA384.new(data=value).hexdigest()
  
 def _pad(s):
     '''
@@ -94,8 +98,14 @@ def _pad(s):
     Appends 10* at the bit level. Following ISO/IEC 9797-1
     - padding mode 2
     '''
+    # Let's only encode if its not a byte
+    try:
+        s = s.encode('utf-8') # 
+    except AttributeError:
+        pass               
     pad_len = AES.block_size - (len(s) % AES.block_size) - 1
-    padding = chr(0x80)+'\0'*pad_len
+    padding = b'\x80'+b'\0'*pad_len
+    result = s + padding
     return s + padding
  
 def _strip_pad(s):
@@ -121,7 +131,7 @@ def _has_iv_material(s):
 def encrypt(plaintext, key):
     #Deal with the case when field is empty
     if plaintext is None:
-        plaintext = ''
+        plaintext = b''
      
     nonce = get_random_bytes(AES.block_size)
     cipher = AES.new(key, AES.MODE_GCM, nonce = nonce)

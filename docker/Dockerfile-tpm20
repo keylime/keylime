@@ -31,13 +31,13 @@ RUN dnf -y install git \
            dbus-devel \
            golang \
            openssl-devel \
-           python-devel \
-           python-pip \
-           python-setuptools \
-           python-tornado \
-           python-virtualenv \
-           python2-zmq \
-           python-yaml \
+           ptyhon3-devel \
+           ptyhon3-pip \
+           ptyhon3-setuptools \
+           ptyhon3-tornado \
+           ptyhon3-virtualenv \
+           ptyhon3-zmq \
+           ptyhon3-yaml \
            procps \
            libtool \
            tpm2-abrmd \

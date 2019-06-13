@@ -17,32 +17,41 @@ rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as d
 above. Use of this work other than as specifically authorized by the U.S. Government may 
 violate any copyrights that exist in this work.
 '''
-from tornado import httpclient
-import json
+#!/usr/bin/env python3
 
-def request(method,url,params=None,data=None,context=None):
-    http_client = httpclient.HTTPClient()        
-    if params is not None and len(params.keys())>0:
+import asyncio 
+import json
+import yaml
+
+from tornado import httpclient
+
+async def request(method,url,params=None,data=None,context=None):
+    http_client = httpclient.AsyncHTTPClient() 
+    if params is not None and len(list(params.keys()))>0:
         url+='?'
-        for key in params.keys():
+        for key in list(params.keys()):
             url+="%s=%s&"%(key,params[key])
         url=url[:-1]
     
     if context is not None:
         url = url.replace('http://','https://',1)
+    
     try:
         request = httpclient.HTTPRequest(url=url,
                                          method =method,
                                          ssl_options=context,
                                          body=data)
-        response = http_client.fetch(request)
-        http_client.close()
+        response = await http_client.fetch(request)
+        print('response_tornado_requests:', response)
+
     except httpclient.HTTPError as e:
         if e.response is None:
+            print('tornado error!')
             return tornado_response(500,str(e))
         
         return tornado_response(e.response.code,e.response.body)
     if response is None:
+        print('tornado None!')
         return None
     return tornado_response(response.code,response.body)
 
@@ -61,6 +70,13 @@ class tornado_response():
     def json(self):
         try:
             retval =  json.loads(self.body)
+        except Exception as e:
+            retval = [self.body,str(e)]
+        return retval
+    
+    def yaml(self):
+        try:
+            retval =  yaml.safe_load(self.body)
         except Exception as e:
             retval = [self.body,str(e)]
         return retval

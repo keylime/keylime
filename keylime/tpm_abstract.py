@@ -17,20 +17,20 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-from abc import ABCMeta, abstractmethod
 import base64
-import ConfigParser
+import configparser
 import fcntl
 import hashlib
-import json
 import os
-import sets
 import string
 import struct
+import yaml
 
-import common
-import crypto
-import ima
+from abc import ABCMeta, abstractmethod
+
+from keylime import common
+from keylime import crypto
+from keylime import ima
 
 logger = common.init_logging('tpm')
 
@@ -140,16 +140,16 @@ class TPM_Utilities:
         chars = string.ascii_uppercase + string.digits + string.ascii_lowercase
         password = ''
         for i in range(length):
-            password += chars[ord(rand[i]) % len(chars)]
+            password += chars[(rand[i]) % len(chars)]
         return password
 
     @staticmethod
     def readPolicy(configval):
-        policy = json.loads(configval)
+        policy = yaml.safe_load(configval)
         
         # compute PCR mask from tpm_policy
         mask = 0
-        for key in policy.keys():
+        for key in list(policy.keys()):
             if not key.isdigit() or int(key) > 24:
                 raise Exception("Invalid tpm policy pcr number: %s"%(key))
             
@@ -161,7 +161,7 @@ class TPM_Utilities:
             mask = mask + (1<<int(key))
             
             # wrap it in a list if it is a singleton
-            if isinstance(policy[key], basestring):
+            if isinstance(policy[key], str):
                 policy[key] = [policy[key]]
              
             # convert all hash values to lowercase
@@ -171,11 +171,8 @@ class TPM_Utilities:
         return policy
 
 
-class AbstractTPM(object):
+class AbstractTPM(object, metaclass=ABCMeta):
     # Abstract base class
-    __metaclass__ = ABCMeta
-
-    # Class members
     EXIT_SUCESS = 0
     TPM_IO_ERR = 5
     EMPTYMASK = "1"
@@ -184,7 +181,7 @@ class AbstractTPM(object):
     # constructor
     def __init__(self, need_hw_tpm=True):
         # read the config file
-        self.config = ConfigParser.RawConfigParser()
+        self.config = configparser.RawConfigParser()
         self.config.read(common.CONFIG_FILE)
         self.need_hw_tpm = need_hw_tpm
         self.global_tpmdata = None
@@ -236,9 +233,9 @@ class AbstractTPM(object):
 
 
     def __read_tpm_data(self):
-        if os.path.exists('tpmdata.json'):
-            with open('tpmdata.json', 'r') as f:
-                return json.load(f)
+        if os.path.exists('tpmdata.yml'):
+            with open('tpmdata.yml', 'rb') as f:
+                return yaml.safe_load(f)
         else:
             return {}
 
@@ -246,8 +243,8 @@ class AbstractTPM(object):
         os.umask(0o077)
         if os.geteuid() != 0 and common.REQUIRE_ROOT:
             logger.warning("Creating tpm metadata file without root.  Sensitive trust roots may be at risk!")
-        with open('tpmdata.json', 'w') as f:
-            json.dump(self.global_tpmdata, f)
+        with open('tpmdata.yml', 'w') as f:
+            yaml.dump(self.global_tpmdata, f)
 
     def get_tpm_metadata(self, key):
         if self.global_tpmdata is None:
@@ -332,9 +329,9 @@ class AbstractTPM(object):
         pcrWhiteList = tpm_policy.copy()
         if 'mask' in pcrWhiteList: del pcrWhiteList['mask']
         # convert all pcr num keys to integers
-        pcrWhiteList = {int(k):v for k, v in pcrWhiteList.items()}
+        pcrWhiteList = {int(k):v for k, v in list(pcrWhiteList.items())}
         
-        pcrsInQuote = sets.Set()
+        pcrsInQuote = set()
         for line in pcrs:
             tokens = line.split()
             if len(tokens) < 3:
@@ -370,8 +367,8 @@ class AbstractTPM(object):
                 else:
                     return False
                     
-            if pcrnum not in pcrWhiteList.keys():
-                if not common.STUB_TPM and len(tpm_policy.keys()) > 0:
+            if pcrnum not in list(pcrWhiteList.keys()):
+                if not common.STUB_TPM and len(list(tpm_policy.keys())) > 0:
                     logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping."%(("", "v")[virtual], pcrnum, ("", "v")[virtual]))
                 continue
             elif pcrval not in pcrWhiteList[pcrnum] and not common.STUB_TPM:
@@ -383,7 +380,7 @@ class AbstractTPM(object):
         if common.STUB_TPM:
             return True
 
-        missing = list(sets.Set(pcrWhiteList.keys()).difference(pcrsInQuote))
+        missing = list(set(list(pcrWhiteList.keys())).difference(pcrsInQuote))
         if len(missing) > 0:
             logger.error("%sPCRs specified in policy not in quote: %s"%(("", "v")[virtual], missing))
             return False
@@ -401,7 +398,7 @@ class AbstractTPM(object):
                     # as fp has a method fileno(), you can pass it to ioctl
                     fcntl.ioctl(fp, RNDADDENTROPY, t)
             except Exception as e:
-                logger.warn("TPM randomness not added to system entropy pool: %s"%e)
+                logger.warning("TPM randomness not added to system entropy pool: %s"%e)
 
 
     #tpm_nvram

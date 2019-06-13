@@ -18,26 +18,29 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
+import codecs
 import sys
-import common
 import hashlib
 import struct
 import re
 import os
-import ConfigParser
+import configparser
+
+from keylime import common
 
 logger = common.init_logging('ima')
 
 # setup config
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 #         m = ima_measure_re.match(measure_line)
 #         measure  = m.group('file_hash')
 #         filename = m.group('file_path')
 
-START_HASH = '0000000000000000000000000000000000000000'.decode('hex')
-FF_HASH =  'ffffffffffffffffffffffffffffffffffffffff'.decode('hex')
+START_HASH = (codecs.decode('0000000000000000000000000000000000000000', 'hex'))
+FF_HASH = (codecs.decode('ffffffffffffffffffffffffffffffffffffffff', 'hex'))
+
 
 # struct event {
 #     struct {
@@ -100,7 +103,7 @@ def read_measreument_list_bin(path,whitelist):
         is_ima_template = name=='ima'
         if not is_ima_template:
             template['data_len']=read_unpack(f,"<I")[0]
-            print "reading ima len %d"%template['data_len']
+            print("reading ima len %d"%template['data_len'])
         else:
             template['data_len'] = SHA_DIGEST_LEN+TCG_EVENT_NAME_LEN_MAX+1
         
@@ -111,9 +114,9 @@ def read_measreument_list_bin(path,whitelist):
             extra_data=read_unpack(f,"<%ds"%field_len)[0]
             template['data']+= extra_data 
         
-        print "record %s"%template
+        print("record %s"%template)
         
-        if template['name'] not in defined_templates.keys():
+        if template['name'] not in list(defined_templates.keys()):
             template['name']='ima'
         template['desc-fmt']=defined_templates[template['name']]
         
@@ -252,7 +255,7 @@ def process_whitelists(wl_data, excl_data):
     
     if whitelist.get('boot_aggregate',None) is None:
         logger.warning("No boot_aggregate value found in whitelist, adding an empty one")
-        whitelist['boot_aggregate'] = [START_HASH.encode('hex')]
+        whitelist['boot_aggregate'] = [START_HASH]
     
     for excl in excl_data:
         if excl.startswith("#"):
@@ -300,11 +303,11 @@ def main(argv=sys.argv):
     whitelist_path = 'whitelist.txt'
     #whitelist_path = '../scripts/gerardo/whitelist.txt'
     #whitelist_path = '../scripts/ima/whitelist.txt'
-    print "reading white list from %s"%whitelist_path
+    print("reading white list from %s"%whitelist_path)
 
     exclude_path = 'exclude.txt'
     #exclude_path = '../scripts/ima/exclude.txt'
-    print "reading exclude list from %s"%exclude_path
+    print("reading exclude list from %s"%exclude_path)
     
     wl_data = read_whitelist(whitelist_path)
     excl_data = read_excllist(exclude_path)
@@ -313,24 +316,24 @@ def main(argv=sys.argv):
     measure_path = common.IMA_ML
     #measure_path='../scripts/ima/ascii_runtime_measurements_ima'
     #measure_path = '../scripts/gerardo/ascii_runtime_measurements'
-    print "reading measurement list from %s"%measure_path
+    print("reading measurement list from %s"%measure_path)
     f = open(measure_path, 'r')
     lines = f.readlines()
     
     m2w = open('measure2white.txt',"w")
     digest = process_measurement_list(lines,lists,m2w)
-    print "final digest is %s"%digest
+    print("final digest is %s"%digest)
     f.close()
     m2w.close()
     
-    print "using m2w"
+    print("using m2w")
     
     wl_data = read_whitelist('measure2white.txt')
     excl_data = read_excllist(exclude_path)
     lists2 = process_whitelists(wl_data,excl_data)
     process_measurement_list(lines,lists2)
     
-    print "done"
+    print("done")
         
 if __name__=="__main__":
     try:

@@ -20,36 +20,37 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import json
-import base64
-import ConfigParser
-import common
-import registrar_client
-import sys
-import argparse
-import crypto
-import time
-import user_data_encrypt
-import ca_util
-import os
-import ssl
-import tornado_requests
-import hashlib
-import ima
-import zipfile
-import cStringIO
-import StringIO
-import logging
-import subprocess
-import tpm_obj
-from tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 
+import argparse
+import asyncio
+import base64
+import configparser
+import hashlib
+import io
+import logging
+import os
+import subprocess
+import ssl
+import sys
+import time
+import zipfile
+import yaml
+
+from keylime import common
+from keylime import registrar_client
+from keylime import tpm_obj
+from keylime.tpm_abstract import  TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+from keylime import ima
+from keylime import tornado_requests
+from keylime import crypto
+from keylime import user_data_encrypt
+from keylime import ca_util
 
 # setup logging
 logger = common.init_logging('tenant')
 
 # setup config
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 # special exception that suppresses stack traces when it happens
@@ -198,7 +199,7 @@ class Tenant():
             # Auto-enable IMA (or-bit mask)
             self.tpm_policy['mask'] = "0x%X"%(int(self.tpm_policy['mask'],0) + (1 << common.IMA_PCR))
             
-            if type(args["ima_whitelist"]) in [str,unicode]:
+            if type(args["ima_whitelist"]) in [str,str]:
                 if args["ima_whitelist"] == "default":
                     args["ima_whitelist"] = config.get('tenant', 'ima_whitelist')
                 wl_data = ima.read_whitelist(args["ima_whitelist"])
@@ -210,7 +211,7 @@ class Tenant():
         # Read command-line path string IMA exclude list 
         excl_data = None
         if "ima_exclude" in args and args["ima_exclude"] is not None:
-            if type(args["ima_exclude"]) in [str,unicode]:
+            if type(args["ima_exclude"]) in [str,str]:
                 if args["ima_exclude"] == "default":
                     args["ima_exclude"] = config.get('tenant', 'ima_excludelist')
                 excl_data = ima.read_excllist(args["ima_exclude"])
@@ -243,7 +244,7 @@ class Tenant():
                     keyfile = args["keyfile"]["data"][0]
                     if keyfile is None:
                         raise UserError("Invalid key file contents")
-                    f = StringIO.StringIO(keyfile)
+                    f = io.StringIO(keyfile)
                 else:
                     raise UserError("Invalid key file provided")
             else:
@@ -310,13 +311,13 @@ class Tenant():
             rev_package,_,_ = ca_util.cmd_certpkg(args["ca_dir"],"RevocationNotifier")
             
             # extract public and private keys from package
-            sf = cStringIO.StringIO(rev_package)
+            sf = io.StringIO(rev_package)
             with zipfile.ZipFile(sf) as zf:
                 privkey = zf.read("RevocationNotifier-private.pem")
                 cert = zf.read("RevocationNotifier-cert.crt")
             
             # put the cert of the revoker into the cert package
-            sf = StringIO.StringIO(cert_pkg)
+            sf = io.StringIO(cert_pkg)
             with zipfile.ZipFile(sf,'a',compression=zipfile.ZIP_STORED) as zf:
                 zf.writestr('RevocationNotifier-cert.crt',cert)
                 
@@ -381,9 +382,10 @@ class Tenant():
 
         return True
 
-    def validate_tpm_quote(self,public_key,quote,tpm_version,hash_alg):
+    async def validate_tpm_quote(self,public_key,quote,tpm_version,hash_alg):
         registrar_client.init_client_tls(config,'tenant')
-        reg_keys = registrar_client.getKeys(self.cloudverifier_ip,self.registrar_port,self.agent_uuid)
+        reg_keys_await = registrar_client.getKeys(self.cloudverifier_ip,self.registrar_port,self.agent_uuid)
+        reg_keys = await reg_keys_await
         if reg_keys is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
@@ -424,7 +426,7 @@ class Tenant():
             else:
                 env['EK_CERT']=""
                 
-            env['PROVKEYS']=json.dumps(reg_keys.get('provider_keys',{}))
+            env['PROVKEYS']=yaml.dump(reg_keys.get('provider_keys',{}))
             proc= subprocess.Popen(script,env=env,shell=True,cwd=common.WORK_DIR,
                                     stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
             retval = proc.wait()
@@ -446,55 +448,63 @@ class Tenant():
                     logger.debug("ek_check output: %s"%line.strip())
         return True
 
-    def do_cv(self):
+    async def do_cv(self):
         """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
-        b64_v = base64.b64encode(self.V)
+        b64_v = base64.b64encode(self.V).decode('utf-8')
         logger.debug("b64_v:" + b64_v)
         data = {
             'v': b64_v,
             'cloudagent_ip': self.cv_cloudagent_ip,
             'cloudagent_port': self.cloudagent_port,
-            'tpm_policy': json.dumps(self.tpm_policy),
-            'vtpm_policy':json.dumps(self.vtpm_policy),
-            'ima_whitelist':json.dumps(self.ima_whitelist),
-            'metadata':json.dumps(self.metadata),
+            'tpm_policy': yaml.dump(self.tpm_policy),
+            'vtpm_policy':yaml.dump(self.vtpm_policy),
+            'ima_whitelist':yaml.dump(self.ima_whitelist),
+            'metadata':yaml.dump(self.metadata),
             'revocation_key':self.revocation_key,
             'accept_tpm_hash_algs':self.accept_tpm_hash_algs,
             'accept_tpm_encryption_algs':self.accept_tpm_encryption_algs,
             'accept_tpm_signing_algs':self.accept_tpm_signing_algs,
         }
         
-        json_message = json.dumps(data)
-        response = tornado_requests.request("POST","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),data=json_message,context=self.context)
+        yaml_message = yaml.dump(data)
+        res = tornado_requests.request("POST","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),data=yaml_message,context=self.context)
+        response = await res
+
         if response.status_code == 409:
             # this is a conflict, need to update or delete it
             raise UserError("Agent %s already existed at CV.  Please use delete or update."%self.agent_uuid)
         elif response.status_code != 200:
-            common.log_http_response(logger,logging.ERROR,response.json())
+            common.log_http_response(logger,logging.ERROR,response.yaml())
             raise UserError("POST command response: %d Unexpected response from Cloud Verifier: %s"%(response.status_code,response.body))
 
 
-    def do_cvstatus(self,listing=False):
+    async def do_cvstatus(self,listing=False):
         """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         agent_uuid = ""
         if not listing:
             agent_uuid=self.agent_uuid
 
-        response = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,agent_uuid),context=self.context)
+        res = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,agent_uuid),context=self.context)
+        response = await res 
+
         if response.status_code != 200:
             raise UserError("Status command response: %d Unexpected response from Cloud Verifier."%response.status_code)
-            common.log_http_response(logger,logging.ERROR,response.json())
+            common.log_http_response(logger,logging.ERROR,response.yaml())
         else:
-            logger.info("Agent Status %d: %s"%(response.status_code,response.json()))
+            logger.info("Agent Status %d: %s"%(response.status_code,response.yaml()))
 
-    def do_cvdelete(self):        
-        response = tornado_requests.request("DELETE","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context)
+    async def do_cvdelete(self):        
+        res = tornado_requests.request("DELETE","http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context)
+        response = await res
+        
         if response.status_code == 202:
             deleted = False
             for _ in range(12):
-                response = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context)
+                res = tornado_requests.request("GET", "http://%s:%s/agents/%s"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context)
+                response = await res  
+
                 if response.status_code == 404:
                     deleted=True
                     break
@@ -507,29 +517,32 @@ class Tenant():
             logger.info("Agent %s deleted from the CV"%(self.agent_uuid))
         else:
             #raise UserError("Delete command response: %d Unexpected response from Cloud Verifier."%response.status_code)
-            common.log_http_response(logger,logging.ERROR,response.json())
+            common.log_http_response(logger,logging.ERROR,response.yaml())
 
     def do_regdelete(self):
         registrar_client.init_client_tls(config,'tenant')
         registrar_client.doRegistrarDelete(self.registrar_ip,self.registrar_port,self.agent_uuid)
             
-    def do_cvreactivate(self):
-        response = tornado_requests.request("PUT","http://%s:%s/agents/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context,data=b'')
+    async def do_cvreactivate(self):
+        res = tornado_requests.request("PUT","http://%s:%s/agents/%s/reactivate"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context,data=b'')
+        response = await res
+
         if response.status_code != 200:
             raise UserError("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
-            common.log_http_response(logger,logging.ERROR,response.json())
+            common.log_http_response(logger,logging.ERROR,response.yaml())
         else:
             logger.info("Agent %s re-activated"%(self.agent_uuid))
             
-    def do_cvstop(self):
-        response = tornado_requests.request("PUT","http://%s:%s/agents/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context,data=b'')
+    async def do_cvstop(self):
+        res = tornado_requests.request("PUT","http://%s:%s/agents/%s/stop"%(self.cloudverifier_ip,self.cloudverifier_port,self.agent_uuid),context=self.context,data=b'')
+        response = await res 
         if response.status_code != 200:
             raise UserError("Update command response: %d Unexpected response from Cloud Verifier."%response.status_code)
-            common.log_http_response(logger,logging.ERROR,response.json())
+            common.log_http_response(logger,logging.ERROR,response.yaml())
         else:
             logger.info("Agent %s stopped"%(self.agent_uuid))
         
-    def do_quote(self):
+    async def do_quote(self):
         """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         self.nonce = TPM_Utilities.random_password(20)
@@ -539,8 +552,9 @@ class Tenant():
         while True:
             # Get quote 
             try:
-                response = tornado_requests.request("GET",
+                res = tornado_requests.request("GET",
                                             "http://%s:%s/quotes/identity?nonce=%s"%(self.cloudagent_ip,self.cloudagent_port,self.nonce))
+                response = await res           
             except Exception as e:
                 # this is one exception that should return a 'keep going' response
                 if tornado_requests.is_refused(e):
@@ -560,7 +574,7 @@ class Tenant():
             if response is not None and response.status_code != 200:
                 raise UserError("Status command response: %d Unexpected response from Cloud Agent."%response.status_code)
                 
-            response_body = response.json()
+            response_body = response.yaml()
             
             if "results" not in response_body:
                 raise UserError("Error: unexpected http response body from Cloud Agent: %s"%str(response.status_code))
@@ -611,10 +625,11 @@ class Tenant():
             if self.payload is not None:
                 data['payload']=self.payload
             
-            u_json_message = json.dumps(data)
+            u_yaml_message = yaml.dump(data)
             
             #post encrypted U back to CloudAgent
-            response = tornado_requests.request("POST", "http://%s:%s/keys/ukey"%(self.cloudagent_ip,self.cloudagent_port),data=u_json_message)
+            res = tornado_requests.request("POST", "http://%s:%s/keys/ukey"%(self.cloudagent_ip,self.cloudagent_port),data=u_yaml_message)
+            response = await res 
             
             if response.status_code != 200:
                 common.log_http_response(logger,logging.ERROR,response_body)
@@ -624,7 +639,7 @@ class Tenant():
             self.do_cvstop() 
             raise e
        
-    def do_verify(self):
+    async def do_verify(self):
         """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         challenge = TPM_Utilities.random_password(20)
@@ -632,8 +647,9 @@ class Tenant():
         numtries = 0
         while True: 
             try:
-                response = tornado_requests.request("GET",
+                res = tornado_requests.request("GET",
                                             "http://%s:%s/keys/verify?challenge=%s"%(self.cloudagent_ip,self.cloudagent_port,challenge))
+                response = await res 
             except Exception as e:
                 # this is one exception that should return a 'keep going' response
                 if tornado_requests.is_refused(e):
@@ -648,7 +664,7 @@ class Tenant():
                 else:
                     raise e
                 
-            response_body = response.json()
+            response_body = response.yaml()
             if response.status_code == 200:
                 if "results" not in response_body or 'hmac' not in response_body['results']:
                     logger.critical("Error: unexpected http response body from Cloud Agent: %s"%str(response.status_code))
@@ -681,8 +697,8 @@ def main(argv=sys.argv):
     parser.add_argument('--include',action='store',dest='incl_dir',default=None,help="Include additional files in provided directory in certificate zip file.  Must be specified with --cert")
     parser.add_argument('--whitelist',action='store',dest='ima_whitelist',default=None,help="Specify the location of an IMA whitelist")
     parser.add_argument('--exclude',action='store',dest='ima_exclude',default=None,help="Specify the location of an IMA exclude list")
-    parser.add_argument('--tpm_policy',action='store',dest='tpm_policy',default=None,help="Specify a TPM policy in JSON format. e.g., {\"15\":\"0000000000000000000000000000000000000000\"}")
-    parser.add_argument('--vtpm_policy',action='store',dest='vtpm_policy',default=None,help="Specify a vTPM policy in JSON format")
+    parser.add_argument('--tpm_policy',action='store',dest='tpm_policy',default=None,help="Specify a TPM policy in YAML format. e.g., {\"15\":\"0000000000000000000000000000000000000000\"}")
+    parser.add_argument('--vtpm_policy',action='store',dest='vtpm_policy',default=None,help="Specify a vTPM policy in YAML format")
     parser.add_argument('--verify',action='store_true',default=False,help='Block on cryptographically checked key derivation confirmation from the agent once it has been provisioned')
 
     if common.DEVELOP_IN_ECLIPSE and len(argv)==1:
@@ -698,7 +714,7 @@ def main(argv=sys.argv):
         tmp = argv[1:]
 
     args = parser.parse_args(tmp)
-    
+    loop = asyncio.get_event_loop()
     mytenant = Tenant()
     
     if args.command not in ['list','regdelete'] and args.agent_ip is None:
@@ -715,12 +731,12 @@ def main(argv=sys.argv):
         
     if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
         # Use canned values for agent UUID
-        jsonIn = common.TPM_CANNED_VALUES
-        if "add_vtpm_to_group" in jsonIn:
-            mytenant.agent_uuid = jsonIn['add_vtpm_to_group']['retout']
+        yamlIn = common.TPM_CANNED_VALUES
+        if "add_vtpm_to_group" in yamlIn:
+            mytenant.agent_uuid = yamlIn['add_vtpm_to_group']['retout']
         else:
             # Our command hasn't been canned!
-            raise UserError("Command %s not found in canned JSON!"%("add_vtpm_to_group"))
+            raise UserError("Command %s not found in canned YAML!"%("add_vtpm_to_group"))
     
     if args.verifier_ip is not None:  
         mytenant.cloudverifier_ip = args.verifier_ip
@@ -728,14 +744,14 @@ def main(argv=sys.argv):
     if args.command=='add':
         mytenant.init_add(vars(args))
         mytenant.preloop()
-        mytenant.do_cv()
-        mytenant.do_quote()
+        loop.run_until_complete(mytenant.do_cv())
+        loop.run_until_complete(mytenant.do_quote())
         if args.verify:
             mytenant.do_verify()
             
         if common.DEVELOP_IN_ECLIPSE:
             time.sleep(2)
-            mytenant.do_cvstatus()
+            loop.run_until_complete(mytenant.do_cvstatus())
             time.sleep(1)
             #invalidate it eventually
             logger.debug("invalidating PCR 15, forcing revocation")
@@ -743,23 +759,24 @@ def main(argv=sys.argv):
             tpm.extendPCR(15, tpm.hashdigest("garbage"))
             time.sleep(5)
             logger.debug("Deleting agent from verifier")
-            mytenant.do_cvdelete()
+            loop.run_until_complete(mytenant.do_cvdelete())
     elif args.command=='update':
         mytenant.init_add(vars(args))
-        mytenant.do_cvdelete()
+        loop.run_until_complete(mytenant.do_cvdelete())
         mytenant.preloop()
-        mytenant.do_cv()
-        mytenant.do_quote()
+        loop.run_until_complete(mytenant.do_cv())
+        loop.run_until_complete(mytenant.do_quote())
         if args.verify:
             mytenant.do_verify()
     elif args.command=='delete':
-        mytenant.do_cvdelete()
+        loop.run_until_complete(mytenant.do_cvdelete())
     elif args.command=='status':
-        mytenant.do_cvstatus()
+        loop.run_until_complete(mytenant.do_cvstatus())
+        loop.run_until_complete(mytenant.do_cvstatus())
     elif args.command=='list':
-        mytenant.do_cvstatus(listing=True)
+        loop.run_until_complete(mytenant.do_cvstatus(listing=True))
     elif args.command=='reactivate':
-        mytenant.do_cvreactivate()
+        loop.run_until_complete(mytenant.do_cvreactivate())
     elif args.command=='regdelete':
         mytenant.do_regdelete()
     else:

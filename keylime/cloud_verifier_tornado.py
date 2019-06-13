@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
@@ -19,43 +17,49 @@ rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as d
 above. Use of this work other than as specifically authorized by the U.S. Government may 
 violate any copyrights that exist in this work.
 '''
-import common
-logger = common.init_logging('cloudverifier')
 
-import json
-import ConfigParser
+import asyncio
+import configparser
 import traceback
 import sys
+import functools
+import yaml
 import tornado.ioloop
 import tornado.web
-import functools
 from tornado import httpserver
 from tornado.httpclient import AsyncHTTPClient
 from tornado.httputil import url_concat
-import cloud_verifier_common
-import revocation_notifier
 
-config = ConfigParser.SafeConfigParser()
+from keylime import common
+from keylime import cloud_verifier_common
+from keylime import revocation_notifier
+
+if sys.version_info[0] < 3:
+    raise Exception("Python 3 or a more recent version is required.")
+
+logger = common.init_logging('cloudverifier')
+
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 class BaseHandler(tornado.web.RequestHandler):
 
     def write_error(self, status_code, **kwargs):
 
-        self.set_header('Content-Type', 'text/json')
+        self.set_header('Content-Type', 'text/yaml')
         if self.settings.get("serve_traceback") and "exc_info" in kwargs:
             # in debug mode, try to send a traceback
             lines = []
             for line in traceback.format_exception(*kwargs["exc_info"]):
                 lines.append(line)
-            self.finish(json.dumps({
+            self.finish(yaml.dump({
                 'code': status_code,
                 'status': self._reason,
                 'traceback': lines,
                 'results': {},
             }))
         else:
-            self.finish(json.dumps({
+            self.finish(yaml.dump({
                 'code': status_code,
                 'status': self._reason,
                 'results': {},
@@ -63,15 +67,15 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(tornado.web.RequestHandler):
     def head(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface instead")
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface instead")
     def delete(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface instead")
     def post(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface instead")
     def put(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
 class AgentsHandler(BaseHandler):
     db = None
@@ -80,7 +84,7 @@ class AgentsHandler(BaseHandler):
        
     def head(self):
         """HEAD not supported"""
-        common.echo_json_response(self, 405, "HEAD not supported")
+        common.echo_yaml_response(self, 405, "HEAD not supported")
   
     def get(self):
         """This method handles the GET requests to retrieve status on agents from the Cloud Verifier. 
@@ -93,11 +97,11 @@ class AgentsHandler(BaseHandler):
         """
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.request.path)
             return
         
@@ -107,16 +111,16 @@ class AgentsHandler(BaseHandler):
             agent = self.db.get_agent(agent_id)
             if agent != None:
                 response = cloud_verifier_common.process_get_status(agent)
-                common.echo_json_response(self, 200, "Success", response)
+                common.echo_yaml_response(self, 200, "Success", response)
                 #logger.info('GET returning 200 response for agent_id: ' + agent_id)
                 
             else:
                 #logger.info('GET returning 404 response. agent id: ' + agent_id + ' not found.')
-                common.echo_json_response(self, 404, "agent id not found")
+                common.echo_yaml_response(self, 404, "agent id not found")
         else:
             # return the available keys in the DB
-            json_response = self.db.get_agent_ids()
-            common.echo_json_response(self, 200, "Success", {'uuids':json_response})
+            yaml_response = self.db.get_agent_ids()
+            common.echo_yaml_response(self, 200, "Success", {'uuids':yaml_response})
             logger.info('GET returning 200 response for agent_id list')
             
     def delete(self):
@@ -127,23 +131,23 @@ class AgentsHandler(BaseHandler):
         """
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             return
         
         agent_id = rest_params["agents"]
         
         if agent_id is None:
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             logger.warning('DELETE returning 400 response. uri not supported: ' + self.request.path)
                         
         agent = self.db.get_agent(agent_id)
         
         if agent is None:
-            common.echo_json_response(self, 404, "agent id not found")
+            common.echo_yaml_response(self, 404, "agent id not found")
             logger.info('DELETE returning 404 response. agent id: ' + agent_id + ' not found.')
             return
                 
@@ -152,11 +156,11 @@ class AgentsHandler(BaseHandler):
         op_state == cloud_verifier_common.CloudAgent_Operational_State.FAILED or \
         op_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
             self.db.remove_agent(agent_id)
-            common.echo_json_response(self, 200, "Success")
+            common.echo_yaml_response(self, 200, "Success")
             logger.info('DELETE returning 200 response for agent id: ' + agent_id)
         else:            
             self.db.update_agent(agent_id, 'operational_state',cloud_verifier_common.CloudAgent_Operational_State.TERMINATED)
-            common.echo_json_response(self, 202, "Accepted")
+            common.echo_yaml_response(self, 202, "Accepted")
             logger.info('DELETE returning 202 response for agent id: ' + agent_id)
 
     @tornado.web.asynchronous                   
@@ -164,16 +168,16 @@ class AgentsHandler(BaseHandler):
         """This method handles the POST requests to add agents to the Cloud Verifier. 
          
         Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's will return errors.
-        agents requests require a json block sent in the body
+        agents requests require a yaml block sent in the body
         """
         try:
             rest_params = common.get_restful_params(self.request.uri)
             if rest_params is None:
-                common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+                common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
                 return
             
             if "agents" not in rest_params:
-                common.echo_json_response(self, 400, "uri not supported")
+                common.echo_yaml_response(self, 400, "uri not supported")
                 logger.warning('POST returning 400 response. uri not supported: ' + self.request.path)
                 return
             
@@ -182,25 +186,25 @@ class AgentsHandler(BaseHandler):
             if agent_id is not None: # this is for new items
                 content_length = len(self.request.body)
                 if content_length==0:
-                    common.echo_json_response(self, 400, "Expected non zero content length")
+                    common.echo_yaml_response(self, 400, "Expected non zero content length")
                     logger.warning('POST returning 400 response. Expected non zero content length.')
                 else:
-                    json_body = json.loads(self.request.body)
+                    yaml_body = yaml.safe_load(self.request.body)
                     d = {}
-                    d['v'] = json_body['v']
-                    d['ip'] = json_body['cloudagent_ip']
-                    d['port'] = int(json_body['cloudagent_port'])
+                    d['v'] = yaml_body['v']
+                    d['ip'] = yaml_body['cloudagent_ip']
+                    d['port'] = int(yaml_body['cloudagent_port'])
                     d['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.START
                     d['public_key'] = ""
-                    d['tpm_policy'] = json_body['tpm_policy']
-                    d['vtpm_policy'] = json_body['vtpm_policy']
-                    d['metadata'] = json_body['metadata']
-                    d['ima_whitelist'] = json_body['ima_whitelist']
-                    d['revocation_key'] = json_body['revocation_key']
+                    d['tpm_policy'] = yaml_body['tpm_policy']
+                    d['vtpm_policy'] = yaml_body['vtpm_policy']
+                    d['metadata'] = yaml_body['metadata']
+                    d['ima_whitelist'] = yaml_body['ima_whitelist']
+                    d['revocation_key'] = yaml_body['revocation_key']
                     d['tpm_version'] = 0
-                    d['accept_tpm_hash_algs'] = json_body['accept_tpm_hash_algs']
-                    d['accept_tpm_encryption_algs'] = json_body['accept_tpm_encryption_algs']
-                    d['accept_tpm_signing_algs'] = json_body['accept_tpm_signing_algs']
+                    d['accept_tpm_hash_algs'] = yaml_body['accept_tpm_hash_algs']
+                    d['accept_tpm_encryption_algs'] = yaml_body['accept_tpm_encryption_algs']
+                    d['accept_tpm_signing_algs'] = yaml_body['accept_tpm_signing_algs']
                     d['hash_alg'] = ""
                     d['enc_alg'] = ""
                     d['sign_alg'] = ""
@@ -209,17 +213,17 @@ class AgentsHandler(BaseHandler):
                     
                     # don't allow overwriting
                     if new_agent is None:
-                        common.echo_json_response(self, 409, "Agent of uuid %s already exists"%(agent_id))
+                        common.echo_yaml_response(self, 409, "Agent of uuid %s already exists"%(agent_id))
                         logger.warning("Agent of uuid %s already exists"%(agent_id))
                     else:    
                         self.process_agent(new_agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
-                        common.echo_json_response(self, 200, "Success")
+                        common.echo_yaml_response(self, 200, "Success")
                         logger.info('POST returning 200 response for adding agent id: ' + agent_id)
             else:
-                common.echo_json_response(self, 400, "uri not supported")
+                common.echo_yaml_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
         except Exception as e:
-            common.echo_json_response(self, 400, "Exception error: %s"%e)
+            common.echo_yaml_response(self, 400, "Exception error: %s"%e)
             logger.warning("POST returning 400 response. Exception error: %s"%e)
             logger.exception(e)
         
@@ -231,46 +235,46 @@ class AgentsHandler(BaseHandler):
         """This method handles the PUT requests to add agents to the Cloud Verifier. 
          
         Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
-        agents requests require a json block sent in the body
+        agents requests require a yaml block sent in the body
         """
         try:
             rest_params = common.get_restful_params(self.request.uri)
             if rest_params is None:
-                common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+                common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
                 return
             
             if "agents" not in rest_params:
-                common.echo_json_response(self, 400, "uri not supported")
+                common.echo_yaml_response(self, 400, "uri not supported")
                 logger.warning('PUT returning 400 response. uri not supported: ' + self.request.path)
                 return
             
             agent_id = rest_params["agents"]
             if agent_id is None:
-                common.echo_json_response(self, 400, "uri not supported")
+                common.echo_yaml_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
             
             agent = self.db.get_agent(agent_id)
             if agent is not None:
-                common.echo_json_response(self, 404, "agent id not found")
+                common.echo_yaml_response(self, 404, "agent id not found")
                 logger.info('PUT returning 404 response. agent id: ' + agent_id + ' not found.')
                 
             if "reactivate" in rest_params:
                 agent['operational_state']=cloud_verifier_common.CloudAgent_Operational_State.START
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
-                common.echo_json_response(self, 200, "Success")
+                common.echo_yaml_response(self, 200, "Success")
                 logger.info('PUT returning 200 response for agent id: ' + agent_id)
             elif "stop" in rest_params:
                 # do stuff for terminate
                 logger.debug("Stopping polling on %s"%agent_id)
                 self.db.update_agent(agent_id,'operational_state',cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED)
-                common.echo_json_response(self, 200, "Success")
+                common.echo_yaml_response(self, 200, "Success")
                 logger.info('PUT returning 200 response for agent id: ' + agent_id)
             else:
-                common.echo_json_response(self, 400, "uri not supported")
+                common.echo_yaml_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
                     
         except Exception as e:
-            common.echo_json_response(self, 400, "Exception error: %s"%e)
+            common.echo_yaml_response(self, 400, "Exception error: %s"%e)
             logger.warning("PUT returning 400 response. Exception error: %s"%e)
             logger.exception(e)
             
@@ -306,19 +310,11 @@ class AgentsHandler(BaseHandler):
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
         else:
             try:
- 
-#                writeTime=False
-#                with cloud_verifier_common.Timer() as t:
-                    json_response = json.loads(response.body)
+                    yaml_response = yaml.safe_load(response.body)
 
                     # validate the cloud agent response
-                    if cloud_verifier_common.process_quote_response(agent, json_response['results']):
-                        #only write timing if the quote was successful
-#                         if self.time_series_log_file_base_name is not None:
-#                             self.time_series_log_file.write("%s\n" % time.time())
-#                             self.time_series_log_file.flush()
-#                         writeTime=True
-                         
+                    if cloud_verifier_common.process_quote_response(agent, yaml_response['results']):
+                        
                         if agent['provide_V']:
                             self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V)
                         else:
@@ -339,12 +335,12 @@ class AgentsHandler(BaseHandler):
     def invoke_provide_v(self, agent):
         if agent['pending_event'] is not None:
             agent['pending_event'] = None
-        v_json_message = cloud_verifier_common.prepare_v(agent)
+        v_yaml_message = cloud_verifier_common.prepare_v(agent)
         agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V
         client = tornado.httpclient.AsyncHTTPClient()
         url = "http://%s:%d/keys/vkey"%(agent['ip'],agent['port'])
         cb = functools.partial(self.on_provide_v_response, agent, url)
-        client.fetch(url, method="POST", callback=cb, headers=None, body=v_json_message)
+        client.fetch(url, method="POST", callback=cb, headers=None, body=v_yaml_message)
     
     def on_provide_v_response(self, agent, url_with_params, response):
         if agent is None:
@@ -453,8 +449,6 @@ class AgentsHandler(BaseHandler):
                     logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(agent['ip'],agent['num_retries'],maxr,retry))
                     tornado.ioloop.IOLoop.current().call_later(retry,cb)
                 return
-            
-            print agent
             raise Exception("nothing should ever fall out of this!")
    
         except Exception as e:
@@ -463,19 +457,20 @@ class AgentsHandler(BaseHandler):
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
-    print "Starting Torando on port " + str(port)
+    print("Starting Torando on port " + str(port))
     tornado.ioloop.IOLoop.instance().start()
-    print "Tornado finished"
+    print("Tornado finished")
      
+
 def main(argv=sys.argv):
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be 
     called as a function by an external program."""
 
-    config = ConfigParser.SafeConfigParser()
+    config = configparser.SafeConfigParser()
     config.read(common.CONFIG_FILE)
-     
-    cloudverifier_port = config.get('general', 'cloudverifier_port')
     
+    cloudverifier_port = config.get('general', 'cloudverifier_port')
+    print('cloudverifier_port:', cloudverifier_port)
     db_filename = "%s/%s"%(common.WORK_DIR,config.get('cloud_verifier','db_filename'))
     db = cloud_verifier_common.init_db(db_filename)
     db.update_all_agents('operational_state', cloud_verifier_common.CloudAgent_Operational_State.SAVED)

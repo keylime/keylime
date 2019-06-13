@@ -46,7 +46,7 @@ def main(argv=sys.argv):
         float_list.append(float(i))
     
     time = float_list[-1]-float_list[0]
-    print "%s %.3f"%(args.text_description,len(float_list)/time)
+    print("%s %.3f"%(args.text_description,len(float_list)/time))
         
 
 if __name__=="__main__":

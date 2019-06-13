@@ -1,13 +1,16 @@
 import unittest
 import sys
 import os
+from pathlib import Path
 
 # Useful constants for the test
-KEYLIME_DIR=os.getcwdu()+"/../keylime/"
+PACKAGE_ROOT = Path(__file__).parents[1]
+CODE_ROOT = (f"{PACKAGE_ROOT}/keylime/")
 
 # Custom imports
-sys.path.insert(0, KEYLIME_DIR)
-from keylime_sqlite import *
+sys.path.insert(0, CODE_ROOT)
+
+from keylime import keylime_sqlite
 
 class Sqlite_Test(unittest.TestCase):
  
@@ -17,8 +20,8 @@ class Sqlite_Test(unittest.TestCase):
             'agent_ids': 'TEXT PRIMARY_KEY',
             }
         
-        with self.assertRaisesRegexp(Exception,'the primary key of the database must be agent_id'):
-            _ = KeylimeDB(None,cols_db,[],{})
+        with self.assertRaisesRegex(Exception,'the primary key of the database must be agent_id'):
+            _ = keylime_sqlite.KeylimeDB(None,cols_db,[],{})
             
         # testing
         db_filename = 'testdata.sqlite'
@@ -41,8 +44,8 @@ class Sqlite_Test(unittest.TestCase):
             'revocation_key': 'TEXT',
             }
         
-        # these are the columns that contain json data and need marshalling
-        json_cols_db = ['tpm_policy','vtpm_policy','metadata','ima_whitelist']
+        # these are the columns that contain yaml data and need marshalling
+        yaml_cols_db = ['tpm_policy','vtpm_policy','metadata','ima_whitelist']
         
         # in the form key : default value
         exclude_db = {
@@ -54,9 +57,9 @@ class Sqlite_Test(unittest.TestCase):
             'pending_event': None,
             'first_verified':False,
             }
-        db = KeylimeDB(db_filename,cols_db,json_cols_db,exclude_db)
+        db = keylime_sqlite.KeylimeDB(db_filename,cols_db,yaml_cols_db,exclude_db)
         
-        json_body = {
+        yaml_body = {
             'v': 'vbaby',
             'agent_id': '209483',
             'cloudagent_ip': 'ipaddy',
@@ -72,7 +75,7 @@ class Sqlite_Test(unittest.TestCase):
             'public_key': 'bleh',
             }
         
-        json_body2 = {
+        yaml_body2 = {
             'v': 'vbaby',
             'agent_id': '2094aqrea3',
             'cloudagent_ip': 'ipaddy',
@@ -92,12 +95,12 @@ class Sqlite_Test(unittest.TestCase):
         
         #some DB testing stuff
         # test add/get
-        db.add_agent('209483',json_body)
+        db.add_agent('209483',yaml_body)
         got= db.get_agent(209483)
-        self.assertEqual(json_body['metadata'], got['metadata'])
+        self.assertEqual(yaml_body['metadata'], got['metadata'])
         
         # test disallowed overwrite
-        self.assertEqual(db.add_agent('209483',json_body), None)
+        self.assertEqual(db.add_agent('209483',yaml_body), None)
         
         # test update
         db.update_agent('209483','v','NEWVVV')
@@ -116,8 +119,8 @@ class Sqlite_Test(unittest.TestCase):
         self.assertEqual(db.remove_agent('209483'), False)
 
         # test get multiple ids
-        db.add_agent('209483',json_body)
-        db.add_agent('2094aqrea3',json_body2)
+        db.add_agent('209483',yaml_body)
+        db.add_agent('2094aqrea3',yaml_body2)
         self.assertEqual(db.get_agent_ids(),['209483','2094aqrea3'])
     
         #testing overwrite
@@ -142,7 +145,7 @@ class Sqlite_Test(unittest.TestCase):
         # test print
         db.print_db()
         
-        # test update all with json
+        # test update all with yaml
         db.update_all_agents('vtpm_policy', '{"abv":"2"}')
         
         self.assertEqual(db.get_agent(209483)['vtpm_policy'], '{"abv":"2"}')

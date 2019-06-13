@@ -20,30 +20,31 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-from urlparse import urlparse
-import json
+from urllib.parse import urlparse
+import asyncio
+import configparser
 import base64
 import time
-import common
-import registrar_client
 import os
-import crypto
 import ssl
 import socket
-import ca_util
 import sqlite3
-import revocation_notifier
-import keylime_sqlite
-import ConfigParser
-import tpm_obj
-from tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+import yaml
 
+from keylime import common
+from keylime import registrar_client
+from keylime import crypto
+from keylime import ca_util
+from keylime import revocation_notifier
+from keylime import keylime_sqlite
+from keylime import tpm_obj
+from keylime.tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 
 # setup logging
 logger = common.init_logging('cloudverifier_common')
 
 # setup config
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 class CloudAgent_Operational_State:
@@ -87,7 +88,7 @@ class Timer(object):
         self.secs = self.end - self.start
         self.msecs = self.secs * 1000  # millisecs
         if self.verbose:
-            print 'elapsed time: %f ms' % self.msecs
+            print('elapsed time: %f ms' % self.msecs)
             
 def init_mtls(section='cloud_verifier',generatedir='cv_ca'):
     if not config.getboolean('general',"enable_tls"):
@@ -155,20 +156,23 @@ def init_mtls(section='cloud_verifier',generatedir='cv_ca'):
     context.verify_mode = ssl.CERT_REQUIRED
     return context
 
-def process_quote_response(agent, json_response):
+async def process_quote_response(agent, yaml_response):
+    print('Here we go.....')
+    print('agent:', type(agent))
+    print('agent:', agent)
     """Validates the response from the Cloud agent.
     
     This method invokes an Registrar Server call to register, and then check the quote. 
     """
     received_public_key = None
     quote = None
-    
+
     # in case of failure in response content do not continue
     try:
-        received_public_key = json_response.get("pubkey",None)
-        quote = json_response["quote"]
+        received_public_key = yaml_response.get("pubkey",None)
+        quote = yaml_response["quote"]
         
-        ima_measurement_list = json_response.get("ima_measurement_list",None)
+        ima_measurement_list = yaml_response.get("ima_measurement_list",None)
         
         logger.debug("received quote:      %s"%quote)
         logger.debug("for nonce:           %s"%agent['nonce'])
@@ -187,17 +191,18 @@ def process_quote_response(agent, json_response):
     
     if agent.get('registrar_keys',"") is "":
         registrar_client.init_client_tls(config,'cloud_verifier')
-        registrar_keys = registrar_client.getKeys(config.get("general","registrar_ip"),config.get("general","registrar_tls_port"),agent['agent_id'])
+        reg_keys_await = registrar_client.getKeys(config.get("general","registrar_ip"),config.get("general","registrar_tls_port"),agent['agent_id'])
+        registrar_keys = await reg_keys_await
         if registrar_keys is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
         agent['registrar_keys']  = registrar_keys
         
-    tpm_version = json_response.get('tpm_version')
+    tpm_version = yaml_response.get('tpm_version')
     tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
-    hash_alg = json_response.get('hash_alg')
-    enc_alg = json_response.get('enc_alg')
-    sign_alg = json_response.get('sign_alg')
+    hash_alg = yaml_response.get('hash_alg')
+    enc_alg = yaml_response.get('enc_alg')
+    sign_alg = yaml_response.get('sign_alg')
     
     # Update chosen tpm and algorithms
     agent['tpm_version'] = tpm_version
@@ -270,8 +275,8 @@ def prepare_v(agent):
     post_data = {
               'encrypted_key': b64_encrypted_V
             }
-    v_json_message = json.dumps(post_data)
-    return v_json_message
+    v_yaml_message = yaml.dump(post_data)
+    return v_yaml_message
     
 def prepare_get_quote(agent):
     """This method encapsulates the action required to invoke a quote request on the Cloud Agent.
@@ -344,7 +349,7 @@ def notifyError(agent,msgtype='revocation'):
                 } 
     
     revocation['event_time'] = time.asctime()
-    tosend={'msg': json.dumps(revocation)}
+    tosend={'msg': yaml.dump(revocation)}
             
     #also need to load up private key for signing revocations
     if agent['revocation_key']!="":
@@ -382,8 +387,8 @@ def init_db(db_filename):
         'sign_alg': 'TEXT',
         }
     
-    # these are the columns that contain json data and need marshalling
-    json_cols_db = ['tpm_policy','vtpm_policy','metadata','ima_whitelist','accept_tpm_hash_algs', 'accept_tpm_encryption_algs', 'accept_tpm_signing_algs']
+    # these are the columns that contain yaml data and need marshalling
+    yaml_cols_db = ['tpm_policy','vtpm_policy','metadata','ima_whitelist','accept_tpm_hash_algs', 'accept_tpm_encryption_algs', 'accept_tpm_signing_algs']
     
     # in the form key : default value
     exclude_db = {
@@ -395,5 +400,5 @@ def init_db(db_filename):
         'pending_event': None,
         'first_verified':False,
         }
-    return keylime_sqlite.KeylimeDB(db_filename,cols_db,json_cols_db,exclude_db)
+    return keylime_sqlite.KeylimeDB(db_filename,cols_db,yaml_cols_db,exclude_db)
 

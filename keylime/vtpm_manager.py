@@ -20,10 +20,10 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-from __future__ import print_function
+
 
 import base64
-import common
+
 import errno
 import hashlib
 import inspect
@@ -34,9 +34,11 @@ import struct
 import sys
 import time
 import tempfile
+import yaml
 from uuid import UUID
-import json
-import tpm_obj
+
+from keylime import common
+from keylime import tpm_obj
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)
@@ -492,17 +494,17 @@ def add_vtpm_group(rsa_mod=None):
     fprt = "add_vtpm_group"
     if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing 
-        jsonIn = common.TPM_CANNED_VALUES
-        if fprt in jsonIn:
+        yamlIn = common.TPM_CANNED_VALUES
+        if fprt in yamlIn:
             # The value we're looking for has been canned! 
-            thisTiming = jsonIn[fprt]['timing']
-            thisRetout = jsonIn[fprt]['retout']
+            thisTiming = yamlIn[fprt]['timing']
+            thisRetout = yamlIn[fprt]['retout']
             logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
             time.sleep(thisTiming)
             return tuple(thisRetout)
         else:
             # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!"%(fprt))
+            raise Exception("Command %s not found in canned YAML!"%(fprt))
     
     logger.debug('Adding group')
     
@@ -528,8 +530,8 @@ def add_vtpm_group(rsa_mod=None):
     
     if common.TPM_CANNED_VALUES_PATH is not None:
         with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
-            jsonObj = {'type':"add_vtpm_group",'retout':list(retout),'fileout':"",'cmd':"add_vtpm_group",'timing':t1-t0,'code':0,'nonce':None}
-            can.write("\"%s\": %s,\n"%("add_vtpm_group",json.dumps(jsonObj,indent=4,sort_keys=True)))
+            yamlObj = {'type':"add_vtpm_group",'retout':list(retout),'fileout':"",'cmd':"add_vtpm_group",'timing':t1-t0,'code':0,'nonce':None}
+            can.write("\"%s\": %s,\n"%("add_vtpm_group",yaml.dump(yamlObj,indent=4,sort_keys=True)))
             
     return retout
 
@@ -537,17 +539,17 @@ def activate_group(uuid,keyblob):
     fprt = "activate_group"
     if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing 
-        jsonIn = common.TPM_CANNED_VALUES
-        if fprt in jsonIn:
+        yamlIn = common.TPM_CANNED_VALUES
+        if fprt in yamlIn:
             # The value we're looking for has been canned! 
-            thisTiming = jsonIn[fprt]['timing']
-            thisRetout = jsonIn[fprt]['retout']
+            thisTiming = yamlIn[fprt]['timing']
+            thisRetout = yamlIn[fprt]['retout']
             logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
             time.sleep(thisTiming)
             return base64.b64decode(thisRetout)
         else:
             # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!"%(fprt))
+            raise Exception("Command %s not found in canned YAML!"%(fprt))
         
     t0=time.time()
     group_id = get_group_num(uuid)
@@ -565,8 +567,8 @@ def activate_group(uuid,keyblob):
     
     if common.TPM_CANNED_VALUES_PATH is not None:
         with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
-            jsonObj = {'type':"activate_group",'retout':base64.b64encode(body),'fileout':"",'cmd':"activate_group",'timing':t1-t0,'code':0,'nonce':None}
-            can.write("\"%s\": %s,\n"%("activate_group",json.dumps(jsonObj,indent=4,sort_keys=True)))
+            yamlObj = {'type':"activate_group",'retout':base64.b64encode(body),'fileout':"",'cmd':"activate_group",'timing':t1-t0,'code':0,'nonce':None}
+            can.write("\"%s\": %s,\n"%("activate_group",yaml.dump(yamlObj,indent=4,sort_keys=True)))
 
     return body
 
@@ -574,17 +576,17 @@ def add_vtpm_to_group(uuid):
     fprt = "add_vtpm_to_group"
     if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing 
-        jsonIn = common.TPM_CANNED_VALUES
-        if fprt in jsonIn:
+        yamlIn = common.TPM_CANNED_VALUES
+        if fprt in yamlIn:
             # The value we're looking for has been canned! 
-            thisTiming = jsonIn[fprt]['timing']
-            thisRetout = jsonIn[fprt]['retout']
+            thisTiming = yamlIn[fprt]['timing']
+            thisRetout = yamlIn[fprt]['retout']
             logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
             time.sleep(thisTiming)
             return thisRetout
         else:
             # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!"%(fprt))
+            raise Exception("Command %s not found in canned YAML!"%(fprt))
         
     t0=time.time()
     num = get_group_num(uuid)
@@ -595,7 +597,7 @@ def add_vtpm_to_group(uuid):
     
     if common.TPM_CANNED_VALUES_PATH is not None:
         with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
-            jsonObj = {'type':"add_vtpm_to_group",'retout':retout,'fileout':"",'cmd':"add_vtpm_to_group",'timing':t1-t0,'code':0,'nonce':None}
-            can.write("\"%s\": %s,\n"%("add_vtpm_to_group",json.dumps(jsonObj,indent=4,sort_keys=True)))
+            yamlObj = {'type':"add_vtpm_to_group",'retout':retout,'fileout':"",'cmd':"add_vtpm_to_group",'timing':t1-t0,'code':0,'nonce':None}
+            can.write("\"%s\": %s,\n"%("add_vtpm_to_group",yaml.dump(yamlObj,indent=4,sort_keys=True)))
         
     return retout

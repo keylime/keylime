@@ -20,42 +20,44 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
-logger = common.init_logging('registrar-common')
-
-import BaseHTTPServer
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-from SocketServer import ThreadingMixIn
-from urlparse import urlparse
-import json
+import asyncio
 import threading
 import sys
-import crypto
 import base64
-import ConfigParser
-import registrar_client
+import configparser
 import signal
 import time
 import hashlib
-import cloud_verifier_common
-import keylime_sqlite
-import tpm_obj
+import yaml
+import http.server
 
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
+from urllib.parse import urlparse
+
+from keylime import registrar_client
+from keylime import crypto
+from keylime import cloud_verifier_common
+from keylime import keylime_sqlite
+from keylime import tpm_obj
+from keylime import common
+
+logger = common.init_logging('registrar-common')
 
 # setup config
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 class ProtectedHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         """HEAD not supported"""    
-        common.echo_json_response(self, 405, "HEAD not supported")
+        common.echo_yaml_response(self, 405, "HEAD not supported")
         return
     
     def do_PATCH(self):
         """PATCH not supported"""   
-        common.echo_json_response(self, 405, "PATCH not supported")
+        common.echo_yaml_response(self, 405, "PATCH not supported")
         return  
        
     def do_GET(self):
@@ -67,11 +69,11 @@ class ProtectedHandler(BaseHTTPRequestHandler):
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.path)
             return
         
@@ -81,12 +83,12 @@ class ProtectedHandler(BaseHTTPRequestHandler):
             agent = self.server.db.get_agent(agent_id)
             
             if agent is None:
-                common.echo_json_response(self, 404, "agent_id not found")
+                common.echo_yaml_response(self, 404, "agent_id not found")
                 logger.warning('GET returning 404 response. agent_id ' + agent_id + ' not found.')  
                 return      
             
             if not agent['active']:
-                common.echo_json_response(self, 404, "agent_id not yet active")
+                common.echo_yaml_response(self, 404, "agent_id not yet active")
                 logger.warning('GET returning 404 response. agent_id ' + agent_id + ' not yet active.')  
                 return      
             
@@ -100,12 +102,12 @@ class ProtectedHandler(BaseHTTPRequestHandler):
             if agent['virtual']:
                 response['provider_keys']= agent['provider_keys']
             
-            common.echo_json_response(self, 200, "Success", response)
+            common.echo_yaml_response(self, 200, "Success", response)
             logger.info('GET returning 200 response for agent_id:' + agent_id)
         else:
             # return the available registered uuids from the DB
-            json_response = self.server.db.get_agent_ids()
-            common.echo_json_response(self, 200, "Success", {'uuids':json_response})
+            yaml_response = self.server.db.get_agent_ids()
+            common.echo_yaml_response(self, 200, "Success", {'uuids':yaml_response})
             logger.info('GET returning 200 response for agent_id list')
         
         return
@@ -113,12 +115,12 @@ class ProtectedHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         """POST not supported"""   
-        common.echo_json_response(self, 405, "POST not supported via TLS interface")
+        common.echo_yaml_response(self, 405, "POST not supported via TLS interface")
         return 
 
-    def do_PUT(self):
+    async def do_PUT(self):
         """PUT not supported"""   
-        common.echo_json_response(self, 405, "PUT not supported via TLS interface")
+        common.echo_yaml_response(self, 405, "PUT not supported via TLS interface")
         return 
 
     def do_DELETE(self):
@@ -129,11 +131,11 @@ class ProtectedHandler(BaseHTTPRequestHandler):
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             logger.warning('DELETE agent returning 400 response. uri not supported: ' + self.path)
             return
         
@@ -142,14 +144,14 @@ class ProtectedHandler(BaseHTTPRequestHandler):
         if agent_id is not None:
             if self.server.db.remove_agent(agent_id):
                 #send response
-                common.echo_json_response(self, 200, "Success")
+                common.echo_yaml_response(self, 200, "Success")
                 return
             else:
                 #send response
-                common.echo_json_response(self, 404)
+                common.echo_yaml_response(self, 404)
                 return             
         else:
-            common.echo_json_response(self, 404)
+            common.echo_yaml_response(self, 404)
             return                    
     def log_message(self, logformat, *args):
         return  
@@ -159,67 +161,68 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         """HEAD not supported"""    
-        common.echo_json_response(self, 405, "HEAD not supported")
+        common.echo_yaml_response(self, 405, "HEAD not supported")
         return
     
     def do_PATCH(self):
         """PATCH not supported"""   
-        common.echo_json_response(self, 405, "PATCH not supported")
+        common.echo_yaml_response(self, 405, "PATCH not supported")
         return  
        
     def do_GET(self):
         """GET not supported"""   
-        common.echo_json_response(self, 405, "GET not supported")
+        common.echo_yaml_response(self, 405, "GET not supported")
         return  
 
     def do_POST(self):
         """This method handles the POST requests to add agents to the Registrar Server.
         
         Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's
-        will return errors. POST requests require an an agent_id identifying the agent to add, and json
+        will return errors. POST requests require an an agent_id identifying the agent to add, and yaml
         block sent in the body with 2 entries: ek and aik.  
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             logger.warning('POST agent returning 400 response. uri not supported: ' + self.path)
             return
         
         agent_id = rest_params["agents"]
         
         if agent_id is None:
-            common.echo_json_response(self, 400, "agent id not found in uri")
+            common.echo_yaml_response(self, 400, "agent id not found in uri")
             logger.warning('POST agent returning 400 response. agent id not found in uri ' + self.path)
             return
         
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             if content_length == 0:
-                common.echo_json_response(self, 400, "Expected non zero content length")
+                common.echo_yaml_response(self, 400, "Expected non zero content length")
                 logger.warning('POST for ' + agent_id + ' returning 400 response. Expected non zero content length.')
                 return
             
             post_body = self.rfile.read(content_length)
-            json_body = json.loads(post_body)
             
-            ek = json_body['ek']
-            ek_tpm = json_body['ek_tpm']
-            ekcert = json_body['ekcert']
-            aik = json_body['aik']
-            aik_name = json_body['aik_name']
-            tpm_version = int(json_body['tpm_version'])
+            yaml_body = yaml.safe_load(post_body)
+            
+            ek = yaml_body['ek']
+            ek_tpm = yaml_body['ek_tpm']
+            ekcert = yaml_body['ekcert']
+            aik = yaml_body['aik']
+            aik_name = yaml_body['aik_name']
+            tpm_version = int(yaml_body['tpm_version'])
             
             # try to encrypt the AIK
             tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
             (blob,key) = tpm.encryptAIK(agent_id,aik,ek,ek_tpm,aik_name)
-            
             # special behavior if we've registered this uuid before
             regcount = 1
             agent = self.server.db.get_agent(agent_id)
+            
             if agent is not None:
                 
                 # keep track of how many ek-ekcerts have registered on this uuid
@@ -231,7 +234,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
                 # force overwrite
                 logger.info('Overwriting previous registration for this UUID.')
                 self.server.db.remove_agent(agent_id)
-            
+            # Add values to database
             d={}
             d['ek']=ek
             d['aik']=aik
@@ -246,18 +249,17 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             response = {
                     'blob': blob,
             }
-            common.echo_json_response(self, 200, "Success", response)
+            common.echo_yaml_response(self, 200, "Success", response)
             
             logger.info('POST returning key blob for agent_id: ' + agent_id)
             return
         except Exception as e:
-            common.echo_json_response(self, 400, "Error: %s"%e)
+            common.echo_yaml_response(self, 400, "Error: %s"%e)
             logger.warning("POST for " + agent_id + " returning 400 response. Error: %s"%e)
             logger.exception(e)
             return
 
-
-    def do_PUT(self):
+    async def do_PUT(self):
         """This method handles the PUT requests to add agents to the Registrar Server.
         
         Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's
@@ -265,33 +267,33 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
         """
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             logger.warning('PUT agent returning 400 response. uri not supported: ' + self.path)
             return
         
         agent_id = rest_params["agents"]
         
         if agent_id is None:
-            common.echo_json_response(self, 400, "agent id not found in uri")
+            common.echo_yaml_response(self, 400, "agent id not found in uri")
             logger.warning('PUT agent returning 400 response. agent id not found in uri ' + self.path)
             return
 
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             if content_length == 0:
-                common.echo_json_response(self, 400, "Expected non zero content length")
+                common.echo_yaml_response(self, 400, "Expected non zero content length")
                 logger.warning('PUT for ' + agent_id + ' returning 400 response. Expected non zero content length.')
                 return 
         
             post_body = self.rfile.read(content_length)
-            json_body = json.loads(post_body)
+            yaml_body = yaml.safe_load(post_body)
             
             if "activate" in rest_params:
-                auth_tag=json_body['auth_tag']
+                auth_tag=yaml_body['auth_tag']
                 
                 agent = self.server.db.get_agent(agent_id)
                 if agent is None:
@@ -309,10 +311,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
                     else:
                         raise Exception("Auth tag %s does not match expected value %s"%(auth_tag,ex_mac))
                 
-                common.echo_json_response(self, 200, "Success")
+                common.echo_yaml_response(self, 200, "Success")
                 logger.info('PUT activated: ' + agent_id)      
             elif "vactivate" in rest_params:
-                deepquote = json_body.get('deepquote',None)
+                deepquote = yaml_body.get('deepquote',None)
 
                 agent = self.server.db.get_agent(agent_id)
                 if agent is None:
@@ -323,7 +325,8 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
                 
                 # get an physical AIK for this host
                 registrar_client.init_client_tls(config, 'registrar')
-                provider_keys = registrar_client.getKeys(config.get('general', 'provider_registrar_ip'), config.get('general', 'provider_registrar_tls_port'), agent_id)
+                prov_keys_await = registrar_client.getKeys(config.get('general', 'provider_registrar_ip'), config.get('general', 'provider_registrar_tls_port'), agent_id)
+                provider_keys = await prov_keys_await
                 # we already have the vaik
                 tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=agent['tpm_version'])
                 if not tpm.check_deep_quote(hashlib.sha1(agent['key']).hexdigest(),
@@ -336,12 +339,12 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
                 self.server.db.update_agent(agent_id, 'active',True)
                 self.server.db.update_agent(agent_id, 'provider_keys',provider_keys)
                 
-                common.echo_json_response(self, 200, "Success")
+                common.echo_yaml_response(self, 200, "Success")
                 logger.info('PUT activated: ' + agent_id)           
             else:
                 pass           
         except Exception as e:
-            common.echo_json_response(self, 400, "Error: %s"%e)
+            common.echo_yaml_response(self, 400, "Error: %s"%e)
             logger.warning("PUT for " + agent_id + " returning 400 response. Error: %s"%e)
             logger.exception(e)
             return
@@ -349,7 +352,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         """DELETE not supported"""   
-        common.echo_json_response(self, 405, "DELETE not supported")
+        common.echo_yaml_response(self, 405, "DELETE not supported")
         return  
                            
     def log_message(self, logformat, *args):
@@ -365,10 +368,10 @@ class ProtectedRegistrarServer(ThreadingMixIn, HTTPServer):
     def __init__(self, server_address, db,RequestHandlerClass):
         """Constructor overridden to provide ability to read file"""
         self.db = db
-        BaseHTTPServer.HTTPServer.__init__(self, server_address, RequestHandlerClass)
+        http.server.HTTPServer.__init__(self, server_address, RequestHandlerClass)
 
     def shutdown(self):
-        BaseHTTPServer.HTTPServer.shutdown(self)
+        http.server.HTTPServer.shutdown(self)
         
 class UnprotectedRegistrarServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
@@ -378,10 +381,10 @@ class UnprotectedRegistrarServer(ThreadingMixIn, HTTPServer):
     def __init__(self, server_address,db,RequestHandlerClass):
         """Constructor overridden to provide ability to read file"""
         self.db = db
-        BaseHTTPServer.HTTPServer.__init__(self, server_address, RequestHandlerClass)
+        http.server.HTTPServer.__init__(self, server_address, RequestHandlerClass)
 
     def shutdown(self):
-        BaseHTTPServer.HTTPServer.shutdown(self)
+        http.server.HTTPServer.shutdown(self)
 
 def init_db(dbname):
     # in the form key, SQL type
@@ -397,13 +400,13 @@ def init_db(dbname):
         'regcount': 'INT',
         }
      
-    # these are the columns that contain json data and need marshalling
-    json_cols_db = ['provider_keys']
+    # these are the columns that contain yaml data and need marshalling
+    yaml_cols_db = ['provider_keys']
      
     # in the form key : default value
     exclude_db = {}
     
-    return keylime_sqlite.KeylimeDB(dbname,cols_db,json_cols_db,exclude_db)
+    return keylime_sqlite.KeylimeDB(dbname,cols_db,yaml_cols_db,exclude_db)
 
 def do_shutdown(servers):
         for server in servers:

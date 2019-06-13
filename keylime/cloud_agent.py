@@ -20,38 +20,39 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
-logger = common.init_logging('cloudagent')
-
-
-import BaseHTTPServer
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-from SocketServer import ThreadingMixIn
+import http.server
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 import threading
-from urlparse import urlparse
-import json
+from urllib.parse import urlparse
+import asyncio
+import yaml
 import base64
-import ConfigParser
+import configparser
 import uuid
-import crypto
 import os
 import sys
-import registrar_client
-import secure_mount
 import time
 import hashlib
-import openstack
 import zipfile
-import cStringIO
-import revocation_notifier
+import io
 import importlib
 import shutil
-import tpm_obj
-from tpm_abstract import TPM_Utilities
 
+from keylime import common
+from keylime import crypto
+from keylime import openstack
+from keylime import revocation_notifier
+from keylime import registrar_client
+from keylime import secure_mount
+from keylime import tpm_obj
+from keylime.tpm_abstract import TPM_Utilities
+
+# Configure logger
+logger = common.init_logging('cloudagent')
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 # get the tpm object
@@ -67,7 +68,7 @@ class Handler(BaseHTTPRequestHandler):
     
     def do_HEAD(self):
         """Not supported"""
-        common.echo_json_response(self, 405, "HEAD not supported")
+        common.echo_yaml_response(self, 405, "HEAD not supported")
 
     def do_GET(self):
         """This method services the GET request typically from either the Tenant or the Cloud Verifier.
@@ -80,18 +81,18 @@ class Handler(BaseHTTPRequestHandler):
         
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /keys/ or /quotes/ interfaces")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /keys/ or /quotes/ interfaces")
             return
         
         if "keys" in rest_params and rest_params['keys']=='verify':
             if self.server.K is None:
                 logger.info('GET key challenge returning 400 response. bootstrap key not available')
-                common.echo_json_response(self, 400, "Bootstrap key not yet available.")
+                common.echo_yaml_response(self, 400, "Bootstrap key not yet available.")
                 return
             challenge = rest_params['challenge']
             response={}
             response['hmac'] = crypto.do_hmac(self.server.K, challenge)            
-            common.echo_json_response(self, 200, "Success", response)
+            common.echo_yaml_response(self, 200, "Success", response)
             logger.info('GET key challenge returning 200 response.')
             
         # If agent pubkey requested
@@ -99,7 +100,7 @@ class Handler(BaseHTTPRequestHandler):
             response = {}
             response['pubkey'] = self.server.rsapublickey_exportable
             
-            common.echo_json_response(self, 200, "Success", response)
+            common.echo_yaml_response(self, 200, "Success", response)
             logger.info('GET pubkey returning 200 response.')
             return
         
@@ -111,13 +112,13 @@ class Handler(BaseHTTPRequestHandler):
             # if the query is not messed up
             if nonce is None:
                 logger.warning('GET quote returning 400 response. nonce not provided as an HTTP parameter in request')
-                common.echo_json_response(self, 400, "nonce not provided as an HTTP parameter in request")
+                common.echo_yaml_response(self, 400, "nonce not provided as an HTTP parameter in request")
                 return
             
             # Sanitization assurance (for tpm.run() tasks below) 
             if not (nonce.isalnum() and (pcrmask is None or pcrmask.isalnum()) and (vpcrmask is None or vpcrmask.isalnum())):
                 logger.warning('GET quote returning 400 response. parameters should be strictly alphanumeric')
-                common.echo_json_response(self, 400, "parameters should be strictly alphanumeric")
+                common.echo_yaml_response(self, 400, "parameters should be strictly alphanumeric")
                 return
             
             # identity quotes are always shallow
@@ -159,13 +160,13 @@ class Handler(BaseHTTPRequestHandler):
                         ml = f.read()
                     response['ima_measurement_list']=ml
             
-            common.echo_json_response(self, 200, "Success", response)
+            common.echo_yaml_response(self, 200, "Success", response)
             logger.info('GET %s quote returning 200 response.'%(rest_params["quotes"]))
             return
         
         else:
             logger.warning('GET returning 400 response. uri not supported: ' + self.path)
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             return
         
 
@@ -177,27 +178,27 @@ class Handler(BaseHTTPRequestHandler):
         """        
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /keys/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /keys/ interface")
             return
         
         content_length = int(self.headers.get('Content-Length', 0))
         if content_length <= 0:
             logger.warning('POST returning 400 response, expected content in message. url:  ' + self.path)
-            common.echo_json_response(self, 400, "expected content in message")
+            common.echo_yaml_response(self, 400, "expected content in message")
             return
         
         post_body = self.rfile.read(content_length)
-        json_body = json.loads(post_body)
+        yaml_body = yaml.safe_load(post_body)
             
-        b64_encrypted_key = json_body['encrypted_key']
+        b64_encrypted_key = yaml_body['encrypted_key']
         decrypted_key = crypto.rsa_decrypt(self.server.rsaprivatekey,base64.b64decode(b64_encrypted_key))
         
         have_derived_key = False
 
         if rest_params["keys"] == "ukey":
             self.server.add_U(decrypted_key)
-            self.server.auth_tag = json_body['auth_tag']
-            self.server.payload = json_body.get('payload',None)
+            self.server.auth_tag = yaml_body['auth_tag']
+            self.server.payload = yaml_body.get('payload',None)
             
             have_derived_key = self.server.attempt_decryption(self)
         elif rest_params["keys"] == "vkey":
@@ -205,10 +206,10 @@ class Handler(BaseHTTPRequestHandler):
             have_derived_key = self.server.attempt_decryption(self)
         else:
             logger.warning('POST returning  response. uri not supported: ' + self.path)
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             return
         logger.info('POST of %s key returning 200'%(('V','U')[rest_params["keys"] == "ukey"]))
-        common.echo_json_response(self, 200, "Success")
+        common.echo_yaml_response(self, 200, "Success")
         
         # no key yet, then we're done
         if not have_derived_key:
@@ -265,7 +266,7 @@ class Handler(BaseHTTPRequestHandler):
         if dec_payload is not None:
             tomeasure += dec_payload
             # see if payload is a zip
-            zfio = cStringIO.StringIO(dec_payload)
+            zfio = io.StringIO(dec_payload)
             if config.getboolean('cloud_agent','extract_payload_zip') and zipfile.is_zipfile(zfio):
                 logger.info("Decrypting and unzipping payload to %s/unzipped"%secdir)
                 with zipfile.ZipFile(zfio,'r')as f:
@@ -366,7 +367,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         else:
             logger.debug("key not found, generating a new one")
             rsa_key = crypto.rsa_generate(2048)
-            with open(keyname,"w") as f:
+            with open(keyname,"wb") as f:
                 f.write(crypto.rsa_export_privkey(rsa_key))
         
         self.rsaprivatekey = rsa_key
@@ -377,7 +378,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         if nvram_u is not None:
             logger.info("Existing U loaded from TPM NVRAM")
             self.add_U(nvram_u)
-        BaseHTTPServer.HTTPServer.__init__(self, server_address, RequestHandlerClass)
+        http.server.HTTPServer.__init__(self, server_address, RequestHandlerClass)
         self.enc_keyname = config.get('cloud_agent','enc_keyname')
         self.agent_uuid = agent_uuid
 
@@ -461,8 +462,9 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             return True
 
         return False
+
                         
-def main(argv=sys.argv):
+async def init_agent(argv=sys.argv):
     if os.getuid()!=0 and common.REQUIRE_ROOT:
         logger.critical("This process must be run as root.")
         return
@@ -493,7 +495,7 @@ def main(argv=sys.argv):
     # now we need the UUID
     try:
         agent_uuid = config.get('cloud_agent','agent_uuid')
-    except ConfigParser.NoOptionError:
+    except configparser.NoOptionError:
         agent_uuid = None
     if agent_uuid == 'openstack':
         agent_uuid = openstack.get_openstack_uuid()
@@ -505,19 +507,19 @@ def main(argv=sys.argv):
         agent_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
     if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing 
-        jsonIn = common.TPM_CANNED_VALUES
-        if "add_vtpm_to_group" in jsonIn:
+        yamlIn = common.TPM_CANNED_VALUES
+        if "add_vtpm_to_group" in yamlIn:
             # The value we're looking for has been canned! 
-            agent_uuid = jsonIn['add_vtpm_to_group']['retout']
+            agent_uuid = yamlIn['add_vtpm_to_group']['retout']
         else:
             # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!"%("add_vtpm_to_group"))
+            raise Exception("Command %s not found in canned yaml!"%("add_vtpm_to_group"))
     
     logger.info("Agent UUID: %s"%agent_uuid)
     
     # register it and get back a blob
     keyblob = registrar_client.doRegisterAgent(registrar_ip,registrar_port,agent_uuid,tpm_version,ek,ekcert,aik,ek_tpm,aik_name)
-    
+    keyblob = await keyblob
     if keyblob is None:
         raise Exception("Registration failed")
     
@@ -531,6 +533,7 @@ def main(argv=sys.argv):
         retval = registrar_client.doActivateVirtualAgent(registrar_ip, registrar_port, agent_uuid, deepquote)
     else:
         retval = registrar_client.doActivateAgent(registrar_ip,registrar_port,agent_uuid,key)
+        await retval
 
     if not retval:
         raise Exception("Registration failed on activate")
@@ -604,6 +607,10 @@ def main(argv=sys.argv):
             logger.info("TERM Signal received, shutting down...")
             tpm.flush_keys()
             server.shutdown()
+
+def main():
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(init_agent())
 
 if __name__=="__main__":
     try:

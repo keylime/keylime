@@ -20,14 +20,18 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
-logger = common.init_logging('registrar')
 
-import registrar_common
-import ConfigParser
+
+
+import configparser
 import sys
 
-config = ConfigParser.SafeConfigParser()
+from keylime import registrar_common
+from keylime import common
+
+logger = common.init_logging('registrar')
+
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 def main(argv=sys.argv):

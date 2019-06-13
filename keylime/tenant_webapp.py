@@ -20,28 +20,28 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
+import base64
 import os
 import ssl
 import json
-import ConfigParser
+import configparser
 import traceback
 import sys
 import tornado.ioloop
 import tornado.web
-import tornado_requests
+from . import tornado_requests
 import functools
 from tornado import httpserver
 from tornado.httpclient import AsyncHTTPClient
 from tornado.httputil import url_concat
-import revocation_notifier
-import cloud_verifier_common
-import tenant
-import base64
-import common
+from keylime import revocation_notifier
+from keylime import cloud_verifier_common
+from keylime import tenant
+from keylime import common
 
 logger = common.init_logging('tenant_webapp')
 
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
 tenant_templ = tenant.Tenant()
@@ -61,26 +61,26 @@ class BaseHandler(tornado.web.RequestHandler):
             lines = []
             for line in traceback.format_exception(*kwargs["exc_info"]):
                 lines.append(line)
-            common.echo_json_response(self, status_code, self._reason, lines)
+            common.echo_yaml_response(self, status_code, self._reason, lines)
         else:
-            common.echo_json_response(self, status_code, self._reason)
+            common.echo_yaml_response(self, status_code, self._reason)
 
 class MainHandler(tornado.web.RequestHandler):
     def head(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/ interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/ interface instead")
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
     def put(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
     def post(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
     def delete(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
 
 class WebAppHandler(BaseHandler):       
     def head(self):
         """HEAD not supported"""
-        common.echo_json_response(self, 405, "HEAD not supported")
+        common.echo_yaml_response(self, 405, "HEAD not supported")
   
     def get(self):
         """This method handles the GET requests to retrieve status on agents for all agents in a Web-based GUI.
@@ -281,7 +281,7 @@ class WebAppHandler(BaseHandler):
 class AgentsHandler(BaseHandler):       
     def head(self):
         """HEAD not supported"""
-        common.echo_json_response(self, 405, "HEAD not supported")
+        common.echo_yaml_response(self, 405, "HEAD not supported")
     
     
     def get_agent_state(self, agent_id):
@@ -291,7 +291,7 @@ class AgentsHandler(BaseHandler):
         except Exception as e:
             logger.error("Status command response: %s:%s Unexpected response from Cloud Verifier."%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port))
             logger.exception(e)
-            common.echo_json_response(self, 500, "Unexpected response from Cloud Verifier", str(e))
+            common.echo_yaml_response(self, 500, "Unexpected response from Cloud Verifier", str(e))
             return
         
         inst_response_body = response.json()
@@ -322,7 +322,7 @@ class AgentsHandler(BaseHandler):
         
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ or /logs/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ or /logs/ interface")
             return
         
         if "logs" in rest_params and rest_params["logs"] == "tenant":
@@ -332,11 +332,11 @@ class AgentsHandler(BaseHandler):
             # intercept requests for logs
             with open(common.LOGSTREAM,'r') as f:
                 logValue = f.readlines()
-                common.echo_json_response(self, 200, "Success", {'log':logValue[offset:]})
+                common.echo_yaml_response(self, 200, "Success", {'log':logValue[offset:]})
             return
         elif "agents" not in rest_params:
             # otherwise they must be looking for agent info
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.request.path)
             return
         
@@ -346,7 +346,7 @@ class AgentsHandler(BaseHandler):
             agents = self.get_agent_state(agent_id)
             agents["id"] = agent_id
             
-            common.echo_json_response(self, 200, "Success", agents)
+            common.echo_yaml_response(self, 200, "Success", agents)
             return
         
         # If no agent ID, get list of all agents from Registrar  
@@ -356,7 +356,7 @@ class AgentsHandler(BaseHandler):
         except Exception as e:
             logger.error("Status command response: %s:%s Unexpected response from Registrar."%(tenant_templ.registrar_ip,tenant_templ.registrar_port))
             logger.exception(e)
-            common.echo_json_response(self, 500, "Unexpected response from Registrar", str(e))
+            common.echo_yaml_response(self, 500, "Unexpected response from Registrar", str(e))
             return
         
         response_body = response.json()
@@ -394,7 +394,7 @@ class AgentsHandler(BaseHandler):
             for agent_id in sorted_by_state[state]:
                 sorted_agents.append(agent_id)
         
-        common.echo_json_response(self, 200, "Success", {'uuids':sorted_agents})
+        common.echo_yaml_response(self, 200, "Success", {'uuids':sorted_agents})
 
     def delete(self):
         """This method handles the DELETE requests to remove agents from the Cloud Verifier. 
@@ -405,11 +405,11 @@ class AgentsHandler(BaseHandler):
         
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             logger.warning('DELETE returning 400 response. uri not supported: ' + self.request.path)
             return
         
@@ -420,7 +420,7 @@ class AgentsHandler(BaseHandler):
         mytenant.agent_uuid = agent_id
         mytenant.do_cvdelete()
         
-        common.echo_json_response(self, 200, "Success")
+        common.echo_yaml_response(self, 200, "Success")
     
     def post(self):
         """This method handles the POST requests to add agents to the Cloud Verifier. 
@@ -431,11 +431,11 @@ class AgentsHandler(BaseHandler):
         
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             logger.warning('POST returning 400 response. uri not supported: ' + self.request.path)
             return
         
@@ -471,7 +471,7 @@ class AgentsHandler(BaseHandler):
             if ca_dir_pw == "":
                 ca_dir_pw = 'default'
         else:
-            common.echo_json_response(self, 400, "invalid payload type chosen")
+            common.echo_yaml_response(self, 400, "invalid payload type chosen")
             logger.warning('POST returning 400 response. malformed query')
             return
         
@@ -525,10 +525,10 @@ class AgentsHandler(BaseHandler):
         except Exception as e:
             logger.exception(e)
             logger.warning('POST returning 500 response. Tenant error: %s'%str(e))
-            common.echo_json_response(self, 500, "Request failure", str(e))
+            common.echo_yaml_response(self, 500, "Request failure", str(e))
             return
         
-        common.echo_json_response(self, 200, "Success")
+        common.echo_yaml_response(self, 200, "Success")
     
     def put(self):
         """This method handles the PUT requests to add agents to the Cloud Verifier. 
@@ -538,11 +538,11 @@ class AgentsHandler(BaseHandler):
         
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
         
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            common.echo_yaml_response(self, 400, "uri not supported")
             logger.warning('PUT returning 400 response. uri not supported: ' + self.request.path)
             return
         
@@ -553,7 +553,7 @@ class AgentsHandler(BaseHandler):
         mytenant.agent_uuid = agent_id
         mytenant.do_cvreactivate()
         
-        common.echo_json_response(self, 200, "Success")
+        common.echo_yaml_response(self, 200, "Success")
 
 
 def parse_data_uri(data_uri):
@@ -578,15 +578,15 @@ def parse_data_uri(data_uri):
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
-    print "Starting Torando on port " + str(port)
+    print("Starting Torando on port " + str(port))
     tornado.ioloop.IOLoop.instance().start()
-    print "Tornado finished"
+    print("Tornado finished")
      
 def main(argv=sys.argv):
     """Main method of the Tenant Webapp Server.  This method is encapsulated in a function for packaging to allow it to be 
     called as a function by an external program."""
 
-    config = ConfigParser.SafeConfigParser()
+    config = configparser.SafeConfigParser()
     config.read(common.CONFIG_FILE)
      
     webapp_port = config.getint('general', 'webapp_port')

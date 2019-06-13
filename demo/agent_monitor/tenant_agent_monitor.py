@@ -70,12 +70,12 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        common.echo_yaml_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
 class AgentsHandler(BaseHandler):  
     def head(self):
         """HEAD not supported"""
-        common.echo_json_response(self, 405, "HEAD not supported")
+        common.echo_yaml_response(self, 405, "HEAD not supported")
   
     def get(self):
         """This method handles the GET requests to retrieve status on agents from the Agent Monitor. 
@@ -86,7 +86,7 @@ class AgentsHandler(BaseHandler):
         was not found, it either completed successfully, or failed.  If found, the agent_id is still polling 
         to contact the Cloud Agent. 
         """
-        common.echo_json_response(self, 405, "GET not supported")
+        common.echo_yaml_response(self, 405, "GET not supported")
             
     def delete(self):
         """This method handles the DELETE requests to remove agents from the Agent Monitor. 
@@ -94,7 +94,7 @@ class AgentsHandler(BaseHandler):
         Currently, only agents resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
         agents requests require a single agent_id parameter which identifies the agent to be deleted.    
         """
-        common.echo_json_response(self, 405, "DELETE not supported")
+        common.echo_yaml_response(self, 405, "DELETE not supported")
                             
     def post(self):
         """This method handles the POST requests to add agents to the Agent Monitor. 
@@ -107,7 +107,7 @@ class AgentsHandler(BaseHandler):
             rest_params = common.get_restful_params(self.request.path)
             
             if "agents" not in rest_params:
-                common.echo_json_response(self, 400, "uri not supported")
+                common.echo_yaml_response(self, 400, "uri not supported")
                 logger.warning('POST returning 400 response. uri not supported: ' + self.request.path)
                 return
             
@@ -116,7 +116,7 @@ class AgentsHandler(BaseHandler):
             if agent_id is not None: # we have to know who phoned home 
                 content_length = len(self.request.body)
                 if content_length==0:
-                    common.echo_json_response(self, 400, "Expected non zero content length")
+                    common.echo_yaml_response(self, 400, "Expected non zero content length")
                     logger.warning('POST returning 400 response. Expected non zero content length.')
                 else:
                     json_body = json.loads(self.request.body)
@@ -144,13 +144,13 @@ class AgentsHandler(BaseHandler):
                         t = threading.Thread(target=initthread)
                         t.start()
                     
-                    common.echo_json_response(self, 200, "Success", json_body)
+                    common.echo_yaml_response(self, 200, "Success", json_body)
                     logger.info('POST returning 200 response for Agent Monitor connection as ' + agent_id)
             else:
-                common.echo_json_response(self, 400, "uri not supported")
+                common.echo_yaml_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
         except Exception as e:
-            common.echo_json_response(self, 400, "Exception error: %s"%e)
+            common.echo_yaml_response(self, 400, "Exception error: %s"%e)
             logger.warning("POST returning 400 response. Exception error: %s"%e)
             logger.exception(e)
                
@@ -160,7 +160,7 @@ class AgentsHandler(BaseHandler):
         Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
         agents requests require a json block sent in the body
         """
-        common.echo_json_response(self, 405, "PUT not supported")
+        common.echo_yaml_response(self, 405, "PUT not supported")
 
 def init_mtls(config):
     logger.info("Setting up mTLS...")
@@ -190,9 +190,9 @@ def init_mtls(config):
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
-    print "Starting Torando on port " + str(port)
+    print("Starting Torando on port " + str(port))
     tornado.ioloop.IOLoop.instance().start()
-    print "Tornado finished"
+    print("Tornado finished")
 
 def main(argv=sys.argv):
     """Main method of Agent Monitor.  This method is encapsulated in a function for packaging to allow it to be 

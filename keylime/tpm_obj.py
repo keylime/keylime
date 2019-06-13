@@ -20,17 +20,18 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import ConfigParser
+import configparser
 import distutils.spawn
 import os
 
-import common
+from keylime import tpm1
+from keylime import tpm2
+from keylime import common
+
 logger = common.init_logging('tpmobj')
-import tpm1
-import tpm2
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 # singleton objects for working with the TPM
@@ -59,7 +60,7 @@ def __guess_tpm_version():
         try:
             temp_tpm1 = tpm1.tpm1(True)
             manufacturer = temp_tpm1.get_tpm_manufacturer()
-            if isinstance(manufacturer, basestring):
+            if isinstance(manufacturer, str):
                 return 1
             else:
                 return 2
