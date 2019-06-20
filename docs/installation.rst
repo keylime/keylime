@@ -15,7 +15,7 @@ An Ansible role to deploy `Keylime <https://github.com/keylime/keylime>`_
     Those wishing to test drive keylimes functionality should use the existing
     python based cloud agent `keylime_agent` until later notice.
 
-This role deploys keylime for use with a Hardware TPM Emulator.
+This role deploys keylime for use with a Hardware TPM.
 
 Should you wish to deploy Keylime with a software TPM emulator for development
 or getting your feet wet, use the `Ansible Keylime Soft TPM <https://github.com/keylime/ansible-keylime-soft-tpm>`_
