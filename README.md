@@ -170,9 +170,9 @@ the `encaik` utility in your path.
 
 Keylime uses the Intel TPM2 software set to provide TPM 2.0 support.  You will
 need to install the tpm2-tss software stack (available at
-https://github.com/tpm2-software/tpm2-tss) as well as a patched version of the
-tpm2-tools utilities available at https://github.com/keylime/tpm2-tools. See
-README.md in these projects for detailed instructions on how to build and install.
+https://github.com/tpm2-software/tpm2-tss) and the tpm2-tools utilities available
+at https://github.com/tpm2-softwre/tpm2-tools. See README.md in these projects for
+detailed instructions on how to build and install.
 
 The brief synopsis of a quick build/install (after installing dependencies) is:
 
@@ -185,7 +185,7 @@ make
 sudo make install
 popd
 
-git clone https://github.com/keylime/tpm2-tools.git tpm2-tools
+git clone https://github.com/tpm2-software/tpm2-tools.git tpm2-tools
 pushd tpm2-tools
 ./bootstrap
 ./configure --prefix=/usr/local
