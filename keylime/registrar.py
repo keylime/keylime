@@ -20,9 +20,7 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-
-
-
+import asyncio
 import configparser
 import sys
 
@@ -31,11 +29,17 @@ from keylime import common
 
 logger = common.init_logging('registrar')
 
-config = configparser.SafeConfigParser()
+config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
 
-def main(argv=sys.argv):
-    registrar_common.start(config.getint('general', 'registrar_tls_port'),config.getint('general', 'registrar_port'),config.get('registrar', 'db_filename'))
+async def init_registrar(argv=sys.argv):
+    await registrar_common.start(config.getint('general', 'registrar_tls_port'),config.getint('general', 'registrar_port'),config.get('registrar', 'db_filename'))
+
+def main():
+    loop = asyncio.get_event_loop()
+    #loop.run_until_complete(init_verifier())
+    loop.create_task(init_registrar())
+    loop.run_forever()
 
 if __name__=="__main__":
     try:

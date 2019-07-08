@@ -17,12 +17,14 @@ rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as d
 above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
 '''
-
+import asyncio
+import aiosqlite
 import os
 import sqlite3
 import yaml
 
 from keylime import common
+
 logger = common.init_logging('keylime_sqlite')
 
 class KeylimeDB():
@@ -47,6 +49,7 @@ class KeylimeDB():
         if common.DEVELOP_IN_ECLIPSE and os.path.exists(self.db_filename):
             os.remove(self.db_filename)
 
+        # create the database file and perms
         os.umask(0o077)
         kl_dir = os.path.dirname(os.path.abspath(self.db_filename))
         if not os.path.exists(kl_dir):
@@ -54,42 +57,38 @@ class KeylimeDB():
         if os.geteuid()!=0 and common.REQUIRE_ROOT:
             logger.warning("Creating database without root.  Sensitive data may be at risk!")
 
-        with sqlite3.connect(self.db_filename) as conn:
-            cur = conn.cursor()
+    async def create_db(self):
+        async with aiosqlite.connect(self.db_filename) as db:
             createstr = "CREATE TABLE IF NOT EXISTS main("
             for key in sorted(self.cols_db.keys()):
                 createstr += "%s %s, "%(key,self.cols_db[key])
             # lop off the last comma space
             createstr = createstr[:-2]+')'
-            cur.execute(createstr)
-            conn.commit()
+            await db.execute(createstr)
+            await db.commit()
+
         os.chmod(self.db_filename,0o600)
 
-    def print_db(self):
-        with sqlite3.connect(self.db_filename) as conn:
-            cur = conn.cursor()
-            cur.execute('SELECT * FROM main')
-            rows = cur.fetchall()
-
-            colnames = [description[0] for description in cur.description]
-            print(colnames)
-            for row in rows:
-                print(row)
+    async def print_db(self):
+        async with aiosqlite.connect(self.db_filename) as db:
+            cursor = await db.execute('SELECT * FROM main')
+            rows = await cursor.fetchall()
+            colnames = [description[0] for description in cursor.description]
 
     def add_defaults(self,agent):
         for key in list(self.exclude_db.keys()):
             agent[key] = self.exclude_db[key]
         return agent
 
-    def add_agent(self,agent_id, d):
+    async def add_agent(self,agent_id, d):
         d = self.add_defaults(d)
 
         d['agent_id']=agent_id
 
-        with sqlite3.connect(self.db_filename) as conn:
-            cur = conn.cursor()
-            cur.execute('SELECT * from main where agent_id=?',(d['agent_id'],))
-            rows = cur.fetchall()
+        async with aiosqlite.connect(self.db_filename) as db:
+
+            cursor = await db.execute('SELECT * from main where agent_id=?',(d['agent_id'],))
+            rows = await cursor.fetchall()
             # don't allow overwrite
             if len(rows)>0:
                 return None
@@ -101,9 +100,9 @@ class KeylimeDB():
                     v = yaml.dump(d[key])
                 insertlist.append(v)
 
-            cur.execute('INSERT INTO main VALUES(?%s)'%(",?"*(len(insertlist)-1)),insertlist)
+            await db.execute('INSERT INTO main VALUES(?%s)'%(",?"*(len(insertlist)-1)),insertlist)
 
-            conn.commit()
+            await db.commit()
 
         # these are yaml strings and should be converted to dictionaries
         for item in self.yaml_cols_db:
@@ -112,54 +111,50 @@ class KeylimeDB():
 
         return d
 
-    def remove_agent(self,agent_id):
-        with sqlite3.connect(self.db_filename) as conn:
-            cur = conn.cursor()
-            cur.execute('SELECT * from main where agent_id=?',(agent_id,))
-            rows = cur.fetchall()
+    async def remove_agent(self,agent_id):
+        async with aiosqlite.connect(self.db_filename) as db:
+
+            cursor = await db.execute('SELECT * from main where agent_id=?',(agent_id,))
+            rows = await cursor.fetchall()
             if len(rows)==0:
                 return False
-            cur.execute('DELETE FROM main WHERE agent_id=?',(agent_id,))
-            conn.commit()
-
+            await db.execute('DELETE FROM main WHERE agent_id=?',(agent_id,))
+            await db.commit()
         return True
 
-    def update_agent(self,agent_id, key, value):
+    async def update_agent(self,agent_id, key, value):
         if key not in list(self.cols_db.keys()):
             raise Exception("Database key %s not in schema: %s"%(key,list(self.cols_db.keys())))
 
-        with sqlite3.connect(self.db_filename) as conn:
-            cur = conn.cursor()
+        async with aiosqlite.connect(self.db_filename) as db:
+
             # marshall back to string
             if key in self.yaml_cols_db:
                 value = yaml.dump(value)
-            cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(value,agent_id))
-            conn.commit()
-
+            await db.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(value,agent_id))
+            await db.commit()
         return
 
-    def update_all_agents(self,key,value):
+    async def update_all_agents(self,key,value):
         if key not in list(self.cols_db.keys()):
             raise Exception("Database key %s not in schema: %s"%(key,list(self.cols_db.keys())))
 
-        with sqlite3.connect(self.db_filename) as conn:
-            cur = conn.cursor()
+        async with aiosqlite.connect(self.db_filename) as db:
             # marshall back to string if needed
             if key in self.yaml_cols_db:
                 value = yaml.dump(value)
-            cur.execute('UPDATE main SET %s = ?'%key,(value,))
-            conn.commit()
+            await db.execute('UPDATE main SET %s = ?'%key,(value,))
+            await db.commit()
         return
 
-    def get_agent(self,agent_id):
-        with sqlite3.connect(self.db_filename) as conn:
-            cur = conn.cursor()
-            cur.execute('SELECT * from main where agent_id=?',(agent_id,))
-            rows = cur.fetchall()
+    async def get_agent(self,agent_id):
+        async with aiosqlite.connect(self.db_filename) as db:
+            cursor = await db.execute('SELECT * from main where agent_id=?',(agent_id,))
+            rows = await cursor.fetchall()
             if len(rows)==0:
                 return None
 
-            colnames = [description[0] for description in cur.description]
+            colnames = [description[0] for description in cursor.description]
             d ={}
             for i in range(len(colnames)):
                 if colnames[i] in self.yaml_cols_db:
@@ -169,31 +164,29 @@ class KeylimeDB():
             d = self.add_defaults(d)
             return d
 
-    def get_agent_ids(self):
-        with sqlite3.connect(self.db_filename) as conn:
+    async def get_agent_ids(self):
+        async with aiosqlite.connect(self.db_filename) as db:
             retval = []
-            cur = conn.cursor()
-            cur.execute('SELECT agent_id from main')
-            rows = cur.fetchall()
+            cursor = await db.execute('SELECT agent_id from main')
+            rows = await cursor.fetchall()
             if len(rows)==0:
                 return retval
             for i in rows:
                 retval.append(i[0])
             return retval
 
-    def count_agents(self):
-        return len(self.get_agent_ids())
+    async def count_agents(self):
+        return len(await self.get_agent_ids()) # hmm
 
-    def overwrite_agent(self,agent_id,agent):
-        with sqlite3.connect(self.db_filename) as conn:
-            cur = conn.cursor()
+    async def overwrite_agent(self,agent_id,agent):
+        async with aiosqlite.connect(self.db_filename) as db:
             for key in list(self.cols_db.keys()):
                 if key is 'agent_id':
                     continue
                 if key in self.yaml_cols_db:
-                    cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(yaml.dump(agent[key]),agent_id))
+                    await db.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(yaml.dump(agent[key]),agent_id))
                 else:
-                    cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(agent[key],agent_id))
-            conn.commit()
+                    await db.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(agent[key],agent_id))
+            await db.commit()
         return
 

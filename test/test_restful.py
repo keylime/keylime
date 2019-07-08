@@ -48,7 +48,7 @@ For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
 
 
 # System imports
-import asyncio 
+import asyncio
 import dbus
 import sys
 import signal
@@ -62,6 +62,7 @@ import threading
 import shutil
 import errno
 import yaml
+import pytest
 
 from pathlib import Path
 
@@ -94,7 +95,7 @@ tpm = None
 
 # cmp depreciated in Python 3, so lets recreate it.
 def cmp(a, b):
-    return (a > b) - (a < b) 
+    return (a > b) - (a < b)
 
 #Ensure this is run as root
 if os.geteuid() != 0 and common.REQUIRE_ROOT:
@@ -104,7 +105,7 @@ if os.geteuid() != 0 and common.REQUIRE_ROOT:
 unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(x, y)
 
 # Config-related stuff
-config = configparser.SafeConfigParser()
+config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
 
 # Environment to pass to services
@@ -336,7 +337,7 @@ class TestRestful(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Prepare the keys and payload to give to the CV"""
-        contents = b"random garbage to test as payload"
+        contents = "random garbage to test as payload"
         #contents = contents.encode('utf-8')
         ret = user_data_encrypt.encrypt(contents)
         cls.K = ret['k']
@@ -366,9 +367,8 @@ class TestRestful(unittest.TestCase):
     def test_000_services(self):
         self.assertTrue(services_running(), "Not all services started successfully!")
 
-
-
     """Registrar Testset"""
+    @pytest.mark.asyncio
     async def test_010_reg_agent_post(self):
         """Test registrar's POST /v2/agents/{UUID} Interface"""
         global keyblob, aik, vtpm, ek
@@ -412,7 +412,8 @@ class TestRestful(unittest.TestCase):
                                             data=v_yaml_message,
                                             context=None
                                         )
-        response = await res 
+        response = await res
+
         self.assertEqual(response.status_code, 200, "Non-successful Registrar agent Add return code!")
         response_body = response.yaml()
 
@@ -424,6 +425,7 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(keyblob, "Malformed response body!")
 
     @unittest.skipIf(vtpm == True, "Registrar's PUT /v2/agents/{UUID}/activate only for non-vTPMs!")
+
     async def test_011_reg_agent_activate_put(self):
         """Test registrar's PUT /v2/agents/{UUID}/activate Interface"""
         global keyblob, aik
@@ -432,8 +434,7 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
 
         key = tpm.activate_identity(keyblob)
-        print('key:', type(key))
-        print('key:', type(key))
+
         data = {
             'auth_tag': crypto.do_hmac(base64.b64decode(key),tenant_templ.agent_uuid),
         }
@@ -445,7 +446,7 @@ class TestRestful(unittest.TestCase):
                                             data=v_yaml_message,
                                             context=None
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful Registrar agent Activate return code!")
         response_body = response.yaml()
 
@@ -453,6 +454,7 @@ class TestRestful(unittest.TestCase):
         self.assertIn("results", response_body, "Malformed response body!")
 
     @unittest.skipIf(vtpm == False, "Registrar's PUT /v2/agents/{UUID}/vactivate only for vTPMs!")
+
     async def test_012_reg_agent_vactivate_put(self):
         """Test registrar's PUT /v2/agents/{UUID}/vactivate Interface"""
         global keyblob, aik, ek
@@ -474,12 +476,13 @@ class TestRestful(unittest.TestCase):
                                             data=v_yaml_message,
                                             context=None
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful Registrar agent vActivate return code!")
         response_body = response.yaml()
 
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
+
 
     async def test_013_reg_agents_get(self):
         """Test registrar's GET /v2/agents Interface"""
@@ -488,7 +491,7 @@ class TestRestful(unittest.TestCase):
                                             "http://%s:%s/v%s/agents/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version),
                                             context=tenant_templ.context
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful Registrar agent List return code!")
         response_body = response.yaml()
 
@@ -499,6 +502,7 @@ class TestRestful(unittest.TestCase):
         # We registered exactly one agent so far
         self.assertEqual(1, len(response_body["results"]["uuids"]), "Incorrect system state!")
 
+
     async def test_014_reg_agent_get(self):
         """Test registrar's GET /v2/agents/{UUID} Interface"""
         global aik
@@ -508,7 +512,7 @@ class TestRestful(unittest.TestCase):
                                             "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.agent_uuid),
                                             context=tenant_templ.context
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful Registrar agent return code!")
         response_body = response.yaml()
 
@@ -521,6 +525,7 @@ class TestRestful(unittest.TestCase):
         aik = response_body["results"]["aik"]
         #TODO: results->provider_keys is only for virtual mode
 
+
     async def test_015_reg_agent_delete(self):
         """Test registrar's DELETE /v2/agents/{UUID} Interface"""
         res = tornado_requests.request(
@@ -528,7 +533,7 @@ class TestRestful(unittest.TestCase):
                                             "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.agent_uuid),
                                             context=tenant_templ.context
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Delete return code!")
         response_body = response.yaml()
 
@@ -538,6 +543,7 @@ class TestRestful(unittest.TestCase):
 
 
     """Agent Setup Testset"""
+
     async def test_020_agent_keys_pubkey_get(self):
         """Test agent's GET /v2/keys/pubkey Interface"""
 
@@ -549,7 +555,7 @@ class TestRestful(unittest.TestCase):
                                             "http://%s:%s/v%s/keys/pubkey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version),
                                             context=None
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful Agent pubkey return code!")
         response_body = response.yaml()
 
@@ -565,6 +571,7 @@ class TestRestful(unittest.TestCase):
         # We need to refresh the aik value we've stored in case it changed
         self.test_014_reg_agent_get()
 
+
     async def test_022_agent_quotes_identity_get(self):
         """Test agent's GET /v2/quotes/identity Interface"""
         global aik
@@ -579,7 +586,7 @@ class TestRestful(unittest.TestCase):
                                                 "GET",
                                                 "http://%s:%s/v%s/quotes/identity?nonce=%s"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version,nonce)
                                             )
-            response = await res 
+            response = await res
             if response.status_code == 200:
                 break
             numretries-=1
@@ -596,6 +603,7 @@ class TestRestful(unittest.TestCase):
         self.assertTrue(tpm.check_quote(nonce,response_body["results"]["pubkey"],response_body["results"]["quote"],aik), "Invalid quote!")
 
     @unittest.skip("Testing of agent's POST /v2/keys/vkey disabled!  (spawned CV should do this already)")
+
     async def test_023_agent_keys_vkey_post(self):
         """Test agent's POST /v2/keys/vkey Interface"""
         # CV should do this (during CV POST/PUT test)
@@ -616,12 +624,13 @@ class TestRestful(unittest.TestCase):
                                             "POST", "http://%s:%s/v%s/keys/vkey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version),
                                             data=v_yaml_message
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful Agent vkey post return code!")
         response_body = response.yaml()
 
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
+
 
     async def test_024_agent_keys_ukey_post(self):
         """Test agents's POST /v2/keys/ukey Interface"""
@@ -645,7 +654,7 @@ class TestRestful(unittest.TestCase):
                                             "POST", "http://%s:%s/v%s/keys/ukey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version),
                                             data=u_yaml_message
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful Agent ukey post return code!")
         response_body = response.yaml()
 
@@ -655,6 +664,7 @@ class TestRestful(unittest.TestCase):
 
 
     """Cloud Verifier Testset"""
+
     async def test_030_cv_agent_post(self):
         """Test CV's POST /v2/agents/{UUID} Interface"""
         self.assertIsNotNone(self.V, "Required value not set.  Previous step may have failed?")
@@ -681,7 +691,7 @@ class TestRestful(unittest.TestCase):
                                             data=yaml_message,
                                             context=tenant_templ.context
                                         )
-        response = await res 
+        response = await res
 
         self.assertEqual(response.status_code, 200, "Non-successful CV agent Post return code!")
         response_body = response.yaml()
@@ -692,6 +702,7 @@ class TestRestful(unittest.TestCase):
         time.sleep(10)
 
     @unittest.skip("Testing of CV's PUT /v2/agents/{UUID} disabled!")
+
     async def test_031_cv_agent_put(self):
         """Test CV's PUT /v2/agents/{UUID} Interface"""
         #TODO: this should actually test PUT functionality (e.g., make agent fail and then PUT back up)
@@ -701,12 +712,13 @@ class TestRestful(unittest.TestCase):
                                             data=b'',
                                             context=tenant_templ.context
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful CV agent Post return code!")
         response_body = response.yaml()
 
         # Ensure response is well-formed
         self.assertIn("results", response_body, "Malformed response body!")
+
 
     async def test_032_cv_agents_get(self):
         """Test CV's GET /v2/agents Interface"""
@@ -715,7 +727,7 @@ class TestRestful(unittest.TestCase):
                                             "http://%s:%s/v%s/agents/"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version),
                                             context=tenant_templ.context
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful CV agent List return code!")
         response_body = response.yaml()
 
@@ -726,6 +738,7 @@ class TestRestful(unittest.TestCase):
         # Be sure our agent is registered
         self.assertEqual(1, len(response_body["results"]["uuids"]))
 
+
     async def test_033_cv_agent_get(self):
         """Test CV's GET /v2/agents/{UUID} Interface"""
         res = tornado_requests.request(
@@ -733,7 +746,7 @@ class TestRestful(unittest.TestCase):
                                             "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.agent_uuid),
                                             context=tenant_templ.context
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful CV agent return code!")
         response_body = response.yaml()
 
@@ -748,6 +761,7 @@ class TestRestful(unittest.TestCase):
 
 
     """Agent Poll Testset"""
+
     async def test_040_agent_quotes_integrity_get(self):
         """Test agent's GET /v2/quotes/integrity Interface"""
         global public_key, aik
@@ -765,7 +779,7 @@ class TestRestful(unittest.TestCase):
                                             "GET",
                                             "http://%s:%s/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version,nonce,mask,vmask,partial)
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful Agent Integrity Get return code!")
         response_body = response.yaml()
 
@@ -790,6 +804,7 @@ class TestRestful(unittest.TestCase):
                                             hash_alg=hash_alg)
         self.assertTrue(validQuote)
 
+
     async def test_041_agent_keys_verify_get(self):
         """Test agent's GET /v2/keys/verify Interface"""
         self.assertIsNotNone(self.K, "Required value not set.  Previous step may have failed?")
@@ -800,7 +815,7 @@ class TestRestful(unittest.TestCase):
                                             "GET",
                                             "http://%s:%s/v%s/keys/verify?challenge=%s"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version,challenge)
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 200, "Non-successful Agent verify return code!")
         response_body = response.yaml()
 
@@ -816,6 +831,7 @@ class TestRestful(unittest.TestCase):
 
 
     """CV Cleanup Testset"""
+
     async def test_050_cv_agent_delete(self):
         """Test CV's DELETE /v2/agents/{UUID} Interface"""
         time.sleep(5)
@@ -824,7 +840,7 @@ class TestRestful(unittest.TestCase):
                                             "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.agent_uuid),
                                             context=tenant_templ.context
                                         )
-        response = await res 
+        response = await res
         self.assertEqual(response.status_code, 202, "Non-successful CV agent Delete return code!")
         response_body = response.yaml()
 

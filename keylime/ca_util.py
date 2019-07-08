@@ -55,7 +55,7 @@ else:
     raise Exception("Unknown CA implementation: %s"%common.CA_IMPL)
 from M2Crypto import X509, EVP, BIO
 
-config = configparser.SafeConfigParser()
+config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
 
 """

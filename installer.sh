@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 ##########################################################################################
 #
 # DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.

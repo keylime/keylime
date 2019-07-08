@@ -24,6 +24,8 @@ import logging.config
 import sys
 import urllib.parse
 import yaml
+import random
+import time
 import tornado.web
 from http.server import BaseHTTPRequestHandler
 import http.client
@@ -173,6 +175,24 @@ else:
 
 CA_WORK_DIR='%s/ca/'%WORK_DIR
 
+def timerfunc(func):
+    """
+    A timer decorator for debugging function return times.
+    To use, decorate a function with @common.timerfunc
+    """
+    def function_timer(*args, **kwargs):
+        """
+        A nested function for timing other functions
+        """
+        start = time.time()
+        value = func(*args, **kwargs)
+        end = time.time()
+        runtime = end - start
+        msg = "The runtime for {func} took {time} seconds to complete"
+        print(msg.format(func=func.__name__,
+                         time=runtime))
+        return value
+    return function_timer
 
 def chownroot(path,logger):
     if os.geteuid()==0:
