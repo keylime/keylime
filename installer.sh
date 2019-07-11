@@ -22,8 +22,8 @@
 ##########################################################################################
 
 # Configure the installer here
-KEYLIME_GIT=https://github.com/mit-ll/keylime.git
-TPM4720_GIT=https://github.com/mit-ll/tpm4720-keylime.git
+KEYLIME_GIT=https://github.com/keylime/keylime.git
+TPM4720_GIT=https://github.com/keylime/tpm4720-keylime.git
 GOLANG_SRC=https://dl.google.com/go
 TPM2TSS_GIT=https://github.com/tpm2-software/tpm2-tss.git
 TPM2TOOLS_GIT=https://github.com/tpm2-software/tpm2-tools.git
