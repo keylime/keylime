@@ -50,7 +50,7 @@ def main(argv=sys.argv):
 
                     decimal_part, integer_part = math.modf(float(each_value))
                     the_list = None
-                    if integer_part not in number_map.keys():
+                    if integer_part not in list(number_map.keys()):
                         the_list = []
                         number_map[int(integer_part)] = the_list
                     else:
@@ -62,7 +62,7 @@ def main(argv=sys.argv):
         
         index = 0
         last_index = len(number_map) - 1
-        for float_key, each_list in number_map.iteritems():
+        for float_key, each_list in number_map.items():
 
             output_file.write(str(len(each_list)) + "\n")
         

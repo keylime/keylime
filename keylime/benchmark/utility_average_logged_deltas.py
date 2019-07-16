@@ -52,7 +52,7 @@ def main(argv=sys.argv):
         float_list=float_list*1000
         
     #print "my list is %s"%(float_list[1:10])
-    print "%s mean %.3f, std %.3f, min %.3f, med %.3f, max %.3f"%(args.text_description,numpy.average(float_list),numpy.std(float_list),numpy.min(float_list),numpy.median(float_list),numpy.max(float_list))
+    print("%s mean %.3f, std %.3f, min %.3f, med %.3f, max %.3f"%(args.text_description,numpy.average(float_list),numpy.std(float_list),numpy.min(float_list),numpy.median(float_list),numpy.max(float_list)))
     #print args.text_description + str() + " : " + str()
     #print args.text_description + str(average)
         

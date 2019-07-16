@@ -1,36 +1,36 @@
 '''DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
-This material is based upon work supported by the Assistant Secretary of Defense for 
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
+This material is based upon work supported by the Assistant Secretary of Defense for
+Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
 FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the 
+material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
 
 Copyright 2015 Massachusetts Institute of Technology.
 
 The software/firmware is provided to you on an As-Is basis
 
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-above. Use of this work other than as specifically authorized by the U.S. Government may 
+Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
+252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
+rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
+above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
 '''
 
-from abc import ABCMeta, abstractmethod
 import base64
-import ConfigParser
+import configparser
 import fcntl
 import hashlib
-import json
 import os
-import sets
 import string
 import struct
+import yaml
 
-import common
-import crypto
-import ima
+from abc import ABCMeta, abstractmethod
+
+from keylime import common
+from keylime import crypto
+from keylime import ima
 
 logger = common.init_logging('tpm')
 
@@ -40,7 +40,7 @@ class Hash_Algorithms:
     SHA256 = 'sha256'
     SHA384 = 'sha384'
     SHA512 = 'sha512'
-    
+
     @staticmethod
     def get_hash_size(algorithm):
         if algorithm == Hash_Algorithms.SHA1:
@@ -53,14 +53,14 @@ class Hash_Algorithms:
             return 512
         else:
             return 0
-    
+
     @staticmethod
     def is_accepted(algorithm, accepted):
         for alg in accepted:
             if alg == algorithm:
                 return True
         return False
-    
+
     @staticmethod
     def is_recognized(algorithm):
         if algorithm == Hash_Algorithms.SHA1:
@@ -78,14 +78,14 @@ class Hash_Algorithms:
 class Encrypt_Algorithms:
     RSA = 'rsa'
     ECC = 'ecc'
-    
+
     @staticmethod
     def is_accepted(algorithm, accepted):
         for alg in accepted:
             if alg == algorithm:
                 return True
         return False
-    
+
     @staticmethod
     def is_recognized(algorithm):
         if algorithm == Encrypt_Algorithms.RSA:
@@ -102,14 +102,14 @@ class Sign_Algorithms:
     ECDSA = 'ecdsa'
     ECDAA = 'ecdaa'
     ECSCHNORR = 'ecschnorr'
-    
+
     @staticmethod
     def is_accepted(algorithm, accepted):
         for alg in accepted:
             if alg == algorithm:
                 return True
         return False
-    
+
     @staticmethod
     def is_recognized(algorithm):
         if algorithm == Sign_Algorithms.RSASSA:
@@ -127,7 +127,7 @@ class Sign_Algorithms:
 
 
 class TPM_Utilities:
-    
+
     @staticmethod
     def check_mask(mask, pcr):
         if mask is None:
@@ -140,42 +140,39 @@ class TPM_Utilities:
         chars = string.ascii_uppercase + string.digits + string.ascii_lowercase
         password = ''
         for i in range(length):
-            password += chars[ord(rand[i]) % len(chars)]
+            password += chars[(rand[i]) % len(chars)]
         return password
 
     @staticmethod
     def readPolicy(configval):
-        policy = json.loads(configval)
-        
+        policy = yaml.safe_load(configval)
+
         # compute PCR mask from tpm_policy
         mask = 0
-        for key in policy.keys():
+        for key in list(policy.keys()):
             if not key.isdigit() or int(key) > 24:
                 raise Exception("Invalid tpm policy pcr number: %s"%(key))
-            
+
             if int(key) == common.TPM_DATA_PCR:
                 raise Exception("Invalid whitelist PCR number %s, keylime uses this PCR to bind data."%key)
             if int(key) == common.IMA_PCR:
                 raise Exception("Invalid whitelist PCR number %s, this PCR is used for IMA."%key)
-            
+
             mask = mask + (1<<int(key))
-            
+
             # wrap it in a list if it is a singleton
-            if isinstance(policy[key], basestring):
+            if isinstance(policy[key], str):
                 policy[key] = [policy[key]]
-             
+
             # convert all hash values to lowercase
             policy[key] = [x.lower() for x in policy[key]]
-        
+
         policy['mask'] = "0x%X"%(mask)
         return policy
 
 
-class AbstractTPM(object):
+class AbstractTPM(object, metaclass=ABCMeta):
     # Abstract base class
-    __metaclass__ = ABCMeta
-
-    # Class members
     EXIT_SUCESS = 0
     TPM_IO_ERR = 5
     EMPTYMASK = "1"
@@ -184,7 +181,7 @@ class AbstractTPM(object):
     # constructor
     def __init__(self, need_hw_tpm=True):
         # read the config file
-        self.config = ConfigParser.RawConfigParser()
+        self.config = configparser.RawConfigParser()
         self.config.read(common.CONFIG_FILE)
         self.need_hw_tpm = need_hw_tpm
         self.global_tpmdata = None
@@ -227,7 +224,7 @@ class AbstractTPM(object):
     @abstractmethod
     def is_vtpm(self):
         pass
-    
+
     def warn_emulator(self):
         if self.is_emulator():
             logger.warning("INSECURE: Keylime is using a software TPM emulator rather than a real hardware TPM.")
@@ -236,9 +233,9 @@ class AbstractTPM(object):
 
 
     def __read_tpm_data(self):
-        if os.path.exists('tpmdata.json'):
-            with open('tpmdata.json', 'r') as f:
-                return json.load(f)
+        if os.path.exists('tpmdata.yml'):
+            with open('tpmdata.yml', 'rb') as f:
+                return yaml.safe_load(f)
         else:
             return {}
 
@@ -246,8 +243,8 @@ class AbstractTPM(object):
         os.umask(0o077)
         if os.geteuid() != 0 and common.REQUIRE_ROOT:
             logger.warning("Creating tpm metadata file without root.  Sensitive trust roots may be at risk!")
-        with open('tpmdata.json', 'w') as f:
-            json.dump(self.global_tpmdata, f)
+        with open('tpmdata.yml', 'w') as f:
+            yaml.dump(self.global_tpmdata, f)
 
     def get_tpm_metadata(self, key):
         if self.global_tpmdata is None:
@@ -257,7 +254,7 @@ class AbstractTPM(object):
     def _set_tpm_metadata(self, key, value):
         if self.global_tpmdata is None:
             self.global_tpmdata = self.__read_tpm_data()
-        
+
         if self.global_tpmdata.get(key, None) is not value:
             self.global_tpmdata[key] = value
             self.__write_tpm_data()
@@ -295,7 +292,7 @@ class AbstractTPM(object):
     def hashdigest(self, payload, algorithm=None):
         if algorithm is None:
             algorithm = self.defaults['hash']
-        
+
         if algorithm == Hash_Algorithms.SHA1:
             measured = hashlib.sha1(payload).hexdigest()
         elif algorithm == Hash_Algorithms.SHA256:
@@ -321,7 +318,7 @@ class AbstractTPM(object):
         ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), ima_whitelist)
         if ex_value is None:
             return False
-        
+
         if pcrval != ex_value and not common.STUB_IMA:
             logger.error("IMA measurement list expected pcr value %s does not match TPM PCR %s"%(ex_value, pcrval))
             return False
@@ -332,15 +329,15 @@ class AbstractTPM(object):
         pcrWhiteList = tpm_policy.copy()
         if 'mask' in pcrWhiteList: del pcrWhiteList['mask']
         # convert all pcr num keys to integers
-        pcrWhiteList = {int(k):v for k, v in pcrWhiteList.items()}
-        
-        pcrsInQuote = sets.Set()
+        pcrWhiteList = {int(k):v for k, v in list(pcrWhiteList.items())}
+
+        pcrsInQuote = set()
         for line in pcrs:
             tokens = line.split()
             if len(tokens) < 3:
                 logger.error("Invalid %sPCR in quote: %s"%(("", "v")[virtual], pcrs))
                 continue
-            
+
             # always lower case
             pcrval = tokens[2].lower()
             # convert pcr num to number
@@ -348,7 +345,7 @@ class AbstractTPM(object):
                 pcrnum = int(tokens[1])
             except Exception:
                 logger.error("Invalide PCR number %s"%tokens[1])
-            
+
             if pcrnum == common.TPM_DATA_PCR and data is not None:
                 # compute expected value  H(0|H(string(H(data))))
                 # confused yet?  pcrextend will hash the string of the original hash again
@@ -357,33 +354,33 @@ class AbstractTPM(object):
                     logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, expectedval))
                     return False
                 continue
-                   
+
             # check for ima PCR
             if pcrnum == common.IMA_PCR and not common.STUB_TPM:
                 if ima_measurement_list is None:
                     logger.error("IMA PCR in policy, but no measurement list provided")
                     return False
-                
+
                 if self.__check_ima(pcrval, ima_measurement_list, ima_whitelist):
                     pcrsInQuote.add(pcrnum)
                     continue
                 else:
                     return False
-                    
-            if pcrnum not in pcrWhiteList.keys():
-                if not common.STUB_TPM and len(tpm_policy.keys()) > 0:
+
+            if pcrnum not in list(pcrWhiteList.keys()):
+                if not common.STUB_TPM and len(list(tpm_policy.keys())) > 0:
                     logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping."%(("", "v")[virtual], pcrnum, ("", "v")[virtual]))
                 continue
             elif pcrval not in pcrWhiteList[pcrnum] and not common.STUB_TPM:
                 logger.error("%sPCR #%s: %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, pcrWhiteList[pcrnum]))
                 return False
             else:
-                pcrsInQuote.add(pcrnum)       
+                pcrsInQuote.add(pcrnum)
 
         if common.STUB_TPM:
             return True
 
-        missing = list(sets.Set(pcrWhiteList.keys()).difference(pcrsInQuote))
+        missing = list(set(list(pcrWhiteList.keys())).difference(pcrsInQuote))
         if len(missing) > 0:
             logger.error("%sPCRs specified in policy not in quote: %s"%(("", "v")[virtual], missing))
             return False
@@ -401,7 +398,7 @@ class AbstractTPM(object):
                     # as fp has a method fileno(), you can pass it to ioctl
                     fcntl.ioctl(fp, RNDADDENTROPY, t)
             except Exception as e:
-                logger.warn("TPM randomness not added to system entropy pool: %s"%e)
+                logger.warning("TPM randomness not added to system entropy pool: %s"%e)
 
 
     #tpm_nvram

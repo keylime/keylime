@@ -81,7 +81,7 @@ A hardware TPM should always be used when real secrets and trust is required.
 
 ### Automated
 
-Keylime requires Python 2.7.10 or newer for proper TLS support.
+Keylime requires Python 3.6 or newer for proper TLS support.
 
 Installation can be performed via an automated shell script, `installer.sh`.  The
 following command line options are available:
@@ -111,7 +111,7 @@ Repository](https://github.com/keylime/ansible-keylime).
 
 ### Docker (Development Only)
 
-Python keylime and related emulators can also be deployed using Docker.
+keylime and related emulators can also be deployed using Docker.
 Since this docker configuration currently uses a TPM emulator,
 it should only be used for development or testing and NOT in production.
 
@@ -123,9 +123,7 @@ which will automate the build and pull of keylime on TPM 1.2 or 2.0.
 
 ### Manual
 
-Keylime requires Python 2.7.10 or newer for proper TLS support.  This is newer than
-some LTS distributions like Ubuntu 14.04 or CentOS 7.  See google for instructions
-on how to get a newer Python onto those platforms.
+Keylime requires Python 3.6 or newer for proper TLS support.
 
 #### Python-based prerequisites
 

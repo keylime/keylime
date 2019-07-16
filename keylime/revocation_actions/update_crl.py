@@ -22,7 +22,7 @@ violate any copyrights that exist in this work.
 
 import time
 import os
-import ConfigParser
+import configparser
 
 import keylime.tornado_requests as tornado_requests
 import keylime.ca_util as ca_util
@@ -30,7 +30,7 @@ import keylime.secure_mount as secure_mount
 import keylime.common as common 
 
 # read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
 logger = common.init_logging('update_crl')
