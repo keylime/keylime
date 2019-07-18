@@ -1,0 +1,8 @@
+[Unit]
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/keylime_verifier
+
+[Install]
+WantedBy=default.target
