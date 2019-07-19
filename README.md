@@ -410,6 +410,18 @@ The revocation key will be automatically created by the tenant the first time
 you use the CA with keylime.  Currently the CRL is only written back to the CA
 directory, unless IPsec configuration is being used (see [Additional Reading](#additional-reading)).
 
+## Systemd service support
+
+The directory `services/` includes `systemd` service files for the verifier,
+agent and registrar.
+
+You can install the services with the following command:
+
+`sudo ./services/install.sh`
+
+Once installed, you can run and inspect the services `keylime_verifier`,
+`keylime_agent` and `keylime_registrar` via `systemctl`.
+
 ## Report a Security Vulnerability
 
 Please contact us directly at [security@keylime.groups.io](mailto:security@keylime.groups.io)
