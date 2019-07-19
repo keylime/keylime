@@ -7,10 +7,14 @@ fi
 
 BASEDIR=$(dirname "$0")
 
-# create services
-cp $BASEDIR/keylime_agent.service /etc/systemd/system
-cp $BASEDIR/keylime_registrar.service /etc/systemd/system
-cp $BASEDIR/keylime_verifier.service /etc/systemd/system
+# check keylime scripts directory (same for verifier, agent, registrar)
+KEYLIMEDIR=$(dirname $(whereis keylime_verifier | cut -d " " -f 2))
+echo "Using keylime scripts directory: ${KEYLIMEDIR}"
+
+# prepare keylime service files and store them in systemd path
+sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_agent.service.example > /etc/systemd/system/keylime_agent.service
+sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_registrar.service.example > /etc/systemd/system/keylime_registrar.service
+sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_verifier.service.example > /etc/systemd/system/keylime_verifier.service
 
 # set permissions
 chmod 664 /etc/systemd/system/keylime_agent.service

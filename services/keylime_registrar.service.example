@@ -3,7 +3,7 @@ Wants=keylime_verifier.service
 After=network.target keylime_verifier.service
 
 [Service]
-ExecStart=/usr/local/bin/keylime_registrar
+ExecStart=KEYLIMEDIR/keylime_registrar
 
 [Install]
 WantedBy=default.target
