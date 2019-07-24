@@ -100,14 +100,16 @@ Options:
 Note that CFSSL is required if you want to support revocation. As noted above, do not use
 the TPM emulator option `-s` in production systems.
 
-### Ansible (Development Only)
+### Ansible
 
-Ansible roles are available to deploy keylime in either TPM 1.2 or 2.0 mode
-(with the relevant TPM 1.2 or 2.0 Emulator).  Since this role currently uses a TPM emulator,
-it should only be used for development or testing and NOT in production.
-
-Please proceed to the [Keylime Ansible
+Ansible roles are available to deploy keylime for use with a hardware TPM or a software TPM emulator. Please proceed to the [Keylime Ansible
 Repository](https://github.com/keylime/ansible-keylime).
+
+Or alternatively the [Keylime Ansible Software TPM
+Repository](https://github.com/keylime/ansible-keylime-soft-tpm).
+
+| WARNING: The "Keylime Ansible Software TPM" role uses a TPM emulator, which is considered cryptographically insecure. It should only be used for development or testing and **NOT** in production!|
+| --- |
 
 ### Docker (Development Only)
 
