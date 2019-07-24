@@ -110,7 +110,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['pycryptodomex>=3.4.1','tornado>=4.3','m2crypto>=0.21.1','pyzmq>=14.4','pyyaml>=3.11'],
+    install_requires=['pycryptodomex>=3.4.1','tornado==4.3','m2crypto>=0.21.1','pyzmq>=14.4','pyyaml>=3.11'],
 
     # test packages required
     tests_require=['green','coverage'],
