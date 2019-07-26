@@ -1,6 +1,7 @@
 # Keylime
 
 [![Build
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/a6420fcd62a04190851391c7eec5471c)](https://app.codacy.com/app/lukehinds/keylime?utm_source=github.com&utm_medium=referral&utm_content=keylime/keylime&utm_campaign=Badge_Grade_Dashboard)
 Status](https://travis-ci.org/keylime/keylime.svg?branch=master)](https://travis-ci.org/keylime/keylime) [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/keylime-project/community)
 
 ![keylime](doc/keylime.png?raw=true "Title")
