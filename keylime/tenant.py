@@ -24,6 +24,7 @@ import json
 import base64
 import ConfigParser
 import common
+import keylime_logging
 import registrar_client
 import sys
 import argparse
@@ -46,7 +47,7 @@ from tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sig
 
 
 # setup logging
-logger = common.init_logging('tenant')
+logger = keylime_logging.init_logging('tenant')
 
 # setup config
 config = ConfigParser.RawConfigParser()

@@ -20,6 +20,7 @@ violate any copyrights that exist in this work.
 import base64
 import cmd_exec
 import common
+import keylime_logging
 import ConfigParser
 import crypto
 import hashlib
@@ -40,7 +41,7 @@ import time
 from tpm_abstract import *
 from tpm_ek_ca import *
 
-logger = common.init_logging('tpm1')
+logger = keylime_logging.init_logging('tpm1')
 
 # read the config file
 config = ConfigParser.RawConfigParser()

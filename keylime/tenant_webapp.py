@@ -38,8 +38,9 @@ import cloud_verifier_common
 import tenant
 import base64
 import common
+import keylime_logging
 
-logger = common.init_logging('tenant_webapp')
+logger = keylime_logging.init_logging('tenant_webapp')
 
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)

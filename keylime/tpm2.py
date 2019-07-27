@@ -36,11 +36,12 @@ from M2Crypto import m2
 
 import cmd_exec
 import common
+import keylime_logging
 import secure_mount
 from tpm_abstract import Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms, AbstractTPM, TPM_Utilities
 from tpm_ek_ca import atmel_trusted_keys, trusted_certs
 
-logger = common.init_logging('tpm2')
+logger = keylime_logging.init_logging('tpm2')
 
 # Read the config file
 config = ConfigParser.RawConfigParser()

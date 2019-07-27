@@ -25,6 +25,7 @@ import json
 import base64
 import time
 import common
+import keylime_logging
 import registrar_client
 import os
 import crypto
@@ -40,7 +41,7 @@ from tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sig
 
 
 # setup logging
-logger = common.init_logging('cloudverifier_common')
+logger = keylime_logging.init_logging('cloudverifier_common')
 
 # setup config
 config = ConfigParser.SafeConfigParser()

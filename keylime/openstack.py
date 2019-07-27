@@ -19,10 +19,11 @@ violate any copyrights that exist in this work.
 '''
 
 import common
+import keylime_logging
 import uuid
 import tornado_requests
 
-logger = common.init_logging('openstack')
+logger = keylime_logging.init_logging('openstack')
 
 def get_openstack_uuid(uuid_service_ip='169.254.169.254',
                        uuid_service_resource='/openstack/2012-08-10/meta_data.json'):

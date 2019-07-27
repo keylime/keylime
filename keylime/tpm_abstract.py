@@ -29,10 +29,11 @@ import string
 import struct
 
 import common
+import keylime_logging
 import crypto
 import ima
 
-logger = common.init_logging('tpm')
+logger = keylime_logging.init_logging('tpm')
 
 
 class Hash_Algorithms:

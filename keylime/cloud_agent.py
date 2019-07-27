@@ -21,7 +21,8 @@ violate any copyrights that exist in this work.
 '''
 
 import common
-logger = common.init_logging('cloudagent')
+import keylime_logging
+logger = keylime_logging.init_logging('cloudagent')
 
 
 import BaseHTTPServer

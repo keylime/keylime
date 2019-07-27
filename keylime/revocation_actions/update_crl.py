@@ -28,12 +28,13 @@ import keylime.tornado_requests as tornado_requests
 import keylime.ca_util as ca_util
 import keylime.secure_mount as secure_mount
 import keylime.common as common 
+import keylime.keylime_logging as keylime_logging
 
 # read the config file
 config = ConfigParser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
-logger = common.init_logging('update_crl')
+logger = keylime_logging.init_logging('update_crl')
 
 def execute(json_revocation):
     if json_revocation['type']!='revocation':

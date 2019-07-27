@@ -20,7 +20,8 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 import common
-logger = common.init_logging('cloudverifier')
+import keylime_logging
+logger = keylime_logging.init_logging('cloudverifier')
 
 import json
 import ConfigParser

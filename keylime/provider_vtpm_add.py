@@ -22,6 +22,7 @@ violate any copyrights that exist in this work.
 
 import sys
 import common
+import keylime_logging
 import ConfigParser
 import registrar_client
 import vtpm_manager
@@ -32,7 +33,7 @@ import json
 config = ConfigParser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
-logger = common.init_logging('platform-init')
+logger = keylime_logging.init_logging('platform-init')
 
 def add_vtpm(inputfile):
     # read in the file

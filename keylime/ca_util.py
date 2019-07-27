@@ -21,7 +21,8 @@ violate any copyrights that exist in this work.
 '''
 
 import common
-logger = common.init_logging('ca-util')
+import keylime_logging
+logger = keylime_logging.init_logging('ca-util')
 
 import sys
 import os
