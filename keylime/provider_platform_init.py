@@ -21,6 +21,7 @@ violate any copyrights that exist in this work.
 
 import sys
 import common
+import keylime_logging
 import ConfigParser
 import registrar_client
 import vtpm_manager
@@ -29,7 +30,7 @@ import os
 import errno
 import json
 
-logger = common.init_logging('provider_platform_init')
+logger = keylime_logging.init_logging('provider_platform_init')
 
 config = ConfigParser.RawConfigParser()
 config.read(common.CONFIG_FILE)

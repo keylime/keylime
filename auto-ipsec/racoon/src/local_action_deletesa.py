@@ -26,6 +26,7 @@ import os
 from M2Crypto import X509
 
 import keylime.secure_mount as secure_mount
+import keylime.keylime_logging as keylime_logging
 import keylime.common as common
 import keylime.cmd_exec as cmd_exec
 
@@ -33,7 +34,7 @@ import keylime.cmd_exec as cmd_exec
 config = ConfigParser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
-logger = common.init_logging('delete-sa')
+logger = keylime_logging.init_logging('delete-sa')
 
 def execute(revocation):
     serial = revocation.get("metadata",{}).get("cert_serial",None)

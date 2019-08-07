@@ -20,13 +20,14 @@ violate any copyrights that exist in this work.
 
 import sys
 import common
+import keylime_logging
 import hashlib
 import struct
 import re
 import os
 import ConfigParser
 
-logger = common.init_logging('ima')
+logger = keylime_logging.init_logging('ima')
 
 # setup config
 config = ConfigParser.RawConfigParser()

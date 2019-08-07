@@ -19,6 +19,7 @@ violate any copyrights that exist in this work.
 '''
 
 import common
+import keylime_logging
 import json
 import ConfigParser
 import os
@@ -30,7 +31,7 @@ import base64
 import time
 import socket
 
-logger = common.init_logging('ca_impl_cfssl')
+logger = keylime_logging.init_logging('ca_impl_cfssl')
 
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)

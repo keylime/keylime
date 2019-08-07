@@ -28,7 +28,8 @@ import sys
 sys.path.insert(0, '../../keylime/')
 
 import common
-logger = common.init_logging('agent_monitor')
+import keylime_logging
+logger = keylime_logging.init_logging('agent_monitor')
 
 import argparse
 import getpass

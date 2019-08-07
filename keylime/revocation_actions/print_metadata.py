@@ -20,14 +20,15 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import keylime.common as common 
+import keylime.common as common
+import keylime.keylime_logging as keylime_logging
 import ConfigParser
 
 # read the config file
 config = ConfigParser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
-logger = common.init_logging('print_metadata')
+logger = keylime_logging.init_logging('print_metadata')
 
 def execute(json_revocation):
     print json_revocation.get("metadata",{})

@@ -38,8 +38,9 @@ import cloud_verifier_common
 import tenant
 import base64
 import common
+import keylime_logging
 
-logger = common.init_logging('tenant_webapp')
+logger = keylime_logging.init_logging('tenant_webapp')
 
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
@@ -330,7 +331,7 @@ class AgentsHandler(BaseHandler):
             if "pos" in rest_params and rest_params["pos"] is not None and rest_params["pos"].isdigit():
                 offset = int(rest_params["pos"])
             # intercept requests for logs
-            with open(common.LOGSTREAM,'r') as f:
+            with open(keylime_logging.LOGSTREAM,'r') as f:
                 logValue = f.readlines()
                 common.echo_json_response(self, 200, "Success", {'log':logValue[offset:]})
             return

@@ -22,10 +22,11 @@ violate any copyrights that exist in this work.
 
 import cmd_exec
 import common
+import keylime_logging
 import os
 import ConfigParser
 
-logger = common.init_logging('secure_mount')
+logger = keylime_logging.init_logging('secure_mount')
 
 # read the config file
 config = ConfigParser.RawConfigParser()

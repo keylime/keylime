@@ -22,6 +22,7 @@ violate any copyrights that exist in this work.
 
 import zmq
 import common
+import keylime_logging
 import ConfigParser
 import json
 import crypto
@@ -33,7 +34,7 @@ import sys
 from multiprocessing import Process
 import signal
 
-logger = common.init_logging('revocation_notifier')
+logger = keylime_logging.init_logging('revocation_notifier')
 
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)

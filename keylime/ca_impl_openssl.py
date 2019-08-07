@@ -23,6 +23,7 @@ from M2Crypto import X509, EVP, RSA, ASN1
 import ConfigParser
 
 import common
+import keylime_logging
 config = ConfigParser.SafeConfigParser()
 config.read(common.CONFIG_FILE)
 
@@ -120,6 +121,6 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
     return cert, pk
 
 def gencrl(_,a,b):
-    logger = common.init_logging('ca_impl_openssl')
+    logger = keylime_logging.init_logging('ca_impl_openssl')
     logger.warning("CRL creation with openssl is not supported")
     return "" 

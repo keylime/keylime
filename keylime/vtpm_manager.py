@@ -24,6 +24,7 @@ from __future__ import print_function
 
 import base64
 import common
+import keylime_logging
 import errno
 import hashlib
 import inspect
@@ -45,7 +46,7 @@ sys.path.append(os.path.dirname(__file__))
 from tpm_initialize import get_mod_from_pem
 
 # Logging boiler plate
-logger = common.init_logging('vtpmmgr')
+logger = keylime_logging.init_logging('vtpmmgr')
 logger.setLevel(logging.INFO)
 
 # ./utils/encaik -ek ~/tmp/LLSRC-tci/scripts/llsrc-vtpm-host0_pubek.pem -ik ~/tmp/LLSRC-tci/scripts/llsrc-vtpm-host0_pubek.pem -ok key.blob -oak key.aes

@@ -23,11 +23,12 @@ import tornado_requests
 import crypto
 import base64
 import common
+import keylime_logging
 import ssl
 import os
 import logging
 
-logger = common.init_logging('registrar_client')
+logger = keylime_logging.init_logging('registrar_client')
 context = None
 
 def init_client_tls(config,section):

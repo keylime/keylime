@@ -21,7 +21,8 @@ violate any copyrights that exist in this work.
 '''
 
 import common
-logger = common.init_logging('registrar')
+import keylime_logging
+logger = keylime_logging.init_logging('registrar')
 
 import registrar_common
 import ConfigParser

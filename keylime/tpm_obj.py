@@ -25,7 +25,8 @@ import distutils.spawn
 import os
 
 import common
-logger = common.init_logging('tpmobj')
+import keylime_logging
+logger = keylime_logging.init_logging('tpmobj')
 import tpm1
 import tpm2
 
