@@ -493,18 +493,19 @@ def main(argv=sys.argv):
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler,{'db':db}),
         (r".*", MainHandler),
         ])
-
+    
     context = cloud_verifier_common.init_mtls()
-    # asyncio.set_event_loop(asyncio.new_event_loop())
-    server = tornado.httpserver.HTTPServer(app,ssl_options=context)
-    server.bind(int(cloudverifier_port), address='0.0.0.0')
-
+    
     #after TLS is up, start revocation notifier
     if config.getboolean('cloud_verifier', 'revocation_notifier'):
         logger.info("Starting service for revocation notifications on port %s"%config.getint('general','revocation_notifier_port'))
         revocation_notifier.start_broker()
 
-    server.start(config.getint('cloud_verifier','multiprocessing_pool_num_workers'))
+    sockets = tornado.netutil.bind_sockets(int(cloudverifier_port), address='0.0.0.0')
+    tornado.process.fork_processes(config.getint('cloud_verifier','multiprocessing_pool_num_workers'))
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    server = tornado.httpserver.HTTPServer(app,ssl_options=context)
+    server.add_sockets(sockets)
 
     try:
         tornado.ioloop.IOLoop.instance().start()
