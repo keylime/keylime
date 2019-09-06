@@ -396,7 +396,7 @@ class AgentsHandler(BaseHandler):
                 return
 
             # propagate all state
-                self.db.overwrite_agent(agent['agent_id'], agent)
+            self.db.overwrite_agent(agent['agent_id'], agent)
 
             # if new, get a quote
             if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.START and \
