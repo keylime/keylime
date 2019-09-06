@@ -283,51 +283,6 @@ def get_restful_params(urlstring):
     path_params.update(query_params)
     return path_params
 
-
-LOG_TO_FILE=['cloudagent','registrar','provider_registrar','cloudverifier']
-# not clear that this works right.  console logging may not work
-LOG_TO_STREAM=['tenant_webapp']
-LOGDIR='/var/log/keylime'
-if not REQUIRE_ROOT:
-    LOGSTREAM = './keylime-stream.log'
-else:
-    LOGSTREAM=LOGDIR+'/keylime-stream.log'
-
-logging.config.fileConfig(CONFIG_FILE)
-def init_logging(loggername):
-    logger = logging.getLogger("keylime.%s"%(loggername))
-    logging.getLogger("requests").setLevel(logging.WARNING)
-    mainlogger = logging.getLogger("keylime")
-
-    if loggername in LOG_TO_FILE:
-        if not REQUIRE_ROOT:
-            logfilename = "./keylime-all.log"
-        else:
-            logfilename = "%s/%s.log"%(LOGDIR,loggername)
-            if os.getuid()!=0:
-                logger.warning("Unable to log to %s. please run as root"%logfilename)
-                return logger
-            else:
-                if not os.path.exists(LOGDIR):
-                    os.makedirs(LOGDIR, 0o750)
-                chownroot(LOGDIR,logger)
-                os.chmod(LOGDIR,0o750)
-
-        fh = logging.FileHandler(logfilename)
-        fh.setLevel(logger.getEffectiveLevel())
-        basic_formatter = logging.Formatter('%(created)s - %(name)s - %(levelname)s - %(message)s')
-        fh.setFormatter(basic_formatter)
-        mainlogger.addHandler(fh)
-
-    if loggername in LOG_TO_STREAM:
-        fh = logging.FileHandler(filename=LOGSTREAM,mode='w')
-        fh.setLevel(logger.getEffectiveLevel())
-        basic_formatter = logging.Formatter('%(created)s - %(name)s - %(levelname)s - %(message)s')
-        fh.setFormatter(basic_formatter)
-        mainlogger.addHandler(fh)
-
-    return logger
-
 # this doesn't currently work
 # if LOAD_TEST:
 #     config = ConfigParser.RawConfigParser()

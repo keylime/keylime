@@ -62,7 +62,7 @@ def post_cfssl(params,data):
             logger.info("Connection to cfssl refused %d/%d times, trying again in %f seconds..."%(numtries,maxr,retry))
             time.sleep(retry)
             continue
-        
+
     if response.status_code!=200:
         raise Exception("Unable to issue CFSSL API command %s: %s"%(params,response.text))
     return response.json()

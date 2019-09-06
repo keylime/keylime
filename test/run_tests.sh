@@ -151,12 +151,12 @@ if [ $PACKAGE_MGR = "dnf" ]; then
     PYTHON_DEPS="python3-pip python3-dbus"
 # RHEL / CentOS etc
 elif [ $PACKAGE_MGR = "yum" ]; then
-    PYTHON_PREIN="epel-release python"
-    PYTHON_DEPS="python-pip dbus-python"
+    PYTHON_PREIN="epel-release python36"
+    PYTHON_DEPS="python36-pip python36-dbus"
 # Ubuntu / Debian
 elif [ $PACKAGE_MGR = "apt-get" ]; then
-    PYTHON_PREIN="python"
-    PYTHON_DEPS="python-pip python-dbus"
+    PYTHON_PREIN="python3"
+    PYTHON_DEPS="python3-pip python3-dbus"
 else
     echo "No recognized package manager found on this system!" 1>&2
     exit 1

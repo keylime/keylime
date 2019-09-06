@@ -65,7 +65,7 @@ class tpm2(tpm_abstract.AbstractTPM):
 
     def __init__(self, need_hw_tpm=False):
         tpm_abstract.AbstractTPM.__init__(self, need_hw_tpm)
-        
+
         logger.info("Using %s version of tpm2-tools"%("legacy" if legacy_tools else "modern"))
 
         # Shared lock to serialize access to tools

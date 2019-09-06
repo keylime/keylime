@@ -533,7 +533,7 @@ def main(argv=sys.argv):
 
     # get the ephemeral registrar key
     key = tpm.activate_identity(keyblob)
-    
+
     if key is None:
         raise Exception("Activation failed")
 

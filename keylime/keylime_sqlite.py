@@ -18,16 +18,17 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-from keylime import common
-from keylime import keylime_logging
-logger = keylime_logging.init_logging('keylime_sqlite')
 import os
 import sqlite3
-
 try:
     import simplejson as json
 except ImportError:
     raise("Simplejson is mandatory, please install")
+
+from keylime import common
+from keylime import keylime_logging
+
+logger = keylime_logging.init_logging('keylime_sqlite')
 
 class KeylimeDB():
     db_filename = None

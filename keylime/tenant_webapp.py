@@ -580,7 +580,7 @@ def parse_data_uri(data_uri):
             return None
 
         try:
-            data.append(base64.b64decode(uri[fpos:]))
+            data.append(base64.b64decode(uri[fpos:])).decode('utf-8'))
         except Exception as e:
             # skip bad data
             continue

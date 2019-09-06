@@ -403,4 +403,3 @@ def init_db(db_filename):
         'first_verified':False,
         }
     return keylime_sqlite.KeylimeDB(db_filename,cols_db,json_cols_db,exclude_db)
-

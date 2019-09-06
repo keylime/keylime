@@ -26,6 +26,7 @@ import os
 from M2Crypto import X509
 
 import keylime.secure_mount as secure_mount
+import keylime.keylime_logging as keylime_logging
 import keylime.common as common
 import keylime.keylime_logging as keylime_logging
 import keylime.cmd_exec as cmd_exec

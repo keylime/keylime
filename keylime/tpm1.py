@@ -888,6 +888,3 @@ class tpm1(tpm_abstract.AbstractTPM):
             logger.debug("Invalid key length from NVRAM: %d"%(len(key)))
             return None
         return key
-
-
-

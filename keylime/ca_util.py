@@ -168,7 +168,7 @@ def cmd_init(workingdir):
         if common.CA_IMPL=='cfssl':
             crl = ca_impl.gencrl([],cacert.as_pem(), pk_str)
         elif common.CA_IMPL=='openssl':
-            crl = ca_impl.gencrl([],cacert.as_pem(),str(priv[0]['ca'])) 
+            crl = ca_impl.gencrl([],cacert.as_pem(),str(priv[0]['ca']))
         else:
             raise Exception("Unknown CA implementation: %s"%common.CA_IMPL)
 
