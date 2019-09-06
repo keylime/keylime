@@ -46,6 +46,7 @@ from keylime import ima
 from keylime import crypto
 from keylime import user_data_encrypt
 from keylime import ca_util
+from keylime import cloud_verifier_common
 
 # setup logging
 logger = keylime_logging.init_logging('tenant')
@@ -492,11 +493,12 @@ class Tenant():
     def do_cvstatus(self,listing=False):
         """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
+        states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
+        #print('states:', states)
         agent_uuid = ""
         if not listing:
             agent_uuid=self.agent_uuid
 
-        # params = '/agents/%s'% (agent_uuid)
         params = f'/agents/{agent_uuid}'
         response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
 
@@ -507,15 +509,19 @@ class Tenant():
             logger.error(f"Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port} timed out.")
             exit()
 
+        if response.status == 404:
+            logger.error(f"Agent {agent_uuid} does not exist on the verifier. Please try to add or update agent")
+            exit()
+
         if response.status != 200:
-            keylime_logging.log_http_response(logger,logging.ERROR,response.read().decode()())
             logger.error(f"Status command response: {response.status}. Unexpected response from Cloud Verifier.")
             exit()
         else:
-            logger.info(f"Agent Status {response.status}: {response.read().decode()}")
+            response_json = json.loads(response.read().decode())
+            operational_state = response_json["results"]["operational_state"]
+            logger.info(f'Agent Status: "{states[operational_state]}"')
 
     def do_cvdelete(self):
-        #params = '/agents/%s'% (self.agent_uuid)
         params = f'/agents/{self.agent_uuid}'
         response = httpclient_requests.request("DELETE", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params,  context=self.context)
 
@@ -822,7 +828,6 @@ def main(argv=sys.argv):
     elif args.command=='delete':
         mytenant.do_cvdelete()
     elif args.command=='status':
-        mytenant.do_cvstatus()
         mytenant.do_cvstatus()
     elif args.command=='list':
         mytenant.do_cvstatus(listing=True)
