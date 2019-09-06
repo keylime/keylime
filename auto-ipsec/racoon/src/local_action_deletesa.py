@@ -37,7 +37,7 @@ config.read(common.CONFIG_FILE)
 
 logger = keylime_logging.init_logging('delete-sa')
 
-def execute(revocation):
+async def execute(revocation):
     serial = revocation.get("metadata",{}).get("cert_serial",None)
     if revocation.get('type',None) != 'revocation' or serial is None:
         logger.error("Unsupported revocation message: %s"%revocation)
@@ -50,11 +50,11 @@ def execute(revocation):
     output = cmd_exec.run("racoonctl show-sa ipsec",lock=False,raiseOnError=True)['retout']
     deletelist=set()
     for line in output:
-        if not line.startswith("\t"):
+        if not line.startswith(b"\t"):
             certder = cmd_exec.run("racoonctl get-cert inet %s"%line.strip(),raiseOnError=False,lock=False)['retout']
             if len(certder)==0:
                 continue;
-            certobj = X509.load_cert_der_string(''.join(certder))
+            certobj = X509.load_cert_der_string(b''.join(certder))
 
             # check that CA is the same.  the strip indexing bit is to remove the stuff around it 'keyid:THEACTUALKEYID\n'
             if ca.get_ext('subjectKeyIdentifier').get_value() != certobj.get_ext('authorityKeyIdentifier').get_value().strip()[6:]:

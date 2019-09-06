@@ -20,6 +20,7 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
+import asyncio
 import http.server
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
@@ -594,7 +595,7 @@ def main(argv=sys.argv):
                 try:
                     module = importlib.import_module(action)
                     execute = getattr(module,'execute')
-                    execute(revocation)
+                    asyncio.run(execute(revocation))
                 except Exception as e:
                     logger.warn("Exception during execution of revocation action %s: %s"%(action,e))
         try:

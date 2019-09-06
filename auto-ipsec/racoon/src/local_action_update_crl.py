@@ -36,7 +36,7 @@ config.read(common.CONFIG_FILE)
 
 logger = keylime_logging.init_logging('update_crl')
 
-def execute(json_revocation):
+async def execute(json_revocation):
     if json_revocation['type']!='revocation':
         return
 
@@ -62,7 +62,8 @@ def execute(json_revocation):
     updated = False
     for i in range(10):
         logger.debug("Getting updated CRL from %s"%dist_path)
-        response = tornado_requests.request("GET", dist_path, None, None, None)
+        res = tornado_requests.request("GET", dist_path, None, None, None)
+        response = await res
         if response.status_code !=200:
             logger.warn("Unable to get updated CRL from %s.  Code %d"%(dist_path,response.status_code))
             time.sleep(1)
@@ -74,9 +75,10 @@ def execute(json_revocation):
 
         # write out the updated CRL
         logger.debug("Updating CRL in %s/unzipped/cacrl.der"%(secdir))
-        with open("%s/unzipped/cacrl.der"%(secdir),"w") as f:
+        with open("%s/unzipped/cacrl.der"%(secdir),"wb") as f:
             f.write(response.body)
         ca_util.convert_crl_to_pem("%s/unzipped/cacrl.der"%(secdir), "%s/unzipped/cacrl.pem"%secdir)
+
         updated = True
         break
 

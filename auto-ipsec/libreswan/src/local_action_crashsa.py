@@ -36,7 +36,7 @@ config.read(common.CONFIG_FILE)
 
 logger = keylime_logging.init_logging('delete-sa')
 
-def execute(revocation):
+async def execute(revocation):
     serial = revocation.get("metadata",{}).get("cert_serial",None)
     subject = revocation.get("metadata",{}).get("subject",None)
     if revocation.get('type',None) != 'revocation' or serial is None or subject is None:
@@ -50,6 +50,7 @@ def execute(revocation):
     # need to find any sa's that were established with that cert subject name
     output = cmd_exec.run("ipsec whack --trafficstatus",lock=False,raiseOnError=True)['retout']
     deletelist=set()
+    id = ""
     for line in output:
         line = line.strip()
         try:
