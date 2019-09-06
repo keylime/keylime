@@ -64,7 +64,7 @@ confirm_force_install () {
 if [[ -n "$(command -v dnf)" ]]; then
     PACKAGE_MGR=$(command -v dnf)
     PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
-    PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto python3-tornado python3-simplejson python3-requests yaml-cpp-devel"
+    PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto python3-tornado python3-simplejson python3-requests yaml-cpp-devel procps-ng"
     PYTHON_PIPS="pycryptodomex tornado pyzmq"
     BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
 elif [[ -n "$(command -v yum)" ]]; then
