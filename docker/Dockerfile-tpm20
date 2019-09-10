@@ -7,7 +7,7 @@
 
 FROM fedora:30
 MAINTAINER Luke Hinds <lhinds@redhat.com>
-LABEL version="3.0.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
+LABEL version="5.0.1" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
 ENV container docker
 # environment variables
@@ -17,36 +17,33 @@ ENV container docker
 ENV HOME /root
 ENV KEYLIME_HOME ${HOME}/keylime
 ENV TPM_HOME ${HOME}/swtpm2
-ENV TPM2_TSS ${HOME}/tpm2-tss
-ENV TPM2_TOOLS ${HOME}/tpm2-tools
-ENV TPM2_ABRMD ${HOME}/tpm2-abrmd
-RUN useradd --system --user-group tss
 
 # Packaged dependencies
 RUN dnf -y update
 RUN dnf -y install dnf-plugins-core --allowerasing
-RUN dnf -y builddep tpm2-tss
-RUN dnf -y builddep tpm2-tools
 RUN dnf -y install git \
            dbus-devel \
-           golang \
            openssl-devel \
-           ptyhon3-devel \
-           ptyhon3-pip \
-           ptyhon3-setuptools \
-           ptyhon3-tornado \
-           ptyhon3-virtualenv \
-           ptyhon3-zmq \
-           ptyhon3-yaml \
+           python3-devel \
+           python3-pip \
+           python3-setuptools \
+           python3-tornado \
+           python3-virtualenv \
+           python3-zmq \
+           python3-yaml \
+           python3-dbus \
+           python3-m2crypto \
+           python3-cryptography \
            procps \
            libtool \
+           tpm2-tss \
+           tpm2-tools \
            tpm2-abrmd \
            gcc \
            make \
            automake \
-           m2crypto \
            redhat-rpm-config \
-           libselinux-python \
+           libselinux-python3 \
            gnulib \
            glib2-devel \
            glib2-static \
@@ -70,31 +67,6 @@ RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
 RUN systemctl set-default multi-user.target
 ENV init /lib/systemd/systemd
 
-# TPM-TSS
-
-RUN git clone https://github.com/tpm2-software/tpm2-tss.git ${TPM2_TSS}
-WORKDIR ${TPM2_TSS}
-RUN ./bootstrap
-RUN ./configure --prefix=/usr --disable-doxygen-doc
-RUN make
-RUN make install
-
-# TPM2-TOOLS
-RUN git clone https://github.com/tpm2-software/tpm2-tools.git ${TPM2_TOOLS}
-WORKDIR ${TPM2_TOOLS}
-RUN ./bootstrap
-RUN SAPI_CFLAGS=' ' SAPI_LIBS='-ltss2-sys -L/usr/lib/' ./configure --prefix=/usr/local
-RUN make
-RUN make install
-
-# Enable TPM-ABRMD service
-RUN git clone https://github.com/tpm2-software/tpm2-abrmd.git ${TPM2_ABRMD}
-WORKDIR ${TPM2_ABRMD}
-RUN ./bootstrap
-RUN TSS2_SYS_CFLAGS=' ' TSS2_SYS_LIBS='-ltss2-sys -L/usr/lib/' ./configure --prefix=/usr
-RUN make
-RUN make install
-RUN ldconfig
 
 # Build and install TPM 2.0 simulator
 WORKDIR ${TPM_HOME}

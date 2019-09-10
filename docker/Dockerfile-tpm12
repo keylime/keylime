@@ -7,7 +7,7 @@
 
 FROM fedora:30
 MAINTAINER Luke Hinds <lhinds@redhat.com>
-LABEL version="0.2" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
+LABEL version="5.0.0" description="Keylime - Bootstrapping and Maintaining Trust"
 
 # environment variables
 ARG BRANCH=master
@@ -25,15 +25,19 @@ RUN dnf -y install git \
            python3-tornado \
            python3-virtualenv \
            python3-zmq \
+           python3-yaml \
+           python3-dbus \
+           python3-m2crypto \
+           python3-cryptography \
            procps \
            openssl-devel \
            libtool \
            gcc \
            make \
            automake \
-           m2crypto \
            redhat-rpm-config \
-           libselinux-python
+           libselinux-python3
+
 RUN dnf clean all
 
 # Build and install TPM 1.2 simulator
