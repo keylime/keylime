@@ -5,7 +5,7 @@
 # It is not recommended for use beyond testing scenarios.
 ##############################################################################
 
-FROM fedora:29
+FROM fedora:30
 MAINTAINER Luke Hinds <lhinds@redhat.com>
 LABEL version="3.0.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
@@ -31,13 +31,13 @@ RUN dnf -y install git \
            dbus-devel \
            golang \
            openssl-devel \
-           python-devel \
-           python-pip \
-           python-setuptools \
-           python-tornado \
-           python-virtualenv \
-           python2-zmq \
-           python-yaml \
+           ptyhon3-devel \
+           ptyhon3-pip \
+           ptyhon3-setuptools \
+           ptyhon3-tornado \
+           ptyhon3-virtualenv \
+           ptyhon3-zmq \
+           ptyhon3-yaml \
            procps \
            libtool \
            tpm2-abrmd \

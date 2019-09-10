@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
@@ -47,19 +48,29 @@ For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
 
 
 # System imports
+import asyncio
+import http.client
 import dbus
 import sys
 import signal
 import unittest
 import subprocess
 import time
-import json
 import os
-import ConfigParser
+import configparser
 import base64
 import threading
 import shutil
 import errno
+import pytest
+import hashlib
+
+try:
+    import simplejson as json
+except ImportError:
+    raise("Simplejson is mandatory, please install")
+
+from pathlib import Path
 
 # Coverage support
 if "COVERAGE_FILE" in os.environ:
@@ -67,25 +78,31 @@ if "COVERAGE_FILE" in os.environ:
     if "COVERAGE_DIR" in os.environ:
         FORK_ARGS += ["--rcfile="+os.environ["COVERAGE_DIR"]+"/.coveragerc"]
 else:
-    FORK_ARGS = ["python"]
+    FORK_ARGS = ["python3"]
 
-# Useful constants for the test
-KEYLIME_DIR=os.getcwdu()+"/../keylime/"
 
 # Custom imports
-sys.path.insert(0, KEYLIME_DIR)
-import common
-import tornado_requests
-import registrar_client
-import tenant
-import crypto
-import user_data_encrypt
-import secure_mount
-import tpm_obj
-from tpm_abstract import TPM_Utilities
+PACKAGE_ROOT = Path(__file__).parents[1]
+CODE_ROOT = (f"{PACKAGE_ROOT}/keylime/")
+sys.path.insert(0, CODE_ROOT)
+
+from keylime import common
+from keylime import tornado_requests
+from keylime import httpclient_requests
+from keylime import registrar_client
+from keylime import tenant
+from keylime import crypto
+from keylime import user_data_encrypt
+from keylime import secure_mount
+from keylime import tpm_obj
+from keylime import tpm_abstract
 
 # Will be used to communicate with the TPM
 tpm = None
+
+# cmp depreciated in Python 3, so lets recreate it.
+def cmp(a, b):
+    return (a > b) - (a < b)
 
 #Ensure this is run as root
 if os.geteuid() != 0 and common.REQUIRE_ROOT:
@@ -95,7 +112,7 @@ if os.geteuid() != 0 and common.REQUIRE_ROOT:
 unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(x, y)
 
 # Config-related stuff
-config = ConfigParser.SafeConfigParser()
+config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
 
 # Environment to pass to services
@@ -137,7 +154,7 @@ def setUpModule():
         tsd = subprocess.Popen(["tpm_serverd"], shell=False, env=env)
         tsd.wait()
     except Exception as e:
-        print "WARNING: Restarting TPM emulator failed!"
+        print("WARNING: Restarting TPM emulator failed!")
     # Note: the following is required as abrmd is failing to reconnect to MSSIM, once
     # MSSIM is killed and restarted. If this is an proved an actual bug and is
     # fixed upstream, the following dbus restart call can be removed.
@@ -148,7 +165,7 @@ def setUpModule():
         # If the systemd service exists, let's restart it.
         for service in sysbus.list_names():
             if "com.intel.tss2.Tabrmd" in service:
-                print("Found dbus service: %s", str(service))
+                print("Found dbus service:", str(service))
                 try:
                     print("Restarting tpm2-abrmd.service.")
                     job = manager.RestartUnit('tpm2-abrmd.service', 'fail')
@@ -159,12 +176,12 @@ def setUpModule():
 
     try:
         # Start with a clean slate for this test
-        fileRemove(common.WORK_DIR + "/tpmdata.json")
+        fileRemove(common.WORK_DIR + "/tpmdata.yaml")
         fileRemove(common.WORK_DIR + "/cv_data.sqlite")
         fileRemove(common.WORK_DIR + "/reg_data.sqlite")
         shutil.rmtree(common.WORK_DIR + "/cv_ca", True)
     except Exception as e:
-        print "WARNING: Cleanup of TPM files failed!"
+        print("WARNING: Cleanup of TPM files failed!")
 
     # CV must be run first to create CA and certs!
     launch_cloudverifier()
@@ -181,7 +198,7 @@ def setUpModule():
     tenant_templ.cloudagent_ip = "localhost"
     tenant_templ.agent_uuid = config.get('cloud_agent', 'agent_uuid')
     tenant_templ.registrar_boot_port = config.get('general', 'registrar_port')
-
+    tenant_templ.registrar_tls_boot_port = config.get('general', 'registrar_tls_port')
 # Destroy everything on teardown
 def tearDownModule():
     # Tear down in reverse order of dependencies
@@ -189,13 +206,11 @@ def tearDownModule():
     kill_cloudverifier()
     kill_registrar()
 
-
-
 def launch_cloudverifier():
     """Start up the cloud verifier"""
     global cv_process, script_env, FORK_ARGS
     if cv_process is None:
-        filename = ["%s/cloud_verifier_tornado.py"%(KEYLIME_DIR)]
+        filename = ["%s/cloud_verifier_tornado.py"%(CODE_ROOT)]
         cv_process = subprocess.Popen(
                                         FORK_ARGS + filename,
                                         shell=False,
@@ -208,8 +223,9 @@ def launch_cloudverifier():
             sys.stdout.write('\033[96m' + "\nCloud Verifier Thread" + '\033[0m')
             while True:
                 line = cv_process.stdout.readline()
-                if line=="":
+                if line==b'':
                     break
+                line = line.decode('utf-8')
                 line = line.rstrip(os.linesep)
                 sys.stdout.flush()
                 sys.stdout.write('\n\033[96m' + line + '\033[0m')
@@ -220,9 +236,10 @@ def launch_cloudverifier():
 
 def launch_registrar():
     """Start up the registrar"""
+    sys.path.insert(0, CODE_ROOT)
     global reg_process, script_env, FORK_ARGS
     if reg_process is None:
-        filename = ["%s/registrar.py"%(KEYLIME_DIR)]
+        filename = ["%s/registrar.py"%(CODE_ROOT)]
         reg_process = subprocess.Popen(
                                         FORK_ARGS + filename,
                                         shell=False,
@@ -235,9 +252,10 @@ def launch_registrar():
             sys.stdout.write('\033[95m' + "\nRegistrar Thread" + '\033[0m')
             while True:
                 line = reg_process.stdout.readline()
-                if line=="":
+                if line==b"":
                     break
-                line = line.rstrip(os.linesep)
+                #line = line.rstrip(os.linesep)
+                line = line.decode('utf-8')
                 sys.stdout.flush()
                 sys.stdout.write('\n\033[95m' + line + '\033[0m')
         t = threading.Thread(target=initthread)
@@ -249,7 +267,7 @@ def launch_cloudagent():
     """Start up the cloud agent"""
     global agent_process, script_env, FORK_ARGS
     if agent_process is None:
-        filename = ["%s/cloud_agent.py"%(KEYLIME_DIR)]
+        filename = ["%s/cloud_agent.py"%(CODE_ROOT)]
         agent_process = subprocess.Popen(
                                         FORK_ARGS + filename,
                                         shell=False,
@@ -262,9 +280,10 @@ def launch_cloudagent():
             sys.stdout.write('\033[94m' + "\nCloud Agent Thread" + '\033[0m')
             while True:
                 line = agent_process.stdout.readline()
-                if line=="":
+                if line==b'':
                     break
-                line = line.rstrip(os.linesep)
+                #line = line.rstrip(os.linesep)
+                line = line.decode('utf-8')
                 sys.stdout.flush()
                 sys.stdout.write('\n\033[94m' + line + '\033[0m')
         t = threading.Thread(target=initthread)
@@ -326,6 +345,7 @@ class TestRestful(unittest.TestCase):
     def setUpClass(cls):
         """Prepare the keys and payload to give to the CV"""
         contents = "random garbage to test as payload"
+        #contents = contents.encode('utf-8')
         ret = user_data_encrypt.encrypt(contents)
         cls.K = ret['k']
         cls.U = ret['u']
@@ -338,8 +358,8 @@ class TestRestful(unittest.TestCase):
         """Prepare policies for agent"""
         cls.tpm_policy = config.get('tenant', 'tpm_policy')
         cls.vtpm_policy = config.get('tenant', 'vtpm_policy')
-        cls.tpm_policy = TPM_Utilities.readPolicy(cls.tpm_policy)
-        cls.vtpm_policy = TPM_Utilities.readPolicy(cls.vtpm_policy)
+        cls.tpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.tpm_policy)
+        cls.vtpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.vtpm_policy)
 
         """Allow targeting a specific API version (default latest)"""
         cls.api_version = common.API_VERSION
@@ -354,15 +374,13 @@ class TestRestful(unittest.TestCase):
     def test_000_services(self):
         self.assertTrue(services_running(), "Not all services started successfully!")
 
-
-
     """Registrar Testset"""
     def test_010_reg_agent_post(self):
         """Test registrar's POST /v2/agents/{UUID} Interface"""
         global keyblob, aik, vtpm, ek
 
         # Change CWD for TPM-related operations
-        cwd = os.getcwdu()
+        cwd = os.getcwd()
         common.ch_dir(common.WORK_DIR,None)
         secdir = secure_mount.mount()
 
@@ -394,23 +412,21 @@ class TestRestful(unittest.TestCase):
         }
         v_json_message = json.dumps(data)
 
-        response = tornado_requests.request(
-                                            "POST",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.agent_uuid),
-                                            data=v_json_message,
-                                            context=None
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent Add return code!")
-        response_body = response.json()
+        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
+        response = httpclient_requests.request("POST", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
+
+        self.assertEqual(response.status, 200, "Non-successful Registrar agent Add return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
-        self.assertIn("blob", response_body["results"], "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+        self.assertIn("blob", json_response["results"], "Malformed response body!")
 
-        keyblob = response_body["results"]["blob"]
+        keyblob = json_response["results"]["blob"]
         self.assertIsNotNone(keyblob, "Malformed response body!")
 
     @unittest.skipIf(vtpm == True, "Registrar's PUT /v2/agents/{UUID}/activate only for non-vTPMs!")
+
     def test_011_reg_agent_activate_put(self):
         """Test registrar's PUT /v2/agents/{UUID}/activate Interface"""
         global keyblob, aik
@@ -419,24 +435,23 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
 
         key = tpm.activate_identity(keyblob)
+
         data = {
             'auth_tag': crypto.do_hmac(base64.b64decode(key),tenant_templ.agent_uuid),
         }
         v_json_message = json.dumps(data)
 
-        response = tornado_requests.request(
-                                            "PUT",
-                                            "http://%s:%s/v%s/agents/%s/activate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.agent_uuid),
-                                            data=v_json_message,
-                                            context=None
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent Activate return code!")
-        response_body = response.json()
+        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}/activate"
+        response = httpclient_requests.request("PUT", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
+
+        self.assertEqual(response.status, 200, "Non-successful Registrar agent Activate return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
 
     @unittest.skipIf(vtpm == False, "Registrar's PUT /v2/agents/{UUID}/vactivate only for vTPMs!")
+
     def test_012_reg_agent_vactivate_put(self):
         """Test registrar's PUT /v2/agents/{UUID}/vactivate Interface"""
         global keyblob, aik, ek
@@ -452,97 +467,88 @@ class TestRestful(unittest.TestCase):
         }
         v_json_message = json.dumps(data)
 
-        response = tornado_requests.request(
-                                            "PUT",
-                                            "http://%s:%s/v%s/agents/%s/vactivate"%(tenant_templ.registrar_ip,tenant_templ.registrar_boot_port,self.api_version,tenant_templ.agent_uuid),
-                                            data=v_json_message,
-                                            context=None
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent vActivate return code!")
-        response_body = response.json()
+        params = '/v%s/agents/%s/vactivate'% self.api_version, tenant_templ.agent_uuid
+        response = httpclient_requests.request("PUT", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_tls_boot_port, params=params, data=v_json_message, context=tenant_templ.context)
+        self.assertEqual(response.status, 200, "Non-successful Registrar agent vActivate return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+
 
     def test_013_reg_agents_get(self):
         """Test registrar's GET /v2/agents Interface"""
-        response = tornado_requests.request(
-                                            "GET",
-                                            "http://%s:%s/v%s/agents/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version),
-                                            context=tenant_templ.context
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent List return code!")
-        response_body = response.json()
+        params = f"/v{self.api_version}/agents/"
+        response = httpclient_requests.request("GET", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_tls_boot_port, params=params,  context=tenant_templ.context)
+
+        self.assertEqual(response.status, 200, "Non-successful Registrar agent List return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
-        self.assertIn("uuids", response_body["results"], "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+        self.assertIn("uuids", json_response["results"], "Malformed response body!")
 
         # We registered exactly one agent so far
-        self.assertEqual(1, len(response_body["results"]["uuids"]), "Incorrect system state!")
+        self.assertEqual(1, len(json_response["results"]["uuids"]), "Incorrect system state!")
+
 
     def test_014_reg_agent_get(self):
         """Test registrar's GET /v2/agents/{UUID} Interface"""
         global aik
+        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
+        response = httpclient_requests.request("GET", "%s"%(tenant_templ.registrar_ip),tenant_templ.registrar_tls_boot_port, params=params, data=None, context=tenant_templ.context)
 
-        response = tornado_requests.request(
-                                            "GET",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.agent_uuid),
-                                            context=tenant_templ.context
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent return code!")
-        response_body = response.json()
+        self.assertEqual(response.status, 200, "Non-successful Registrar agent return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
-        self.assertIn("aik", response_body["results"], "Malformed response body!")
-        self.assertIn("ek", response_body["results"], "Malformed response body!")
-        self.assertIn("ekcert", response_body["results"], "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+        self.assertIn("aik", json_response["results"], "Malformed response body!")
+        self.assertIn("ek", json_response["results"], "Malformed response body!")
+        self.assertIn("ekcert", json_response["results"], "Malformed response body!")
 
-        aik = response_body["results"]["aik"]
+        aik = json_response["results"]["aik"]
         #TODO: results->provider_keys is only for virtual mode
+
 
     def test_015_reg_agent_delete(self):
         """Test registrar's DELETE /v2/agents/{UUID} Interface"""
-        response = tornado_requests.request(
-                                            "DELETE",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.registrar_ip,tenant_templ.registrar_port,self.api_version,tenant_templ.agent_uuid),
-                                            context=tenant_templ.context
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar Delete return code!")
-        response_body = response.json()
+        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
+        response = httpclient_requests.request("DELETE", "%s"%(tenant_templ.registrar_ip),tenant_templ.registrar_tls_boot_port, params=params, context=tenant_templ.context)
+
+        self.assertEqual(response.status, 200, "Non-successful Registrar Delete return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
 
 
 
     """Agent Setup Testset"""
+
     def test_020_agent_keys_pubkey_get(self):
         """Test agent's GET /v2/keys/pubkey Interface"""
 
         # We want a real cloud agent to communicate with!
         launch_cloudagent()
+        params = f"/v{self.api_version}/keys/pubkey"
+        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params)
 
-        response = tornado_requests.request(
-                                            "GET",
-                                            "http://%s:%s/v%s/keys/pubkey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version),
-                                            context=None
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Agent pubkey return code!")
-        response_body = response.json()
+        self.assertEqual(response.status, 200, "Non-successful Agent pubkey return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
-        self.assertIn("pubkey", response_body["results"], "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+        self.assertIn("pubkey", json_response["results"], "Malformed response body!")
 
         global public_key
-        public_key = response_body["results"]["pubkey"]
+        public_key = json_response["results"]["pubkey"]
         self.assertNotEqual(public_key, None, "Malformed response body!")
 
     def test_021_reg_agent_get(self):
         # We need to refresh the aik value we've stored in case it changed
         self.test_014_reg_agent_get()
+
 
     def test_022_agent_quotes_identity_get(self):
         """Test agent's GET /v2/quotes/identity Interface"""
@@ -550,30 +556,29 @@ class TestRestful(unittest.TestCase):
 
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
 
-        nonce = TPM_Utilities.random_password(20)
+        nonce = tpm_abstract.TPM_Utilities.random_password(20)
 
         numretries = config.getint('tenant','max_retries')
         while numretries >= 0:
-            response = tornado_requests.request(
-                                                "GET",
-                                                "http://%s:%s/v%s/quotes/identity?nonce=%s"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version,nonce)
-                                            )
-            if response.status_code == 200:
+            params = f"/v{self.api_version}/quotes/identity?nonce={nonce}"
+            response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params, data=None, context=None)
+            if response.status == 200:
                 break
             numretries-=1
             time.sleep(config.getint('tenant','max_retries'))
-        self.assertEqual(response.status_code, 200, "Non-successful Agent identity return code!")
-        response_body = response.json()
+        self.assertEqual(response.status, 200, "Non-successful Agent identity return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
-        self.assertIn("quote", response_body["results"], "Malformed response body!")
-        self.assertIn("pubkey", response_body["results"], "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+        self.assertIn("quote", json_response["results"], "Malformed response body!")
+        self.assertIn("pubkey", json_response["results"], "Malformed response body!")
 
         # Check the quote identity
-        self.assertTrue(tpm.check_quote(nonce,response_body["results"]["pubkey"],response_body["results"]["quote"],aik), "Invalid quote!")
+        self.assertTrue(tpm.check_quote(nonce,json_response["results"]["pubkey"],json_response["results"]["quote"],aik), "Invalid quote!")
 
     @unittest.skip("Testing of agent's POST /v2/keys/vkey disabled!  (spawned CV should do this already)")
+
     def test_023_agent_keys_vkey_post(self):
         """Test agent's POST /v2/keys/vkey Interface"""
         # CV should do this (during CV POST/PUT test)
@@ -590,15 +595,15 @@ class TestRestful(unittest.TestCase):
                 }
         v_json_message = json.dumps(data)
 
-        response = tornado_requests.request(
-                                            "POST", "http://%s:%s/v%s/keys/vkey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version),
-                                            data=v_json_message
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Agent vkey post return code!")
-        response_body = response.json()
+        params = f"/v{self.api_version}/keys/vkey"
+        response = httpclient_requests.request("POST", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params, data=v_json_message)
+        self.assertEqual(response.status, 200, "Non-successful Agent vkey post return code!")
+        json_response = json.loads(response.read().decode())
+
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+
 
     def test_024_agent_keys_ukey_post(self):
         """Test agents's POST /v2/keys/ukey Interface"""
@@ -609,28 +614,27 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(self.auth_tag, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(self.payload, "Required value not set.  Previous step may have failed?")
 
-        encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),str(self.U))
+        encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),self.U)
         b64_encrypted_u = base64.b64encode(encrypted_U)
         data = {
                   'encrypted_key': b64_encrypted_u,
                   'auth_tag': self.auth_tag,
                   'payload': self.payload
                 }
-        u_json_message = json.dumps(data)
+        u_yaml_message = json.dumps(data)
 
-        response = tornado_requests.request(
-                                            "POST", "http://%s:%s/v%s/keys/ukey"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version),
-                                            data=u_json_message
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Agent ukey post return code!")
-        response_body = response.json()
+        params = '/v%s/keys/ukey'% self.api_version
+        response = httpclient_requests.request("POST", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params, data=u_yaml_message)
+        self.assertEqual(response.status, 200, "Non-successful Agent ukey post return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
 
 
 
     """Cloud Verifier Testset"""
+
     def test_030_cv_agent_post(self):
         """Test CV's POST /v2/agents/{UUID} Interface"""
         self.assertIsNotNone(self.V, "Required value not set.  Previous step may have failed?")
@@ -649,108 +653,99 @@ class TestRestful(unittest.TestCase):
             'accept_tpm_encryption_algs': config.get('tenant','accept_tpm_encryption_algs').split(','),
             'accept_tpm_signing_algs': config.get('tenant','accept_tpm_signing_algs').split(','),
         }
-        json_message = json.dumps(data)
+        yaml_message = json.dumps(data)
 
-        response = tornado_requests.request(
-                                            "POST",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.agent_uuid),
-                                            data=json_message,
-                                            context=tenant_templ.context
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful CV agent Post return code!")
-        response_body = response.json()
+        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
+        response = httpclient_requests.request("POST", "%s"%(tenant_templ.cloudverifier_ip),tenant_templ.cloudverifier_port, params=params, data=yaml_message, context=tenant_templ.context)
+
+        self.assertEqual(response.status, 200, "Non-successful CV agent Post return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
 
         time.sleep(10)
 
     @unittest.skip("Testing of CV's PUT /v2/agents/{UUID} disabled!")
+
     def test_031_cv_agent_put(self):
         """Test CV's PUT /v2/agents/{UUID} Interface"""
         #TODO: this should actually test PUT functionality (e.g., make agent fail and then PUT back up)
-        response = tornado_requests.request(
-                                            "PUT",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.agent_uuid),
-                                            data=b'',
-                                            context=tenant_templ.context
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful CV agent Post return code!")
-        response_body = response.json()
+        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
+        response = httpclient_requests.request("PUT", "%s"%(tenant_templ.cloudverifier_ip),tenant_templ.cloudverifier_port, params=params, data=b'', context=tenant_templ.context)
+
+        self.assertEqual(response.status, 200, "Non-successful CV agent Post return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+
 
     def test_032_cv_agents_get(self):
         """Test CV's GET /v2/agents Interface"""
-        response = tornado_requests.request(
-                                            "GET",
-                                            "http://%s:%s/v%s/agents/"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version),
-                                            context=tenant_templ.context
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful CV agent List return code!")
-        response_body = response.json()
+        params = f"/v{self.api_version}/agents/"
+        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
+
+        self.assertEqual(response.status, 200, "Non-successful CV agent List return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
-        self.assertIn("uuids", response_body["results"], "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+        self.assertIn("uuids", json_response["results"], "Malformed response body!")
 
         # Be sure our agent is registered
-        self.assertEqual(1, len(response_body["results"]["uuids"]))
+        self.assertEqual(1, len(json_response["results"]["uuids"]))
+
 
     def test_033_cv_agent_get(self):
         """Test CV's GET /v2/agents/{UUID} Interface"""
-        response = tornado_requests.request(
-                                            "GET",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.agent_uuid),
-                                            context=tenant_templ.context
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful CV agent return code!")
-        response_body = response.json()
+        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
+        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
+        self.assertEqual(response.status, 200, "Non-successful CV agent return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
 
         # Check a few of the important properties are present
-        self.assertIn("operational_state", response_body["results"], "Malformed response body!")
-        self.assertIn("ip", response_body["results"], "Malformed response body!")
-        self.assertIn("port", response_body["results"], "Malformed response body!")
+        self.assertIn("operational_state", json_response["results"], "Malformed response body!")
+        self.assertIn("ip", json_response["results"], "Malformed response body!")
+        self.assertIn("port", json_response["results"], "Malformed response body!")
 
 
 
     """Agent Poll Testset"""
+
     def test_040_agent_quotes_integrity_get(self):
         """Test agent's GET /v2/quotes/integrity Interface"""
         global public_key, aik
 
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
 
-        nonce = TPM_Utilities.random_password(20)
+        nonce = tpm_abstract.TPM_Utilities.random_password(20)
         mask = self.tpm_policy["mask"]
         vmask = self.vtpm_policy["mask"]
         partial = "1"
         if public_key is None:
             partial = "0"
 
-        response = tornado_requests.request(
-                                            "GET",
-                                            "http://%s:%s/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version,nonce,mask,vmask,partial)
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Agent Integrity Get return code!")
-        response_body = response.json()
+        params = f"/v{self.api_version}/quotes/integrity?nonce={nonce}&mask={mask}&vmask={vmask}&partial={partial}"
+        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params)
+        self.assertEqual(response.status, 200, "Non-successful Agent Integrity Get return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
-        self.assertIn("quote", response_body["results"], "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+        self.assertIn("quote", json_response["results"], "Malformed response body!")
         if public_key is None:
-            self.assertIn("pubkey", response_body["results"], "Malformed response body!")
-            public_key = response_body["results"]["pubkey"]
-        self.assertIn("tpm_version", response_body["results"], "Malformed response body!")
-        self.assertIn("hash_alg", response_body["results"], "Malformed response body!")
+            self.assertIn("pubkey", json_response["results"], "Malformed response body!")
+            public_key = json_response["results"]["pubkey"]
+        self.assertIn("tpm_version", json_response["results"], "Malformed response body!")
+        self.assertIn("hash_alg", json_response["results"], "Malformed response body!")
 
-        quote = response_body["results"]["quote"]
-        tpm_version = response_body["results"]["tpm_version"]
-        hash_alg = response_body["results"]["hash_alg"]
+        quote = json_response["results"]["quote"]
+        tpm_version = json_response["results"]["tpm_version"]
+        hash_alg = json_response["results"]["hash_alg"]
 
         validQuote = tpm.check_quote(nonce,
                                             public_key,
@@ -760,45 +755,43 @@ class TestRestful(unittest.TestCase):
                                             hash_alg=hash_alg)
         self.assertTrue(validQuote)
 
-    def test_041_agent_keys_verify_get(self):
-        """Test agent's GET /v2/keys/verify Interface"""
+
+    async def test_041_agent_keys_verify_get(self):
+        """Test agent's GET /v2/keys/verify Interface
+        We use async here to allow function await while key processes"""
         self.assertIsNotNone(self.K, "Required value not set.  Previous step may have failed?")
+        challenge = tpm_abstract.TPM_Utilities.random_password(20)
+        encoded = base64.b64encode(self.K).decode('utf-8')
 
-        challenge = TPM_Utilities.random_password(20)
-
-        response = tornado_requests.request(
-                                            "GET",
-                                            "http://%s:%s/v%s/keys/verify?challenge=%s"%(tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port,self.api_version,challenge)
-                                        )
-        self.assertEqual(response.status_code, 200, "Non-successful Agent verify return code!")
-        response_body = response.json()
+        response = tornado_requests.request("GET",
+                                    "http://%s:%s/keys/verify?challenge=%s"%(self.cloudagent_ip,self.cloudagent_port,challenge))
+        response = await response
+        self.assertEqual(response.status, 200, "Non-successful Agent verify return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
-        self.assertIn("hmac", response_body["results"], "Malformed response body!")
+        self.assertIn("results", json_response, "Malformed response body!")
+        self.assertIn("hmac", json_response["results"], "Malformed response body!")
 
         # Be sure response is valid
-        mac = response_body['results']['hmac']
-        ex_mac = crypto.do_hmac(self.K, challenge)
+        mac = json_response['results']['hmac']
+        ex_mac = crypto.do_hmac(encoded, challenge)
+        # ex_mac = crypto.do_hmac(self.K, challenge)
         self.assertEqual(mac, ex_mac, "Agent failed to validate challenge code!")
 
-
-
     """CV Cleanup Testset"""
+
     def test_050_cv_agent_delete(self):
         """Test CV's DELETE /v2/agents/{UUID} Interface"""
         time.sleep(5)
-        response = tornado_requests.request(
-                                            "DELETE",
-                                            "http://%s:%s/v%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,self.api_version,tenant_templ.agent_uuid),
-                                            context=tenant_templ.context
-                                        )
-        self.assertEqual(response.status_code, 202, "Non-successful CV agent Delete return code!")
-        response_body = response.json()
+
+        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
+        response = httpclient_requests.request("DELETE", "%s"%tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
+        self.assertEqual(response.status, 202, "Non-successful CV agent Delete return code!")
+        json_response = json.loads(response.read().decode())
 
         # Ensure response is well-formed
-        self.assertIn("results", response_body, "Malformed response body!")
-
+        self.assertIn("results", json_response, "Malformed response body!")
 
 
     def tearDown(self):

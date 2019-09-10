@@ -3,28 +3,26 @@
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
-This material is based upon work supported by the Assistant Secretary of Defense for 
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
+This material is based upon work supported by the Assistant Secretary of Defense for
+Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
 FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the 
+material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
 
 Copyright 2015 Massachusetts Institute of Technology.
 
 The software/firmware is provided to you on an As-Is basis
 
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-above. Use of this work other than as specifically authorized by the U.S. Government may 
+Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
+252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
+rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
+above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
 '''
 
-from __future__ import print_function
+
 
 import base64
-import common
-import keylime_logging
 import errno
 import hashlib
 import inspect
@@ -36,8 +34,15 @@ import sys
 import time
 import tempfile
 from uuid import UUID
-import json
-import tpm_obj
+
+try:
+    import simplejson as json
+except ImportError:
+    raise("Simplejson is mandatory, please install")
+
+from keylime import common
+from keylime import keylime_logging
+from keylime import tpm_obj
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)
@@ -65,24 +70,24 @@ VTPM_ORD_VTPM_NEW = 0x02000204
 # Serialized format of a UUID
 uuid_fmt = '4s2s2s2s6s'
 
-# 
+#
 # def get_default_data_dir():
 #     keylime_dir = os.path.expanduser("~/.keylime")
 #     if not os.path.exists(keylime_dir):
 #         os.mkdir(keylime_dir)
 #     return keylime_dir
-# 
-# 
-# 
-# 
+#
+#
+#
+#
 # class VTPMGroup(object):
 #     """A class that represents a groupof VTPMs managed by the VTPM Manager
-# 
+#
 #     This class is not intended to be instantiated directly.
 #     `VTPMManager`` returns objects that are instances of this class.
 #     """
 #     _groups = { }
-# 
+#
 #     def __new__(cls, uuid, aik_path, vtpm, added=False):
 #         """
 #         Args
@@ -94,25 +99,25 @@ uuid_fmt = '4s2s2s2s6s'
 #         """
 #         if uuid in VTPMGroup._groups:
 #             return VTPMGroup._groups[uuid]
-# 
+#
 #         obj = object.__new__(cls)
 #         obj.uuid = uuid
 #         obj.aik_path = aik_path
 #         obj.vtpm = vtpm
-# 
+#
 #         if added:
 #             VTPMGroup._groups[uuid] = obj
 #         return obj
-# 
+#
 #     @property
 #     def num(self):
 #         return self.vtpm.get_groupnum(self.uuid)
-# 
-# 
+#
+#
 # class VTPMManager(object):
 #     """A class that represents the Xen VTPM Manager"""
 #     keyblob_path = 'key.blob'
-# 
+#
 #     def __init__(self, data_dir=get_default_data_dir(), pubek_path=None,
 #                  force_reinit=True):
 #         """
@@ -131,40 +136,40 @@ uuid_fmt = '4s2s2s2s6s'
 #         if not os.path.exists(pubek_path):
 #             raise OSError('"{0}" does not exist'.format(pubek_path),
 #                           os.strerror(errno.ENOENT), errno.ENOENT)
-# 
+#
 #         with open(pubek_path, 'rb') as pubek_f:
 #             pubek = pubek_f.read()
-# 
+#
 #             rsamod_path = pubek_path + '.bin'
 #             public_mod = get_mod_from_pem(pubek)
 #             with open(rsamod_path, 'wb') as f:
 #                 f.write(public_mod)
 #             print('Wrote {0} bytes to {1}'.format(len(public_mod), rsamod_path))
-# 
+#
 #             self.pubek_path = pubek_path
 #             self.rsamod_path = rsamod_path
 #             self.groupaiks = {}
-# 
+#
 #         VTPMGroup._groups = {}
 #         for i in range(self.count_groups()):
 #             self.get_group(i)
-# 
+#
 #     def count_groups(self):
 #         """ Returns the number of Added VTPM Groups """
 #         return count_groups()
-# 
+#
 #     def get_groupnum(self, group_uuid):
 #         for i in range(self.count_groups()):
 #             group = show_group(i)
 #             if group_uuid == group['uuid']:
 #                 return i
 #         raise LookupError('Could not find group with UUID: {0}'.format(group_uuid))
-# 
+#
 #     def get_group(self, groupnum):
 #         """ Returns the ```VTPMGroup``` for ``groupnum``"""
 #         ginfo = get_group_info(groupnum)
 #         return VTPMGroup(ginfo['uuid'], ginfo['aikpem'], self)
-# 
+#
 #     def activate_group(self, groupnum, keyblob):
 #         """ Returns an AES symmetric key derived from base64 ``keyblob`` """
 #         with open(self.keyblob_path, 'w') as f:
@@ -172,62 +177,62 @@ uuid_fmt = '4s2s2s2s6s'
 #         symkey = do_group_activate(groupnum, self.keyblob_path)
 #         self.groupaiks[groupnum] = symkey
 #         return symkey
-# 
+#
 #     def add_group(self):
 #         """ Adds a new VTPM Group and returns its ``VTPMGroup``"""
 #         (uuid, aik, _) = do_group_add(self.rsamod_path)
 #         aik_base = aik.split('.pub')[0]
 #         check_call('tpmconv -ik {0} -ok {1}'.format(aik, aik_base), shell=True)
-# 
+#
 #         return VTPMGroup(uuid, aik_base + '.pem', self, True)
-# 
+#
 #     def add_vtpm(self, groupnum):
 #         """ Adds a new VTPM to VTPMGroup ``groupnum`` and returns its UUID"""
 #         return add_vtpm(groupnum)
-# 
-# 
+#
+#
 # class StubVTPMManager(VTPMManager):
 #     """
 #     A stub implementation of VTPMManager which performs no writes to /dev/tpm0
 #     but implements all methods.
 #     """
-# 
+#
 #     group_uuid = 'c697ce76-641c-41fb-a4a6-b816860afd11'
 #     vtpm_uuid = 'C432FBB3-D2F1-4A97-9EF7-75BD81C866E9'
-# 
+#
 #     def __init__(self):
 #         self.aikpath = '{0}/{1}_aik.pem'.format(get_default_data_dir(),self.group_uuid)
 #         self.pubekpath = '{0}/test_pubek.pem'.format(get_default_data_dir())
 #         self.blobpath = '{0}/test_key.blob'.format(get_default_data_dir())
 #         self.aespath = '{0}/test_key.aes'.format(get_default_data_dir())
-# 
+#
 #         if not os.path.exists(self.aikpath):
 #             with open(self.aikpath, 'wb') as f:
 #                 f.write(common.TEST_HAIK)
-# 
+#
 #         if not os.path.exists(self.pubekpath):
 #             with open(self.pubekpath, 'wb') as f:
 #                 f.write(common.TEST_PUB_EK)
-# 
+#
 #     def get_groupnum(self, group_uuid):
 #         """ Returns ``0`` """
 #         return 0
-# 
+#
 #     def count_groups(self):
 #         """ Returns ``1`` """
 #         return 1
-# 
+#
 #     def activate_group(self, groupnum, keyblob):
 #         """
 #         Returns the symkey generated from ``encaik`` on
 #         ``common.TEST_AIK`` and ``common.TEST_PUB_EK``
 #         """
 #         return common.TEST_AES_REG_KEY
-# 
+#
 #     def add_group(self):
 #         """ Returns the uuid in ``StubVTPMManager.group_uuid``"""
 #         return VTPMGroup(self.group_uuid, self.aikpath, self)
-# 
+#
 #     def add_vtpm(self, groupnum):
 #         """ Returns the uuid in ``StubVTPMManager.vtpm_uuid``"""
 #         return self.vtpm_uuid
@@ -451,16 +456,16 @@ def tpmconv(inmod):
     """ convert a raw modulus file into a pem file """
     tmppath = None
     try:
-        #make a temp file for the output 
+        #make a temp file for the output
         tmpfd,tmppath = tempfile.mkstemp()
-        
-        #make temp file for the input       
+
+        #make temp file for the input
         infd, intemp = tempfile.mkstemp()
         inFile = open(intemp,"wb")
         inFile.write(inmod)
         inFile.close()
         os.close(infd)
-                
+
         command = "tpmconv -ik %s -ok %s" % (inFile.name,tmppath)
         tpm.__run(command,lock=False)
 
@@ -474,7 +479,7 @@ def tpmconv(inmod):
             os.remove(tmppath)
         if inFile is not None:
             os.remove(inFile.name)
-    
+
     return pem
 
 def get_group_num(desired_uuid):
@@ -486,16 +491,16 @@ def get_group_num(desired_uuid):
         if uuid == desired_uuid:
             return group_num
     raise Exception("Group %s not found"%(desired_uuid))
-    
-    
+
+
 def add_vtpm_group(rsa_mod=None):
     """ Add new vtpm group"""
     fprt = "add_vtpm_group"
     if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
-        # Use canned values for stubbing 
+        # Use canned values for stubbing
         jsonIn = common.TPM_CANNED_VALUES
         if fprt in jsonIn:
-            # The value we're looking for has been canned! 
+            # The value we're looking for has been canned!
             thisTiming = jsonIn[fprt]['timing']
             thisRetout = jsonIn[fprt]['retout']
             logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
@@ -504,11 +509,11 @@ def add_vtpm_group(rsa_mod=None):
         else:
             # Our command hasn't been canned!
             raise Exception("Command %s not found in canned JSON!"%(fprt))
-    
+
     logger.debug('Adding group')
-    
+
     t0=time.time()
-    
+
     if rsa_mod is None:
         rsa_mod = '\x00' * 256
     assert len(rsa_mod) == 256
@@ -519,28 +524,28 @@ def add_vtpm_group(rsa_mod=None):
     uuid = struct.unpack(uuid_fmt, uuid)
     uuid = '-'.join([part.encode('hex') for part in uuid])
     logger.info('Created group with UUID: %s', uuid)
-    
+
     aikpem = tpmconv(aik_pub)
     # return the group
     group_num = get_group_num(uuid)
     t1=time.time()
-    
+
     retout = (uuid,aikpem,group_num,base64.b64encode(aik_priv_ca))
-    
+
     if common.TPM_CANNED_VALUES_PATH is not None:
         with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
             jsonObj = {'type':"add_vtpm_group",'retout':list(retout),'fileout':"",'cmd':"add_vtpm_group",'timing':t1-t0,'code':0,'nonce':None}
-            can.write("\"%s\": %s,\n"%("add_vtpm_group",json.dumps(jsonObj,indent=4,sort_keys=True)))
-            
+            can.write("\"%s\": %s,\n"%("add_vtpm_group",json.dumps(jsonObj,indent=4,sort_keys=True, Dumper=SafeDumper)))
+
     return retout
 
 def activate_group(uuid,keyblob):
     fprt = "activate_group"
     if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
-        # Use canned values for stubbing 
+        # Use canned values for stubbing
         jsonIn = common.TPM_CANNED_VALUES
         if fprt in jsonIn:
-            # The value we're looking for has been canned! 
+            # The value we're looking for has been canned!
             thisTiming = jsonIn[fprt]['timing']
             thisRetout = jsonIn[fprt]['retout']
             logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
@@ -549,7 +554,7 @@ def activate_group(uuid,keyblob):
         else:
             # Our command hasn't been canned!
             raise Exception("Command %s not found in canned JSON!"%(fprt))
-        
+
     t0=time.time()
     group_id = get_group_num(uuid)
     priv_ca = base64.b64decode(keyblob)
@@ -563,7 +568,7 @@ def activate_group(uuid,keyblob):
     logger.info('Received Key. AlgID: 0x%x, encScheme: 0x%x, size: 0x%x',
                 algId, encScheme, size)
     logger.info('Key: %r', body)
-    
+
     if common.TPM_CANNED_VALUES_PATH is not None:
         with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
             jsonObj = {'type':"activate_group",'retout':base64.b64encode(body),'fileout':"",'cmd':"activate_group",'timing':t1-t0,'code':0,'nonce':None}
@@ -574,10 +579,10 @@ def activate_group(uuid,keyblob):
 def add_vtpm_to_group(uuid):
     fprt = "add_vtpm_to_group"
     if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
-        # Use canned values for stubbing 
+        # Use canned values for stubbing
         jsonIn = common.TPM_CANNED_VALUES
         if fprt in jsonIn:
-            # The value we're looking for has been canned! 
+            # The value we're looking for has been canned!
             thisTiming = jsonIn[fprt]['timing']
             thisRetout = jsonIn[fprt]['retout']
             logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
@@ -586,17 +591,17 @@ def add_vtpm_to_group(uuid):
         else:
             # Our command hasn't been canned!
             raise Exception("Command %s not found in canned JSON!"%(fprt))
-        
+
     t0=time.time()
     num = get_group_num(uuid)
     vtpm_uuid = add_vtpm(num)
     t1=time.time()
-    
+
     retout = str(UUID(vtpm_uuid)).upper()
-    
+
     if common.TPM_CANNED_VALUES_PATH is not None:
         with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
             jsonObj = {'type':"add_vtpm_to_group",'retout':retout,'fileout':"",'cmd':"add_vtpm_to_group",'timing':t1-t0,'code':0,'nonce':None}
             can.write("\"%s\": %s,\n"%("add_vtpm_to_group",json.dumps(jsonObj,indent=4,sort_keys=True)))
-        
+
     return retout

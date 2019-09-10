@@ -3,10 +3,10 @@
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
-This material is based upon work supported by the Assistant Secretary of Defense for 
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
+This material is based upon work supported by the Assistant Secretary of Defense for
+Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
 FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the 
+material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
 
 Copyright 2015 Massachusetts Institute of Technology.
@@ -20,7 +20,6 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-from __future__ import print_function
 import keylime.common
 keylime.common.USE_CLIME=True
 from keylime.tpm_quote import check_deep_quote, check_quote

@@ -35,7 +35,7 @@ TPM2TSS_VER="2.0.x"
 TPM2TOOLS_VER="3.X"
 
 # Minimum version requirements
-MIN_PYTHON_VERSION="2.7.10"
+MIN_PYTHON_VERSION="3.6.7"
 MIN_PYSETUPTOOLS_VERSION="0.7"
 MIN_PYTORNADO_VERSION="4.3"
 MIN_PYM2CRYPTO_VERSION="0.21.1"
@@ -61,32 +61,26 @@ confirm_force_install () {
 
 
 # Which package management system are we using?
-if [[ -n "$(command -v dnf)" || -n "$(command -v yum)" ]]; then
-    if [[ -n "$(command -v dnf)" ]]; then
-        PACKAGE_MGR=$(command -v dnf)
-    elif [[ -n "$(command -v yum)" ]]; then
-        PACKAGE_MGR=$(command -v yum)
-    fi
-
-    # Only install epel-release if it is available (e.g., not Fedora)
-    EXTRA_PKGS_STR=
-    if [[ -n "$($PACKAGE_MGR search epel-release 2>/dev/null)" ]]; then
-        EXTRA_PKGS_STR="epel-release python python-devel python-setuptools"
-    else
-        EXTRA_PKGS_STR="python2 python2-devel python2-setuptools"
-    fi
-
-    PACKAGE_MGR=$(command -v yum)
-    PYTHON_PREIN="$EXTRA_PKGS_STR git wget patch"
-    PYTHON_DEPS="python2-pip gcc gcc-c++ openssl-devel swig python2-pyyaml"
-    PYTHON_PIPS="pycryptodomex m2crypto tornado pyzmq"
+if [[ -n "$(command -v dnf)" ]]; then
+    PACKAGE_MGR=$(command -v dnf)
+    PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
+    PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto python3-tornado python3-simplejson python3-requests yaml-cpp-devel procps-ng"
+    PYTHON_PIPS="pycryptodomex tornado pyzmq"
     BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
+elif [[ -n "$(command -v yum)" ]]; then
+    PACKAGE_MGR=$(command -v yum)
+    $PACKAGE_MGR -y install epel-release
+    PYTHON_PREIN="python36 python36-devel python36-setuptools python36-pip git wget patch openssl"
+    PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python36-simplejson python36-requests yaml-cpp-devel"
+    PYTHON_PIPS="pycryptodomex tornado pyzmq m2crypto"
+    BUILD_TOOLS="openssl-devel libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
     PYTHON_PREIN="git patch"
-    PYTHON_DEPS="python python-pip python-dev python-setuptools python-zmq gcc g++ libssl-dev swig python-yaml"
-    PYTHON_PIPS="pycryptodomex m2crypto tornado"
+    PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-simplejson python3-requests gcc g++ libssl-dev swig python3-yaml wget"
+    PYTHON_PIPS="pycryptodomex m2crypto"
     BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev"
+    $PACKAGE_MGR update
 else
    echo "No recognized package manager found on this system!" 1>&2
    exit 1
@@ -150,46 +144,46 @@ if [[ $? > 0 ]] ; then
     echo "ERROR: Package(s) failed to install properly!"
     exit 1
 fi
-pip install $PYTHON_PIPS
+pip3 install $PYTHON_PIPS
 
 
 # Ensure Python is installed
-if [[ ! `command -v python` ]] ; then
+if [[ ! `command -v python3` ]] ; then
     echo "ERROR: Python failed to install properly!"
     exit 1
 else
     # Ensure Python installed meets min requirements
-    py_ver=$(python -c 'import platform; print platform.python_version()')
+    py_ver=$(python3 -c 'import platform; print(platform.python_version())')
     if ! $(version_checker "$MIN_PYTHON_VERSION" "$py_ver"); then
         confirm_force_install "ERROR: Minimum Python version is $MIN_PYTHON_VERSION, but $py_ver is installed!" || exit 1
     fi
 
     # Ensure Python setuptools installed meets min requirements
-    pyset_ver=$(python -c 'import setuptools; print setuptools.__version__')
+    pyset_ver=$(python3 -c 'import setuptools; print(setuptools.__version__)')
     if ! $(version_checker "$MIN_PYSETUPTOOLS_VERSION" "$pyset_ver"); then
         confirm_force_install "ERROR: Minimum python-setuptools version is $MIN_PYSETUPTOOLS_VERSION, but $pyset_ver is installed!" || exit 1
     fi
 
     # Ensure Python tornado installed meets min requirements
-    pynado_ver=$(python -c 'import tornado; print tornado.version')
+    pynado_ver=$(python3 -c 'import tornado; print(tornado.version)')
     if ! $(version_checker "$MIN_PYTORNADO_VERSION" "$pynado_ver"); then
         confirm_force_install "ERROR: Minimum python-tornado version is $MIN_PYTORNADO_VERSION, but $pynado_ver is installed!" || exit 1
     fi
 
     # Ensure Python M2Crypto installed meets min requirements
-    pym2_ver=$(python -c 'import M2Crypto; print M2Crypto.version')
+    pym2_ver=$(python3 -c 'import M2Crypto; print(M2Crypto.version)')
     if ! $(version_checker "$MIN_PYM2CRYPTO_VERSION" "$pym2_ver"); then
         confirm_force_install "ERROR: Minimum python-M2Crypto version is $MIN_PYM2CRYPTO_VERSION, but $pym2_ver is installed!" || exit 1
     fi
 
     # Ensure Python ZeroMQ installed meets min requirements
-    pyzmq_ver=$(python -c 'import zmq; print zmq.__version__')
+    pyzmq_ver=$(python3 -c 'import zmq; print(zmq.__version__)')
     if ! $(version_checker "$MIN_PYZMQ_VERSION" "$pyzmq_ver"); then
         confirm_force_install "ERROR: Minimum python-zmq version is $MIN_PYZMQ_VERSION, but $pyzmq_ver is installed!" || exit 1
     fi
 
     # Ensure Python pycryptodomex installed meets min requirements
-    pycdom_ver=$(pip freeze | grep pycryptodomex | cut -d"=" -f3)
+    pycdom_ver=$(pip3 freeze | grep pycryptodomex | cut -d"=" -f3)
     if ! $(version_checker "$MIN_PYCRYPTODOMEX_VERSION" "$pycdom_ver"); then
         confirm_force_install "ERROR: Minimum python-pycryptodomex version is $MIN_PYCRYPTODOMEX_VERSION, but $pycdom_ver is installed!" || exit 1
     fi
@@ -310,7 +304,13 @@ else
     if [[ -z "$GOPATH" ]] ; then
         # GOPATH is not set up correctly
         echo "ERROR: GOPATH is not set up correctly!  This is required for cfssl."
-        exit 1
+        echo "Do you want to setup a default GOPATH with the following:"
+        echo " mkdir -p $HOME/go && echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc && source $HOME/.bashrc"
+        read -r -p "Proceed? [y/N] " resp
+    	case "$resp" in
+        	[yY]) mkdir -p $HOME/go && echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc && source $HOME/.bashrc ;;
+        	*) exit 1 ;;
+    	esac
     fi
 
     # Ensure Go installed meets min requirements
@@ -495,7 +495,7 @@ echo "==========================================================================
 echo $'\t\t\t\tInstall Keylime'
 echo "=================================================================================="
 cd $KEYLIME_DIR
-python setup.py install
+python3 setup.py install
 
 if [[ -f "/etc/keylime.conf" ]] ; then
     if [[ $(diff -N "/etc/keylime.conf" "keylime.conf") ]] ; then

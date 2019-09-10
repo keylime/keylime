@@ -1,5 +1,5 @@
 import os.path
-import common
+from keylime import common
 import sys
 import logging.config
 
@@ -30,9 +30,8 @@ def log_http_response(logger, loglevel, response_body):
 
     return True
 
-LOG_TO_FILE=['cloudagent','registrar','provider_registrar','cloudverifier']
+LOG_TO_FILE=['registrar','provider_registrar','cloudverifier']
 # not clear that this works right.  console logging may not work
-LOG_TO_SYSCONSOLE=['cloudagent']
 LOG_TO_STREAM=['tenant_webapp']
 LOGDIR='/var/log/keylime'
 if not common.REQUIRE_ROOT:
@@ -72,14 +71,5 @@ def init_logging(loggername):
         basic_formatter = logging.Formatter('%(created)s  %(name)s  %(levelname)s  %(message)s')
         fh.setFormatter(basic_formatter)
         mainlogger.addHandler(fh)
-
-    if loggername in LOG_TO_SYSCONSOLE:
-        if os.getuid()!=0:
-            logger.warning("unable to log to /dev/console. please run as root")
-        else:
-            fh = logging.FileHandler("/dev/console")
-            fh.setLevel(logger.getEffectiveLevel())
-            fh.setFormatter(basic_formatter)
-            mainlogger.addHandler(fh)
 
     return logger

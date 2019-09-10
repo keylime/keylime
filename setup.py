@@ -95,8 +95,7 @@ setup(
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.7',
     ],
 
     # What does your project relate to?
@@ -110,7 +109,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['pycryptodomex>=3.4.1','tornado==4.3','m2crypto>=0.21.1','pyzmq>=14.4','pyyaml>=3.11'],
+    install_requires=['pycryptodomex>=3.4.1','tornado>=4.3,<6','m2crypto>=0.21.1','pyzmq>=14.4','pyyaml>=3.11','simplejson>=3.8','requests>=2.6'],
 
     # test packages required
     tests_require=['green','coverage'],

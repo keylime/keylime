@@ -22,33 +22,29 @@
 ##########################################################################################
 
 
-# Which package management system are we using? 
-if [[ -n "$(command -v dnf)" || -n "$(command -v yum)" ]]; then
-    if [[ -n "$(command -v dnf)" ]]; then
-        PACKAGE_MGR=$(command -v dnf)
-    elif [[ -n "$(command -v yum)" ]]; then
-        PACKAGE_MGR=$(command -v yum)
-    fi 
+
+
+# Which package management system are we using?
+if [[ -n "$(command -v dnf)" ]]; then
+    PACKAGE_MGR=$(command -v dnf)
     PACKAGE_INSP="rpm -ql"
-    
-    # Only install epel-release if it is available (e.g., not Fedora)
-    EXTRA_PKGS_STR=
-    if [[ -n "$($PACKAGE_MGR search epel-release 2>/dev/null)" ]]; then
-        EXTRA_PKGS_STR="epel-release python python-devel python-setuptools"
-    else
-        EXTRA_PKGS_STR="python2 python2-devel python2-setuptools"
-    fi
-    
+    PYTHON_PREIN="python3 python3-devel python3-setuptools git wget"
+    PYTHON_DEPS="python3-pip gcc gcc-c++ upx czmq-devel zeromq-devel openssl-devel swig python3-pyyaml python3-m2crypto python3-tornado python3-simplejson python3-requests yaml-cpp-devel"
+    PYTHON_PIPS="pycryptodomex pyzmq pyinstaller"
+elif [[ -n "$(command -v yum)" ]]; then
     PACKAGE_MGR=$(command -v yum)
-    PYTHON_PREIN="$EXTRA_PKGS_STR git wget"
-    PYTHON_DEPS="python2-pip gcc gcc-c++ upx czmq-devel zeromq-devel openssl-devel swig"
-    PYTHON_PIPS="pycryptodomex m2crypto tornado pyzmq pyinstaller"
+    PACKAGE_INSP="rpm -ql"
+    $PACKAGE_MGR -y install epel-release
+    PYTHON_PREIN="python36 python36-devel python36-setuptools python36-pip git wget patch openssl"
+    PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python36-simplejson python36-requests yaml-cpp-devel"
+    PYTHON_PIPS="pycryptodomex pyzmq m2crypto pyinstaller"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
     PACKAGE_INSP="dpkg -L"
-    PYTHON_PREIN="git"
-    PYTHON_DEPS="python python-pip gcc g++ upx-ucl python-dev python-setuptools python-zmq libssl-dev swig"
-    PYTHON_PIPS="pycryptodomex m2crypto tornado pyinstaller"
+    PYTHON_PREIN="git patch wget"
+    PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-simplejson python3-requests gcc g++ libssl-dev upx-ucl swig python3-yaml"
+    PYTHON_PIPS="pycryptodomex m2crypto pyinstaller"
+    $PACKAGE_MGR update
 else
    echo "No recognized package manager found on this system!" 1>&2
    exit 1
@@ -83,7 +79,7 @@ echo $'\t\t\tInstalling python & crypto libs'
 echo "=================================================================================="
 $PACKAGE_MGR install -y $PYTHON_PREIN
 $PACKAGE_MGR install -y $PYTHON_DEPS
-pip install $PYTHON_PIPS
+pip3 install $PYTHON_PIPS
 
 
 # Build packaged keylime-python installer 
@@ -138,7 +134,7 @@ copy_deps () {
 }
 
 # Python lib dependencies 
-PYPATH=`which python`
+PYPATH=`which python3`
 copy_deps "$PYPATH"
 
 # Python module lib dependencies 

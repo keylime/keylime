@@ -1,30 +1,31 @@
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
-This material is based upon work supported by the Assistant Secretary of Defense for 
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
+This material is based upon work supported by the Assistant Secretary of Defense for
+Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
 FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the 
+material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
 
 Copyright 2016 Massachusetts Institute of Technology.
 
 The software/firmware is provided to you on an As-Is basis
 
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-above. Use of this work other than as specifically authorized by the U.S. Government may 
+Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
+252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
+rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
+above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
 '''
 
+import configparser
 import time
-from M2Crypto import X509, EVP, RSA, ASN1
-import ConfigParser
 
-import common
-import keylime_logging
-config = ConfigParser.SafeConfigParser()
+from M2Crypto import X509, EVP, RSA, ASN1
+from keylime import common
+from keylime import keylime_logging
+
+config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
 
 def mk_cert_valid(cert, days=365):
@@ -34,7 +35,7 @@ def mk_cert_valid(cert, days=365):
        cert -- cert to make valid
        days -- number of days cert is valid for from now.
     """
-    t = long(time.time())
+    t = int(time.time())
     now = ASN1.ASN1_UTCTIME()
     now.set_time(t)
     expire = ASN1.ASN1_UTCTIME()
@@ -78,7 +79,7 @@ def mk_cacert(name=None):
     cert.set_serial_number(1)
     cert.set_version(2)
     mk_cert_valid(cert,config.getint('ca','cert_ca_lifetime'))
-    
+
     if name==None:
         name = config.get('ca','cert_ca_name')
 
@@ -105,7 +106,7 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
     """
     # unused, left for history.
     cert_req, pk = mk_request(config.getint('ca','cert_bits'), cn=name)
-    
+
     cert = X509.X509()
     cert.set_serial_number(serialnum)
     cert.set_version(2)
@@ -113,7 +114,7 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
     cert.add_ext(X509.new_extension('nsComment', 'SSL sever'))
     cert.add_ext(X509.new_extension('subjectAltName','DNS:%s'%name))
     cert.add_ext(X509.new_extension('crlDistributionPoints','URI:http://localhost/crl.pem'))
-    
+
     cert.set_subject(cert_req.get_subject())
     cert.set_pubkey(cert_req.get_pubkey())
     cert.set_issuer(cacert.get_issuer())
@@ -123,4 +124,4 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
 def gencrl(_,a,b):
     logger = keylime_logging.init_logging('ca_impl_openssl')
     logger.warning("CRL creation with openssl is not supported")
-    return "" 
+    return ""

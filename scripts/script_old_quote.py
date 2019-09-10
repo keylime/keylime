@@ -59,7 +59,7 @@ qsetup='from __main__ import nonce,quote_key,pcrmask,create_quote'
 
 # do the thing
 q = timeit('create_quote(nonce,quote_key,pcrmask)', number=qruns, setup=qsetup)
-print "create_quote: %d runs, total time %f, avg %f per run" % (qruns,q,q/qruns)
+print("create_quote: %d runs, total time %f, avg %f per run" % (qruns,q,q/qruns))
 
 # take generated quote and AIK pubkey and read 'em
 binquotefile = open(quotefile, 'r')
@@ -72,4 +72,4 @@ csetup='from __main__ import nonce,quote_key,binquote,binaik,check_quote'
 
 # do the thing
 c = timeit('check_quote(nonce,quote_key,binquote,binaik)', number=cruns, setup=csetup)
-print "check_quote: %d runs, total time %f, avg %f per run" % (cruns,c,c/cruns)
+print("check_quote: %d runs, total time %f, avg %f per run" % (cruns,c,c/cruns))

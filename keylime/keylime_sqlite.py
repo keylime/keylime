@@ -18,12 +18,17 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import common
-import keylime_logging
-logger = keylime_logging.init_logging('keylime_sqlite')
 import os
 import sqlite3
-import json
+try:
+    import simplejson as json
+except ImportError:
+    raise("Simplejson is mandatory, please install")
+
+from keylime import common
+from keylime import keylime_logging
+
+logger = keylime_logging.init_logging('keylime_sqlite')
 
 class KeylimeDB():
     db_filename = None
@@ -72,12 +77,12 @@ class KeylimeDB():
             rows = cur.fetchall()
 
             colnames = [description[0] for description in cur.description]
-            print colnames
+            print(colnames)
             for row in rows:
-                print row
+                print(row)
 
     def add_defaults(self,agent):
-        for key in self.exclude_db.keys():
+        for key in list(self.exclude_db.keys()):
             agent[key] = self.exclude_db[key]
         return agent
 
@@ -107,7 +112,7 @@ class KeylimeDB():
 
         # these are JSON strings and should be converted to dictionaries
         for item in self.json_cols_db:
-            if d[item] is not None and isinstance(d[item],basestring):
+            if d[item] is not None and isinstance(d[item],str):
                 d[item] = json.loads(d[item])
 
         return d
@@ -125,8 +130,8 @@ class KeylimeDB():
         return True
 
     def update_agent(self,agent_id, key, value):
-        if key not in self.cols_db.keys():
-            raise Exception("Database key %s not in schema: %s"%(key,self.cols_db.keys()))
+        if key not in list(self.cols_db.keys()):
+            raise Exception("Database key %s not in schema: %s"%(key,list(self.cols_db.keys())))
 
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
@@ -139,8 +144,8 @@ class KeylimeDB():
         return
 
     def update_all_agents(self,key,value):
-        if key not in self.cols_db.keys():
-            raise Exception("Database key %s not in schema: %s"%(key,self.cols_db.keys()))
+        if key not in list(self.cols_db.keys()):
+            raise Exception("Database key %s not in schema: %s"%(key,list(self.cols_db.keys())))
 
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
@@ -187,7 +192,7 @@ class KeylimeDB():
     def overwrite_agent(self,agent_id,agent):
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
-            for key in self.cols_db.keys():
+            for key in list(self.cols_db.keys()):
                 if key is 'agent_id':
                     continue
                 if key in self.json_cols_db:
@@ -196,4 +201,3 @@ class KeylimeDB():
                     cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(agent[key],agent_id))
             conn.commit()
         return
-

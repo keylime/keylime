@@ -48,7 +48,7 @@ CRYPTO_DIR=`pwd`"/build/crypto"
 copy_py_deps () {
     pushd $1
     IFS=$'\n'
-    CRYPTO_PY=`find -name _BLAKE2b.so | awk -F\/ '{print $2}'`
+    CRYPTO_PY=`find -name _BLAKE2b*.so | awk -F\/ '{print $2}'`
     for dir in $CRYPTO_PY ; do
         find "$dir" -name "*.so" -exec cp -t $CRYPTO_DIR '{}' \;
     done
@@ -57,7 +57,7 @@ copy_py_deps () {
 
 # Find python's dist-packages or site-packages dirs
 IFS=$'\n'
-DIST_PATH=`python -c "import sys;import re;  print '\n'.join(filter(lambda x:re.search(r'(dist|site)-packages$',x), sys.path))"`
+DIST_PATH=`python3 -c "import sys;import re;  print('\n'.join(filter(lambda x:re.search(r'(dist|site)-packages$',x), sys.path)))"`
 for path in $DIST_PATH ; do
     copy_py_deps "$path"
 done
