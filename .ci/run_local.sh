@@ -5,9 +5,9 @@ REPO="/home/${USER}/keylime"
 
 # keylime images
 tpm12image="lukehinds/keylime-ci-tpm12"
-tpm12tag="v300"
+tpm12tag="v500"
 tpm20image="lukehinds/keylime-ci-tpm20"
-tpm20tag="v301"
+tpm20tag="v501"
 
 echo -e "Grabbing latest images"
 

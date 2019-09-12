@@ -181,6 +181,13 @@ echo $'\t\t\tInstalling test requirements'
 echo "=================================================================================="
 pip3 install $UMODE_OPT -r $KEYLIME_DIR/test/test-requirements.txt
 
+# Install Keylime
+echo
+echo "=================================================================================="
+echo $'\t\t\tInstalling Keylime'
+echo "=================================================================================="
+cd $KEYLIME_DIR
+python3 setup.py install
 
 # Run the tests as necessary
 if [[ "$COVERAGE" -eq "1" ]] ; then

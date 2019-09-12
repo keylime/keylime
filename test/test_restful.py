@@ -80,12 +80,17 @@ if "COVERAGE_FILE" in os.environ:
 else:
     FORK_ARGS = ["python3"]
 
-
 # Custom imports
 PACKAGE_ROOT = Path(__file__).parents[1]
-CODE_ROOT = (f"{PACKAGE_ROOT}/keylime/")
-sys.path.insert(0, CODE_ROOT)
+KEYLIME_DIR=(f"{PACKAGE_ROOT}/keylime")
+sys.path.append(KEYLIME_DIR)
 
+# Custom imports
+# PACKAGE_ROOT = Path(__file__).parents[1]
+# CODE_ROOT = (f"{PACKAGE_ROOT}/keylime/")
+# sys.path.insert(0, CODE_ROOT)
+
+# keylime imports
 from keylime import common
 from keylime import tornado_requests
 from keylime import httpclient_requests
@@ -210,9 +215,8 @@ def launch_cloudverifier():
     """Start up the cloud verifier"""
     global cv_process, script_env, FORK_ARGS
     if cv_process is None:
-        filename = ["%s/cloud_verifier_tornado.py"%(CODE_ROOT)]
         cv_process = subprocess.Popen(
-                                        FORK_ARGS + filename,
+                                        "keylime_verifier",
                                         shell=False,
                                         preexec_fn=os.setsid,
                                         stdout=subprocess.PIPE,
@@ -236,12 +240,10 @@ def launch_cloudverifier():
 
 def launch_registrar():
     """Start up the registrar"""
-    sys.path.insert(0, CODE_ROOT)
     global reg_process, script_env, FORK_ARGS
     if reg_process is None:
-        filename = ["%s/registrar.py"%(CODE_ROOT)]
         reg_process = subprocess.Popen(
-                                        FORK_ARGS + filename,
+                                        "keylime_registrar",
                                         shell=False,
                                         preexec_fn=os.setsid,
                                         stdout=subprocess.PIPE,
@@ -267,9 +269,8 @@ def launch_cloudagent():
     """Start up the cloud agent"""
     global agent_process, script_env, FORK_ARGS
     if agent_process is None:
-        filename = ["%s/cloud_agent.py"%(CODE_ROOT)]
         agent_process = subprocess.Popen(
-                                        FORK_ARGS + filename,
+                                        "keylime_agent",
                                         shell=False,
                                         preexec_fn=os.setsid,
                                         stdout=subprocess.PIPE,
