@@ -113,7 +113,7 @@ def getKeys(registrar_ip,registrar_port,agent_id):
             return None
 
         if "results" not in response_body:
-            logger.critical("Error: unexpected http response body from Registrar Server: %s"%str(response.statu))
+            logger.critical("Error: unexpected http response body from Registrar Server: %s"%str(response.status))
             return None
 
         if "aik" not in response_body["results"]:
