@@ -162,12 +162,12 @@ class TPM_Utilities:
         mask = 0
         for key in list(policy.keys()):
             if not key.isdigit() or int(key) > 24:
-                raise Exception("Invalid tpm policy pcr number: %s"%(key))
+                raise Exception(f"Invalid tpm policy pcr number: {key}")
 
             if int(key) == common.TPM_DATA_PCR:
-                raise Exception("Invalid whitelist PCR number %s, keylime uses this PCR to bind data."%key)
+                raise Exception(f"Invalid whitelist PCR number {key}, keylime uses this PCR to bind data.")
             if int(key) == common.IMA_PCR:
-                raise Exception("Invalid whitelist PCR number %s, this PCR is used for IMA."%key)
+                raise Exception(f"Invalid whitelist PCR number {key}, this PCR is used for IMA.")
 
             mask = mask + (1<<int(key))
 
@@ -178,7 +178,7 @@ class TPM_Utilities:
             # convert all hash values to lowercase
             policy[key] = [x.lower() for x in policy[key]]
 
-        policy['mask'] = "0x%X"%(mask)
+        policy['mask'] = f"0x{mask:#X}"
         return policy
 
 
@@ -290,7 +290,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
         elif quote[0] == 'r':
             return False
         else:
-            raise Exception("Invalid quote type %s"%quote[0])
+            raise Exception(f"Invalid quote type {quote[0]}")
 
     @abstractmethod
     def check_deep_quote(self, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}):
@@ -331,7 +331,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
             return False
 
         if pcrval != ex_value and not common.STUB_IMA:
-            logger.error("IMA measurement list expected pcr value %s does not match TPM PCR %s"%(ex_value, pcrval))
+            logger.error(f"IMA measurement list expected pcr value {ex_value} does not match TPM PCR {pcrval}")
             return False
         logger.debug("IMA measurement list validated")
         return True
@@ -346,7 +346,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
         for line in pcrs:
             tokens = line.split()
             if len(tokens) < 3:
-                logger.error("Invalid %sPCR in quote: %s"%(("", "v")[virtual], pcrs))
+                logger.error(f"Invalid {('', 'v')[virtual]}PCR in quote: {pcrs}")
                 continue
 
             # always lower case
@@ -355,14 +355,14 @@ class AbstractTPM(object, metaclass=ABCMeta):
             try:
                 pcrnum = int(tokens[1])
             except Exception:
-                logger.error("Invalid PCR number %s"%tokens[1])
+                logger.error(f"Invalide PCR number {tokens[1]}")
 
             if pcrnum == common.TPM_DATA_PCR and data is not None:
                 # compute expected value  H(0|H(string(H(data))))
                 # confused yet?  pcrextend will hash the string of the original hash again
                 expectedval = hashlib.sha1(codecs.decode(AbstractTPM.EMPTY_PCR,'hex_codec')+hashlib.sha1(hashlib.sha1(data.encode('utf-8')).hexdigest().encode('utf-8')).digest()).hexdigest().lower()
                 if expectedval != pcrval and not common.STUB_TPM:
-                    logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, expectedval))
+                    logger.error(f"{('', 'v')[virtual]}PCR #{pcrnum}: invalid bind data {pcrval} from quote does not match expected value {expectedval}")
                     return False
                 continue
 
@@ -380,10 +380,10 @@ class AbstractTPM(object, metaclass=ABCMeta):
 
             if pcrnum not in list(pcrWhiteList.keys()):
                 if not common.STUB_TPM and len(list(tpm_policy.keys())) > 0:
-                    logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping."%(("", "v")[virtual], pcrnum, ("", "v")[virtual]))
+                    logger.warn(f"{('', 'v')[virtual]}PCR #{pcrnum} in quote not found in {('', 'v')[virtual]}tpm_policy, skipping.")
                 continue
             elif pcrval not in pcrWhiteList[pcrnum] and not common.STUB_TPM:
-                logger.error("%sPCR #%s: %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, pcrWhiteList[pcrnum]))
+                logger.error(f"{('', 'v')[virtual]}PCR #{pcrnum}: {pcrval} from quote does not match expected value {pcrWhiteList[pcrnum]}")
                 return False
             else:
                 pcrsInQuote.add(pcrnum)
@@ -393,7 +393,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
 
         missing = list(set(list(pcrWhiteList.keys())).difference(pcrsInQuote))
         if len(missing) > 0:
-            logger.error("%sPCRs specified in policy not in quote: %s"%(("", "v")[virtual], missing))
+            logger.error(f"{('', 'v')[virtual]}PCRs specified in policy not in quote: {missing}")
             return False
         return True
 
@@ -404,13 +404,12 @@ class AbstractTPM(object, metaclass=ABCMeta):
         rand_data = self._get_tpm_rand_block(128)
         if common.REQUIRE_ROOT and rand_data is not None:
             try:
-                t = struct.pack("ii%ds"%len(rand_data), 8, len(rand_data), rand_data)
+                t = struct.pack(f"ii{len(rand_data)}s", 8, len(rand_data), rand_data)
                 with open("/dev/random", mode='wb') as fp:
                     # as fp has a method fileno(), you can pass it to ioctl
                     fcntl.ioctl(fp, RNDADDENTROPY, t)
             except Exception as e:
-                logger.warning("TPM randomness not added to system entropy pool: %s"%e)
-
+                logger.warning(f"TPM randomness not added to system entropy pool: {e}")
 
     #tpm_nvram
     @abstractmethod

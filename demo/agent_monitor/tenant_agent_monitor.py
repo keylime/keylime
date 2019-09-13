@@ -115,7 +115,7 @@ class AgentsHandler(BaseHandler):
 
             if "agents" not in rest_params:
                 common.echo_json_response(self, 400, "uri not supported")
-                logger.warning('POST returning 400 response. uri not supported: ' + self.request.path)
+                logger.warning(f'POST returning 400 response. uri not supported: {self.request.path}')
                 return
 
             agent_id = rest_params["agents"]
@@ -137,7 +137,7 @@ class AgentsHandler(BaseHandler):
                     if initscript is not None and initscript is not "":
                         def initthread():
                             import subprocess
-                            logger.debug("Executing specified script: %s"%initscript)
+                            logger.debug(f"Executing specified script: {initscript}")
                             env = os.environ.copy()
                             env['AGENT_UUID']=agent_id
                             proc= subprocess.Popen(["/bin/sh",initscript],env=env,shell=False,
@@ -147,18 +147,18 @@ class AgentsHandler(BaseHandler):
                                 line = proc.stdout.readline()
                                 if line=="":
                                     break
-                                logger.debug("init-output: %s"%line.strip())
-                        t = threading.Thread(target=initthread)
+                                logger.debug(f"init-output: {line.strip()}")
+                                t = threading.Thread(target=initthread)
                         t.start()
 
                     common.echo_json_response(self, 200, "Success", json_body)
-                    logger.info('POST returning 200 response for Agent Monitor connection as ' + agent_id)
-            else:
+                    logger.info(f'POST returning 200 response for Agent Monitor connection as {agent_id}')
+                    else:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
         except Exception as e:
-            common.echo_json_response(self, 400, "Exception error: %s"%e)
-            logger.warning("POST returning 400 response. Exception error: %s"%e)
+            common.echo_yaml_response(self, 400, f"Exception error: {e}")
+            logger.warning(f"POST returning 400 response. Exception error: {e}")
             logger.exception(e)
 
     def put(self):
@@ -174,20 +174,20 @@ def init_mtls(config):
 
     tls_dir = config["ca_dir"]
     if tls_dir[0]!='/':
-        tls_dir = os.path.abspath('%s/%s'%(common.WORK_DIR,tls_dir))
+        tls_dir = os.path.abspath(f'{common.WORK_DIR}/{tls_dir}')
 
     # We need to securely pull in the ca password
     my_key_pw = getpass.getpass("Please enter the password to decrypt your keystore: ")
     ca_util.setpassword(my_key_pw)
 
     # Create HIL Server Connect certs (if not already present)
-    if not os.path.exists("%s/%s-cert.crt"%(tls_dir,config["ip"])):
-        logger.info("Generating new Agent Monitor TLS Certs in %s for connecting"%tls_dir)
-        ca_util.cmd_mkcert(tls_dir,config["ip"])
+    if not os.path.exists(f"{tls_dir}/{config['ip']}-cert.crt"):
+        logger.info(f"Generating new Agent Monitor TLS Certs in {tls_dir} for connecting")
+        ca_util.cmd_mkcert(tls_dir, config["ip"])
 
-    ca_path = "%s/cacert.crt"%(tls_dir)
-    my_cert = "%s/%s-cert.crt"%(tls_dir,config["ip"])
-    my_priv_key = "%s/%s-private.pem"%(tls_dir,config["ip"])
+    ca_path = f"{tls_dir}/cacert.crt"
+    my_cert = f"{tls_dir}/{config['ip']}-cert.crt"
+    my_priv_key = f"{tls_dir}/{config['ip']}-private.pem"
 
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.load_verify_locations(cafile=ca_path)
@@ -197,7 +197,7 @@ def init_mtls(config):
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
-    print("Starting Torando on port " + str(port))
+    print(f"Starting Torando on port {port}")
     tornado.ioloop.IOLoop.instance().start()
     print("Tornado finished")
 
@@ -219,7 +219,7 @@ def main(argv=sys.argv):
     global initscript
     initscript = args.script
 
-    logger.info('Starting Agent Monitor (tornado) on port ' + args.port + ', use <Ctrl-C> to stop')
+    logger.info(f'Starting Agent Monitor (tornado) on port {args.port}, use <Ctrl-C> to stop')
 
     app = tornado.web.Application([
         (r"/", MainHandler),

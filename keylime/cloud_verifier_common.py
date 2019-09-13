@@ -92,7 +92,7 @@ class Timer(object):
         self.secs = self.end - self.start
         self.msecs = self.secs * 1000  # millisecs
         if self.verbose:
-            print('elapsed time: %f ms' % self.msecs)
+            print(f'elapsed time: {self.msecs} ms')
 
 def init_mtls(section='cloud_verifier',generatedir='cv_ca'):
     if not config.getboolean('general',"enable_tls"):
@@ -111,14 +111,14 @@ def init_mtls(section='cloud_verifier',generatedir='cv_ca'):
             raise Exception("To use tls_dir=generate, options ca_cert, my_cert, and private_key must all be set to 'default'")
 
         if generatedir[0]!='/':
-            generatedir =os.path.abspath('%s/%s'%(common.WORK_DIR,generatedir))
+            generatedir = os.path.abspath(f'{common.WORK_DIR}/{generatedir}')
         tls_dir = generatedir
-        ca_path = "%s/cacert.crt"%(tls_dir)
+        ca_path = f"{tls_dir}/cacert.crt"
         if os.path.exists(ca_path):
-            logger.info("Existing CA certificate found in %s, not generating a new one"%(tls_dir))
+            logger.info(f"Existing CA certificate found in {tls_dir}, not generating a new one")
         else:
-            logger.info("Generating a new CA in %s and a client certificate for connecting"%tls_dir)
-            logger.info("use keylime_ca -d %s to manage this CA"%tls_dir)
+            logger.info(f"Generating a new CA in {tls_dir} and a client certificate for connecting")
+            logger.info(f"use keylime_ca -d {tls_dir} to manage this CA")
             if not os.path.exists(tls_dir):
                 os.makedirs(tls_dir,0o700)
             if my_key_pw=='default':
@@ -130,29 +130,29 @@ def init_mtls(section='cloud_verifier',generatedir='cv_ca'):
 
     if tls_dir == 'CV':
         if section !='registrar':
-            raise Exception("You only use the CV option to tls_dir for the registrar not %s"%section)
-        tls_dir = os.path.abspath('%s/%s'%(common.WORK_DIR,'cv_ca'))
-        if not os.path.exists("%s/cacert.crt"%(tls_dir)):
+            raise Exception(f"You only use the CV option to tls_dir for the registrar not {section}")
+        tls_dir = os.path.abspath(f'{common.WORK_DIR}/{"cv_ca"}')
+        if not os.path.exists(f"{tls_dir}/cacert.crt"):
             raise Exception("It appears that the verifier has not yet created a CA and certificates, please run the verifier first")
 
     # if it is relative path, convert to absolute in WORK_DIR
     if tls_dir[0]!='/':
-        tls_dir = os.path.abspath('%s/%s'%(common.WORK_DIR,tls_dir))
+        tls_dir = os.path.abspath(f'{common.WORK_DIR}/{tls_dir}')
 
     if ca_cert == 'default':
-        ca_path = "%s/cacert.crt"%(tls_dir)
+        ca_path = f"{tls_dir}/cacert.crt"
     else:
-        ca_path = "%s/%s"%(tls_dir,ca_cert)
+        ca_path = f"{tls_dir}/{ca_cert}"
 
     if my_cert=='default':
-        my_cert = "%s/%s-cert.crt"%(tls_dir,socket.gethostname())
+        my_cert = f"{tls_dir}/{socket.gethostname()}-cert.crt")
     else:
-        my_cert = "%s/%s"%(tls_dir,my_cert)
+        my_cert = f"{tls_dir}/{my_cert}"
 
     if my_priv_key=='default':
-        my_priv_key = "%s/%s-private.pem"%(tls_dir,socket.gethostname())
+        my_priv_key = f"{tls_dir}/{socket.gethostname()}-private.pem")
     else:
-        my_priv_key = "%s/%s"%(tls_dir,my_priv_key)
+        my_priv_key = f"{tls_dir}/{my_priv_key}"
 
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.load_verify_locations(cafile=ca_path)
@@ -175,10 +175,10 @@ def process_quote_response(agent, json_response):
 
         ima_measurement_list = json_response.get("ima_measurement_list",None)
 
-        logger.debug("received quote:      %s"%quote)
-        logger.debug("for nonce:           %s"%agent['nonce'])
-        logger.debug("received public key: %s"%received_public_key)
-        logger.debug("received ima_measurement_list    %s"%(ima_measurement_list!=None))
+        logger.debug(f"received quote:      {quote}")
+        logger.debug(f"for nonce:           {agent['nonce']}"
+        logger.debug(f"received public key: {received_public_key}")
+        logger.debug(f"received ima_measurement_list    {ima_measurement_list!=None}")
     except Exception:
         return None
 
@@ -212,15 +212,15 @@ def process_quote_response(agent, json_response):
 
     # Ensure hash_alg is in accept_tpm_hash_alg list
     if not Hash_Algorithms.is_accepted(hash_alg, agent['accept_tpm_hash_algs']):
-        raise Exception("TPM Quote is using an unaccepted hash algorithm: %s"%hash_alg)
+        raise Exception(f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}")
 
     # Ensure enc_alg is in accept_tpm_encryption_algs list
     if not Encrypt_Algorithms.is_accepted(enc_alg, agent['accept_tpm_encryption_algs']):
-        raise Exception("TPM Quote is using an unaccepted encryption algorithm: %s"%enc_alg)
+        raise Exception(f"TPM Quote is using an unaccepted encryption algorithm: {enc_alg}")
 
     # Ensure sign_alg is in accept_tpm_encryption_algs list
     if not Sign_Algorithms.is_accepted(sign_alg, agent['accept_tpm_signing_algs']):
-        raise Exception("TPM Quote is using an unaccepted signing algorithm: %s"%sign_alg)
+        raise Exception(f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}")
 
     if tpm.is_deep_quote(quote):
         validQuote = tpm.check_deep_quote(agent['nonce'],
@@ -261,7 +261,7 @@ def process_quote_response(agent, json_response):
 def prepare_v(agent):
     # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
     if common.INSECURE_DEBUG:
-        logger.debug("b64_V (non encrypted): " + agent['v'])
+        logger.debug(f"b64_V (non encrypted): {agent['v']}")
 
     if agent.get('b64_encrypted_V',"") !="":
         b64_encrypted_V = agent['b64_encrypted_V']

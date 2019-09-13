@@ -256,7 +256,7 @@ def vtpm_raw(hdr, msg):
     """ Sends a raw vtpm command. """
     hdr = struct.pack('>HI', hdr, len(msg) + 6)
     cmd = hdr + msg
-    logger.debug('Sending "%r"', cmd.encode('hex'))
+    logger.debug(f"Sending {repr(cmd.encode('hex'))}")
     with open('/dev/tpm0', 'wb+') as f:
         f.write(cmd)
         f.flush()
@@ -265,9 +265,9 @@ def vtpm_raw(hdr, msg):
     rsp_body = rsp[10:]
     (rsp_type, rsp_len, _) = struct.unpack('>HII', rsp_hdr)
     assert rsp_len == 10 + len(rsp_body), \
-        "Invalid Response:[Len]: {0:#x} vs {1:#x}".format(rsp_len, 10+rsp_body)
-    logger.debug('Response Type: 0x%x (%d bytes)', rsp_type, rsp_len)
-    logger.debug('Response Body: "%r"', repr(rsp_body.encode('hex')))
+        f"Invalid Response:[Len]: {rsp_len:#x} vs {10 + rsp_body:#x}"
+    logger.debug(f'Response Type: 0x{rsp_type:#x} ({rsp_len} bytes)')
+    logger.debug(f"Response Body: {repr(rsp_body.encode('hex'))}")
     return rsp_body
 
 
@@ -290,10 +290,10 @@ def show_group(group_num):
     body = vtpm_raw(0x1C2, struct.pack('>II', 0x02000107, group_num))
     (uuid, pk, cfg) = struct.unpack('16s 256s 16s', body)
     uuid = stringify_uuid(uuid)
-    logger.info('Group [%d] UUID: %s', group_num, uuid)
+    logger.info(f'Group [{group_num}] UUID: {uuid}')
     pk_hash = hashlib.sha1(pk).hexdigest()
-    logger.info('  PK Hash:  %s', pk_hash)
-    logger.info('  Cfg list: %s', cfg.encode('hex'))
+    logger.info(f'  PK Hash:  {pk_hash}')
+    logger.info(f"  Cfg list: {cfg.encode('hex')}")
     body = vtpm_cmd(VTPM_ORD_VTPM_LIST, struct.pack('>II', group_num, 0))
     ((num_vtpms,), body) = unpack('>I', body)
     if num_vtpms > 0:
@@ -301,7 +301,7 @@ def show_group(group_num):
         vtpms = struct.unpack('16s' * num_vtpms, body)
         vtpms = [stringify_uuid(vtpm) for vtpm in vtpms]
         for i, vtpm in enumerate(vtpms):
-            logger.info('    [%d]: %s', i, vtpm)
+            logger.info(f'    [{i}]: {vtpm}')
         out['vtpms'].append(vtpm)
     out['uuid'] = uuid
     return out
@@ -338,13 +338,12 @@ def do_group_activate(group_id, priv_ca_blob):
     with open(priv_ca_blob, 'rb') as f:
         priv_ca = f.read()
     assert len(priv_ca) == 256
-    logger.debug('Activating group number %d', group_id)
+    logger.debug(f'Activating group number {group_id}')
     body = vtpm_cmd(VTPM_ORD_GROUP_ACTIVATE,
                     struct.pack('>II', group_id, 256) + priv_ca)
     (algId, encScheme, size), body = unpack('>IHH', body)
-    logger.info('Received Key. AlgID: 0x%x, encScheme: 0x%x, size: 0x%x',
-                algId, encScheme, size)
-    logger.info('Key: %r', body)
+    logger.info(f'Received Key. AlgID: 0x{algId}, encScheme: 0x{encScheme}, size: 0x{size}')
+    logger.info(f'Key: {repr(body)}')
     assert size == len(body)
     return body
 
@@ -361,7 +360,7 @@ def add_group(rsa_mod_path):
     (uuid, aik_pub, aik_priv_ca) = struct.unpack('16s256s256s', rsp)
     uuid = struct.unpack(uuid_fmt, uuid)
     uuid = '-'.join([part.encode('hex') for part in uuid])
-    logger.info('Created group with UUID: %s', uuid)
+    logger.info(f'Created group with UUID: {uuid}')
     return (aik_pub, aik_priv_ca, uuid)
 
 
@@ -370,7 +369,7 @@ def add_vtpm(groupnum):
     rsp = vtpm_cmd(VTPM_ORD_VTPM_NEW, struct.pack('>I', groupnum))
     (uuid,) = struct.unpack('16s', rsp)
     uuid = '-'.join([part.encode('hex') for part in uuid])
-    logger.info('Received UUID: %s\n', uuid)
+    logger.info(f'Received UUID: {uuid}')
     return uuid
 
 
@@ -392,25 +391,25 @@ def get_group_info(num):
     # Get info for group `num`
     ginfo = show_group(num)
     uuid = ginfo['uuid']
-    aikname = '{0}_aik'.format(uuid)
-    pubaik_path = '{0}.pub'.format(aikname)
+    aikname = f'{uuid}_aik'
+    pubaik_path = f'{aikname}.pub'
 
     # Check that we have the group's AIK
     if not os.path.exists(pubaik_path):
-        logger.error('Group %d AIK Path %r doesn\'t exist', num, pubaik_path)
+        logger.error(f"Group {num} AIK Path {pubaik_path!r} doesn't exist")
         raise OSError()
 
-    aikbase = '{0}'.format(aikname)
+    aikbase = f'{aikname}'
     aikpem = aikbase + '.pem'
 
     # Convert group AIK to PEM
-    check_call('tpmconv -ik {0} -ok {1}'.format(pubaik_path, aikbase),
+    check_call(f'tpmconv -ik {pubaik_path} -ok {aikbase}',
                shell=True)
     return {'aikpem': aikpem, 'uuid': uuid}
 
 
 def get_group_symkey(groupnum, aikpem, pubekpem, keyblob):
-    logger.info('Keyblob: %r', open(keyblob, 'rb').read())
+    logger.info(f"Keyblob: {repr(open(keyblob, 'rb').read())}")
     return do_group_activate(groupnum, keyblob)
 
 
@@ -434,17 +433,16 @@ def do_register_test_helper(groupnum=1,
 
     # Use encaik to obtain keyblob and goalkey (normally whoever is using
     # us would handle providing the keyblob)
-    check_call('encaik -ik {0!r} -ek {1!r} -ok {2!r} -oak {3!r}'.format(
-        aikpem, pubekpem, keyblob, goalkey), shell=True)
+    check_call(f'encaik -ik {aikpem!r} -ek {pubekpem!r} -ok {keyblob!r} -oak {goalkey!r}', shell=True)
 
     # Obtain the symkey via group activate
     symkey_raw = get_group_symkey(groupnum, aikpem, pubekpem, keyblob)
     with open(symkey, 'wb') as f:
         f.write(symkey_raw)
-    logger.info('Wrote %s', symkey)
+    logger.info(f'Wrote {symkey}')
 
     # Verify the key we got from the VTPM is the same as we'd get from encaik
-    check_call('diff "{0}" "{1}"'.format(symkey, goalkey), shell=True)
+    check_call(f'diff "{symkey}" "{goalkey}"', shell=True)
     print('[vtpmmgr] Test succeeded')
 
 
@@ -466,7 +464,7 @@ def tpmconv(inmod):
         inFile.close()
         os.close(infd)
 
-        command = "tpmconv -ik %s -ok %s" % (inFile.name,tmppath)
+        command = f"tpmconv -ik {inFile.name} -ok {tmppath}"
         tpm.__run(command,lock=False)
 
         # read in the pem
@@ -490,7 +488,7 @@ def get_group_num(desired_uuid):
         uuid = stringify_uuid(uuid)
         if uuid == desired_uuid:
             return group_num
-    raise Exception("Group %s not found"%(desired_uuid))
+    raise Exception(f"Group {desired_uuid} not found")
 
 
 def add_vtpm_group(rsa_mod=None):
@@ -503,12 +501,12 @@ def add_vtpm_group(rsa_mod=None):
             # The value we're looking for has been canned!
             thisTiming = jsonIn[fprt]['timing']
             thisRetout = jsonIn[fprt]['retout']
-            logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
+            logger.debug(f"TPM call '{fprt}' was stubbed out, with a simulated delay of {thisTiming} sec")
             time.sleep(thisTiming)
             return tuple(thisRetout)
         else:
             # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!"%(fprt))
+            raise Exception(f"Command {fprt} not found in canned YAML!")
 
     logger.debug('Adding group')
 
@@ -523,7 +521,7 @@ def add_vtpm_group(rsa_mod=None):
     (uuid, aik_pub, aik_priv_ca) = struct.unpack('16s256s256s', rsp)
     uuid = struct.unpack(uuid_fmt, uuid)
     uuid = '-'.join([part.encode('hex') for part in uuid])
-    logger.info('Created group with UUID: %s', uuid)
+    logger.info(f'Created group with UUID: {uuid}')
 
     aikpem = tpmconv(aik_pub)
     # return the group
@@ -535,7 +533,7 @@ def add_vtpm_group(rsa_mod=None):
     if common.TPM_CANNED_VALUES_PATH is not None:
         with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
             jsonObj = {'type':"add_vtpm_group",'retout':list(retout),'fileout':"",'cmd':"add_vtpm_group",'timing':t1-t0,'code':0,'nonce':None}
-            can.write("\"%s\": %s,\n"%("add_vtpm_group",json.dumps(jsonObj,indent=4,sort_keys=True, Dumper=SafeDumper)))
+            can.write(f'"{"add_vtpm_group"}": {yaml.dump(yamlObj, indent=4, sort_keys=True, Dumper=SafeDumper)},\n')
 
     return retout
 
@@ -548,31 +546,30 @@ def activate_group(uuid,keyblob):
             # The value we're looking for has been canned!
             thisTiming = jsonIn[fprt]['timing']
             thisRetout = jsonIn[fprt]['retout']
-            logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
+            logger.debug(f"TPM call '{fprt}' was stubbed out, with a simulated delay of {thisTiming} sec")
             time.sleep(thisTiming)
             return base64.b64decode(thisRetout)
         else:
             # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!"%(fprt))
+            raise Exception(f"Command {fprt} not found in canned JSON!")
 
     t0=time.time()
     group_id = get_group_num(uuid)
     priv_ca = base64.b64decode(keyblob)
     assert len(priv_ca) == 256
-    logger.debug('Activating group number %d', group_id)
+    logger.debug(f'Activating group number {group_id}')
     body = vtpm_cmd(VTPM_ORD_GROUP_ACTIVATE,
                     struct.pack('>II', group_id, 256) + priv_ca)
     (algId, encScheme, size), body = unpack('>IHH', body)
     assert size == len(body)
     t1=time.time()
-    logger.info('Received Key. AlgID: 0x%x, encScheme: 0x%x, size: 0x%x',
-                algId, encScheme, size)
-    logger.info('Key: %r', body)
+    logger.info(f'Received Key. AlgID: 0x{algId:#x}, encScheme: 0x{encScheme:#x}, size: 0x{size:#x}')
+    logger.info(f'Key: {body!r}')
 
     if common.TPM_CANNED_VALUES_PATH is not None:
         with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
             jsonObj = {'type':"activate_group",'retout':base64.b64encode(body),'fileout':"",'cmd':"activate_group",'timing':t1-t0,'code':0,'nonce':None}
-            can.write("\"%s\": %s,\n"%("activate_group",json.dumps(jsonObj,indent=4,sort_keys=True)))
+            can.write(f'"activate_group": {json.dumps(jsonObj,indent=4,sort_keys=True)},\n')
 
     return body
 
@@ -585,12 +582,12 @@ def add_vtpm_to_group(uuid):
             # The value we're looking for has been canned!
             thisTiming = jsonIn[fprt]['timing']
             thisRetout = jsonIn[fprt]['retout']
-            logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt,thisTiming))
+            logger.debug(f"TPM call '{fprt}' was stubbed out, with a simulated delay of {thisTiming} sec")
             time.sleep(thisTiming)
             return thisRetout
         else:
             # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!"%(fprt))
+            raise Exception(f"Command {fprt} not found in canned JSON!")
 
     t0=time.time()
     num = get_group_num(uuid)
@@ -602,6 +599,6 @@ def add_vtpm_to_group(uuid):
     if common.TPM_CANNED_VALUES_PATH is not None:
         with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
             jsonObj = {'type':"add_vtpm_to_group",'retout':retout,'fileout':"",'cmd':"add_vtpm_to_group",'timing':t1-t0,'code':0,'nonce':None}
-            can.write("\"%s\": %s,\n"%("add_vtpm_to_group",json.dumps(jsonObj,indent=4,sort_keys=True)))
+            can.write(f'"add_vtpm_group": {json.dumps(jsonObj,indent=4,sort_keys=True)},\n')
 
     return retout

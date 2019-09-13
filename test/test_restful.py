@@ -170,7 +170,7 @@ def setUpModule():
         # If the systemd service exists, let's restart it.
         for service in sysbus.list_names():
             if "com.intel.tss2.Tabrmd" in service:
-                print("Found dbus service:", str(service))
+                print(f"Found dbus service:{service}")
                 try:
                     print("Restarting tpm2-abrmd.service.")
                     job = manager.RestartUnit('tpm2-abrmd.service', 'fail')
@@ -414,7 +414,7 @@ class TestRestful(unittest.TestCase):
         v_json_message = json.dumps(data)
 
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("POST", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
+        response = httpclient_requests.request("POST", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
 
         self.assertEqual(response.status, 200, "Non-successful Registrar agent Add return code!")
         json_response = json.loads(response.read().decode())
@@ -443,7 +443,7 @@ class TestRestful(unittest.TestCase):
         v_json_message = json.dumps(data)
 
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}/activate"
-        response = httpclient_requests.request("PUT", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
+        response = httpclient_requests.request("PUT", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
 
         self.assertEqual(response.status, 200, "Non-successful Registrar agent Activate return code!")
         json_response = json.loads(response.read().decode())
@@ -468,8 +468,8 @@ class TestRestful(unittest.TestCase):
         }
         v_json_message = json.dumps(data)
 
-        params = '/v%s/agents/%s/vactivate'% self.api_version, tenant_templ.agent_uuid
-        response = httpclient_requests.request("PUT", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_tls_boot_port, params=params, data=v_json_message, context=tenant_templ.context)
+        params = f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}/vactivate'
+        response = httpclient_requests.request("PUT", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_tls_boot_port, params=params, data=v_json_message, context=tenant_templ.context)
         self.assertEqual(response.status, 200, "Non-successful Registrar agent vActivate return code!")
         json_response = json.loads(response.read().decode())
 
@@ -480,7 +480,7 @@ class TestRestful(unittest.TestCase):
     def test_013_reg_agents_get(self):
         """Test registrar's GET /v2/agents Interface"""
         params = f"/v{self.api_version}/agents/"
-        response = httpclient_requests.request("GET", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_tls_boot_port, params=params,  context=tenant_templ.context)
+        response = httpclient_requests.request("GET", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_tls_boot_port, params=params,  context=tenant_templ.context)
 
         self.assertEqual(response.status, 200, "Non-successful Registrar agent List return code!")
         json_response = json.loads(response.read().decode())
@@ -497,7 +497,7 @@ class TestRestful(unittest.TestCase):
         """Test registrar's GET /v2/agents/{UUID} Interface"""
         global aik
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("GET", "%s"%(tenant_templ.registrar_ip),tenant_templ.registrar_tls_boot_port, params=params, data=None, context=tenant_templ.context)
+        response = httpclient_requests.request("GET", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_tls_boot_port, params=params, data=None, context=tenant_templ.context)
 
         self.assertEqual(response.status, 200, "Non-successful Registrar agent return code!")
         json_response = json.loads(response.read().decode())
@@ -515,7 +515,7 @@ class TestRestful(unittest.TestCase):
     def test_015_reg_agent_delete(self):
         """Test registrar's DELETE /v2/agents/{UUID} Interface"""
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("DELETE", "%s"%(tenant_templ.registrar_ip),tenant_templ.registrar_tls_boot_port, params=params, context=tenant_templ.context)
+        response = httpclient_requests.request("DELETE", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_tls_boot_port, params=params, context=tenant_templ.context)
 
         self.assertEqual(response.status, 200, "Non-successful Registrar Delete return code!")
         json_response = json.loads(response.read().decode())
@@ -533,7 +533,7 @@ class TestRestful(unittest.TestCase):
         # We want a real cloud agent to communicate with!
         launch_cloudagent()
         params = f"/v{self.api_version}/keys/pubkey"
-        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params)
+        response = httpclient_requests.request("GET", f"{tenant_templ.cloudagent_ip}",tenant_templ.cloudagent_port, params=params)
 
         self.assertEqual(response.status, 200, "Non-successful Agent pubkey return code!")
         json_response = json.loads(response.read().decode())
@@ -562,7 +562,7 @@ class TestRestful(unittest.TestCase):
         numretries = config.getint('tenant','max_retries')
         while numretries >= 0:
             params = f"/v{self.api_version}/quotes/identity?nonce={nonce}"
-            response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params, data=None, context=None)
+            response = httpclient_requests.request("GET", f"{tenant_templ.cloudagent_ip}",tenant_templ.cloudagent_port, params=params, data=None, context=None)
             if response.status == 200:
                 break
             numretries-=1
@@ -597,7 +597,7 @@ class TestRestful(unittest.TestCase):
         v_json_message = json.dumps(data)
 
         params = f"/v{self.api_version}/keys/vkey"
-        response = httpclient_requests.request("POST", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params, data=v_json_message)
+        response = httpclient_requests.request("POST", f"{tenant_templ.cloudagent_ip}",tenant_templ.cloudagent_port, params=params, data=v_json_message)
         self.assertEqual(response.status, 200, "Non-successful Agent vkey post return code!")
         json_response = json.loads(response.read().decode())
 
@@ -624,8 +624,8 @@ class TestRestful(unittest.TestCase):
                 }
         u_yaml_message = json.dumps(data)
 
-        params = '/v%s/keys/ukey'% self.api_version
-        response = httpclient_requests.request("POST", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params, data=u_yaml_message)
+        params = f'/v{self.api_version}/keys/ukey'
+        response = httpclient_requests.request("POST", f"{tenant_templ.cloudagent_ip}",tenant_templ.cloudagent_port, params=params, data=u_yaml_message)
         self.assertEqual(response.status, 200, "Non-successful Agent ukey post return code!")
         json_response = json.loads(response.read().decode())
 
@@ -657,7 +657,7 @@ class TestRestful(unittest.TestCase):
         yaml_message = json.dumps(data)
 
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("POST", "%s"%(tenant_templ.cloudverifier_ip),tenant_templ.cloudverifier_port, params=params, data=yaml_message, context=tenant_templ.context)
+        response = httpclient_requests.request("POST", f"{tenant_templ.cloudverifier_ip}",tenant_templ.cloudverifier_port, params=params, data=yaml_message, context=tenant_templ.context)
 
         self.assertEqual(response.status, 200, "Non-successful CV agent Post return code!")
         json_response = json.loads(response.read().decode())
@@ -673,7 +673,7 @@ class TestRestful(unittest.TestCase):
         """Test CV's PUT /v2/agents/{UUID} Interface"""
         #TODO: this should actually test PUT functionality (e.g., make agent fail and then PUT back up)
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("PUT", "%s"%(tenant_templ.cloudverifier_ip),tenant_templ.cloudverifier_port, params=params, data=b'', context=tenant_templ.context)
+        response = httpclient_requests.request("PUT", f"{tenant_templ.cloudverifier_ip}",tenant_templ.cloudverifier_port, params=params, data=b'', context=tenant_templ.context)
 
         self.assertEqual(response.status, 200, "Non-successful CV agent Post return code!")
         json_response = json.loads(response.read().decode())
@@ -685,7 +685,7 @@ class TestRestful(unittest.TestCase):
     def test_032_cv_agents_get(self):
         """Test CV's GET /v2/agents Interface"""
         params = f"/v{self.api_version}/agents/"
-        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
+        response = httpclient_requests.request("GET", f"{tenant_templ.cloudverifier_ip}",tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
 
         self.assertEqual(response.status, 200, "Non-successful CV agent List return code!")
         json_response = json.loads(response.read().decode())
@@ -701,7 +701,7 @@ class TestRestful(unittest.TestCase):
     def test_033_cv_agent_get(self):
         """Test CV's GET /v2/agents/{UUID} Interface"""
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
+        response = httpclient_requests.request("GET", f"{tenant_templ.cloudverifier_ip}",tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
         self.assertEqual(response.status, 200, "Non-successful CV agent return code!")
         json_response = json.loads(response.read().decode())
 
@@ -731,7 +731,7 @@ class TestRestful(unittest.TestCase):
             partial = "0"
 
         params = f"/v{self.api_version}/quotes/integrity?nonce={nonce}&mask={mask}&vmask={vmask}&partial={partial}"
-        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params)
+        response = httpclient_requests.request("GET", f"{tenant_templ.cloudagent_ip}",tenant_templ.cloudagent_port, params=params)
         self.assertEqual(response.status, 200, "Non-successful Agent Integrity Get return code!")
         json_response = json.loads(response.read().decode())
 
@@ -765,7 +765,7 @@ class TestRestful(unittest.TestCase):
         encoded = base64.b64encode(self.K).decode('utf-8')
 
         response = tornado_requests.request("GET",
-                                    "http://%s:%s/keys/verify?challenge=%s"%(self.cloudagent_ip,self.cloudagent_port,challenge))
+                                            f"http://{self.cloudagent_ip}:{self.cloudagent_port}/keys/verify?challenge={challenge}")
         response = await response
         self.assertEqual(response.status, 200, "Non-successful Agent verify return code!")
         json_response = json.loads(response.read().decode())
@@ -787,7 +787,7 @@ class TestRestful(unittest.TestCase):
         time.sleep(5)
 
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("DELETE", "%s"%tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
+        response = httpclient_requests.request("DELETE", f"{tenant_templ.cloudverifier_ip}",tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
         self.assertEqual(response.status, 202, "Non-successful CV agent Delete return code!")
         json_response = json.loads(response.read().decode())
 

@@ -53,7 +53,7 @@ def run(cmd,expectedcode=EXIT_SUCESS,raiseOnError=True,lock=True,outputpaths=Non
 
     # Don't bother continuing if call failed and we're raising on error
     if code!=expectedcode and raiseOnError:
-        raise Exception("Command: %s returned %d, expected %d, output %s"%(cmd,code,expectedcode,retout))
+        raise Exception(f"Command: {cmd} returned {code}, expected {expectedcode}, output {retout}")
 
     # Prepare to return their file contents (if requested)
     fileouts={}

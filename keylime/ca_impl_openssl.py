@@ -112,7 +112,7 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
     cert.set_version(2)
     mk_cert_valid(cert)
     cert.add_ext(X509.new_extension('nsComment', 'SSL sever'))
-    cert.add_ext(X509.new_extension('subjectAltName','DNS:%s'%name))
+    cert.add_ext(X509.new_extension('subjectAltName', f'DNS:{name}')
     cert.add_ext(X509.new_extension('crlDistributionPoints','URI:http://localhost/crl.pem'))
 
     cert.set_subject(cert_req.get_subject())

@@ -118,7 +118,7 @@ class WebAppHandler(BaseHandler):
         )
 
         self.write(
-            """
+            f"""
                         <div id='modal_body'>
                             <center>
                                 <h3>Add Agent</h3>
@@ -163,31 +163,31 @@ class WebAppHandler(BaseHandler):
                                 <div id="policy_block">
                                     <div class="form_block">
                                         <label for='tpm_policy'>TPM Policy: </label><br>
-                                        <textarea class='json_input' id='tpm_policy' name='tpm_policy'>{0}</textarea>
+                                        <textarea class='json_input' id='tpm_policy' name='tpm_policy'>{tpm_policy}</textarea>
                                         <br>
                                     </div>
 
                                     <div class="form_block">
                                         <label for='vtpm_policy'>vTPM Policy: </label><br>
-                                        <textarea class='json_input' id='vtpm_policy' name='vtpm_policy'>{1}</textarea>
+                                        <textarea class='json_input' id='vtpm_policy' name='vtpm_policy'>{vtpm_policy}</textarea>
                                         <br>
                                     </div>
                                 </div>
                                 <br>
-            """.format(tpm_policy, vtpm_policy)
+            """
         )
 
         self.write(
-            """
+            f"""
                                 <div id="payload_block">
                                     <div class="form_block">
                                         <label for='ptype'>Payload type: </label>
-                                        <label><input type='radio' name='ptype' value='{0}' checked="checked" onclick='toggleTabs(this.value)'> File </label>&nbsp;
-                                        <label><input type='radio' name='ptype' value='{1}' onclick='toggleTabs(this.value)'> Keyfile </label>&nbsp;
-                                        <label><input type='radio' name='ptype' value='{2}' onclick='toggleTabs(this.value)'> CA Dir </label>&nbsp;
+                                        <label><input type='radio' name='ptype' value='{Agent_Init_Types.FILE}' checked="checked" onclick='toggleTabs(this.value)'> File </label>&nbsp;
+                                        <label><input type='radio' name='ptype' value='{Agent_Init_Types.KEYFILE}' onclick='toggleTabs(this.value)'> Keyfile </label>&nbsp;
+                                        <label><input type='radio' name='ptype' value='{Agent_Init_Types.CA_DIR}' onclick='toggleTabs(this.value)'> CA Dir </label>&nbsp;
                                         <br>
                                     </div>
-            """.format(Agent_Init_Types.FILE, Agent_Init_Types.KEYFILE, Agent_Init_Types.CA_DIR)
+            """
         )
 
         self.write(
@@ -293,11 +293,11 @@ class AgentsHandler(BaseHandler):
     async def get_agent_state(self, agent_id):
         try:
             res = tornado_requests.request("GET",
-                                        "http://%s:%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,agent_id),context=tenant_templ.context)
+                                        f"http://{tenant_templ.cloudverifier_ip}:{tenant_templ.cloudverifier_port}/agents/{agent_id}",context=tenant_templ.context)
             response = await res
 
         except Exception as e:
-            logger.error("Status command response: %s:%s Unexpected response from Cloud Verifier."%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port))
+            logger.error(f"Status command response: {tenant_templ.cloudverifier_ip}:{tenant_templ.cloudverifier_port} Unexpected response from Cloud Verifier.")
             logger.exception(e)
             common.echo_json_response(self, 500, "Unexpected response from Cloud Verifier", str(e))
             logger.error("Unexpected response from Cloud Verifier: ", str(e))
@@ -306,12 +306,12 @@ class AgentsHandler(BaseHandler):
         inst_response_body = response.json()
 
         if response.status_code != 200 and response.status_code != 404:
-            logger.error("Status command response: %d Unexpected response from Cloud Verifier."%response.status_code)
+            logger.error(f"Status command response: {response.status_code} Unexpected response from Cloud Verifier.")
             keylime_logging.log_http_response(logger,logging.ERROR,inst_response_body)
             return None
 
         if "results" not in inst_response_body:
-            logger.critical("Error: unexpected http response body from Cloud Verifier: %s"%str(response.status_code))
+            logger.critical(f"Error: unexpected http response body from Cloud Verifier: {response.status_code}")
             return None
 
         # Agent not added to CV (but still registered)
@@ -361,11 +361,13 @@ class AgentsHandler(BaseHandler):
         # If no agent ID, get list of all agents from Registrar
         try:
             res = tornado_requests.request("GET",
-                                        "http://%s:%s/agents/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port),context=tenant_templ.context)
+                                           f"http://{tenant_templ.registrar_ip}:{tenant_templ.registrar_port}/agents/",
+                                           context=tenant_templ.context)
             response = await res
 
         except Exception as e:
-            logger.error("Status command response: %s:%s Unexpected response from Registrar."%(tenant_templ.registrar_ip,tenant_templ.registrar_port))
+            logger.error(
+                f"Status command response: {tenant_templ.registrar_ip}:{tenant_templ.registrar_port} Unexpected response from Registrar.")
             logger.exception(e)
             common.echo_json_response(self, 500, "Unexpected response from Registrar", str(e))
             return
@@ -373,12 +375,12 @@ class AgentsHandler(BaseHandler):
         response_body = response.json()
 
         if response.status_code != 200:
-            logger.error("Status command response: %d Unexpected response from Registrar."%response.status_code)
+            logger.error(f"Status command response: {response.status_code} Unexpected response from Registrar.")
             keylime_logging.log_http_response(logger,logging.ERROR,response_body)
             return None
 
         if ("results" not in response_body) or ("uuids" not in response_body["results"]):
-            logger.critical("Error: unexpected http response body from Registrar: %s"%str(response.status_code))
+            logger.critical(f"Error: unexpected http response body from Registrar: {response.status_code}")
             return None
 
         agent_list = response_body["results"]["uuids"]
@@ -535,7 +537,7 @@ class AgentsHandler(BaseHandler):
             mytenant.do_quote()
         except Exception as e:
             logger.exception(e)
-            logger.warning('POST returning 500 response. Tenant error: %s'%str(e))
+            logger.warning(f'POST returning 500 response. Tenant error: {e}')
             common.echo_json_response(self, 500, "Request failure", str(e))
             return
 
@@ -605,9 +607,9 @@ def main(argv=sys.argv):
 
     if not common.REQUIRE_ROOT and webapp_port < 1024:
         webapp_port+=2000
-        logger.warn("Running without root, changing port to %d"%webapp_port)
+        logger.warn(f"Running without root, changing port to {webapp_port}")
 
-    logger.info('Starting Tenant WebApp (tornado) on port %d use <Ctrl-C> to stop'%webapp_port)
+    logger.info(f'Starting Tenant WebApp (tornado) on port {webapp_port} use <Ctrl-C> to stop')
 
     # Figure out where our static files are located
     if getattr(sys, 'frozen', False):
@@ -617,7 +619,7 @@ def main(argv=sys.argv):
         # instead try to locate static directory relative to script
         root_dir = os.path.dirname(os.path.abspath(__file__))
     if not os.path.exists(root_dir+"/static/"):
-        raise Exception('Static resource directory could not be found in %s!'%(root_dir))
+        raise Exception(f'Static resource directory could not be found in {root_dir}!')
 
     app = tornado.web.Application([
         (r"/webapp/.*", WebAppHandler),

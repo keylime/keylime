@@ -221,18 +221,18 @@ class AgentsHandler(BaseHandler):
 
                     # don't allow overwriting
                     if new_agent is None:
-                        common.echo_json_response(self, 409, "Agent of uuid %s already exists"%(agent_id))
-                        logger.warning("Agent of uuid %s already exists"%(agent_id))
+                        common.echo_yaml_response(self, 409, f"Agent of uuid {agent_id} already exists")
+                        logger.warning(f"Agent of uuid {agent_id} already exists")
                     else:
                         self.process_agent(new_agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
                         common.echo_json_response(self, 200, "Success")
-                        logger.info('POST returning 200 response for adding agent id: ' + agent_id)
+                        logger.info(f'POST returning 200 response for adding agent id: {agent_id}')
             else:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
         except Exception as e:
-            common.echo_json_response(self, 400, "Exception error: %s"%e)
-            logger.warning("POST returning 400 response. Exception error: %s"%e)
+            common.echo_json_response(self, 400, f"Exception error: {e}")
+            logger.warning(f"POST returning 400 response. Exception error: {e}")
             logger.exception(e)
 
         self.finish()
@@ -252,7 +252,7 @@ class AgentsHandler(BaseHandler):
 
             if "agents" not in rest_params:
                 common.echo_json_response(self, 400, "uri not supported")
-                logger.warning('PUT returning 400 response. uri not supported: ' + self.request.path)
+                logger.warning(f'PUT returning 400 response. uri not supported: {self.request.path}')
                 return
 
             agent_id = rest_params["agents"]
@@ -264,27 +264,27 @@ class AgentsHandler(BaseHandler):
 
             if agent is not None:
                 common.echo_json_response(self, 404, "agent id not found")
-                logger.info('PUT returning 404 response. agent id: ' + agent_id + ' not found.')
+                logger.info(f'PUT returning 404 response. agent id: {agent_id} not found.')
 
             if "reactivate" in rest_params:
                 agent['operational_state']=cloud_verifier_common.CloudAgent_Operational_State.START
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
                 common.echo_json_response(self, 200, "Success")
-                logger.info('PUT returning 200 response for agent id: ' + agent_id)
+                logger.info(f'PUT returning 200 response for agent id: {agent_id}')
             elif "stop" in rest_params:
                 # do stuff for terminate
-                logger.debug("Stopping polling on %s"%agent_id)
+                logger.debug(f"Stopping polling on {agent_id}")
                 self.db.update_agent(agent_id,'operational_state',cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED)
 
                 common.echo_json_response(self, 200, "Success")
-                logger.info('PUT returning 200 response for agent id: ' + agent_id)
+                logger.info(f'PUT returning 200 response for agent id: {agent_id}')
             else:
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
 
         except Exception as e:
-            common.echo_json_response(self, 400, "Exception error: %s"%e)
-            logger.warning("PUT returning 400 response. Exception error: %s"%e)
+            common.echo_yaml_response(self, 400, f"Exception error: {e}")
+            logger.warning(f"PUT returning 400 response. Exception error: {e}")
             logger.exception(e)
 
 
@@ -300,7 +300,7 @@ class AgentsHandler(BaseHandler):
         if need_pubkey:
             partial_req = "0"
 
-        url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(agent['ip'],agent['port'],params["nonce"],params["mask"],params['vmask'],partial_req)
+        url = f"http://{agent['ip']}:{agent['port']}/quotes/integrity?nonce={params['nonce']}&mask={params['mask']}&vmask={params['vmask']}&partial={partial_req}"
         # the following line adds the agent and params arguments to the callback as a convenience
         cb = functools.partial(self.on_get_quote_response, agent, url)
         client.fetch(url, callback=cb)
@@ -314,8 +314,7 @@ class AgentsHandler(BaseHandler):
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE_RETRY)
             else:
                 #catastrophic error, do not continue
-                error = "Unexpected Get Quote response error for cloud agent " + agent['agent_id']  + ", Error: " + str(response.error)
-                logger.critical(error)
+                error = f"Unexpected Get Quote response error for cloud agent {agent['agent_id']}, Error: {response.error}"                logger.critical(error)
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
         else:
             try:
@@ -346,7 +345,7 @@ class AgentsHandler(BaseHandler):
         v_json_message = cloud_verifier_common.prepare_v(agent)
         agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V
         client = tornado.httpclient.AsyncHTTPClient()
-        url = "http://%s:%d/keys/vkey"%(agent['ip'],agent['port'])
+        url = f"http://{agent['ip']}:{agent['port']}/keys/vkey")
         cb = functools.partial(self.on_provide_v_response, agent, url)
         client.fetch(url, method="POST", callback=cb, headers=None, body=v_json_message)
 
@@ -358,8 +357,7 @@ class AgentsHandler(BaseHandler):
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY)
             else:
                 #catastrophic error, do not continue
-                error = "Unexpected Provide V response error for cloud agent " + agent['agent_id']  + ", Error: " + str(response.error)
-                logger.critical(error)
+                error = f"Unexpected Provide V response error for cloud agent {agent['agent_id']}, Error: {response.error}"                logger.critical(error)
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
         else:
             self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
@@ -371,7 +369,7 @@ class AgentsHandler(BaseHandler):
 
             # if the user did terminated this agent
             if stored_agent['operational_state'] == cloud_verifier_common.CloudAgent_Operational_State.TERMINATED:
-                logger.warning("agent %s terminated by user."%agent['agent_id'])
+                logger.warning(f"agent {agent['agent_id']} terminated by user.")
                 if agent['pending_event'] is not None:
                     tornado.ioloop.IOLoop.current().remove_timeout(agent['pending_event'])
                 self.db.remove_agent(agent['agent_id'])
@@ -379,7 +377,7 @@ class AgentsHandler(BaseHandler):
 
             # if the user tells us to stop polling because the tenant quote check failed
             if stored_agent['operational_state']==cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED:
-                logger.warning("agent %s has failed tenant quote.  stopping polling"%agent['agent_id'])
+                logger.warning(f"agent {agent['agent_id']} has failed tenant quote.  stopping polling")
                 if agent['pending_event'] is not None:
                     tornado.ioloop.IOLoop.current().remove_timeout(agent['pending_event'])
                 return
@@ -392,7 +390,7 @@ class AgentsHandler(BaseHandler):
                 if agent['pending_event'] is not None:
                     tornado.ioloop.IOLoop.current().remove_timeout(agent['pending_event'])
                 self.db.overwrite_agent(agent['agent_id'], agent)
-                logger.warning("agent %s failed, stopping polling"%agent['agent_id'])
+                logger.warning(f"agent {agent['agent_id']} failed, stopping polling")
                 return
 
             # propagate all state
@@ -432,7 +430,7 @@ class AgentsHandler(BaseHandler):
             if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE and \
                 new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE_RETRY:
                 if agent['num_retries']>=maxr:
-                    logger.warning("agent %s was not reachable for quote in %d tries, setting state to FAILED"%(agent['agent_id'],maxr))
+                    logger.warning(f"agent {agent['agent_id']} was not reachable for quote in {maxr} tries, setting state to FAILED")
                     if agent['first_verified']: # only notify on previously good agents
                         cloud_verifier_common.notifyError(agent,'comm_error')
                     else:
@@ -441,31 +439,31 @@ class AgentsHandler(BaseHandler):
                 else:
                     cb = functools.partial(self.invoke_get_quote, agent, True)
                     agent['num_retries']+=1
-                    logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(agent['ip'],agent['num_retries'],maxr,retry))
+                    logger.info(f"connection to {agent['ip']} refused after {agent['num_retries']}/{maxr} tries, trying again in {retry} seconds")
                     tornado.ioloop.IOLoop.current().call_later(retry,cb)
                 return
 
             if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V and \
                 new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY:
                 if agent['num_retries']>=maxr:
-                    logger.warning("agent %s was not reachable to provide v in %d tries, setting state to FAILED"%(agent['agent_id'],maxr))
+                    logger.warning(f"agent {agent['agent_id']} was not reachable to provide v in {maxr} tries, setting state to FAILED")
                     cloud_verifier_common.notifyError(agent,'comm_error')
                     self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
                 else:
                     cb = functools.partial(self.invoke_provide_v, agent)
                     agent['num_retries']+=1
-                    logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(agent['ip'],agent['num_retries'],maxr,retry))
+                    logger.info(f"connection to {agent['ip']} refused after {agent['num_retries']}/{maxr} tries, trying again in {retry} seconds")
                     tornado.ioloop.IOLoop.current().call_later(retry,cb)
                 return
             raise Exception("nothing should ever fall out of this!")
 
         except Exception as e:
-            logger.error("Polling thread error: %s"%e)
+            logger.error(f"Polling thread error: {e}")
             logger.exception(e)
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
-    print("Starting Torando on port " + str(port))
+    print(f"Starting Torando on port {port}")
     tornado.ioloop.IOLoop.instance().start()
     print("Tornado finished")
 
@@ -479,14 +477,14 @@ def main(argv=sys.argv):
 
     cloudverifier_port = config.get('general', 'cloudverifier_port')
 
-    db_filename = "%s/%s"%(common.WORK_DIR,config.get('cloud_verifier','db_filename'))
+    db_filename = f"{common.WORK_DIR}/{config.get('cloud_verifier', 'db_filename')}"
     db = cloud_verifier_common.init_db(db_filename)
     db.update_all_agents('operational_state', cloud_verifier_common.CloudAgent_Operational_State.SAVED)
 
     num = db.count_agents()
     if num>0:
         agent_ids = db.get_agent_ids()
-        logger.info("agent ids in db loaded from file: %s"%agent_ids)
+        logger.info(f"agent ids in db loaded from file: {agent_ids}")
 
     logger.info('Starting Cloud Verifier (tornado) on port ' + cloudverifier_port + ', use <Ctrl-C> to stop')
 
@@ -499,7 +497,7 @@ def main(argv=sys.argv):
     
     #after TLS is up, start revocation notifier
     if config.getboolean('cloud_verifier', 'revocation_notifier'):
-        logger.info("Starting service for revocation notifications on port %s"%config.getint('general','revocation_notifier_port'))
+        logger.info(f"Starting service for revocation notifications on port {config.getint('general', 'revocation_notifier_port')}")
         revocation_notifier.start_broker()
 
     sockets = tornado.netutil.bind_sockets(int(cloudverifier_port), address='0.0.0.0')

@@ -104,16 +104,16 @@ def main(argv=sys.argv):
              }
 
     # store the key and the group UUID in a file to add to vtpms later
-    with open("group-%d-%s.tpm"%(group_num,group_uuid),'w') as f:
+    with open(f"group-{group_num}-{group_uuid}.tpm", 'w') as f:
         yaml.dump(output,f, Dumper=SafeDumper)
 
-    logger.info("Activated VTPM group %d, UUID %s"%(group_num,group_uuid))
+    logger.info(f"Activated VTPM group {group_num}, UUID {group_uuid}")
     if group_num==0:
         logger.info("WARNING: Group 0 created, repeating activation again to create Group 1")
         main(argv)
     else:
         # create a symlink to the most recently create group
-        symlink_force("group-%d-%s.tpm"%(group_num,group_uuid),"current_group.tpm")
+        symlink_force(f"group-{group_num}-{group_uuid}.tpm", "current_group.tpm")
 
 if __name__=="__main__":
     try:

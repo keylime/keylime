@@ -56,8 +56,8 @@ if common.CA_IMPL=='cfssl':
 elif common.CA_IMPL=='openssl':
     from keylime import ca_impl_openssl as ca_impl
 else:
-    raise Exception("Unknown CA implementation: %s"%common.CA_IMPL)
-from M2Crypto import X509, EVP, BIO
+    raise Exception(f'Unknown CA implementation: {common.CA_IMPL}')
+    from M2Crypto import X509, EVP, BIO
 
 config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
@@ -98,7 +98,7 @@ def cmd_mkcert(workingdir,name):
 
         cert,pk = ca_impl.mk_signed_cert(cacert,ca_pk,name,priv[0]['lastserial']+1)
 
-        with open('%s-cert.crt'%name, 'wb') as f:
+        with open(f'{name}-cert.crt', 'wb') as f:
             f.write(cert.as_pem())
 
         f = BIO.MemoryBuffer()
@@ -112,17 +112,17 @@ def cmd_mkcert(workingdir,name):
         write_private(priv)
 
         # write out the private key with password
-        with os.fdopen(os.open("%s-private.pem"%name,os.O_WRONLY | os.O_CREAT,0o600), 'wb') as f:
+        with os.fdopen(os.open(f'{name}-private.pem', os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
             biofile = BIO.File(f)
             pk.save_key_bio(biofile, 'aes_256_cbc', globalcb)
             biofile.close()
 
-        pk.get_rsa().save_pub_key('%s-public.pem'%name)
+        pk.get_rsa().save_pub_key(f'{name}-public.pem')
 
         cc = X509.load_cert('%s-cert.crt'%name)
 
         if cc.verify(cacert.get_pubkey()):
-            logger.info("Created certificate for name %s successfully in %s"%(name,workingdir))
+            logger.info(f'Created certificate for name {name} successfully in {workingdir}')
         else:
             logger.error("ERROR: Cert does not validate against CA")
     finally:
@@ -144,7 +144,7 @@ def cmd_init(workingdir):
         elif common.CA_IMPL=='openssl':
             cacert, ca_pk, _ = ca_impl.mk_cacert()
         else:
-            raise Exception("Unknown CA implementation: %s"%common.CA_IMPL)
+            raise Exception(f"Unknown CA implementation: {common.CA_IMPL}")
 
         priv=read_private()
 
@@ -171,7 +171,7 @@ def cmd_init(workingdir):
         elif common.CA_IMPL=='openssl':
             crl = ca_impl.gencrl([],cacert.as_pem(),str(priv[0]['ca']))
         else:
-            raise Exception("Unknown CA implementation: %s"%common.CA_IMPL)
+            raise Exception(f"Unknown CA implementation: {common.CA_IMPL}")
 
         if isinstance(crl, str):
             crl = crl.encode('utf-8')
@@ -183,7 +183,7 @@ def cmd_init(workingdir):
         # Sanity checks...
         cac = X509.load_cert('cacert.crt')
         if cac.verify():
-            logger.info("CA certificate created successfully in %s"%workingdir)
+            logger.info(f"CA certificate created successfully in {workingdir}")
         else:
             logger.error("ERROR: Cert does not self validate")
     finally:
@@ -198,10 +198,10 @@ def cmd_certpkg(workingdir,name,insecure=False):
         with open('cacert.crt','r') as f:
             cacert = f.read()
 
-        with open("%s-public.pem"%name,'r') as f:
+        with open(f"{name}-public.pem", 'rb') as f:
             pub = f.read()
 
-        with open("%s-cert.crt"%name,'r') as f:
+        with open(f"{name}-cert.crt", 'rb') as f:
             cert = f.read()
 
         with open('cacrl.der','rb') as f:
@@ -217,7 +217,7 @@ def cmd_certpkg(workingdir,name,insecure=False):
         priv = read_private()
         private = priv[0][name]
 
-        with open("%s-private.pem"%name,'r') as f:
+        with open(f"{name}-private.pem", 'rb') as f:
             prot_priv = f.read()
 
         #code to create a pem formatted protected private key using the keystore password
@@ -231,9 +231,9 @@ def cmd_certpkg(workingdir,name,insecure=False):
         # no compression to avoid extraction errors in tmpfs
         sf = io.BytesIO()
         with zipfile.ZipFile(sf,'w',compression=zipfile.ZIP_STORED) as f:
-            f.writestr('%s-public.pem'%name,pub)
-            f.writestr('%s-cert.crt'%name,cert)
-            f.writestr('%s-private.pem'%name,private)
+            f.writestr(f'{name}-public.pem',pub)
+            f.writestr(f'{name}-cert.crt',cert)
+            f.writestr(f'{name}-private.pem',private)
             f.writestr('cacert.crt',cacert)
             f.writestr('cacrl.der',crl)
             f.writestr('cacrl.pem',crlpem)
@@ -241,19 +241,19 @@ def cmd_certpkg(workingdir,name,insecure=False):
 
         if insecure:
             logger.warn("Unprotected private keys in cert package being written to disk")
-            with open('%s-pkg.zip'%name,'w') as f:
+            with open(f'{name}-pkg.zip','w') as f:
                 f.write(pkg)
         else:
             # actually output the package to disk with a protected private key
-            with zipfile.ZipFile('%s-pkg.zip'%name,'w',compression=zipfile.ZIP_STORED) as f:
-                f.writestr('%s-public.pem'%name,pub)
-                f.writestr('%s-cert.crt'%name,cert)
-                f.writestr('%s-private.pem'%name,prot_priv)
+            with zipfile.ZipFile(f'{name}-pkg.zip', 'w', compression=zipfile.ZIP_STORED) as f:
+                f.writestr(f'{name}-public.pem', pub)
+                f.writestr(f'{name}-cert.crt', cert)
+                f.writestr(f'{name}-private.pem', prot_priv)
                 f.writestr('cacert.crt',cacert)
                 f.writestr('cacrl.der',crl)
                 f.writestr('cacrl.pem',crlpem)
 
-        logger.info("Creating cert package for %s in %s-pkg.zip"%(name,name))
+        logger.info(f"Creating cert package for {name} in {name}-pkg.zip")
 
         return pkg,serial,subject
     finally:
@@ -264,7 +264,7 @@ def convert_crl_to_pem(derfile,pemfile):
         with open(pemfile,'w') as f:
             f.write("")
     else:
-        cmd_exec.run("openssl crl -in %s -inform der -out %s"%(derfile,pemfile),lock=False)
+        cmd_exec.run(f"openssl crl -in {derfile} -inform der -out {pemfile}", lock=False)
 
 def get_crl_distpoint(cert_path):
     cert_obj = X509.load_cert(cert_path)
@@ -294,7 +294,7 @@ def cmd_revoke(workingdir,name=None,serial=None):
             raise Exception("You must specify a cert or a serial to revoke")
         if name is not None:
             # load up the cert
-            cert = X509.load_cert("%s-cert.crt"%name)
+            cert = X509.load_cert(f"{name}-cert.crt")
             serial = cert.get_serial_number()
 
         #convert serial to string
@@ -352,20 +352,20 @@ def cmd_listen(workingdir,cert_path):
 
     serveraddr = ('', common.CRL_PORT)
     server = ThreadedCRLServer(serveraddr,CRLHandler)
-    if os.path.exists('%s/cacrl.der'%workingdir):
-        logger.info("Loading existing crl: %s/cacrl.der"%workingdir)
-        with open('%s/cacrl.der'%workingdir,'rb') as f:
+    if os.path.exists(f'{workingdir}/cacrl.der'):
+        logger.info(f"Loading existing crl: {workingdir}/cacrl.der")
+        with open(f'{workingdir}/cacrl.der','rb') as f:
             server.setcrl(f.read())
     t = threading.Thread(target=server.serve_forever)
-    logger.info("Hosting CRL on %s:%d"%(socket.getfqdn(),common.CRL_PORT))
+    logger.info(f"Hosting CRL on {socket.getfqdn()}:{common.CRL_PORT}")
     t.start()
 
     def check_expiration():
         logger.info("checking CRL for expiration every hour")
         while True:
             try:
-                if os.path.exists('%s/cacrl.der'%workingdir):
-                    retout = cmd_exec.run("openssl crl -inform der -in %s/cacrl.der -text -noout"%workingdir,lock=False)['retout']
+                if os.path.exists(f'{workingdir}/cacrl.der'):
+                    retout = cmd_exec.run(f"openssl crl -inform der -in {workingdir}/cacrl.der -text -noout",lock=False)['retout']
                     for line in retout:
                         line = line.strip()
                         if line.startswith(b"Next Update:"):
@@ -373,7 +373,7 @@ def cmd_listen(workingdir,cert_path):
                             # check expiration within 6 hours
                             in1hour = datetime.datetime.utcnow()+datetime.timedelta(hours=6)
                             if expire<=in1hour:
-                                logger.info("Certificate to expire soon %s, re-issuing"%expire)
+                                logger.info(f"Certificate to expire soon {expire}, re-issuing")
                                 cmd_regencrl(workingdir)
                 # check a little less than every hour
                 time.sleep(3540)
@@ -390,10 +390,10 @@ def cmd_listen(workingdir,cert_path):
     def revoke_callback(revocation):
         serial = revocation.get("metadata",{}).get("cert_serial",None)
         if revocation.get('type',None) != 'revocation' or serial is None:
-            logger.error("Unsupported revocation message: %s"%revocation)
+            logger.error(f"Unsupported revocation message: {revocation}")
             return
 
-        logger.info("Revoking certificate: %s"%serial)
+        logger.info(f"Revoking certificate: {serial}")
         server.setcrl(cmd_revoke(workingdir, None, serial))
 
     try:
@@ -418,7 +418,7 @@ class ThreadedCRLServer(ThreadingMixIn, HTTPServer):
 
 class CRLHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        logger.info('GET invoked from ' + str(self.client_address)  + ' with uri:' + self.path)
+        logger.info(f'GET invoked from {self.client_address} with uri:{self.path}')
 
         if self.server.published_crl is None:
             self.send_response(404)
@@ -492,7 +492,7 @@ def main(argv=sys.argv):
 
     if args.dir==None:
         if os.getuid()!=0 and common.REQUIRE_ROOT:
-            logger.error("If you don't specify a working directory, this process must be run as root to access %s"%common.WORK_DIR)
+            logger.error(f"If you don't specify a working directory, this process must be run as root to access {common.WORK_DIR}")
             sys.exit(-1)
         workingdir = common.CA_WORK_DIR
     else:
@@ -520,11 +520,11 @@ def main(argv=sys.argv):
         cmd_revoke(workingdir, args.name)
     elif args.command=='listen':
         if args.name is None:
-            args.name = "%s/RevocationNotifier-cert.crt"%workingdir
-            logger.warning("using default name for revocation cert %s"%args.name)
+            args.name = f"{workingdir}/RevocationNotifier-cert.crt"
+            logger.warning(f"using default name for revocation cert {args.name}")
         cmd_listen(workingdir,args.name)
     else:
-        logger.error("Invalid command: %s"%args.command)
+        logger.error(f"Invalid command: {args.command}")
         parser.print_help()
         sys.exit(-1)
 

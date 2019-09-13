@@ -40,18 +40,18 @@ logger = keylime_logging.init_logging('delete-sa')
 async def execute(revocation):
     serial = revocation.get("metadata",{}).get("cert_serial",None)
     if revocation.get('type',None) != 'revocation' or serial is None:
-        logger.error("Unsupported revocation message: %s"%revocation)
+        logger.error(f"Unsupported revocation message: {revocation}")
 
     # load up the ca cert
     secdir = secure_mount.mount()
-    ca = X509.load_cert('%s/unzipped/cacert.crt'%secdir)
+    ca = X509.load_cert(f'{secdir}/unzipped/cacert.crt')
 
     # need to find any sa's that were established with that cert serial
     output = cmd_exec.run("racoonctl show-sa ipsec",lock=False,raiseOnError=True)['retout']
     deletelist=set()
     for line in output:
         if not line.startswith(b"\t"):
-            certder = cmd_exec.run("racoonctl get-cert inet %s"%line.strip(),raiseOnError=False,lock=False)['retout']
+            certder = cmd_exec.run(f"racoonctl get-cert inet {line.strip()}", raiseOnError=False, lock=False)['retout']
             if len(certder)==0:
                 continue;
             certobj = X509.load_cert_der_string(b''.join(certder))
@@ -64,10 +64,10 @@ async def execute(revocation):
                 deletelist.add(line.strip())
 
     for todelete in deletelist:
-        logger.info("deleting IPsec sa between %s"%todelete)
-        cmd_exec.run("racoonctl delete-sa isakmp inet %s"%todelete,lock=False)
+        logger.info(f"deleting IPsec sa between {todelete}")
+        cmd_exec.run(f"racoonctl delete-sa isakmp inet {todelete}", lock=False)
         tokens = todelete.split()
-        cmd_exec.run("racoonctl delete-sa isakmp inet %s %s"%(tokens[1],tokens[0]),lock=False)
+        cmd_exec.run(f"racoonctl delete-sa isakmp inet {tokens[1]} {tokens[0]}", lock=False)
 
     # for each pair returned that doens't start with whitespace
     #racoonctl get-cert inet 192.168.240.128 192.168.240.254 (the pair from before)

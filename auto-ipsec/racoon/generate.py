@@ -81,8 +81,8 @@ def main(argv=sys.argv):
         exclude=[]
   
     print("Preparing extra files for ipsec config in directory: ipsec-extra")
-    print("enabling ipsec for subnets:  %s"%subnets)
-    print("disabling ipsec for subnets: %s"%exclude)
+    print(f"enabling ipsec for subnets:  {subnets}")
+    print(f"disabling ipsec for subnets: {exclude}")
     
     if os.path.exists('ipsec-extra'):
         shutil.rmtree('ipsec-extra')

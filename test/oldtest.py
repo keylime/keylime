@@ -359,7 +359,7 @@ class Test(unittest.TestCase):
                         if key.isdigit() :
                             mask = mask + (1<<int(key))
 
-                    mask_str = "0x%X"%(mask)
+                    mask_str = f"0x{mask:#X}"
                     tmpp_policy['mask'] = mask_str
                     json_request_body['tpm_policy'] = tmpp_policy
                     
@@ -392,7 +392,7 @@ class Test(unittest.TestCase):
                                                            
                     
                 except Exception as e:
-                    self.fail("Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudagent_ip or cloudagent_port.  Error: %s"%e)         
+                    self.fail(f"Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudagent_ip or cloudagent_port.  Error: {e}")
 
     def test_concurrent_cloudnodiness_reset_request(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
 
@@ -413,8 +413,7 @@ class Test(unittest.TestCase):
                     test_functions['http_request_body'] = json.dumps(json_request_body)  
 
                 except Exception as e:
-                    self.fail("Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudagent_ip or cloudagent_port.  Error: %s"%e) 
-
+                    self.fail(f"Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudagent_ip or cloudagent_port.  Error: {e}")
 
     def test_check_persistance_file_empty(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         test_record = self.test_table.get(test_method_name)
@@ -428,8 +427,8 @@ class Test(unittest.TestCase):
                     if len(jsondecoded) != 0:
                         self.fail("Expected empty persistence file to replace non existent persistence file on startup.") 
                 except Exception as e:
-                    self.fail("Problem reading persistence file after replacement of empty persistence file.  Error: %s"%e) 
-                     
+                    self.fail(f"Problem reading persistence file after replacement of empty persistence file.  Error: {e}")
+
     def check_test_persistance_file_write(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         test_record = self.test_table.get(test_method_name)
         uuid_str = argument
@@ -444,7 +443,7 @@ class Test(unittest.TestCase):
                         if len(json_content) != 1 or json_content.get(uuid_str) is None:
                             self.fail("Unexpected persistence file contents.")
                 except Exception as e:
-                    self.fail("Problem reading persistence file after POST.  Error: %s"%e)  
+                    self.fail(f"Problem reading persistence file after POST.  Error: {e}")
                 try:                                                
                     with open(cv_persistence_filename + ".bak", "r") as backup_persistance_file:    
                         backup_file_contents = backup_persistance_file.read()
@@ -453,7 +452,7 @@ class Test(unittest.TestCase):
                         if len(json_backup_content) != 0:
                             self.fail("Unexpected backup persistence file contents.")                          
                 except Exception as e:
-                    self.fail("Problem reading backup persistence file after POST.  Error: %s"%e)                          
+                    self.fail(f"Problem reading backup persistence file after POST.  Error: {e}")
 
                     
                     
@@ -467,7 +466,7 @@ class Test(unittest.TestCase):
                 jsondecoded = json.loads(target_body)
                 # test to make sure these two keys (and values) are in the return
                 if len(jsondecoded) != 1 or jsondecoded.get(uuid_str) is None :
-                    self.fail("Expected " + uuid_str + " to be in the list of active agent_ids")   
+                    self.fail(f"Expected {uuid_str} to be in the list of active agent_ids")
 
 #     def do_mock_for_test_cloudverifier_tenant_provide_v(self, argument):
 #         global text_callback
@@ -516,12 +515,14 @@ class Test(unittest.TestCase):
                         u_json_message = json.dumps(data)
                         
                         #post encrypted U back to Cloud Agent
-                        response = tornado_requests.request("POST", "http://%s:%s/v1/quotes/tenant"%(cloudagent_ip,cloudagent_port),data=u_json_message)
-                        
+                        response = tornado_requests.request("POST",
+                                                            f"http://{cloudverifier_ip}:{cloudagent_port}/v1/quotes/tenant",
+                                                            data=u_json_message)
+
                         if response.status_code != 200:
-                            self.fail("Posting of Encrypted U to the Cloud Agent failed with response code %d" %response.status_code )                 
+                            self.fail(f"Posting of Encrypted U to the Cloud Agent failed with response code {response.status_code}")
                     else:
-                        self.fail("TPM Quote from cloud agent is invalid for nonce: %s"%self.nonce )                                
+                        self.fail(f"TPM Quote from cloud agent is invalid for nonce: {self.nonce}")
 
     def check_test_cloudagent_tenant_get_nonce(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         test_record = self.test_table.get(test_method_name)
@@ -570,24 +571,23 @@ class Test(unittest.TestCase):
                 expected_len = argument
                 actual_len = len(agent_id_list)
                 if actual_len != expected_len:
-                    self.fail("Expected " +  str(expected_len) +" instance id's but received " + str(actual_len))  
-                
+                    self.fail(f"Expected {expected_len} instance id's but received {actual_len}")
+
                 for agent_id in agent_id_list:
                     params = {
                         'agent_id': agent_id,
                         }
                     try:  
                         response = tornado_requests.request("DELETE",
-                        "http://" + cloudverifier_ip + ":" + cloudverifier_port + "/v1/instances",
-                        params=params)  
+                                                            f"http://{cloudverifier_ip}:{cloudagent_port}/v1/instances",
+                                                            params=params)
                         
                         if response.status_code != 200:
-                            self.fail("Delete of agent_id " + agent_id + " failed.")  
-  
+                            self.fail(f"Delete of agent_id {agent_id} failed.")
+
                     except Exception as e:
-                        self.fail("Delete of agent_id " + agent_id + " failed with exception: %s"%e)                    
-                       
-    
+                        self.fail(f"Delete of agent_id {agent_id} failed with exception: {e}")
+
 
     def execute_the_test(self, setup_or_state_change_or_validation, test_functions, test_iteration ):          
 
@@ -598,13 +598,13 @@ class Test(unittest.TestCase):
             pre_function_args = pre_function.get('args')
             function_return = getattr(self, pre_function_name)(self._testMethodName, test_functions["function_name"], setup_or_state_change_or_validation, test_iteration, pre_function_args) #self._testMethodName, test_functions["function_name"], setup_or_state_change_or_validation, check_argument
             if function_return == False:
-                self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ":" + pre_function_name + " pre_function failure, test aborted." )
+                self.fail(f'Test {self._testMethodName}:{test_functions["function_name"]}:{pre_function_name}pre_function failure, test aborted.')
 
-        full_url = "http://" + test_functions.get("http_request_ip") + ":" + test_functions.get("http_request_port") + test_functions.get("http_request_path")  
+        full_url = f'http://{test_functions.get("http_request_ip")}:{test_functions.get("http_request_port")} {test_functions.get("http_request_path")}'
         http_request_body_tag = test_functions.get("http_request_body") 
         http_request_body_file_tag = test_functions.get("http_request_body_file")
         if http_request_body_tag != None and http_request_body_file_tag != None :
-            self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + " contains both http_request_body and http_request_body_file tags." )
+            self.fail(f'Test {self._testMethodName}:{test_functions["function_name"]} contains both http_request_body and http_request_body_file tags.')
         
         thedata = ''
         if http_request_body_tag == None and http_request_body_file_tag != None:
@@ -632,19 +632,19 @@ class Test(unittest.TestCase):
         test_functions["http_result_body_actual"] = temp.read()
         #validate response status
         if test_functions["http_result_status_actual"] != test_functions["http_result_status_expected"]:
-            self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + " expected " + str(test_functions["http_result_status_expected"]) + " but received " + str(test_functions["http_result_status_actual"])) # reset the file marker for reading
+            self.fail(f"Test {self._testMethodName}:{test_functions['function_name']} expected {test_functions['http_result_status_expected']} but received{test_functions['http_result_status_actual']}")
         #validate response headers
         if test_functions.get("http_result_header_expected") is not None and not (all(item in list(response.headers.items()) for item in list(test_functions["http_result_header_expected"].items()))):
-            self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ", didn't receive expected headers.")
+            self.fail(f"Test {self._testMethodName}:{test_functions['function_name']}, did not receive expected headers.")
         #validate (shallow) response body
         if test_functions.get("http_result_body_expected") is not None and json.loads(test_functions.get("http_result_body_expected")) != json.loads(test_functions.get("http_result_body_actual")):
-            self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ", didn't receive exact expected result body.")
+            self.fail(f"Test {self._testMethodName}:{test_functions['function_name']}, did not receive exact expected result body.")
         #validate (deep) response body
         check_function = test_functions.get("check_function")
         if check_function is not None:
             check_argument = check_function.get("argument")
             if getattr(self, check_function["name"])(self._testMethodName, test_functions["function_name"], setup_or_state_change_or_validation, test_iteration, check_argument):
-                self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ", didn't receive exact expected result body.")
+                self.fail(f"Test {self._testMethodName}:{test_functions['function_name']}, did not receive exact expected result body.")
 
         # call the post_function
         post_function = test_functions.get("post_function")
@@ -653,8 +653,8 @@ class Test(unittest.TestCase):
             post_function_args = post_function.get('args')
             function_return = getattr(self, post_function_name)(self._testMethodName, test_functions["function_name"], setup_or_state_change_or_validation, test_iteration, post_function_args)
             if function_return == False:
-                self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ":" + post_function_name + " post_function failure, test aborted." )
-        
+                self.fail(f"Test {self._testMethodName}:{test_functions['function_name']}:{post_function_name} post_function failure, test aborted.")
+
         temp.close()
 
 
@@ -666,8 +666,8 @@ class Test(unittest.TestCase):
             http_request_body_tag = test_functions.get("http_request_body") 
             http_request_body_file_tag = test_functions.get("http_request_body_file")
             if http_request_body_tag != None and http_request_body_file_tag != None :
-                self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + " contains both http_request_body and http_request_body_file tags." )
-            
+                self.fail(f"Test {self._testMethodName}:{test_functions['function_name']} contains both http_request_body and http_request_body_file tags.")
+
             thedata = ''
             if http_request_body_tag == None and http_request_body_file_tag != None:
                 thedata = open(http_request_body_file_tag).read()
@@ -683,7 +683,7 @@ class Test(unittest.TestCase):
             self.execute_the_test(setup_or_state_change_or_validation, test_functions, test_iteration )
 
         except Exception as e:
-            self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ", unexpected exception error: %s"%e )    
+            self.fail(f"Test {self._testMethodName}:{test_functions['function_name']}, unexpected exception error: {e}")
         finally: 
             queue.task_done()
             
@@ -845,17 +845,16 @@ class Test(unittest.TestCase):
                     'agent_id': contrived_uuid,
                     }
                 try:
-                    print(("Sending #" + str(cn) + " DELETE request to CV for uuid: " +  contrived_uuid))
+                    print(f"Sending #{cn} DELETE request to CV for uuid: {contrived_uuid}")
                     response = tornado_requests.request("DELETE",
-                    "http://" + cloudverifier_ip + ":" + cloudverifier_port + "/v1/instances",
-                    params=params)  
+                                                        f"http://{cloudverifier_ip}:{cloudverifier_port}/v1/instances",
+                                                        params=params)
                     
                     if response.status_code != 200:
-                        self.fail("Delete of agent_id " + contrived_uuid + " failed.")  
-                
+                        self.fail(f"Delete of agent_id {contrived_uuid} failed.")
+
                 except Exception as e:
-                    self.fail("Delete of agent_id " + contrived_uuid + " failed with exception: %s"%e)  
-                
+                    self.fail(f"Delete of agent_id {contrived_uuid} failed with exception: {e}")
 
             for cn in range(num_cloudagent_instances): 
                 cloudagent_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
@@ -863,7 +862,7 @@ class Test(unittest.TestCase):
                 shutil.rmtree(new_dir)
 
         for the_pid in cn_process_list:
-            print(("killing pid" + str(the_pid)))
+            print(f"killing pid {the_pid}")
             os.killpg(the_pid, signal.SIGTERM)
 
     def kill_cloudverifier(self, argument):

@@ -46,12 +46,12 @@ def ml_extend(ml,position,searchHash=None):
         if line =='':
             continue
         if len(tokens)<5:
-            print("ERROR: invalid measurement list file line: -%s-"%(line))
+            print(f"ERROR: invalid measurement list file line: -{line}-")
             return position
         position += 1
 
         # get the filename roughly
-        path = str(line[line.rfind(tokens[3])+len(tokens[3])+1:])
+        path = f"{line[line.rfind(tokens[3]) + len(tokens[3]) + 1:]}"
         template_hash=tokens[1]
 
         # this is some IMA weirdness
@@ -59,7 +59,7 @@ def ml_extend(ml,position,searchHash=None):
             template_hash = ff_hash
 
         if searchHash is None:
-            print("extending hash %s for %s"%(template_hash,path))
+            print(f"extending hash {template_hash} for {path}")
             #TODO: Add support for other hash algorithms
             tpm.extendPCR(common.IMA_PCR, template_hash, Hash_Algorithms.SHA1)
         else:
@@ -77,7 +77,7 @@ def ml_extend(ml,position,searchHash=None):
             runninghash = hashlib.sha1(runninghash+template_hash).digest()
 
             if runninghash == searchHash:
-                print("Located last IMA file updated: %s"%(path))
+                print(f"Located last IMA file updated: {path}")
                 return position
 
     if searchHash is not None:
@@ -99,7 +99,7 @@ def main(argv=sys.argv):
         print("Warning: IMA PCR is not empty, trying to find the last updated file in the measurement list...")
         pos = ml_extend(common.IMA_ML, 0, pcrval)
 
-    print("Monitoring %s"%(common.IMA_ML))
+    print(f"Monitoring {common.IMA_ML}")
     poll_object = select.poll()
     fd_object = open(common.IMA_ML, "r")
     number = fd_object.fileno()

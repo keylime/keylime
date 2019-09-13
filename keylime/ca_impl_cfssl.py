@@ -59,17 +59,17 @@ def post_cfssl(params,data):
             if numtries >= maxr:
                 logger.error("Quiting after max number of retries to connect to cfssl server")
                 raise e
-            logger.info("Connection to cfssl refused %d/%d times, trying again in %f seconds..."%(numtries,maxr,retry))
+            logger.info(f"Connection to cfssl refused {numtries}/{maxr} times, trying again in {retry} seconds...")
             time.sleep(retry)
             continue
 
     if response.status_code!=200:
-        raise Exception("Unable to issue CFSSL API command %s: %s"%(params,response.text))
+        raise Exception(f"Unable to issue CFSSL API command {params}: {response.text}")
     return response.json()
 
 def start_cfssl(cmdline=""):
     global cfsslproc
-    cmd = "cfssl serve -loglevel=1 %s "%cmdline
+    cmd = f"cfssl serve -loglevel=1 {cmdline} "
     env = os.environ.copy()
     env['PATH']=env['PATH']+":/usr/local/bin"
 
@@ -78,7 +78,7 @@ def start_cfssl(cmdline=""):
 
     cfsslproc = subprocess.Popen(cmd,env=env,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,universal_newlines=True)
     if cfsslproc.returncode is not None:
-        raise Exception("Unable to launch %: failed with code "%(cmd,cfsslproc.returncode))
+        raise Exception(f"Unable to launch {cmd}: failed with code {cfsslproc.returncode} ")
 
     logger.debug("Waiting for cfssl to start...")
     while True:
@@ -153,7 +153,7 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
     # check CRL distribution point
     disturl = config.get('ca','cert_crl_dist')
     if disturl == 'default':
-        disturl = "http://%s:%s/crl.der"%(socket.getfqdn(),common.CRL_PORT)
+        disturl = f"http://{socket.getfqdn()}:{common.CRL_PORT}/crl.der"
 
     # set up config for cfssl server
     cfsslconfig  = {
@@ -169,28 +169,28 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
     try:
         # need to temporarily write out the private key with no password
         # to tmpfs
-        ca_pk.save_key('%s/ca-key.pem'%secdir, None)
-        with open('%s/cfsslconfig.yml'%secdir,'w') as f:
+        ca_pk.save_key(f'{secdir}/ca-key.pem', None)
+        with open(f'{secdir}/cfsslconfig.yml', 'w') as f:
             json.dump(cfsslconfig, f)
 
-        cmdline = "-config=%s/cfsslconfig.yml"%secdir
+        cmdline = f"-config={secdir}/cfsslconfig.yml"
 
-        priv_key = os.path.abspath("%s/ca-key.pem"%secdir)
-        cmdline += " -ca-key %s -ca cacert.crt"%(priv_key)
+        priv_key = os.path.abspath(f"{secdir}/ca-key.pem")
+        cmdline += f" -ca-key {priv_key} -ca cacert.crt"
 
         start_cfssl(cmdline)
         body = post_cfssl('api/v1/cfssl/newcert',csr)
     finally:
         stop_cfssl()
-        os.remove('%s/ca-key.pem'%secdir)
-        os.remove('%s/cfsslconfig.yml'%secdir)
+        os.remove(f'{secdir}/ca-key.pem')
+        os.remove(f'{secdir}/cfsslconfig.yml')
 
     if body['success']:
         pk = EVP.load_key_string(body['result']['private_key'].encode('utf-8'))
         cert = X509.load_cert_string(body['result']['certificate'].encode("utf-8"))
         return cert, pk
     else:
-        raise Exception("Unable to create cert for %s"%name)
+        raise Exception(f"Unable to create cert for {name}")
 
 def gencrl(serials,cert,ca_pk):
     request = {"certificate": cert,
@@ -202,10 +202,10 @@ def gencrl(serials,cert,ca_pk):
     try:
         # need to temporarily write out the private key with no password
         # to tmpfs
-        priv_key = os.path.abspath("%s/ca-key.pem"%secdir)
+        priv_key = os.path.abspath(f"{secdir}/ca-key.pem")
         with open(priv_key,'w') as f:
             f.write(ca_pk)
-        cmdline = " -ca-key %s -ca cacert.crt"%(priv_key)
+        cmdline = f" -ca-key {priv_key} -ca cacert.crt"
 
         start_cfssl(cmdline)
         body = post_cfssl('api/v1/cfssl/gencrl',request)
@@ -213,13 +213,13 @@ def gencrl(serials,cert,ca_pk):
     finally:
         stop_cfssl()
         # replace with srm
-        os.remove('%s/ca-key.pem'%secdir)
+        os.remove(f'{secdir}/ca-key.pem')
 
     if body['success']:
         retval = base64.b64decode(body['result'])
     else:
-        raise Exception("Unable to create crl for cert serials %s.  Error: %s"%(serials,body['errors']))
-    return retval
+        raise Exception(f"Unable to create crl for cert serials {serials}.  Error: {body['errors']}")
+        return retval
     # ./cfssl gencrl revoke ca.pem ca-key.pem | base64 -D > mycrl.der
 
 # mk_cacert()

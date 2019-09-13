@@ -63,7 +63,7 @@ class KeylimeDB():
             cur = conn.cursor()
             createstr = "CREATE TABLE IF NOT EXISTS main("
             for key in sorted(self.cols_db.keys()):
-                createstr += "%s %s, "%(key,self.cols_db[key])
+                createstr += f"{key} {self.cols_db[key]}, "
             # lop off the last comma space
             createstr = createstr[:-2]+')'
             cur.execute(createstr)
@@ -106,7 +106,7 @@ class KeylimeDB():
                     v = json.dumps(d[key])
                 insertlist.append(v)
 
-            cur.execute('INSERT INTO main VALUES(?%s)'%(",?"*(len(insertlist)-1)),insertlist)
+            cur.execute(f'INSERT INTO main VALUES(?{",?" * (len(insertlist) - 1)})', insertlist)
 
             conn.commit()
 
@@ -131,28 +131,28 @@ class KeylimeDB():
 
     def update_agent(self,agent_id, key, value):
         if key not in list(self.cols_db.keys()):
-            raise Exception("Database key %s not in schema: %s"%(key,list(self.cols_db.keys())))
+            raise Exception(f"Database key {key} not in schema: {list(self.cols_db.keys())}")
 
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
             # marshall back to string
             if key in self.json_cols_db:
                 value = json.dumps(value)
-            cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(value,agent_id))
+            cur.execute(f'UPDATE main SET {key} = ? where agent_id = ?', (value, agent_id))
             conn.commit()
 
         return
 
     def update_all_agents(self,key,value):
         if key not in list(self.cols_db.keys()):
-            raise Exception("Database key %s not in schema: %s"%(key,list(self.cols_db.keys())))
+            raise Exception(f"Database key {key} not in schema: {list(self.cols_db.keys())}")
 
         with sqlite3.connect(self.db_filename) as conn:
             cur = conn.cursor()
             # marshall back to string if needed
             if key in self.json_cols_db:
                 value = json.dumps(value)
-            cur.execute('UPDATE main SET %s = ?'%key,(value,))
+            cur.execute(f'UPDATE main SET {key} = ?', (value,))
             conn.commit()
         return
 
@@ -196,8 +196,8 @@ class KeylimeDB():
                 if key is 'agent_id':
                     continue
                 if key in self.json_cols_db:
-                    cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(json.dumps(agent[key]),agent_id))
+                    cur.execute(f'UPDATE main SET {key} = ? where agent_id = ?',(json.dumps(agent[key]),agent_id))
                 else:
-                    cur.execute('UPDATE main SET %s = ? where agent_id = ?'%(key),(agent[key],agent_id))
+                    cur.execute(f'UPDATE main SET {key} = ? where agent_id = ?',(agent[key],agent_id))
             conn.commit()
         return

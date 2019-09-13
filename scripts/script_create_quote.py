@@ -43,24 +43,24 @@ os.chdir('../keylime')
 #ensure things are initialized
 keylime.tpm_initialize.main()
 keylime.common.USE_CLIME=False
-print('Creating quote %s times... '%(runs), end='')
+print(f'Creating quote {runs} times... ', end='')
 setup = 'from __main__ import nonce, rsa_key, mask, create_quote'
 c = timeit('create_quote(nonce, rsa_key, mask)', number=runs, setup=setup)
 print('DONE')
-print("create_quote: %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
+print(f"create_quote: {runs} runs, total time {c}, avg {c/runs*1000} ms per run")
 
-print('Creating quote %s times... '%(runs), end='')
+print(f'Creating quote {runs} times... ', end='')
 keylime.common.USE_CLIME=True
 c = timeit('create_quote(nonce, rsa_key, mask)', number=runs, setup=setup)
 print('DONE')
-print("create_quote (clime): %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
+print(f"create_quote (clime): {runs} runs, total time {c}, avg {c/runs*1000} ms per run")
 
 print("\n================================\n\n")
 
 keylime.common.USE_CLIME=False
-print('Creating deep quote %s times... '%(runs), end='')
+print(f'Creating deep quote {runs} times... ', end='')
 vpcrmask = '0x400000'
 setup = 'from __main__ import nonce, rsa_key, mask, vpcrmask,create_deep_quote'
 c = timeit('create_deep_quote(nonce, rsa_key, vpcrmask,mask)', number=runs, setup=setup)
 print('DONE')
-print("create_deep_quote: %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
+print(f"create_deep_quote: {runs} runs, total time {c}, avg {c/runs*1000} ms per run")

@@ -97,25 +97,25 @@ def read_measreument_list_bin(path,whitelist):
         (template['pcr'],template['digest'],template['name_len']) = read_unpack(f,"<I20sI")
 
         if template['name_len']>TCG_EVENT_NAME_LEN_MAX:
-            raise Exception("Error event name too long %d",template['name_len'])
+            raise Exception(f"Error event name too long {template['name_len']}")
 
-        name = read_unpack(f,"<%ds"%template['name_len'])[0]
+        name = read_unpack(f,f"<{template['name_len']}s")[0]
 
         is_ima_template = name=='ima'
         if not is_ima_template:
             template['data_len']=read_unpack(f,"<I")[0]
-            print("reading ima len %d"%template['data_len'])
+            print(f"reading ima len {template['data_len']}")
         else:
             template['data_len'] = SHA_DIGEST_LEN+TCG_EVENT_NAME_LEN_MAX+1
 
-        template['data'] = read_unpack(f,"<%ds"%template['data_len'])[0]
+        template['data'] = read_unpack(f,f"<{template['data_len']}s")[0]
 
         if is_ima_template:
             field_len = read_unpack(f,"<I")[0]
-            extra_data=read_unpack(f,"<%ds"%field_len)[0]
+            extra_data=read_unpack(f,f"<{field_len}s")[0]
             template['data']+= extra_data
 
-        print("record %s"%template)
+        print(f"record {template}")
 
         if template['name'] not in list(defined_templates.keys()):
             template['name']='ima'
@@ -147,7 +147,7 @@ def process_measurement_list(lines,lists=None,m2w=None):
         if line =='':
             continue
         if len(tokens) != 5:
-            logger.error("invalid measurement list file line: -%s-"%(line))
+            logger.error(f"invalid measurement list file line: -{line}-")
             return None
 
         #print tokens
@@ -167,15 +167,16 @@ def process_measurement_list(lines,lists=None,m2w=None):
                 template_hash = FF_HASH
             else:
                 #verify template hash. yep this is terrible
-                fmt = "<I%dsBB%dsI%dsB"%(len(filedata_algo),len(filedata_hash),len(path))
+                fmt = f"<I{len(filedata_algo)}sBB{len(filedata_hash)}sI{len(path)}sB")
                 # +2 for the : and the null terminator, and +1 on path for null terminator
                 tohash=struct.pack(fmt,len(filedata_hash)+len(filedata_algo)+2,filedata_algo.encode('utf-8'),ord(':'),ord('\0'),filedata_hash,len(path)+1,path.encode("utf-8"),ord('\0'))
                 expected_template_hash = hashlib.sha1(tohash).digest()
 
                 if expected_template_hash!=template_hash:
                     errs[0]+=1
-                    logger.warning("template hash for file %s does not match %s != %s"%(path,codecs.encode(expected_template_hash, 'hex').decode('utf-8'),codecs.encode(template_hash, 'hex').decode('utf-8')))
-        elif mode=='ima':
+                logger.warning(
+                    f"template hash for file {path} does not match {codecs.encode(expected_template_hash, 'hex').decode('utf-8')} != {codecs.encode(template_hash, 'hex').decode('utf-8')}")
+                elif mode=='ima':
             filedata_hash = codecs.decode(tokens[3], "hex")
             path = str(tokens[4])
 
@@ -185,22 +186,22 @@ def process_measurement_list(lines,lists=None,m2w=None):
             else:
                 #verify template hash. yep this is terrible
                 # name needs to be null padded out to MAX len. +1 is for the null terminator of the string itself
-                fmt = "<%ds%ds%ds"%(len(filedata_hash),len(path),TCG_EVENT_NAME_LEN_MAX-len(path)+1)
+                fmt = f"<{len(filedata_hash)}s{len(path)}s{TCG_EVENT_NAME_LEN_MAX - len(path) + 1}s")
                 tohash=struct.pack(fmt,filedata_hash,path.encode("utf-8"),bytearray(TCG_EVENT_NAME_LEN_MAX-len(path)+1))
                 expected_template_hash = hashlib.sha1(tohash).digest()
 
                 if expected_template_hash!=template_hash:
                     errs[0]+=1
-                    logger.warning("template hash for file %s does not match %s != %s"%(path,codecs.encode(expected_template_hash, 'hex').decode('utf-8'),codecs.encode(template_hash, 'hex').decode('utf-8')))
+                    logger.warning(f"template hash for file {path} does not match {codecs.encode(expected_template_hash,'hex').decode('utf-8')} != {codecs.encode(template_hash, 'hex').decode('utf-8')}")
         else:
-            raise Exception("unsupported ima template mode: %s"%mode)
+            raise Exception(f"unsupported ima template mode: {mode}")
 
         # update hash
         runninghash = hashlib.sha1(runninghash+template_hash).digest()
 
         # write out the new hash
         if m2w is not None:
-            m2w.write("%s %s\n"%(codecs.encode(filedata_hash, 'hex').decode('utf-8'),path))
+            m2w.write(f"{codecs.encode(filedata_hash, 'hex').decode('utf-8')} {path}\n")
 
         if whitelist is not None:
 
@@ -211,19 +212,19 @@ def process_measurement_list(lines,lists=None,m2w=None):
 
             # determine if path matches any exclusion list items
             if combined is not None and re.match(combined,path):
-                logger.debug("IMA: ignoring excluded path %s"%path)
+                logger.debug(f"IMA: ignoring excluded path {path}")
                 continue
 
             accept_list = whitelist.get(path,None)
             accept_list = accept_list
             if accept_list is None:
-                logger.warning("File not found in whitelist: %s"%(path))
+                logger.warning(f"File not found in whitelist: {path}")
                 errs[1]+=1
                 continue
             # print('codecs.encode', codecs.encode(filedata_hash, 'hex').decode('utf-8'))
             # print('accept_list:', accept_list)
             if codecs.encode(filedata_hash, 'hex').decode('utf-8') not in accept_list:
-                logger.warning("Hashes for file %s don't match %s not in %s"%(path,codecs.encode(filedata_hash, 'hex').decode('utf-8'),accept_list))
+                logger.warning(f"Hashes for file {path} don't match {codecs.encode(filedata_hash, 'hex').decode('utf-8')} not in {accept_list}")
                 errs[2]+=1
                 continue
 
@@ -231,7 +232,7 @@ def process_measurement_list(lines,lists=None,m2w=None):
 
     # clobber the retval if there were IMA file errors
     if sum(errs[:3])>0:
-        logger.error("IMA ERRORS: template-hash %d fnf %d hash %d good %d"%tuple(errs))
+        logger.error(f"IMA ERRORS: template-hash {errs[0]} fnf {errs[1]} hash {errs[2]} good {errs[3]}")
         return None
 
     return codecs.encode(runninghash, 'hex').decode('utf-8')
@@ -280,7 +281,7 @@ def read_whitelist(wl_path=None):
         wlist = f.read()
     wlist = wlist.splitlines()
 
-    logger.debug("Loaded whitelist from %s"%(wl_path))
+    logger.debug(f"Loaded whitelist from {wl_path}")
 
     return wlist
 
@@ -297,7 +298,7 @@ def read_excllist(exclude_path=None):
             excl_list = f.read()
         excl_list = excl_list.splitlines()
 
-        logger.debug("Loaded exclusion list from %s: %s"%(exclude_path,excl_list))
+        logger.debug(f"Loaded exclusion list from {exclude_path}: {excl_list}")
 
     return excl_list
 
@@ -307,11 +308,11 @@ def main(argv=sys.argv):
     whitelist_path = 'whitelist.txt'
     #whitelist_path = '../scripts/gerardo/whitelist.txt'
     #whitelist_path = '../scripts/ima/whitelist.txt'
-    print("reading white list from %s"%whitelist_path)
+    print(f"reading white list from {whitelist_path}")
 
     exclude_path = 'exclude.txt'
     #exclude_path = '../scripts/ima/exclude.txt'
-    print("reading exclude list from %s"%exclude_path)
+    print(f"reading exclude list from {exclude_path}")
 
     wl_data = read_whitelist(whitelist_path)
     excl_data = read_excllist(exclude_path)
@@ -320,13 +321,13 @@ def main(argv=sys.argv):
     measure_path = common.IMA_ML
     #measure_path='../scripts/ima/ascii_runtime_measurements_ima'
     #measure_path = '../scripts/gerardo/ascii_runtime_measurements'
-    print("reading measurement list from %s"%measure_path)
+    print(f"reading measurement list from {measure_path}")
     f = open(measure_path, 'r')
     lines = f.readlines()
 
     m2w = open('measure2white.txt',"w")
     digest = process_measurement_list(lines,lists,m2w)
-    print("final digest is %s"%digest)
+    print(f"final digest is {digest}")
     f.close()
     m2w.close()
 

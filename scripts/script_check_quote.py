@@ -58,9 +58,9 @@ try:
     aikFile.write(aik)
     aikFile.close()
     os.close(afd)
-    print('Checking quote raw %d times ... '%(runs), end='')
-    cmd = "for i in `seq 1 %d`; do checkquote -aik %s -quote %s -nonce %s > /dev/null; done"%(runs,aikFile.name, quoteFile.name, keylime.common.TEST_NONCE)
-    
+    print(f'Checking quote raw {runs} times ... ', end='')
+    cmd = f"for i in `seq 1 {runs}`; do checkquote -aik {aikFile.name} -quote {quoteFile.name} -nonce {keylime.common.TEST_NONCE} > /dev/null; done"
+
     start = timer()
     proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     proc.wait()
@@ -73,7 +73,7 @@ try:
 #         if line=="":
 #             break
 #         print(line)
-    print("check_quote(raw): %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
+    print(f"check_quote(raw): {runs} runs, total time {c}, avg {c / runs * 1000} ms per run")
 except Exception as e:
     logger.exception(e)
 finally:
@@ -84,21 +84,21 @@ finally:
     pass
 
 
-print('Checking quote %s times ... '%(runs), end='')
+print(f'Checking quote {runs} times ... ', end='')
 keylime.common.STUB_TPM=True
 keylime.common.USE_CLIME=False
 setup = 'from __main__ import quote,aik,logger,tpm_policy, check_quote'
 c = timeit('check_quote(None, None, quote,aik,logger,tpm_policy)', number=runs, setup=setup)
 print('DONE')
-print("check_quote: %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
+print(f"check_quote: {runs} runs, total time {c}, avg {c/runs*1000} ms per run")
 
 if test_clime:
     keylime.common.USE_CLIME=True
-    print('Checking quote %s times with cLime... '%(runs), end='')
+    print(f'Checking quote {runs} times with cLime... ', end='')
     setup = 'from __main__ import quote,aik,logger,tpm_policy, check_quote'
     c = timeit('check_quote(None, None, quote,aik,logger,tpm_policy)', number=runs, setup=setup)
     print('DONE')
-    print("check_quote(cLime): %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
+    print(f"check_quote(cLime): {runs} runs, total time {c}, avg {c / runs * 1000} ms per run")
 
 
 print("\n================================\n\n")
@@ -131,9 +131,9 @@ try:
     hAIKFile.write(haik)
     hAIKFile.close()
     os.close(afd)
-     
-    print('Checking deep quote raw %d times ... '%(runs), end='')
-    cmd = "for i in `seq 1 %d`; do checkdeepquote -aik %s -deepquote %s -nonce %s -vaik %s > /dev/null ; done"%(runs,hAIKFile.name, quoteFile.name, keylime.common.TEST_DQ_NONCE,vAIKFile.name)
+
+    print(f'Checking deep quote raw {runs} times ... ', end='')
+    cmd = f"for i in `seq 1 {runs}`; do checkdeepquote -aik {hAIKFile.name} -deepquote {quoteFile.name} -nonce {keylime.common.TEST_DQ_NONCE} -vaik {vAIKFile.name} > /dev/null ; done"
     start = timer()
     proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     proc.wait()
@@ -147,7 +147,7 @@ try:
 #             break
 #         print("="+line)
 
-    print("check_deep_quote (raw): %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
+    print(f"check_deep_quote (raw): {runs} runs, total time {c}, avg {c/runs*1000} ms per run")
              
 except Exception as e:
     logger.exception(e)
@@ -161,12 +161,12 @@ finally:
     pass
 
 
-print('Checking deep quote %s times ... '%(runs), end='')
+print(f'Checking deep quote {runs} times ... ', end='')
 keylime.common.STUB_TPM=True
 setup = 'from __main__ import quote,vaik,haik,logger,vtpm_policy,tpm_policy, check_deep_quote'
 c = timeit('check_deep_quote(None, None, quote,vaik,haik,logger,vtpm_policy,tpm_policy)', number=runs, setup=setup)
 print('DONE')
-print("check_deep_quote: %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
+print(f"check_deep_quote: {runs} runs, total time {c}, avg {c/runs*1000} ms per run")
 
 
 print("\n================================\n\n")

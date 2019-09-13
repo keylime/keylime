@@ -58,7 +58,7 @@ try:
         port_number = int(sys.argv[1])
 
     server = HTTPServer(('', port_number), myHandler)
-    print('Started httpserver on port ', port_number)
+    print(f'Started httpserver on port {port_number}')
 
     server.serve_forever()
 

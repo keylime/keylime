@@ -40,13 +40,11 @@ async def execute(revocation):
     serial = revocation.get("metadata",{}).get("cert_serial",None)
     subject = revocation.get("metadata",{}).get("subject",None)
     if revocation.get('type',None) != 'revocation' or serial is None or subject is None:
-        logger.error("Unsupported revocation message: %s"%revocation)
-
+        logger.error(f"Unsupported revocation message: {revocation}")
     # import the crl into NSS
     secdir = secure_mount.mount()
-    logger.info("loading updated CRL from %s/unzipped/cacrl.der into NSS"%secdir)
-    cmd_exec.run("crlutil -I -i %s/unzipped/cacrl.der -d sql:/etc/ipsec.d"%secdir,lock=False)
-
+    logger.info(f"loading updated CRL from {secdir}/unzipped/cacrl.der into NSS")
+    cmd_exec.run(f"crlutil -I -i {secdir}/unzipped/cacrl.der -d sql:/etc/ipsec.d", lock=False)
     # need to find any sa's that were established with that cert subject name
     output = cmd_exec.run("ipsec whack --trafficstatus",lock=False,raiseOnError=True)['retout']
     deletelist=set()
@@ -83,5 +81,5 @@ async def execute(revocation):
         deletelist.add(ip)
 
     for todelete in deletelist:
-        logger.info("deleting IPsec sa with %s"%todelete)
-        cmd_exec.run("ipsec whack --crash %s"%todelete,raiseOnError=False,lock=False)
+        logger.info(f"deleting IPsec sa with {todelete}")
+        cmd_exec.run(f"ipsec whack --crash {todelete}", raiseOnError=False, lock=False)

@@ -45,19 +45,19 @@ def check_mounted(secdir):
             tmpfs=True
         if tokens[2]==secdir:
             if not tmpfs:
-                logger.error("secure storage location %s already mounted on wrong file system type: %s.  Unmount to continue."%(secdir,tokens[0]))
-                raise Exception("secure storage location %s already mounted on wrong file system type: %s.  Unmount to continue."%(secdir,tokens[0]))
+                logger.error(f"secure storage location {secdir} already mounted on wrong file system type: {tokens[0]}.  Unmount to continue.")
+                raise Exception(f"secure storage location {secdir} already mounted on wrong file system type: {tokens[0]}.  Unmount to continue.")
 
-            logger.debug("secure storage location %s already mounted on tmpfs"%secdir)
+            logger.debug(f"secure storage location {secdir} already mounted on tmpfs")
             return True
-    logger.debug("secure storage location %s not mounted "%secdir)
+    logger.debug(f"secure storage location {secdir} not mounted ")
     return False
 
 def mount():
-    secdir = common.WORK_DIR+"/secure"
+    secdir = f"{common.WORK_DIR}/secure"
 
     if not common.MOUNT_SECURE:
-        secdir = common.WORK_DIR+"/tmpfs-dev"
+        secdir = f"{common.WORK_DIR}/tmpfs-dev"
         if not os.path.isdir(secdir):
             os.makedirs(secdir)
         return secdir
@@ -68,7 +68,7 @@ def mount():
             os.makedirs(secdir,0o700)
         common.chownroot(secdir,logger)
         size = config.get('cloud_agent','secure_size')
-        logger.info("mounting secure storage location %s on tmpfs"%secdir)
-        cmd_exec.run("mount -t tmpfs -o size=%s,mode=0700 tmpfs %s" %(size,secdir),lock=False)
+        logger.info(f"mounting secure storage location {secdir} on tmpfs")
+        cmd_exec.run(f"mount -t tmpfs -o size={size},mode=0700 tmpfs {secdir}", lock=False)
 
     return secdir

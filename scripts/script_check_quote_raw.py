@@ -56,9 +56,9 @@ try:
     aikFile.write(aik)
     aikFile.close()
     os.close(afd)
-    print('Checking signature raw %d times ... '%(runs), end='')
-    cmd = "checkquote -aik %s -quote %s -nonce %s -repeat %d > /dev/null"%(aikFile.name, quoteFile.name, keylime.common.TEST_NONCE,runs)
-    
+    print(f'Checking signature raw {runs} times ... ', end='')
+    cmd = f"checkquote -aik {aikFile.name} -quote {quoteFile.name} -nonce {keylime.common.TEST_NONCE} -repeat {runs} > /dev/null"
+
     start = timer()
     proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     proc.wait()
@@ -70,8 +70,8 @@ try:
         line = proc.stdout.readline()
         if line=="":
             break
-        print("=output="+line)
-    print("check_quote (raw sig): %d runs, total time %f, avg %f us per run" % (runs,c,c/runs*1000*1000))
+        print(f"=output={line}")
+    print(f"check_quote (raw sig): {runs} runs, total time {c}, avg {c / runs * 1000 * 1000} us per run")
 except Exception as e:
     logger.exception(e)
 finally:
@@ -111,9 +111,9 @@ try:
     hAIKFile.write(haik)
     hAIKFile.close()
     os.close(afd)
-     
-    print('Checking deep quote signature %d times ... '%(runs), end='')
-    cmd = "checkdeepquote -aik %s -deepquote %s -nonce %s -vaik %s -repeat %d > /dev/null"%(hAIKFile.name, quoteFile.name, keylime.common.TEST_DQ_NONCE,vAIKFile.name,runs)
+
+    print(f'Checking deep quote signature {runs} times ... ', end='')
+    cmd = f"checkdeepquote -aik {hAIKFile.name} -deepquote {quoteFile.name} -nonce {keylime.common.TEST_DQ_NONCE} -vaik {vAIKFile.name} -repeat {runs} > /dev/null"
     start = timer()
     proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     proc.wait()
@@ -125,10 +125,10 @@ try:
         line = proc.stdout.readline()
         if line=="":
             break
-        print("=output="+line)
+        print(f"=output={line}")
 
-    print("check_deep_quote (raw sig): %d runs, total time %f, avg %f us per run" % (runs,c,c/runs*1000*1000))
-             
+    print(f"check_deep_quote (raw sig): {runs} runs, total time {c}, avg {c / runs * 1000 * 1000} us per run")
+
 except Exception as e:
     logger.exception(e)
 finally:

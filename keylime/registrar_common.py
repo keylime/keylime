@@ -254,11 +254,11 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
             }
             common.echo_json_response(self, 200, "Success", response)
 
-            logger.info('POST returning key blob for agent_id: ' + agent_id)
+            logger.info(f'POST returning key blob for agent_id: {agent_id}')
             return
         except Exception as e:
-            common.echo_json_response(self, 400, "Error: %s"%e)
-            logger.warning("POST for " + agent_id + " returning 400 response. Error: %s"%e)
+            common.echo_json_response(self, 400, f"Error: {e}")
+            logger.warning(f"POST for {agent_id} returning 400 response. Error: {e}")
             logger.exception(e)
             return
 
@@ -300,10 +300,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
 
                 agent = self.server.db.get_agent(agent_id)
                 if agent is None:
-                    raise Exception("attempting to activate agent before requesting registrar for %s"%agent_id)
+                    raise Exception(f"attempting to activate agent before requesting registrar for {agent_id}")
 
                 if agent['virtual']:
-                    raise Exception("attempting to activate virtual AIK using physical interface for %s"%agent_id)
+                    raise Exception(f"attempting to activate virtual AIK using physical interface for {agent_id}")
 
                 if common.STUB_TPM:
                     self.server.db.update_agent(agent_id, 'active',True)
@@ -312,7 +312,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
                     if ex_mac == auth_tag:
                         self.server.db.update_agent(agent_id, 'active',True)
                     else:
-                        raise Exception("Auth tag %s does not match expected value %s"%(auth_tag,ex_mac))
+                        raise Exception(f"Auth tag {auth_tag} does not match expected value {ex_mac}")
 
                 common.echo_json_response(self, 200, "Success")
                 logger.info('PUT activated: ' + agent_id)
@@ -321,10 +321,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
 
                 agent = self.server.db.get_agent(agent_id)
                 if agent is None:
-                    raise Exception("attempting to activate agent before requesting registrar for %s"%agent_id)
+                    raise Exception(f"attempting to activate agent before requesting registrar for {agent_id}")
 
                 if not agent['virtual']:
-                    raise Exception("attempting to activate physical AIK using virtual interface for %s"%agent_id)
+                    raise Exception(f"attempting to activate physical AIK using virtual interface for {agent_id}")
 
                 # get an physical AIK for this host
                 registrar_client.init_client_tls(config, 'registrar')
@@ -342,12 +342,12 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
                 self.server.db.update_agent(agent_id, 'provider_keys',provider_keys)
 
                 common.echo_json_response(self, 200, "Success")
-                logger.info('PUT activated: ' + agent_id)
+                logger.info(f'PUT activated: {agent_id}')
             else:
                 pass
         except Exception as e:
-            common.echo_json_response(self, 400, "Error: %s"%e)
-            logger.warning("PUT for " + agent_id + " returning 400 response. Error: %s"%e)
+            common.echo_json_response(self, 400, f"Error: {e}")
+            logger.warning(f"PUT for {agent_id} returning 400 response. Error: {e}")
             logger.exception(e)
             return
 
@@ -422,12 +422,11 @@ def start(tlsport,port,dbfile):
     servers = []
     serveraddr = ('', tlsport)
 
-
-    db = init_db("%s/%s"%(common.WORK_DIR,dbfile))
+    db = init_db(f"{common.WORK_DIR}/{dbfile}")
 
     count = db.count_agents()
     if count>0:
-        logger.info("Loaded %d public keys from database"%count)
+        logger.info(f"Loaded {count} public keys from database")
 
     server = ProtectedRegistrarServer(serveraddr, db, ProtectedHandler)
     context = cloud_verifier_common.init_mtls(section='registrar',
@@ -446,7 +445,7 @@ def start(tlsport,port,dbfile):
     servers.append(server)
     servers.append(server2)
 
-    logger.info('Starting Cloud Registrar Server on ports %s and %s (TLS) use <Ctrl-C> to stop'%(port,tlsport))
+    logger.info(f'Starting Cloud Registrar Server on ports {port} and {tlsport} (TLS) use <Ctrl-C> to stop')
     for thread in threads:
         thread.start()
 

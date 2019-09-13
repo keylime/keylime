@@ -115,7 +115,7 @@ MOUNT_SECURE=True
 TPM_CANNED_VALUES=None
 if STUB_TPM and TPM_CANNED_VALUES_PATH is not None:
     with open(TPM_CANNED_VALUES_PATH, "rb") as can:
-        print("WARNING: using canned values in stub mode from file '%s'"%(TPM_CANNED_VALUES_PATH))
+        print(f"WARNING: using canned values in stub mode from file '{TPM_CANNED_VALUES_PATH}'")
         # Read in JSON and strip trailing extraneous commas
         jsonInTxt = can.read().rstrip(',\r\n')
         # Saved JSON is missing surrounding braces, so add them here
@@ -168,8 +168,8 @@ if not os.path.exists(CONFIG_FILE):
         WARN=True
 
 if not os.path.exists(CONFIG_FILE):
-    raise Exception('%s does not exist. Please set environment variable KEYLIME_CONFIG or see %s for more details'%(CONFIG_FILE, __file__))
-print(("Using config file %s"%(CONFIG_FILE,)))
+    raise Exception(f'{CONFIG_FILE} does not exist. Please set environment variable KEYLIME_CONFIG or see {__file__} for more details')
+print(f"Using config file {CONFIG_FILE}")
 if WARN:
     print("WARNING: Keylime is using the config file from its installation location. \n\tWe recommend you copy keylime.conf to /etc/ to customize it.")
 
@@ -182,7 +182,7 @@ if not REQUIRE_ROOT:
 else:
     WORK_DIR=os.getenv('KEYLIME_DIR','/var/lib/keylime')
 
-CA_WORK_DIR='%s/ca/'%WORK_DIR
+CA_WORK_DIR= f'{WORK_DIR}/ca/'
 
 def list_convert(data):
     if isinstance(data, bytes):  return data.decode()
@@ -214,7 +214,7 @@ def chownroot(path,logger):
     if os.geteuid()==0:
         os.chown(path,0,0)
     elif REQUIRE_ROOT:
-        logger.debug("Unable to change ownership to root for file: %s"%(path))
+        logger.debug(f"Unable to change ownership to root for file: {path}")
 
 def ch_dir(path,logger):
     if not os.path.exists(path):

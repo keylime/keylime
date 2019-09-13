@@ -66,17 +66,17 @@ def init_client_tls(config,section):
 
     # this is relative path, convert to absolute in WORK_DIR
     if tls_dir[0]!='/':
-        tls_dir = os.path.abspath('%s/%s'%(common.WORK_DIR,tls_dir))
+        tls_dir = os.path.abspath(f'{common.WORK_DIR}/{tls_dir}')
 
     ca_cert = config.get(section,'registrar_ca_cert')
 
     if ca_cert == 'default':
-        ca_path = "%s/cacert.crt"%(tls_dir)
+        ca_path = f"{tls_dir}/cacert.crt"
     else:
-        ca_path = "%s/%s"%(tls_dir,ca_cert)
+        ca_path = f"{tls_dir}/{ca_cert}"
 
-    my_cert = "%s/%s"%(tls_dir,my_cert)
-    my_priv_key = "%s/%s"%(tls_dir,my_priv_key)
+    my_cert = f"{tls_dir}/{my_cert}"
+    my_priv_key = f"{tls_dir}/{my_priv_key}"
 
     context = ssl.create_default_context()
     context.load_verify_locations(cafile=ca_path)
@@ -103,21 +103,21 @@ def getKeys(registrar_ip,registrar_port,agent_id):
         raise Exception("It is unsafe to use this interface to query AIKs with out server authenticated TLS")
 
     try:
-        params = '/agents/%s'% (agent_id)
-        response = httpclient_requests.request("GET", "%s"%(registrar_ip), registrar_port, params=params, context=context)
+        params = f'/agents/{agent_id}'
+        response = httpclient_requests.request("GET", f"{registrar_ip}", registrar_port, params=params, context=context)
         response_body = json.loads(response.read().decode())
 
         if response.status != 200:
-            logger.critical("Error: unexpected http response code from Registrar Server: %s"%str(response.status))
+            logger.critical(f"Error: unexpected http response code from Registrar Server: {response.status}")
             keylime_logging.log_http_response(logger,logging.CRITICAL,response_body)
             return None
 
         if "results" not in response_body:
-            logger.critical("Error: unexpected http response body from Registrar Server: %s"%str(response.status))
+            logger.critical(f"Error: unexpected http response body from Registrar Server: {response.status}")
             return None
 
         if "aik" not in response_body["results"]:
-            logger.critical("Error: did not receive aik from Registrar Server: %s"%str(response.status))
+            logger.critical(f"Error: did not receive aik from Registrar Server: {response.status}")
             return None
 
         return response_body["results"]
@@ -136,23 +136,23 @@ def doRegisterAgent(registrar_ip,registrar_port,agent_id,tpm_version,pub_ek,ekce
     'tpm_version': tpm_version,
     }
     v_json_message = json.dumps(data)
-    params = '/agents/%s'% (agent_id)
-    response = httpclient_requests.request("POST", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message, context=None)
+    params = f'/agents/{agent_id}'
+    response = httpclient_requests.request("POST", f"{registrar_ip}", registrar_port, params=params, data=v_json_message, context=None)
     response_body = json.loads(response.read().decode("utf-8"))
 
     if response.status != 200:
-        logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status))
+        logger.error(f"Error: unexpected http response code from Registrar Server: {response.status}")
         keylime_logging.log_http_response(logger,logging.ERROR,response_body)
         return None
 
-    logger.info("Agent registration requested for %s"%agent_id)
+    logger.info(f"Agent registration requested for {agent_id}")
 
     if "results" not in response_body:
-        logger.critical("Error: unexpected http response body from Registrar Server: %s"%str(response.status))
+        logger.critical(f"Error: unexpected http response body from Registrar Server: {response.status}")
         return None
 
     if "blob" not in response_body["results"]:
-        logger.critical("Error: did not receive blob from Registrar Server: %s"%str(response.status))
+        logger.critical(f"Error: did not receive blob from Registrar Server: {response.status}")
         return None
 
     return response_body["results"]["blob"]
@@ -164,14 +164,14 @@ def doActivateAgent(registrar_ip,registrar_port,agent_id,key):
     }
 
     v_json_message = json.dumps(data)
-    params = '/agents/%s/activate'% (agent_id)
-    response = httpclient_requests.request("PUT", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message,  context=None)
+    params = f'/agents/{agent_id}/activate'
+    response = httpclient_requests.request("PUT", f"{registrar_ip}", registrar_port, params=params, data=v_json_message,  context=None)
     response_body = json.loads(response.read().decode())
     if response.status == 200:
-        logger.info("Registration activated for agent %s."%agent_id)
+        logger.info(f"Registration activated for agent {agent_id}.")
         return True
     else:
-        logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status))
+        logger.error(f"Error: unexpected http response code from Registrar Server: {response.status}")
         keylime_logging.log_http_response(logger,logging.ERROR,response_body)
         return False
 
@@ -181,25 +181,25 @@ def doActivateVirtualAgent(registrar_ip,registrar_port,agent_id,deepquote):
     }
 
     v_json_message = json.dumps(data)
-    params = '/agents/%s/vactivate'% (agent_id)
-    response = httpclient_requests.request("PUT", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message,  context=None)
+    params = f'/agents/{agent_id}/vactivate'
+    response = httpclient_requests.request("PUT", f"{registrar_ip}", registrar_port, params=params, data=v_json_message,  context=None)
     response_body = json.loads(response.read().decode())
     if response.status == 200:
-        logger.info("Registration activated for agent %s."%agent_id)
+        logger.info(f"Registration activated for agent {agent_id}.")
         return True
     else:
-        logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status))
+        logger.error(f"Error: unexpected http response code from Registrar Server: {response.status}")
         keylime_logging.log_http_response(logger,logging.ERROR,response_body)
         return False
 
 
 def doRegistrarDelete(registrar_ip,registrar_port, agent_id):
     global context
-    params = '/agents/%s'% (agent_id)
-    response = httpclient_requests.request("DELETE", "%s"%(registrar_ip), registrar_port, params=params,  context=None)
+    params = f'/agents/{agent_id}'
+    response = httpclient_requests.request("DELETE", f"{registrar_ip}", registrar_port, params=params,  context=None)
     response_body = json.loads(response)
     if response.status == 200:
         logger.debug("Registrar deleted.")
     else:
-        logger.warn("Status command response: " + str(response.status) + " Unexpected response from registrar.")
+        logger.warn(f"Status command response: {response.status} Unexpected response from registrar.")
         keylime_logging.log_http_response(logger,logging.WARNING,response_body)

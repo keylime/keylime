@@ -159,18 +159,18 @@ class Handler(BaseHTTPRequestHandler):
             # return a measurement list if available
             if TPM_Utilities.check_mask(imaMask, common.IMA_PCR):
                 if not os.path.exists(common.IMA_ML):
-                    logger.warn("IMA measurement list not available: %s"%(common.IMA_ML))
+                    logger.warn(f"IMA measurement list not available: {common.IMA_ML}")
                 else:
                     with open(common.IMA_ML,'r') as f:
                         ml = f.read()
                     response['ima_measurement_list']=ml
 
             common.echo_json_response(self, 200, "Success", response)
-            logger.info('GET %s quote returning 200 response.'%(rest_params["quotes"]))
+            logger.info(f'GET {rest_params["quotes"]} quote returning 200 response.')
             return
 
         else:
-            logger.warning('GET returning 400 response. uri not supported: ' + self.path)
+            logger.warning(f'GET returning 400 response. uri not supported: {self.path}')
             common.echo_json_response(self, 400, "uri not supported")
             return
 
@@ -189,7 +189,7 @@ class Handler(BaseHTTPRequestHandler):
 
         content_length = int(self.headers.get('Content-Length', 0))
         if content_length <= 0:
-            logger.warning('POST returning 400 response, expected content in message. url:  ' + self.path)
+            logger.warning(f'POST returning 400 response, expected content in message. url:  {self.path}')
             common.echo_json_response(self, 400, "expected content in message")
             return
 
@@ -210,10 +210,10 @@ class Handler(BaseHTTPRequestHandler):
             self.server.add_V(decrypted_key)
             have_derived_key = self.server.attempt_decryption(self)
         else:
-            logger.warning('POST returning  response. uri not supported: ' + self.path)
+            logger.warning(f'POST returning  response. uri not supported: {self.path}')
             common.echo_json_response(self, 400, "uri not supported")
             return
-        logger.info('POST of %s key returning 200'%(('V','U')[rest_params["keys"] == "ukey"]))
+        logger.info(f"POST of {('V', 'U')[rest_params['keys'] == 'ukey']} key returning 200")
         common.echo_json_response(self, 200, "Success")
 
         # no key yet, then we're done
@@ -225,11 +225,11 @@ class Handler(BaseHTTPRequestHandler):
         secdir = secure_mount.mount() # confirm that storage is still securely mounted
 
         # clean out the secure dir of any previous info before we extract files
-        if os.path.isdir("%s/unzipped"%secdir):
-            shutil.rmtree("%s/unzipped"%secdir)
+        if os.path.isdir(f"{secdir}/unzipped"):
+            shutil.rmtree(f"{secdir}/unzipped")
 
         # write out key file
-        f = open(secdir+"/"+self.server.enc_keyname,'w')
+        f = open(f"{secdir}/{self.server.enc_keyname}", 'w')
         f.write(base64.b64encode(self.server.K).decode())
         f.close()
 
@@ -240,8 +240,8 @@ class Handler(BaseHTTPRequestHandler):
         tomeasure = self.server.K
 
         # if we have a good key, now attempt to write out the encrypted payload
-        dec_path = "%s/%s"%(secdir, config.get('cloud_agent',"dec_payload_file"))
-        enc_path = "%s/encrypted_payload"%common.WORK_DIR
+        dec_path = f"{secdir}/{config.get('cloud_agent', 'dec_payload_file')}"
+        enc_path = f"{common.WORK_DIR}/encrypted_payload"
 
         dec_payload = None
         enc_payload = None
@@ -256,9 +256,9 @@ class Handler(BaseHTTPRequestHandler):
                 enc_payload = f.read()
             try:
                 dec_payload = crypto.decrypt(enc_payload,self.server.K)
-                logger.info("Decrypted previous payload in %s to %s"%(enc_path,dec_path))
+                logger.info(f"Decrypted previous payload in {enc_path} to {dec_path}")
             except Exception as e:
-                logger.warning("Unable to decrypt previous payload %s with derived key: %s"%(enc_path,e))
+                logger.warning(f"Unable to decrypt previous payload {enc_path} with derived key: {e}")
                 os.remove(enc_path)
                 enc_payload=None
 
@@ -274,9 +274,9 @@ class Handler(BaseHTTPRequestHandler):
             # see if payload is a zip
             zfio = io.BytesIO (dec_payload)
             if config.getboolean('cloud_agent','extract_payload_zip') and zipfile.is_zipfile(zfio):
-                logger.info("Decrypting and unzipping payload to %s/unzipped"%secdir)
+                logger.info(f"Decrypting and unzipping payload to {secdir}/unzipped")
                 with zipfile.ZipFile(zfio,'r')as f:
-                    f.extractall('%s/unzipped'%secdir)
+                    f.extractall(f'{secdir}/unzipped')
 
                 # run an included script if one has been provided
                 initscript = config.get('cloud_agent','payload_script')
@@ -285,24 +285,25 @@ class Handler(BaseHTTPRequestHandler):
                         import subprocess
                         env = os.environ.copy()
                         env['AGENT_UUID']=self.server.agent_uuid
-                        proc= subprocess.Popen(["/bin/bash",initscript],env=env,shell=False,cwd='%s/unzipped'%secdir,
+                        proc = subprocess.Popen(["/bin/bash", initscript], env=env, shell=False,
+                                                cwd=f'{secdir}/unzipped',
                                                 stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
                         while True:
                             line = proc.stdout.readline();
                             if line == '' and proc.poll() is not None:
                                 break
                             if line:
-                                logger.debug("init-output: %s"%line.strip())
-                        # should be a no-op as poll already told us it's done
+                                logger.debug(f"init-output: {line.strip()}")
+                                # should be a no-op as poll already told us it's done
                         proc.wait()
 
-                    if not os.path.exists("%s/unzipped/%s"%(secdir,initscript)):
-                        logger.info("No payload script %s found in %s/unzipped"%(initscript,secdir))
+                    if not os.path.exists(f"{secdir}/unzipped/{initscript}"):
+                        logger.info(f"No payload script {initscript} found in {secdir}/unzipped")
                     else:
-                        logger.info("Executing payload script: %s/unzipped/%s"%(secdir,initscript))
+                        logger.info(f"Executing payload script: {secdir}/unzipped/{initscript}")
                         payload_thread = threading.Thread(target=initthread)
             else:
-                logger.info("Decrypting payload to %s"%dec_path)
+                logger.info(f"Decrypting payload to {dec_path}")
                 with open(dec_path,'wb') as f:
                     f.write(dec_payload)
             zfio.close()
@@ -310,7 +311,7 @@ class Handler(BaseHTTPRequestHandler):
         # now extend a measurement of the payload and key if there was one
         pcr = config.getint('cloud_agent','measure_payload_pcr')
         if pcr>0 and pcr<24:
-            logger.info("extending measurement of payload into PCR %s"%pcr)
+            logger.info(f"extending measurement of payload into PCR {pcr}")
             measured = tpm.hashdigest(tomeasure)
             tpm.extendPCR(pcr,measured)
 
@@ -362,12 +363,12 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     def __init__(self, server_address, RequestHandlerClass, agent_uuid):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
         secdir = secure_mount.mount()
-        keyname = "%s/%s"%(secdir,config.get('cloud_agent','rsa_keyname'))
+        keyname = f"{secdir}/{config.get('cloud_agent', 'rsa_keyname')}"
 
         # read or generate the key depending on configuration
         if os.path.isfile(keyname):
             # read in private key
-            logger.debug( "Using existing key in %s"%keyname)
+            logger.debug(f"Using existing key in {keyname}")
             f = open(keyname,"r")
             rsa_key = crypto.rsa_import_privkey(f.read())
         else:
@@ -397,7 +398,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         with uvLock:
             # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
             if common.INSECURE_DEBUG:
-                logger.debug( "Adding U len %d data:%s"%(len(u),base64.b64encode(u)))
+                logger.debug(f"Adding U len {len(u)} data:{base64.b64encode(u)}")
             self.u_set.add(u)
 
 
@@ -408,7 +409,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         with uvLock:
             # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
             if common.INSECURE_DEBUG:
-                logger.debug(F"Adding V: {base64.b64encode(v)}")
+                logger.debug(f"Adding V: {base64.b64encode(v)}")
             self.v_set.add(v)
 
     def attempt_decryption(self, handler):
@@ -448,27 +449,27 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             return None
 
         if len(decrypted_U) != len(decrypted_V):
-            logger.warning("Invalid U len %d or V len %d. skipping..."%(len(decrypted_U),len(decrypted_V)))
+            logger.warning(f"Invalid U len {len(decrypted_U)} or V len {len(decrypted_V)}. skipping...")
             return None
 
         candidate_key = crypto.strbitxor(decrypted_U, decrypted_V)
 
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
         if common.INSECURE_DEBUG:
-            logger.debug(F"U: {base64.b64encode(decrypted_U)}")
-            logger.debug(F"V: {base64.b64encode(decrypted_V)}")
-            logger.debug(F"K: {base64.b64encode(candidate_key)}")
+            logger.debug(f"U: {base64.b64encode(decrypted_U)}")
+            logger.debug(f"V: {base64.b64encode(decrypted_V)}")
+            logger.debug(f"K: {base64.b64encode(candidate_key)}")
 
-        logger.debug( "auth_tag: " + self.auth_tag)
+        logger.debug(f"auth_tag: {self.auth_tag}"
         ex_mac = crypto.do_hmac(candidate_key,self.agent_uuid)
 
         if ex_mac == self.auth_tag:
-            logger.info( "Successfully derived K for UUID %s",self.agent_uuid)
+            logger.info(f"Successfully derived K for UUID {self.agent_uuid}")
             self.final_U = decrypted_U
             self.K = candidate_key
             return True
         else:
-            logger.error( "Failed to derive K for UUID %s",self.agent_uuid)
+            logger.error(f"Failed to derive K for UUID {self.agent_uuid}")
 
         return False
 
@@ -522,9 +523,9 @@ def main(argv=sys.argv):
             agent_uuid = jsonIn['add_vtpm_to_group']['retout']
         else:
             # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned json!"%("add_vtpm_to_group"))
+            raise Exception(f"Command {'add_vtpm_to_group'} not found in canned yaml!")
 
-    logger.info("Agent UUID: %s"%agent_uuid)
+    logger.info(f"Agent UUID: {agent_uuid}")
 
     # register it and get back a blob
     keyblob = registrar_client.doRegisterAgent(registrar_ip,registrar_port,agent_uuid,tpm_version,ek,ekcert,aik,ek_tpm,aik_name)
@@ -553,17 +554,17 @@ def main(argv=sys.argv):
     server = CloudAgentHTTPServer(serveraddr,Handler,agent_uuid)
     serverthread = threading.Thread(target=server.serve_forever)
 
-    logger.info( 'Starting Cloud Agent on port %s use <Ctrl-C> to stop'%serveraddr[1])
+    logger.info(f'Starting Cloud Agent on port {serveraddr[1]} use <Ctrl-C> to stop')
     serverthread.start()
 
     # want to listen for revocations?
     if config.getboolean('cloud_agent','listen_notfications'):
         cert_path = config.get('cloud_agent','revocation_cert')
         if cert_path == "default":
-            cert_path = '%s/unzipped/RevocationNotifier-cert.crt'%(secdir)
+            cert_path = f'{secdir}/unzipped/RevocationNotifier-cert.crt'
         elif cert_path[0]!='/':
             # if it is a relative, convert to absolute in work_dir
-            cert_path = os.path.abspath('%s/%s'%(common.WORK_DIR,cert_path))
+            cert_path = os.path.abspath(f'{common.WORK_DIR}/{cert_path}')
 
         def perform_actions(revocation):
             actionlist = []
@@ -572,32 +573,32 @@ def main(argv=sys.argv):
             actionlisttxt = config.get('cloud_agent','revocation_actions')
             if actionlisttxt.strip() != "":
                 actionlist = actionlisttxt.split(',')
-                actionlist = ["revocation_actions.%s"%i for i in actionlist]
+                actionlist = [f"revocation_actions.{i}" for i in actionlist]
 
             # load actions from unzipped
-            if os.path.exists("%s/unzipped/action_list"%secdir):
-                with open("%s/unzipped/action_list"%secdir,'r') as f:
+            if os.path.exists(f"{secdir}/unzipped/action_list"):
+                with open(f"{secdir}/unzipped/action_list", 'r') as f:
                     actionlisttxt = f.read()
                 if actionlisttxt.strip()!="":
                     localactions = actionlisttxt.strip().split(',')
                     for action in localactions:
                         if not action.startswith('local_action_'):
-                            logger.warning("invalid local action: %s.  must start with local_action_"%action)
+                            logger.warning(f"invalid local action: {action}.  must start with local_action_")
                         else:
                             actionlist.append(action)
 
-                    uzpath = "%s/unzipped"%secdir
+                    uzpath = f"{secdir}/unzipped"
                     if uzpath not in sys.path:
                         sys.path.append(uzpath)
 
             for action in actionlist:
-                logger.debug("executing revocation action %s"%action)
+                logger.debug(f"executing revocation action {action}")
                 try:
                     module = importlib.import_module(action)
                     execute = getattr(module,'execute')
                     asyncio.run(execute(revocation))
                 except Exception as e:
-                    logger.warn("Exception during execution of revocation action %s: %s"%(action,e))
+                    logger.warn(f"Exception during execution of revocation action {action}: {e}")
         try:
             while True:
                 try:

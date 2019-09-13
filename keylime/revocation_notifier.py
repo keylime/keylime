@@ -56,7 +56,7 @@ def start_broker():
 
         # Socket facing services
         backend = context.socket(zmq.PUB)
-        backend.bind("tcp://*:%s"%config.getint('general','revocation_notifier_port'))
+        backend.bind(f"tcp://*:{config.getint('general', 'revocation_notifier_port')}")
 
         zmq.device(zmq.FORWARDER, frontend, backend)
 
@@ -83,7 +83,7 @@ def notify(tosend):
                 mysock.send_string(json.dumps(tosend))
                 break
             except Exception as e:
-                logger.debug("Unable to publish revocation message %d times, trying again in %f seconds: %s"%(i,config.getfloat('cloud_verifier','retry_interval'),e))
+                logger.debug(f"Unable to publish revocation message {i} times, trying again in {config.getfloat('cloud_verifier', 'retry_interval')} seconds: {e}")
                 time.sleep(config.getfloat('cloud_verifier','retry_interval'))
         mysock.close()
 
@@ -102,10 +102,9 @@ def await_notifications(callback,revocation_cert_path):
     context = zmq.Context()
     mysock = context.socket(zmq.SUB)
     mysock.setsockopt(zmq.SUBSCRIBE, b'')
-    mysock.connect("tcp://%s:%s"%(config.get('general','revocation_notifier_ip'),config.getint('general','revocation_notifier_port')))
+    mysock.connect(f"tcp://{config.get('general', 'revocation_notifier_ip')}:{config.getint('general', 'revocation_notifier_port')}")
 
-    logger.info('Waiting for revocation messages on 0mq %s:%s'%
-                (config.get('general','revocation_notifier_ip'),config.getint('general','revocation_notifier_port')))
+    logger.info(f"Waiting for revocation messages on 0mq {config.get('general','revocation_notifier_ip')}:{config.getint('general','revocation_notifier_port')}")
 
     while True:
         rawbody = mysock.recv()
@@ -113,20 +112,19 @@ def await_notifications(callback,revocation_cert_path):
         if cert_key is None:
             # load up the CV signing public key
             if revocation_cert_path is not None and os.path.exists(revocation_cert_path):
-                logger.info("Lazy loading the revocation certificate from %s"%revocation_cert_path)
-                with open(revocation_cert_path,'r') as f:
+                logger.info(f"Lazy loading the revocation certificate from {revocation_cert_path}")                with open(revocation_cert_path,'r') as f:
                     certpem = f.read()
                 cert_key = crypto.rsa_import_pubkey(certpem)
 
         if cert_key is None:
-            logger.warning("Unable to check signature of revocation message: %s not available"%revocation_cert_path)
+            logger.warning(f"Unable to check signature of revocation message: {revocation_cert_path} not available")
         elif 'signature' not in body or body['signature']=='none':
             logger.warning("No signature on revocation message from server")
         elif not crypto.rsa_verify(cert_key,body['msg'].encode('utf-8'),body['signature'].encode('utf-8')):
-            logger.error("Invalid revocation message siganture %s"%body)
+            logger.error(f"Invalid revocation message siganture {body}")
         else:
             message = json.loads(body['msg'])
-            logger.debug("Revocation signature validated for revocation: %s"%message)
+            logger.debug(f"Revocation signature validated for revocation: {message}")
             callback(message)
 
 def main():
@@ -136,9 +134,9 @@ def main():
 
     def worker():
         def print_notification(revocation):
-            logger.warning("Received revocation: %s"%revocation)
+            logger.warning(f"Received revocation: {revocation}")
 
-        keypath = '%s/unzipped/RevocationNotifier-cert.crt'%(secure_mount.mount())
+        keypath = f'{secure_mount.mount()}/unzipped/RevocationNotifier-cert.crt')
         await_notifications(print_notification,revocation_cert_path=keypath)
 
     t = threading.Thread(target=worker)

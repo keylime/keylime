@@ -63,9 +63,7 @@ def main(argv=sys.argv):
         index = 0
         last_index = len(number_map) - 1
         for float_key, each_list in number_map.items():
-
-            output_file.write(str(len(each_list)) + "\n")
-        
+            output_file.write(f"{len(each_list)}\n")
             index = index + 1
 
 

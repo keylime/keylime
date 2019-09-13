@@ -133,16 +133,16 @@ class Tenant():
 
         # this is relative path, convert to absolute in WORK_DIR
         if tls_dir[0]!='/':
-            tls_dir = os.path.abspath('%s/%s'%(common.WORK_DIR,tls_dir))
+            tls_dir = os.path.abspath(f'{common.WORK_DIR}/{tls_dir}')
 
         if my_key_pw=='default':
             logger.warning("CAUTION: using default password for private key, please set private_key_pw to a strong password")
 
         logger.info(f"Setting up client TLS in {tls_dir}")
 
-        ca_path = "%s/%s"%(tls_dir,ca_cert)
-        my_cert = "%s/%s"%(tls_dir,my_cert)
-        my_priv_key = "%s/%s"%(tls_dir,my_priv_key)
+        ca_path = f"{tls_dir}/{ca_cert}"
+        my_cert = f"{tls_dir}/{my_cert}"
+        my_priv_key = f"{tls_dir}/{my_priv_key}"
 
         context = ssl.create_default_context()
         context.load_verify_locations(cafile=ca_path)
@@ -199,7 +199,7 @@ class Tenant():
         if "ima_whitelist" in args and args["ima_whitelist"] is not None:
 
             # Auto-enable IMA (or-bit mask)
-            self.tpm_policy['mask'] = "0x%X"%(int(self.tpm_policy['mask'],0) + (1 << common.IMA_PCR))
+            self.tpm_policy['mask'] = f"0x{(int(self.tpm_policy['mask'], 0) + (1 << common.IMA_PCR)):#X}"
 
             if type(args["ima_whitelist"]) in [str,str]:
                 if args["ima_whitelist"] == "default":
@@ -301,14 +301,13 @@ class Tenant():
                 logger.warning(" CA directory does not exist.  Creating...")
                 ca_util.cmd_init(args["ca_dir"])
 
-
-            if not os.path.exists("%s/%s-private.pem"%(args["ca_dir"],self.agent_uuid)):
+            if not os.path.exists(f"{args['ca_dir']}/{self.agent_uuid}-private.pem"):
                 ca_util.cmd_mkcert(args["ca_dir"],self.agent_uuid)
 
             cert_pkg,serial,subject = ca_util.cmd_certpkg(args["ca_dir"],self.agent_uuid)
 
             # support revocation
-            if not os.path.exists("%s/RevocationNotifier-private.pem"%args["ca_dir"]):
+            if not os.path.exists(f"{args['ca_dir']}/RevocationNotifier-private.pem"):
                 ca_util.cmd_mkcert(args["ca_dir"],"RevocationNotifier")
             rev_package,_,_ = ca_util.cmd_certpkg(args["ca_dir"],"RevocationNotifier")
 
@@ -335,10 +334,10 @@ class Tenant():
                         if os.path.exists(args["incl_dir"]):
                             files = next(os.walk(args["incl_dir"]))[2]
                             for filename in files:
-                                with open("%s/%s"%(args["incl_dir"],filename),'rb') as f:
+                                with open(f"{args['incl_dir']}/{filename}", 'rb') as f:
                                     zf.writestr(os.path.basename(f.name),f.read())
                         else:
-                            logger.warn(f'Specified include directory {args["incl_dir"]} does not exist.  Skipping...')
+                            logger.warn(f"Specified include directory {args['incl_dir']} does not exist.  Skipping...")
 
             cert_pkg = sf.getvalue()
 
@@ -354,18 +353,17 @@ class Tenant():
             self.payload = ret['ciphertext']
 
         if self.payload is not None and len(self.payload)>config.getint('tenant','max_payload_size'):
-            raise UserError("Payload size %s exceeds max size %d"%(len(self.payload),config.getint('tenant','max_payload_size')))
-
+            raise UserError(f"Payload size {len(self.payload)} exceeds max size {config.getint('tenant', 'max_payload_size')}")
 
     def preloop(self):
         # encrypt the agent UUID as a check for delivering the correct key
         self.auth_tag = crypto.do_hmac(self.K,self.agent_uuid)
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
         if common.INSECURE_DEBUG:
-            logger.debug(F"K: {base64.b64encode(self.K)}")
-            logger.debug(F"V: {base64.b64encode(self.V)}")
-            logger.debug(F"U: {base64.b64encode(self.U)}")
-            logger.debug(F"Auth Tag: {self.auth_tag}")
+            logger.debug(f"K:{base64.b64encode(self.K)}")
+            logger.debug(f"V:{base64.b64encode(self.V)}")
+            logger.debug(f"U:{base64.b64encode(self.U)}")
+            logger.debug(f"Auth Tag: {self.auth_tag}")
 
     def check_ek(self,ek,ekcert,tpm):
         # config option must be on to check for EK certs
@@ -417,7 +415,7 @@ class Tenant():
         script = config.get('tenant', 'ek_check_script')
         if script is not "":
             if script[0]!='/':
-                script = "%s/%s"%(common.WORK_DIR,script)
+                script = f"{common.WORK_DIR}/{script}"
 
             logger.info(f"Checking EK with script {script}")
             #now we need to exec the script with the ek and ek cert in vars
@@ -472,7 +470,7 @@ class Tenant():
         json_message = json.dumps(data)
         params = f'/agents/{self.agent_uuid}'
         #params = '/agents/%s'% (self.agent_uuid)
-        response = httpclient_requests.request("POST", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=json_message, context=self.context)
+        response = httpclient_requests.request("POST", f"{self.cloudagent_ip}", self.cloudverifier_port, params=params, data=json_message, context=self.context)
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
@@ -483,7 +481,7 @@ class Tenant():
 
         if response.status == 409:
             # this is a conflict, need to update or delete it
-            logger.error("Agent %s already existed at CV.  Please use delete or update."%self.agent_uuid)
+            logger.error(f"Agent {self.agent_uuid} already existed at CV.  Please use delete or update.")
             exit()
         elif response.status != 200:
             keylime_logging.log_http_response(logger,logging.ERROR,response.read().decode()())
@@ -500,7 +498,7 @@ class Tenant():
             agent_uuid=self.agent_uuid
 
         params = f'/agents/{agent_uuid}'
-        response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
+        response = httpclient_requests.request("GET", f"{self.cloudverifier_ip}", self.cloudverifier_port, params=params, context=self.context)
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
@@ -523,7 +521,7 @@ class Tenant():
 
     def do_cvdelete(self):
         params = f'/agents/{self.agent_uuid}'
-        response = httpclient_requests.request("DELETE", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params,  context=self.context)
+        response = httpclient_requests.request("DELETE", f"{self.cloudverifier_ip}", self.cloudverifier_port, params=params,  context=self.context)
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
@@ -535,7 +533,7 @@ class Tenant():
         if response.status == 202:
             deleted = False
             for _ in range(12):
-                response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
+                response = httpclient_requests.request("GET", f"{self.cloudverifier_ip}", self.cloudverifier_port, params=params, context=self.context)
                 if response.status == 404:
                     deleted=True
                     break
@@ -559,7 +557,7 @@ class Tenant():
     def do_cvreactivate(self):
         #params = '/agents/%s/reactivate'% (self.agent_uuid)
         params = f'/agents/{self.agent_uuid}/reactivate'
-        response = httpclient_requests.request("PUT", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=b'',  context=self.context)
+        response = httpclient_requests.request("PUT", f"{self.cloudverifier_ip}", self.cloudverifier_port, params=params, data=b'',  context=self.context)
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
@@ -571,7 +569,7 @@ class Tenant():
         response_body = json.loads(response.read().decode())
         if response.status != 200:
             keylime_logging.log_http_response(logger,logging.ERROR,response_body)
-            raise UserError("Update command response: %d Unexpected response from Cloud Verifier."%response.status)
+            raise UserError(f"Update command response: {response.status} Unexpected response from Cloud Verifier.")
         else:
             logger.info(f"Agent {self.agent_uuid} re-activated")
 
@@ -579,7 +577,7 @@ class Tenant():
     def do_cvstop(self):
         # params = '/agents/%s/stop'% (self.agent_uuid)
         params = f'/agents/{self.agent_uuid}/stop'
-        response = httpclient_requests.request("PUT", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=b'',  context=self.context)
+        response = httpclient_requests.request("PUT", f"{self.cloudverifier_ip}", self.cloudverifier_port, params=params, data=b'',  context=self.context)
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
@@ -606,7 +604,7 @@ class Tenant():
             try:
                 #params = '/quotes/identity?nonce=%s'%(self.nonce)
                 params = f'/quotes/identity?nonce={self.nonce}'
-                response = httpclient_requests.request("GET", "%s"%(self.cloudagent_ip), self.cloudagent_port, params=params, context=None)
+                response = httpclient_requests.request("GET", f"{self.cloudagent_ip}", self.cloudagent_port, params=params, context=None)
                 response_body = json.loads(response.read().decode())
             except Exception as e:
                 if response == 503 or 504:
@@ -625,10 +623,10 @@ class Tenant():
 
         try:
             if response is not None and response.status != 200:
-                raise UserError("Status command response: %d Unexpected response from Cloud Agent."%response.status)
+                raise UserError(f"Status command response: {response.status} Unexpected response from Cloud Agent.")
 
             if "results" not in response_body:
-                raise UserError("Error: unexpected http response body from Cloud Agent: %s"%str(response.status))
+                raise UserError(f"Error: unexpected http response body from Cloud Agent: {response.status}")
 
             quote = response_body["results"]["quote"]
             logger.debug(f"agent_quote received quote: {quote}")
@@ -681,7 +679,7 @@ class Tenant():
 
             #post encrypted U back to CloudAgent
             params = '/keys/ukey'
-            response = httpclient_requests.request("POST", "%s"%(self.cloudagent_ip), self.cloudagent_port, params=params, data=u_json_message)
+            response = httpclient_requests.request("POST", f"{self.cloudagent_ip}", self.cloudagent_port, params=params, data=u_json_message)
 
             if response == 503:
                 logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
@@ -692,7 +690,7 @@ class Tenant():
 
             if response.status != 200:
                 keylime_logging.log_http_response(logger,logging.ERROR,response_body)
-                raise UserError("Posting of Encrypted U to the Cloud Agent failed with response code %d" %response.status)
+                raise UserError(f"Posting of Encrypted U to the Cloud Agent failed with response code {response.status}")
 
         except Exception as e:
             self.do_cvstop()
@@ -705,7 +703,7 @@ class Tenant():
         while True:
             try:
                 params = f'/keys/verify?challenge={challenge}'
-                response = httpclient_requests.request("GET", "%s"%(self.cloudagent_ip), self.cloudagent_port, params=params)
+                response = httpclient_requests.request("GET", f"{self.cloudagent_ip}", self.cloudagent_port, params=params)
             except Exception as e:
                 if response == 503 or 504:
                     numtries+=1
@@ -775,7 +773,7 @@ def main(argv=sys.argv):
     mytenant = Tenant()
 
     if args.command not in ['list','regdelete'] and args.agent_ip is None:
-        raise UserError("-t/--targethost is required for command %s"%args.command)
+        raise UserError(f"-t/--targethost is required for command {args.command}")
 
     if args.agent_uuid is not None:
         mytenant.agent_uuid = args.agent_uuid
@@ -793,7 +791,7 @@ def main(argv=sys.argv):
             mytenant.agent_uuid = jsonIn['add_vtpm_to_group']['retout']
         else:
             # Our command hasn't been canned!
-            raise UserError("Command %s not found in canned JSON!"%("add_vtpm_to_group"))
+            raise UserError(f"Command {'add_vtpm_tp_group'} not found in canned YAML!")
 
     if args.verifier_ip is not None:
         mytenant.cloudverifier_ip = args.verifier_ip
@@ -836,7 +834,7 @@ def main(argv=sys.argv):
     elif args.command=='regdelete':
         mytenant.do_regdelete()
     else:
-        raise UserError("Invalid command specified: %s"%(args.command))
+        raise UserError(f"Invalid command specified: {args.command}")
 
 if __name__=="__main__":
     try:

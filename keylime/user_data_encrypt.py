@@ -52,7 +52,7 @@ def main(argv=sys.argv):
 	infile = argv[1]
 
 	if not os.path.isfile(infile):
-		print("ERROR: File %s not found."%infile)
+		print(f"ERROR: File {infile} not found.")
 		usage()
 
 	f = open(infile,'r')
