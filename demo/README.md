@@ -12,6 +12,7 @@ It includes the following demos:
 The bundle contains the following files: 
 * **demo_setup.sh**: This sets up and installs the demos (on top of an existing Keylime installation) 
 * **ima-policy**: IMA policy file (less burdensome than the IMA TCB policy) 
+* **ima-policies/**: Additional IMA policy file examples, including the default TCB policy
 * **keyfile.txt**: Keyfile that decrypts the payload.enc and payload.txt files 
 * **autorun.sh**: This file is sent to the cloud agent, which will decrypt and mount the payload.enc 
     * *__NOTE:__ Your keylime.conf file's ```cloud_agent.payload_script``` should be set to autorun.sh*

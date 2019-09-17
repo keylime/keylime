@@ -1,0 +1,23 @@
+# PROC_SUPER_MAGIC
+dont_measure fsmagic=0x9fa0
+# SYSFS_MAGIC
+dont_measure fsmagic=0x62656572
+# DEBUGFS_MAGIC
+dont_measure fsmagic=0x64626720
+# TMPFS_MAGIC
+dont_measure fsmagic=0x01021994
+# RAMFS_MAGIC
+dont_measure fsmagic=0x858458f6
+# SECURITYFS_MAGIC
+dont_measure fsmagic=0x73636673
+# SELINUX_MAGIC
+dont_measure fsmagic=0xf97cff8c
+# CGROUP_SUPER_MAGIC
+dont_measure fsmagic=0x27e0eb
+dont_measure obj_type=var_log_t
+dont_measure obj_type=auditd_log_t
+dont_measure obj_type=tmp_t
+# MEASUREMENTS
+measure func=BPRM_CHECK
+measure func=FILE_MMAP mask=MAY_EXEC
+measure func=MODULE_CHECK uid=0
