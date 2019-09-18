@@ -167,18 +167,17 @@ def process_measurement_list(lines,lists=None,m2w=None):
                 template_hash = FF_HASH
             else:
                 #verify template hash. yep this is terrible
-                fmt = f"<I{len(filedata_algo)}sBB{len(filedata_hash)}sI{len(path)}sB")
+                fmt = f"<I{len(filedata_algo)}sBB{len(filedata_hash)}sI{len(path)}sB"
                 # +2 for the : and the null terminator, and +1 on path for null terminator
                 tohash=struct.pack(fmt,len(filedata_hash)+len(filedata_algo)+2,filedata_algo.encode('utf-8'),ord(':'),ord('\0'),filedata_hash,len(path)+1,path.encode("utf-8"),ord('\0'))
                 expected_template_hash = hashlib.sha1(tohash).digest()
 
                 if expected_template_hash!=template_hash:
                     errs[0]+=1
-                logger.warning(
-                    f"template hash for file {path} does not match {codecs.encode(expected_template_hash, 'hex').decode('utf-8')} != {codecs.encode(template_hash, 'hex').decode('utf-8')}")
-                elif mode=='ima':
-            filedata_hash = codecs.decode(tokens[3], "hex")
-            path = str(tokens[4])
+                    logger.warning(f"template hash for file {path} does not match {codecs.encode(expected_template_hash, 'hex').decode('utf-8')} != {codecs.encode(template_hash, 'hex').decode('utf-8')}")
+                elif mode == 'ima':
+                    filedata_hash = codecs.decode(tokens[3], "hex")
+                    path = str(tokens[4])
 
             # this is some IMA weirdness
             if template_hash == START_HASH:
@@ -186,7 +185,7 @@ def process_measurement_list(lines,lists=None,m2w=None):
             else:
                 #verify template hash. yep this is terrible
                 # name needs to be null padded out to MAX len. +1 is for the null terminator of the string itself
-                fmt = f"<{len(filedata_hash)}s{len(path)}s{TCG_EVENT_NAME_LEN_MAX - len(path) + 1}s")
+                fmt = f"<{len(filedata_hash)}s{len(path)}s{TCG_EVENT_NAME_LEN_MAX - len(path) + 1}s"
                 tohash=struct.pack(fmt,filedata_hash,path.encode("utf-8"),bytearray(TCG_EVENT_NAME_LEN_MAX-len(path)+1))
                 expected_template_hash = hashlib.sha1(tohash).digest()
 

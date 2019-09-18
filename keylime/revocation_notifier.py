@@ -112,7 +112,8 @@ def await_notifications(callback,revocation_cert_path):
         if cert_key is None:
             # load up the CV signing public key
             if revocation_cert_path is not None and os.path.exists(revocation_cert_path):
-                logger.info(f"Lazy loading the revocation certificate from {revocation_cert_path}")                with open(revocation_cert_path,'r') as f:
+                logger.info(f"Lazy loading the revocation certificate from {revocation_cert_path}")
+                with open(revocation_cert_path,'r') as f:
                     certpem = f.read()
                 cert_key = crypto.rsa_import_pubkey(certpem)
 
@@ -136,7 +137,7 @@ def main():
         def print_notification(revocation):
             logger.warning(f"Received revocation: {revocation}")
 
-        keypath = f'{secure_mount.mount()}/unzipped/RevocationNotifier-cert.crt')
+        keypath = f'{secure_mount.mount()}/unzipped/RevocationNotifier-cert.crt'
         await_notifications(print_notification,revocation_cert_path=keypath)
 
     t = threading.Thread(target=worker)

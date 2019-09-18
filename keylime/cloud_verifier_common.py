@@ -145,12 +145,12 @@ def init_mtls(section='cloud_verifier',generatedir='cv_ca'):
         ca_path = f"{tls_dir}/{ca_cert}"
 
     if my_cert=='default':
-        my_cert = f"{tls_dir}/{socket.gethostname()}-cert.crt")
+        my_cert = f"{tls_dir}/{socket.gethostname()}-cert.crt"
     else:
         my_cert = f"{tls_dir}/{my_cert}"
 
     if my_priv_key=='default':
-        my_priv_key = f"{tls_dir}/{socket.gethostname()}-private.pem")
+        my_priv_key = f"{tls_dir}/{socket.gethostname()}-private.pem"
     else:
         my_priv_key = f"{tls_dir}/{my_priv_key}"
 
@@ -176,7 +176,7 @@ def process_quote_response(agent, json_response):
         ima_measurement_list = json_response.get("ima_measurement_list",None)
 
         logger.debug(f"received quote:      {quote}")
-        logger.debug(f"for nonce:           {agent['nonce']}"
+        logger.debug(f"for nonce:           {agent['nonce']}")
         logger.debug(f"received public key: {received_public_key}")
         logger.debug(f"received ima_measurement_list    {ima_measurement_list!=None}")
     except Exception:

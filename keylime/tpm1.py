@@ -652,7 +652,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             else:
                 raise Exception("Could not get deepquote from canned YAML!")
 
-        cmd = f'checkdeepquote -aik {hAIK} -deepquote {deepquoteFile} -nonce {nonce} -vaik {vAIK}')
+        cmd = f'checkdeepquote -aik {hAIK} -deepquote {deepquoteFile} -nonce {nonce} -vaik {vAIK}'
         #logger.info('Running cmd %r', cmd)
 
         retDict = self.__run(cmd,lock=False)

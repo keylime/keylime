@@ -460,7 +460,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             logger.debug(f"V: {base64.b64encode(decrypted_V)}")
             logger.debug(f"K: {base64.b64encode(candidate_key)}")
 
-        logger.debug(f"auth_tag: {self.auth_tag}"
+        logger.debug(f"auth_tag: {self.auth_tag}")
         ex_mac = crypto.do_hmac(candidate_key,self.agent_uuid)
 
         if ex_mac == self.auth_tag:

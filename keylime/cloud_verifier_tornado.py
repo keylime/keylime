@@ -314,7 +314,8 @@ class AgentsHandler(BaseHandler):
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE_RETRY)
             else:
                 #catastrophic error, do not continue
-                error = f"Unexpected Get Quote response error for cloud agent {agent['agent_id']}, Error: {response.error}"                logger.critical(error)
+                error = f"Unexpected Get Quote response error for cloud agent {agent['agent_id']}, Error: {response.error}"
+                logger.critical(error)
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
         else:
             try:
@@ -345,7 +346,7 @@ class AgentsHandler(BaseHandler):
         v_json_message = cloud_verifier_common.prepare_v(agent)
         agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V
         client = tornado.httpclient.AsyncHTTPClient()
-        url = f"http://{agent['ip']}:{agent['port']}/keys/vkey")
+        url = f"http://{agent['ip']}:{agent['port']}/keys/vkey"
         cb = functools.partial(self.on_provide_v_response, agent, url)
         client.fetch(url, method="POST", callback=cb, headers=None, body=v_json_message)
 
@@ -357,7 +358,8 @@ class AgentsHandler(BaseHandler):
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY)
             else:
                 #catastrophic error, do not continue
-                error = f"Unexpected Provide V response error for cloud agent {agent['agent_id']}, Error: {response.error}"                logger.critical(error)
+                error = f"Unexpected Provide V response error for cloud agent {agent['agent_id']}, Error: {response.error}"
+                logger.critical(error)
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
         else:
             self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
