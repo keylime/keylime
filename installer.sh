@@ -67,6 +67,7 @@ if [[ -n "$(command -v dnf)" ]]; then
     PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto python3-tornado python3-simplejson python3-requests yaml-cpp-devel procps-ng"
     PYTHON_PIPS="pycryptodomex tornado pyzmq"
     BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
+    TPM2_SOFTWARE="tpm2-tss tpm2-tools tpm2-abrmd"
 elif [[ -n "$(command -v yum)" ]]; then
     PACKAGE_MGR=$(command -v yum)
     $PACKAGE_MGR -y install epel-release
@@ -74,12 +75,14 @@ elif [[ -n "$(command -v yum)" ]]; then
     PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python36-simplejson python36-requests yaml-cpp-devel"
     PYTHON_PIPS="pycryptodomex tornado pyzmq m2crypto"
     BUILD_TOOLS="openssl-devel libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
+    TPM2_SOFTWARE="tpm2-tss tpm2-tools tpm2-abrmd"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
     PYTHON_PREIN="git patch"
     PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-simplejson python3-requests gcc g++ libssl-dev swig python3-yaml wget"
     PYTHON_PIPS="pycryptodomex m2crypto"
     BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev"
+    TPM2_SOFTWARE="tpm2-tss tpm2-tools tpm2-abrmd"
     $PACKAGE_MGR update
 else
    echo "No recognized package manager found on this system!" 1>&2
@@ -382,54 +385,13 @@ elif [[ "$TPM_VERSION" -eq "2" ]] ; then
     echo "=================================================================================="
     echo $'\t\t\t\tBuild and install tpm2-tss'
     echo "=================================================================================="
-    git clone $TPM2TSS_GIT tpm2-tss
-    pushd tpm2-tss
-    git checkout $TPM2TSS_VER
-    ./bootstrap
-    ./configure --prefix=/usr
-    make
-    make install
-    popd # tpm
-
-    # Example installation instructions for using the tpm2-abrmd resource
-    # manager for Ubuntu 18 LTS. The tools and Keylime could run without this
-    # by directly communicating with the TPM (though not recommended) by setting:
-    # for swtpm2 emulator:
-    #   export TPM2TOOLS_TCTI="mssim:port=2321"
-    # for chardev communication:
-    #   export TPM2TOOLS_TCTI="device:/dev/tpm0"
-    #
-    # sudo useradd --system --user-group tss
-    # git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
-    # pushd tpm2-abrmd
-    # ./bootstrap
-    # ./configure --with-dbuspolicydir=/etc/dbus-1/system.d \
-    #             --with-systemdsystemunitdir=/lib/systemd/system \
-    #             --with-systemdpresetdir=/lib/systemd/system-preset \
-    #             --datarootdir=/usr/share
-    # make
-    # sudo make install
-    # sudo ldconfig
-    # sudo pkill -HUP dbus-daemon
-    # sudo systemctl daemon-reload
-    # sudo service tpm2-abrmd start
-    # export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
-    #
-    # NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as:
-    # sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
-
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\t\tBuild and install tpm2-tools'
-    echo "=================================================================================="
-    git clone $TPM2TOOLS_GIT tpm2-tools
-    pushd tpm2-tools
-    git checkout $TPM2TOOLS_VER
-    ./bootstrap
-    ./configure --prefix=/usr/local
-    make
-    make install
-    popd # tpm
+   $PACKAGE_MGR -y install $TPM2_SOFTWARE
+    if [[ $? > 0 ]] ; then
+        echo "ERROR: Package(s) failed to install properly!"
+        exit 1
+    fi
+    systemctl enable tpm2-abrmd
+    systemctl start tpm2-abrmd
 
     if [[ "$TPM_SOCKET" -eq "1" ]] ; then
         echo
@@ -458,6 +420,11 @@ elif [[ "$TPM_VERSION" -eq "2" ]] ; then
         install -c tpm_server /usr/local/bin/tpm_server
 
         popd # tpm/swtpm2
+        if [[ "$TPM_VERSION" -eq "2" ]] ; then
+            sed -i 's/.*ExecStart.*/ExecStart=\/usr\/sbin\/tpm2-abrmd --tcti=mssim/' /usr/lib/systemd/system/tpm2-abrmd.service
+            systemctl daemon-reload
+            systemctl restart tpm2-abrmd
+        fi
     fi
 else
     echo "ERROR: Invalid TPM version chosen: '$TPM_VERSION'"
@@ -519,4 +486,14 @@ if [[ "$TARBALL" -eq "1" ]] ; then
         TAR_BUNDLE_FLAGS="-m"
     fi
     ./make_agent_bundle_tarball.sh $TAR_BUNDLE_FLAGS
+fi
+
+echo "=================================================================================="
+echo $'\t\t\t\tInstallation complete!'
+echo "=================================================================================="
+if [[ -n "$(command -v dnf)" ]] || [[ -n "$(command -v yum)" ]]; then
+    if [[ "$TPM_VERSION" -eq "2" ]] && [[ "$TPM_SOCKET" -eq "1" ]] ; then
+        echo "As you have selected to run an emulator, you will need to disable SELinux"
+        echo "Please also be mindful, that an emulator is not a secure option and should not be used in production!"
+    fi
 fi
