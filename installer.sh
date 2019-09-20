@@ -383,7 +383,7 @@ if [[ "$TPM_VERSION" -eq "1" ]] ; then
 elif [[ "$TPM_VERSION" -eq "2" ]] ; then
     echo
     echo "=================================================================================="
-    echo $'\t\t\t\tBuild and install tpm2-tss'
+    echo $'\t\t\t\tInstall tpm2-tss'
     echo "=================================================================================="
    $PACKAGE_MGR -y install $TPM2_SOFTWARE
     if [[ $? > 0 ]] ; then
