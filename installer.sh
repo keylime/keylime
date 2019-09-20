@@ -82,7 +82,8 @@ elif [[ -n "$(command -v apt-get)" ]]; then
     PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-simplejson python3-requests gcc g++ libssl-dev swig python3-yaml wget"
     PYTHON_PIPS="pycryptodomex m2crypto"
     BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev"
-    TPM2_SOFTWARE="tpm2-tss tpm2-tools tpm2-abrmd"
+    #TPM2_SOFTWARE="tpm2-tss tpm2-tools tpm2-abrmd"
+    BUILD_TPM2_SOFTWARE=1
     $PACKAGE_MGR update
 else
    echo "No recognized package manager found on this system!" 1>&2
@@ -117,7 +118,7 @@ while getopts ":shotkmp:" opt; do
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
             echo $'-o \t\t\t\t Use OpenSSL instead of CFSSL'
             echo $'-t \t\t\t\t Create tarball with keylime_agent'
-            echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
+            echo $'-m \t\t\t\t Use legacy TPM version 1.2'
             echo $'-s \t\t\t\t Install TPM in socket/simulator mode (vs. chardev)'
             echo $'-p PATH \t\t\t Use PATH as Keylime path'
             echo $'-h \t\t\t\t This help info'
@@ -310,10 +311,10 @@ else
         echo "Do you want to setup a default GOPATH with the following:"
         echo " mkdir -p $HOME/go && echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc && source $HOME/.bashrc"
         read -r -p "Proceed? [y/N] " resp
-    	case "$resp" in
-        	[yY]) mkdir -p $HOME/go && echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc && source $HOME/.bashrc ;;
-        	*) exit 1 ;;
-    	esac
+        case "$resp" in
+            [yY]) mkdir -p $HOME/go && echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc && source $HOME/.bashrc ;;
+            *) exit 1 ;;
+        esac
     fi
 
     # Ensure Go installed meets min requirements
@@ -380,18 +381,59 @@ if [[ "$TPM_VERSION" -eq "1" ]] ; then
     fi
     make install
     popd # tpm/tpm4720-keylime
+
 elif [[ "$TPM_VERSION" -eq "2" ]] ; then
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\t\tInstall tpm2-tss'
-    echo "=================================================================================="
-   $PACKAGE_MGR -y install $TPM2_SOFTWARE
-    if [[ $? > 0 ]] ; then
-        echo "ERROR: Package(s) failed to install properly!"
-        exit 1
-    fi
-    systemctl enable tpm2-abrmd
-    systemctl start tpm2-abrmd
+    if [[ "$BUILD_TPM2_SOFTWARE" -eq "1" ]] ; then
+        echo "=================================================================================="
+        echo $'\t\t\t\Building tpm2-tss'
+        echo "=================================================================================="
+        # TPM2_TSS
+        git clone $TPM2TSS_GIT tpm2-tss
+        pushd tpm2-tss
+        git checkout $TPM2TSS_VER
+        ./bootstrap
+        ./configure --prefix=/usr
+        make
+        make install
+        popd # tpm
+        echo
+        echo "=================================================================================="
+        echo $'\t\t\t\tBuild and install tpm2-tools'
+        echo "=================================================================================="
+        git clone $TPM2TOOLS_GIT tpm2-tools
+        pushd tpm2-tools
+        git checkout $TPM2TOOLS_VER
+        ./bootstrap
+        ./configure --prefix=/usr/local
+        make
+        make install
+        popd # tpm
+        echo "=================================================================================="
+        echo $'\t\t\t\tBuild and install tpm2-abrmd'
+        echo "=================================================================================="
+        useradd --system --user-group tss
+        git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
+        pushd tpm2-abrmd
+        ./bootstrap
+        ./configure --with-dbuspolicydir=/etc/dbus-1/system.d \
+                    --with-systemdsystemunitdir=/lib/systemd/system \
+                    --with-systemdpresetdir=/lib/systemd/system-preset \
+                    --datarootdir=/usr/share
+        make
+        make install
+        ldconfig
+        pkill -HUP dbus-daemon
+        systemctl daemon-reload
+        service tpm2-abrmd start
+        export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
+    else
+       $PACKAGE_MGR -y install $TPM2_SOFTWARE
+        if [[ $? > 0 ]] ; then
+            echo "ERROR: Package(s) failed to install properly!"
+            exit 1
+        fi
+        systemctl enable tpm2-abrmd
+        systemctl start tpm2-abrmd
 
     if [[ "$TPM_SOCKET" -eq "1" ]] ; then
         echo
@@ -493,7 +535,7 @@ echo $'\t\t\t\tInstallation complete!'
 echo "=================================================================================="
 if [[ -n "$(command -v dnf)" ]] || [[ -n "$(command -v yum)" ]]; then
     if [[ "$TPM_VERSION" -eq "2" ]] && [[ "$TPM_SOCKET" -eq "1" ]] ; then
-        echo "As you have selected to run an emulator, you will need to disable SELinux"
+        echo "As you have selected to run an emulator, you will need to change SELinux to permissive"
         echo "Please also be mindful, that an emulator is not a secure option and should not be used in production!"
     fi
 fi
