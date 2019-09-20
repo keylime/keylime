@@ -118,7 +118,7 @@ while getopts ":shotkmp:" opt; do
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
             echo $'-o \t\t\t\t Use OpenSSL instead of CFSSL'
             echo $'-t \t\t\t\t Create tarball with keylime_agent'
-            echo $'-m \t\t\t\t Use legacy TPM version 1.2'
+            echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
             echo $'-s \t\t\t\t Install TPM in socket/simulator mode (vs. chardev)'
             echo $'-p PATH \t\t\t Use PATH as Keylime path'
             echo $'-h \t\t\t\t This help info'
