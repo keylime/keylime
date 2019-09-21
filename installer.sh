@@ -434,6 +434,7 @@ elif [[ "$TPM_VERSION" -eq "2" ]] ; then
         fi
         systemctl enable tpm2-abrmd
         systemctl start tpm2-abrmd
+    fi
 
     if [[ "$TPM_SOCKET" -eq "1" ]] ; then
         echo
