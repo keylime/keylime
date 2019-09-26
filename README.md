@@ -131,7 +131,7 @@ Keylime requires Python 3.6.
 
 The following python packages are required:
 
-* pycryptodomex>=3.4.1
+* cryptography
 * tornado>=5.0.2
 * m2crypto>=0.21.1
 * pyzmq>=14.4

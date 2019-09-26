@@ -505,16 +505,16 @@ class tpm1(tpm_abstract.AbstractTPM):
                 logger.error("Public EK does not match EK certificate")
                 return False
 
-            for signer in trusted_certs:
-                signcert = M2Crypto.X509.load_cert_string(trusted_certs[signer])
+            for signer in tpm_ek_ca.trusted_certs:
+                signcert = M2Crypto.X509.load_cert_string(tpm_ek_ca.trusted_certs[signer])
                 signkey = signcert.get_pubkey()
                 if ek509.verify(signkey) == 1:
                     logger.debug("EK cert matched signer %s"%signer)
                     return True
 
-            for key in atmel_trusted_keys:
-                e = m2.bn_to_mpi(m2.hex_to_bn(atmel_trusted_keys[key]['exponent']))
-                n = m2.bn_to_mpi(m2.hex_to_bn(atmel_trusted_keys[key]['key']))
+            for key in tpm_ek_ca.atmel_trusted_keys:
+                e = m2.bn_to_mpi(m2.hex_to_bn(tpm_ek_ca.atmel_trusted_keys[key]['exponent']))
+                n = m2.bn_to_mpi(m2.hex_to_bn(tpm_ek_ca.atmel_trusted_keys[key]['key']))
                 rsa = M2Crypto.RSA.new_pub_key((e, n))
                 pubkey = M2Crypto.EVP.PKey()
                 pubkey.assign_rsa(rsa)
@@ -560,8 +560,10 @@ class tpm1(tpm_abstract.AbstractTPM):
             return False
 
     def __get_mod_from_pem(self, pem):
-        pubkey = crypto.rsa_import_pubkey(pem)
-        return base64.b64encode(bytearray.fromhex('{:0192x}'.format(pubkey.n)))
+        """ Extract public modulus for the RSA key """
+        pubkey_nums = crypto.rsa_import_pubkey(pem).public_numbers()
+        return base64.b64encode(bytearray.fromhex('{:0192x}'.format(pubkey_nums.n)))
+
 
     def tpm_init(self,self_activate=False,config_pw=None):
         # this was called tpm_initialize.init before

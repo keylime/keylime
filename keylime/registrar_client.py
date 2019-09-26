@@ -160,9 +160,8 @@ def doRegisterAgent(registrar_ip,registrar_port,agent_id,tpm_version,pub_ek,ekce
 
 def doActivateAgent(registrar_ip,registrar_port,agent_id,key):
     data = {
-    'auth_tag': crypto.do_hmac(base64.b64decode(key),agent_id),
+    'auth_tag': crypto.do_hmac(key,agent_id),
     }
-
     v_json_message = json.dumps(data)
     params = '/agents/%s/activate'% (agent_id)
     response = httpclient_requests.request("PUT", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message,  context=None)
