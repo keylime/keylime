@@ -15,12 +15,11 @@ class Crypto_Test(unittest.TestCase):
 
     def test_rsa(self):
         message = b"a secret message!"
-        key = rsa_generate(2048)
-        pubkeypem = rsa_export_pubkey(key)
+        private = rsa_generate(2048)
+        pubkeypem = rsa_export_pubkey(private)
         pubkey = rsa_import_pubkey(pubkeypem)
-        keypem = rsa_export_privkey(key)
+        keypem = rsa_export_privkey(private)
         key = rsa_import_privkey(keypem)
-
         ciphertext = rsa_encrypt(pubkey, message)
         plain = rsa_decrypt(key, ciphertext)
         self.assertEqual(plain, message)
@@ -57,12 +56,13 @@ class Crypto_Test(unittest.TestCase):
 
     def test_rsa_sign(self):
         message = b"a secret message!"
-        key = rsa_generate(2048)
-        sig = rsa_sign(key, message)
-        self.assertTrue(rsa_verify(key, message,sig))
+        private = rsa_generate(2048)
+        public_key = get_public_key(private)
+        signature = rsa_sign(private, message)
+        self.assertTrue(rsa_verify(public_key, message,signature))
 
         message = b"another message!"
-        self.assertFalse(rsa_verify(key, message,sig))
+        self.assertFalse(rsa_verify(public_key, message,signature))
 
 
 if __name__ == '__main__':

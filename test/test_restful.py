@@ -438,13 +438,13 @@ class TestRestful(unittest.TestCase):
         key = tpm.activate_identity(keyblob)
 
         data = {
-            'auth_tag': crypto.do_hmac(base64.b64decode(key),tenant_templ.agent_uuid),
+            'auth_tag': crypto.do_hmac(key,tenant_templ.agent_uuid),
         }
         v_json_message = json.dumps(data)
 
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}/activate"
         response = httpclient_requests.request("PUT", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
-
+        print('response:', response)
         self.assertEqual(response.status, 200, "Non-successful Registrar agent Activate return code!")
         json_response = json.loads(response.read().decode())
 

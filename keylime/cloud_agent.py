@@ -368,7 +368,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         if os.path.isfile(keyname):
             # read in private key
             logger.debug( "Using existing key in %s"%keyname)
-            f = open(keyname,"r")
+            f = open(keyname,"rb")
             rsa_key = crypto.rsa_import_privkey(f.read())
         else:
             logger.debug("key not found, generating a new one")
