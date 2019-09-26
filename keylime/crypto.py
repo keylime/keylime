@@ -131,7 +131,7 @@ def get_random_bytes(size):
 
 def generate_random_key(size=32):
     """ Generate random key using urandom wrapper  """
-    return bytearray(os.urandom(size))
+    return os.urandom(size)
 
 def strbitxor(a,b):
     a = bytearray(a)
@@ -182,8 +182,8 @@ def encrypt(plaintext, key):
 def decrypt(ciphertext, key):
     """ Decrypt object """
     ciphertext = base64.b64decode(ciphertext)
-    iv = bytearray(ciphertext[:aes_block_size])
-    tag = bytes(ciphertext[-aes_block_size:])
+    iv = ciphertext[:aes_block_size]
+    tag = ciphertext[-aes_block_size:]
     ciphertext = bytes(ciphertext[aes_block_size:-aes_block_size])
 
     decryptor = Cipher(algorithms.AES(key),
