@@ -182,9 +182,8 @@ def encrypt(plaintext, key):
 def decrypt(ciphertext, key):
     """ Decrypt object """
     ciphertext = base64.b64decode(ciphertext)
-
-    iv = ciphertext[:aes_block_size]
-    tag = ciphertext[-aes_block_size:]
+    iv = bytes(ciphertext[:aes_block_size])
+    tag = bytes(ciphertext[-aes_block_size:])
     ciphertext = bytes(ciphertext[aes_block_size:-aes_block_size])
 
     decryptor = Cipher(algorithms.AES(key),
