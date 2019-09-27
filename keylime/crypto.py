@@ -52,7 +52,7 @@ def rsa_import_privkey(privkey):
     try:
         return serialization.load_pem_private_key(privkey,password=None,backend=default_backend())
     except:
-        return serialization.load_pem_private_key(str(privkey.encode('utf-8')),password=None,backend=default_backend())
+        return serialization.load_pem_private_key(privkey.encode('utf-8'),password=None,backend=default_backend())
 
 
 def rsa_generate(size):
