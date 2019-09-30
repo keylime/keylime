@@ -595,7 +595,7 @@ def main(argv=sys.argv):
                 try:
                     module = importlib.import_module(action)
                     execute = getattr(module,'execute')
-                    asyncio.run(execute(revocation))
+                    asyncio.get_event_loop().run_until_complete(execute(revocation))
                 except Exception as e:
                     logger.warn("Exception during execution of revocation action %s: %s"%(action,e))
         try:
