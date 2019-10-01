@@ -112,7 +112,7 @@ while getopts ":shotkmp:" opt; do
             echo "Usage: $0 [option...]"
             echo "Options:"
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
-            echo $'-o \t\t\t\t Use OpenSSL instead of CFSSL'
+            echo $'-o \t\t\t\t Use OpenSSL (vs. CFSSL). NOTE: OpenSSL does not support revocation'
             echo $'-t \t\t\t\t Create tarball with keylime_agent'
             echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
             echo $'-s \t\t\t\t Install TPM in socket/simulator mode (vs. chardev)'
@@ -229,16 +229,16 @@ echo "INFO: Using Keylime directory: $KEYLIME_DIR"
 
 
 # OpenSSL or cfssl?
-if [[ "$OPENSSL" -eq "1" ]] ; then
-    # Patch config file to use openssl
+if [[ "$OPENSSL" -eq "0" ]] ; then
+    # Patch config file to use cfssl
     echo
     echo "=================================================================================="
-    echo $'\t\t\tSwitching config to OpenSSL'
+    echo $'\t\t\tSwitching config to cfssl'
     echo "=================================================================================="
     cd $KEYLIME_DIR
-    patch --forward --verbose -s -p1 < $KEYLIME_DIR/patches/opensslconf-patch.txt \
+    patch --forward --verbose -s -p1 < $KEYLIME_DIR/patches/cfsslconf-patch.txt \
         && echo "INFO: Keylime config patched!"
-else
+
     # Pull in correct PATH under sudo (mainly for secure_path)
     if [[ -r "/etc/profile.d/go.sh" ]]; then
         source "/etc/profile.d/go.sh"
@@ -521,3 +521,4 @@ if [[ "$TARBALL" -eq "1" ]] ; then
     fi
     ./make_agent_bundle_tarball.sh $TAR_BUNDLE_FLAGS
 fi
+
