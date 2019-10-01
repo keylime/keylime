@@ -69,6 +69,7 @@ elif [[ -n "$(command -v tpm2_createek)" ]]; then
     tpm2_nvrelease -h
 fi
 
+export TPM2TOOLS_TCTI="mssim:port=2321"
 echo "starting IMA stub"
 pkill -f keylime_ima_emulator
 keylime_ima_emulator

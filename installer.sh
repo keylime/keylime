@@ -30,7 +30,7 @@ TPM2TOOLS_GIT=https://github.com/tpm2-software/tpm2-tools.git
 TPM2SIM_SRC=http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/download
 KEYLIME_VER="master"
 TPM4720_VER="master"
-GOLANG_VER="1.12.4"
+GOLANG_VER="1.13.1"
 TPM2TSS_VER="2.0.x"
 TPM2TOOLS_VER="3.X"
 
@@ -41,8 +41,17 @@ MIN_PYTORNADO_VERSION="4.3"
 MIN_PYM2CRYPTO_VERSION="0.21.1"
 MIN_PYZMQ_VERSION="14.4"
 MIN_PYCRYPTOGRAPHY_VERSION="2.1.4"
-MIN_GO_VERSION="1.8.4"
+MIN_GO_VERSION="1.11.13"
 
+# default variables
+CENTOS7_TSS_FLAGS=
+GOPKG=
+NEED_BUILD_TOOLS=0
+NEED_PYTHON_DIR=0
+PYTHON_PIPS=
+TPM2_TOOLS_PKGS=
+NEED_EPEL=0
+POWERTOOLS=
 
 # Check to ensure version is at least minversion
 version_checker () {
@@ -59,33 +68,79 @@ confirm_force_install () {
     esac
 }
 
-
-# Which package management system are we using?
-if [[ -n "$(command -v dnf)" ]]; then
-    PACKAGE_MGR=$(command -v dnf)
-    PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
-    PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto  python3-cryptography python3-tornado python3-simplejson python3-requests yaml-cpp-devel procps-ng"
-    PYTHON_PIPS="tornado pyzmq"
-    BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
-elif [[ -n "$(command -v yum)" ]]; then
-    PACKAGE_MGR=$(command -v yum)
-    $PACKAGE_MGR -y install epel-release
-    PYTHON_PREIN="python36 python36-devel python36-setuptools python36-pip git wget patch openssl"
-    PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python3-cryptography python36-simplejson python36-requests yaml-cpp-devel"
-    PYTHON_PIPS="tornado pyzmq m2crypto"
-    BUILD_TOOLS="openssl-devel libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
-elif [[ -n "$(command -v apt-get)" ]]; then
-    PACKAGE_MGR=$(command -v apt-get)
-    PYTHON_PREIN="git patch"
-    PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-cryptography python3-simplejson python3-requests gcc g++ libssl-dev swig python3-yaml wget"
-    PYTHON_PIPS="m2crypto"
-    BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev"
-    $PACKAGE_MGR update
-else
-   echo "No recognized package manager found on this system!" 1>&2
-   exit 1
+# Determine distibution (using systemd standard `os-release`):
+if [ -f /etc/os-release ]; then
+        . /etc/os-release
+    else
+        echo "Not able to determine your OS or Distribution"
+        exit 1
 fi
 
+case "$ID" in
+    debian | ubuntu)
+        echo "${ID} selected."
+        PACKAGE_MGR=$(command -v apt-get)
+        PYTHON_PREIN="git patch"
+        PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-cryptography python3-simplejson python3-requests gcc g++ libssl-dev swig python3-yaml wget"
+        PYTHON_PIPS="m2crypto"
+        BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev"
+        NEED_BUILD_TOOLS=1
+        $PACKAGE_MGR update
+    ;;
+
+    rhel | centos)
+        case "${VERSION_ID}" in 
+            7)
+                echo "${ID} ${VERSION_ID} selected."
+                PACKAGE_MGR=$(command -v yum)
+                NEED_EPEL=1
+                PYTHON_PREIN="python36 python36-devel python36-setuptools python36-pip git wget patch openssl"
+                PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python36-simplejson python36-cryptography python36-requests python36-zmq yaml-cpp-devel"
+                PYTHON_PIPS="m2crypto"
+                BUILD_TOOLS="openssl-devel file libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
+                NEED_BUILD_TOOLS=1
+                CENTOS7_TSS_FLAGS="--enable-esapi=no --disable-doxygen-doc"
+            ;;
+            8)
+                echo "${ID} ${VERSION_ID} selected."
+                PACKAGE_MGR=$(command -v dnf)
+                NEED_EPEL=1
+                PYTHON_PREIN="python3 python3-devel python3-setuptools python3-pip"
+                PYTHON_DEPS="gcc gcc-c++ openssl-devel python3-yaml python3-requests swig python3-cryptography wget git"
+                PYTHON_PIPS="tornado==5.0.2 pyzmq m2crypto simplejson"
+                BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel"
+                #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools tpm2-abrmd" TODO: still on 3.1.1 tpm2_tools 
+                NEED_BUILD_TOOLS=1
+                NEED_PYTHON_DIR=1
+                POWERTOOLS="--enablerepo=PowerTools install autoconf-archive"
+            ;;
+            *)
+                echo "Version ${VERSION_ID} of ${ID} not supported"
+                exit 1
+        esac
+    ;;
+
+    fedora)
+        echo "${ID} selected."       
+        PACKAGE_MGR=$(command -v dnf)
+        PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
+        PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto  python3-zmq python3-cryptography python3-tornado python3-simplejson python3-requests yaml-cpp-devel procps-ng"
+        BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
+        GOPKG="golang"
+        if [[ ${VERSION_ID} -ge 30 ]] ; then
+        # if fedora 30 or greater, then using TPM2 tool packages
+            TPM2_TOOLS_PKGS="tpm2-tools tpm2-tss tpm2-abrmd"
+            NEED_BUILD_TOOLS=0
+            HAS_GO_PKG=1
+        else
+            NEED_BUILD_TOOLS=1
+        fi
+    ;;
+
+    *)
+        echo "${ID} is not currently supported."
+        exit 1
+esac
 
 # Command line params
 STUB=0
@@ -107,7 +162,7 @@ while getopts ":shotkmp:" opt; do
         o) OPENSSL=1 ;;
         t) TARBALL=1 ;;
         m) TPM_VERSION=2 ;;
-        s) TPM_SOCKET=1 ;;
+        s) TPM_SOCKET=1 NEED_BUILD_TOOLS=1 ;;
         h)
             echo "Usage: $0 [option...]"
             echo "Options:"
@@ -134,6 +189,14 @@ echo
 echo "=================================================================================="
 echo $'\t\t\tInstalling python & crypto libs'
 echo "=================================================================================="
+if [[ "$NEED_EPEL" -eq "1" ]] ; then
+	$PACKAGE_MGR -y install epel-release
+	if [[ $? > 0 ]] ; then
+    	echo "ERROR: EPEL package failed to install properly!"
+    	exit 1
+	fi
+fi
+
 $PACKAGE_MGR install -y $PYTHON_PREIN
 if [[ $? > 0 ]] ; then
     echo "ERROR: Package(s) failed to install properly!"
@@ -144,7 +207,9 @@ if [[ $? > 0 ]] ; then
     echo "ERROR: Package(s) failed to install properly!"
     exit 1
 fi
-pip3 install $PYTHON_PIPS
+if [[ ! -z $PYTHON_PIPS ]] ; then
+    pip3 install $PYTHON_PIPS
+fi
 
 
 # Ensure Python is installed
@@ -230,18 +295,17 @@ echo "INFO: Using Keylime directory: $KEYLIME_DIR"
 
 # OpenSSL or cfssl?
 if [[ "$OPENSSL" -eq "0" ]] ; then
-    # Patch config file to use cfssl
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\tSwitching config to cfssl'
-    echo "=================================================================================="
-    cd $KEYLIME_DIR
-    patch --forward --verbose -s -p1 < $KEYLIME_DIR/patches/cfsslconf-patch.txt \
-        && echo "INFO: Keylime config patched!"
-
     # Pull in correct PATH under sudo (mainly for secure_path)
     if [[ -r "/etc/profile.d/go.sh" ]]; then
         source "/etc/profile.d/go.sh"
+    fi
+    
+    if [[ "$HAS_GO_PKG" -eq "1" ]] ; then
+        $PACKAGE_MGR install -y $GOPKG
+        if [[ $? > 0 ]] ; then
+            echo "ERROR: Package(s) failed to install properly!"
+            exit 1
+        fi
     fi
 
     if [[ ! `command -v go` ]] ; then
@@ -308,10 +372,10 @@ if [[ "$OPENSSL" -eq "0" ]] ; then
         echo "Do you want to setup a default GOPATH with the following:"
         echo " mkdir -p $HOME/go && echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc && source $HOME/.bashrc"
         read -r -p "Proceed? [y/N] " resp
-    	case "$resp" in
-        	[yY]) mkdir -p $HOME/go && echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc && source $HOME/.bashrc ;;
-        	*) exit 1 ;;
-    	esac
+        case "$resp" in
+            [yY]) mkdir -p $HOME/go && echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc && source $HOME/.bashrc ;;
+            *) exit 1 ;;
+        esac
     fi
 
     # Ensure Go installed meets min requirements
@@ -337,22 +401,32 @@ fi
 
 
 # Prepare to build TPM libraries
-echo
-echo "=================================================================================="
-echo $'\t\t\tInstalling TPM libraries'
-echo "=================================================================================="
-
-# Create temp dir for building tpm
-TMPDIR=`mktemp -d` || exit 1
-echo "INFO: Using temp tpm directory: $TMPDIR"
-
-$PACKAGE_MGR -y install $BUILD_TOOLS
-if [[ $? > 0 ]] ; then
-    echo "ERROR: Package(s) failed to install properly!"
-    exit 1
+if [[ "$NEED_BUILD_TOOLS" -eq "1" ]] ; then
+    echo
+    echo "=================================================================================="
+    echo $'\t\t\tInstalling TPM libraries and build tools'
+    echo "=================================================================================="
+    # Create temp dir for building tpm
+    TMPDIR=`mktemp -d` || exit 1
+    echo "INFO: Using temp tpm directory: $TMPDIR"
+    
+    $PACKAGE_MGR -y install $BUILD_TOOLS
+    if [[ $? > 0 ]] ; then
+        echo "ERROR: Package(s) failed to install properly!"
+        exit 1
+    fi
+    
+    if [[ -n "${POWERTOOLS}" ]] ; then
+    	$PACKAGE_MGR -y $POWERTOOLS
+    	if [[ $? > 0 ]] ; then
+        	echo "ERROR: Package(s) failed to install properly!"
+        	exit 1
+    	fi
+    fi
+    
+    mkdir -p $TMPDIR/tpm
+    cd $TMPDIR/tpm
 fi
-mkdir -p $TMPDIR/tpm
-cd $TMPDIR/tpm
 
 if [[ "$TPM_VERSION" -eq "1" ]] ; then
     echo
@@ -379,59 +453,91 @@ if [[ "$TPM_VERSION" -eq "1" ]] ; then
     make install
     popd # tpm/tpm4720-keylime
 elif [[ "$TPM_VERSION" -eq "2" ]] ; then
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\t\tBuild and install tpm2-tss'
-    echo "=================================================================================="
-    git clone $TPM2TSS_GIT tpm2-tss
-    pushd tpm2-tss
-    git checkout $TPM2TSS_VER
-    ./bootstrap
-    ./configure --prefix=/usr
-    make
-    make install
-    popd # tpm
-
-    # Example installation instructions for using the tpm2-abrmd resource
-    # manager for Ubuntu 18 LTS. The tools and Keylime could run without this
-    # by directly communicating with the TPM (though not recommended) by setting:
-    # for swtpm2 emulator:
-    #   export TPM2TOOLS_TCTI="mssim:port=2321"
-    # for chardev communication:
-    #   export TPM2TOOLS_TCTI="device:/dev/tpm0"
-    #
-    # sudo useradd --system --user-group tss
-    # git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
-    # pushd tpm2-abrmd
-    # ./bootstrap
-    # ./configure --with-dbuspolicydir=/etc/dbus-1/system.d \
-    #             --with-systemdsystemunitdir=/lib/systemd/system \
-    #             --with-systemdpresetdir=/lib/systemd/system-preset \
-    #             --datarootdir=/usr/share
-    # make
-    # sudo make install
-    # sudo ldconfig
-    # sudo pkill -HUP dbus-daemon
-    # sudo systemctl daemon-reload
-    # sudo service tpm2-abrmd start
-    # export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
-    #
-    # NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as:
-    # sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
-
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\t\tBuild and install tpm2-tools'
-    echo "=================================================================================="
-    git clone $TPM2TOOLS_GIT tpm2-tools
-    pushd tpm2-tools
-    git checkout $TPM2TOOLS_VER
-    ./bootstrap
-    ./configure --prefix=/usr/local
-    make
-    make install
-    popd # tpm
-
+    if [[ ! -z $TPM2_TOOLS_PKGS ]] ; then
+        echo
+        echo "=================================================================================="
+        echo $'\t\t\t\tInstall tpm2-tools packages'
+        echo "=================================================================================="
+        $PACKAGE_MGR install -y $TPM2_TOOLS_PKGS
+        if [[ $? > 0 ]] ; then
+            echo "ERROR: Package(s) failed to install properly!"
+            exit 1
+        fi
+        systemctl enable tpm2-abrmd
+        systemctl start tpm2-abrmd
+    else
+        echo
+        echo "=================================================================================="
+        echo $'\t\t\t\tBuild and install tpm2-tss'
+        echo "=================================================================================="
+        git clone $TPM2TSS_GIT tpm2-tss
+        pushd tpm2-tss
+        git checkout $TPM2TSS_VER
+        ./bootstrap
+        if [[ -n $CENTOS7_TSS_FLAGS ]] ; then
+            export PKG_CONFIG_PATH=/usr/lib/pkgconfig/
+        fi
+        ./configure --prefix=/usr $CENTOS7_TSS_FLAGS
+        make
+        make install
+        ldconfig
+        popd # tpm
+        
+#        if [[ ! -f /usr/lib/libtss.so ]] ; then
+#            echo "ERROR: tpm2-tss failed to build and install properly!"
+#            exit 1
+#        fi
+    
+        # Example installation instructions for using the tpm2-abrmd resource
+        # manager for Ubuntu 18 LTS. The tools and Keylime could run without this
+        # by directly communicating with the TPM (though not recommended) by setting:
+        # for swtpm2 emulator:
+        #   export TPM2TOOLS_TCTI="mssim:port=2321"
+        # for chardev communication:
+        #   export TPM2TOOLS_TCTI="device:/dev/tpm0"
+        #
+        # sudo useradd --system --user-group tss
+        # git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
+        # pushd tpm2-abrmd
+        # ./bootstrap
+        # ./configure --with-dbuspolicydir=/etc/dbus-1/system.d \
+        #             --with-systemdsystemunitdir=/lib/systemd/system \
+        #             --with-systemdpresetdir=/lib/systemd/system-preset \
+        #             --datarootdir=/usr/share
+        # make
+        # sudo make install
+        # sudo ldconfig
+        # sudo pkill -HUP dbus-daemon
+        # sudo systemctl daemon-reload
+        # sudo service tpm2-abrmd start
+        # export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
+        #
+        # NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as:
+        # sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
+    
+        echo
+        echo "=================================================================================="
+        echo $'\t\t\t\tBuild and install tpm2-tools'
+        echo "=================================================================================="
+        git clone $TPM2TOOLS_GIT tpm2-tools
+        pushd tpm2-tools
+        git checkout $TPM2TOOLS_VER
+        ./bootstrap
+        if [[ -n $CENTOS7_TSS_FLAGS ]] ; then
+            export SAPI_CFLAGS=' '
+            export SAPI_LIBS='-ltss2-sys -L/usr/lib/'
+        fi
+        ./configure --prefix=/usr/local
+        make
+        make install
+        popd # tpm
+    fi
+    
+    if [[ -z "$(command -v tpm2_getrandom)" ]] ; then
+        echo "ERROR: Failed to build tpm2_tss/tools!"
+        exit 1
+    fi
+    
     if [[ "$TPM_SOCKET" -eq "1" ]] ; then
         echo
         echo "=================================================================================="
@@ -459,6 +565,9 @@ elif [[ "$TPM_VERSION" -eq "2" ]] ; then
         install -c tpm_server /usr/local/bin/tpm_server
 
         popd # tpm/swtpm2
+        sed -i 's/.*ExecStart.*/ExecStart=\/usr\/sbin\/tpm2-abrmd --tcti=mssim/' /usr/lib/systemd/system/tpm2-abrmd.service
+        systemctl daemon-reload
+        systemctl restart tpm2-abrmd
     fi
 else
     echo "ERROR: Invalid TPM version chosen: '$TPM_VERSION'"
@@ -477,16 +586,6 @@ if [[ "$TPM_SOCKET" -eq "1" ]] ; then
 
     # Clear TPM on first use
     init_tpm_server
-
-    # Start tpm4720
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\t\tStart TPM emulator'
-    echo "=================================================================================="
-    # starts emulator and IMA stub at boot
-    cd $KEYLIME_DIR/ima_stub_service
-    ./installer.sh
-    service tpm_emulator restart
 fi
 
 
@@ -496,6 +595,9 @@ echo "==========================================================================
 echo $'\t\t\t\tInstall Keylime'
 echo "=================================================================================="
 cd $KEYLIME_DIR
+if [[ "$NEED_PYTHON_DIR" -eq "1" ]] ; then
+    mkdir -p /usr/local/lib/python3.6/site-packages/
+fi
 python3 setup.py install
 
 if [[ -f "/etc/keylime.conf" ]] ; then
@@ -506,6 +608,14 @@ if [[ -f "/etc/keylime.conf" ]] ; then
 else
     echo "Installing keylime.conf to /etc/"
     cp -n keylime.conf /etc/
+fi
+
+if [[ "$OPENSSL" -eq "0" ]] ; then
+    echo
+    echo "=================================================================================="
+    echo $'\t\t\tSwitching config to cfssl'
+    echo "=================================================================================="
+    sed -i 's/ca_implementation = openssl/ca_implementation = cfssl/' /etc/keylime.conf
 fi
 
 # Run agent packager (tarball)
@@ -522,3 +632,32 @@ if [[ "$TARBALL" -eq "1" ]] ; then
     ./make_agent_bundle_tarball.sh $TAR_BUNDLE_FLAGS
 fi
 
+# don't start the emulator until after keylime is installed
+if [[ "$TPM_SOCKET" -eq "1" ]] ; then
+    echo
+    echo "=================================================================================="
+    echo $'\t\t\t\tStart TPM emulator'
+    echo "=================================================================================="
+    # starts emulator and IMA stub at boot
+    cd $KEYLIME_DIR/ima_stub_service
+    ./installer.sh
+    if [[ -n "$(command -v service)" ]] ; then
+        service tpm_emulator restart
+    fi
+    if [[ "$TPM_VERSION" -eq "2" ]] ; then
+        echo "=================================================================================="
+        echo $'\tWARNING: If not using abrmd you need to set the var:'
+        echo $'\tTPM2TOOLS_TCTI="mssim:port=2321"'
+        echo "=================================================================================="
+    fi
+    # disable ek cert checking
+    sed -i 's/require_ek_cert = True/require_ek_cert = False/' /etc/keylime.conf
+else
+    # this just warns, and doesn't set the env var because they might be using abrmd
+    if [[ "$TPM_VERSION" -eq "2" ]] ; then
+        echo "=================================================================================="
+        echo $'\tWARNING: If not using abrmd, you need to set the var:'
+        echo $'\tTPM2TOOLS_TCTI=="device:/dev/tpm0"'
+        echo "=================================================================================="
+    fi
+fi

@@ -139,7 +139,7 @@ def strbitxor(a,b):
     retval = bytearray(len(b))
     for i in range(len(a)):
         retval[i] = a[i] ^ b[i]
-    return retval
+    return bytes(retval)
 
 def kdf(password,salt):
     mykdf = PBKDF2HMAC(algorithm=hashes.SHA256(),length=32,salt=bytes(salt, encoding='utf8'),iterations=100000,backend=default_backend())
