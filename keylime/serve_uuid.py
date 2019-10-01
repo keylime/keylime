@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
