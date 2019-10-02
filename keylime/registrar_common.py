@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
@@ -308,7 +306,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
                 if common.STUB_TPM:
                     self.server.db.update_agent(agent_id, 'active',True)
                 else:
-                    ex_mac = crypto.do_hmac(base64.b64decode(agent['key']),agent_id)
+                    ex_mac = crypto.do_hmac(agent['key'],agent_id)
                     if ex_mac == auth_tag:
                         self.server.db.update_agent(agent_id, 'active',True)
                     else:

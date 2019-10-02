@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 '''DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 This material is based upon work supported by the Assistant Secretary of Defense for

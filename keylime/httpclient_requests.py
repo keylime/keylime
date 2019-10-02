@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import http.client
 
 def request(method, url, port, params=None, data=None,context=None):

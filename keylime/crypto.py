@@ -19,58 +19,119 @@ violate any copyrights that exist in this work.
 '''
 
 import base64
+import hmac
+import hashlib
+import os
+import secrets
 
-# Crypto implementation using Cryptodomex package
+# Crypto implementation using python cryptography package
+from cryptography import exceptions
+import cryptography.hazmat.primitives.asymmetric
+from cryptography.hazmat.primitives.ciphers import ( Cipher, algorithms, modes )
+from cryptography.hazmat.primitives import (hashes,serialization )
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric.rsa import generate_private_key
 
-from Cryptodome.Random import get_random_bytes
-from Cryptodome.Hash import HMAC,SHA384
-from Cryptodome.Cipher import PKCS1_OAEP
-from Cryptodome.PublicKey import RSA
-from Cryptodome.Cipher import AES
-from Cryptodome.Protocol import KDF
-from Cryptodome.Signature import pss
+aes_block_size = 16
 
+def rsa_import_pubkey(pubkey):
+    """Import a public key
+    We try / except this, as its possible that `pubkey` can arrive as either str or bytes.
+    """
+    try:
+        return serialization.load_pem_public_key(pubkey,backend=default_backend())
+    except:
+        return serialization.load_pem_public_key(pubkey.encode('utf-8'),backend=default_backend())
 
-def rsa_import_pubkey(buf):
-    return RSA.importKey(buf)
+def rsa_import_privkey(privkey):
+    """Import a private key
+    We try / except this, as its possible that `privkey` can arrive as either str or bytes.
+    """
+    try:
+        return serialization.load_pem_private_key(privkey,password=None,backend=default_backend())
+    except:
+        return serialization.load_pem_private_key(privkey.encode('utf-8'),password=None,backend=default_backend())
 
-def rsa_import_privkey(buf,password=None):
-    return RSA.importKey(buf,password)
-
-def rsa_export_pubkey(privkey):
-    return privkey.publickey().exportKey()
-
-def rsa_export_privkey(privkey):
-    return privkey.exportKey()
 
 def rsa_generate(size):
-    return RSA.generate(2048)
+    """ Generate private key  """
+    private_key = generate_private_key(
+        65537,
+        size,
+        default_backend()
+        )
+    return private_key
 
-def rsa_sign(key,message):
-    h = SHA384.new(message)
-    signature = pss.new(key).sign(h)
-    return base64.b64encode(signature)
 
-def rsa_verify(pubkey,received_message,signature):
-    h = SHA384.new(received_message)
-    verifier = pss.new(pubkey)
+def get_public_key(private_key):
+    """ Derive public key from private key  """
+    public_key = private_key.public_key()
+    return public_key
+
+
+def rsa_sign(key, message):
+    """ RSA sign message  """
+    signature = key.sign(
+        message,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+    return signature
+
+def rsa_verify(public_key, message, signature):
+    """ RSA verify message  """
+    verifier = public_key.verifier(
+            signature,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+    verifier.update(message)
     try:
-        verifier.verify(h, base64.b64decode(signature))
-        return True
-    except ValueError:
+        verifier.verify()
+    except exceptions.InvalidSignature:
         return False
+    except Exception as e:
+        raise e
+    return True
 
-# don't use tpm randomness on encrypt to avoid contention for TPM
+
+def rsa_export_pubkey(private_key):
+    """ export public key  """
+    return private_key.public_key().public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo)
+
+def rsa_export_privkey(private_key):
+    """ export private key  """
+    return private_key.private_bytes(encoding=serialization.Encoding.PEM,format=serialization.PrivateFormat.TraditionalOpenSSL,encryption_algorithm=serialization.NoEncryption())
+
 def rsa_encrypt(key,message):
-    cipher = PKCS1_OAEP.new(key)
-    return cipher.encrypt(message)
+    """ RSA encrypt message  """
+    return key.encrypt(bytes(message),
+                       cryptography.hazmat.primitives.asymmetric.padding.OAEP(mgf=cryptography.hazmat.primitives.asymmetric.padding.MGF1(algorithm=hashes.SHA1()),
+                                    algorithm=hashes.SHA1(),
+                                    label=None))
 
 def rsa_decrypt(key,ciphertext):
-    cipher = PKCS1_OAEP.new(key)
-    return cipher.decrypt(ciphertext)
+    """ RSA decrypt message  """
+    return key.decrypt(ciphertext,cryptography.hazmat.primitives.asymmetric.padding.OAEP(mgf=cryptography.hazmat.primitives.asymmetric.padding.MGF1(algorithm=hashes.SHA1()),
+                                               algorithm=hashes.SHA1(),
+                                               label=None))
+
+
+def get_random_bytes(size):
+    """ Generate random bytes  """
+    return secrets.token_bytes(size)
 
 def generate_random_key(size=32):
-    return get_random_bytes(size)
+    """ Generate random key using urandom wrapper  """
+    return os.urandom(size)
 
 def strbitxor(a,b):
     a = bytearray(a)
@@ -81,43 +142,15 @@ def strbitxor(a,b):
     return retval
 
 def kdf(password,salt):
-    return KDF.PBKDF2(password, salt, dkLen=32, count=2000)
+    mykdf = PBKDF2HMAC(algorithm=hashes.SHA256(),length=32,salt=bytes(salt, encoding='utf8'),iterations=100000,backend=default_backend())
+    return mykdf.derive(password.encode('utf-8'))
 
 def do_hmac(key,value):
-    value = value.encode('utf-8')
-    # Let's only encode if its not a byte
-    try:
-        key = key.encode('utf-8')
-    except AttributeError:
-        pass
-
-    h = HMAC.new(key,value,digestmod=SHA384.new())
+    """ Generate HMAC  """
+    h = hmac.new(key, msg=None, digestmod=hashlib.sha384)
+    h.update(value.encode('utf-8'))
     return h.hexdigest()
 
-def sha2(value):
-    return SHA384.new(data=value).hexdigest()
-
-def _pad(s):
-    '''
-    Returns the string padded with its length such
-    that is a multiple of 16
-    Appends 10* at the bit level. Following ISO/IEC 9797-1
-    - padding mode 2
-    '''
-    # Let's only encode if its not a byte
-    try:
-        s = s.encode('utf-8') #
-    except AttributeError:
-        pass
-    pad_len = AES.block_size - (len(s) % AES.block_size) - 1
-    padding = b'\x80'+b'\0'*pad_len
-    return s + padding
-
-def _strip_pad(s):
-    '''
-    Strips the padding from the string
-    '''
-    return s.rstrip(b'\0')[:-1]
 
 def _is_multiple_16(s):
     """
@@ -130,29 +163,32 @@ def _has_iv_material(s):
     """
     Make sure enough material for IV in ciphertext
     """
-    if len(s) < AES.block_size:
+    if len(s) < aes_block_size:
         raise Exception("Ciphertext did not contain enough material for an IV")
 
 def encrypt(plaintext, key):
-    #Deal with the case when field is empty
+    """ Encrypt object """
     if plaintext is None:
         plaintext = b''
-
-    nonce = get_random_bytes(AES.block_size)
-    cipher = AES.new(key, AES.MODE_GCM, nonce = nonce)
-    (cipher_text, digest) = cipher.encrypt_and_digest(_pad(plaintext))
-    return base64.b64encode(nonce + cipher_text + digest)
+    iv = generate_random_key(aes_block_size)
+    encryptor = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend()).encryptor()
+    # The following try/except captures both str and bytes
+    try:
+        cipher_text = encryptor.update(plaintext.encode('ascii')) + encryptor.finalize()
+    except:
+        cipher_text = encryptor.update(plaintext) + encryptor.finalize()
+    return base64.b64encode(iv+cipher_text+encryptor.tag)
 
 def decrypt(ciphertext, key):
-
+    """ Decrypt object """
     ciphertext = base64.b64decode(ciphertext)
+    iv = ciphertext[:aes_block_size]
+    tag = ciphertext[-aes_block_size:]
+    ciphertext = bytes(ciphertext[aes_block_size:-aes_block_size])
 
-    #error handling
-    _has_iv_material(ciphertext)
-    _is_multiple_16(ciphertext)
+    decryptor = Cipher(algorithms.AES(key),
+                       modes.GCM(iv, tag),
+                       backend=default_backend()).decryptor()
+    return decryptor.update(ciphertext) + decryptor.finalize()
 
-    nonce = ciphertext[:AES.block_size]
-    digest = ciphertext[-AES.block_size:]
-    cipher = AES.new(key, AES.MODE_GCM, nonce = nonce)
-    cipher_text = bytes(ciphertext[AES.block_size:-AES.block_size])
-    return _strip_pad(cipher.decrypt_and_verify(cipher_text, digest))
+

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
@@ -596,7 +596,7 @@ def main(argv=sys.argv):
                 try:
                     module = importlib.import_module(action)
                     execute = getattr(module,'execute')
-                    asyncio.run(execute(revocation))
+                    asyncio.get_event_loop().run_until_complete(execute(revocation))
                 except Exception as e:
                     logger.warn(f"Exception during execution of revocation action {action}: {e}")
         try:

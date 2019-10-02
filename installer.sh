@@ -40,7 +40,7 @@ MIN_PYSETUPTOOLS_VERSION="0.7"
 MIN_PYTORNADO_VERSION="4.3"
 MIN_PYM2CRYPTO_VERSION="0.21.1"
 MIN_PYZMQ_VERSION="14.4"
-MIN_PYCRYPTODOMEX_VERSION="3.4.1"
+MIN_PYCRYPTOGRAPHY_VERSION="2.1.4"
 MIN_GO_VERSION="1.8.4"
 
 
@@ -64,21 +64,21 @@ confirm_force_install () {
 if [[ -n "$(command -v dnf)" ]]; then
     PACKAGE_MGR=$(command -v dnf)
     PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
-    PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto python3-tornado python3-simplejson python3-requests yaml-cpp-devel procps-ng"
-    PYTHON_PIPS="pycryptodomex tornado pyzmq"
+    PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto  python3-cryptography python3-tornado python3-simplejson python3-requests yaml-cpp-devel procps-ng"
+    PYTHON_PIPS="tornado pyzmq"
     BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
 elif [[ -n "$(command -v yum)" ]]; then
     PACKAGE_MGR=$(command -v yum)
     $PACKAGE_MGR -y install epel-release
     PYTHON_PREIN="python36 python36-devel python36-setuptools python36-pip git wget patch openssl"
-    PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python36-simplejson python36-requests yaml-cpp-devel"
-    PYTHON_PIPS="pycryptodomex tornado pyzmq m2crypto"
+    PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python3-cryptography python36-simplejson python36-requests yaml-cpp-devel"
+    PYTHON_PIPS="tornado pyzmq m2crypto"
     BUILD_TOOLS="openssl-devel libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
     PYTHON_PREIN="git patch"
-    PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-simplejson python3-requests gcc g++ libssl-dev swig python3-yaml wget"
-    PYTHON_PIPS="pycryptodomex m2crypto"
+    PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-cryptography python3-simplejson python3-requests gcc g++ libssl-dev swig python3-yaml wget"
+    PYTHON_PIPS="m2crypto"
     BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev"
     $PACKAGE_MGR update
 else
@@ -112,7 +112,7 @@ while getopts ":shotkmp:" opt; do
             echo "Usage: $0 [option...]"
             echo "Options:"
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
-            echo $'-o \t\t\t\t Use OpenSSL instead of CFSSL'
+            echo $'-o \t\t\t\t Use OpenSSL (vs. CFSSL). NOTE: OpenSSL does not support revocation'
             echo $'-t \t\t\t\t Create tarball with keylime_agent'
             echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
             echo $'-s \t\t\t\t Install TPM in socket/simulator mode (vs. chardev)'
@@ -182,11 +182,12 @@ else
         confirm_force_install "ERROR: Minimum python-zmq version is $MIN_PYZMQ_VERSION, but $pyzmq_ver is installed!" || exit 1
     fi
 
-    # Ensure Python pycryptodomex installed meets min requirements
-    pycdom_ver=$(pip3 freeze | grep pycryptodomex | cut -d"=" -f3)
-    if ! $(version_checker "$MIN_PYCRYPTODOMEX_VERSION" "$pycdom_ver"); then
-        confirm_force_install "ERROR: Minimum python-pycryptodomex version is $MIN_PYCRYPTODOMEX_VERSION, but $pycdom_ver is installed!" || exit 1
+    # Ensure Python cryptography installed meets min requirements
+    pycrypto_ver=$(python3 -c 'import cryptography; print(cryptography.__version__)')
+    if ! $(version_checker "$MIN_PYCRYPTOGRAPHY_VERSION" "$pycrypto_ver"); then
+        confirm_force_install "ERROR: Minimum python-cryptography version is $MIN_PYCRYPTOGRAPHY_VERSION, but $pycrypto_ver is installed!" || exit 1
     fi
+
 fi
 
 
@@ -228,16 +229,16 @@ echo "INFO: Using Keylime directory: $KEYLIME_DIR"
 
 
 # OpenSSL or cfssl?
-if [[ "$OPENSSL" -eq "1" ]] ; then
-    # Patch config file to use openssl
+if [[ "$OPENSSL" -eq "0" ]] ; then
+    # Patch config file to use cfssl
     echo
     echo "=================================================================================="
-    echo $'\t\t\tSwitching config to OpenSSL'
+    echo $'\t\t\tSwitching config to cfssl'
     echo "=================================================================================="
     cd $KEYLIME_DIR
-    patch --forward --verbose -s -p1 < $KEYLIME_DIR/patches/opensslconf-patch.txt \
+    patch --forward --verbose -s -p1 < $KEYLIME_DIR/patches/cfsslconf-patch.txt \
         && echo "INFO: Keylime config patched!"
-else
+
     # Pull in correct PATH under sudo (mainly for secure_path)
     if [[ -r "/etc/profile.d/go.sh" ]]; then
         source "/etc/profile.d/go.sh"
@@ -520,3 +521,4 @@ if [[ "$TARBALL" -eq "1" ]] ; then
     fi
     ./make_agent_bundle_tarball.sh $TAR_BUNDLE_FLAGS
 fi
+
