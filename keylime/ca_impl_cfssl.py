@@ -219,7 +219,7 @@ def gencrl(serials,cert,ca_pk):
         retval = base64.b64decode(body['result'])
     else:
         raise Exception(f"Unable to create crl for cert serials {serials}.  Error: {body['errors']}")
-        return retval
+    return retval
     # ./cfssl gencrl revoke ca.pem ca-key.pem | base64 -D > mycrl.der
 
 # mk_cacert()
