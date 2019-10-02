@@ -444,6 +444,7 @@ class TestRestful(unittest.TestCase):
 
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}/activate"
         response = httpclient_requests.request("PUT", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
+        print(f'response: {response}')
 
         self.assertEqual(response.status, 200, "Non-successful Registrar agent Activate return code!")
         json_response = json.loads(response.read().decode())
