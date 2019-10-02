@@ -57,7 +57,7 @@ elif common.CA_IMPL=='openssl':
     from keylime import ca_impl_openssl as ca_impl
 else:
     raise Exception(f'Unknown CA implementation: {common.CA_IMPL}')
-    from M2Crypto import X509, EVP, BIO
+from M2Crypto import X509, EVP, BIO
 
 config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
