@@ -79,12 +79,12 @@ A hardware TPM should always be used when real secrets and trust is required.
 
 ## Installation
 
-### Automated
+### Installer script
 
-Keylime requires Python 3.6 or newer for proper TLS support.
+Keylimes installer requires Python 3.6 or greater.
 
-Installation can be performed via an automated shell script, `installer.sh`.  The
-following command line options are available:
+ The following command line options are available using `installer.sh` script:
+
 ```
 Usage: ./installer.sh [option...]
 Options:
@@ -97,18 +97,30 @@ Options:
 -h              This help info
 ```
 
-Note that CFSSL is required if you want to support revocation. As noted above, do not use
-the TPM emulator option `-s` in production systems.
+Should you not have the Keylime repository on your local machine, you can
+use the `-k` flag which will download the software. In this case all you need
+is the `installer.sh` script locally.
+
+Note that CFSSL is required if you want to support revocation. As noted above, do not use the TPM emulator option `-s` in production systems.
+
+#### Installer Distribution coverage
+
+| Distribution  | Versions      | TPM2-Software   |
+| ------------- |:-------------:| -----:          |
+| CentOS        | 7 / 8         | Compiled        |
+| RHEL          | 7 / 8         | Compiled        |
+| Fedora        | 29 / 30 / 31  | Package Install |
+| Ubuntu        | 18 LTS / 19   | Compiled        |
 
 ### Ansible
 
 Ansible roles are available to deploy keylime for use with a hardware TPM or a software TPM emulator. Please proceed to the [Keylime Ansible
 Repository](https://github.com/keylime/ansible-keylime).
 
-Or alternatively the [Keylime Ansible Software TPM
-Repository](https://github.com/keylime/ansible-keylime-soft-tpm).
+Or alternatively the [Keylime Ansible TPM Emulator
+Repository](https://github.com/keylime/ansible-keylime-tpm-emulator).
 
-| WARNING: The "Keylime Ansible Software TPM" role uses a TPM emulator, which is considered cryptographically insecure. It should only be used for development or testing and **NOT** in production!|
+| WARNING: The "Keylime Ansible TPM Emulator" role uses a software TPM, which is considered cryptographically insecure. It should only be used for development or testing and **NOT** in production!|
 | --- |
 
 ### Docker (Development Only)
