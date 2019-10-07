@@ -2,7 +2,7 @@
 After=network.target
 
 [Service]
-ExecStart=KEYLIMEDIR/keylime_verifier
+ExecStart=/usr/bin/keylime_verifier
 
 [Install]
 WantedBy=default.target

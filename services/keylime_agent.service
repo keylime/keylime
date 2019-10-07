@@ -1,0 +1,8 @@
+[Unit]
+Description=The Keylime compute agent
+
+[Service]
+ExecStart=/usr/bin/keylime_agent
+
+[Install]
+WantedBy=default.target

@@ -17,9 +17,9 @@ fi
 echo "Using keylime scripts directory: ${KEYLIMEDIR}"
 
 # prepare keylime service files and store them in systemd path
-sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_agent.service.example > /etc/systemd/system/keylime_agent.service
-sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_registrar.service.example > /etc/systemd/system/keylime_registrar.service
-sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_verifier.service.example > /etc/systemd/system/keylime_verifier.service
+sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_agent.service.template > /etc/systemd/system/keylime_agent.service
+sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_registrar.service.template > /etc/systemd/system/keylime_registrar.service
+sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_verifier.service.template > /etc/systemd/system/keylime_verifier.service
 
 # set permissions
 chmod 664 /etc/systemd/system/keylime_agent.service
