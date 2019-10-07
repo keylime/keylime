@@ -51,7 +51,7 @@ cfsslproc = None
 def post_cfssl(params,data):
     numtries = 0
     maxr = 10
-    retry=0.05
+    retry=0.2
     while True:
         try:
             response = requests.post("http://%s:%s/%s"%(cfssl_ip, cfssl_port,params), json=data, timeout=1)
