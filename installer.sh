@@ -170,7 +170,7 @@ while getopts ":shotkmp:" opt; do
             echo $'-o \t\t\t\t Use OpenSSL (vs. CFSSL). NOTE: OpenSSL does not support revocation'
             echo $'-t \t\t\t\t Create tarball with keylime_agent'
             echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
-            echo $'-s \t\t\t\t Install TPM in socket/simulator mode (vs. chardev)'
+            echo $'-s \t\t\t\t Install & use a Software TPM emulator (development only)'
             echo $'-p PATH \t\t\t Use PATH as Keylime path'
             echo $'-h \t\t\t\t This help info'
             exit
