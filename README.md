@@ -92,7 +92,7 @@ Options:
 -o              Use OpenSSL instead of CFSSL
 -t              Create tarball with keylime_agent
 -m              Use modern TPM 2.0 libraries (vs. TPM 1.2)
--s              Install TPM in socket/simulator mode (vs. chardev)
+-s              Install & use a Software TPM emulator (development only)
 -p PATH         Use PATH as Keylime path
 -h              This help info
 ```
