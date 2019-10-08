@@ -49,8 +49,7 @@ if '--with-clime' in sys.argv:
     sys.argv.remove('--with-clime')
 
 # enumerate all of the data files we need to package up
-data_files = [(d, [path.join(d,f) for f in files]) for d,_,files in walk("keylime/static")]
-data_files.append(('package_default', ['keylime.conf']))
+data_files = [('/etc', ['keylime.conf'])]
 
 setup(
     name='keylime',
@@ -104,12 +103,13 @@ setup(
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
     packages=['keylime'],
+    package_data={'keylime': ['static/*/*', 'static/*/*/*']},
 
     # List run-time dependencies here.  These will be installed by pip when
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['cryptography>=2.1.4','tornado>=5.0.2,<6','m2crypto>=0.21.1','pyzmq>=14.4','pyyaml>=3.11','simplejson>=3.8','requests>=2.6'],
+    install_requires=['cryptography>=2.1.4','tornado>=5.0.2','m2crypto>=0.21.1','pyzmq>=14.4','pyyaml>=3.11','simplejson>=3.8','requests>=2.6'],
 
     # test packages required
     tests_require=['green','coverage'],
