@@ -419,7 +419,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             if tools_version == "3.2":
                 command = "tpm2_getpubek -H 0x81010007 -g {asymalg} -f {ekpubfile} -P {ekpw} -o {opw} -e {epw}".format(**cmdargs)
             if tools_version == "4.0":
-                command = "tpm2_createek -Q -c 0x81010009 -G {asymalg} -u {ekpubfile} -f pem -p {epw} -w {opw} -P {epw}".format(**cmdargs)
+                command = "tpm2_createek -c - -G {asymalg} -u {ekpubfile} -p {epw} -w {opw} -P {epw}".format(**cmdargs)
             retDict = self.__run(command, raiseOnError=False, outputpaths=tmppath.name)
             output = retDict['retout']
             code = retDict['code']
@@ -430,8 +430,6 @@ class tpm2(tpm_abstract.AbstractTPM):
 
             if tools_version == "3.2":
                 handle = int(0x81010007)
-            elif tools_version == "4.0":
-                handle = int(0x81010009)
             else:
                 handle = None
                 retyaml = common.yaml_to_dict(output)
@@ -468,6 +466,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 retDict = self.__run("tpm2_takeownership -o %s -e %s -O %s -E %s"%(owner_pw, owner_pw, owner_pw, owner_pw), raiseOnError=False)
             elif tools_version == "4.0":
                 retDict = self.__run("tpm2_changeauth -c o -p %s %s"%(owner_pw, owner_pw), raiseOnError=False)
+                retDict = self.__run("tpm2_changeauth -c e -p %s %s"%(owner_pw, owner_pw), raiseOnError=False)
 
             output = retDict['retout']
             code = retDict['code']
@@ -599,13 +598,14 @@ class tpm2(tpm_abstract.AbstractTPM):
                 'opw': owner_pw,
                 'apw': aik_pw
             }
-
             if tools_version == "3.2":
                 command = "tpm2_getpubak -E {ekhandle} -k 0x81010008 -g {asymalg} -D {hashalg} -s {signalg} -f {akpubfile} -e {epw} -P {apw} -o {opw}".format(**cmdargs)
+                retDict = self.__run(command, outputpaths=akpubfile.name)
+                retout = retDict['retout']
             elif tools_version == "4.0":
-                command = "tpm2_createak -Q -C {ekhandle} -c ak.ctx -G {asymalg} -g {hashalg} -s {signalg} -u {akpubfile} -f pem -n ak.name -p {apw} -P {epw}".format(**cmdargs)
-            retDict = self.__run(command)
-            retout = retDict['retout']
+                command = "tpm2_createak -C {ekhandle} -c ak.ctx -G {asymalg} -g {hashalg} -s {signalg} -u {akpubfile} -p {apw} -P {epw}".format(**cmdargs)
+                retDict = self.__run(command, outputpaths=akpubfile.name)
+                retout = common.list_convert(retDict['retout'])
             code = retDict['code']
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
