@@ -600,12 +600,10 @@ class tpm2(tpm_abstract.AbstractTPM):
             }
             if tools_version == "3.2":
                 command = "tpm2_getpubak -E {ekhandle} -k 0x81010008 -g {asymalg} -D {hashalg} -s {signalg} -f {akpubfile} -e {epw} -P {apw} -o {opw}".format(**cmdargs)
-                retDict = self.__run(command, outputpaths=akpubfile.name)
-                retout = retDict['retout']
             elif tools_version == "4.0":
                 command = "tpm2_createak -C {ekhandle} -c ak.ctx -G {asymalg} -g {hashalg} -s {signalg} -u {akpubfile} -p {apw} -P {epw}".format(**cmdargs)
-                retDict = self.__run(command, outputpaths=akpubfile.name)
-                retout = common.list_convert(retDict['retout'])
+            retDict = self.__run(command, outputpaths=akpubfile.name)
+            retout = retDict['retout']
             code = retDict['code']
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
