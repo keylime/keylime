@@ -489,10 +489,10 @@ Meeting agenda are hosted and archived in the [meetings repo](https://github.com
 
 ## First Timers Support
 
-We breathe open source! We create Keylime to help developers seamlessly incorporate TPM technology with their hardware or software solutions.
+We welcome new contributors to Keylime of any form, including those of you who maybe new to working in an open source project.
 
-If you are new to open source development, don't worry, there are a myriad of ways you can get involved in our open source project. As a start, try exploring issues with `good first issue` label.
-We understand that the process of creating a PR can be a barrier for new contributors. These issues are reserved for new contributors like you.
+So if you are new to open source development, don't worry, there are a myriad of ways you can get involved in our open source project. As a start, try exploring issues with `good first issue` label.
+We understand that the process of creating a PR can be a barrier for new contributors. These issues are reserved for new contributors like you. If you need any help or advice in making the PR, feel free to jump into our [gitter channel](https://gitter.im/keylime-project/community) and ask for help there.
 
 Your contribution is our gift to make our project even more robust. Check out [CONTRIBUTORS.md](https://github.com/keylime/keylime/blob/master/CONTRIBUTORS.md) to find out more about how to contribute to our project.
 
