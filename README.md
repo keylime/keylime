@@ -74,6 +74,7 @@ A hardware TPM should always be used when real secrets and trust is required.
   * [Using keylime CA](#using-keylime-ca)
 * [Report a Security Vulnerability](#report-a-security-vulnerability)
 * [Meeting Information](#project-meetings)
+* [First Timers Support](#first-timers-support)
 * [Additional Reading](#additional-reading)
 * [License](#license)
 
@@ -485,6 +486,15 @@ We meet every Wednesday @ 15:00 UTC to 15:30. Anyone is welcome to join the meet
 The meeting is hosted in [gitter chat](https://gitter.im/keylime-project/community)
 
 Meeting agenda are hosted and archived in the [meetings repo](https://github.com/keylime/meetings) as github issues.
+
+## First Timers Support
+
+We breathe open source! We create Keylime to help developers seamlessly incorporate TPM technology with their hardware or software solutions.
+
+If you are new to open source development, don't worry, there are a myriad of ways you can get involved in our open source project. As a start, try exploring issues with `good first issue` label.
+We understand that the process of creating a PR can be a barrier for new contributors. These issues are reserved for new contributors like you.
+
+Your contribution is our gift to make our project even more robust. Check out [CONTRIBUTORS.md](https://github.com/keylime/keylime/blob/master/CONTRIBUTORS.md) to find out more about how to contribute to our project.
 
 ## Additional Reading
 
