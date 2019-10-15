@@ -594,6 +594,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         #make a temp file for the output
         with tempfile.NamedTemporaryFile() as akpubfile:
             
+            secpath = ""
             if tools_version == "4.0":
                 # ok lets write out the key now
                 secdir = secure_mount.mount() # confirm that storage is still securely mounted
@@ -614,7 +615,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 command = "tpm2_getpubak -E {ekhandle} -k 0x81010008 -g {asymalg} -D {hashalg} -s {signalg} -f {akpubfile} -e {epw} -P {apw} -o {opw}".format(**cmdargs)
             elif tools_version == "4.0":
                 command = "tpm2_createak -C {ekhandle} -c {aksession} -G {asymalg} -g {hashalg} -s {signalg} -u {akpubfile} -f pem -p {apw} -P {epw}".format(**cmdargs)
-            retDict = self.__run(command, outputpaths=[akpubfile.name, secpath])
+            retDict = self.__run(command, outputpaths=akpubfile.name)
             retout = retDict['retout']
             code = retDict['code']
 
@@ -753,6 +754,7 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         keyblobFile = None
         secpath = None
+        sesspath = None
         try:
             # write out key blob
             kfd, ktemp = tempfile.mkstemp()
@@ -767,29 +769,39 @@ class tpm2(tpm_abstract.AbstractTPM):
             secdir = secure_mount.mount() # confirm that storage is still securely mounted
 
             secfd, secpath = tempfile.mkstemp(dir=secdir)
+            sessfd, sesspath = tempfile.mkstemp(dir=secdir)
 
-            cmdargs = {
-                'akhandle': aik_keyhandle,
-                'ekhandle': hex(ek_keyhandle),
-                'keyblobfile': keyblobFile.name,
-                'credfile': secpath,
-                'apw': self.get_tpm_metadata('aik_pw'),
-                'epw': owner_pw
-            }
             if tools_version == "3.2":
-                command = "tpm2_activatecredential -H hex({akhandle}) -k {ekhandle} -f {keyblobfile} -o {credfile} -P {apw} -e {epw}".format(**cmdargs)
+                cmdargs = {
+                    'akhandle': hex(aik_keyhandle),
+                    'ekhandle': hex(ek_keyhandle),
+                    'keyblobfile': keyblobFile.name,
+                    'credfile': secpath,
+                    'apw': self.get_tpm_metadata('aik_pw'),
+                    'epw': owner_pw
+                }
+                command = "tpm2_activatecredential -H {akhandle} -k {ekhandle} -f {keyblobfile} -o {credfile} -P {apw} -e {epw}".format(**cmdargs)
+                retDict = self.__run(command, outputpaths=secpath)
             else:
-                self.__run("tpm2_startauthsession --policy-session -S session.ctx")
-                self.__run("tpm2_policysecret -S session.ctx -c 0x4000000B {epw}".format(**cmdargs))
-                command = "tpm2_activatecredential -c {akhandle} -C {ekhandle} -i {keyblobfile} -o {credfile} -p {apw} -P \"session:session.ctx\"".format(**cmdargs)
-            retDict = self.__run(command, outputpaths=secpath)
+                cmdargs = {
+                    'akhandle': aik_keyhandle,
+                    'ekhandle': hex(ek_keyhandle),
+                    'keyblobfile': keyblobFile.name,
+                    'sessfile': sesspath,
+                    'credfile': secpath,
+                    'apw': self.get_tpm_metadata('aik_pw'),
+                    'epw': owner_pw
+                }
+                self.__run("tpm2_startauthsession --policy-session -S {sessfile}".format(**cmdargs))
+                self.__run("tpm2_policysecret -S {sessfile} -c 0x4000000B {epw}".format(**cmdargs))
+                command = "tpm2_activatecredential -c {akhandle} -C {ekhandle} -i {keyblobfile} -o {credfile} -p {apw} -P \"session:{sessfile}\"".format(**cmdargs)
+                retDict = self.__run(command, outputpaths=secpath)
+                self.__run("tpm2_flushcontext {sessfile}".format(**cmdargs))
+
             retout = retDict['retout']
             code = retDict['code']
             fileout = retDict['fileouts'][secpath]
             logger.info("AIK activated.")
-
-            if not tools_version == "3.2":
-                self.__run("tpm2_flushcontext session.ctx")
 
             key = base64.b64encode(fileout)
             os.close(secfd)
@@ -804,6 +816,8 @@ class tpm2(tpm_abstract.AbstractTPM):
                 os.remove(keyblobFile.name)
             if secpath is not None and os.path.exists(secpath):
                 os.remove(secpath)
+            if sesspath is not None and os.path.exists(sesspath):
+                os.remove(sesspath)
         return key
 
     def verify_ek(self, ekcert, ekpem):
@@ -917,19 +931,29 @@ class tpm2(tpm_abstract.AbstractTPM):
                             self.__run("tpm2_pcrreset %d"%common.TPM_DATA_PCR, lock=False)
                             self.extendPCR(pcrval=common.TPM_DATA_PCR, hashval=self.hashdigest(data), lock=False)
 
-                        cmdargs = {
-                            'aik_handle': keyhandle,
-                            'hashalg' : hash_alg,
-                            'pcrlist': pcrlist,
-                            'nonce': bytes(nonce, encoding="utf8").hex(),
-                            'outquote': quotepath.name,
-                            'outsig': sigpath.name,
-                            'outpcr': pcrpath.name,
-                            'akpw': aik_pw
-                        }
                         if tools_version == "3.2":
-                            command = "tpm2_quote -k hex({aik_handle}) -L {hashalg}:{pcrlist} -q {nonce} -m {outquote} -s {outsig} -p {outpcr} -G {hashalg} -P {akpw}".format(**cmdargs)
+                            cmdargs = {
+                                'aik_handle': hex(keyhandle),
+                                'hashalg' : hash_alg,
+                                'pcrlist': pcrlist,
+                                'nonce': bytes(nonce, encoding="utf8").hex(),
+                                'outquote': quotepath.name,
+                                'outsig': sigpath.name,
+                                'outpcr': pcrpath.name,
+                                'akpw': aik_pw
+                            }
+                            command = "tpm2_quote -k {aik_handle} -L {hashalg}:{pcrlist} -q {nonce} -m {outquote} -s {outsig} -p {outpcr} -G {hashalg} -P {akpw}".format(**cmdargs)
                         else:
+                            cmdargs = {
+                                'aik_handle': keyhandle,
+                                'hashalg' : hash_alg,
+                                'pcrlist': pcrlist,
+                                'nonce': bytes(nonce, encoding="utf8").hex(),
+                                'outquote': quotepath.name,
+                                'outsig': sigpath.name,
+                                'outpcr': pcrpath.name,
+                                'akpw': aik_pw
+                            }
                             command = "tpm2_quote -c {aik_handle} -l {hashalg}:{pcrlist} -q {nonce} -m {outquote} -s {outsig} -o {outpcr} -g {hashalg} -p {akpw}".format(**cmdargs)
                         retDict = self.__run(command, lock=False, outputpaths=[quotepath.name, sigpath.name, pcrpath.name])
                         retout = retDict['retout']
@@ -1172,11 +1196,15 @@ class tpm2(tpm_abstract.AbstractTPM):
         output = common.list_convert(retDict['retout'])
         code = retDict['code']
 
-        if code != tpm_abstract.AbstractTPM.EXIT_SUCESS and len(output) > 0 and "handle does not exist" in "\n".join(output):
-            logger.debug("No stored U in TPM NVRAM")
-            return None
-        elif code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            raise Exception("nv_readvalue failed with code "+str(code)+": "+str(output))
+        if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+            if len(output) > 0 and "handle does not exist" in "\n".join(output):
+                logger.debug("No stored U in TPM NVRAM")
+                return None
+            elif len(output) > 0 and "ERROR: Failed to read NVRAM public area at index" in "\n".join(output):
+                logger.debug("No stored U in TPM NVRAM")
+                return None
+            else:
+                raise Exception("nv_readvalue failed with code "+str(code)+": "+str(output))
 
         if len(output) != common.BOOTSTRAP_KEY_SIZE:
             logger.debug("Invalid key length from NVRAM: %d"%(len(output)))
