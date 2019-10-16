@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 '''
 DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
 
@@ -23,6 +24,7 @@ import traceback
 import sys
 import functools
 import asyncio
+import requests
 
 import tornado.ioloop
 import tornado.web
@@ -48,6 +50,12 @@ if sys.version_info[0] < 3:
 config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
 
+# ===============test parameter===============
+provider_ip = "http://10.0.2.4:8881"
+tenant_ip = "http://10.0.2.15:8881"
+identity = input("Enter your identity: provider or tenant: ")
+# ============================================
+
 class BaseHandler(tornado.web.RequestHandler):
 
     def write_error(self, status_code, **kwargs):
@@ -71,11 +79,38 @@ class BaseHandler(tornado.web.RequestHandler):
                 'results': {},
             }))
 
+# ================ adding handler =================================
+class VerifierHandler_provider(tornado.web.RequestHandler):
+    """
+    communicate with other verifier
+    testing
+    """
+    def get(self, msg):
+        logger.info('msaage from tenant: %s'%msg)
+        URL = tenant_ip
+        requests.get(url=URL+"/verifier/here_is_quote")
+    pass
+
+        
+class VerifierHandler_tenant(tornado.web.RequestHandler):
+    """
+    communicate with other verifier
+    testing
+    """
+    def get(self, msg):
+        logger.info('msaage from provider: %s'%msg)
+        # URL = provider_ip
+        # requests.get(url=URL)
+    pass
+# ============================================================
+        
+
 class MainHandler(tornado.web.RequestHandler):
     def head(self):
         common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
     def get(self):
         common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+        logger.info("405 error")
     def delete(self):
         common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
     def post(self):
@@ -475,40 +510,115 @@ def main(argv=sys.argv):
     called as a function by an external program."""
 
     config = configparser.ConfigParser()
-    config.read(common.CONFIG_FILE)
+    config.read(common.CONFIG_FILE) # CONFIG_FILE="../keylime.conf"
+    # print('file name comes here')
 
-    cloudverifier_port = config.get('general', 'cloudverifier_port')
+    cloudverifier_port = config.get('general', 'cloudverifier_port') 
+    # general is all? cloudcerifier_port = 8881
 
     db_filename = "%s/%s"%(common.WORK_DIR,config.get('cloud_verifier','db_filename'))
-    db = cloud_verifier_common.init_db(db_filename)
-    db.update_all_agents('operational_state', cloud_verifier_common.CloudAgent_Operational_State.SAVED)
+    '''
+    common.WORK_DIR
+    WORK_DIR=os.path.abspath(".") or os.getenv('KEYLIME_DIR','/var/lib/keylime')
+    Return a normalized absolutized version of the pathname path.
 
-    num = db.count_agents()
+    cloud_verifier: a bunch of setting I couldn't understand ~_~
+    db_filename: db_filename = cv_data.sqlite   What's this???!!!
+    '''
+    db = cloud_verifier_common.init_db(db_filename) # init a light weighted db, db is an object
+    db.update_all_agents('operational_state', cloud_verifier_common.CloudAgent_Operational_State.SAVED)
+    '''
+    key: 'operational_state'
+    value: cloud_verifier_common.CloudAgent_Operational_State.SAVED: just a state code
+    update status? SET <key, value> operation
+    '''
+
+    num = db.count_agents() # count the number of agents: return len(self.get_agent_ids())
     if num>0:
-        agent_ids = db.get_agent_ids()
+        agent_ids = db.get_agent_ids() # get a list of agent ids
         logger.info("agent ids in db loaded from file: %s"%agent_ids)
+    else: # this log is added by me for testing 
+        logger.info("no agent now(testing)") 
 
     logger.info('Starting Cloud Verifier (tornado) on port ' + cloudverifier_port + ', use <Ctrl-C> to stop')
-
+    '''
+    this is what shows on screen
+    logger = keylime_logging.init_logging('cloudverifier') logger is a logging
+    ''' 
+    # =============== adding handler ====================
+    VerifierHandler = VerifierHandler_provider if identity=="provider" else VerifierHandler_tenant
+    # ================================================
     app = tornado.web.Application([
-        (r"/(?:v[0-9]/)?agents/.*", AgentsHandler,{'db':db}),
+        (r"/(?:v[0-9]/)?agents/.*", AgentsHandler,{'db':db}), # r"/ main page handler
+        (r"/verifier/(.*)", VerifierHandler),
         (r".*", MainHandler),
         ])
-    
+    '''
+    Apache framework
+    The Tornado web server and tools.
+    https://www.tornadoweb.org/en/stable/web.html#application-configuration
+    ([...])each request handler is a tuple
+    r"/" root location, according handler
+    need to create a handler, class
+    regular expression
+
+    what are these handlers do? how do they react with each others
+    '''
     context = cloud_verifier_common.init_mtls()
+    '''
+    init_mtls(section='cloud_verifier',generatedir='cv_ca'):
+
+    '''
     
     #after TLS is up, start revocation notifier
-    if config.getboolean('cloud_verifier', 'revocation_notifier'):
+    if config.getboolean('cloud_verifier', 'revocation_notifier'):  # [cloud_verifier] revocation_notifier = True
         logger.info("Starting service for revocation notifications on port %s"%config.getint('general','revocation_notifier_port'))
         revocation_notifier.start_broker()
 
-    sockets = tornado.netutil.bind_sockets(int(cloudverifier_port), address='0.0.0.0')
+    sockets = tornado.netutil.bind_sockets(int(cloudverifier_port), address='0.0.0.0')  
+    # 0.0.0.0 all ip addr on local machine
+    # Creates listening sockets bound to the given port and address.
+    # [<socket.socket fd=5, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6, laddr=('0.0.0.0', 8881)>]
     tornado.process.fork_processes(config.getint('cloud_verifier','multiprocessing_pool_num_workers'))
+    ''' 
+        Starts multiple worker processes.
+        multiprocessing_pool_num_workers = 0
+        If num_processes is None or <= 0, we detect the number of cores available 
+        on this machine and fork that number of child processes.
+        Since we use processes and not threads, there is no shared memory between any server code.
+    '''
     asyncio.set_event_loop(asyncio.new_event_loop())
+    '''
+        Asynchronous I/O
+        asyncio is a library to write concurrent code using the async/await syntax.
+        The event loop is the core of every asyncio application. Event loops run asynchronous tasks and callbacks, 
+        perform network IO operations, and run subprocesses.
+        low level code
+        Note that the behaviour of get_event_loop(), set_event_loop(), and new_event_loop() functions 
+        can be altered by setting a custom event loop policy.
+    '''
     server = tornado.httpserver.HTTPServer(app,ssl_options=context)
+    '''
+        A non-blocking, single-threaded HTTP server.
+        Typical applications have little direct interaction with the HTTPServer class 
+        except to start a server at the beginning of the process 
+        (and even that is often done indirectly via tornado.web.Application.listen).
+
+    '''
     server.add_sockets(sockets)
 
+    '''
+    similar to example
+    sockets = tornado.netutil.bind_sockets(8888)
+    tornado.process.fork_processes(0)
+    server = HTTPServer(app)
+    server.add_sockets(sockets)
+    IOLoop.current().start()
+    '''
+
     try:
+        if identity=="tenant":
+            requests.get(url=provider_ip+"/verifier/I_need_quote")
         tornado.ioloop.IOLoop.instance().start()
     except KeyboardInterrupt:
         tornado.ioloop.IOLoop.instance().stop()
@@ -521,3 +631,9 @@ if __name__=="__main__":
         main()
     except Exception as e:
         logger.exception(e)
+
+'''
+    key things are to figure out those handler 
+    1. try to communicate using handler
+    2. directly communicate with socket
+'''
