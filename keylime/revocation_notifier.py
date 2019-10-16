@@ -44,7 +44,7 @@ config.read(common.CONFIG_FILE)
 
 broker_proc = None
 
-def start_broker():
+def start_broker(rev_port):
     def worker():
         context = zmq.Context(1)
         frontend = context.socket(zmq.SUB)
@@ -54,7 +54,7 @@ def start_broker():
 
         # Socket facing services
         backend = context.socket(zmq.PUB)
-        backend.bind("tcp://*:%s"%config.getint('general','revocation_notifier_port'))
+        backend.bind("tcp://*:%s"%rev_port)
 
         zmq.device(zmq.FORWARDER, frontend, backend)
 

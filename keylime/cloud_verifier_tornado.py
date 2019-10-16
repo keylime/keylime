@@ -471,16 +471,16 @@ def start_tornado(tornado_server, port):
     print("Tornado finished")
 
 
-def main(argv=sys.argv):
+def start(port_key,db_key,rev_port_key):
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
     config = configparser.ConfigParser()
     config.read(common.CONFIG_FILE)
 
-    cloudverifier_port = config.get('general', 'cloudverifier_port')
+    cloudverifier_port = config.get('general', port_key)
 
-    db_filename = "%s/%s"%(common.WORK_DIR,config.get('cloud_verifier','db_filename'))
+    db_filename = "%s/%s"%(common.WORK_DIR,config.get('cloud_verifier',db_key))
     db = cloud_verifier_common.init_db(db_filename)
     db.update_all_agents('operational_state', cloud_verifier_common.CloudAgent_Operational_State.SAVED)
 
@@ -500,8 +500,9 @@ def main(argv=sys.argv):
     
     #after TLS is up, start revocation notifier
     if config.getboolean('cloud_verifier', 'revocation_notifier'):
-        logger.info("Starting service for revocation notifications on port %s"%config.getint('general','revocation_notifier_port'))
-        revocation_notifier.start_broker()
+        rev_port = config.getint('general',rev_port_key)
+        logger.info("Starting service for revocation notifications on port %s"%rev_port)
+        revocation_notifier.start_broker(rev_port)
 
     sockets = tornado.netutil.bind_sockets(int(cloudverifier_port), address='0.0.0.0')
     tornado.process.fork_processes(config.getint('cloud_verifier','multiprocessing_pool_num_workers'))
@@ -516,6 +517,8 @@ def main(argv=sys.argv):
         if config.getboolean('cloud_verifier', 'revocation_notifier'):
             revocation_notifier.stop_broker()
 
+def main():
+    start('cloudverifier_port','db_filename','revocation_notifier_port')
 
 if __name__=="__main__":
     try:
