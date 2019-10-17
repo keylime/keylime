@@ -347,67 +347,71 @@ def cmd_regencrl(workingdir):
     return crl
 
 def cmd_listen(workingdir,cert_path):
-    #just load up the password for later
-    read_private()
-
-    serveraddr = ('', common.CRL_PORT)
-    server = ThreadedCRLServer(serveraddr,CRLHandler)
-    if os.path.exists('%s/cacrl.der'%workingdir):
-        logger.info("Loading existing crl: %s/cacrl.der"%workingdir)
-        with open('%s/cacrl.der'%workingdir,'rb') as f:
-            server.setcrl(f.read())
-    t = threading.Thread(target=server.serve_forever)
-    logger.info("Hosting CRL on %s:%d"%(socket.getfqdn(),common.CRL_PORT))
-    t.start()
-
-    def check_expiration():
-        logger.info("checking CRL for expiration every hour")
-        while True:
-            try:
-                if os.path.exists('%s/cacrl.der'%workingdir):
-                    retout = cmd_exec.run("openssl crl -inform der -in %s/cacrl.der -text -noout"%workingdir,lock=False)['retout']
-                    for line in retout:
-                        line = line.strip()
-                        if line.startswith(b"Next Update:"):
-                            expire = datetime.datetime.strptime(line[13:].decode('utf-8'),"%b %d %H:%M:%S %Y %Z")
-                            # check expiration within 6 hours
-                            in1hour = datetime.datetime.utcnow()+datetime.timedelta(hours=6)
-                            if expire<=in1hour:
-                                logger.info("Certificate to expire soon %s, re-issuing"%expire)
-                                cmd_regencrl(workingdir)
-                # check a little less than every hour
-                time.sleep(3540)
-
-            except KeyboardInterrupt:
-                logger.info("TERM Signal received, shutting down...")
-                #server.shutdown()
-                break
-
-    t2 = threading.Thread(target=check_expiration)
-    t2.setDaemon(True)
-    t2.start()
-
-    def revoke_callback(revocation):
-        serial = revocation.get("metadata",{}).get("cert_serial",None)
-        if revocation.get('type',None) != 'revocation' or serial is None:
-            logger.error("Unsupported revocation message: %s"%revocation)
-            return
-
-        logger.info("Revoking certificate: %s"%serial)
-        server.setcrl(cmd_revoke(workingdir, None, serial))
-
+    cwd = os.getcwd()
     try:
-        while True:
-            try:
-                revocation_notifier.await_notifications(revoke_callback,revocation_cert_path=cert_path)
-            except Exception as e:
-                logger.exception(e)
-                logger.warning("No connection to revocation server, retrying in 10s...")
-                time.sleep(10)
-    except KeyboardInterrupt:
-        logger.info("TERM Signal received, shutting down...")
-        server.shutdown()
-        sys.exit()
+        common.ch_dir(workingdir,logger)
+        #just load up the password for later
+        read_private(True)
+
+        serveraddr = ('', common.CRL_PORT)
+        server = ThreadedCRLServer(serveraddr,CRLHandler)
+        if os.path.exists('cacrl.der'):
+            logger.info("Loading existing crl: %s"%os.path.abspath("cacrl.der"))
+            with open('cacrl.der','rb') as f:
+                server.setcrl(f.read())
+        t = threading.Thread(target=server.serve_forever)
+        logger.info("Hosting CRL on %s:%d"%(socket.getfqdn(),common.CRL_PORT))
+        t.start()
+
+        def check_expiration():
+            logger.info("checking CRL for expiration every hour")
+            while True:
+                try:
+                    if os.path.exists('cacrl.der'):
+                        retout = cmd_exec.run("openssl crl -inform der -in cacrl.der -text -noout",lock=False)['retout']
+                        for line in retout:
+                            line = line.strip()
+                            if line.startswith(b"Next Update:"):
+                                expire = datetime.datetime.strptime(line[13:].decode('utf-8'),"%b %d %H:%M:%S %Y %Z")
+                                # check expiration within 6 hours
+                                in1hour = datetime.datetime.utcnow()+datetime.timedelta(hours=6)
+                                if expire<=in1hour:
+                                    logger.info("Certificate to expire soon %s, re-issuing"%expire)
+                                    cmd_regencrl(workingdir)
+                    # check a little less than every hour
+                    time.sleep(3540)
+
+                except KeyboardInterrupt:
+                    logger.info("TERM Signal received, shutting down...")
+                    #server.shutdown()
+                    break
+
+        t2 = threading.Thread(target=check_expiration)
+        t2.setDaemon(True)
+        t2.start()
+
+        def revoke_callback(revocation):
+            serial = revocation.get("metadata",{}).get("cert_serial",None)
+            if revocation.get('type',None) != 'revocation' or serial is None:
+                logger.error("Unsupported revocation message: %s"%revocation)
+                return
+
+            logger.info("Revoking certificate: %s"%serial)
+            server.setcrl(cmd_revoke(workingdir, None, serial))
+        try:
+            while True:
+                try:
+                    revocation_notifier.await_notifications(revoke_callback,revocation_cert_path=cert_path)
+                except Exception as e:
+                    logger.exception(e)
+                    logger.warning("No connection to revocation server, retrying in 10s...")
+                    time.sleep(10)
+        except KeyboardInterrupt:
+            logger.info("TERM Signal received, shutting down...")
+            server.shutdown()
+            sys.exit()
+    finally:
+        os.chdir(cwd)
 
 class ThreadedCRLServer(ThreadingMixIn, HTTPServer):
     published_crl = None
@@ -448,7 +452,7 @@ def write_private(inp):
     with os.fdopen(os.open('private.yml',os.O_WRONLY | os.O_CREAT,0o600), 'w') as f:
         yaml.dump(towrite,f, Dumper=SafeDumper)
 
-def read_private():
+def read_private(warn=False):
     global global_password
     if global_password is None:
         setpassword(getpass.getpass("Please enter the password to decrypt your keystore: "))
@@ -464,7 +468,10 @@ def read_private():
 
         return yaml.load(plain, Loader=SafeLoader),toread['salt']
     else:
-        #file doesn't exist, just invent a salt
+        if warn:
+            #file doesn't exist, just invent a salt
+            logger.warning("Private certificate data %s does not exist yet."%os.path.abspath("private.yml"))
+            logger.warning("Keylime will attempt to load private certificate data again when it is needed.")
         return {'revoked_keys':[]},base64.b64encode(crypto.generate_random_key()).decode()
 
 def main(argv=sys.argv):
