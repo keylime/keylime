@@ -51,8 +51,8 @@ config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
 
 # ===============test parameter===============
-provider_ip = "http://10.0.2.4:8881"
-tenant_ip = "http://10.0.2.15:8881"
+provider_ip = "10.0.2.4:8881"
+tenant_ip = "10.0.2.15:8881"
 identity = input("Enter your identity: provider or tenant: ")
 # ============================================
 
@@ -79,30 +79,6 @@ class BaseHandler(tornado.web.RequestHandler):
                 'results': {},
             }))
 
-# ================ adding handler =================================
-class VerifierHandler_provider(tornado.web.RequestHandler):
-    """
-    communicate with other verifier
-    testing
-    """
-    def get(self, msg):
-        logger.info('msaage from tenant: %s'%msg)
-        URL = tenant_ip
-        requests.get(url=URL+"/verifier/here_is_quote")
-    pass
-
-        
-class VerifierHandler_tenant(tornado.web.RequestHandler):
-    """
-    communicate with other verifier
-    testing
-    """
-    def get(self, msg):
-        logger.info('msaage from provider: %s'%msg)
-        # URL = provider_ip
-        # requests.get(url=URL)
-    pass
-# ============================================================
         
 
 class MainHandler(tornado.web.RequestHandler):
@@ -117,6 +93,34 @@ class MainHandler(tornado.web.RequestHandler):
         common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
     def put(self):
         common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
+
+class VerifierHandler(BaseHandler):
+    def head(self):
+        print("head")
+        pass
+
+    def delete(self):
+        print("delete")
+        pass
+
+    def put(self):
+        print("put")
+        pass
+        
+    def get(self):
+        print("GET")
+        print(self.requests.uri)
+        rest_params = common.get_restful_params(self.request.uri)
+        print(rest_params)
+        pass
+  
+    def post(self):
+        print("POST")
+        print(self.requests.uri)
+        rest_params = common.get_restful_params(self.request.uri)
+        print(rest_params)
+        pass
+
 
 class AgentsHandler(BaseHandler):
     db = None
@@ -136,6 +140,7 @@ class AgentsHandler(BaseHandler):
         was not found, it either completed successfully, or failed.  If found, the agent_id is still polling
         to contact the Cloud Agent.
         """
+        print("receive a get")
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
             common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
@@ -213,7 +218,9 @@ class AgentsHandler(BaseHandler):
         Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's will return errors.
         agents requests require a json block sent in the body
         """
+        print("get a post")
         try:
+            print(self.request.uri)
             rest_params = common.get_restful_params(self.request.uri)
             if rest_params is None:
                 common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
@@ -279,6 +286,7 @@ class AgentsHandler(BaseHandler):
         Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
         agents requests require a json block sent in the body
         """
+        print("get a put")
         try:
             rest_params = common.get_restful_params(self.request.uri)
             if rest_params is None:
@@ -326,10 +334,25 @@ class AgentsHandler(BaseHandler):
         self.finish()
 
 
-    def invoke_get_quote(self, agent, need_pubkey):
-        params = cloud_verifier_common.prepare_get_quote(agent)
-        agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
+    def invoke_talk_verifier(self, target, msg):
+        '''
+        test version, try to talk to another verifier, using same framework and mechanism as 
+        talking to agent trough invoke_get_quote
+        '''
+        url = "http://%s/verifier/%s"%(target,msg)
         client = tornado.httpclient.AsyncHTTPClient()
+        cb = functools.partial(self.on_get_verifier_response, url)
+        client.fetch(url, callback=cb)
+
+        pass
+
+    def invoke_get_quote(self, agent, need_pubkey):
+        print("invoke_get_quote")
+        # print(type(agent)) dictionary
+        params = cloud_verifier_common.prepare_get_quote(agent)
+        agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE # =3
+        client = tornado.httpclient.AsyncHTTPClient()
+        # https://www.tornadoweb.org/en/stable/httpclient.html
 
         partial_req = "1"
         if need_pubkey:
@@ -337,10 +360,29 @@ class AgentsHandler(BaseHandler):
 
         url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(agent['ip'],agent['port'],params["nonce"],params["mask"],params['vmask'],partial_req)
         # the following line adds the agent and params arguments to the callback as a convenience
-        cb = functools.partial(self.on_get_quote_response, agent, url)
-        client.fetch(url, callback=cb)
+        cb = functools.partial(self.on_get_quote_response, agent, url) # functools is invoked 
+        # wrap function into a variable and partialy set serveral parameters
+        # where is the response para? provided by fetch?
+        '''
+        If a ``callback`` is given, it will be invoked with the `HTTPResponse`.
+        In the callback interface, `HTTPError` is not automatically raised.
+        Instead, you must check the response's ``error`` attribute or
+        call its `~HTTPResponse.rethrow` method.
+        '''
+        client.fetch(url, callback=cb)  # quote is in the feed back
+        # fetch is improtant
+        # print("get quote from agent")
+        print(url)
+        # print(type(cb))
+        # print(cb)
+
+    def on_get_verifier_response(self, url, response):
+        logger.info(response)
+        pass
+
 
     def on_get_quote_response(self, agent, url, response):
+        print("on_get_quote_response")
         if agent is None:
             raise Exception("agent deleted while being processed")
         if response.error:
@@ -354,8 +396,11 @@ class AgentsHandler(BaseHandler):
                 self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
         else:
             try:
+                # =============== 
+                logger.info(response.body)
+                # =====================
                 json_response = json.loads(response.body)
-
+                # print("Get response")
                 # validate the cloud agent response
                 if cloud_verifier_common.process_quote_response(agent, json_response['results']):
                     if agent['provide_V']:
@@ -400,6 +445,10 @@ class AgentsHandler(BaseHandler):
             self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
 
     def process_agent(self, agent, new_operational_state):
+        # agent: a dictionary contains all infomation of agent.
+        # new_operational_state: an int number.  frequently 3 or 5, use # to indicate state?
+        print("process_agent")
+        print(agent['operational_state'])
         try:
             main_agent_operational_state = agent['operational_state']
             stored_agent = self.db.get_agent(agent['agent_id'])
@@ -546,7 +595,7 @@ def main(argv=sys.argv):
     logger = keylime_logging.init_logging('cloudverifier') logger is a logging
     ''' 
     # =============== adding handler ====================
-    VerifierHandler = VerifierHandler_provider if identity=="provider" else VerifierHandler_tenant
+    # VerifierHandler = VerifierHandler_provider if identity=="provider" else VerifierHandler_tenant
     # ================================================
     app = tornado.web.Application([
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler,{'db':db}), # r"/ main page handler
@@ -617,8 +666,20 @@ def main(argv=sys.argv):
     '''
 
     try:
+        # ================================
         if identity=="tenant":
-            requests.get(url=provider_ip+"/verifier/I_need_quote")
+            target = provider_ip
+            msg = "HelloWorld"
+            url = "http://%s/verifier/%s"%(target,msg)
+            client = tornado.httpclient.AsyncHTTPClient()
+        # cb = functools.partial(self.on_get_verifier_response, url)
+            client.fetch(url)
+            print(url)
+            print("sent request")
+            client.close()
+            print("client close")
+        # =====================================
+        print("entering the loop")
         tornado.ioloop.IOLoop.instance().start()
     except KeyboardInterrupt:
         tornado.ioloop.IOLoop.instance().stop()
