@@ -138,8 +138,11 @@ def doRegisterAgent(registrar_ip,registrar_port,agent_id,tpm_version,pub_ek,ekce
     v_json_message = json.dumps(data)
     params = '/agents/%s'% (agent_id)
     response = httpclient_requests.request("POST", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message, context=None)
-    response_body = json.loads(response.read().decode("utf-8"))
+    if isinstance(response,int):
+        logger.error("Error: unexpected http response code from Registrar Server: %d"%response)
+        return None
 
+    response_body = json.loads(response.read().decode("utf-8"))
     if response.status != 200:
         logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status))
         keylime_logging.log_http_response(logger,logging.ERROR,response_body)
