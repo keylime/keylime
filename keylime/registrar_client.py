@@ -22,6 +22,7 @@ import base64
 import ssl
 import os
 import logging
+import http
 
 try:
     import simplejson as json
