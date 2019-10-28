@@ -36,6 +36,7 @@ from keylime import httpclient_requests
 
 logger = keylime_logging.init_logging('registrar_client')
 context = None
+enableTLS = True
 
 def init_client_tls(config,section):
     global context
@@ -46,6 +47,8 @@ def init_client_tls(config,section):
 
     if not config.getboolean('general',"enable_tls"):
         logger.warning("TLS is currently disabled, AIKs may not be authentic.")
+        global enableTLS
+        enableTLS = False
         return None
 
     logger.info("Setting up client TLS...")
@@ -98,9 +101,10 @@ def getAIK(registrar_ip,registrar_port,agent_id):
 
 def getKeys(registrar_ip,registrar_port,agent_id):
     global context
+    global enableTLS
 
     #make absolutely sure you don't ask for AIKs unauthenticated
-    if context is None or context.verify_mode != ssl.CERT_REQUIRED:
+    if enableTLS and (context is None or context.verify_mode != ssl.CERT_REQUIRED):
         raise Exception("It is unsafe to use this interface to query AIKs with out server authenticated TLS")
 
     try:
