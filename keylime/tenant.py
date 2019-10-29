@@ -750,7 +750,7 @@ def main(argv=sys.argv):
     parser.add_argument('-u', '--uuid',action='store',dest='agent_uuid',help="UUID for the agent to provision")
     parser.add_argument('-f', '--file', action='store',default=None,help='Deliver the specified plaintext to the provisioned agent')
     parser.add_argument('--cert',action='store',dest='ca_dir',default=None,help='Create and deliver a certificate using a CA created by ca-util. Pass in the CA directory or use "default" to use the standard dir')
-    parser.add_argument('-k', '--key',action='store',dest='keyfile',help='an intermedia key file produced by user_data_encrypt')
+    parser.add_argument('-k', '--key',action='store',dest='keyfile',help='an intermediate key file produced by user_data_encrypt')
     parser.add_argument('-p', '--payload', action='store',default=None,help='Specify the encrypted payload to deliver with encrypted keys specified by -k')
     parser.add_argument('--include',action='store',dest='incl_dir',default=None,help="Include additional files in provided directory in certificate zip file.  Must be specified with --cert")
     parser.add_argument('--whitelist',action='store',dest='ima_whitelist',default=None,help="Specify the location of an IMA whitelist")
