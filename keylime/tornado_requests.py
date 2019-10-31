@@ -36,11 +36,11 @@ async def request(method,url,params=None,data=None,context=None):
     if params is not None and len(list(params.keys()))>0:
         url+='?'
         for key in list(params.keys()):
-            url+="%s=%s&"%(key,params[key])
+            url+=f"{key}={params[key]}&"
         url=url[:-1]
 
     if context is not None:
-        url = url.replace('http://','https://',1)
+        url = url.replace('http://', 'https://', 1)
 
     try:
         request = httpclient.HTTPRequest(url=url,

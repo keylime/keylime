@@ -23,7 +23,7 @@ def log_http_response(logger, loglevel, response_body):
         log_func = logger.debug
 
     if "results" in response_body and "code" in response_body and "status" in response_body:
-        log_func("Response code %s: %s"%(response_body["code"], response_body["status"]))
+        log_func(f'Response code {response_body["code"]}: {response_body["status"]}')
     else:
         logger.error("Error: unexpected or malformed http response payload")
         return False
@@ -41,7 +41,7 @@ else:
 
 logging.config.fileConfig(common.CONFIG_FILE)
 def init_logging(loggername):
-    logger = logging.getLogger("keylime.%s"%(loggername))
+    logger = logging.getLogger(f"keylime.{loggername}")
     logging.getLogger("requests").setLevel(logging.WARNING)
     mainlogger = logging.getLogger("keylime")
 
@@ -49,15 +49,15 @@ def init_logging(loggername):
         if not common.REQUIRE_ROOT:
             logfilename = "./keylime-all.log"
         else:
-            logfilename = "%s/%s.log"%(LOGDIR,loggername)
+            logfilename = f"{LOGDIR}/{loggername}.log"
             if os.getuid()!=0:
-                logger.warning("Unable to log to %s. please run as root"%logfilename)
+                logger.warning(f"Unable to log to {logfilename}. please run as root")
                 return logger
             else:
                 if not os.path.exists(LOGDIR):
                     os.makedirs(LOGDIR, 0o750)
-                common.chownroot(LOGDIR,logger)
-                os.chmod(LOGDIR,0o750)
+                common.chownroot(LOGDIR, logger)
+                os.chmod(LOGDIR, 0o750)
 
         fh = logging.FileHandler(logfilename)
         fh.setLevel(logger.getEffectiveLevel())

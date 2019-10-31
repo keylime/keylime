@@ -119,7 +119,7 @@ def cmd_mkcert(workingdir,name):
 
         pk.get_rsa().save_pub_key(f'{name}-public.pem')
 
-        cc = X509.load_cert('%s-cert.crt'%name)
+        cc = X509.load_cert(f'{name}-cert.crt')
 
         if cc.verify(cacert.get_pubkey()):
             logger.info(f'Created certificate for name {name} successfully in {workingdir}')
@@ -356,11 +356,11 @@ def cmd_listen(workingdir,cert_path):
         serveraddr = ('', common.CRL_PORT)
         server = ThreadedCRLServer(serveraddr,CRLHandler)
         if os.path.exists('cacrl.der'):
-            logger.info("Loading existing crl: %s"%os.path.abspath("cacrl.der"))
-            with open('cacrl.der','rb') as f:
+            logger.info(f'Loading existing crl: {os.path.abspath("cacl.der")}')
+            with open('cacrl.der', 'rb') as f:
                 server.setcrl(f.read())
         t = threading.Thread(target=server.serve_forever)
-        logger.info("Hosting CRL on %s:%d"%(socket.getfqdn(),common.CRL_PORT))
+        logger.info(f"Hosting CRL on {socket.getfqdn()}:{common.CRL_PORT}")
         t.start()
 
         def check_expiration():
@@ -376,7 +376,7 @@ def cmd_listen(workingdir,cert_path):
                                 # check expiration within 6 hours
                                 in1hour = datetime.datetime.utcnow()+datetime.timedelta(hours=6)
                                 if expire<=in1hour:
-                                    logger.info("Certificate to expire soon %s, re-issuing"%expire)
+                                    logger.info(f"Certificate to expire soon {expire}, re-issuing")
                                     cmd_regencrl(workingdir)
                     # check a little less than every hour
                     time.sleep(3540)
@@ -393,10 +393,10 @@ def cmd_listen(workingdir,cert_path):
         def revoke_callback(revocation):
             serial = revocation.get("metadata",{}).get("cert_serial",None)
             if revocation.get('type',None) != 'revocation' or serial is None:
-                logger.error("Unsupported revocation message: %s"%revocation)
+                logger.error(f"Unsupported revocation message: {revocation}")
                 return
 
-            logger.info("Revoking certificate: %s"%serial)
+            logger.info(f"Revoking certificate: {serial}")
             server.setcrl(cmd_revoke(workingdir, None, serial))
         try:
             while True:
@@ -470,7 +470,7 @@ def read_private(warn=False):
     else:
         if warn:
             #file doesn't exist, just invent a salt
-            logger.warning("Private certificate data %s does not exist yet."%os.path.abspath("private.yml"))
+            logger.warning(f"Private certificate data {os.path.abspath('private.yml')} does not exist yet.")
             logger.warning("Keylime will attempt to load private certificate data again when it is needed.")
         return {'revoked_keys':[]},base64.b64encode(crypto.generate_random_key()).decode()
 

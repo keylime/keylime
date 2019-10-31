@@ -152,7 +152,7 @@ def fileRemove(path):
 def setUpModule():
     try:
         env = os.environ.copy()
-        env['PATH']=env['PATH']+":/usr/local/bin"
+        env['PATH'] = env['PATH']+":/usr/local/bin"
         # Run init_tpm_server and tpm_serverd (start fresh)
         its = subprocess.Popen(["init_tpm_server"], shell=False, env=env)
         its.wait()
@@ -354,7 +354,7 @@ class TestRestful(unittest.TestCase):
         cls.payload = ret['ciphertext']
 
         """Set up to register an agent"""
-        cls.auth_tag = crypto.do_hmac(cls.K,tenant_templ.agent_uuid)
+        cls.auth_tag = crypto.do_hmac(cls.K, tenant_templ.agent_uuid)
 
         """Prepare policies for agent"""
         cls.tpm_policy = config.get('tenant', 'tpm_policy')
@@ -382,11 +382,11 @@ class TestRestful(unittest.TestCase):
 
         # Change CWD for TPM-related operations
         cwd = os.getcwd()
-        common.ch_dir(common.WORK_DIR,None)
+        common.ch_dir(common.WORK_DIR, None)
         secdir = secure_mount.mount()
 
         # Initialize the TPM with AIK
-        (ek,ekcert,aik,ek_tpm,aik_name) = tpm.tpm_init(self_activate=False,config_pw=config.get('cloud_agent','tpm_ownerpassword'))
+        (ek, ekcert, aik, ek_tpm, aik_name) = tpm.tpm_init(self_activate=False, config_pw=config.get('cloud_agent','tpm_ownerpassword'))
         vtpm = tpm.is_vtpm()
 
         # Seed RNG (root only)
@@ -414,7 +414,7 @@ class TestRestful(unittest.TestCase):
         v_json_message = json.dumps(data)
 
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("POST", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
+        response = httpclient_requests.request("POST", f"{tenant_templ.registrar_ip}", tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
 
         self.assertEqual(response.status, 200, "Non-successful Registrar agent Add return code!")
         json_response = json.loads(response.read().decode())
@@ -438,13 +438,13 @@ class TestRestful(unittest.TestCase):
         key = tpm.activate_identity(keyblob)
 
         data = {
-            'auth_tag': crypto.do_hmac(key,tenant_templ.agent_uuid),
+            'auth_tag': crypto.do_hmac(key, tenant_templ.agent_uuid),
         }
         v_json_message = json.dumps(data)
 
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}/activate"
 
-        response = httpclient_requests.request("PUT", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
+        response = httpclient_requests.request("PUT", f"{tenant_templ.registrar_ip}", tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
         print(f'response: {response}')
 
         self.assertEqual(response.status, 200, "Non-successful Registrar agent Activate return code!")
@@ -464,14 +464,14 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(ek, "Required value not set.  Previous step may have failed?")
 
         key = tpm.activate_identity(keyblob)
-        deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(),tenant_templ.agent_uuid+aik+ek)
+        deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(), tenant_templ.agent_uuid+aik+ek)
         data = {
             'deepquote': deepquote,
         }
         v_json_message = json.dumps(data)
 
         params = f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}/vactivate'
-        response = httpclient_requests.request("PUT", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_tls_boot_port, params=params, data=v_json_message, context=tenant_templ.context)
+        response = httpclient_requests.request("PUT", f"{tenant_templ.registrar_ip}", tenant_templ.registrar_tls_boot_port, params=params, data=v_json_message, context=tenant_templ.context)
         self.assertEqual(response.status, 200, "Non-successful Registrar agent vActivate return code!")
         json_response = json.loads(response.read().decode())
 
@@ -482,7 +482,7 @@ class TestRestful(unittest.TestCase):
     def test_013_reg_agents_get(self):
         """Test registrar's GET /v2/agents Interface"""
         params = f"/v{self.api_version}/agents/"
-        response = httpclient_requests.request("GET", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_tls_boot_port, params=params,  context=tenant_templ.context)
+        response = httpclient_requests.request("GET", f"{tenant_templ.registrar_ip}", tenant_templ.registrar_tls_boot_port, params=params,  context=tenant_templ.context)
 
         self.assertEqual(response.status, 200, "Non-successful Registrar agent List return code!")
         json_response = json.loads(response.read().decode())
@@ -499,7 +499,7 @@ class TestRestful(unittest.TestCase):
         """Test registrar's GET /v2/agents/{UUID} Interface"""
         global aik
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("GET", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_tls_boot_port, params=params, data=None, context=tenant_templ.context)
+        response = httpclient_requests.request("GET", f"{tenant_templ.registrar_ip}", tenant_templ.registrar_tls_boot_port, params=params, data=None, context=tenant_templ.context)
 
         self.assertEqual(response.status, 200, "Non-successful Registrar agent return code!")
         json_response = json.loads(response.read().decode())
@@ -517,7 +517,7 @@ class TestRestful(unittest.TestCase):
     def test_015_reg_agent_delete(self):
         """Test registrar's DELETE /v2/agents/{UUID} Interface"""
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("DELETE", f"{tenant_templ.registrar_ip}",tenant_templ.registrar_tls_boot_port, params=params, context=tenant_templ.context)
+        response = httpclient_requests.request("DELETE", f"{tenant_templ.registrar_ip}", tenant_templ.registrar_tls_boot_port, params=params, context=tenant_templ.context)
 
         self.assertEqual(response.status, 200, "Non-successful Registrar Delete return code!")
         json_response = json.loads(response.read().decode())
@@ -535,7 +535,7 @@ class TestRestful(unittest.TestCase):
         # We want a real cloud agent to communicate with!
         launch_cloudagent()
         params = f"/v{self.api_version}/keys/pubkey"
-        response = httpclient_requests.request("GET", f"{tenant_templ.cloudagent_ip}",tenant_templ.cloudagent_port, params=params)
+        response = httpclient_requests.request("GET", f"{tenant_templ.cloudagent_ip}", tenant_templ.cloudagent_port, params=params)
 
         self.assertEqual(response.status, 200, "Non-successful Agent pubkey return code!")
         json_response = json.loads(response.read().decode())
@@ -561,14 +561,14 @@ class TestRestful(unittest.TestCase):
 
         nonce = tpm_abstract.TPM_Utilities.random_password(20)
 
-        numretries = config.getint('tenant','max_retries')
+        numretries = config.getint('tenant', 'max_retries')
         while numretries >= 0:
             params = f"/v{self.api_version}/quotes/identity?nonce={nonce}"
-            response = httpclient_requests.request("GET", f"{tenant_templ.cloudagent_ip}",tenant_templ.cloudagent_port, params=params, data=None, context=None)
+            response = httpclient_requests.request("GET", f"{tenant_templ.cloudagent_ip}", tenant_templ.cloudagent_port, params=params, data=None, context=None)
             if response.status == 200:
                 break
             numretries-=1
-            time.sleep(config.getint('tenant','max_retries'))
+            time.sleep(config.getint('tenant', 'max_retries'))
         self.assertEqual(response.status, 200, "Non-successful Agent identity return code!")
         json_response = json.loads(response.read().decode())
 
@@ -789,7 +789,7 @@ class TestRestful(unittest.TestCase):
         time.sleep(5)
 
         params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("DELETE", f"{tenant_templ.cloudverifier_ip}",tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
+        response = httpclient_requests.request("DELETE", f"{tenant_templ.cloudverifier_ip}", tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
         self.assertEqual(response.status, 202, "Non-successful CV agent Delete return code!")
         json_response = json.loads(response.read().decode())
 

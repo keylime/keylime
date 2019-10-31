@@ -108,7 +108,7 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            raise Exception("Error establishing tpm2-tools version using TPM2_Startup: %s"+str(code)+": "+str(output))
+            raise Exception(f"Error establishing tpm2-tools version using TPM2_Startup: {code}: {output}")
         
         output = ''.join(common.list_convert(retDict['retout']))
         # Extract the `version="x.x.x"` from tools
