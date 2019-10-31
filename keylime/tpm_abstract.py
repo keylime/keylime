@@ -401,7 +401,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
     #tpm_random
     def init_system_rand(self):
         RNDADDENTROPY = 0x40085203
-        rand_data = self._get_tpm_rand_block(128)
+        rand_data = self._get_tpm_rand_block()
         if common.REQUIRE_ROOT and rand_data is not None:
             try:
                 t = struct.pack(f"ii{len(rand_data)}s", 8, len(rand_data), rand_data)

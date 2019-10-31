@@ -30,6 +30,7 @@ import threading
 import time
 import zlib
 import yaml
+from distutils.version import LooseVersion, StrictVersion
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
 except ImportError:
@@ -56,20 +57,15 @@ logger = keylime_logging.init_logging('tpm2')
 config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
 
-# Are we using legacy tpm2-tools (3.X) or modern (4+)?
-env = os.environ.copy()
-env['PATH']=f"{env['PATH']}:{common.TPM_TOOLS_PATH}"
-legacy_tools = distutils.spawn.find_executable("tpm2_takeownership", env['PATH']) is not None
-
 class tpm2(tpm_abstract.AbstractTPM):
 
     def __init__(self, need_hw_tpm=False):
         tpm_abstract.AbstractTPM.__init__(self, need_hw_tpm)
 
-        logger.info(f"Using {'legacy' if legacy_tools else 'modern'} version of tpm2-tools")
-
         # Shared lock to serialize access to tools
         self.tpmutilLock = threading.Lock()
+
+        self.__get_tpm2_tools()
 
         # We don't know which algs the TPM supports yet
         self.supported['encrypt'] = set()
@@ -106,16 +102,45 @@ class tpm2(tpm_abstract.AbstractTPM):
     def get_tpm_version(self):
         return 2
 
+    def __get_tpm2_tools(self):
+        global tools_version
+        retDict = self.__run("tpm2_startup --version")
+
+        code = retDict['code']
+        if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+            raise Exception("Error establishing tpm2-tools version using TPM2_Startup: %s"+str(code)+": "+str(output))
+        
+        output = ''.join(common.list_convert(retDict['retout']))
+        # Extract the `version="x.x.x"` from tools
+        version_str = re.search(r'version="([^"]+)"', output).group(1)
+        # Extract the full semver release number.
+        tools_version = version_str.split("-")
+
+        if StrictVersion(tools_version[0]) >= StrictVersion("4.0.0"):
+            logger.info(f"TPM2-TOOLS Version: {tools_version[0]}")
+            tools_version = "4.0"
+        elif StrictVersion(tools_version[0]) >= StrictVersion("3.2.0"):
+            logger.info(f"TPM2-TOOLS Version: {tools_version[0]}")
+            tools_version = "3.2"
+        else:
+            logger.error(f"TPM2-TOOLS Version {tools_version[0]} is not supported.")
+            exit()
+
     def __get_tpm_algorithms(self):
         vendorStr = None
-        retDict = self.__run("tpm2_getcap -c algorithms")
+
+        if tools_version == "3.2":
+            retDict = self.__run("tpm2_getcap -c algorithms")
+        elif tools_version == "4.0":
+            retDict = self.__run("tpm2_getcap algorithms")
+
         output = common.list_convert(retDict['retout'])
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             raise Exception(f"get_tpm_algorithms failed with code {code}: {output}")
 
-        if legacy_tools:
+        if tools_version == "3.2":
             # output, human-readable -> json
             output = "".join(output)
             output = re.sub(r'TPMA_ALGORITHM for ALG_ID: 0x[0-9a-f]+\s+-\s+([a-z0-9_]+)', r'\1:', output)
@@ -351,9 +376,12 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         # clear out old handle before starting again (give idempotence)
         if current_handle is not None and owner_pw is not None:
-            logger.info(f"Flushing old ek handle: {hex(current_handle)}")
 
-            retDict = self.__run("tpm2_getcap -c handles-persistent", raiseOnError=False)
+            logger.info(f"Flushing old ek handle: {hex(current_handle)}")
+            if tools_version == "3.2":
+                retDict = self.__run("tpm2_getcap -c handles-persistent", raiseOnError=False)
+            elif tools_version == "4.0":
+                retDict = self.__run("tpm2_getcap handles-persistent", raiseOnError=False)
             output = retDict['retout']
             code = retDict['code']
 
@@ -362,10 +390,11 @@ class tpm2(tpm_abstract.AbstractTPM):
 
             outjson = common.yaml_to_dict(output)
             if outjson is not None and current_handle in outjson:
-                if legacy_tools:
-                    retDict = self.__run(f"tpm2_evictcontrol -A o -c {hex(current_handle)} -P {owner_pw}",raiseOnError=False)
+
+                if tools_version == "3.2":
+                    retDict = self.__run(f"tpm2_evictcontrol -A o -c {hex(current_handle)} -P {owner_pw}", raiseOnError=False)
                 else:
-                    retDict = self.__run(f"tpm2_evictcontrol -a o -c {hex(current_handle)} -P {owner_pw}",raiseOnError=False)
+                    retDict = self.__run(f"tpm2_evictcontrol -C o -c {hex(current_handle)} -P {owner_pw}", raiseOnError=False)
                 output = retDict['retout']
                 code = retDict['code']
 
@@ -390,10 +419,10 @@ class tpm2(tpm_abstract.AbstractTPM):
                 'opw': owner_pw,
                 'epw': owner_pw
             }
-            if legacy_tools:
+            if tools_version == "3.2":
                 command = "tpm2_getpubek -H 0x81010007 -g {asymalg} -f {ekpubfile} -P {ekpw} -o {opw} -e {epw}".format(**cmdargs)
-            else:
-                command = "tpm2_createek -c - -G {asymalg} -p {ekpubfile} -P {ekpw} -o {opw} -e {epw}".format(**cmdargs)
+            elif tools_version == "4.0":
+                command = "tpm2_createek -c - -G {asymalg} -u {ekpubfile} -p {ekpw} -w {opw} -P {epw}".format(**cmdargs)
             retDict = self.__run(command, raiseOnError=False, outputpaths=tmppath.name)
             output = retDict['retout']
             code = retDict['code']
@@ -402,7 +431,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception(f"createek failed with code {code}: {output}")
 
-            if legacy_tools:
+            if tools_version == "3.2":
                 handle = int(0x81010007)
             else:
                 handle = None
@@ -425,20 +454,24 @@ class tpm2(tpm_abstract.AbstractTPM):
             logger.info(f"Taking ownership with config provided TPM owner password: {config_pw}")
             owner_pw = config_pw
 
-        if legacy_tools:
+        if tools_version == "3.2":
             retDict = self.__run("tpm2_takeownership -c", raiseOnError=False)
+
             retDict = self.__run(f"tpm2_takeownership -o {owner_pw} -e {owner_pw}", raiseOnError=False)
-        else:
-            retDict = self.__run(f"tpm2_changeauth -o {owner_pw} -e {owner_pw}", raiseOnError=False)
+        elif tools_version == "4.0":
+            retDict = self.__run(f"tpm2_changeauth -c o {owner_pw}", raiseOnError=False)
+            retDict = self.__run(f"tpm2_changeauth -c e {owner_pw}", raiseOnError=False)
 
         output = retDict['retout']
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             # if we fail, see if already owned with this pw
-            if legacy_tools:
-                retDict = self.__run(f"tpm2_takeownership -o {owner_pw} -e {owner_pw} -O {owner_pw} -E {owner_pw}",raiseOnError=False)
-            else:
-                retDict = self.__run(f"tpm2_changeauth -o {owner_pw} -e {owner_pw} -O {owner_pw} -E {owner_pw}",raiseOnError=False)
+
+            if tools_version == "3.2":
+                retDict = self.__run(f"tpm2_takeownership -o {owner_pw} -e {owner_pw} -O {owner_pw} -E {owner_pw}", raiseOnError=False)
+            elif tools_version == "4.0":
+                retDict = self.__run(f"tpm2_changeauth -c o -p {owner_pw} {owner_pw}", raiseOnError=False)
+                retDict = self.__run(f"tpm2_changeauth -c e -p {owner_pw} {owner_pw}", raiseOnError=False)
 
             output = retDict['retout']
             code = retDict['code']
@@ -456,8 +489,9 @@ class tpm2(tpm_abstract.AbstractTPM):
         #make a temp file for the output
         with tempfile.NamedTemporaryFile() as tmppath:
             # generates pubek.pem
-            if legacy_tools:
-                retDict = self.__run(f"tpm2_readpublic -H {hex(handle)} -o {tmppath.name} -f pem", raiseOnError=False,outputpaths=tmppath.name)
+
+            if tools_version == "3.2":
+                retDict = self.__run(f"tpm2_readpublic -H {hex(handle)} -o {tmppath.name} -f pem", raiseOnError=False, outputpaths=tmppath.name)
             else:
                 retDict = self.__run(f"tpm2_readpublic -c {hex(handle)} -o {tmppath.name} -f pem", raiseOnError=False,outputpaths=tmppath.name)
 
@@ -479,7 +513,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         'aik' metadata.
         """
 
-        if not legacy_tools:
+        if not tools_version == "3.2":
             logger.error("The get_pub_aik method does not apply to modern tpm2-tools!")
             return
 
@@ -515,16 +549,21 @@ class tpm2(tpm_abstract.AbstractTPM):
         # clear out old handle before starting again (give idempotence)
         if self.get_tpm_metadata('aik') is not None and self.get_tpm_metadata('aik_name') is not None:
             aik_handle = self.get_tpm_metadata('aik_handle')
-            logger.info(f"Flushing old ak handle: {hex(aik_handle)}")
 
-            retDict = self.__run("tpm2_getcap -c handles-persistent", raiseOnError=False)
+            if tools_version == "3.2":
+                logger.info(f"Flushing old ak handle: {hex(aik_handle)}")
+                retDict = self.__run("tpm2_getcap -c handles-persistent", raiseOnError=False)
+            elif tools_version == "4.0":
+                logger.info(f"Flushing old ak handle: {aik_handle}")
+                retDict = self.__run("tpm2_getcap handles-persistent", raiseOnError=False)
+
             output = common.list_convert(retDict['retout'])
             code = retDict['code']
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception(f"tpm2_getcap failed with code {code}: {output}")
 
-            if legacy_tools:
+            if tools_version == "3.2":
                 # output, human-readable -> json
                 output = "".join(output)
                 output = output.replace("0x", " - 0x")
@@ -532,7 +571,8 @@ class tpm2(tpm_abstract.AbstractTPM):
 
             outjson = common.yaml_to_dict(output)
             if outjson is not None and aik_handle in outjson:
-                if legacy_tools:
+
+                if legacy_tools == "3.2":
                     retDict = self.__run(f"tpm2_evictcontrol -A o -c {hex(aik_handle)} -P {owner_pw}",raiseOnError=False)
                 else:
                     retDict = self.__run(f"tpm2_evictcontrol -a o -c {hex(aik_handle)} -P {owner_pw}",raiseOnError=False)
@@ -541,7 +581,11 @@ class tpm2(tpm_abstract.AbstractTPM):
                 code = retDict['code']
 
                 if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                    logger.info(f"Failed to flush old ak handle: {hex(aik_handle)}.  Code {code}: {output}")
+
+                    if tools_version == "3.2":
+                        logger.info(f"Failed to flush old ak handle: {hex(aik_handle)}.  Code {code}: {output}")
+                    elif tools_version == "4.0":
+                        logger.info(f"Failed to flush old ak handle: {hex(aik_handle)}.  Code {code}: {output}")
 
                 self._set_tpm_metadata('aik', None)
                 self._set_tpm_metadata('aik_name', None)
@@ -558,8 +602,16 @@ class tpm2(tpm_abstract.AbstractTPM):
         aik_pw = tpm_abstract.TPM_Utilities.random_password(20)
         #make a temp file for the output
         with tempfile.NamedTemporaryFile() as akpubfile:
+            
+            secpath = ""
+            if tools_version == "4.0":
+                # ok lets write out the key now
+                secdir = secure_mount.mount() # confirm that storage is still securely mounted
+                secfd, secpath = tempfile.mkstemp(dir=secdir)
+            
             cmdargs = {
                 'ekhandle': hex(ek_handle),
+                'aksession': secpath,
                 'akpubfile': akpubfile.name,
                 'asymalg': asym_alg,
                 'hashalg': hash_alg,
@@ -568,10 +620,10 @@ class tpm2(tpm_abstract.AbstractTPM):
                 'opw': owner_pw,
                 'apw': aik_pw
             }
-            if legacy_tools:
+            if tools_version == "3.2":
                 command = "tpm2_getpubak -E {ekhandle} -k 0x81010008 -g {asymalg} -D {hashalg} -s {signalg} -f {akpubfile} -e {epw} -P {apw} -o {opw}".format(**cmdargs)
-            else:
-                command = "tpm2_createak -C {ekhandle} -k - -G {asymalg} -D {hashalg} -s {signalg} -p {akpubfile} -f pem -e {epw} -P {apw} -o {opw}".format(**cmdargs)
+            elif tools_version == "4.0":
+                command = "tpm2_createak -C {ekhandle} -c {aksession} -G {asymalg} -g {hashalg} -s {signalg} -u {akpubfile} -f pem -p {apw} -P {epw}".format(**cmdargs)
             retDict = self.__run(command, outputpaths=akpubfile.name)
             retout = retDict['retout']
             code = retDict['code']
@@ -582,7 +634,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             jsonout = common.yaml_to_dict(retout)
             akname = jsonout['loaded-key']['name']
 
-            if legacy_tools:
+            if tools_version == "3.2":
                 if 'loaded-key' not in jsonout or 'name' not in jsonout['loaded-key']:
                     raise Exception(f"tpm2_createak failed to create aik: return {retout}")
 
@@ -595,7 +647,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 if 'loaded-key' not in jsonout or 'ak-persistent-handle' not in jsonout:
                     raise Exception(f"tpm2_createak failed to create aik: return {retout}")
 
-                handle = jsonout['ak-persistent-handle']
+                handle = secpath
                 pem = retDict['fileouts'][akpubfile.name]
                 if pem == "":
                     raise Exception("unable to read public aik from create identity.  Is your tpm2-tools installation up to date?")
@@ -610,7 +662,10 @@ class tpm2(tpm_abstract.AbstractTPM):
 
     def flush_keys(self):
         logger.debug("Flushing keys from TPM...")
-        retDict = self.__run("tpm2_getcap -c handles-persistent")
+        if tools_version == "3.2":
+                retDict = self.__run("tpm2_getcap -c handles-persistent")
+        elif tools_version == "4.0":
+                retDict = self.__run("tpm2_getcap handles-persistent")
         # retout = retDict['retout']
         retout = common.list_convert(retDict['retout'])
         code = retDict['code']
@@ -618,7 +673,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             logger.debug(f"tpm2_getcap failed with code {code}: {retout}")
 
-        if legacy_tools:
+        if tools_version == "3.2":
             # output, human-readable -> json
             retout = "".join(retout)
             retout = retout.replace("0x", " - 0x")
@@ -670,10 +725,10 @@ class tpm2(tpm_abstract.AbstractTPM):
                 'blobout': blobpath,
                 'challenge': challengeFile.name
             }
-            if legacy_tools:
+            if tools_version == "3.2":
                 command = "tpm2_makecredential -T none -e {ekpub} -s {challenge} -n {akname} -o {blobout}".format(**cmdargs)
             else:
-                command = "tpm2_makecredential -e {ekpub} -s {challenge} -n {akname} -o {blobout} --no-tpm".format(**cmdargs)
+                command = "tpm2_makecredential -T none -e {ekpub} -s {challenge} -n {akname} -o {blobout}".format(**cmdargs)
             self.__run(command, lock=False)
 
             logger.info(f"Encrypting AIK for UUID {uuid}")
@@ -708,6 +763,7 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         keyblobFile = None
         secpath = None
+        sesspath = None
         try:
             # write out key blob
             kfd, ktemp = tempfile.mkstemp()
@@ -722,20 +778,35 @@ class tpm2(tpm_abstract.AbstractTPM):
             secdir = secure_mount.mount() # confirm that storage is still securely mounted
 
             secfd, secpath = tempfile.mkstemp(dir=secdir)
+            sessfd, sesspath = tempfile.mkstemp(dir=secdir)
 
-            cmdargs = {
-                'akhandle': hex(aik_keyhandle),
-                'ekhandle': hex(ek_keyhandle),
-                'keyblobfile': keyblobFile.name,
-                'credfile': secpath,
-                'apw': self.get_tpm_metadata('aik_pw'),
-                'epw': owner_pw
-            }
-            if legacy_tools:
+            if tools_version == "3.2":
+                cmdargs = {
+                    'akhandle': hex(aik_keyhandle),
+                    'ekhandle': hex(ek_keyhandle),
+                    'keyblobfile': keyblobFile.name,
+                    'credfile': secpath,
+                    'apw': self.get_tpm_metadata('aik_pw'),
+                    'epw': owner_pw
+                }
                 command = "tpm2_activatecredential -H {akhandle} -k {ekhandle} -f {keyblobfile} -o {credfile} -P {apw} -e {epw}".format(**cmdargs)
+                retDict = self.__run(command, outputpaths=secpath)
             else:
-                command = "tpm2_activatecredential -c {akhandle} -C {ekhandle} -f {keyblobfile} -o {credfile} -P {apw} -E {epw}".format(**cmdargs)
-            retDict = self.__run(command, outputpaths=secpath)
+                cmdargs = {
+                    'akhandle': aik_keyhandle,
+                    'ekhandle': hex(ek_keyhandle),
+                    'keyblobfile': keyblobFile.name,
+                    'sessfile': sesspath,
+                    'credfile': secpath,
+                    'apw': self.get_tpm_metadata('aik_pw'),
+                    'epw': owner_pw
+                }
+                self.__run("tpm2_startauthsession --policy-session -S {sessfile}".format(**cmdargs))
+                self.__run("tpm2_policysecret -S {sessfile} -c 0x4000000B {epw}".format(**cmdargs))
+                command = "tpm2_activatecredential -c {akhandle} -C {ekhandle} -i {keyblobfile} -o {credfile} -p {apw} -P \"session:{sessfile}\"".format(**cmdargs)
+                retDict = self.__run(command, outputpaths=secpath)
+                self.__run("tpm2_flushcontext {sessfile}".format(**cmdargs))
+
             retout = retDict['retout']
             code = retDict['code']
             fileout = retDict['fileouts'][secpath]
@@ -754,6 +825,8 @@ class tpm2(tpm_abstract.AbstractTPM):
                 os.remove(keyblobFile.name)
             if secpath is not None and os.path.exists(secpath):
                 os.remove(secpath)
+            if sesspath is not None and os.path.exists(sesspath):
+                os.remove(sesspath)
         return key
 
     def verify_ek(self, ekcert, ekpem):
@@ -788,7 +861,10 @@ class tpm2(tpm_abstract.AbstractTPM):
 
     def get_tpm_manufacturer(self):
         vendorStr = None
-        retDict = self.__run("tpm2_getcap -c properties-fixed")
+        if tools_version == "3.2":
+            retDict = self.__run("tpm2_getcap -c properties-fixed")
+        elif tools_version == "4.0":
+            retDict = self.__run("tpm2_getcap properties-fixed")
         output = retDict['retout']
         code = retDict['code']
 
@@ -864,20 +940,30 @@ class tpm2(tpm_abstract.AbstractTPM):
                             self.__run(f"tpm2_pcrreset {common.TPM_DATA_PCR}", lock=False)
                             self.extendPCR(pcrval=common.TPM_DATA_PCR, hashval=self.hashdigest(data), lock=False)
 
-                        cmdargs = {
-                            'aik_handle': hex(keyhandle),
-                            'hashalg' : hash_alg,
-                            'pcrlist': pcrlist,
-                            'nonce': bytes(nonce, encoding="utf8").hex(),
-                            'outquote': quotepath.name,
-                            'outsig': sigpath.name,
-                            'outpcr': pcrpath.name,
-                            'akpw': aik_pw
-                        }
-                        if legacy_tools:
+                        if tools_version == "3.2":
+                            cmdargs = {
+                                'aik_handle': hex(keyhandle),
+                                'hashalg' : hash_alg,
+                                'pcrlist': pcrlist,
+                                'nonce': bytes(nonce, encoding="utf8").hex(),
+                                'outquote': quotepath.name,
+                                'outsig': sigpath.name,
+                                'outpcr': pcrpath.name,
+                                'akpw': aik_pw
+                            }
                             command = "tpm2_quote -k {aik_handle} -L {hashalg}:{pcrlist} -q {nonce} -m {outquote} -s {outsig} -p {outpcr} -G {hashalg} -P {akpw}".format(**cmdargs)
                         else:
-                            command = "tpm2_deluxequote -C {aik_handle} -L {hashalg}:{pcrlist} -q {nonce} -m {outquote} -s {outsig} -p {outpcr} -G {hashalg} -P {akpw}".format(**cmdargs)
+                            cmdargs = {
+                                'aik_handle': keyhandle,
+                                'hashalg' : hash_alg,
+                                'pcrlist': pcrlist,
+                                'nonce': bytes(nonce, encoding="utf8").hex(),
+                                'outquote': quotepath.name,
+                                'outsig': sigpath.name,
+                                'outpcr': pcrpath.name,
+                                'akpw': aik_pw
+                            }
+                            command = "tpm2_quote -c {aik_handle} -l {hashalg}:{pcrlist} -q {nonce} -m {outquote} -s {outsig} -o {outpcr} -g {hashalg} -p {akpw}".format(**cmdargs)
                         retDict = self.__run(command, lock=False, outputpaths=[quotepath.name, sigpath.name, pcrpath.name])
                         retout = retDict['retout']
                         code = retDict['code']
@@ -915,7 +1001,10 @@ class tpm2(tpm_abstract.AbstractTPM):
         }
 
 
-        command = "tpm2_checkquote -c {pubak} -m {quotefile} -s {sigfile} -p {pcrfile} -G {hashalg} -q {nonce}"
+        if tools_version == "3.2":
+            command = "tpm2_checkquote -c {pubak} -m {quotefile} -s {sigfile} -p {pcrfile} -G {hashalg} -q {nonce}"
+        else:
+            command = "tpm2_checkquote -u {pubak} -m {quotefile} -s {sigfile} -f {pcrfile} -g {hashalg} -q {nonce}"
         retDict = self.__run(command.format(**cmdargs), lock=False)
         return retDict
 
@@ -1030,7 +1119,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         return f'{yamlout[hash_alg][pcrval]:0{alg_size}x}'
 
     #tpm_random
-    def _get_tpm_rand_block(self, size=4096):
+    def _get_tpm_rand_block(self, size=32):
         #make a temp file for the output
         rand = None
         with tempfile.NamedTemporaryFile() as randpath:
@@ -1057,13 +1146,13 @@ class tpm2(tpm_abstract.AbstractTPM):
             keyFile.write(key)
             keyFile.flush()
 
-            attrs = "ownerread|policywrite|ownerwrite"
-            if legacy_tools:
-                self.__run(f'tpm2_nvdefine -x 0x1500018 -a 0x40000001 -s {common.BOOTSTRAP_KEY_SIZE} -t \"{attrs}\" -I {owner_pw} -P {owner_pw}', raiseOnError=False)
+            attrs = "ownerread|ownerwrite"
+            if tools_version == "3.2":
+                self.__run(f"tpm2_nvdefine -x 0x1500018 -a 0x40000001 -s {common.BOOTSTRAP_KEY_SIZE} -t '{attrs}' -I {owner_pw} -P {owner_pw}", raiseOnError=False)
+                self.__run(f"tpm2_nvwrite -x 0x1500018 -a 0x40000001 -P {owner_pw} {keyFile.name}", raiseOnError=False)
             else:
-                self.__run(f'tpm2_nvdefine -x 0x1500018 -a 0x40000001 -s {common.BOOTSTRAP_KEY_SIZE} -t \"{attrs}\" -p {owner_pw} -P {owner_pw}',raiseOnError=False)
-
-            self.__run(f"tpm2_nvwrite -x 0x1500018 -a 0x40000001 -P {owner_pw} {keyFile.name}", raiseOnError=False)
+                self.__run(f"tpm2_nvdefine 0x1500018 -C 0x40000001 -s {common.BOOTSTRAP_KEY_SIZE} -a '{attrs}' -p {owner_pw} -P {owner_pw}", raiseOnError=False)
+                self.__run(f"tpm2_nvwrite 0x1500018 -C 0x40000001 -P {owner_pw} -i {keyFile.name}", raiseOnError=False)
         return
 
     def read_ekcert_nvram(self):
@@ -1071,14 +1160,23 @@ class tpm2(tpm_abstract.AbstractTPM):
         with tempfile.NamedTemporaryFile() as nvpath:
 
             # Check for RSA EK cert in NVRAM (and get length)
-            retDict = self.__run("tpm2_nvlist", raiseOnError=False)
+            if tools_version == "3.2":
+                retDict = self.__run("tpm2_nvlist", raiseOnError=False)
+            elif tools_version == "4.0":
+                retDict = self.__run("tpm2_nvreadpublic", raiseOnError=False)
             output = retDict['retout']
             code = retDict['code']
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                raise Exception(f"tpm2_nvlist for ekcert failed with code {code}: {output}")
+
+                if tools_version == "3.2":
+                    raise Exception(f"tpm2_nvlist for ekcert failed with code {code}: {output}")
+                elif tools_version == "4.0":
+                    raise Exception(f"tpm2_nvreadpublic for ekcert failed with code {code}: {output}")
+
 
             outjson = common.yaml_to_dict(output)
+
             if outjson is None or 0x1c00002 not in outjson or "size" not in outjson[0x1c00002]:
                 logger.warn("No EK certificate found in TPM NVRAM")
                 return None
@@ -1086,7 +1184,12 @@ class tpm2(tpm_abstract.AbstractTPM):
             ekcert_size = outjson[0x1c00002]["size"]
 
             # Read the RSA EK cert from NVRAM (DER format)
-            retDict = self.__run(f"tpm2_nvread -x 0x1c00002 -s {ekcert_size} -f {nvpath.name}", raiseOnError=False,outputpaths=nvpath.name)
+
+            if tools_version == "3.2":
+                retDict = self.__run(f"tpm2_nvread -x 0x1c00002 -s {ekcert_size} -f {nvpath.name}", raiseOnError=False, outputpaths=nvpath.name)
+            else:
+                retDict = self.__run(f"tpm2_nvread 0x1c00002 -s {ekcert_size} -f {nvpath.name}", raiseOnError=False, outputpaths=nvpath.name)
+
             output = common.list_convert(retDict['retout'])
             code = retDict['code']
             ekcert = retDict['fileouts'][nvpath.name]
@@ -1098,15 +1201,23 @@ class tpm2(tpm_abstract.AbstractTPM):
 
     def read_key_nvram(self):
         owner_pw = self.get_tpm_metadata('owner_pw')
-        retDict = self.__run(f"tpm2_nvread -x 0x1500018 -a 0x40000001 -s {common.BOOTSTRAP_KEY_SIZE} -P {owner_pw}",raiseOnError=False)
+
+        if tools_version == "3.2":
+            retDict = self.__run(f"tpm2_nvread -x 0x1500018 -a 0x40000001 -s {common.BOOTSTRAP_KEY_SIZE} -P {owner_pw}", raiseOnError=False)
+        else:
+            retDict = self.__run(f"tpm2_nvread 0x1500018 -C 0x40000001 -s {common.BOOTSTRAP_KEY_SIZE} -P {owner_pw}", raiseOnError=False)
         output = common.list_convert(retDict['retout'])
         code = retDict['code']
 
-        if code != tpm_abstract.AbstractTPM.EXIT_SUCESS and len(output) > 0 and "ERROR: Failed to read NVRAM public area at index" in "\n".join(output):
-            logger.debug("No stored U in TPM NVRAM")
-            return None
-        elif code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            raise Exception(f"nv_readvalue failed with code {code}: {output}")
+        if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+            if len(output) > 0 and "handle does not exist" in "\n".join(output):
+                logger.debug("No stored U in TPM NVRAM")
+                return None
+            elif len(output) > 0 and "ERROR: Failed to read NVRAM public area at index" in "\n".join(output):
+                logger.debug("No stored U in TPM NVRAM")
+                return None
+            else:
+                raise Exception(f"nv_readvalue failed with code {code}: {output}")
 
         if len(output) != common.BOOTSTRAP_KEY_SIZE:
             logger.debug(f"Invalid key length from NVRAM: {output}")

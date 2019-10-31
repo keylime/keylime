@@ -1,0 +1,9 @@
+[Unit]
+Description=The Keylime verifier service
+After=network.target
+
+[Service]
+ExecStart=KEYLIMEDIR/keylime_verifier
+
+[Install]
+WantedBy=default.target

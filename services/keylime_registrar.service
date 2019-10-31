@@ -1,0 +1,9 @@
+[Unit]
+Description=The Keylime registrar service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/keylime_registrar
+
+[Install]
+WantedBy=default.target

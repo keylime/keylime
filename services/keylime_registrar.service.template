@@ -1,6 +1,6 @@
 [Unit]
-Wants=keylime_verifier.service
-After=network.target keylime_verifier.service
+Description=The Keylime registrar service
+After=network.target
 
 [Service]
 ExecStart=KEYLIMEDIR/keylime_registrar
