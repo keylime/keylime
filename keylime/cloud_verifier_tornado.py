@@ -94,7 +94,7 @@ class AgentsHandler(BaseHandler):
         """HEAD not supported"""
         common.echo_json_response(self, 405, "HEAD not supported")
 
-    def get(self):
+    async def get(self):
         """This method handles the GET requests to retrieve status on agents from the Cloud Verifier.
 
         Currently, only agents resources are available for GETing, i.e. /agents. All other GET uri's
@@ -148,14 +148,11 @@ class AgentsHandler(BaseHandler):
             await res = tornado_requests.request("GET", url, context=None)
             print(res)
             print("successful for now , without response back to tenant")
-            # response = await res 
-            # # DEBUG content of response and whether async works in get
-            # print(response)
-
-            # Method using
-            # res = tornado_requests.request("GET",
-            # "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(agent['ip'],agent['port'],params["nonce"],params["mask"],params['vmask'],partial_req), context=None)
-            # response = await res
+            print(res)
+            
+            response = await res 
+            json_response = json.loads(response.body)
+            common.echo_json_response(self, 200, "Success", json_response)
         else:
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.request.path)
@@ -386,9 +383,12 @@ class AgentsHandler(BaseHandler):
         print("invoke_get_prov_quote")
         # TODO: hardcoding provider ip addr, need to read this info somewhere
         url = "http://%s:%d/verifier?nonce=%s&mask=%s&vmask=%s"%("10.0.2.4",8881,params["nonce"],params["mask"],params['vmask'])
-        print(url)
+        print("requesting from tenant")
         res = tornado_requests.request("GET", url, context=None)
         response = await res
+        print("waiting")
+        print(response.body)
+        print(response.status_code)
         # process response:
         if response.status_code !=200:
             if response.status_code == 599:
@@ -401,6 +401,7 @@ class AgentsHandler(BaseHandler):
             try:
                 json_response = json.loads(response.body)
                 print(json_response) # so far doing now
+                # common.echo_json_response(self, 200, json_response)
                 # TODO develop a mechanism to validate provider quote
                 # # validate the provider response
     #             if cloud_verifier_common.process_quote_response(agent, json_response['results']):
