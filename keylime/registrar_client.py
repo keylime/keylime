@@ -22,6 +22,7 @@ import base64
 import ssl
 import os
 import logging
+import http
 
 try:
     import simplejson as json
@@ -35,6 +36,7 @@ from keylime import httpclient_requests
 
 logger = keylime_logging.init_logging('registrar_client')
 context = None
+enable_tls = True
 
 def init_client_tls(config,section):
     global context
@@ -45,6 +47,8 @@ def init_client_tls(config,section):
 
     if not config.getboolean('general',"enable_tls"):
         logger.warning("TLS is currently disabled, AIKs may not be authentic.")
+        global enableTLS
+        enableTLS = False
         return None
 
     logger.info("Setting up client TLS...")
@@ -97,9 +101,9 @@ def getAIK(registrar_ip,registrar_port,agent_id):
 
 def getKeys(registrar_ip,registrar_port,agent_id):
     global context
-
+    global enableTLS
     #make absolutely sure you don't ask for AIKs unauthenticated
-    if context is None or context.verify_mode != ssl.CERT_REQUIRED:
+    if enableTLS and (context is None or context.verify_mode != ssl.CERT_REQUIRED):
         raise Exception("It is unsafe to use this interface to query AIKs with out server authenticated TLS")
 
     try:
@@ -138,6 +142,10 @@ def doRegisterAgent(registrar_ip,registrar_port,agent_id,tpm_version,pub_ek,ekce
     v_json_message = json.dumps(data)
     params = '/agents/%s'% (agent_id)
     response = httpclient_requests.request("POST", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message, context=None)
+    if isinstance(response,int):
+        logger.error("Error: unexpected http response code from Registrar Server: %d"%response)
+        return None
+
     response_body = json.loads(response.read().decode("utf-8"))
 
     if response.status != 200:

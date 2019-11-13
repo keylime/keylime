@@ -25,6 +25,7 @@ from setuptools import setup, find_packages, Extension
 from codecs import open
 from os import path
 from os import walk
+from os import geteuid
 import sys
 
 here = path.abspath(path.dirname(__file__))
@@ -49,7 +50,10 @@ if '--with-clime' in sys.argv:
     sys.argv.remove('--with-clime')
 
 # enumerate all of the data files we need to package up
-data_files = [('/etc', ['keylime.conf'])]
+if geteuid() == 0:
+    data_files = [('/etc', ['keylime.conf'])]
+else:
+    data_files = [('package_default', ['keylime.conf'])]
 
 setup(
     name='keylime',
@@ -57,7 +61,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.2',
+    version='5.2.0',
 
     description='TPM-based key bootstrapping and system integrity measurement system for cloud',
     long_description=long_description,
@@ -139,6 +143,7 @@ setup(
     entry_points={
         'console_scripts': [
             'keylime_verifier=keylime.cloud_verifier_tornado:main',
+            'keylime_provider_verifier=keylime.provider_verifier:main',
             'keylime_agent=keylime.cloud_agent:main',
             'keylime_tenant=keylime.tenant:main',
             'keylime_userdata_encrypt=keylime.user_data_encrypt:main',
