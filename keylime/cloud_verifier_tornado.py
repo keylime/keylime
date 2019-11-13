@@ -140,12 +140,13 @@ class AgentsHandler(BaseHandler):
             agent = self.db.get_agent_ids()
             new_agent = self.db.get_agent(agent[0])
             # DEBUG ensure we have correct ip and port
-            print(new_agent['ip'],new_agent['port'], new_agent['need_provider_quote']) 
+            # print(new_agent['ip'],new_agent['port'], new_agent['need_provider_quote']) 
             url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(new_agent['ip'],new_agent['port'],rest_params["nonce"],rest_params["mask"],rest_params['vmask'],partial_req)
             # DEBUG check url
             print(url)
             # Launch GET request
-            res = tornado_requests.request("GET", url, context=None)
+            await res = tornado_requests.request("GET", url, context=None)
+            print(res)
             print("successful for now , without response back to tenant")
             # response = await res 
             # # DEBUG content of response and whether async works in get
@@ -253,7 +254,7 @@ class AgentsHandler(BaseHandler):
                     # ================
                     # d['provider_ip'] = ""
                     # d['provider_verifier_port'] = ""
-                    d['need_provider_quote'] = False
+                    d['need_provider_quote'] = True
                     # ================
                     
 
@@ -385,7 +386,7 @@ class AgentsHandler(BaseHandler):
         print("invoke_get_prov_quote")
         # TODO: hardcoding provider ip addr, need to read this info somewhere
         url = "http://%s:%d/verifier?nonce=%s&mask=%s&vmask=%s"%("10.0.2.4",8881,params["nonce"],params["mask"],params['vmask'])
-        
+        print(url)
         res = tornado_requests.request("GET", url, context=None)
         response = await res
         # process response:
@@ -475,7 +476,7 @@ class AgentsHandler(BaseHandler):
 
             # propagate all state
             self.db.overwrite_agent(agent['agent_id'], agent)
-
+            print("main_agent_operational_state: ", main_agent_operational_state, " & new_operational_state: ", new_operational_state)
             # if new, get a quote
             if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.START and \
                 new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE:
