@@ -104,32 +104,62 @@ class AgentsHandler(BaseHandler):
         to contact the Cloud Agent.
         """
         rest_params = common.get_restful_params(self.request.uri)
+        # DEBUG
+        print("get a request with", rest_params)
+
         if rest_params is None:
             common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
-        if "agents" not in rest_params:
+        if "agents" in rest_params:
+            agent_id = rest_params["agents"]
+
+            if agent_id is not None:
+                agent = self.db.get_agent(agent_id)
+                if agent != None:
+                    response = cloud_verifier_common.process_get_status(agent)
+                    common.echo_json_response(self, 200, "Success", response)
+                    #logger.info('GET returning 200 response for agent_id: ' + agent_id)
+
+                else:
+                    #logger.info('GET returning 404 response. agent id: ' + agent_id + ' not found.')
+                    common.echo_json_response(self, 404, "agent id not found")
+            else:
+                # return the available keys in the DB
+                json_response = self.db.get_agent_ids()
+                common.echo_json_response(self, 200, "Success", {'uuids':json_response})
+                logger.info('GET returning 200 response for agent_id list')
+        elif "verifier" in rest_params:
+            # develope verifier api endpoint
+            # DEBUG
+            print("entering the verifier with: ", rest_params)
+            partial_req = "1"  # don't need a pub key
+            # TODO
+            # assign the only agent we have as the provider 
+            # actually should figure out which agent the corresponding provider to the tenant who send the request
+            agent = self.db.get_agent_ids()
+            new_agent = self.db.get_agent(agent[0])
+            # DEBUG ensure we have correct ip and port
+            print(new_agent['ip'],new_agent['port'], new_agent['need_provider_quote']) 
+            url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(new_agent['ip'],new_agent['port'],rest_params["nonce"],rest_params["mask"],rest_params['vmask'],partial_req)
+            # DEBUG check url
+            print(url)
+            # Launch GET request
+            res = tornado_requests.request("GET", url, context=None)
+            print("successful for now , without response back to tenant")
+            # response = await res 
+            # # DEBUG content of response and whether async works in get
+            # print(response)
+
+            # Method using
+            # res = tornado_requests.request("GET",
+            # "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(agent['ip'],agent['port'],params["nonce"],params["mask"],params['vmask'],partial_req), context=None)
+            # response = await res
+        else:
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.request.path)
-            return
+            # return  # not sure is necessary
 
-        agent_id = rest_params["agents"]
-
-        if agent_id is not None:
-            agent = self.db.get_agent(agent_id)
-            if agent != None:
-                response = cloud_verifier_common.process_get_status(agent)
-                common.echo_json_response(self, 200, "Success", response)
-                #logger.info('GET returning 200 response for agent_id: ' + agent_id)
-
-            else:
-                #logger.info('GET returning 404 response. agent id: ' + agent_id + ' not found.')
-                common.echo_json_response(self, 404, "agent id not found")
-        else:
-            # return the available keys in the DB
-            json_response = self.db.get_agent_ids()
-            common.echo_json_response(self, 200, "Success", {'uuids':json_response})
-            logger.info('GET returning 200 response for agent_id list')
 
     def delete(self):
         """This method handles the DELETE requests to remove agents from the Cloud Verifier.
@@ -218,6 +248,14 @@ class AgentsHandler(BaseHandler):
                     d['hash_alg'] = ""
                     d['enc_alg'] = ""
                     d['sign_alg'] = ""
+                    # TODO: global setting in keylime.conf to assign these parameters
+                    # currently hardcoding here
+                    # ================
+                    # d['provider_ip'] = ""
+                    # d['provider_verifier_port'] = ""
+                    d['need_provider_quote'] = False
+                    # ================
+                    
 
                     new_agent = self.db.add_agent(agent_id,d)
 
@@ -295,6 +333,8 @@ class AgentsHandler(BaseHandler):
         if agent is None:
             raise Exception("agent deleted while being processed")
         params = cloud_verifier_common.prepare_get_quote(agent)
+        # why this line is missing is file
+        agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
 
         partial_req = "1"
         if need_pubkey:
@@ -319,6 +359,14 @@ class AgentsHandler(BaseHandler):
 
                     # validate the cloud agent response
                     if cloud_verifier_common.process_quote_response(agent, json_response['results']):
+                        
+                        # TODO: need a policy to determine when do we need and disable provider's quote
+                        # Current approach: provider_quote only run once when bootstrapping
+                        if agent['provide_V'] == False:
+                            agent['need_provider_quote'] = False
+
+                        if agent['need_provider_quote']:
+                            asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_PROVIDER_QUOTE)  )
                         if agent['provide_V']:
                             asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V))
                         else:
@@ -328,6 +376,44 @@ class AgentsHandler(BaseHandler):
 
             except Exception as e:
                 logger.exception(e)
+
+    async def invoke_get_prov_quote(self, agent, need_pubkey):
+        # obviously not need pubkey, delete latter
+        params = cloud_verifier_common.prepare_get_quote(agent)
+        agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_PROVIDER_QUOTE
+        # DEBUG
+        print("invoke_get_prov_quote")
+        # TODO: hardcoding provider ip addr, need to read this info somewhere
+        url = "http://%s:%d/verifier?nonce=%s&mask=%s&vmask=%s"%("10.0.2.4",8881,params["nonce"],params["mask"],params['vmask'])
+        
+        res = tornado_requests.request("GET", url, context=None)
+        response = await res
+        # process response:
+        if response.status_code !=200:
+            if response.status_code == 599:
+                asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_PROVIDER_QUOTE_RETRY))
+            else:
+                error = "Unexpected Get Quote response error for provider: " + "10.0.2.4:8881 " + ", Error: " + str(response.status_code)
+                logger.critical(error)
+                asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED))
+        else:
+            try:
+                json_response = json.loads(response.body)
+                print(json_response) # so far doing now
+                # TODO develop a mechanism to validate provider quote
+                # # validate the provider response
+    #             if cloud_verifier_common.process_quote_response(agent, json_response['results']):
+    #                 if agent['provide_V']: 
+    #                     asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V))
+    #                 else:  # theoretically won't get here
+    #                     asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
+    #             else:
+    #                 asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE))
+
+            except Exception as e:
+                logger.exception(e)
+
+        pass
 
 
     async def invoke_provide_v(self, agent):
@@ -398,7 +484,18 @@ class AgentsHandler(BaseHandler):
                 await self.invoke_get_quote(agent, True)
                 return
 
+
+            # if need provider quote
             if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE and \
+                new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_PROVIDER_QUOTE:
+                agent['num_retries'] = 0
+                agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_PROVIDER_QUOTE
+                await self.invoke_get_prov_quote(agent, True)
+                return
+
+
+            if (main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE or \
+                main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_PROVIDER_QUOTE) and \
                 (new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V):
                 agent['num_retries']=0
                 agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V
@@ -406,7 +503,8 @@ class AgentsHandler(BaseHandler):
                 return
 
             if (main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V or
-               main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE) and \
+               main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE or 
+               main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_PROVIDER_QUOTE) and \
                 new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE:
                 agent['num_retries']=0
                 interval = config.getfloat('cloud_verifier','quote_interval')
@@ -436,6 +534,26 @@ class AgentsHandler(BaseHandler):
                     agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
                     cb = functools.partial(self.invoke_get_quote, agent, True)
                     agent['num_retries']+=1
+                    logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(agent['ip'],agent['num_retries'],maxr,retry))
+                    tornado.ioloop.IOLoop.current().call_later(retry,cb)
+                return
+
+
+            # provider quote retry
+            if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_PROVIDER_QUOTE and \
+                new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_PROVIDER_QUOTE_RETRY:
+                if agent['num_retries'] >= maxr:
+                    logger.warning("provider %s was not reachable for quote in %d tries, setting state to FAILED"%(agent['agent_id'],maxr))
+                    # TODO this logic may need to be split between agent and verifier
+                    if agent['first_verified']: # only notify on previously good agents
+                        cloud_verifier_common.notifyError(agent,'comm_error')
+                    else:
+                        logger.debug("Communication error for new agent.  no notification will be sent")
+                    await self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
+                else:
+                    cb = functools.partial(self.invoke_get_prov_quote, agent, True)
+                    agent['num_retries']+=1
+                    # TODO agent ip/port needs to be changed to provider
                     logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(agent['ip'],agent['num_retries'],maxr,retry))
                     tornado.ioloop.IOLoop.current().call_later(retry,cb)
                 return
@@ -489,6 +607,7 @@ def main(argv=sys.argv):
 
     app = tornado.web.Application([
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler,{'db':db}),
+        (r"/verifier.*", AgentsHandler,{'db':db}),
         (r".*", MainHandler),
         ])
 
@@ -497,7 +616,7 @@ def main(argv=sys.argv):
     #after TLS is up, start revocation notifier
     if config.getboolean('cloud_verifier', 'revocation_notifier'):
         logger.info("Starting service for revocation notifications on port %s"%config.getint('general','revocation_notifier_port'))
-        revocation_notifier.start_broker()
+        revocation_notifier.start_broker()  # need to pass in the rev_port?
 
     sockets = tornado.netutil.bind_sockets(int(cloudverifier_port), address='0.0.0.0')
     tornado.process.fork_processes(config.getint('cloud_verifier','multiprocessing_pool_num_workers'))

@@ -64,6 +64,8 @@ class CloudAgent_Operational_State:
     TERMINATED = 8
     INVALID_QUOTE = 9
     TENANT_FAILED = 10
+    GET_PROVIDER_QUOTE = 11
+    GET_PROVIDER_QUOTE_RETRY = 12
 
     STR_MAPPINGS = {
         0: "Registered",
@@ -76,7 +78,9 @@ class CloudAgent_Operational_State:
         7: "Failed",
         8: "Terminated",
         9: "Invalid Quote",
-        10: "Tenant Quote Failed"
+        10: "Tenant Quote Failed",
+        11 : "Get Provider Quote",
+        12 : "Get Provider Quote (retry)"
     }
 
 
