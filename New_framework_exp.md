@@ -1,12 +1,12 @@
 # Changes
 1. Delete the call back function, since the tornado 6.0 will no longer support this function
-2. We use `res = tornado_requests.request` instead of using tornado asynchonize client to send request
+2. We use `res = tornado_requests.request` instead of using tornado asynchonize client to send request.
 [tornado_requests.request](https://github.com/cjustacoder/keylime/blob/469aa7bf55e68b52db3d6ded0b779ca4726b2a38/keylime/cloud_verifier_tornado.py#L343-L344)
-3. Since we don't have call-back function, we directly handle the response in the same function which we use to send the request
+3. Since we don't have call-back function, we directly handle the response in the same function which we use to send the request.
 [merge callback function into request function](https://github.com/cjustacoder/keylime/blob/469aa7bf55e68b52db3d6ded0b779ca4726b2a38/keylime/cloud_verifier_tornado.py#L347-L378)
-4. Since the tornado server is still asynchonized, the response is a `future` objct, hence we need to use `await` keywords before the response
+4. Since the tornado server is still asynchonized, the response is a `future` objct, hence we need to use `await` keywords before the response.
 [await](https://github.com/cjustacoder/keylime/blob/469aa7bf55e68b52db3d6ded0b779ca4726b2a38/keylime/cloud_verifier_tornado.py#L345)
-5. Since we need to use keyword `await`, (almost) all the handling function need to add keyword `async` before `def`
+5. Since we need to use keyword `await`, (almost) all the handling function need to add keyword `async` before `def`.
 [async](https://github.com/cjustacoder/keylime/blob/469aa7bf55e68b52db3d6ded0b779ca4726b2a38/keylime/cloud_verifier_tornado.py#L332)
 6. Outside the asynchonized loop, we use `asyncio.ensure_future` to invoke with these asynchonized function to ensure we get concrete feedback inside the future object. [asyncio.ensure_future](https://github.com/cjustacoder/keylime/blob/469aa7bf55e68b52db3d6ded0b779ca4726b2a38/keylime/cloud_verifier_tornado.py#L267)
 
