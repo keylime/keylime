@@ -94,7 +94,7 @@ class AgentsHandler(BaseHandler):
         """HEAD not supported"""
         common.echo_json_response(self, 405, "HEAD not supported")
 
-    def get(self):
+    async def get(self):
         """This method handles the GET requests to retrieve status on agents from the Cloud Verifier.
 
         Currently, only agents resources are available for GETing, i.e. /agents. All other GET uri's
@@ -140,14 +140,18 @@ class AgentsHandler(BaseHandler):
             agent = self.db.get_agent_ids()
             new_agent = self.db.get_agent(agent[0])
             # DEBUG ensure we have correct ip and port
-            print(new_agent['ip'],new_agent['port'], new_agent['need_provider_quote']) 
+            # print(new_agent['ip'],new_agent['port'], new_agent['need_provider_quote']) 
             url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(new_agent['ip'],new_agent['port'],rest_params["nonce"],rest_params["mask"],rest_params['vmask'],partial_req)
             # DEBUG check url
             print(url)
             # Launch GET request
             res = tornado_requests.request("GET", url, context=None)
             print("successful for now , without response back to tenant")
-            # response = await res 
+            print(res)
+            
+            response = await res 
+            json_response = json.loads(response.body)
+            common.echo_json_response(self, 200, "Success", json_response)
             # # DEBUG content of response and whether async works in get
             # print(response)
 
@@ -253,7 +257,7 @@ class AgentsHandler(BaseHandler):
                     # ================
                     # d['provider_ip'] = ""
                     # d['provider_verifier_port'] = ""
-                    d['need_provider_quote'] = False
+                    d['need_provider_quote'] = True
                     # ================
                     
 
@@ -385,9 +389,12 @@ class AgentsHandler(BaseHandler):
         print("invoke_get_prov_quote")
         # TODO: hardcoding provider ip addr, need to read this info somewhere
         url = "http://%s:%d/verifier?nonce=%s&mask=%s&vmask=%s"%("10.0.2.4",8881,params["nonce"],params["mask"],params['vmask'])
-        
+        print("requesting from provider")
         res = tornado_requests.request("GET", url, context=None)
         response = await res
+        print("waiting")
+        print(response.body)
+        print(response.status_code)
         # process response:
         if response.status_code !=200:
             if response.status_code == 599:
@@ -400,6 +407,7 @@ class AgentsHandler(BaseHandler):
             try:
                 json_response = json.loads(response.body)
                 print(json_response) # so far doing now
+                # common.echo_json_response(self, 200, json_response)
                 # TODO develop a mechanism to validate provider quote
                 # # validate the provider response
     #             if cloud_verifier_common.process_quote_response(agent, json_response['results']):
