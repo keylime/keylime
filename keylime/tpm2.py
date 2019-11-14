@@ -593,13 +593,12 @@ class tpm2(tpm_abstract.AbstractTPM):
         aik_pw = tpm_abstract.TPM_Utilities.random_password(20)
         #make a temp file for the output
         with tempfile.NamedTemporaryFile() as akpubfile:
-            
             secpath = ""
             if tools_version == "4.0":
                 # ok lets write out the key now
                 secdir = secure_mount.mount() # confirm that storage is still securely mounted
                 secfd, secpath = tempfile.mkstemp(dir=secdir)
-            
+
             cmdargs = {
                 'ekhandle': hex(ek_handle),
                 'aksession': secpath,
@@ -1098,8 +1097,11 @@ class tpm2(tpm_abstract.AbstractTPM):
     def readPCR(self, pcrval, hash_alg=None):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
+        if tools_version == "3.2":
+            output = common.list_convert(self.__run("tpm2_pcrlist")['retout'])
+        elif tools_version == "4.0":
+            output = common.list_convert(self.__run("tpm2_pcrread")['retout'])
 
-        output = common.list_convert(self.__run("tpm2_pcrlist")['retout'])
         jsonout = common.yaml_to_dict(output)
 
         if hash_alg not in jsonout:
@@ -1176,8 +1178,8 @@ class tpm2(tpm_abstract.AbstractTPM):
             # Read the RSA EK cert from NVRAM (DER format)
             if tools_version == "3.2":
                 retDict = self.__run("tpm2_nvread -x 0x1c00002 -s %s -f %s"%(ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
-            else:
-                retDict = self.__run("tpm2_nvread 0x1c00002 -s %s -f %s"%(ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
+            elif tools_version == "4.0":
+                retDict = self.__run("tpm2_nvread 0x1c00002 -s %s -o %s"%(ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
             output = common.list_convert(retDict['retout'])
             code = retDict['code']
             ekcert = retDict['fileouts'][nvpath.name]
