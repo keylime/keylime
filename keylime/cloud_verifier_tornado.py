@@ -257,7 +257,7 @@ class AgentsHandler(BaseHandler):
                     # ================
                     # d['provider_ip'] = ""
                     # d['provider_verifier_port'] = ""
-                    d['need_provider_quote'] = True
+                    d['need_provider_quote'] = False
                     # ================
                     
 
