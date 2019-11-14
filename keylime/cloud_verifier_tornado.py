@@ -139,16 +139,11 @@ class AgentsHandler(BaseHandler):
             # actually should figure out which agent the corresponding provider to the tenant who send the request
             agent = self.db.get_agent_ids()
             new_agent = self.db.get_agent(agent[0])
-            # DEBUG ensure we have correct ip and port
-            # print(new_agent['ip'],new_agent['port'], new_agent['need_provider_quote']) 
             url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(new_agent['ip'],new_agent['port'],rest_params["nonce"],rest_params["mask"],rest_params['vmask'],partial_req)
             # DEBUG check url
             print(url)
             # Launch GET request
-            res = tornado_requests.request("GET", url, context=None)
-            print("successful for now , without response back to tenant")
-            print(res)
-            
+            res = tornado_requests.request("GET", url, context=None)            
             response = await res 
             json_response = json.loads(response.body)
             common.echo_json_response(self, 200, "Success", json_response)
@@ -156,6 +151,13 @@ class AgentsHandler(BaseHandler):
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.request.path)
             # return  # not sure is necessary
+    
+
+    async def provider_get_quote(url):
+    	res = tornado_requests.request("GET", url, context=None) 
+    	response = await res 
+    	json_response = json.loads(response.body)
+    	common.echo_json_response(self, 200, "Success", json_response)
 
 
     def delete(self):
@@ -400,6 +402,7 @@ class AgentsHandler(BaseHandler):
             try:
                 json_response = json.loads(response.body)
                 print(json_response) # so far doing now
+                # print(json_response['quote'])
                 # common.echo_json_response(self, 200, json_response)
                 # TODO develop a mechanism to validate provider quote
                 # # validate the provider response
@@ -476,7 +479,7 @@ class AgentsHandler(BaseHandler):
 
             # propagate all state
             self.db.overwrite_agent(agent['agent_id'], agent)
-            print("main_agent_operational_state: ", main_agent_operational_state, " & new_operational_state: ", new_operational_state)
+            # print("main_agent_operational_state: ", main_agent_operational_state, " & new_operational_state: ", new_operational_state)
             # if new, get a quote
             if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.START and \
                 new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE:
