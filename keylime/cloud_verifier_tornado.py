@@ -145,8 +145,7 @@ class AgentsHandler(BaseHandler):
             # DEBUG check url
             print(url)
             # Launch GET request
-            await res = tornado_requests.request("GET", url, context=None)
-            print(res)
+            res = tornado_requests.request("GET", url, context=None)
             print("successful for now , without response back to tenant")
             print(res)
             
