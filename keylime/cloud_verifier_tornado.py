@@ -143,21 +143,46 @@ class AgentsHandler(BaseHandler):
             # DEBUG check url
             print(url)
             # Launch GET request
+            # asyncio.ensure_future(provider_get_quote(url))
             res = tornado_requests.request("GET", url, context=None)            
             response = await res 
             json_response = json.loads(response.body)
-            common.echo_json_response(self, 200, "Success", json_response)
+            common.echo_json_response(self, 200, "Success", json_response["results"])
         else:
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: ' + self.request.path)
             # return  # not sure is necessary
     
-
+    # TODO: Asynchonize method design
     async def provider_get_quote(url):
-    	res = tornado_requests.request("GET", url, context=None) 
-    	response = await res 
-    	json_response = json.loads(response.body)
-    	common.echo_json_response(self, 200, "Success", json_response)
+        res = tornado_requests.request("GET", url, context=None) 
+        response = await res 
+        json_response = json.loads(response.body)
+        print("inside ensure_future")
+        common.echo_json_response(self, 200, "Success", json_response)
+        print("insure furture sucess")
+        # ===========asynchronize method=============
+        # asyncio.ensure_future(self.process_agent(new_agent, Operational_State.GET_QUOTE))
+        # async def process_agent(self, agent, new_operational_state):
+        # if main_agent_operational_state == Operational_State.START and \
+        #  ...  await self.invoke_get_quote(agent, True)
+        #            return
+
+     # async def invoke_get_quote(self, agent, need_pubkey):
+     #    res = tornado_requests.request("GET",
+     #                                "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(agent['ip'],agent['port'],params["nonce"],params["mask"],params['vmask'],partial_req), context=None)
+     #    response = await res
+     #    if response.status_code !=200:
+     #        # this is a connection error, retry get quote
+     #        if response.status_code == 599:
+     #            asyncio.ensure_future(self.process_agent(agent, Operational_State.GET_QUOTE_RETRY))
+     #        else:
+     #            #catastrophic error, do not continue
+     #            error = "Unexpected Get Quote response error for cloud agent " + agent['agent_id']  + ", Error: " + str(response.status_code)
+     #            logger.critical(error)
+     #            asyncio.ensure_future(self.process_agent(agent, Operational_State.FAILED))
+
+
 
 
     def delete(self):
