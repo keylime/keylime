@@ -36,6 +36,7 @@ from keylime import common
 from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
+from keylime import tpm_obj  # testing library
 
 logger = keylime_logging.init_logging('cloudverifier')
 
@@ -154,10 +155,10 @@ class AgentsHandler(BaseHandler):
     
 
     async def provider_get_quote(url):
-    	res = tornado_requests.request("GET", url, context=None) 
-    	response = await res 
-    	json_response = json.loads(response.body)
-    	common.echo_json_response(self, 200, "Success", json_response)
+        res = tornado_requests.request("GET", url, context=None) 
+        response = await res 
+        json_response = json.loads(response.body)
+        common.echo_json_response(self, 200, "Success", json_response)
 
 
     def delete(self):
@@ -401,18 +402,59 @@ class AgentsHandler(BaseHandler):
         else:
             try:
                 json_response = json.loads(response.body)
-                print(json_response) # so far doing now
-                # print(json_response['quote'])
-                # common.echo_json_response(self, 200, json_response)
+                result = json_response.get('results')
+                # print(json_response, type(json_response)) # so far doing now
+                # pro_quote = json_response['results']['quote']
+                print(result)
                 # TODO develop a mechanism to validate provider quote
-                # # validate the provider response
-    #             if cloud_verifier_common.process_quote_response(agent, json_response['results']):
-    #                 if agent['provide_V']: 
-    #                     asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V))
-    #                 else:  # theoretically won't get here
-    #                     asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
-    #             else:
-    #                 asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE))
+                # ===========check the quote============
+                # -------hardcoding provider verifier agent info---------
+                provider_agent = {'v': '6pffdsXraIoxcDc3QxVCJKJUqdAZTzle+XUdIV1rgOc=', 
+                'ip': '127.0.0.1', 'port': 9002, 
+                'operational_state': 3, 
+                'public_key': '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApCVReaFJHqQl4kj0CCtw\nqP0YOvW+4Y4x5d0chZvCF77EIZpPG+4sANhfxPaXkkPiyRrrpgtsFMNPQWhDTgWE\n7hCCQeBXAQc3SUn+o2FmuN5xGYHoEBXjeZQrUUJN8kTqEtrftUgoBRfXfQauNRLE\nmxBpotLnuLOIWyBtPAzjcX4tvQOki+Cg5gZBRbwpSBmuigoto53+ZTZ4gd5K0yBz\n9sZt6jru/OAlpMbm5XO0qtbgW6JpdE/4+JPfF+SHcL7dJesGMtorPLNodKRUlVAr\nVk1YW7g7+dZZZ+esABwPpTsnWyykdxHquWY5in4p4cwgsFVoBkr7pgstT4FjmUty\nlQIDAQAB\n-----END PUBLIC KEY-----\n', 
+                'tpm_policy': {'22': ['0000000000000000000000000000000000000001', '0000000000000000000000000000000000000000000000000000000000000001', '000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001', 'ffffffffffffffffffffffffffffffffffffffff', 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'], '15': ['0000000000000000000000000000000000000000', '0000000000000000000000000000000000000000000000000000000000000000', '000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'], 'mask': '0x408000'}, 
+                'vtpm_policy': {'23': ['ffffffffffffffffffffffffffffffffffffffff', '0000000000000000000000000000000000000000'], '15': ['0000000000000000000000000000000000000000'], 'mask': '0x808000'}, 
+                'metadata': {}, 
+                'ima_whitelist': {}, 
+                'revocation_key': '', 
+                'tpm_version': 2, 
+                'accept_tpm_hash_algs': ['sha512', 'sha384', 'sha256', 'sha1'], 
+                'accept_tpm_encryption_algs': ['ecc', 'rsa'], 
+                'accept_tpm_signing_algs': ['ecschnorr', 'rsassa'], 
+                'hash_alg': 'sha256', 
+                'enc_alg': 'rsa', 
+                'sign_alg': 'rsassa', 
+                'need_provider_quote': False, 
+                'registrar_keys': {'aik': '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1YDgoAABaEBMtDzZ7u0q\nD1MZpwxP0QGzDhs54F7iYt3Vee8x86EArvV9qnzylGu6JhQ+vc9VS6K6mZIDjUtc\nMdgXM5V6p2HDZveAr2w9aH4sCbVUNN8YcIp3G96WOzFcoa6k5Medt8LpAZjL9J7J\nhEFdwYhG4b4nVWP2YTHwsvEmpG7FBe46chWY46N3/spmvOi1NFQuzCz+oYQNZ/mG\nskBGQLO+zT+Fmv3sQHx/qPpxrLRtUrzQqWz3R6pyTUrn1FJcrFj2VDzs0zhc/WE2\nb2wvnR6IxoMsE/imRuJZXMlArT+ZpPEIYPmWnKZiU8Co7E5kxNjQ1HoQvC3yxhPM\n5QIDAQAB\n-----END PUBLIC KEY-----\n', 'ek': '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0dLxdAABVJO6qxamjCMh\nyhWZgiFHZHnPEe0tMFyK3fNVr/w8lX9r+QOLxLmkT0IdgsEYtGZGefbD+qQl4O1s\nk25823Xzu5tEF8966rTdkfsv8CRrNaBLwWlnt/n+qjIoU3xZJMmR+mFfqTc3a6zV\nmPOYJstFtM8r4b9HPCUq6Mte/J3Wx4FxI9R4UrCUyiAeH++0QapIxuEGsVIYs92n\nGyvFQYBZFRU6cIt33iaqTrRCICJp+YblMnw54YJGAH2vTVQf6/fLAnQt5L1UfmTy\nR/ZA6advx8soekSBOIAW7XmV8Xp9mSquIHZdSXMJlcn/B35PU3BdkUtIYm5JuGGt\nPQIDAQAB\n-----END PUBLIC KEY-----\n', 'ekcert': 'emulator', 'regcount': 1}, 
+                'nonce': 'HjhabaRBE2Aiiyz5R0YH', 
+                'b64_encrypted_V': b'c6B/uXCDIPpeEnGu64vF92aWuDrGhMtKyt61eg/Am1y/TFbmKFvhsyCoAQr6WnJTjoinllwfE7ou22wc4DOyWWWMG7L/E94I8fu2ooxdcFY+a5W5tr6RFa1i54ogbR/SM4s0IR7si3FANk30P66Ifu2fTM5lXd9u+ly4hkdOpYQIvH82gCf/J+S0m9+VhHtP5q7CyQzzVqu6pqTRERTwW6DQ2GsAB26CPepD3YOlXFcmLMFssB4lyvRcWKZ7CUk4FB6jcVruneqJkzdLiWd8icgJHdl7qwKdniRuwZiXAIAJ7ARZqPp4M5oOmJgKoy555MxOAglxmgAx6HeZP8CqHg==', 
+                'provide_V': False, 'num_retries': 0, 
+                # 'pending_event': <TimerHandle when=4907.464535460628 IOLoop._run_callback(functools.par...7f4949a6b680>))>, 
+                'first_verified': True, 
+                'agent_id': 'D432FBB3-D2F1-4A97-9EF7-75BD81C00000'
+                }
+
+                # -------------------------------------------------------
+                # def process_quote_response(agent, json_response):
+                tpm_version = result.get('tpm_version')
+                tpm = tpm_obj.getTPM(need_hw_tpm=False, tpm_version=tpm_version)
+                hash_alg = result.get('hash_alg')
+                enc_alg = result.get('enc_alg')
+                sign_alg = result.get('sign_alg')
+                try:
+                    validQuote = tpm.check_quote(params.get("nonce"),
+                                     provider_agent['public_key'],   # received_public_key,
+                                     result.get('quote'),
+                                     provider_agent['registrar_keys']['aik'],
+                                     provider_agent['tpm_policy'],
+                                     None, # ima_measurement_list,
+                                     provider_agent['ima_whitelist'],
+                                     hash_alg)
+                    print("validation result for provider quote: ", validQuote)
+                except Exception as e:
+                    print('error: ', e)
+                
 
             except Exception as e:
                 logger.exception(e)
