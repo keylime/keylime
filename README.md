@@ -5,7 +5,7 @@ Status](https://travis-ci.org/keylime/keylime.svg?branch=master)](https://travis
 
 ![keylime](doc/keylime.png?raw=true "Title")
 
-Keylime is an open source scalable cloud trust system harnessing TPM Technology.
+Keylime is an open source scalable trust system harnessing TPM Technology.
 
 Keylime provides an end-to-end solution for bootstrapping hardware rooted
 cryptographic trust for remote machines, the provisioning of encrypted payloads
@@ -18,19 +18,23 @@ Keylime's mission is to make TPM Technology easily accessible to developers and
 users alike, without the need for a deep understanding of the lower levels of a
 TPM's operations. Amongst many scenarios, it well suited to tenants who need to
 remotely attest machines not under their own full control (such as a consumer of
-hybrid cloud.)
+hybrid cloud or a remote Edge / IoT device in a insecure physical tamper prone
+location.)
 
 Keylime can be driven with a CLI application, web front end and a set of
 RESTful APIs.
 
-Keylime consists of three main components; The verifier, registrar and the
-agent. The verifier continuously verifies the integrity state of the machine that
-the agent is running on. The registrar is a database of all agents registered
+Keylime consists of three main components; The Verifier, Registrar and the
+Agent.
+
+* The Verifier continuously verifies the integrity state of the machine that
+the agent is running on.
+
+* The Registrar is a database of all agents registered
 with Keylime and hosts the public keys of the TPM vendors.
 
-The agent is deployed to the remote machine that is to be
-measured or provisoned with secrets stored within an encrypted payload released
-by the TPM.
+* The Agent is deployed to the remote machine that is to be measured or provisoned
+with secrets stored within an encrypted payload released once trust is established.
 
 ### Rust based Keylime Agent
 
@@ -383,7 +387,7 @@ The `keylime_tenant` utility can be used to provision your agent.
 
 As an example, the following command tells keylime to provision a new agent
 at 127.0.0.1 with UUID D432FBB3-D2F1-4A97-9EF7-75BD81C00000 and talk to a
-cloud verifier at 127.0.0.1.  Finally it will encrypt a file called filetosend
+verifier at 127.0.0.1.  Finally it will encrypt a file called `filetosend`
 and send it to the agent allowing it to decrypt it only if the configured TPM
 policy (in `/etc/keylime.conf`) is satisfied:
 
@@ -414,7 +418,7 @@ certificates that `keylime_ca` creates are in `/etc/keylime.conf`.
 
 NOTE: This CA functionality is different than the TLS support for talking to
 the verifier or registrar (though it uses some of the same config options
-in `/etc/keylime.conf`).  This CA is for the cloud agents you provision and
+in `/etc/keylime.conf`).  This CA is for the Keylime Agents you provision and
 you can use keylime to bootstrap the private keys into agents.
 
 To initialize a new certificate authority run:
@@ -446,10 +450,10 @@ option in `keylime_tenant` to do this.  This takes in the directory of the CA:
 `keylime_tenant -c add -t 127.0.0.1 -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --cert /var/lib/keylime/ca`
 
 If you also have the option extract_payload_zip in `/etc/keylime.conf` set to `True` on
-the cloud agent, then it will automatically extract the zip containing an unprotected
+the keylime agent, then it will automatically extract the zip containing an unprotected
 private key, public key, certificate and CA certificate to `/var/lib/keylime/secure/unzipped`.
 
-If the cloud verifier option `revocation_notifier` is set to `True`, then
+If the keylime verifier option `revocation_notifier` is set to `True`, then
 the CV will sign a revocation message and send it over 0mq to any subscribers.  The
 keylime CA supports listening to these notifications and will generate an updated
 CRL.  To enable this feature, run:
