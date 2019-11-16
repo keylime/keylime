@@ -34,10 +34,10 @@ def run(cmd,expectedcode=EXIT_SUCESS,raiseOnError=True,lock=True,outputpaths=Non
     t0 = time.time()
     if lock:
         with utilLock:
-            proc = subprocess.Popen(cmd,env=env,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+            proc = subprocess.Popen(cmd,env=env,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
             code = proc.wait()
     else:
-        proc = subprocess.Popen(cmd,env=env,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        proc = subprocess.Popen(cmd,env=env,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         code = proc.wait()
     t1 = time.time()
     timing = {'t1': t1, 't0': t0}
@@ -51,9 +51,17 @@ def run(cmd,expectedcode=EXIT_SUCESS,raiseOnError=True,lock=True,outputpaths=Non
             break
         retout.append(line)
 
+    # Gather subprocess stderr data
+    reterr = []
+    while True:
+        line = proc.stderr.readline()
+        if line==b'':
+            break
+        reterr.append(line)
+
     # Don't bother continuing if call failed and we're raising on error
     if code!=expectedcode and raiseOnError:
-        raise Exception("Command: %s returned %d, expected %d, output %s"%(cmd,code,expectedcode,retout))
+        raise Exception("Command: %s returned %d, expected %d, output %s, stderr %s"%(cmd,code,expectedcode,retout,reterr))
 
     # Prepare to return their file contents (if requested)
     fileouts={}
@@ -66,6 +74,7 @@ def run(cmd,expectedcode=EXIT_SUCESS,raiseOnError=True,lock=True,outputpaths=Non
 
     returnDict = {
         'retout': retout,
+        'reterr': reterr,
         'code': code,
         'fileouts': fileouts,
         'timing': timing,
