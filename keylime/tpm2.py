@@ -1195,7 +1195,7 @@ class tpm2(tpm_abstract.AbstractTPM):
 
             # Read the RSA EK cert from NVRAM (DER format)
             if tools_version == "3.2":
-                retDict = self.__run("tpm2_nvread -x 0x1c00002 -s %s -f %s"%(ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
+                retDict = self.__run("tpm2_nvread -x 0x1c00002 -s %s -f %s -a 0x01c00002"%(ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
             elif tools_version == "4.0":
                 retDict = self.__run("tpm2_nvread 0x1c00002 -s %s -o %s"%(ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
             output = common.list_convert(retDict['retout'])
