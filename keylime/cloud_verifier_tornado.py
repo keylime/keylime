@@ -19,12 +19,12 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import asyncio
 import configparser
 import traceback
 import sys
 import functools
 import time
+import asyncio
 import tornado.ioloop
 import tornado.web
 from tornado import httpserver
@@ -118,11 +118,10 @@ class AgentsHandler(BaseHandler):
 
             if agent_id is not None:
                 agent = self.db.get_agent(agent_id)
-                if agent != None:
+                if agent is not None:
                     response = cloud_verifier_common.process_get_status(agent)
                     common.echo_json_response(self, 200, "Success", response)
-                    #logger.info('GET returning 200 response for agent_id: ' + agent_id)
-
+                #logger.info('GET returning 200 response for agent_id: ' + agent_id)
                 else:
                     #logger.info('GET returning 404 response. agent id: ' + agent_id + ' not found.')
                     common.echo_json_response(self, 404, "agent id not found")
@@ -359,15 +358,14 @@ class AgentsHandler(BaseHandler):
         if agent is None:
             raise Exception("agent deleted while being processed")
         params = cloud_verifier_common.prepare_get_quote(agent)
-        # why this line is missing is file
-        agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
 
         partial_req = "1"
         if need_pubkey:
             partial_req = "0"
 
-        res = tornado_requests.request("GET",
-                                    "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(agent['ip'],agent['port'],params["nonce"],params["mask"],params['vmask'],partial_req), context=None)
+        res = tornado_requests.request("GET", 
+                                    "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%
+                                    (agent['ip'],agent['port'],params["nonce"],params["mask"],params['vmask'],partial_req), context=None)
         response = await res
 
         if response.status_code !=200:
@@ -384,8 +382,7 @@ class AgentsHandler(BaseHandler):
                     json_response = json.loads(response.body)
 
                     # validate the cloud agent response
-                    if cloud_verifier_common.process_quote_response(agent, json_response['results']):
-                        
+                    if cloud_verifier_common.process_quote_response(agent, json_response['results']):                        
                         # TODO: need a policy to determine when do we need and disable provider's quote
                         # Current approach: provider_quote only run once when bootstrapping
                         if agent['provide_V'] == False:
@@ -480,13 +477,10 @@ class AgentsHandler(BaseHandler):
                     print("validation result for provider quote: ", validQuote)
                 except Exception as e:
                     print('error: ', e)
-                
-
             except Exception as e:
                 logger.exception(e)
 
         pass
-
 
     async def invoke_provide_v(self, agent):
         if agent is None:
@@ -498,7 +492,7 @@ class AgentsHandler(BaseHandler):
         response = await res
 
         if response.status_code !=200:
-            if isinstance(response.error, IOError) or (isinstance(response.error, tornado.web.HTTPError) and response.error.code == 599):
+            if response.status_code == 599:
                 asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY))
             else:
                 #catastrophic error, do not continue

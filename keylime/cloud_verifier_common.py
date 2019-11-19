@@ -27,7 +27,6 @@ import time
 import os
 import ssl
 import socket
-import sqlite3
 
 try:
     import simplejson as json
@@ -195,7 +194,7 @@ def process_quote_response(agent, json_response):
         logger.debug("for nonce:           %s" % agent['nonce'])
         logger.debug("received public key: %s" % received_public_key)
         logger.debug("received ima_measurement_list    %s" %
-                     (ima_measurement_list != None))
+                     (ima_measurement_list is not None))
     except Exception:
         return None
 
