@@ -37,6 +37,7 @@ from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
 from keylime import tpm_obj  # testing library
+import threading
 
 logger = keylime_logging.init_logging('cloudverifier')
 
@@ -106,7 +107,7 @@ class AgentsHandler(BaseHandler):
         """
         rest_params = common.get_restful_params(self.request.uri)
         # DEBUG
-        print("get a request with", rest_params)
+        # print("get a request with", rest_params)
 
         if rest_params is None:
             common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
@@ -135,14 +136,16 @@ class AgentsHandler(BaseHandler):
             # DEBUG
             print("entering the verifier with: ", rest_params)
             partial_req = "1"  # don't need a pub key
+            # TODO test threading and blocking
+            # print("Thread: ", threading.current_thread())
+            # time.sleep(10)
+            # print(time.ctime())
             # TODO
             # assign the only agent we have as the provider 
             # actually should figure out which agent the corresponding provider to the tenant who send the request
             agent = self.db.get_agent_ids()
             new_agent = self.db.get_agent(agent[0])
             url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(new_agent['ip'],new_agent['port'],rest_params["nonce"],rest_params["mask"],rest_params['vmask'],partial_req)
-            # DEBUG check url
-            print(url)
             # Launch GET request
             # asyncio.ensure_future(provider_get_quote(url))
             res = tornado_requests.request("GET", url, context=None)            
@@ -276,7 +279,7 @@ class AgentsHandler(BaseHandler):
                     # ================
                     # d['provider_ip'] = ""
                     # d['provider_verifier_port'] = ""
-                    d['need_provider_quote'] = False
+                    d['need_provider_quote'] = True
                     # ================
                     
 
@@ -408,7 +411,7 @@ class AgentsHandler(BaseHandler):
         print("invoke_get_prov_quote")
         # TODO: hardcoding provider ip addr, need to read this info somewhere
         url = "http://%s:%d/verifier?nonce=%s&mask=%s&vmask=%s"%("10.0.2.4",8881,params["nonce"],params["mask"],params['vmask'])
-        print("requesting from tenant")
+        # print("requesting from tenant, url: ", url)
         res = tornado_requests.request("GET", url, context=None)
         response = await res
         print("waiting")
