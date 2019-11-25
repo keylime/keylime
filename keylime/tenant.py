@@ -518,8 +518,12 @@ class Tenant():
             exit()
         else:
             response_json = json.loads(response.read().decode())
-            operational_state = response_json["results"]["operational_state"]
-            logger.info(f'Agent Status: "{states[operational_state]}"')
+            if not listing:
+                operational_state = response_json["results"]["operational_state"]
+                logger.info(f'Agent Status: "{states[operational_state]}"')
+            else:
+                agent_array = response_json["results"]["uuids"]
+                logger.info(f'Agents: "{agent_array}"')
 
     def do_cvdelete(self):
         params = f'/agents/{self.agent_uuid}'
