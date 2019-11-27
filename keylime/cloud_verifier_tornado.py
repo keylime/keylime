@@ -57,7 +57,6 @@ config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
 nonce_col = asyncio.Queue()
 nonce_collect = []
-global nonce_agg
 
 # TEST merkle tree development
 def hashfunc(value):
@@ -123,6 +122,7 @@ class AgentsHandler(BaseHandler):
         was not found, it either completed successfully, or failed.  If found, the agent_id is still polling
         to contact the Cloud Agent.
         """
+        global nonce_collect
         rest_params = common.get_restful_params(self.request.uri)
         # DEBUG
         # print("get a request with", rest_params)
