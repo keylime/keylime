@@ -37,6 +37,10 @@ from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
 from keylime import tpm_obj  # testing library
+import string
+import hashlib
+from merklelib import MerkleTree, beautify
+from string import ascii_lowercase
 import threading
 
 logger = keylime_logging.init_logging('cloudverifier')
@@ -51,6 +55,17 @@ if sys.version_info[0] < 3:
 
 config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
+nonce_col = asyncio.Queue()
+nonce_collect = []
+global nonce_agg
+
+# TEST merkle tree development
+def hashfunc(value):
+    # Convert to string because it doesn't like bytes
+    new_value = str(value)
+    # hash = hashlib.sha256(new_value.encode('utf-8')).hexdigest()
+    return hash
+
 
 class BaseHandler(tornado.web.RequestHandler):
 
@@ -89,8 +104,11 @@ class MainHandler(tornado.web.RequestHandler):
 
 class AgentsHandler(BaseHandler):
     db = None
+    
     def initialize(self, db):
         self.db = db
+        # TEST: nonce aggregation
+        
 
     def head(self):
         """HEAD not supported"""
@@ -132,21 +150,50 @@ class AgentsHandler(BaseHandler):
                 logger.info('GET returning 200 response for agent_id list')
         elif "verifier" in rest_params:
             # develope verifier api endpoint
-            # DEBUG
-            print("entering the verifier with: ", rest_params)
             partial_req = "1"  # don't need a pub key
-            # TODO test threading and blocking
-            # print("Thread: ", threading.current_thread())
-            # time.sleep(10)
-            # print(time.ctime())
             # TODO
             # assign the only agent we have as the provider 
             # actually should figure out which agent the corresponding provider to the tenant who send the request
             agent = self.db.get_agent_ids()
             new_agent = self.db.get_agent(agent[0])
             url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(new_agent['ip'],new_agent['port'],rest_params["nonce"],rest_params["mask"],rest_params['vmask'],partial_req)
+            # TEST: nonce aggregation
+            
+                # print(new_agent)
+            await nonce_col.put(rest_params["nonce"])
+            nonce_collect.append(rest_params["nonce"])
+            new_agent['quote_col'].append(rest_params["nonce"])
+            self.db.update_agent(agent[0], 'quote_col', new_agent['quote_col'])
+            # def update_agent(self,agent_id, key, value):
+            print(nonce_col.qsize(), len(nonce_collect), len(new_agent['quote_col']),time.ctime())
+            await asyncio.sleep(5)
+            
+            try:
+                # print("former new_agent")
+                # print(new_agent)
+                agent = self.db.get_agent_ids()
+                new_agent = self.db.get_agent(agent[0])
+                # asyncio.ensure_future(self.db.get_agent(agent[0]))nonce_agg
+                # print("after read")
+                # print(new_agent)
+                print(new_agent['quote_col'])
+                tree = MerkleTree([], hashfunc)
+                for i in new_agent['quote_col']:
+                    print(i)
+                    tree.append(i)
+                    beautify(tree)
+                # tree.extend(new_agent['quote_col'])
+                beautify(tree)
+            except Exception as e:
+                print("error: ", e)
             # Launch GET request
-            # asyncio.ensure_future(provider_get_quote(url))
+            # print(url)
+            # try:
+            #     asyncio.ensure_future(self.proxy_quote(url))
+            #     # self.write(url+"\n")
+            # except Exception as e:
+            #     print(e)
+            # ------------currently working---------------------------
             res = tornado_requests.request("GET", url, context=None)            
             response = await res 
             json_response = json.loads(response.body)
@@ -157,19 +204,33 @@ class AgentsHandler(BaseHandler):
             # return  # not sure is necessary
     
     # TODO: Asynchonize method design
-    async def provider_get_quote(url):
-        res = tornado_requests.request("GET", url, context=None) 
+    @tornado.web.asynchronous
+    async def proxy_quote(self, url):
+        print("enter ensure_future")
+        # print(self.request)
+        res = tornado_requests.request("GET", url, context=None)            
         response = await res 
+        print(response.body, "\n")
+        # print(url, "\n")
         json_response = json.loads(response.body)
-        print("inside ensure_future")
-        common.echo_json_response(self, 200, "Success", json_response)
-        print("insure furture sucess")
+        print("successfully get response")
+        try:
+            common.echo_json_response(self, 200, "Success", json_response["results"])
+        except Exception as e:
+            print("err: ", e)
+        print("resonse Success")
         # ===========asynchronize method=============
         # asyncio.ensure_future(self.process_agent(new_agent, Operational_State.GET_QUOTE))
         # async def process_agent(self, agent, new_operational_state):
         # if main_agent_operational_state == Operational_State.START and \
         #  ...  await self.invoke_get_quote(agent, True)
         #            return
+    async def ensure_get_db(self, agent, result):
+        results = self.db.get_agent(agent)
+        print(results)
+        result = results['quote_col']
+        print(result)
+        return result
 
      # async def invoke_get_quote(self, agent, need_pubkey):
      #    res = tornado_requests.request("GET",
@@ -278,12 +339,11 @@ class AgentsHandler(BaseHandler):
                     # ================
                     # d['provider_ip'] = ""
                     # d['provider_verifier_port'] = ""
-                    d['need_provider_quote'] = True
-                    # ================
-                    
-
-                    new_agent = self.db.add_agent(agent_id,d)
-
+                    d['need_provider_quote'] = False
+                    d['quote_col'] = []
+                    # ===============       
+                    self.db.print_db()
+                    new_agent = self.db.add_agent(agent_id,d)  # Question part
                     # don't allow overwriting
                     if new_agent is None:
                         common.echo_json_response(self, 409, "Agent of uuid %s already exists"%(agent_id))
@@ -352,6 +412,9 @@ class AgentsHandler(BaseHandler):
             logger.warning("PUT returning 400 response. Exception error: %s"%e)
             logger.exception(e)
         self.finish()
+
+
+    
 
 
     async def invoke_get_quote(self, agent, need_pubkey):

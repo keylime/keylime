@@ -44,11 +44,15 @@ class KeylimeDB():
         self.cols_db = cols_db
         self.json_cols_db = json_cols_db
         self.exclude_db = exclude_db
+        logger.info(cols_db)
 
         if 'agent_id' not in cols_db or 'PRIMARY_KEY' not in cols_db['agent_id']:
             raise Exception("the primary key of the database must be agent_id")
 
         # turn off persistence by default in development mode
+        logger.info(common.DEVELOP_IN_ECLIPSE)
+        logger.info(os.path.exists(self.db_filename))
+        logger.info(os.path)
         if common.DEVELOP_IN_ECLIPSE and os.path.exists(self.db_filename):
             os.remove(self.db_filename)
 
@@ -66,6 +70,7 @@ class KeylimeDB():
                 createstr += "%s %s, "%(key,self.cols_db[key])
             # lop off the last comma space
             createstr = createstr[:-2]+')'
+            logger.info(createstr)
             cur.execute(createstr)
             conn.commit()
         os.chmod(self.db_filename,0o600)

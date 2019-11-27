@@ -164,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
                     with open(common.IMA_ML,'r') as f:
                         ml = f.read()
                     response['ima_measurement_list']=ml
-
+            
             common.echo_json_response(self, 200, "Success", response)
             logger.info('GET %s quote returning 200 response.'%(rest_params["quotes"]))
             return

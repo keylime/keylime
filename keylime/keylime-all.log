@@ -1,0 +1,52 @@
+1574763928.7264063  keylime.keylime_sqlite  INFO  {'agent_id': 'TEXT PRIMARY_KEY', 'v': 'TEXT', 'ip': 'TEXT', 'port': 'INT', 'operational_state': 'INT', 'public_key': 'TEXT', 'tpm_policy': 'TEXT', 'vtpm_policy': 'TEXT', 'metadata': 'TEXT', 'ima_whitelist': 'TEXT', 'revocation_key': 'TEXT', 'tpm_version': 'INT', 'accept_tpm_hash_algs': 'TEXT', 'accept_tpm_encryption_algs': 'TEXT', 'accept_tpm_signing_algs': 'TEXT', 'hash_alg': 'TEXT', 'enc_alg': 'TEXT', 'sign_alg': 'TEXT', 'quote_col': 'TEXT'}
+1574763928.7265818  keylime.keylime_sqlite  INFO  True
+1574763928.7266772  keylime.keylime_sqlite  INFO  False
+1574763928.72676  keylime.keylime_sqlite  INFO  <module 'posixpath' from '/usr/lib64/python3.7/posixpath.py'>
+1574763928.7271175  keylime.keylime_sqlite  INFO  CREATE TABLE IF NOT EXISTS main(accept_tpm_encryption_algs TEXT, accept_tpm_hash_algs TEXT, accept_tpm_signing_algs TEXT, agent_id TEXT PRIMARY_KEY, enc_alg TEXT, hash_alg TEXT, ima_whitelist TEXT, ip TEXT, metadata TEXT, operational_state INT, port INT, public_key TEXT, quote_col TEXT, revocation_key TEXT, sign_alg TEXT, tpm_policy TEXT, tpm_version INT, v TEXT, vtpm_policy TEXT)
+1574763928.7545745  keylime.cloudverifier  INFO  Starting Cloud Verifier (tornado) on port 8881, use <Ctrl-C> to stop
+1574763928.755782  keylime.cloudverifier_common  WARNING  TLS is currently disabled, keys will be sent in the clear! Should only be used for testing.
+1574763928.7559648  keylime.cloudverifier  INFO  Starting service for revocation notifications on port 8992
+1574763939.7179854  keylime.keylime_sqlite  INFO  {'agent_id': 'TEXT PRIMARY_KEY', 'key': 'TEXT', 'aik': 'TEXT', 'ek': 'TEXT', 'ekcert': 'TEXT', 'virtual': 'INT', 'active': 'INT', 'provider_keys': 'TEXT', 'regcount': 'INT'}
+1574763939.7181842  keylime.keylime_sqlite  INFO  True
+1574763939.7182999  keylime.keylime_sqlite  INFO  False
+1574763939.7183824  keylime.keylime_sqlite  INFO  <module 'posixpath' from '/usr/lib64/python3.7/posixpath.py'>
+1574763939.7186828  keylime.keylime_sqlite  INFO  CREATE TABLE IF NOT EXISTS main(active INT, agent_id TEXT PRIMARY_KEY, aik TEXT, ek TEXT, ekcert TEXT, key TEXT, provider_keys TEXT, regcount INT, virtual INT)
+1574763939.8251357  keylime.cloudverifier_common  WARNING  TLS is currently disabled, keys will be sent in the clear! Should only be used for testing.
+1574763939.825445  keylime.registrar-common  INFO  Starting Cloud Registrar Server on ports 8890 and 8891 (TLS) use <Ctrl-C> to stop
+1574763944.6925905  keylime.tpm2  INFO  TPM2-TOOLS Version: 3.2.0
+1574763944.7709112  keylime.tpm2  INFO  Encrypting AIK for UUID C432FBB3-D2F1-4A97-9EF7-75BD81C866E9
+1574763944.7805033  keylime.registrar-common  INFO  POST returning key blob for agent_id: C432FBB3-D2F1-4A97-9EF7-75BD81C866E9
+1574763944.843328  keylime.registrar-common  INFO  PUT activated: C432FBB3-D2F1-4A97-9EF7-75BD81C866E9
+1574763948.303856  keylime.cloudverifier  INFO  POST returning 200 response for adding agent id: D432FBB3-D2F1-4A97-9EF7-75BD81C00000
+1574763948.4365933  keylime.registrar-common  WARNING  GET returning 404 response. agent_id D432FBB3-D2F1-4A97-9EF7-75BD81C00000 not found.
+1574763948.4429796  keylime.cloudverifier  INFO  PUT returning 404 response. agent id: D432FBB3-D2F1-4A97-9EF7-75BD81C00000 not found.
+1574763948.5840852  keylime.registrar_client  WARNING  TLS is currently disabled, AIKs may not be authentic.
+1574763948.5854328  keylime.registrar-common  WARNING  GET returning 404 response. agent_id D432FBB3-D2F1-4A97-9EF7-75BD81C00000 not found.
+1574763948.5860925  keylime.registrar_client  CRITICAL  Error: unexpected http response code from Registrar Server: 404
+1574763948.5862615  keylime.registrar_client  CRITICAL  Response code 404: agent_id not found
+1574763948.5863707  keylime.cloudverifier_common  WARNING  AIK not found in registrar, quote not validated
+1574763948.587072  keylime.cloudverifier  WARNING  agent D432FBB3-D2F1-4A97-9EF7-75BD81C00000 has failed tenant quote.  stopping polling
+1574764031.6227953  keylime.cloudverifier  ERROR  [Errno 3] No such process
+Traceback (most recent call last):
+  File "cloud_verifier_tornado.py", line 722, in main
+    tornado.ioloop.IOLoop.instance().start()
+  File "/usr/lib64/python3.7/site-packages/tornado/platform/asyncio.py", line 127, in start
+    self.asyncio_loop.run_forever()
+  File "/usr/lib64/python3.7/asyncio/base_events.py", line 534, in run_forever
+    self._run_once()
+  File "/usr/lib64/python3.7/asyncio/base_events.py", line 1735, in _run_once
+    event_list = self._selector.select(timeout)
+  File "/usr/lib64/python3.7/selectors.py", line 468, in select
+    fd_event_list = self._selector.poll(timeout, max_ev)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "cloud_verifier_tornado.py", line 731, in <module>
+    main()
+  File "cloud_verifier_tornado.py", line 726, in main
+    revocation_notifier.stop_broker()
+  File "/usr/local/lib/python3.7/site-packages/keylime-5.2.0-py3.7.egg/keylime/revocation_notifier.py", line 69, in stop_broker
+    os.kill(broker_proc.pid,signal.SIGKILL)
+ProcessLookupError: [Errno 3] No such process
