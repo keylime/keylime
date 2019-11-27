@@ -108,6 +108,10 @@ Remotely Provision Agents
 
 Now that we have our whitelist available, we can send it to the verifier.
 
+.. note::
+  If you're using a TPM Emulator (for example with the ansible-keylime-tpm-emulator, you will also need
+  to run the keylime ima emulator. To do this, open a terminal and run `keylime_ima_emulator`
+
 Using the `keylime_tenant` we can send the whitelist and our excludes list as
 follows::
 
