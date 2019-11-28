@@ -843,7 +843,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         #openssl x509 -inform der -in certificate.cer -out certificate.pem
         try:
             ek509 = M2Crypto.X509.load_cert_der_string(ekcert)
-            ekcertpem = ek509.get_pubkey().get_rsa().as_pem(cipher=None).decode('utf-8')
+            ekcertpem = ek509.get_pubkey().get_rsa().as_pem(cipher=None)
 
             # Make sure given ekcert is for their ek
             if str(ekpem) != str(ekcertpem):
