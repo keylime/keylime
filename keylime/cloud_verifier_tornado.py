@@ -19,18 +19,17 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-
 import configparser
 import traceback
 import sys
 import functools
 import asyncio
+
 import tornado.ioloop
 import tornado.web
 from tornado import httpserver
 from tornado.httpclient import AsyncHTTPClient
 from tornado.httputil import url_concat
-import keylime.tornado_requests as tornado_requests
 
 from keylime import common
 from keylime import keylime_logging
@@ -117,7 +116,7 @@ class AgentsHandler(BaseHandler):
 
         if agent_id is not None:
             agent = self.db.get_agent(agent_id)
-            if agent is not None:
+            if agent != None:
                 response = cloud_verifier_common.process_get_status(agent)
                 common.echo_json_response(self, 200, "Success", response)
                 #logger.info('GET returning 200 response for agent_id: ' + agent_id)
@@ -173,7 +172,7 @@ class AgentsHandler(BaseHandler):
             common.echo_json_response(self, 202, "Accepted")
             logger.info('DELETE returning 202 response for agent id: ' + agent_id)
 
-
+    # @tornado.web.asynchronous
     def post(self):
         """This method handles the POST requests to add agents to the Cloud Verifier.
 
@@ -226,7 +225,7 @@ class AgentsHandler(BaseHandler):
                         common.echo_json_response(self, 409, "Agent of uuid %s already exists"%(agent_id))
                         logger.warning("Agent of uuid %s already exists"%(agent_id))
                     else:
-                        asyncio.ensure_future(self.process_agent(new_agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
+                        self.process_agent(new_agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
                         common.echo_json_response(self, 200, "Success")
                         logger.info('POST returning 200 response for adding agent id: ' + agent_id)
             else:
@@ -239,7 +238,7 @@ class AgentsHandler(BaseHandler):
 
         self.finish()
 
-
+    # @tornado.web.asynchronous
     def put(self):
         """This method handles the PUT requests to add agents to the Cloud Verifier.
 
@@ -270,7 +269,7 @@ class AgentsHandler(BaseHandler):
 
             if "reactivate" in rest_params:
                 agent['operational_state']=cloud_verifier_common.CloudAgent_Operational_State.START
-                asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
+                self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
                 common.echo_json_response(self, 200, "Success")
                 logger.info('PUT returning 200 response for agent id: ' + agent_id)
             elif "stop" in rest_params:
@@ -288,71 +287,85 @@ class AgentsHandler(BaseHandler):
             common.echo_json_response(self, 400, "Exception error: %s"%e)
             logger.warning("PUT returning 400 response. Exception error: %s"%e)
             logger.exception(e)
+
+
         self.finish()
 
 
-    async def invoke_get_quote(self, agent, need_pubkey):
-        if agent is None:
-            raise Exception("agent deleted while being processed")
+    def invoke_get_quote(self, agent, need_pubkey):
         params = cloud_verifier_common.prepare_get_quote(agent)
+        agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
+        client = tornado.httpclient.AsyncHTTPClient()
 
         partial_req = "1"
         if need_pubkey:
             partial_req = "0"
 
-        res = tornado_requests.request("GET",
-                                    "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%
-                                    (agent['ip'],agent['port'],params["nonce"],params["mask"],params['vmask'],partial_req), context=None)
-        response = await res
+        url = "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s"%(agent['ip'],agent['port'],params["nonce"],params["mask"],params['vmask'],partial_req)
+        # the following line adds the agent and params arguments to the callback as a convenience
+        cb = functools.partial(self.on_get_quote_response, agent, url)
+        client.fetch(url, callback=cb)
 
-        if response.status_code !=200:
+    def on_get_quote_response(self, agent, url, response):
+        if agent is None:
+            raise Exception("agent deleted while being processed")
+        if response.error:
             # this is a connection error, retry get quote
-            if response.status_code == 599:
-                asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE_RETRY))
+            if isinstance(response.error, IOError) or (isinstance(response.error, tornado.web.HTTPError) and response.error.code == 599):
+                self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE_RETRY)
             else:
                 #catastrophic error, do not continue
-                error = "Unexpected Get Quote response error for cloud agent " + agent['agent_id']  + ", Error: " + str(response.status_code)
+                error = "Unexpected Get Quote response error for cloud agent " + agent['agent_id']  + ", Error: " + str(response.error)
                 logger.critical(error)
-                asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED))
+                self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
         else:
             try:
-                    json_response = json.loads(response.body)
+                json_response = json.loads(response.body)
 
-                    # validate the cloud agent response
-                    if cloud_verifier_common.process_quote_response(agent, json_response['results']):
-                        if agent['provide_V']:
-                            asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V))
-                        else:
-                            asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
+                # validate the cloud agent response
+                if cloud_verifier_common.process_quote_response(agent, json_response['results']):
+                    if agent['provide_V']:
+                        self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V)
                     else:
-                        asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE))
+                        self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
+                else:
+                    self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE)
+                    cloud_verifier_common.notifyError(agent)
+
+#                 if self.get_q_log_file_base_name is not None and writeTime:
+#                     self.get_q_log_file.write("%s\n" % t.secs)
+#                     self.get_q_log_file.flush()
 
             except Exception as e:
                 logger.exception(e)
 
 
-    async def invoke_provide_v(self, agent):
-        if agent is None:
-            raise Exception("Agent deleted while being processed")
+
+    def invoke_provide_v(self, agent):
         if agent['pending_event'] is not None:
             agent['pending_event'] = None
         v_json_message = cloud_verifier_common.prepare_v(agent)
-        res = tornado_requests.request("POST", "http://%s:%d//keys/vkey"%(agent['ip'],agent['port']), data=v_json_message)
-        response = await res
+        agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V
+        client = tornado.httpclient.AsyncHTTPClient()
+        url = "http://%s:%d/keys/vkey"%(agent['ip'],agent['port'])
+        cb = functools.partial(self.on_provide_v_response, agent, url)
+        client.fetch(url, method="POST", callback=cb, headers=None, body=v_json_message)
 
-        if response.status_code !=200:
-            if response.status_code == 599:
-                asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY))
+    def on_provide_v_response(self, agent, url_with_params, response):
+        if agent is None:
+            raise Exception("Agent deleted while being processed")
+        if response.error:
+            if isinstance(response.error, IOError) or (isinstance(response.error, tornado.web.HTTPError) and response.error.code == 599):
+                self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY)
             else:
                 #catastrophic error, do not continue
                 error = "Unexpected Provide V response error for cloud agent " + agent['agent_id']  + ", Error: " + str(response.error)
                 logger.critical(error)
-                asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED))
+                self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
         else:
-            asyncio.ensure_future(self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
+            self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE)
 
-
-    async def process_agent(self, agent, new_operational_state):
+    def process_agent(self, agent, new_operational_state):
         try:
             main_agent_operational_state = agent['operational_state']
             stored_agent = self.db.get_agent(agent['agent_id'])
@@ -377,11 +390,6 @@ class AgentsHandler(BaseHandler):
             if new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.FAILED or \
                 new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
                 agent['operational_state'] = new_operational_state
-
-                # issue notification for invalid quotes
-                if new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
-                    cloud_verifier_common.notifyError(agent)
-
                 if agent['pending_event'] is not None:
                     tornado.ioloop.IOLoop.current().remove_timeout(agent['pending_event'])
                 self.db.overwrite_agent(agent['agent_id'], agent)
@@ -395,15 +403,13 @@ class AgentsHandler(BaseHandler):
             if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.START and \
                 new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE:
                 agent['num_retries']=0
-                agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
-                await self.invoke_get_quote(agent, True)
+                self.invoke_get_quote(agent, True)
                 return
 
             if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE and \
                 (new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V):
                 agent['num_retries']=0
-                agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V
-                await self.invoke_provide_v(agent)
+                self.invoke_provide_v(agent)
                 return
 
             if (main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V or
@@ -411,9 +417,9 @@ class AgentsHandler(BaseHandler):
                 new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE:
                 agent['num_retries']=0
                 interval = config.getfloat('cloud_verifier','quote_interval')
-                agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
+
                 if interval==0:
-                    await self.invoke_get_quote(agent, False)
+                    self.invoke_get_quote(agent, False)
                 else:
                     #logger.debug("Setting up callback to check again in %f seconds"%interval)
                     # set up a call back to check again
@@ -432,9 +438,8 @@ class AgentsHandler(BaseHandler):
                         cloud_verifier_common.notifyError(agent,'comm_error')
                     else:
                         logger.debug("Communication error for new agent.  no notification will be sent")
-                    await self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
+                    self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
                 else:
-                    agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
                     cb = functools.partial(self.invoke_get_quote, agent, True)
                     agent['num_retries']+=1
                     logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(agent['ip'],agent['num_retries'],maxr,retry))
@@ -446,9 +451,8 @@ class AgentsHandler(BaseHandler):
                 if agent['num_retries']>=maxr:
                     logger.warning("agent %s was not reachable to provide v in %d tries, setting state to FAILED"%(agent['agent_id'],maxr))
                     cloud_verifier_common.notifyError(agent,'comm_error')
-                    await self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
+                    self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
                 else:
-                    agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V
                     cb = functools.partial(self.invoke_provide_v, agent)
                     agent['num_retries']+=1
                     logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds"%(agent['ip'],agent['num_retries'],maxr,retry))
@@ -459,7 +463,6 @@ class AgentsHandler(BaseHandler):
         except Exception as e:
             logger.error("Polling thread error: %s"%e)
             logger.exception(e)
-
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
@@ -492,9 +495,9 @@ def main(argv=sys.argv):
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler,{'db':db}),
         (r".*", MainHandler),
         ])
-
+    
     context = cloud_verifier_common.init_mtls()
-
+    
     #after TLS is up, start revocation notifier
     if config.getboolean('cloud_verifier', 'revocation_notifier'):
         logger.info("Starting service for revocation notifications on port %s"%config.getint('general','revocation_notifier_port'))

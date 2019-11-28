@@ -54,8 +54,6 @@ async def request(method,url,params=None,data=None,context=None):
             return tornado_response(500,str(e))
 
         return tornado_response(e.response.code,e.response.body)
-    except ConnectionError as e:
-        return tornado_response(599,"Connection error: %s"%e)
     if response is None:
         return None
     return tornado_response(response.code,response.body)

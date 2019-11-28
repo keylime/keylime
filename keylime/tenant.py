@@ -297,7 +297,7 @@ class Tenant():
             if "ca_dir_pw" in args and args["ca_dir_pw"] is not None:
                 ca_util.setpassword(args["ca_dir_pw"])
 
-            if not os.path.exists(args["ca_dir"]) or not os.path.exists("%s/cacert.crt"%args["ca_dir"]):
+            if not os.path.exists(args["ca_dir"]):
                 logger.warning(" CA directory does not exist.  Creating...")
                 ca_util.cmd_init(args["ca_dir"])
 
@@ -518,12 +518,8 @@ class Tenant():
             exit()
         else:
             response_json = json.loads(response.read().decode())
-            if not listing:
-                operational_state = response_json["results"]["operational_state"]
-                logger.info(f'Agent Status: "{states[operational_state]}"')
-            else:
-                agent_array = response_json["results"]["uuids"]
-                logger.info(f'Agents: "{agent_array}"')
+            operational_state = response_json["results"]["operational_state"]
+            logger.info(f'Agent Status: "{states[operational_state]}"')
 
     def do_cvdelete(self):
         params = f'/agents/{self.agent_uuid}'
@@ -617,10 +613,10 @@ class Tenant():
                     numtries+=1
                     maxr = config.getint('tenant','max_retries')
                     if numtries >= maxr:
-                        logger.error(f"tenant cannot establish connection to agent on {self.cloudagent_ip} with port {self.cloudagent_port}")
+                        logger.error(f"Verifier cannot establish connection to agent on {self.cloudagent_ip} with port {self.cloudagent_port}")
                         exit()
                     retry  = config.getfloat('tenant','retry_interval')
-                    logger.info(f"tenant connection to agent at {self.cloudagent_ip} refused {numtries}/{maxr} times, trying again in {retry} seconds...")
+                    logger.info(f"Verifier connection to agent at {self.cloudagent_ip} refused {numtries}/{maxr} times, trying again in {retry} seconds...")
                     time.sleep(retry)
                     continue
                 else:
