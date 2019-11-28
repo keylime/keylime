@@ -74,7 +74,7 @@ def notify(tosend):
         mysock = context.socket(zmq.PUB)
         mysock.connect("ipc:///tmp/keylime.verifier.ipc")
         # wait 100ms for connect to happen
-        time.sleep(0.1)
+        time.sleep(0.2)
         # now send it out vi 0mq
         for i in range(config.getint('cloud_verifier','max_retries')):
             try:
