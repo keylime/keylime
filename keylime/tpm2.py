@@ -877,6 +877,10 @@ class tpm2(tpm_abstract.AbstractTPM):
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             raise Exception("get_tpm_manufacturer failed with code "+str(code)+": "+str(reterr))
 
+        import re
+        for i, s in enumerate(output):
+            output[i] = re.sub(r"[\x01-\x1F\x7F]", "", s.decode('utf-8')).encode('utf-8')
+
         retyaml = common.yaml_to_dict(output)
         if "TPM2_PT_VENDOR_STRING_1" in retyaml:
             vendorStr = retyaml["TPM2_PT_VENDOR_STRING_1"]["value"]
@@ -1214,7 +1218,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             retDict = self.__run("tpm2_nvread -x 0x1500018 -a 0x40000001 -s %s -P %s"%(common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
         else:
             retDict = self.__run("tpm2_nvread 0x1500018 -C 0x40000001 -s %s -P %s"%(common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
-        output = common.list_convert(retDict['retout'])
+        output = retDict['retout']
         errout = common.list_convert(retDict['reterr'])
         code = retDict['code']
 
