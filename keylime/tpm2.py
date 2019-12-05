@@ -877,7 +877,9 @@ class tpm2(tpm_abstract.AbstractTPM):
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             raise Exception("get_tpm_manufacturer failed with code "+str(code)+": "+str(reterr))
 
-        import re
+        # Clean up TPM manufacturer information (strip control characters)
+        # These strings are supposed to be printable ASCII characters, but 
+        # some TPM manufacturers put control characters in here
         for i, s in enumerate(output):
             output[i] = re.sub(r"[\x01-\x1F\x7F]", "", s.decode('utf-8')).encode('utf-8')
 
