@@ -843,7 +843,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         #openssl x509 -inform der -in certificate.cer -out certificate.pem
         try:
             ek509 = M2Crypto.X509.load_cert_der_string(ekcert)
-            ekcertpem = ek509.get_pubkey().get_rsa().as_pem(cipher=None)
+            ekcertpem = ek509.get_pubkey().get_rsa().as_pem(cipher=None).decode('utf-8')
 
             # Make sure given ekcert is for their ek
             if str(ekpem) != str(ekcertpem):
@@ -876,6 +876,12 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             raise Exception("get_tpm_manufacturer failed with code "+str(code)+": "+str(reterr))
+
+        # Clean up TPM manufacturer information (strip control characters)
+        # These strings are supposed to be printable ASCII characters, but 
+        # some TPM manufacturers put control characters in here
+        for i, s in enumerate(output):
+            output[i] = re.sub(r"[\x01-\x1F\x7F]", "", s.decode('utf-8')).encode('utf-8')
 
         retyaml = common.yaml_to_dict(output)
         if "TPM2_PT_VENDOR_STRING_1" in retyaml:
@@ -1214,7 +1220,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             retDict = self.__run("tpm2_nvread -x 0x1500018 -a 0x40000001 -s %s -P %s"%(common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
         else:
             retDict = self.__run("tpm2_nvread 0x1500018 -C 0x40000001 -s %s -P %s"%(common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
-        output = common.list_convert(retDict['retout'])
+        output = retDict['retout']
         errout = common.list_convert(retDict['reterr'])
         code = retDict['code']
 
