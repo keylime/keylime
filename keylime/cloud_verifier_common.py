@@ -383,7 +383,6 @@ def notifyError(agent, msgtype='revocation'):
         # print "verified? %s"%crypto.rsa_verify(signing_key, tosend['signature'], tosend['revocation'])
     else:
         tosend['siganture'] = "none"
-
     revocation_notifier.notify(tosend)
 
 # ===== sqlite stuff =====
