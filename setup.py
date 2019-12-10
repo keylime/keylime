@@ -74,7 +74,7 @@ setup(
 
     # See https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
-        'Development Status :: 5.3.0 - Beta',
+        'Development Status :: 5.3.1 - Beta',
 
         # Indicate who your project is intended for
         'Intended Audience :: Developers',
