@@ -85,6 +85,24 @@ class MainHandler(tornado.web.RequestHandler):
     def put(self):
         common.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
+class UserHandler(BaseHandle):
+    db = None
+    def initialize(self, db):
+        self.db = db
+
+    def get(self):
+        """HEAD not supported"""
+        common.echo_json_response(self, 405, "HEAD not supported")
+
+    def post(self):
+        """This method handles the POST requests to add users to the Cloud Verifier."""
+
+    def put(self):
+        """This method handles the POST requests to add users to the Cloud Verifier."""
+
+    def delete(self):
+        """This method handles the POST requests to add users to the Cloud Verifier."""
+
 class AgentsHandler(BaseHandler):
     db = None
     def initialize(self, db):
@@ -490,6 +508,7 @@ def main(argv=sys.argv):
 
     app = tornado.web.Application([
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler,{'db':db}),
+        (r"/(?:v[0-9]/)?users/.*", UsersHandler,{'db':db}),
         (r".*", MainHandler),
         ])
 
