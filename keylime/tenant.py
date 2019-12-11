@@ -156,6 +156,9 @@ class Tenant():
         if "agent_ip" in args:
             self.cloudagent_ip = args["agent_ip"]
 
+        if "agent_port" in args:
+            self.cloudagent_port = args["agent_port"]
+
         if 'cv_agent_ip' in args and args['cv_agent_ip'] is not None:
             self.cv_cloudagent_ip = args['cv_agent_ip']
         else:
@@ -749,6 +752,7 @@ def main(argv=sys.argv):
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument('-c', '--command',action='store',dest='command',default='add',help="valid commands are add,delete,update,status,list,reactivate,regdelete. defaults to add")
     parser.add_argument('-t', '--targethost',action='store',dest='agent_ip',help="the IP address of the host to provision")
+    parser.add_argument('-tp', '--targetport',action='store',dest='agent_port',help="the Port of the host to provision")
     parser.add_argument('--cv_targethost',action='store',default=None,dest='cv_agent_ip',help='the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost')
     parser.add_argument('-v', '--cv',action='store',dest='verifier_ip',help="the IP address of the cloud verifier")
     parser.add_argument('-u', '--uuid',action='store',dest='agent_uuid',help="UUID for the agent to provision")
