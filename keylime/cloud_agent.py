@@ -548,11 +548,11 @@ def main(argv=sys.argv):
     if not retval:
         raise Exception("Registration failed on activate")
 
-    serveraddr = (config.get('general', 'cloudagent_ip'), config.getint('general', 'cloudagent_port'))
+    serveraddr = ('', config.getint('general', 'cloudagent_port'))
     server = CloudAgentHTTPServer(serveraddr,Handler,agent_uuid)
     serverthread = threading.Thread(target=server.serve_forever)
 
-    logger.info(f"Starting Cloud Agent on {serveraddr[0]}:{serveraddr[1]} use <Ctrl-C> to stop")
+    logger.info( 'Starting Cloud Agent on port %s use <Ctrl-C> to stop'%serveraddr[1])
     serverthread.start()
 
     # want to listen for revocations?
