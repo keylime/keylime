@@ -850,18 +850,19 @@ class tpm2(tpm_abstract.AbstractTPM):
                 logger.error("Public EK does not match EK certificate")
                 return False
 
-            for signer in tpm_ek_ca.trusted_certs:
-                signcert = M2Crypto.X509.load_cert_string(tpm_ek_ca.trusted_certs[signer])
+            trusted_certs = tpm_ek_ca.cert_loader()
+            for cert in trusted_certs:
+                signcert = M2Crypto.X509.load_cert_string(cert)
                 signkey = signcert.get_pubkey()
                 if ek509.verify(signkey) == 1:
-                    logger.debug("EK cert matched signer %s"%signer)
+                    logger.debug(f"EK cert matched cert: {cert}")
                     return True
         except Exception as e:
             # Log the exception so we don't lose the raw message
             logger.exception(e)
             raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?").with_traceback(sys.exc_info()[2])
 
-        logger.error("No Root CA matched EK Certificate")
+        logger.error(f"No Root CA matched EK Certificate")
         return False
 
     def get_tpm_manufacturer(self):

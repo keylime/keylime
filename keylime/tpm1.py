@@ -486,11 +486,16 @@ class tpm1(tpm_abstract.AbstractTPM):
         :param ekpem: the endorsement public key in PEM format
         :returns: True if the certificate can be verified, false otherwise
         """
-        #openssl x509 -inform der -in certificate.cer -out certificate.pem
+        # openssl x509 -inform der -in certificate.cer -out certificate.pem
         try:
             pubekmod = base64.b64decode(self.__get_mod_from_pem(ekpem))
-
             ek509 = M2Crypto.X509.load_cert_der_string(ekcert)
+            ekcertpem = ek509.get_pubkey().get_rsa().as_pem(cipher=None).decode('utf-8')
+
+            # Make sure given ekcert is for their ek
+            if str(ekpem) != str(ekcertpem):
+                logger.error("Public EK does not match EK certificate")
+                return False
 
             # locate the region where the pub ek should be and then brute force looking for it.  this is awful!
             # Sadly TPM ek certificates are corrupted in a way that openssl and most other utilities can't read them.
@@ -505,12 +510,12 @@ class tpm1(tpm_abstract.AbstractTPM):
                 logger.error("Public EK does not match EK certificate")
                 return False
 
-            for signer in tpm_ek_ca.trusted_certs:
-                signcert = M2Crypto.X509.load_cert_string(tpm_ek_ca.trusted_certs[signer])
+            trusted_certs = tpm_ek_ca.cert_loader()
+            for cert in trusted_certs:
+                signcert = M2Crypto.X509.load_cert_string(cert)
                 signkey = signcert.get_pubkey()
                 if ek509.verify(signkey) == 1:
-                    logger.debug("EK cert matched signer %s"%signer)
-                    return True
+                    logger.debug(f"EK cert matched cert: {cert}")
 
             for key in tpm_ek_ca.atmel_trusted_keys:
                 e = m2.bn_to_mpi(m2.hex_to_bn(tpm_ek_ca.atmel_trusted_keys[key]['exponent']))
@@ -520,7 +525,7 @@ class tpm1(tpm_abstract.AbstractTPM):
                 pubkey.assign_rsa(rsa)
 
                 if ek509.verify(pubkey) == 1:
-                    logger.debug("EK cert matched trusted key %s"%key)
+                    logger.debug(f"EK cert matched trusted key {key}")
                     return True
         except Exception as e:
             # Log the exception so we don't lose the raw message
