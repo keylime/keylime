@@ -610,6 +610,19 @@ else
     cp -n keylime.conf /etc/
 fi
 
+echo
+echo "=================================================================================="
+echo $'\t\t\t\tCheck for tpm_cert_store'
+echo "=================================================================================="
+if [ ! -d "/var/lib/keylime/tpm_cert_store" ]; then
+  echo "Creating new tpm_cert_store"
+  mkdir -p /var/lib/keylime
+  mv $KEYLIME_DIR/tpm_cert_store /var/lib/keylime/tpm_cert_store
+else
+  echo "Updating existing cert store"
+  cp -n $KEYLIME_DIR/tpm_cert_store/* /var/lib/keylime/tpm_cert_store/
+fi
+
 if [[ "$OPENSSL" -eq "0" ]] ; then
     echo
     echo "=================================================================================="
