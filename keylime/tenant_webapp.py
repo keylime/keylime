@@ -601,7 +601,7 @@ def main(argv=sys.argv):
     config = configparser.ConfigParser()
     config.read(common.CONFIG_FILE)
 
-    webapp_port = config.getint('general', 'webapp_port')
+    webapp_port = config.getint('webapp_port', 'webapp_port')
 
     if not common.REQUIRE_ROOT and webapp_port < 1024:
         webapp_port+=2000

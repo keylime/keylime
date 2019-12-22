@@ -548,7 +548,7 @@ def main(argv=sys.argv):
     if not retval:
         raise Exception("Registration failed on activate")
 
-    serveraddr = (config.get('general', 'cloudagent_ip'), config.getint('general', 'cloudagent_port'))
+    serveraddr = (config.get('cloud_agent', 'cloudagent_ip'), config.getint('cloud_agent', 'cloudagent_port'))
     server = CloudAgentHTTPServer(serveraddr,Handler,agent_uuid)
     serverthread = threading.Thread(target=server.serve_forever)
 
