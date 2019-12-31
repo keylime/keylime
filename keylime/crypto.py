@@ -95,17 +95,16 @@ def rsa_sign(key, message):
 
 def rsa_verify(public_key, message, signature):
     """ RSA verify message  """
-    verifier = public_key.verifier(
-        base64.b64decode(signature),
-        padding.PSS(
-            mgf=padding.MGF1(hashes.SHA256()),
-            salt_length=padding.PSS.MAX_LENGTH
-        ),
-        hashes.SHA256()
-    )
-    verifier.update(message)
     try:
-        verifier.verify()
+        public_key.verify(
+            base64.b64decode(signature),
+            message,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+                ),
+            hashes.SHA256()
+        )
     except exceptions.InvalidSignature:
         return False
     except Exception as e:
