@@ -590,7 +590,7 @@ def main(argv=sys.argv):
                         sys.path.append(uzpath)
 
             for action in actionlist:
-                logger.debug("executing revocation action %s"%action)
+                logger.info("executing revocation action %s"%action)
                 try:
                     module = importlib.import_module(action)
                     execute = getattr(module,'execute')
