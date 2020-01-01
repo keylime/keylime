@@ -329,11 +329,12 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
                 provider_keys = registrar_client.getKeys(config.get('general', 'provider_registrar_ip'), config.get('general', 'provider_registrar_tls_port'), agent_id)
                 # we already have the vaik
                 tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=agent['tpm_version'])
-                if not tpm.check_deep_quote(hashlib.sha1(agent['key']).hexdigest(),
-                                                  agent_id+agent['aik']+agent['ek'],
-                                                  deepquote,
-                                                  agent['aik'],
-                                                  provider_keys['aik']):
+                if not tpm.check_deep_quote(agent_id,
+                                            hashlib.sha1(agent['key']).hexdigest(),
+                                            agent_id+agent['aik']+agent['ek'],
+                                            deepquote,
+                                            agent['aik'],
+                                            provider_keys['aik']):
                     raise Exception("Deep quote invalid")
 
                 self.server.db.update_agent(agent_id, 'active',True)

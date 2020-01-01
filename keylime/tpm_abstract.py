@@ -293,11 +293,11 @@ class AbstractTPM(object, metaclass=ABCMeta):
             raise Exception("Invalid quote type %s"%quote[0])
 
     @abstractmethod
-    def check_deep_quote(self, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}):
+    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}):
         pass
 
     @abstractmethod
-    def check_quote(self, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}, hash_alg=None):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}, hash_alg=None):
         pass
 
     def hashdigest(self, payload, algorithm=None):
@@ -324,8 +324,8 @@ class AbstractTPM(object, metaclass=ABCMeta):
     def readPCR(self, pcrval, hash_alg=None):
         pass
 
-    def __check_ima(self, pcrval, ima_measurement_list, ima_whitelist):
-        logger.info("Checking IMA measurement list...")
+    def __check_ima(self, agent_id, pcrval, ima_measurement_list, ima_whitelist):
+        logger.info(f"Checking IMA measurement list on agent: {agent_id}")
         ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), ima_whitelist)
         if ex_value is None:
             return False
@@ -333,10 +333,10 @@ class AbstractTPM(object, metaclass=ABCMeta):
         if pcrval != ex_value and not common.STUB_IMA:
             logger.error("IMA measurement list expected pcr value %s does not match TPM PCR %s"%(ex_value, pcrval))
             return False
-        logger.debug("IMA measurement list validated")
+        logger.debug(f"IMA measurement list of agent {agent_id} validated")
         return True
 
-    def check_pcrs(self, tpm_policy, pcrs, data, virtual, ima_measurement_list, ima_whitelist):
+    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, ima_whitelist):
         pcrWhiteList = tpm_policy.copy()
         if 'mask' in pcrWhiteList: del pcrWhiteList['mask']
         # convert all pcr num keys to integers
@@ -372,7 +372,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
                     logger.error("IMA PCR in policy, but no measurement list provided")
                     return False
 
-                if self.__check_ima(pcrval, ima_measurement_list, ima_whitelist):
+                if self.__check_ima(agent_id, pcrval, ima_measurement_list, ima_whitelist):
                     pcrsInQuote.add(pcrnum)
                     continue
                 else:

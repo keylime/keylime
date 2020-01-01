@@ -396,7 +396,7 @@ class Tenant():
             return False
 
         tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
-        if not tpm.check_quote(self.nonce,public_key,quote,reg_keys['aik'],hash_alg=hash_alg):
+        if not tpm.check_quote(self.agent_uuid,self.nonce,public_key,quote,reg_keys['aik'],hash_alg=hash_alg):
             if reg_keys['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious host is present.  Run 'regdelete' for this agent and restart")
                 exit()

@@ -664,7 +664,7 @@ class tpm1(tpm_abstract.AbstractTPM):
         retDict = self.__run(cmd,lock=False)
         return retDict['retout']
 
-    def check_deep_quote(self,nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima_measurement_list=None,ima_whitelist={}):
+    def check_deep_quote(self,agent_id,nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima_measurement_list=None,ima_whitelist={}):
         quoteFile=None
         vAIKFile=None
         hAIKFile=None
@@ -732,7 +732,8 @@ class tpm1(tpm_abstract.AbstractTPM):
                 pcrs.append(line)
 
         # don't pass in data to check pcrs for physical quote
-        return self.check_pcrs(tpm_policy,pcrs,None,False,None,None) and self.check_pcrs(vtpm_policy, vpcrs, data, True,ima_measurement_list,ima_whitelist)
+        return self.check_pcrs(agent_id,tpm_policy,pcrs,None,False,None,None) and \
+            self.check_pcrs(agent_id,vtpm_policy, vpcrs, data, True,ima_measurement_list,ima_whitelist)
 
     def __check_quote_c(self, aikFile, quoteFile, extData):
         os.putenv('TPM_SERVER_PORT', '9999')
@@ -758,7 +759,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             retDict = self.__run("checkquote -aik %s -quote %s -nonce %s"%(aikFile, quoteFile, extData),lock=False)
             return retDict['retout']
 
-    def check_quote(self,nonce,data,quote,aikFromRegistrar,tpm_policy={},ima_measurement_list=None,ima_whitelist={},hash_alg=None):
+    def check_quote(self,agent_id,nonce,data,quote,aikFromRegistrar,tpm_policy={},ima_measurement_list=None,ima_whitelist={},hash_alg=None):
         quoteFile=None
         aikFile=None
 
@@ -810,7 +811,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             if pcrs is not None:
                 pcrs.append(line.decode('utf-8'))
 
-        return self.check_pcrs(tpm_policy,pcrs,data,False,ima_measurement_list,ima_whitelist)
+        return self.check_pcrs(agent_id,tpm_policy,pcrs,data,False,ima_measurement_list,ima_whitelist)
 
     def extendPCR(self,pcrval,hashval,hash_alg=None,lock=True):
         if hash_alg is None:
