@@ -576,7 +576,8 @@ class TestRestful(unittest.TestCase):
         self.assertIn("pubkey", json_response["results"], "Malformed response body!")
 
         # Check the quote identity
-        self.assertTrue(tpm.check_quote(nonce,json_response["results"]["pubkey"],json_response["results"]["quote"],aik), "Invalid quote!")
+        self.assertTrue(tpm.check_quote(tenant_templ.agent_uuid,nonce,json_response["results"]["pubkey"],json_response["results"]["quote"],aik),
+                        "Invalid quote!")
 
     @unittest.skip("Testing of agent's POST /v2/keys/vkey disabled!  (spawned CV should do this already)")
 
@@ -748,7 +749,8 @@ class TestRestful(unittest.TestCase):
         tpm_version = json_response["results"]["tpm_version"]
         hash_alg = json_response["results"]["hash_alg"]
 
-        validQuote = tpm.check_quote(nonce,
+        validQuote = tpm.check_quote(tenant_templ.agent_uuid,
+                                            nonce,
                                             public_key,
                                             quote,
                                             aik,

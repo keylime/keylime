@@ -111,7 +111,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         errout = ''.join(common.list_convert(retDict['reterr']))
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             raise Exception("Error establishing tpm2-tools version using TPM2_Startup: %s"+str(code)+": "+str(errout))
-        
+
         # Extract the `version="x.x.x"` from tools
         version_str = re.search(r'version="([^"]+)"', output).group(1)
         # Extract the full semver release number.
@@ -879,7 +879,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             raise Exception("get_tpm_manufacturer failed with code "+str(code)+": "+str(reterr))
 
         # Clean up TPM manufacturer information (strip control characters)
-        # These strings are supposed to be printable ASCII characters, but 
+        # These strings are supposed to be printable ASCII characters, but
         # some TPM manufacturers put control characters in here
         for i, s in enumerate(output):
             output[i] = re.sub(r"[\x01-\x1F\x7F]", "", s.decode('utf-8')).encode('utf-8')
@@ -992,7 +992,7 @@ class tpm2(tpm_abstract.AbstractTPM):
     def __checkdeepquote_c(self, hAIK, vAIK, deepquoteFile, nonce):
         raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
 
-    def check_deep_quote(self, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}):
+    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}):
         raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
 
     def __check_quote_c(self, pubaik, nonce, quoteFile, sigFile, pcrFile, hash_alg):
@@ -1021,7 +1021,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         retDict = self.__run(command.format(**cmdargs), lock=False)
         return retDict
 
-    def check_quote(self, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}, hash_alg=None):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}, hash_alg=None):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
@@ -1110,7 +1110,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         if len(pcrs) == 0:
             pcrs = None
 
-        return self.check_pcrs(tpm_policy, pcrs, data, False, ima_measurement_list, ima_whitelist)
+        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, ima_whitelist)
 
     def extendPCR(self, pcrval, hashval, hash_alg=None, lock=True):
         if hash_alg is None:

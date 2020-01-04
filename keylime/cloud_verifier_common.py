@@ -240,7 +240,8 @@ def process_quote_response(agent, json_response):
             "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 
     if tpm.is_deep_quote(quote):
-        validQuote = tpm.check_deep_quote(agent['nonce'],
+        validQuote = tpm.check_deep_quote(agent['agent_id'],
+                                          agent['nonce'],
                                           received_public_key,
                                           quote,
                                           agent['registrar_keys']['aik'],
@@ -250,7 +251,8 @@ def process_quote_response(agent, json_response):
                                           ima_measurement_list,
                                           agent['ima_whitelist'])
     else:
-        validQuote = tpm.check_quote(agent['nonce'],
+        validQuote = tpm.check_quote(agent['agent_id'],
+                                     agent['nonce'],
                                      received_public_key,
                                      quote,
                                      agent['registrar_keys']['aik'],
