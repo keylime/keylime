@@ -367,6 +367,7 @@ def notifyError(agent, msgtype='revocation'):
     revocation = {
         'type': msgtype,
         'ip': agent['ip'],
+        'agent_id': agent['agent_id'],
         'port': agent['port'],
         'tpm_policy': agent['tpm_policy'],
         'vtpm_policy': agent['vtpm_policy'],
