@@ -137,25 +137,34 @@ def doRegisterAgent(registrar_ip,registrar_port,agent_id,tpm_version,pub_ek,ekce
     }
     v_json_message = json.dumps(data)
     params = '/agents/%s'% (agent_id)
-    response = httpclient_requests.request("POST", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message, context=None)
-    response_body = json.loads(response.read().decode("utf-8"))
+    try:
+        response = httpclient_requests.request("POST", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message, context=None)
+        response_body = json.loads(response.read().decode("utf-8"))
 
-    if response.status != 200:
-        logger.error("Error: unexpected http response code from Registrar Server: " + str(response.status))
-        keylime_logging.log_http_response(logger,logging.ERROR,response_body)
-        return None
+        if response.status != 200:
+            logger.error(f"Error: unexpected http response code from Registrar Server: {response.status}")
+            keylime_logging.log_http_response(logger,logging.ERROR,response_body)
+            return None
 
-    logger.info("Agent registration requested for %s"%agent_id)
+        logger.info(f"Agent registration requested for {agent_id}")
 
-    if "results" not in response_body:
-        logger.critical("Error: unexpected http response body from Registrar Server: %s"%str(response.status))
-        return None
+        if "results" not in response_body:
+            logger.critical(f"Error: unexpected http response body from Registrar Server: {response.status}")
+            return None
 
-    if "blob" not in response_body["results"]:
-        logger.critical("Error: did not receive blob from Registrar Server: %s"%str(response.status))
-        return None
+        if "blob" not in response_body["results"]:
+            logger.critical(f"Error: did not receive blob from Registrar Server: {response.status}")
+            return None
 
-    return response_body["results"]["blob"]
+        return response_body["results"]["blob"]
+    except Exception as e:
+        if response == 503:
+            logger.error(f"Agent cannot establish connection to registrar at {registrar_ip}:{registrar_port}")
+            exit()
+        else:
+            logger.exception(e)
+    
+    return None
 
 
 def doActivateAgent(registrar_ip,registrar_port,agent_id,key):
