@@ -156,9 +156,9 @@ class Tenant():
         if "agent_ip" in args:
             self.cloudagent_ip = args["agent_ip"]
 
-        if "agent_port" in args:
-            self.cloudagent_port = args["agent_port"]
-
+        if 'agent_port' in args and args['agent_port'] is not None:
+            self.cloudagent_port = args['agent_port']
+            
         if 'cv_agent_ip' in args and args['cv_agent_ip'] is not None:
             self.cv_cloudagent_ip = args['cv_agent_ip']
         else:
