@@ -56,7 +56,7 @@ def start_broker():
         # Socket facing services
         backend = context.socket(zmq.PUB)
         backend.bind("tcp://*:%s" %
-                     config.getint('general', 'revocation_notifier_port'))
+                     config.getint('cloud_verifier', 'revocation_notifier_port'))
 
         zmq.device(zmq.FORWARDER, frontend, backend)
 
@@ -107,11 +107,11 @@ def await_notifications(callback, revocation_cert_path):
     context = zmq.Context()
     mysock = context.socket(zmq.SUB)
     mysock.setsockopt(zmq.SUBSCRIBE, b'')
-    mysock.connect("tcp://%s:%s" % (config.get('general', 'revocation_notifier_ip'),
-                                    config.getint('general', 'revocation_notifier_port')))
+    mysock.connect("tcp://%s:%s" % (config.get('cloud_verifier', 'revocation_notifier_ip'),
+                                    config.getint('cloud_verifier', 'revocation_notifier_port')))
 
     logger.info('Waiting for revocation messages on 0mq %s:%s' %
-                (config.get('general', 'revocation_notifier_ip'), config.getint('general', 'revocation_notifier_port')))
+                (config.get('cloud_verifier', 'revocation_notifier_ip'), config.getint('cloud_verifier', 'revocation_notifier_port')))
 
     while True:
         rawbody = mysock.recv()

@@ -43,8 +43,8 @@ logger = keylime_logging.init_logging('ca_impl_cfssl')
 config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
 
-cfssl_ip = config.get('general', 'cfssl_ip')
-cfssl_port = config.get('general', 'cfssl_port')
+cfssl_ip = config.get('ca', 'cfssl_ip')
+cfssl_port = config.get('ca', 'cfssl_port')
 
 cfsslproc = None
 

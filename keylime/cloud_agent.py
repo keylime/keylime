@@ -478,8 +478,8 @@ def main(argv=sys.argv):
         return
 
     # get params for initialization
-    registrar_ip = config.get('general', 'registrar_ip')
-    registrar_port = config.get('general', 'registrar_port')
+    registrar_ip = config.get('registrar', 'registrar_ip')
+    registrar_port = config.get('registrar', 'registrar_port')
 
     # initialize the tmpfs partition to store keys if it isn't already available
     secdir = secure_mount.mount()
@@ -548,7 +548,7 @@ def main(argv=sys.argv):
     if not retval:
         raise Exception("Registration failed on activate")
 
-    serveraddr = (config.get('general', 'cloudagent_ip'), config.getint('general', 'cloudagent_port'))
+    serveraddr = (config.get('cloud_agent', 'cloudagent_ip'), config.getint('cloud_agent', 'cloudagent_port'))
     server = CloudAgentHTTPServer(serveraddr,Handler,agent_uuid)
     serverthread = threading.Thread(target=server.serve_forever)
 

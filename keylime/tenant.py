@@ -99,16 +99,16 @@ class Tenant():
     context = None
 
     def __init__(self):
-        self.cloudverifier_port = config.get('general', 'cloudverifier_port')
-        self.cloudagent_port = config.get('general', 'cloudagent_port')
-        self.registrar_port = config.get('general', 'registrar_tls_port')
-        self.webapp_port = config.getint('general', 'webapp_port')
+        self.cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
+        self.cloudagent_port = config.get('cloud_agent', 'cloudagent_port')
+        self.registrar_port = config.get('registrar', 'registrar_tls_port')
+        self.webapp_port = config.getint('webapp', 'webapp_port')
         if not common.REQUIRE_ROOT and self.webapp_port < 1024:
             self.webapp_port+=2000
 
-        self.cloudverifier_ip = config.get('tenant', 'cloudverifier_ip')
-        self.registrar_ip = config.get('general', 'registrar_ip')
-        self.webapp_ip = config.get('general', 'webapp_ip')
+        self.cloudverifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
+        self.registrar_ip = config.get('registrar', 'registrar_ip')
+        self.webapp_ip = config.get('webapp', 'webapp_ip')
 
         if config.getboolean('general',"enable_tls"):
             self.context = self.get_tls_context()
@@ -158,7 +158,7 @@ class Tenant():
 
         if 'agent_port' in args and args['agent_port'] is not None:
             self.cloudagent_port = args['agent_port']
-            
+
         if 'cv_agent_ip' in args and args['cv_agent_ip'] is not None:
             self.cv_cloudagent_ip = args['cv_agent_ip']
         else:
