@@ -326,7 +326,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler):
 
                 # get an physical AIK for this host
                 registrar_client.init_client_tls(config, 'registrar')
-                provider_keys = registrar_client.getKeys(config.get('general', 'provider_registrar_ip'), config.get('general', 'provider_registrar_tls_port'), agent_id)
+                provider_keys = registrar_client.getKeys(config.get('registrar', 'provider_registrar_ip'), config.get('registrar', 'provider_registrar_tls_port'), agent_id)
                 # we already have the vaik
                 tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=agent['tpm_version'])
                 if not tpm.check_deep_quote(agent_id,

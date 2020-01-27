@@ -475,7 +475,7 @@ def main(argv=sys.argv):
     config = configparser.ConfigParser()
     config.read(common.CONFIG_FILE)
 
-    cloudverifier_port = config.get('general', 'cloudverifier_port')
+    cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
 
     db_filename = "%s/%s"%(common.WORK_DIR,config.get('cloud_verifier','db_filename'))
     db = cloud_verifier_common.init_db(db_filename)
@@ -497,7 +497,7 @@ def main(argv=sys.argv):
 
     #after TLS is up, start revocation notifier
     if config.getboolean('cloud_verifier', 'revocation_notifier'):
-        logger.info("Starting service for revocation notifications on port %s"%config.getint('general','revocation_notifier_port'))
+        logger.info("Starting service for revocation notifications on port %s"%config.getint('cloud_verifier','revocation_notifier_port'))
         revocation_notifier.start_broker()
 
     sockets = tornado.netutil.bind_sockets(int(cloudverifier_port), address='0.0.0.0')

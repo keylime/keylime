@@ -81,8 +81,8 @@ def main(argv=sys.argv):
         f.close()
 
     # fetch configuration parameters
-    provider_reg_port = config.get('general', 'provider_registrar_port')
-    provider_reg_ip = config.get('general', 'provider_registrar_ip')
+    provider_reg_port = config.get('registrar', 'provider_registrar_port')
+    provider_reg_ip = config.get('registrar', 'provider_registrar_ip')
 
     # create a new group
     (group_uuid,group_aik,group_num,_) = vtpm_manager.add_vtpm_group()

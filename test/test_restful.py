@@ -202,8 +202,8 @@ def setUpModule():
     tenant_templ = tenant.Tenant()
     tenant_templ.cloudagent_ip = "localhost"
     tenant_templ.agent_uuid = config.get('cloud_agent', 'agent_uuid')
-    tenant_templ.registrar_boot_port = config.get('general', 'registrar_port')
-    tenant_templ.registrar_tls_boot_port = config.get('general', 'registrar_tls_port')
+    tenant_templ.registrar_boot_port = config.get('registrar', 'registrar_port')
+    tenant_templ.registrar_tls_boot_port = config.get('registrar', 'registrar_tls_port')
 # Destroy everything on teardown
 def tearDownModule():
     # Tear down in reverse order of dependencies
