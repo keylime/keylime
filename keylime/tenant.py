@@ -616,7 +616,7 @@ class Tenant():
                 response = httpclient_requests.request("GET", "%s"%(self.cloudagent_ip), self.cloudagent_port, params=params, context=None)
                 response_body = json.loads(response.read().decode())
             except Exception as e:
-                if response == 503 or 504:
+                if response == 503 or response == 504:
                     numtries+=1
                     maxr = config.getint('tenant','max_retries')
                     if numtries >= maxr:
