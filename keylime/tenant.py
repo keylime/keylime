@@ -782,8 +782,8 @@ def main(argv=sys.argv):
     args = parser.parse_args(tmp)
     mytenant = Tenant()
 
-    if args.command not in ['list','regdelete'] and args.agent_ip is None:
-        raise UserError("-t/--targethost is required for command %s"%args.command)
+    if args.command not in ['list','regdelete', 'delete'] and args.agent_ip is None:
+        raise UserError(f"-t/--targethost is required for command {args.command}")
 
     if args.agent_uuid is not None:
         mytenant.agent_uuid = args.agent_uuid
