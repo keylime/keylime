@@ -30,6 +30,7 @@ import threading
 import time
 import zlib
 import yaml
+import codecs
 from distutils.version import LooseVersion, StrictVersion
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
@@ -946,6 +947,10 @@ class tpm2(tpm_abstract.AbstractTPM):
 
                     if pcrmask is None:
                         pcrmask = tpm_abstract.AbstractTPM.EMPTYMASK
+
+                    # add PCR 16 to pcrmask
+                    pcrmask = "0x%X"%(int(pcrmask,0) + (1 << common.TPM_DATA_PCR))
+
                     pcrlist = self.__pcr_mask_to_list(pcrmask, hash_alg)
 
                     with self.tpmutilLock:
@@ -1111,6 +1116,16 @@ class tpm2(tpm_abstract.AbstractTPM):
             pcrs = None
 
         return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, ima_whitelist)
+
+    def sim_extend(self,hashval_1,hashval_0=None):
+        # simulate extending a PCR value by performing TPM-specific extend procedure
+
+        if hashval_0 is None:
+            hashval_0 = self.START_HASH()
+
+        # compute expected value  H(0|H(data))
+        extendedval = self.hashdigest(codecs.decode(hashval_0,'hex_codec')+codecs.decode(self.hashdigest(hashval_1.encode('utf-8')),'hex_codec')).lower()
+        return extendedval
 
     def extendPCR(self, pcrval, hashval, hash_alg=None, lock=True):
         if hash_alg is None:

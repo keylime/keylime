@@ -19,7 +19,7 @@ rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as d
 above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
 '''
-
+import ast
 from urllib.parse import urlparse
 import configparser
 import base64
@@ -39,7 +39,6 @@ from keylime import registrar_client
 from keylime import crypto
 from keylime import ca_util
 from keylime import revocation_notifier
-from keylime import keylime_sqlite
 from keylime import tpm_obj
 from keylime.tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 
@@ -306,35 +305,38 @@ def prepare_get_quote(agent):
     """
     agent['nonce'] = TPM_Utilities.random_password(20)
 
+    tpm_policy = ast.literal_eval(agent['tpm_policy'])
+    vtpm_policy = ast.literal_eval(agent['vtpm_policy'])
+
     params = {
         'nonce': agent['nonce'],
-        'mask': agent['tpm_policy']['mask'],
-        'vmask': agent['vtpm_policy']['mask'],
+        'mask': tpm_policy['mask'],
+        'vmask': vtpm_policy['mask'],
     }
-
     return params
 
 
 def process_get_status(agent):
-    if isinstance(agent['ima_whitelist'], dict) and 'whitelist' in agent['ima_whitelist']:
-        wl_len = len(agent['ima_whitelist']['whitelist'])
+    ima_whitelist = ast.literal_eval(agent.ima_whitelist)
+    if isinstance(ima_whitelist, dict) and 'whitelist' in ima_whitelist:
+        wl_len = len(ima_whitelist['whitelist'])
     else:
         wl_len = 0
-    response = {'operational_state': agent['operational_state'],
-                'v': agent['v'],
-                'ip': agent['ip'],
-                'port': agent['port'],
-                'tpm_policy': agent['tpm_policy'],
-                'vtpm_policy': agent['vtpm_policy'],
-                'metadata': agent['metadata'],
+    response = {'operational_state': agent.operational_state,
+                'v': agent.v,
+                'ip': agent.ip,
+                'port': agent.port,
+                'tpm_policy': agent.tpm_policy,
+                'vtpm_policy': agent.vtpm_policy,
+                'meta_data': agent.meta_data,
                 'ima_whitelist_len': wl_len,
-                'tpm_version': agent['tpm_version'],
-                'accept_tpm_hash_algs': agent['accept_tpm_hash_algs'],
-                'accept_tpm_encryption_algs': agent['accept_tpm_encryption_algs'],
-                'accept_tpm_signing_algs': agent['accept_tpm_signing_algs'],
-                'hash_alg': agent['hash_alg'],
-                'enc_alg': agent['enc_alg'],
-                'sign_alg': agent['sign_alg'],
+                'tpm_version': agent.tpm_version,
+                'accept_tpm_hash_algs': agent.accept_tpm_hash_algs,
+                'accept_tpm_encryption_algs': agent.accept_tpm_encryption_algs,
+                'accept_tpm_signing_algs': agent.accept_tpm_signing_algs,
+                'hash_alg': agent.hash_alg,
+                'enc_alg': agent.enc_alg,
+                'sign_alg': agent.sign_alg,
                 }
     return response
 
@@ -371,7 +373,7 @@ def notifyError(agent, msgtype='revocation'):
         'port': agent['port'],
         'tpm_policy': agent['tpm_policy'],
         'vtpm_policy': agent['vtpm_policy'],
-        'metadata': agent['metadata'],
+        'meta_data': agent['meta_data'],
     }
 
     revocation['event_time'] = time.asctime()
@@ -387,47 +389,3 @@ def notifyError(agent, msgtype='revocation'):
     else:
         tosend['siganture'] = "none"
     revocation_notifier.notify(tosend)
-
-# ===== sqlite stuff =====
-
-
-def init_db(db_filename):
-
-    # in the form key, SQL type
-
-    cols_db = {
-        'agent_id': 'TEXT PRIMARY_KEY',
-        'v': 'TEXT',
-        'ip': 'TEXT',
-        'port': 'INT',
-        'operational_state': 'INT',
-        'public_key': 'TEXT',
-        'tpm_policy': 'TEXT',
-        'vtpm_policy': 'TEXT',
-        'metadata': 'TEXT',
-        'ima_whitelist': 'TEXT',
-        'revocation_key': 'TEXT',
-        'tpm_version': 'INT',
-        'accept_tpm_hash_algs': 'TEXT',
-        'accept_tpm_encryption_algs': 'TEXT',
-        'accept_tpm_signing_algs': 'TEXT',
-        'hash_alg': 'TEXT',
-        'enc_alg': 'TEXT',
-        'sign_alg': 'TEXT',
-    }
-
-    # these are the columns that contain json data and need marshalling
-    json_cols_db = ['tpm_policy', 'vtpm_policy', 'metadata', 'ima_whitelist',
-                    'accept_tpm_hash_algs', 'accept_tpm_encryption_algs', 'accept_tpm_signing_algs']
-
-    # in the form key : default value
-    exclude_db = {
-        'registrar_keys': '',
-        'nonce': '',
-        'b64_encrypted_V': '',
-        'provide_V': True,
-        'num_retries': 0,
-        'pending_event': None,
-        'first_verified': False,
-    }
-    return keylime_sqlite.KeylimeDB(db_filename, cols_db, json_cols_db, exclude_db)
