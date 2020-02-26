@@ -531,7 +531,6 @@ class Tenant():
     def do_cvdelete(self):
         params = f'/agents/{self.agent_uuid}'
         response = httpclient_requests.request("DELETE", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params,  context=self.context)
-
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
             exit()

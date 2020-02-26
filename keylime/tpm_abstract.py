@@ -16,7 +16,7 @@ rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as d
 above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
 '''
-
+import ast
 import base64
 import configparser
 import fcntl
@@ -25,7 +25,6 @@ import os
 import string
 import struct
 import yaml
-import codecs
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
 except ImportError:
@@ -187,7 +186,6 @@ class AbstractTPM(object, metaclass=ABCMeta):
     EXIT_SUCESS = 0
     TPM_IO_ERR = 5
     EMPTYMASK = "1"
-    EMPTY_PCR = "0000000000000000000000000000000000000000"
 
     # constructor
     def __init__(self, need_hw_tpm=True):
@@ -300,6 +298,13 @@ class AbstractTPM(object, metaclass=ABCMeta):
     def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}, hash_alg=None):
         pass
 
+    def START_HASH(self, algorithm=None):
+        if algorithm is None:
+            algorithm = self.defaults['hash']
+
+        alg_size = Hash_Algorithms.get_hash_size(algorithm) // 4
+        return "0"*alg_size
+
     def hashdigest(self, payload, algorithm=None):
         if algorithm is None:
             algorithm = self.defaults['hash']
@@ -315,6 +320,10 @@ class AbstractTPM(object, metaclass=ABCMeta):
         else:
             measured = None
         return measured
+
+    @abstractmethod
+    def sim_extend(self,hashval_1,hashval_0=None):
+        pass
 
     @abstractmethod
     def extendPCR(self, pcrval, hashval, hash_alg=None, lock=True):
@@ -337,12 +346,18 @@ class AbstractTPM(object, metaclass=ABCMeta):
         return True
 
     def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, ima_whitelist):
-        pcrWhiteList = tpm_policy.copy()
+        try:
+            tpm_policy_ = ast.literal_eval(tpm_policy)
+        except ValueError:
+            tpm_policy_ = {}
+        pcrWhiteList = tpm_policy_.copy()
+
         if 'mask' in pcrWhiteList: del pcrWhiteList['mask']
         # convert all pcr num keys to integers
         pcrWhiteList = {int(k):v for k, v in list(pcrWhiteList.items())}
 
         pcrsInQuote = set()
+        validatedBindPCR = False
         for line in pcrs:
             tokens = line.split()
             if len(tokens) < 3:
@@ -358,12 +373,11 @@ class AbstractTPM(object, metaclass=ABCMeta):
                 logger.error("Invalid PCR number %s"%tokens[1])
 
             if pcrnum == common.TPM_DATA_PCR and data is not None:
-                # compute expected value  H(0|H(string(H(data))))
-                # confused yet?  pcrextend will hash the string of the original hash again
-                expectedval = hashlib.sha1(codecs.decode(AbstractTPM.EMPTY_PCR,'hex_codec')+hashlib.sha1(hashlib.sha1(data.encode('utf-8')).hexdigest().encode('utf-8')).digest()).hexdigest().lower()
+                expectedval = self.sim_extend(data)
                 if expectedval != pcrval and not common.STUB_TPM:
                     logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, expectedval))
                     return False
+                validatedBindPCR = True
                 continue
 
             # check for ima PCR
@@ -390,6 +404,10 @@ class AbstractTPM(object, metaclass=ABCMeta):
 
         if common.STUB_TPM:
             return True
+
+        if not validatedBindPCR:
+            logger.error("Binding %sPCR #%s was not included in the quote, but is required"%(("", "v")[virtual], common.TPM_DATA_PCR))
+            return False
 
         missing = list(set(list(pcrWhiteList.keys())).difference(pcrsInQuote))
         if len(missing) > 0:
