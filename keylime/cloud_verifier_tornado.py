@@ -35,15 +35,19 @@ from keylime import common
 from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
+from keylime import keylime_auth
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Database imports
-from keylime.verifier_db import VerfierMain
+from keylime.verifier_db import VerfierMain, User
 from keylime.keylime_database import SessionManager
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 
 logger = keylime_logging.init_logging('cloudverifier')
+
+SECRET = 'my_secret_key'
 
 try:
     import simplejson as json
@@ -147,6 +151,83 @@ class MainHandler(tornado.web.RequestHandler):
     def put(self):
         common.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
+
+class RegisterHandler(BaseHandler):
+    """
+        User registration, should only be allowed by admin
+    """
+
+    def post(self):
+        logger.info("Rgister called")
+        session = self.make_session(engine)
+        username = self.get_argument("username")
+        password = self.get_argument("password")
+        email = self.get_argument("email")
+        group_id = self.get_argument("group_id")
+        role_id = self.get_argument("role_id")
+        print('username:', username)
+        print('password:', password)
+
+        # if role_id != '1':
+        #     print('Only available for admin')
+#        user = session.query(User).filter_by(username=username).first()
+        user = session.query(User).filter(User.username == username).first()
+        if user == None:
+            try:
+                session.add(User(username, generate_password_hash(password), email, group_id, role_id))
+                session.commit()
+            except Exception as e:
+                print('error: ',  e)
+            self.write("username %s registered successfully" % (username))
+        else:
+            self.write("Username %s is already registered" % (username))
+        # if username == user.username:
+        # else:
+        #     try:
+        #         session.add(User(username, generate_password_hash(password), email, group_id, role_id))
+        #         session.commit()
+        #     except Exception as e:
+        #         print('error: ',  e)
+        #     self.write("username %s registered successfully" % (username))
+
+class AuthHandler(BaseHandler):
+    """
+        Handle to auth method.
+        This method aim to provide a new authorization token
+        There is a fake payload (for tutorial purpose)
+    """
+
+    def prepare(self):
+        """
+            Encode a new token with JSON Web Token (PyJWT)
+        """
+
+        self.encoded = jwt.encode({
+            'group_id': 'group_id',
+            'role_id': 'role_id',
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=600)},
+            SECRET,
+            algorithm='HS256'
+        )
+
+    def get(self, *args, **kwargs):
+        """
+            return the generated token
+        """
+        username = self.get_argument("username")
+        password = self.get_argument("password")
+        group_id = self.get_argument("group_id")
+        role_id = self.get_argument("role_id")
+
+        user = User.find_by_username(username)
+        if user and check_password_hash(user.password, password):
+            print('User authenticated')
+            response = {'token': self.encoded.decode('ascii')}
+            self.write(response)
+        else:
+            self.write('Auth Failed!')
+        response = {'token': self.encoded.decode('ascii')}
+        self.write(response)
 
 
 class AgentsHandler(BaseHandler):
@@ -650,6 +731,7 @@ def main(argv=sys.argv):
         session.commit()
     except SQLAlchemyError as e:
         logger.error(f'SQLAlchemy Error: {e}')
+
     num = session.query(VerfierMain.agent_id).count()
     if num > 0:
         agent_ids = session.query(VerfierMain.agent_id).all()
@@ -658,10 +740,17 @@ def main(argv=sys.argv):
     logger.info('Starting Cloud Verifier (tornado) on port ' +
                 cloudverifier_port + ', use <Ctrl-C> to stop')
 
+    settings = {
+        'debug': True,
+        "xsrf_cookies": False,  # change me!
+        }
+
     app = tornado.web.Application([
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
+        (r"/auth", AuthHandler),
+        (r"/register", RegisterHandler),
         (r".*", MainHandler),
-    ])
+    ], **settings)
 
     context = cloud_verifier_common.init_mtls()
 
