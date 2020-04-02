@@ -142,6 +142,11 @@ def get_random_bytes(size):
     return secrets.token_bytes(size)
 
 
+def get_random_string(size):
+    """ Generate random bytes  """
+    return secrets.token_hex(size)
+
+
 def generate_random_key(size=32):
     """ Generate random key using urandom wrapper  """
     return os.urandom(size)

@@ -37,12 +37,12 @@ class VerfierMain(Base):
 
 class User(Base):
     __tablename__ = 'users'
-    user_id = Column(Integer, primary_key=True, default=1)
+    user_id = Column(Integer, primary_key=True)
     username = Column(String(80), unique=True, nullable=False)
     password = Column(String(80), unique=True, nullable=False)
     email = Column(String(120), unique=True, nullable=False)
-    group_id = Column(Integer,  unique=True, nullable=False)
-    role_id = Column(Integer,  unique=True, nullable=False)
+    group_id = Column(Integer, nullable=False)
+    role_id = Column(Integer,  autoincrement=True)
 
     def __repr__(self):
         return '<User %r>' % self.username
