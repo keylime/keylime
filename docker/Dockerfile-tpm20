@@ -5,9 +5,9 @@
 # It is not recommended for use beyond testing scenarios.
 ##############################################################################
 
-FROM fedora:30
+FROM fedora:31
 MAINTAINER Luke Hinds <lhinds@redhat.com>
-LABEL version="5.0.1" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
+LABEL version="5.5.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
 ENV container docker
 # environment variables
@@ -34,12 +34,11 @@ RUN dnf -y install git \
            python3-dbus \
            python3-m2crypto \
            python3-cryptography \
-           python3-sqlalchemy
+           python3-sqlalchemy \
            procps \
            libtool \
            tpm2-tss \
            tpm2-tools \
-           tpm2-abrmd \
            gcc \
            make \
            automake \
@@ -54,21 +53,6 @@ RUN dnf -y install git \
 
 RUN dnf clean all
 
-RUN cd "/lib/systemd/system/sysinit.target.wants/"; \
-    for i in *; do [ $i = systemd-tmpfiles-setup.service ] || rm -f "$i"; done
-
-RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
-    /etc/systemd/system/*.wants/* \
-    /lib/systemd/system/local-fs.target.wants/* \
-    /lib/systemd/system/sockets.target.wants/*udev* \
-    /lib/systemd/system/sockets.target.wants/*initctl* \
-    /lib/systemd/system/basic.target.wants/* \
-    /lib/systemd/system/anaconda.target.wants/*
-
-RUN systemctl set-default multi-user.target
-ENV init /lib/systemd/systemd
-
-
 # Build and install TPM 2.0 simulator
 WORKDIR ${TPM_HOME}
 RUN wget --content-disposition http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/download
@@ -76,7 +60,3 @@ RUN tar -zxvf ibmtpm1119.tar.gz
 WORKDIR ${TPM_HOME}/src
 RUN make
 RUN install -c tpm_server /usr/local/bin/tpm_server
-
-VOLUME [ "/sys/fs/cgroup" ]
-
-ENTRYPOINT ["/lib/systemd/systemd"]
