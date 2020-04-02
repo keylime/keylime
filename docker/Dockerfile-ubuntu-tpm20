@@ -1,0 +1,69 @@
+##############################################################################
+# keylime TPM 2.0 Dockerfile
+#
+# This file is for automatic test running of Keylime.
+# It is not recommended for use beyond testing scenarios.
+##############################################################################
+
+FROM ubuntu:bionic
+MAINTAINER Luke Hinds <lhinds@redhat.com>
+LABEL version="5.0.1" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
+
+ENV container docker
+# environment variables
+ARG BRANCH=master
+
+ENV container docker
+ENV HOME /root
+ENV KEYLIME_HOME ${HOME}/keylime
+ENV TPM_HOME ${HOME}/swtpm2
+
+# Packaged dependencies
+RUN apt -y update
+RUN apt -y upgrade
+RUN apt -y install software-properties-common
+RUN apt-add-repository -y universe
+RUN apt -y install git \
+           tpm2-tools \
+           gcc \
+           make \
+           systemd \
+           systemd-sysv \
+           automake 
+
+RUN apt clean
+
+COPY . ${KEYLIME_HOME}
+WORKDIR ${KEYLIME_HOME}
+RUN ${KEYLIME_HOME}/installer.sh
+
+WORKDIR /lib/systemd/system/sysinit.target.wants/
+RUN cd "/lib/systemd/system/sysinit.target.wants/"; \
+    for i in *; do [ $i = systemd-tmpfiles-setup.service ] || rm -f "$i"; done
+
+WORKDIR /lib/systemd/system/multi-user.target.wants/
+RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
+    /etc/systemd/system/*.wants/* \
+    /lib/systemd/system/local-fs.target.wants/* \
+    /lib/systemd/system/sockets.target.wants/*udev* \
+    /lib/systemd/system/sockets.target.wants/*initctl* \
+    /lib/systemd/system/basic.target.wants/* \
+    /lib/systemd/system/anaconda.target.wants/*
+
+WORKDIR /
+RUN systemctl set-default multi-user.target
+ENV init /lib/systemd/systemd
+
+
+# Build and install TPM 2.0 simulator
+WORKDIR ${TPM_HOME}
+RUN wget --content-disposition http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/download
+RUN tar -zxvf ibmtpm1119.tar.gz
+WORKDIR ${TPM_HOME}/src
+RUN make
+RUN install -c tpm_server /usr/local/bin/tpm_server
+
+VOLUME [ "/sys/fs/cgroup" ]
+
+ENTRYPOINT ["/lib/systemd/systemd"]
+

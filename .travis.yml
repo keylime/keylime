@@ -28,6 +28,7 @@ services:
 before_install:
   - 'sudo docker pull ${tpm12image}:${tpm12tag}'
   - 'sudo docker pull ${tpm20image}:${tpm20tag}'
+  - 'sudo docker build -t ubuntu-keylime -f docker/Dockerfile-ubuntu-tpm20 .'
 
 script:
     # Run TPM 2.0 Tests
@@ -37,3 +38,6 @@ script:
   - >
     docker run --privileged -v $(pwd):/root/keylime -it ${tpm12image}:${tpm12tag}
     /bin/sh -c 'cd /root/keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh -s openssl'
+    # Run Ubuntu TPM 2.0 Tests
+  - docker run --detach --privileged -v $(pwd):/root/keylime -v /sys/fs/cgroup:/sys/fs/cgroup:ro ubuntu-keylime > ${container_id}
+  - docker exec -u 0 -it --tty "$(cat ${container_id})" /bin/bash /root/keylime/.ci/test_wrapper.sh
