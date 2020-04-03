@@ -126,7 +126,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             exit()
 
     def __get_tpm_algorithms(self):
-        vendorStr = None
 
         if tools_version == "3.2":
             retDict = self.__run("tpm2_getcap -c algorithms")
