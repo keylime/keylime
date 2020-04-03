@@ -20,8 +20,6 @@ violate any copyrights that exist in this work.
 import base64
 import binascii
 import configparser
-import distutils.spawn
-import hashlib
 import os
 import re
 import sys
@@ -29,9 +27,8 @@ import tempfile
 import threading
 import time
 import zlib
-import yaml
 import codecs
-from distutils.version import LooseVersion, StrictVersion
+from distutils.version import StrictVersion
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
 except ImportError:
