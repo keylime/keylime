@@ -686,7 +686,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                 self.__run("tpm2_evictcontrol -C o -c %s -P %s"%(hex(key), owner_pw), raiseOnError=False)
 
     def encryptAIK(self, uuid, pubaik, pubek, ek_tpm, aik_name):
-        pubaikFile = None
         pubekFile = None
         challengeFile = None
         keyblob = None
