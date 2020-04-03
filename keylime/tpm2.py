@@ -803,7 +803,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                 retDict = self.__run(command, outputpaths=secpath)
                 self.__run("tpm2_flushcontext {sessfile}".format(**cmdargs))
 
-            code = retDict['code']
             fileout = retDict['fileouts'][secpath]
             logger.info("AIK activated.")
 
@@ -972,7 +971,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                             }
                             command = "tpm2_quote -c {aik_handle} -l {hashalg}:{pcrlist} -q {nonce} -m {outquote} -s {outsig} -o {outpcr} -g {hashalg} -p {akpw}".format(**cmdargs)
                         retDict = self.__run(command, lock=False, outputpaths=[quotepath.name, sigpath.name, pcrpath.name])
-                        code = retDict['code']
                         quoteraw = retDict['fileouts'][quotepath.name]
                         quote_b64encode = base64.b64encode(zlib.compress(quoteraw))
                         sigraw = retDict['fileouts'][sigpath.name]
@@ -1147,7 +1145,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             try:
                 command = "tpm2_getrandom -o %s %d" % (randpath.name, size)
                 retDict = self.__run(command, outputpaths=randpath.name)
-                code = retDict['code']
                 rand = retDict['fileouts'][randpath.name]
             except Exception as e:
                 if not self.tpmrand_warned:
