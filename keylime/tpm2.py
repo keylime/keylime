@@ -362,7 +362,6 @@ class tpm2(tpm_abstract.AbstractTPM):
     #tpm_initialize
     def __startup_tpm(self):
         retDict = self.__run("tpm2_startup -c")
-        output = common.list_convert(retDict['retout'])
         errout = common.list_convert(retDict['reterr'])
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -464,7 +463,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             retDict = self.__run("tpm2_changeauth -c o %s"%(owner_pw), raiseOnError=False)
             retDict = self.__run("tpm2_changeauth -c e %s"%(owner_pw), raiseOnError=False)
 
-        output = retDict['retout']
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             # if we fail, see if already owned with this pw
@@ -474,7 +472,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                 retDict = self.__run("tpm2_changeauth -c o -p %s %s"%(owner_pw, owner_pw), raiseOnError=False)
                 retDict = self.__run("tpm2_changeauth -c e -p %s %s"%(owner_pw, owner_pw), raiseOnError=False)
 
-            output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -496,7 +493,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             else:
                 retDict = self.__run("tpm2_readpublic -c %s -o %s -f pem"%(hex(handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
 
-            output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             ek = retDict['fileouts'][tmppath.name]
@@ -526,7 +522,6 @@ class tpm2(tpm_abstract.AbstractTPM):
         with tempfile.NamedTemporaryFile() as akpubfile:
             # generates pubak.pem
             retDict = self.__run("tpm2_readpublic -H %s -o %s -f pem"%(hex(handle), akpubfile.name), raiseOnError=False, outputpaths=akpubfile.name)
-            output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             pem = retDict['fileouts'][akpubfile.name]
