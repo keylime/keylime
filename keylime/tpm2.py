@@ -925,8 +925,6 @@ class tpm2(tpm_abstract.AbstractTPM):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
-        quote = ""
-
         with tempfile.NamedTemporaryFile() as quotepath:
             with tempfile.NamedTemporaryFile() as sigpath:
                 with tempfile.NamedTemporaryFile() as pcrpath:
