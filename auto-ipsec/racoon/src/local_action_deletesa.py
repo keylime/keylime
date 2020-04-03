@@ -31,6 +31,11 @@ import keylime.common as common
 import keylime.keylime_logging as keylime_logging
 import keylime.cmd_exec as cmd_exec
 
+try:
+    import simplejson as json
+except ImportError:
+    raise("Simplejson is mandatory, please install")
+
 # read the config file
 config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
@@ -38,7 +43,8 @@ config.read(common.CONFIG_FILE)
 logger = keylime_logging.init_logging('delete-sa')
 
 async def execute(revocation):
-    serial = revocation.get("metadata",{}).get("cert_serial",None)
+    json_meta = json.loads(revocation['meta_data'])
+    serial = json_meta['cert_serial']
     if revocation.get('type',None) != 'revocation' or serial is None:
         logger.error("Unsupported revocation message: %s"%revocation)
 
