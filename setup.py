@@ -57,7 +57,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.2',
+    version='5.5.0',
 
     description='TPM-based key bootstrapping and system integrity measurement system for cloud',
     long_description=long_description,
@@ -74,8 +74,7 @@ setup(
 
     # See https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
-        'Development Status :: 5.3.1 - Beta',
-
+        'Development Status :: 4 - Beta',
         # Indicate who your project is intended for
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
