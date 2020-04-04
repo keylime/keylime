@@ -51,10 +51,13 @@ from keylime import cloud_verifier_common
 # setup logging
 logger = keylime_logging.init_logging('tenant')
 
-
 # setup config
 config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
+
+# auth
+api_user = os.getenv('KL_API_USER')
+api_pass = os.getenv('KL_API_PASS')
 
 # special exception that suppresses stack traces when it happens
 class UserError(Exception):
@@ -473,8 +476,10 @@ class Tenant():
             'accept_tpm_signing_algs':self.accept_tpm_signing_algs,
         }
         json_message = json.dumps(data)
+        params = f'/auth/?username={api_user}&password={api_pass}'
+        response = httpclient_requests.request("POST", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
+        print(response.read().decode())
         params = f'/agents/{self.agent_uuid}'
-        #params = '/agents/%s'% (self.agent_uuid)
         response = httpclient_requests.request("POST", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=json_message, context=self.context)
 
         if response == 503:

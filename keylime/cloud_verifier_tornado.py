@@ -244,7 +244,7 @@ class RegisterHandler(BaseHandler):
             common.echo_json_response(
                             self, 409, "Only admin users are authorized to add new users")
 
-
+@jwtauth
 class AgentsHandler(BaseHandler):
     def head(self):
         """HEAD not supported"""
