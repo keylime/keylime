@@ -5,9 +5,9 @@
 # It is not recommended for use beyond testing scenarios.
 ##############################################################################
 
-FROM fedora:30
+FROM fedora:31
 MAINTAINER Luke Hinds <lhinds@redhat.com>
-LABEL version="5.0.0" description="Keylime - Bootstrapping and Maintaining Trust"
+LABEL version="5.5.0" description="Keylime - Bootstrapping and Maintaining Trust"
 
 # environment variables
 ARG BRANCH=master
@@ -29,6 +29,7 @@ RUN dnf -y install git \
            python3-dbus \
            python3-m2crypto \
            python3-cryptography \
+           python3-sqlalchemy \
            procps \
            openssl-devel \
            libtool \

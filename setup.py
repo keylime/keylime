@@ -39,13 +39,13 @@ extensions = []
 if '--with-clime' in sys.argv:
     if 'linux' in sys.platform:
         extensions.append(Extension('_cLime',
-                                define_macros = [('MAJOR_VERSION', '1'),
-                                                 ('MINOR_VERSION', '0')],
-                                include_dirs = ['/usr/local/include'],
-                                libraries = ['tpm', 'keylime'],
-                                library_dirs = ['/usr/local/lib'],
-                                runtime_library_dirs = ['/usr/local/lib'],
-                                sources = ['keylime/_cLime.c']))
+                                    define_macros=[('MAJOR_VERSION', '1'),
+                                                   ('MINOR_VERSION', '0')],
+                                    include_dirs=['/usr/local/include'],
+                                    libraries=['tpm', 'keylime'],
+                                    library_dirs=['/usr/local/lib'],
+                                    runtime_library_dirs=['/usr/local/lib'],
+                                    sources=['keylime/_cLime.c']))
     sys.argv.remove('--with-clime')
 
 # enumerate all of the data files we need to package up
@@ -105,19 +105,20 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['cryptography>=2.1.4','tornado>=5.0.2','m2crypto>=0.21.1','pyzmq>=14.4','pyyaml>=3.11','simplejson>=3.8','requests>=2.6'],
+    install_requires=['cryptography>=2.1.4', 'tornado>=5.0.2', 'm2crypto>=0.21.1',
+        'pyzmq>=14.4', 'pyyaml>=3.11', 'simplejson>=3.8', 'requests>=2.6', 'sqlalchemy>=1.3'],
 
     # test packages required
-    tests_require=['green','coverage'],
+    tests_require=['green', 'coverage'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
     # for example:
     # $ pip install -e .[dev,test]
-    #extras_require={
+    # extras_require={
     #    'dev': ['check-manifest'],
     #    'test': ['coverage'],
-    #},
+    # },
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.  If using Python 2.6 or less, then these
@@ -148,5 +149,5 @@ setup(
         ],
     },
 
-    ext_modules = extensions
+    ext_modules=extensions
 )

@@ -32,10 +32,13 @@ logger = keylime_logging.init_logging('registrar')
 config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
 
-def main(argv=sys.argv):
-    registrar_common.start(config.getint('registrar', 'registrar_tls_port'),config.getint('registrar', 'registrar_port'),config.get('registrar', 'db_filename'))
 
-if __name__=="__main__":
+def main(argv=sys.argv):
+    registrar_common.start(config.getint(
+        'registrar', 'registrar_tls_port'), config.getint('registrar', 'registrar_port'))
+
+
+if __name__ == "__main__":
     try:
         main()
     except Exception as e:
