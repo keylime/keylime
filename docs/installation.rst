@@ -301,15 +301,13 @@ The following illustrates examples for SQLite and PostgreSQL
 SQLite
 ~~~~~~
 
-```
-drivername = sqlite
-username = ''
-password = ''
-host = ''
-port = ''
-database = cv_data.sqlite
-query = ''
-```
+    drivername = sqlite
+    username = ''
+    password = ''
+    host = ''
+    port = ''
+    database = cv_data.sqlite
+    query = ''
 
 PostgreSQL
 ~~~~~~~~~~
@@ -317,15 +315,13 @@ PostgreSQL
 For PostgreSQL you will need to install the database first and set up a user
 account.
 
-```
-drivername = postgres
-username = keylime
-password = allyourbase
-host = localhost
-port = 5432
-database = keylime_db
-query = ''
-```
+    drivername = postgres
+    username = keylime
+    password = allyourbase
+    host = localhost
+    port = 5432
+    database = keylime_db
+    query = ''
 
 For details on other platforms, please refer to the SQLAlchemy documentation
 on `engine configuration <https://docs.sqlalchemy.org/en/13/core/engines.html>`_.
