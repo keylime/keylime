@@ -296,10 +296,10 @@ SQLite is supported as default.
 Each database is configured within `/etc/keylime.conf` for both the keylime_verifier
 and keylime_registrar databases.
 
-The following illustrates examples for SQLite and PostgreSQL::
-
 SQLite
 ~~~~~~
+
+The following illustrates examples for SQLite and PostgreSQL::
 
     drivername = sqlite
     username = ''
@@ -313,7 +313,7 @@ PostgreSQL
 ~~~~~~~~~~
 
 For PostgreSQL you will need to install the database first and set up a user
-account.
+account::
 
     drivername = postgres
     username = keylime
