@@ -283,7 +283,7 @@ will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc
 Database support
 ---------------------
 
-Keylime supports the following databases:
+Keylime supports the following databases::
 
 * SQLite
 * PostgreSQL
@@ -296,7 +296,7 @@ SQLite is supported as default.
 Each database is configured within `/etc/keylime.conf` for both the keylime_verifier
 and keylime_registrar databases.
 
-The following illustrates examples for SQLite and PostgreSQL
+The following illustrates examples for SQLite and PostgreSQL::
 
 SQLite
 ~~~~~~
