@@ -279,3 +279,53 @@ Optional Requirements
 If you want to support revocation, you also need to have cfssl installed and in your
 path on the tenant agent.  It can be obtained from `here <https://github.com/cloudflare/cfssl>`_.  You
 will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc/keylime.conf`.
+
+Database support
+---------------------
+
+Keylime supports the following databases:
+
+* SQLite
+* PostgreSQL
+* MySQL
+* Oracle
+* Microsoft SQL Server
+
+SQLite is supported as default.
+
+Each database is configured within `/etc/keylime.conf` for both the keylime_verifier
+and keylime_registrar databases.
+
+The following illustrates examples for SQLite and PostgreSQL
+
+SQLite
+~~~~~~
+
+```
+drivername = sqlite
+username = ''
+password = ''
+host = ''
+port = ''
+database = cv_data.sqlite
+query = ''
+```
+
+PostgreSQL
+~~~~~~~~~~
+
+For PostgreSQL you will need to install the database first and set up a user
+account.
+
+```
+drivername = postgres
+username = keylime
+password = allyourbase
+host = localhost
+port = 5432
+database = keylime_db
+query = ''
+```
+
+For details on other platforms, please refer to the SQLAlchemy documentation
+on `engine configuration <https://docs.sqlalchemy.org/en/13/core/engines.html>`_.
