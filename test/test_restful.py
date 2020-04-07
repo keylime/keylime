@@ -150,34 +150,34 @@ def fileRemove(path):
 
 # Boring setup stuff
 def setUpModule():
-    try:
-        env = os.environ.copy()
-        env['PATH']=env['PATH']+":/usr/local/bin"
-        # Run init_tpm_server and tpm_serverd (start fresh)
-        its = subprocess.Popen(["init_tpm_server"], shell=False, env=env)
-        its.wait()
-        tsd = subprocess.Popen(["tpm_serverd"], shell=False, env=env)
-        tsd.wait()
-    except Exception as e:
-        print("WARNING: Restarting TPM emulator failed!")
-    # Note: the following is required as abrmd is failing to reconnect to MSSIM, once
-    # MSSIM is killed and restarted. If this is an proved an actual bug and is
-    # fixed upstream, the following dbus restart call can be removed.
-    try:
-        sysbus = dbus.SystemBus()
-        systemd1 = sysbus.get_object('org.freedesktop.systemd1', '/org/freedesktop/systemd1')
-        manager = dbus.Interface(systemd1, 'org.freedesktop.systemd1.Manager')
-        # If the systemd service exists, let's restart it.
-        for service in sysbus.list_names():
-            if "com.intel.tss2.Tabrmd" in service:
-                print("Found dbus service:", str(service))
-                try:
-                    print("Restarting tpm2-abrmd.service.")
-                    job = manager.RestartUnit('tpm2-abrmd.service', 'fail')
-                except dbus.exceptions.DBusException as e:
-                    print(e)
-    except Exception as e:
-        print("Non systemd agent detected, no tpm2-abrmd restart required.")
+    # try:
+    #     env = os.environ.copy()
+    #     env['PATH']=env['PATH']+":/usr/local/bin"
+    #     # Run init_tpm_server and tpm_serverd (start fresh)
+    #     its = subprocess.Popen(["init_tpm_server"], shell=False, env=env)
+    #     its.wait()
+    #     tsd = subprocess.Popen(["tpm_serverd"], shell=False, env=env)
+    #     tsd.wait()
+    # except Exception as e:
+    #     print("WARNING: Restarting TPM emulator failed!")
+    # # Note: the following is required as abrmd is failing to reconnect to MSSIM, once
+    # # MSSIM is killed and restarted. If this is an proved an actual bug and is
+    # # fixed upstream, the following dbus restart call can be removed.
+    # try:
+    #     sysbus = dbus.SystemBus()
+    #     systemd1 = sysbus.get_object('org.freedesktop.systemd1', '/org/freedesktop/systemd1')
+    #     manager = dbus.Interface(systemd1, 'org.freedesktop.systemd1.Manager')
+    #     # If the systemd service exists, let's restart it.
+    #     for service in sysbus.list_names():
+    #         if "com.intel.tss2.Tabrmd" in service:
+    #             print("Found dbus service:", str(service))
+    #             try:
+    #                 print("Restarting tpm2-abrmd.service.")
+    #                 job = manager.RestartUnit('tpm2-abrmd.service', 'fail')
+    #             except dbus.exceptions.DBusException as e:
+    #                 print(e)
+    # except Exception as e:
+    #     print("Non systemd agent detected, no tpm2-abrmd restart required.")
 
     try:
         # Start with a clean slate for this test
