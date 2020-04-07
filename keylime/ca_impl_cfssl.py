@@ -21,7 +21,6 @@ violate any copyrights that exist in this work.
 import base64
 import configparser
 import os
-import subprocess
 import socket
 import time
 import requests
@@ -46,8 +45,6 @@ config.read(common.CONFIG_FILE)
 cfssl_ip = config.get('ca', 'cfssl_ip')
 cfssl_port = config.get('ca', 'cfssl_port')
 
-cfsslproc = None
-
 def post_cfssl(params,data):
     numtries = 0
     maxr = 10
@@ -69,37 +66,6 @@ def post_cfssl(params,data):
         raise Exception("Unable to issue CFSSL API command %s: %s"%(params,response.text))
     return response.json()
 
-def start_cfssl(cmdline=""):
-    if shutil.which("cfssl") is None:
-        logger.error("cfssl binary not found in the path.  Please install cfssl or change the setting \"ca_implementation\" in keylime.conf")
-        sys.exit(1)
-    global cfsslproc
-    cmd = "cfssl serve -loglevel=1 %s "%cmdline
-    env = os.environ.copy()
-    env['PATH']=env['PATH']+":/usr/local/bin"
-
-    # make sure cfssl isn't running
-    os.system('pkill -f cfssl')
-
-    cfsslproc = subprocess.Popen(cmd,env=env,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,universal_newlines=True)
-    if cfsslproc.returncode is not None:
-        raise Exception("Unable to launch %: failed with code "%(cmd,cfsslproc.returncode))
-
-    logger.debug("Waiting for cfssl to start...")
-    while True:
-        line = cfsslproc.stdout.readline()
-        if "Now listening on" in line:
-            break
-    time.sleep(0.2)# give cfssl a little more time to get started
-    logger.debug("cfssl started successfully")
-
-def stop_cfssl():
-    global cfsslproc
-    if cfsslproc is not None:
-        cfsslproc.kill()
-        os.system("pkill -f cfssl")
-        cfsslproc = None
-
 def mk_cacert():
     csr = {"CN": config.get('ca','cert_ca_name'),
            "key": {
@@ -116,11 +82,8 @@ def mk_cacert():
                    }
                      ]
            }
-    try:
-        start_cfssl()
-        body = post_cfssl('api/v1/cfssl/init_ca',csr)
-    finally:
-        stop_cfssl()
+
+    body = post_cfssl('api/v1/cfssl/init_ca',csr)
 
     if body['success']:
         pk_str = body['result']['private_key']
@@ -183,10 +146,8 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
         priv_key = os.path.abspath("%s/ca-key.pem"%secdir)
         cmdline += " -ca-key %s -ca cacert.crt"%(priv_key)
 
-        start_cfssl(cmdline)
         body = post_cfssl('api/v1/cfssl/newcert',csr)
     finally:
-        stop_cfssl()
         os.remove('%s/ca-key.pem'%secdir)
         os.remove('%s/cfsslconfig.yml'%secdir)
 
@@ -212,11 +173,9 @@ def gencrl(serials,cert,ca_pk):
             f.write(ca_pk)
         cmdline = " -ca-key %s -ca cacert.crt"%(priv_key)
 
-        start_cfssl(cmdline)
         body = post_cfssl('api/v1/cfssl/gencrl',request)
 
     finally:
-        stop_cfssl()
         # replace with srm
         os.remove('%s/ca-key.pem'%secdir)
 

@@ -106,9 +106,9 @@ case "$ID" in
                 PACKAGE_MGR=$(command -v dnf)
                 NEED_EPEL=1
                 PYTHON_PREIN="python3 python3-devel python3-setuptools python3-pip"
-                PYTHON_DEPS="gcc gcc-c++ openssl-devel python3-yaml python3-requests swig python3-cryptography wget git"
+                PYTHON_DEPS="gcc gcc-c++ compat-openssl10-devel python3-yaml python3-requests swig python3-cryptography wget git"
                 PYTHON_PIPS="tornado==5.0.2 pyzmq m2crypto simplejson"
-                BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel"
+                BUILD_TOOLS="git wget patch libyaml compat-openssl10-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel"
                 #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools tpm2-abrmd" TODO: still on 3.1.1 tpm2_tools 
                 NEED_BUILD_TOOLS=1
                 NEED_PYTHON_DIR=1
@@ -124,8 +124,8 @@ case "$ID" in
         echo "${ID} selected."       
         PACKAGE_MGR=$(command -v dnf)
         PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
-        PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto  python3-zmq python3-cryptography python3-tornado python3-simplejson python3-requests yaml-cpp-devel procps-ng"
-        BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
+        PYTHON_DEPS="python3-pip gcc gcc-c++ compat-openssl10-devel swig python3-pyyaml python3-m2crypto  python3-zmq python3-cryptography python3-tornado python3-simplejson python3-requests yaml-cpp-devel procps-ng"
+        BUILD_TOOLS="compat-openssl10-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen"
         GOPKG="golang"
         if [[ ${VERSION_ID} -ge 30 ]] ; then
         # if fedora 30 or greater, then using TPM2 tool packages
@@ -149,6 +149,7 @@ OPENSSL=0
 TARBALL=0
 TPM_SOCKET=0
 TPM_VERSION=1
+CFSSL=0
 while getopts ":shotkmp:" opt; do
     case $opt in
         k) STUB=1 ;;
@@ -160,6 +161,7 @@ while getopts ":shotkmp:" opt; do
             fi
             ;;
         o) OPENSSL=1 ;;
+        c) CFSSL=1 ;;
         t) TARBALL=1 ;;
         m) TPM_VERSION=2 ;;
         s) TPM_SOCKET=1 NEED_BUILD_TOOLS=1 ;;
@@ -168,6 +170,7 @@ while getopts ":shotkmp:" opt; do
             echo "Options:"
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
             echo $'-o \t\t\t\t Use OpenSSL (vs. CFSSL). NOTE: OpenSSL does not support revocation'
+            echo $'-c \t\t\t\t Download and install CFSSL'
             echo $'-t \t\t\t\t Create tarball with keylime_agent'
             echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
             echo $'-s \t\t\t\t Install & use a Software TPM emulator (development only)'
@@ -390,12 +393,15 @@ if [[ "$OPENSSL" -eq "0" ]] ; then
         echo "=================================================================================="
         echo $'\t\t\t\tInstalling cfssl'
         echo "=================================================================================="
-        go get -v -u github.com/cloudflare/cfssl/cmd/cfssl
-        if [[ $? -ne 0 ]] ; then
-            echo "ERROR: Failed to install cfssl!"
-            exit 1
+
+        if [[ "$CFSSL" -eq "1" ]] ; then
+            go get -v -u github.com/cloudflare/cfssl/cmd/cfssl
+            if [[ $? -ne 0 ]] ; then
+                echo "ERROR: Failed to install cfssl!"
+                exit 1
+            fi
+            install -c $GOPATH/bin/cfssl /usr/local/bin/cfssl
         fi
-        install -c $GOPATH/bin/cfssl /usr/local/bin/cfssl
     fi
 fi
 

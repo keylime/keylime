@@ -145,6 +145,8 @@ setup(
             'keylime_ca=keylime.ca_util:main',
             'keylime_ima_emulator=keylime.ima_emulator_adapter:main',
             'keylime_webapp=keylime.tenant_webapp:main',
+            'start_cfssl=keylime.start_cfssl:main',
+            'stop_cfssl=keylime.stop_cfssl:main',
         ],
     },
 
