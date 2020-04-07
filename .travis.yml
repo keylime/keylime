@@ -32,7 +32,7 @@ before_install:
 script:
     # Run TPM 2.0 Tests
   - docker run --detach --privileged -e TPM2TOOLS_TCTI="device:/dev/tpmrm0" -v $(pwd):/root/keylime -it ${tpm20image}:${tpm20tag} >> ${container_id}
-  - docker exec -u 0 -it --tty "$(cat ${container_id})" /bin/bash /usr/bin/tpm2_pcrread
+  - docker exec -u 0 -it --tty "$(cat ${container_id})" /usr/bin/tpm2_pcrread
   - docker exec -u 0 -it --tty "$(cat ${container_id})" /bin/bash /root/keylime/.ci/test_wrapper.sh
     # Run TPM 1.2 Tests
   - >
