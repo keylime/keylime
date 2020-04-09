@@ -24,6 +24,11 @@ from keylime import common
 import keylime.keylime_logging as keylime_logging
 import configparser
 
+try:
+    import simplejson as json
+except ImportError:
+    raise("Simplejson is mandatory, please install")
+
 # read the config file
 config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
@@ -31,4 +36,4 @@ config.read(common.CONFIG_FILE)
 logger = keylime_logging.init_logging('print_metadata')
 
 def execute(json_revocation):
-    print(json_revocation.get("metadata",{}))
+    print(json.loads(revocation['meta_data']))

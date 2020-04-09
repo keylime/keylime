@@ -44,6 +44,11 @@ try:
 except ImportError:
     from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
 
+try:
+    import simplejson as json
+except ImportError:
+    raise("Simplejson is mandatory, please install")
+
 from keylime import crypto
 from keylime import cmd_exec
 from keylime import common
@@ -391,7 +396,8 @@ def cmd_listen(workingdir,cert_path):
         t2.start()
 
         def revoke_callback(revocation):
-            serial = revocation.get("metadata",{}).get("cert_serial",None)
+            json_meta = json.loads(revocation['meta_data'])
+            serial = json_meta['cert_serial']
             if revocation.get('type',None) != 'revocation' or serial is None:
                 logger.error("Unsupported revocation message: %s"%revocation)
                 return
