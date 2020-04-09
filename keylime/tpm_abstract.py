@@ -16,7 +16,7 @@ rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as d
 above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
 '''
-
+import ast
 import base64
 import configparser
 import fcntl
@@ -346,7 +346,12 @@ class AbstractTPM(object, metaclass=ABCMeta):
         return True
 
     def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, ima_whitelist):
-        pcrWhiteList = tpm_policy.copy()
+        try:
+            tpm_policy_ = ast.literal_eval(tpm_policy)
+        except ValueError:
+            tpm_policy_ = {}
+        pcrWhiteList = tpm_policy_.copy()
+
         if 'mask' in pcrWhiteList: del pcrWhiteList['mask']
         # convert all pcr num keys to integers
         pcrWhiteList = {int(k):v for k, v in list(pcrWhiteList.items())}
