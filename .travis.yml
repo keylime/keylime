@@ -18,9 +18,9 @@ env:
   global:
     - container_id: $(mktemp)
     - tpm12image: lukehinds/keylime-ci-tpm12
-      tpm12tag: v500
+      tpm12tag: v550
     - tpm20image: lukehinds/keylime-ci-tpm20
-      tpm20tag: v501
+      tpm20tag: v551
 
 services:
   - docker
