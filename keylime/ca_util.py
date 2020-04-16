@@ -531,11 +531,12 @@ def main(argv=sys.argv):
             parser.print_help()
             sys.exit(-1)
         cmd_revoke(workingdir, args.name)
-    elif args.command=='listen':
+    elif args.command == 'listen':
         if args.name is None:
-            args.name = "%s/RevocationNotifier-cert.crt"%workingdir
-            logger.warning("using default name for revocation cert %s"%args.name)
-        cmd_listen(workingdir,args.name)
+            args.name = os.path.join(workingdir, 'RevocationNotifier-cert.crt')
+            logger.warning("using default name for revocation cert %s"
+                           % args.name)
+        cmd_listen(workingdir, args.name)
     else:
         logger.error("Invalid command: %s"%args.command)
         parser.print_help()
