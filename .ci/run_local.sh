@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# Your local keylime (you should likely change this)
-REPO="/home/${USER}/keylime"
+# You can specify the path of the local keylime repository as argument
+# of this script or using the KEYLIME_REPO_PATH environment variable.
+# The default value is /home/${USER}/keylime
+REPO=${KEYLIME_REPO_PATH:-${1:-/home/${USER}/keylime}}
 
 # keylime images
 tpm12image="lukehinds/keylime-ci-tpm12"
