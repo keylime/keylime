@@ -46,4 +46,5 @@ docs/_build/
 swtpm2_scripts/NVChip
 test/.auditing-*
 test/NVChip
+NVChip
 test/testdata.sqlite
