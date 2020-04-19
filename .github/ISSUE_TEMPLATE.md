@@ -1,3 +1,5 @@
+Is your an issue a feature request? If so, please raise it as an [enhancement](https://github.com/kubernetes/enhancements)
+
 # Environment
  * OS / version: 
  * Processor architecture: 
