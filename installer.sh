@@ -595,7 +595,7 @@ cd $KEYLIME_DIR
 if [[ "$NEED_PYTHON_DIR" -eq "1" ]] ; then
     mkdir -p /usr/local/lib/python3.6/site-packages/
 fi
-python3 setup.py install
+python3 -m pip install . -r requirements.txt
 
 if [[ -f "/etc/keylime.conf" ]] ; then
     if [[ $(diff -N "/etc/keylime.conf" "keylime.conf") ]] ; then
