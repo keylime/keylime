@@ -195,7 +195,11 @@ def setUpModule():
 
     # get the tpm object
     global tpm
-    tpm = tpm_obj.getTPM(need_hw_tpm=True)
+
+    try:
+        tpm = tpm_obj.getTPM(need_hw_tpm=True)
+    except Exception as e:
+        print("Error: %s" % e)
 
     # Make the Tenant do a lot of set-up work for us
     global tenant_templ
@@ -531,6 +535,7 @@ class TestRestful(unittest.TestCase):
 
         # We want a real cloud agent to communicate with!
         launch_cloudagent()
+        time.sleep(10)
         params = f"/v{self.api_version}/keys/pubkey"
         response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params)
 

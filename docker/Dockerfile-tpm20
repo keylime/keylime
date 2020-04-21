@@ -5,9 +5,9 @@
 # It is not recommended for use beyond testing scenarios.
 ##############################################################################
 
-FROM fedora:30
+FROM fedora:31
 MAINTAINER Luke Hinds <lhinds@redhat.com>
-LABEL version="5.5.1" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
+LABEL version="1.0.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
 ENV container docker
 # environment variables
@@ -49,6 +49,7 @@ RUN dnf -y install git \
            glib2-devel \
            glib2-static \
            uthash-devel \
+           systemd-udev \
            wget \
            which
 

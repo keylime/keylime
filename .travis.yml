@@ -21,7 +21,7 @@ env:
     - tpm12image: lukehinds/keylime-ci-tpm12
       tpm12tag: v500
     - tpm20image: lukehinds/keylime-ci-tpm20
-      tpm20tag: v501
+      tpm20tag: v100
 
 services:
   - docker

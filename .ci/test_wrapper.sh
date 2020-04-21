@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 
 KEYLIME_HOME=/root/keylime
 
@@ -15,10 +16,25 @@ export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
 pkill -HUP dbus-daemon
 
 # Configure tpm2-abrmd systemd
+sed -i 's/^ConditionPathExists/#&/' /usr/lib/systemd/system/tpm2-abrmd.service
 sed -i 's/.*ExecStart.*/ExecStart=\/usr\/sbin\/tpm2-abrmd --tcti=mssim/' /usr/lib/systemd/system/tpm2-abrmd.service
 systemctl daemon-reload
+# Check that system-udev-settle is present or tpm2-abrmd will fail
+systemctl start systemd-udev-settle.service
+sleep 1
+while true; do
+    if (systemctl -q is-active systemd-udev-settle.service); then
+        break
+    fi
+    sleep 1
+done
 systemctl enable tpm2-abrmd
 systemctl start tpm2-abrmd
+# Check that tpm2-abrmd is actually running as starting it won't report failures
+if ! (systemctl -q is-active tpm2-abrmd); then
+    echo "tpm2-abrmd failed to start, exiting"
+    exit 1
+fi
 
 # Run tests
 cd ${KEYLIME_HOME}/test
