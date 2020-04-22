@@ -533,7 +533,7 @@ class AgentsHandler(BaseHandler):
 
                 # issue notification for invalid quotes
                 if new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
-                    cloud_verifier_common.notifyError(agent)
+                    cloud_verifier_common.notify_error(agent)
 
                 if agent['pending_event'] is not None:
                     tornado.ioloop.IOLoop.current().remove_timeout(
@@ -602,7 +602,8 @@ class AgentsHandler(BaseHandler):
                     logger.warning("agent %s was not reachable for quote in %d tries, setting state to FAILED" % (
                         agent['agent_id'], maxr))
                     if agent['first_verified']:  # only notify on previously good agents
-                        cloud_verifier_common.notifyError(agent, 'comm_error')
+                        cloud_verifier_common.notify_error(
+                            agent, msgtype='comm_error')
                     else:
                         logger.debug(
                             "Communication error for new agent.  no notification will be sent")
@@ -621,7 +622,8 @@ class AgentsHandler(BaseHandler):
                 if agent['num_retries'] >= maxr:
                     logger.warning("agent %s was not reachable to provide v in %d tries, setting state to FAILED" % (
                         agent['agent_id'], maxr))
-                    cloud_verifier_common.notifyError(agent, 'comm_error')
+                    cloud_verifier_common.notify_error(
+                        agent, msgtype='comm_error')
                     await self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
                 else:
                     agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V

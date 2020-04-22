@@ -361,31 +361,27 @@ def get_query_tag_value(path, query_tag):
 # sign a message with revocation key.  telling of verification problem
 
 
-def notifyError(agent, msgtype='revocation'):
+def notify_error(agent, msgtype='revocation'):
     if not config.getboolean('cloud_verifier', 'revocation_notifier'):
         return
 
     # prepare the revocation message:
-    revocation = {
-        'type': msgtype,
-        'ip': agent['ip'],
-        'agent_id': agent['agent_id'],
-        'port': agent['port'],
-        'tpm_policy': agent['tpm_policy'],
-        'vtpm_policy': agent['vtpm_policy'],
-        'meta_data': agent['meta_data'],
-    }
+    revocation = {'type': msgtype,
+                  'ip': agent['ip'],
+                  'agent_id': agent['agent_id'],
+                  'port': agent['port'],
+                  'tpm_policy': agent['tpm_policy'],
+                  'vtpm_policy': agent['vtpm_policy'],
+                  'meta_data': agent['meta_data'],
+                  'event_time': time.asctime()}
 
-    revocation['event_time'] = time.asctime()
     tosend = {'msg': json.dumps(revocation).encode('utf-8')}
 
     # also need to load up private key for signing revocations
     if agent['revocation_key'] != "":
-        global signing_key
         signing_key = crypto.rsa_import_privkey(agent['revocation_key'])
         tosend['signature'] = crypto.rsa_sign(signing_key, tosend['msg'])
 
-        # print "verified? %s"%crypto.rsa_verify(signing_key, tosend['signature'], tosend['revocation'])
     else:
-        tosend['siganture'] = "none"
+        tosend['signature'] = "none"
     revocation_notifier.notify(tosend)
