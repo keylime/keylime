@@ -9,7 +9,7 @@ REPO=${KEYLIME_REPO_PATH:-${1:-/home/${USER}/keylime}}
 tpm12image="lukehinds/keylime-ci-tpm12"
 tpm12tag="v500"
 tpm20image="lukehinds/keylime-ci-tpm20"
-tpm20tag="v552"
+tpm20tag="v101"
 
 echo -e "Grabbing latest images"
 
