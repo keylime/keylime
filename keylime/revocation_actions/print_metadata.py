@@ -35,5 +35,5 @@ config.read(common.CONFIG_FILE)
 
 logger = keylime_logging.init_logging('print_metadata')
 
-def execute(json_revocation):
+def execute(revocation):
     print(json.loads(revocation['meta_data']))
