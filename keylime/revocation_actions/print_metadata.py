@@ -20,6 +20,8 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
+import asyncio
+
 from keylime import common
 import keylime.keylime_logging as keylime_logging
 import configparser
@@ -35,5 +37,6 @@ config.read(common.CONFIG_FILE)
 
 logger = keylime_logging.init_logging('print_metadata')
 
-def execute(json_revocation):
+async def execute(revocation):
     print(json.loads(revocation['meta_data']))
+
