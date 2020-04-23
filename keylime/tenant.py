@@ -15,20 +15,23 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import datetime
 import argparse
 import base64
 import configparser
+import datetime
 import hashlib
 import io
+import json
 import logging
 import os
 import subprocess
 import ssl
 import sys
 import time
+import urllib.parse
 import zipfile
-import json
+import requests
+import urllib
 
 try:
     import simplejson as json
@@ -59,6 +62,7 @@ config.read(common.CONFIG_FILE)
 api_user = os.getenv('KL_API_USER')
 api_pass = os.getenv('KL_API_PASS')
 
+print('api_user:', api_user)
 # special exception that suppresses stack traces when it happens
 class UserError(Exception):
     pass
@@ -476,11 +480,36 @@ class Tenant():
             'accept_tpm_signing_algs':self.accept_tpm_signing_algs,
         }
         json_message = json.dumps(data)
-        params = f'/auth/?username={api_user}&password={api_pass}'
-        response = httpclient_requests.request("POST", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
-        print(response.read().decode())
+        logger.info(f" Authentificating {api_user}")
+
+        payload = {f'username':{api_user}, 'password':{api_pass}}
+        url = (f'https://{self.cloudverifier_ip}:{self.cloudverifier_port}/auth/')
+        print('url:', url)
+        response = requests.get(url, params=payload, cert=('/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private-out.pem'), verify=False) # ned
+        token = response.json()["status"]["token"]
+        print(token)
+
+        # urlib
+        # url = (f'https://127.0.0.1:{self.cloudverifier_port}/auth/?username={api_user}&password={api_pass}')
+        # response = urllib.request.urlopen(url, context=self.context)
+        # print('back', response.read().decode())
+        # response_json = json.loads(response.read().decode())
+        # token = response_json["status"]["token"]
+        # print('token:', token)
+        # headers = {"Authorization":"Bearer " + token}
+
+        # http.client
+        #response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
+        # req = urllib.request.Request(link, headers={'User-Agent' : "Magic Browser"})
+        # params = f'/auth/?username={api_user}&password={api_pass}' # luke
+        # response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
+        # response_json = json.loads(response.read().decode())
+        # token = response_json["status"]["token"]
+        # headers = {"Authorization":"Bearer " + token}
+
         params = f'/agents/{self.agent_uuid}'
-        response = httpclient_requests.request("POST", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=json_message, context=self.context)
+        response = httpclient_requests.request("POST", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=json_message, headers={"Authorization": "Bearer "+ token}, context=self.context)
+        print('reponse', response.read().decode())
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")

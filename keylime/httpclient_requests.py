@@ -1,6 +1,6 @@
 import http.client
 
-def request(method, url, port, params=None, data=None,context=None):
+def request(method, url, port, params=None, data=None, headers=None, context=None):
     """
     http client connection handler
 
@@ -15,6 +15,7 @@ def request(method, url, port, params=None, data=None,context=None):
     """
     flag = False
     counter = 0
+
     if context is not None:
         conn =  http.client.HTTPSConnection(
             url,
@@ -31,7 +32,7 @@ def request(method, url, port, params=None, data=None,context=None):
         counter += 1
         if data is not None:
             try:
-                conn.request(method, params, data)
+                conn.request(method, params, data, headers)
             except http.client.HTTPException as e:
                 return(500, str(e))
             except ConnectionError:
@@ -40,7 +41,7 @@ def request(method, url, port, params=None, data=None,context=None):
                 return(504)
         else:
             try:
-                conn.request(method, params)
+                conn.request(method, params, headers)
             except http.client.HTTPException as e:
                 return(500, str(e))
             except ConnectionError:

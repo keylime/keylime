@@ -141,6 +141,7 @@ class MainHandler(tornado.web.RequestHandler):
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def get(self):
+        print('maybe its because ima not an agents')
         common.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
@@ -164,16 +165,24 @@ class AuthHandler(BaseHandler):
         There is a fake payload (for tutorial purpose)
     """
 
-    def prepare(self):
-        """
-            Encode a new token with JSON Web Token (PyJWT)
-        """
-
     def get(self, *args, **kwargs):
         session = self.make_session(engine)
         """
             return the generated token
         """
+        print('self.request.uri:', self.request.uri)
+        rest_params = common.get_restful_params(self.request.uri)
+        if rest_params is None:
+            common.echo_json_response(
+                self, 405, "Not Implemented: Use /auth/ interface")
+            return
+
+        if "auth" not in rest_params:
+            common.echo_json_response(self, 400, "uri not supported")
+            logger.warning(
+                'GET returning 400 response. uri not supported: ' + self.request.path)
+            return
+
         username = self.get_argument("username")
         password = self.get_argument("password")
 
@@ -344,6 +353,7 @@ class AgentsHandler(BaseHandler):
                 logger.error(f'SQLAlchemy Error: {e}')
 
     def post(self):
+        print('POST event')
         session = self.make_session(engine)
         """This method handles the POST requests to add agents to the Cloud Verifier.
 
@@ -351,6 +361,7 @@ class AgentsHandler(BaseHandler):
         agents requests require a json block sent in the body
         """
         try:
+            print('self.request.uri:', self.request.uri)
             rest_params = common.get_restful_params(self.request.uri)
             if rest_params is None:
                 common.echo_json_response(
@@ -779,8 +790,10 @@ def main(argv=sys.argv):
 
     app = tornado.web.Application([
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
-        (r"/auth", AuthHandler),
-        (r"/register", RegisterHandler),
+        (r"/(?:v[0-9]/)?auth/.*", AuthHandler),
+        #(r"/auth", AuthHandler),
+        (r"/(?:v[0-9]/)?register/.*", RegisterHandler),
+        #(r"/register", RegisterHandler),
         (r".*", MainHandler),
     ], **settings)
 
