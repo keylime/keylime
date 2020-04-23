@@ -854,6 +854,9 @@ class tpm2(tpm_abstract.AbstractTPM):
             trusted_certs = tpm_ek_ca.cert_loader()
             for cert in trusted_certs:
                 signcert = M2Crypto.X509.load_cert_string(cert)
+                if str(ek509.get_issuer()) != str(signcert.get_subject()):
+                    continue
+
                 signkey = signcert.get_pubkey()
                 if ek509.verify(signkey) == 1:
                     logger.debug(f"EK cert matched cert: {cert}")
