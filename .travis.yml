@@ -8,12 +8,9 @@ sudo: required
 before_install:
 - |
     if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then
-      TRAVIS_COMMIT_RANGE="FETCH_HEAD...$TRAVIS_BRANCH"
+      CHANGED_FILES="$(git diff --name-only ${TRAVIS_BRANCH}..HEAD --)"
+      echo $CHANGED_FILES
     fi
-    git diff --name-only $TRAVIS_COMMIT_RANGE | grep -qvE '(\.md$)|(^doc)/' || {
-      echo "Only documentation files were updated, stopping build process."
-      exit
-    }
 
 env:
   global:
@@ -26,7 +23,7 @@ env:
 services:
   - docker
 
-before_install:
+before_script:
   - 'docker pull ${tpm12image}:${tpm12tag}'
   - 'docker pull ${tpm20image}:${tpm20tag}'
 

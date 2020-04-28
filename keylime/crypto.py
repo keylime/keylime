@@ -45,7 +45,8 @@ def rsa_import_pubkey(pubkey):
     try:
         return serialization.load_pem_public_key(pubkey, backend=default_backend())
     except:
-        return serialization.load_pem_public_key(pubkey.encode('utf-8'), backend=default_backend())
+        return serialization.load_pem_public_key(pubkey.encode('utf-8'),
+                                                 backend=default_backend())
 
 
 def rsa_import_privkey(privkey):
