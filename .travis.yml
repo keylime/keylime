@@ -26,7 +26,7 @@ env:
 services:
   - docker
 
-before_install:
+before_script:
   - 'docker pull ${tpm12image}:${tpm12tag}'
   - 'docker pull ${tpm20image}:${tpm20tag}'
 
