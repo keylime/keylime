@@ -33,7 +33,7 @@ except ImportError:
     raise("Simplejson is mandatory, please install")
 
 from keylime import common
-from keylime import  keylime_logging
+from keylime import keylime_logging
 from keylime import secure_mount
 from M2Crypto import EVP, X509
 
@@ -66,35 +66,14 @@ def post_cfssl(params,data):
         raise Exception("Unable to issue CFSSL API command %s: %s"%(params,response.text))
     return response.json()
 
-def mk_cacert():
-    csr = {"CN": config.get('ca','cert_ca_name'),
-           "key": {
-               "algo": "rsa",
-               "size": config.getint('ca','cert_bits')
-               },
-           "names": [
-               {
-                   "C": config.get('ca','cert_country'),
-                   "L": config.get('ca','cert_locality'),
-                   "O": config.get('ca','cert_organization'),
-                   "OU": config.get('ca','cert_org_unit'),
-                   "ST": config.get('ca','cert_state')
-                   }
-                     ]
-           }
-
-    body = post_cfssl('api/v1/cfssl/init_ca',csr)
-
+def get_cacert():
+    body = post_cfssl('api/v1/cfssl/info')
     if body['success']:
-        pk_str = body['result']['private_key']
-        pk = EVP.load_key_string(body['result']['private_key'].encode('utf-8'))
         cert = X509.load_cert_string(body['result']['certificate'].encode('utf-8'))
         pkey = cert.get_pubkey()
-
-        return pk_str, cert, pk, pkey
+        return cert, pkey
     else:
-        raise Exception("Unable to create CA")
-
+        raise Expception("Unable to create CA")
 
 def mk_signed_cert(cacert,ca_pk,name,serialnum):
     csr = {"request": {
@@ -118,11 +97,6 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
             }
            }
 
-    # check CRL distribution point
-    disturl = config.get('ca','cert_crl_dist')
-    if disturl == 'default':
-        disturl = "http://%s:%s/crl.der"%(socket.getfqdn(),common.CRL_PORT)
-
     # set up config for cfssl server
     cfsslconfig  = {
         "signing": {
@@ -131,7 +105,7 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
                 "expiry": "8760h",
                 "crl_url": disturl,
             }
-        }
+    }
     }
     secdir = secure_mount.mount()
     try:
@@ -156,7 +130,7 @@ def mk_signed_cert(cacert,ca_pk,name,serialnum):
         cert = X509.load_cert_string(body['result']['certificate'].encode("utf-8"))
         return cert, pk
     else:
-        raise Exception("Unable to create cert for %s"%name)
+        raise Exception("Unable to get cert for %s"%name)
 
 def gencrl(serials,cert,ca_pk):
     request = {"certificate": cert,

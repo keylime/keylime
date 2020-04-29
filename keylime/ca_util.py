@@ -137,11 +137,11 @@ def cmd_init(workingdir):
         rmfiles("*.crt")
         rmfiles("*.zip")
         rmfiles("*.der")
-        rmfiles("private.yml")
 
         if common.CA_IMPL=='cfssl':
-            pk_str, cacert, ca_pk, _ = ca_impl.mk_cacert()
+            cacert, ca_pk = ca_impl.get_cacert()
         elif common.CA_IMPL=='openssl':
+            rmfiles("private.yml")
             cacert, ca_pk, _ = ca_impl.mk_cacert()
         else:
             raise Exception("Unknown CA implementation: %s"%common.CA_IMPL)
@@ -152,16 +152,18 @@ def cmd_init(workingdir):
         with open('cacert.crt', 'wb') as f:
             f.write(cacert.as_pem())
 
-        f = BIO.MemoryBuffer()
-        ca_pk.save_key_bio(f,None)
-        priv[0]['ca']=f.getvalue()
-        f.close()
+        # phase out private key in impl
+        if common.CA_IMPL=='openssl':
+            f = BIO.MemoryBuffer()
+            ca_pk.save_key_bio(f,None)
+            priv[0]['ca']=f.getvalue()
+            f.close()
 
-        # store the last serial number created.
-        # the CA is always serial # 1
-        priv[0]['lastserial'] = 1
+            # store the last serial number created.
+            # the CA is always serial # 1
+            priv[0]['lastserial'] = 1
 
-        write_private(priv)
+            write_private(priv)
 
         ca_pk.get_rsa().save_pub_key('ca-public.pem')
 

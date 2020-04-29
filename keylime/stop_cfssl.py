@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import os
 
 def main(argv=sys.argv):
     p: int = subprocess.call(["pkill", "-f", "cfssl serve"])
@@ -8,6 +9,9 @@ def main(argv=sys.argv):
         print("Proccess not running")
     else:
         print("Killing cfssl")
+
+    os.remove('%s/ca-key.pem'%secdir)
+    os.remove('%s/cfsslconfig.yml'%secdir)
 
 
 if __name__=="__main__":
