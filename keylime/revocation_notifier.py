@@ -18,7 +18,7 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import configparser
+from multiprocessing import Process
 import threading
 import functools
 import time
@@ -31,17 +31,12 @@ try:
 except ImportError:
     raise("Simplejson is mandatory, please install")
 
-from multiprocessing import Process
-
 from keylime import common
 from keylime import keylime_logging
 from keylime import crypto
 
 logger = keylime_logging.init_logging('revocation_notifier')
-
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
-
+config = common.get_config()
 broker_proc = None
 
 

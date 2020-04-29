@@ -24,16 +24,12 @@ import hashlib
 import struct
 import re
 import os
-import configparser
 
 from keylime import common
 from keylime import keylime_logging
 
 logger = keylime_logging.init_logging('ima')
-
-# setup config
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 #         m = ima_measure_re.match(measure_line)
 #         measure  = m.group('file_hash')

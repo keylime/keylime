@@ -173,9 +173,18 @@ print(("Using config file %s"%(CONFIG_FILE,)))
 if WARN:
     print("WARNING: Keylime is using the config file from its installation location. \n\tWe recommend you copy keylime.conf to /etc/ to customize it.")
 
-# read the config file
-config = configparser.RawConfigParser()
-config.read(CONFIG_FILE)
+
+_CURRENT_CONFIG = None
+
+
+def get_config():
+    global _CURRENT_CONFIG
+    if _CURRENT_CONFIG is None:
+        # read the config file
+        _CURRENT_CONFIG = configparser.ConfigParser()
+        _CURRENT_CONFIG.read(CONFIG_FILE)
+    return _CURRENT_CONFIG
+
 
 if not REQUIRE_ROOT:
     WORK_DIR=os.path.abspath(".")
@@ -314,6 +323,6 @@ TPM_DATA_PCR = 16
 BOOTSTRAP_KEY_SIZE=32
 
 # choose between cfssl or openssl for creating CA certificates
-CA_IMPL = config.get('general','ca_implementation')
+CA_IMPL = get_config().get('general', 'ca_implementation')
 
-CRL_PORT=38080
+CRL_PORT = 38080

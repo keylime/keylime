@@ -19,7 +19,6 @@ violate any copyrights that exist in this work.
 '''
 
 import base64
-import configparser
 import os
 import subprocess
 import socket
@@ -40,9 +39,7 @@ from M2Crypto import EVP, X509
 
 logger = keylime_logging.init_logging('ca_impl_cfssl')
 
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
-
+config = common.get_config()
 cfssl_ip = config.get('ca', 'cfssl_ip')
 cfssl_port = config.get('ca', 'cfssl_port')
 

@@ -21,7 +21,6 @@ violate any copyrights that exist in this work.
 '''
 
 import sys
-import configparser
 import base64
 import yaml
 try:
@@ -35,10 +34,10 @@ from keylime import registrar_client
 from keylime import vtpm_manager
 
 # read the config file
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 logger = keylime_logging.init_logging('platform-init')
+
 
 def add_vtpm(inputfile):
     # read in the file

@@ -24,7 +24,6 @@ import sys
 import os
 import base64
 import argparse
-import configparser
 import datetime
 import getpass
 import zipfile
@@ -64,8 +63,8 @@ else:
     raise Exception("Unknown CA implementation: %s"%common.CA_IMPL)
 from M2Crypto import X509, EVP, BIO
 
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
+
 
 """
 Tools for creating a CA cert and signed server certs.

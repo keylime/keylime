@@ -19,7 +19,6 @@ violate any copyrights that exist in this work.
 '''
 
 import os
-import configparser
 
 from keylime import cmd_exec
 from keylime import common
@@ -28,8 +27,8 @@ from keylime import keylime_logging
 logger = keylime_logging.init_logging('secure_mount')
 
 # read the config file
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
+
 
 def check_mounted(secdir):
     whatsmounted = cmd_exec.run("mount",lock=False)['retout']

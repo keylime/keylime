@@ -20,7 +20,6 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import configparser
 import sys
 
 from keylime import registrar_common
@@ -29,8 +28,7 @@ from keylime import keylime_logging
 
 logger = keylime_logging.init_logging('registrar')
 
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 
 def main(argv=sys.argv):

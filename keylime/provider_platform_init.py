@@ -20,7 +20,6 @@ violate any copyrights that exist in this work.
 '''
 
 import sys
-import configparser
 import base64
 import os
 import errno
@@ -37,8 +36,8 @@ from keylime.keylime_sqlite import vtpm_manager
 
 logger = keylime_logging.init_logging('provider_platform_init')
 
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
+
 
 def symlink_force(target, link_name):
     try:

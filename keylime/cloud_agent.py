@@ -57,8 +57,7 @@ except ImportError:
     raise("Simplejson is mandatory, please install")
 
 # read the config file
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)
