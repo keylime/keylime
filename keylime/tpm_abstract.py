@@ -18,7 +18,6 @@ violate any copyrights that exist in this work.
 '''
 import ast
 import base64
-import configparser
 import fcntl
 import hashlib
 import os
@@ -190,8 +189,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
     # constructor
     def __init__(self, need_hw_tpm=True):
         # read the config file
-        self.config = configparser.RawConfigParser()
-        self.config.read(common.CONFIG_FILE)
+        self.config = common.get_config()
         self.need_hw_tpm = need_hw_tpm
         self.global_tpmdata = None
         self.tpmrand_warned = False

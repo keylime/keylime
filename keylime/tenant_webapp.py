@@ -24,7 +24,6 @@ import base64
 import functools
 import os
 import ssl
-import configparser
 import traceback
 import sys
 try:
@@ -46,10 +45,7 @@ from keylime import common
 from keylime import keylime_logging
 
 logger = keylime_logging.init_logging('tenant_webapp')
-
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
-
+config = common.get_config()
 tenant_templ = tenant.Tenant()
 
 
@@ -598,8 +594,7 @@ def main(argv=sys.argv):
     """Main method of the Tenant Webapp Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
-    config = configparser.ConfigParser()
-    config.read(common.CONFIG_FILE)
+    config = common.get_config()
 
     webapp_port = config.getint('webapp', 'webapp_port')
 

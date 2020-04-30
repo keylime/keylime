@@ -18,15 +18,14 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import configparser
 import time
 
 from M2Crypto import X509, EVP, RSA, ASN1
 from keylime import common
 from keylime import keylime_logging
 
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
+
 
 def mk_cert_valid(cert, days=365):
     """

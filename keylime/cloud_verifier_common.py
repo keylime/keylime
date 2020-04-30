@@ -21,7 +21,6 @@ violate any copyrights that exist in this work.
 '''
 import ast
 from urllib.parse import urlparse
-import configparser
 import base64
 import time
 import os
@@ -46,8 +45,7 @@ from keylime.tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorit
 logger = keylime_logging.init_logging('cloudverifier_common')
 
 # setup config
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 
 class CloudAgent_Operational_State:

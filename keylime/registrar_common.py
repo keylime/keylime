@@ -21,7 +21,6 @@ import os
 import threading
 import sys
 import base64
-import configparser
 import signal
 import time
 import hashlib
@@ -50,10 +49,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 
 logger = keylime_logging.init_logging('registrar-common')
-
 # setup config
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 drivername = config.get('registrar', 'drivername')
 
@@ -516,7 +513,7 @@ def start(tlsport, port):
     servers = []
     serveraddr = ('', tlsport)
 
-    config = configparser.ConfigParser()
+    config = common.get_config()
     config.read(common.CONFIG_FILE)
     os.umask(0o077)
     kl_dir = os.path.dirname(os.path.abspath(database))

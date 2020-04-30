@@ -18,20 +18,17 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import configparser
 import glob
 import os
+
 from keylime import common
 from keylime import keylime_logging
 
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
-
+config = common.get_config()
 logger = keylime_logging.init_logging('tpm_ek_ca')
-
 trusted_certs = {}
-
 tpm_cert_store = config.get('tenant', 'tpm_cert_store')
+
 
 def check_tpm_cert_store():
     if not os.path.isdir(tpm_cert_store):
