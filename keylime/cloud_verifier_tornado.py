@@ -18,7 +18,7 @@ rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as d
 above. Use of this work other than as specifically authorized by the U.S. Government may
 violate any copyrights that exist in this work.
 '''
-import configparser
+
 import traceback
 import os
 import sys
@@ -53,8 +53,7 @@ except ImportError:
 if sys.version_info[0] < 3:
     raise Exception("Python 3 or a more recent version is required.")
 
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 drivername = config.get('cloud_verifier', 'drivername')
 
@@ -651,8 +650,7 @@ def main(argv=sys.argv):
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
-    config = configparser.ConfigParser()
-    config.read(common.CONFIG_FILE)
+    config = common.get_config()
     cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
 
     VerfierMain.metadata.create_all(engine, checkfirst=True)

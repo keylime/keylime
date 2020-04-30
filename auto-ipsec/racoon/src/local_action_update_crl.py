@@ -22,7 +22,6 @@ violate any copyrights that exist in this work.
 
 import time
 import os
-import configparser
 
 import keylime.tornado_requests as tornado_requests
 import keylime.ca_util as ca_util
@@ -31,8 +30,6 @@ import keylime.common as common
 import keylime.keylime_logging as keylime_logging
 
 # read the config file
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
 
 logger = keylime_logging.init_logging('update_crl')
 

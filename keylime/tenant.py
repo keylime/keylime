@@ -18,7 +18,6 @@ violate any copyrights that exist in this work.
 import datetime
 import argparse
 import base64
-import configparser
 import hashlib
 import io
 import logging
@@ -52,9 +51,7 @@ from keylime import cloud_verifier_common
 logger = keylime_logging.init_logging('tenant')
 
 
-# setup config
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 # special exception that suppresses stack traces when it happens
 class UserError(Exception):

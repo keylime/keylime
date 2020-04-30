@@ -21,7 +21,6 @@ violate any copyrights that exist in this work.
 '''
 
 
-import configparser
 import os
 from M2Crypto import X509
 
@@ -37,8 +36,7 @@ except ImportError:
     raise("Simplejson is mandatory, please install")
 
 # read the config file
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 logger = keylime_logging.init_logging('delete-sa')
 

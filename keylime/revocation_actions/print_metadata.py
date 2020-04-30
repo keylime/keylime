@@ -24,18 +24,16 @@ import asyncio
 
 from keylime import common
 import keylime.keylime_logging as keylime_logging
-import configparser
 
 try:
     import simplejson as json
 except ImportError:
     raise("Simplejson is mandatory, please install")
 
-# read the config file
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 logger = keylime_logging.init_logging('print_metadata')
+
 
 async def execute(revocation):
     print(json.loads(revocation['meta_data']))

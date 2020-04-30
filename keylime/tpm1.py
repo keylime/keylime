@@ -18,7 +18,6 @@ violate any copyrights that exist in this work.
 '''
 
 import base64
-import configparser
 import hashlib
 import M2Crypto
 import os
@@ -50,8 +49,7 @@ from keylime import tpm_ek_ca
 logger = keylime_logging.init_logging('tpm1')
 
 # read the config file
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 
 class tpm1(tpm_abstract.AbstractTPM):

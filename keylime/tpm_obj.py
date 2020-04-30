@@ -18,7 +18,6 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import configparser
 import distutils.spawn
 import os
 
@@ -28,10 +27,7 @@ from keylime import common
 from keylime import keylime_logging
 
 logger = keylime_logging.init_logging('tpmobj')
-
-# read the config file
-config = configparser.RawConfigParser()
-config.read(common.CONFIG_FILE)
+config = common.get_config()
 
 # singleton objects for working with the TPM
 __tpm1 = None

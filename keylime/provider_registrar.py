@@ -20,16 +20,15 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-from keylime import common
-from keylime import keylime_logging
-logger = keylime_logging.init_logging('provider-registrar')
-
-from keylime import registrar_common
-import configparser
 import sys
 
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
+from keylime import common
+from keylime import keylime_logging
+from keylime import registrar_common
+
+logger = keylime_logging.init_logging('provider-registrar')
+config = common.get_config()
+
 
 def main(argv=sys.argv):
     registrar_common.start(config.getint('registrar', 'provider_registrar_tls_port'),config.getint('registrar', 'provider_registrar_port'),config.get('registrar','prov_db_filename'))
