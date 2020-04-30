@@ -28,9 +28,10 @@ def request(method, url, port, params=None, data=None, headers=None, context=Non
             port,
             timeout=5)
 
+# data / headers
     while True:
         counter += 1
-        if data is not None:
+        if data is not None and headers is not None:
             try:
                 conn.request(method, params, data, headers)
             except http.client.HTTPException as e:
@@ -41,7 +42,10 @@ def request(method, url, port, params=None, data=None, headers=None, context=Non
                 return(504)
         else:
             try:
-                conn.request(method, params, headers)
+                if headers is not None:
+                    conn.request(method, params, headers)
+                else:
+                    conn.request(method, params)
             except http.client.HTTPException as e:
                 return(500, str(e))
             except ConnectionError:

@@ -22,13 +22,13 @@ import datetime
 import hashlib
 import io
 import json
-import jwt
 import logging
 import os
 import subprocess
 import ssl
 import sys
 import time
+import urllib.parse
 import zipfile
 
 try:
@@ -121,15 +121,6 @@ class Tenant():
             logger.warning("TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
             self.context = None
 
-    def get_token(self):
-        params = f'/auth/?username={api_user}&password={api_pass}' # luke
-        response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
-        response_json = json.loads(response.read().decode())
-        return response_json["status"]["token"]
-        # payload = {f'username':{api_user}, 'password':{api_pass}}
-        # url = (f'https://{self.cloudverifier_ip}:{self.cloudverifier_port}/auth/')
-        # response = requests.get(url, params=payload, cert=('/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private-out.pem'), verify=False)
-        # return response.json()["status"]["token"]
 
     def get_tls_context(self):
         ca_cert = config.get('tenant', 'ca_cert')
@@ -142,7 +133,7 @@ class Tenant():
         if tls_dir == 'default':
             ca_cert = 'cacert.crt'
             my_cert = 'client-cert.crt'
-            my_priv_key = 'client-private-out.pem'
+            my_priv_key = 'client-private.pem'
             tls_dir = 'cv_ca'
 
         # this is relative path, convert to absolute in WORK_DIR
@@ -160,7 +151,7 @@ class Tenant():
 
         context = ssl.create_default_context()
         context.load_verify_locations(cafile=ca_path)
-        context.load_cert_chain(certfile=my_cert,keyfile=my_priv_key)
+        context.load_cert_chain(certfile=my_cert,keyfile=my_priv_key,password=my_key_pw)
         context.verify_mode = ssl.CERT_REQUIRED
         context.check_hostname = config.getboolean('general','tls_check_hostnames')
         return context
@@ -488,36 +479,15 @@ class Tenant():
         }
         json_message = json.dumps(data)
         logger.info(f" Authentificating {api_user}")
-        token = self.get_token()
-        print('token:', token)
-
-        # payload = {f'username':{api_user}, 'password':{api_pass}}
-        # url = (f'https://{self.cloudverifier_ip}:{self.cloudverifier_port}/auth/')
-        # print('url:', url)
-        # response = requests.get(url, params=payload, cert=('/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private-out.pem'), verify=False) # ned
-        # token = response.json()["status"]["token"]
-
-
-        # urlib
-        # url = (f'https://127.0.0.1:{self.cloudverifier_port}/auth/?username={api_user}&password={api_pass}')
-        # response = urllib.request.urlopen(url, context=self.context)
-        # print('back', response.read().decode())
-        # response_json = json.loads(response.read().decode())
-        # token = response_json["status"]["token"]
-        # print('token:', token)
-        # headers = {"Authorization":"Bearer " + token}
-
-        # http.client
-        #response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
-        # req = urllib.request.Request(link, headers={'User-Agent' : "Magic Browser"})
-        # params = f'/auth/?username={api_user}&password={api_pass}' # luke
-        # response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
-        # response_json = json.loads(response.read().decode())
-        # token = response_json["status"]["token"]
-        # headers = {"Authorization":"Bearer " + token}
+        params = f'/auth/?username={api_user}&password={api_pass}' # luke
+        response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
+        response_json = json.loads(response.read().decode())
+        token = response_json["status"]["token"]
+        headers = {"Authorization":"Bearer " + token}
 
         params = f'/agents/{self.agent_uuid}'
         response = httpclient_requests.request("POST", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=json_message, headers={"Authorization": "Bearer "+ token}, context=self.context)
+        print('reponse', response.read().decode())
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
@@ -544,11 +514,8 @@ class Tenant():
         if not listing:
             agent_uuid=self.agent_uuid
 
-        token = self.get_token()
-        print('token:', token)
-
         params = f'/agents/{agent_uuid}'
-        response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, headers={"Authorization": "Bearer "+ token}, context=self.context)
+        response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
@@ -574,10 +541,8 @@ class Tenant():
                 logger.info(f'Agents: "{agent_array}"')
 
     def do_cvdelete(self):
-        token = self.get_token()
-        print('token:', token)
         params = f'/agents/{self.agent_uuid}'
-        response = httpclient_requests.request("DELETE", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params,  headers={"Authorization": "Bearer "+ token}, context=self.context)
+        response = httpclient_requests.request("DELETE", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params,  context=self.context)
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
             exit()
@@ -588,7 +553,7 @@ class Tenant():
         if response.status == 202:
             deleted = False
             for _ in range(12):
-                response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, headers={"Authorization": "Bearer "+ token}, context=self.context)
+                response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
                 if response.status == 200 or 404:
                     deleted=True
                     break
@@ -610,10 +575,9 @@ class Tenant():
         registrar_client.doRegistrarDelete(self.registrar_ip,self.registrar_port,self.agent_uuid)
 
     def do_cvreactivate(self):
-        token = self.get_token()
-        print('token:', token)
+        #params = '/agents/%s/reactivate'% (self.agent_uuid)
         params = f'/agents/{self.agent_uuid}/reactivate'
-        response = httpclient_requests.request("PUT", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=b'', headers={"Authorization": "Bearer "+ token}, context=self.context)
+        response = httpclient_requests.request("PUT", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=b'',  context=self.context)
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
@@ -631,10 +595,9 @@ class Tenant():
 
 
     def do_cvstop(self):
-        token = self.get_token()
-        print('token:', token)
+        # params = '/agents/%s/stop'% (self.agent_uuid)
         params = f'/agents/{self.agent_uuid}/stop'
-        response = httpclient_requests.request("PUT", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=b'', headers={"Authorization": "Bearer "+ token}, context=self.context)
+        response = httpclient_requests.request("PUT", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=b'',  context=self.context)
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
@@ -659,6 +622,7 @@ class Tenant():
         # Note: We need a specific retry handler (perhaps in common), no point having localised unless we have too.
         while True:
             try:
+                #params = '/quotes/identity?nonce=%s'%(self.nonce)
                 params = f'/quotes/identity?nonce={self.nonce}'
                 response = httpclient_requests.request("GET", "%s"%(self.cloudagent_ip), self.cloudagent_port, params=params, context=None)
                 response_body = json.loads(response.read().decode())

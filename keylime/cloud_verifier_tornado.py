@@ -193,7 +193,7 @@ class AuthHandler(BaseHandler):
                 encoded = jwt.encode({
                     'group_id': user.group_id,
                     'role_id': user.role_id,
-                    'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=600)},
+                    'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=1)},
                     SECRET,
                     'HS256'
                 ).decode('utf-8')
