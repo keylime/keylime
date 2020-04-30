@@ -146,18 +146,16 @@ Keylime requires Python 3.6.
 
 #### Python-based prerequisites
 
-The following python packages are required:
+The list of Python packages needed to install keylime can be found in
+ [requirements.txt](https://github.com/keylime/keylime/tree/master/requirements.txt)
 
-* cryptography
-* tornado>=5.0.2
-* m2crypto>=0.21.1
-* pyzmq>=14.4
-* setuptools>=0.7
-* python-dev
-* pyyaml
-
-The latter of these are usually available as distro packages. See [installer.sh](https://github.com/keylime/keylime/blob/master/installer.sh) for more information if you want to install them this way.
-You can also let keylime's `setup.py` install them via PyPI.
+Some of them are usually available as distro packages.
+See [installer.sh](https://github.com/keylime/keylime/blob/master/installer.sh)
+ for more information if you want to install them this way.
+You can also install them using pip:
+```bash
+python3 -m pip install -r requirements.txt
+```
 
 #### TPM utility prerequisites
 
@@ -292,7 +290,7 @@ To talk directly to a real TPM: `export TPM2TOOLS_TCTI="device:/dev/tpm0"`
 
 You're finally ready to install keylime!
 ```bash
-sudo python setup.py install
+sudo python3 -m pip install . -r requirements.txt
 ```
 
 #### To run on OSX 10.11+

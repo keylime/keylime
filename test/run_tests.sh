@@ -187,7 +187,7 @@ echo "==========================================================================
 echo $'\t\t\tInstalling Keylime'
 echo "=================================================================================="
 cd $KEYLIME_DIR
-python3 setup.py install
+python3 -m pip install . -r requirements.txt
 
 # Run the tests as necessary
 if [[ "$COVERAGE" -eq "1" ]] ; then
