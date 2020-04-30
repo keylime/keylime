@@ -3,18 +3,6 @@ dist: bionic
 
 sudo: required
 
-# If the change is a markdown file, don't run CI build. Or at a later point
-# we can set a specific job in here (such as a markdown lint)
-before_install:
-- |
-    if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then
-      TRAVIS_COMMIT_RANGE="FETCH_HEAD...$TRAVIS_BRANCH"
-    fi
-    git diff --name-only $TRAVIS_COMMIT_RANGE | grep -qvE '(\.md$)|(^doc)/' || {
-      echo "Only documentation files were updated, stopping build process."
-      exit
-    }
-
 env:
   global:
     - container_id: $(mktemp)
@@ -26,7 +14,7 @@ env:
 services:
   - docker
 
-before_install:
+before_script:
   - 'docker pull ${tpm12image}:${tpm12tag}'
   - 'docker pull ${tpm20image}:${tpm20tag}'
 
