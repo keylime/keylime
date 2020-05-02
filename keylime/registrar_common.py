@@ -513,8 +513,6 @@ def start(tlsport, port):
     servers = []
     serveraddr = ('', tlsport)
 
-    config = common.get_config()
-    config.read(common.CONFIG_FILE)
     os.umask(0o077)
     kl_dir = os.path.dirname(os.path.abspath(database))
     if not os.path.exists(kl_dir):
