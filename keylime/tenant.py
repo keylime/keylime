@@ -387,7 +387,7 @@ class Tenant():
 
     def validate_tpm_quote(self,public_key,quote,tpm_version,hash_alg):
         registrar_client.init_client_tls(config,'tenant')
-        reg_keys = registrar_client.getKeys(self.cloudverifier_ip,self.registrar_port,self.agent_uuid)
+        reg_keys = registrar_client.getKeys(self.registrar_ip,self.registrar_port,self.agent_uuid)
         if reg_keys is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
