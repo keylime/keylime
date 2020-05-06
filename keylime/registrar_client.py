@@ -137,8 +137,9 @@ def doRegisterAgent(registrar_ip,registrar_port,agent_id,tpm_version,pub_ek,ekce
     }
     v_json_message = json.dumps(data)
     params = '/agents/%s'% (agent_id)
+    headers = {'content-type': 'application/json'}
     try:
-        response = httpclient_requests.request("POST", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message, context=None)
+        response = httpclient_requests.request("POST", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message, headers=headers, context=None)
         response_body = json.loads(response.read().decode("utf-8"))
 
         if response.status != 200:
@@ -163,7 +164,6 @@ def doRegisterAgent(registrar_ip,registrar_port,agent_id,tpm_version,pub_ek,ekce
             exit()
         else:
             logger.exception(e)
-    
     return None
 
 
@@ -173,7 +173,8 @@ def doActivateAgent(registrar_ip,registrar_port,agent_id,key):
     }
     v_json_message = json.dumps(data)
     params = '/agents/%s/activate'% (agent_id)
-    response = httpclient_requests.request("PUT", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message,  context=None)
+    headers = {'content-type': 'application/json'}
+    response = httpclient_requests.request("PUT", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message, headers=headers,  context=None)
     response_body = json.loads(response.read().decode())
     if response.status == 200:
         logger.info("Registration activated for agent %s."%agent_id)
@@ -190,7 +191,8 @@ def doActivateVirtualAgent(registrar_ip,registrar_port,agent_id,deepquote):
 
     v_json_message = json.dumps(data)
     params = '/agents/%s/vactivate'% (agent_id)
-    response = httpclient_requests.request("PUT", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message,  context=None)
+    headers = {'content-type': 'application/json'}
+    response = httpclient_requests.request("PUT", "%s"%(registrar_ip), registrar_port, params=params, data=v_json_message, headers=headers, context=None)
     response_body = json.loads(response.read().decode())
     if response.status == 200:
         logger.info("Registration activated for agent %s."%agent_id)
@@ -204,7 +206,8 @@ def doActivateVirtualAgent(registrar_ip,registrar_port,agent_id,deepquote):
 def doRegistrarDelete(registrar_ip,registrar_port, agent_id):
     global context
     params = '/agents/%s'% (agent_id)
-    response = httpclient_requests.request("DELETE", "%s"%(registrar_ip), registrar_port, params=params,  context=None)
+    headers = {'content-type': 'application/json'}
+    response = httpclient_requests.request("DELETE", "%s"%(registrar_ip), registrar_port, params=params, headers=headers, context=None)
     response_body = json.loads(response)
     if response.status == 200:
         logger.debug("Registrar deleted.")

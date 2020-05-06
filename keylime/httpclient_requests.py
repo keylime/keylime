@@ -13,6 +13,17 @@ def request(method, url, port, params=None, data=None, headers=None, context=Non
     :returns: The http response or exception
     :note: to add more failure types, refer to https://docs.python.org/3/library/exceptions.html
     """
+    # print('method:', method)
+    # print('url:', url)
+    # if params is not None:
+    #     print("Got Params")
+    #     print('params:', params)
+    # if data is not None:
+    #     print("Got data")
+    #     print('data:', data)
+    # if headers is not None:
+    #     print("Got headers")
+
     flag = False
     counter = 0
 
@@ -31,7 +42,7 @@ def request(method, url, port, params=None, data=None, headers=None, context=Non
 # data / headers
     while True:
         counter += 1
-        if data is not None and headers is not None:
+        if data is not None:
             try:
                 conn.request(method, params, data, headers)
             except http.client.HTTPException as e:
@@ -42,10 +53,7 @@ def request(method, url, port, params=None, data=None, headers=None, context=Non
                 return(504)
         else:
             try:
-                if headers is not None:
-                    conn.request(method, params, headers)
-                else:
-                    conn.request(method, params)
+                conn.request(method, params, headers)
             except http.client.HTTPException as e:
                 return(500, str(e))
             except ConnectionError:

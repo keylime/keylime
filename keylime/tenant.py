@@ -548,7 +548,8 @@ class Tenant():
         print('token:', token)
 
         params = f'/agents/{agent_uuid}'
-        response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, headers={"Authorization": "Bearer "+ token}, context=self.context)
+        headers = {"Authorization": "Bearer "+ token}
+        response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, headers=headers.encode('utf-8'), context=self.context)
 
         if response == 503:
             logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")

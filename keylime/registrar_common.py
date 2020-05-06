@@ -184,6 +184,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
             return
 
         if "agents" not in rest_params:
+            print('rest_params:', rest_params)
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning(
                 'DELETE agent returning 400 response. uri not supported: ' + self.path)
