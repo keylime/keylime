@@ -143,12 +143,12 @@ script in an easy to remember way)::
 
     #!/bin/bash
 
-    # Your local keylime. (you should likely change this)
-    REPO="/home/${USER}/keylime."
+    # Your local keylime (you should likely change this)
+    REPO="/home/${USER}/keylime"
 
     # keylime images
     tpm12image="lukehinds/keylime-ci-tpm12"
-    tpm12tag="v300"
+    tpm12tag="v550"
     tpm20image="lukehinds/keylime-ci-tpm20"
     tpm20tag="v301"
 
@@ -160,10 +160,10 @@ script in an easy to remember way)::
     function tpm1 {
         container_id=$(mktemp)
         docker run --detach --privileged \
-            -v $REPO:/root/keylime. \
+            -v $REPO:/root/keylime \
             -it ${tpm12image}:${tpm12tag} >> ${container_id}
         docker exec -u 0 -it --tty "$(cat ${container_id})" \
-            /bin/sh -c 'cd /root/keylime./test; chmod +x ./run_tests.sh; ./run_tests.sh -s openssl'
+            /bin/sh -c 'cd /root/keylime/test; chmod +x ./run_tests.sh; ./run_tests.sh -s openssl'
         docker stop "$(cat ${container_id})"
         docker rm "$(cat ${container_id})"
     }
@@ -171,11 +171,11 @@ script in an easy to remember way)::
     function tpm2 {
         container_id=$(mktemp)
         docker run --detach --privileged \
-            -v $REPO:/root/keylime. \
+            -v $REPO:/root/keylime \
             -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
             -it ${tpm20image}:${tpm20tag} >> ${container_id}
         docker exec -u 0 -it --tty "$(cat ${container_id})" \
-            /bin/bash /root/keylime./.ci/test_wrapper.sh
+            /bin/bash /root/keylime/.ci/test_wrapper.sh
         docker stop "$(cat ${container_id})"
         docker rm "$(cat ${container_id})"
     }
