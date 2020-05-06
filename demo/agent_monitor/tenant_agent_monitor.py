@@ -27,10 +27,7 @@ violate any copyrights that exist in this work.
 import sys
 sys.path.insert(0, '../../keylime/')
 
-<<<<<<< HEAD
-=======
 import common
->>>>>>> 2d151bc17bdeac03875ce6ea0642046be7e0c4ac
 import keylime_logging
 logger = keylime_logging.init_logging('agent_monitor')
 
