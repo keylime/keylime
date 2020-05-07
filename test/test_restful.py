@@ -48,8 +48,6 @@ For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
 
 
 # System imports
-import asyncio
-import http.client
 import dbus
 import sys
 import signal
@@ -62,7 +60,6 @@ import base64
 import threading
 import shutil
 import errno
-import pytest
 import hashlib
 
 try:
@@ -94,10 +91,9 @@ sys.path.append(KEYLIME_DIR)
 from keylime import common
 from keylime import tornado_requests
 from keylime import httpclient_requests
-from keylime import registrar_client
 from keylime import tenant
 from keylime import crypto
-from keylime import user_data_encrypt
+from keylime.cmd import user_data_encrypt
 from keylime import secure_mount
 from keylime import tpm_obj
 from keylime import tpm_abstract

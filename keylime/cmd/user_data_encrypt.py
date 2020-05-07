@@ -75,5 +75,6 @@ def main(argv=sys.argv):
 	f.write(ret['ciphertext'])
 	f.close()
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
 	main()

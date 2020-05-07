@@ -540,9 +540,3 @@ def main(argv=sys.argv):
         logger.error("Invalid command: %s"%args.command)
         parser.print_help()
         sys.exit(-1)
-
-if __name__=="__main__":
-    try:
-        main()
-    except Exception as e:
-        logger.exception(e)

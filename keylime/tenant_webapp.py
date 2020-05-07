@@ -637,9 +637,3 @@ def main(argv=sys.argv):
         tornado.ioloop.IOLoop.instance().start()
     except KeyboardInterrupt:
         tornado.ioloop.IOLoop.instance().stop()
-
-if __name__=="__main__":
-    try:
-        main()
-    except Exception as e:
-        logger.exception(e)

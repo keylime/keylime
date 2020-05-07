@@ -700,10 +700,3 @@ def main(argv=sys.argv):
         tornado.ioloop.IOLoop.instance().stop()
         if config.getboolean('cloud_verifier', 'revocation_notifier'):
             revocation_notifier.stop_broker()
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        logger.exception(e)
