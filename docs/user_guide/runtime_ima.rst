@@ -97,10 +97,11 @@ Excludes List
 ~~~~~~~~~~~~~
 
 An excludes list can be utilised to exclude any file or path. The excludes list
-supports standard regular expressions, for example the `tmp` directory can be
-ignored::
+uses the Python regular expression standard, where the syntax is similar to
+those found in Perl. Note that this syntax is different from POSIX basic
+regular expressions. For example the `tmp` directory can be ignored using::
 
-  /tmp/*
+  /tmp/.*
 
 
 Remotely Provision Agents
