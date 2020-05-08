@@ -139,9 +139,15 @@ def process_measurement_list(lines, lists=None, m2w=None):
     else:
         whitelist = None
 
-    combined = None
+    compiled_regex = None
     if exclude_list != []:
-        combined = "(" + ")|(".join(exclude_list) + ")"
+        combined_regex = "(" + ")|(".join(exclude_list) + ")"
+        try:
+            compiled_regex = re.compile(combined_regex)
+        except re.error as regex_err:
+            msg = "Invalid regular expression '" + regex_err.pattern + "': "
+            msg += regex_err.msg + " at position " + str(regex_err.pos) + ". Exclude list will be ignored."
+            logger.error(msg)
 
     for line in lines:
         line = line.strip()
@@ -220,7 +226,7 @@ def process_measurement_list(lines, lists=None, m2w=None):
                 continue
 
             # determine if path matches any exclusion list items
-            if combined is not None and re.match(combined, path):
+            if compiled_regex is not None and compiled_regex.match(path):
                 logger.debug("IMA: ignoring excluded path %s" % path)
                 continue
 
