@@ -94,7 +94,6 @@ except SQLAlchemyError as e:
     exit(1)
 
 
-
 # The "exclude_db" dict values are removed from the response before adding the dict to the DB
 # This is because we want these values to remain ephemeral and not stored in the database.
 exclude_db = {
@@ -141,19 +140,23 @@ class MainHandler(tornado.web.RequestHandler):
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def get(self):
+        print("%r %s" % (self.request))
         print('maybe its because ima not an agents')
         common.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def delete(self):
+        print("%r %s" % (self.request))
         common.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def post(self):
+        print("%r %s" % (self.request, self.request.body.decode()))
         common.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def put(self):
+        print("%r %s" % (self.request, self.request.body.decode()))
         common.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
@@ -199,15 +202,15 @@ class AuthHandler(BaseHandler):
                 ).decode('utf-8')
                 response = {'token': encoded}
                 common.echo_json_response(
-                            self, 200, response)
+                    self, 200, response)
             else:
                 logger.error(f"User {username} authorization failed")
                 common.echo_json_response(
-                            self, 401, "User %s authorization failed" % (username))
+                    self, 401, "User %s authorization failed" % (username))
         else:
             logger.error(f"User {username} account not found")
             common.echo_json_response(
-                            self, 404, "User account %s not found" % (username))
+                self, 404, "User account %s not found" % (username))
 
 
 @jwtauth
@@ -227,7 +230,8 @@ class RegisterHandler(BaseHandler):
         payload = jwt.decode(token, SECRET, algorithms='HS256')
 
         try:
-            user = session.query(User).filter(User.username == new_username).first()
+            user = session.query(User).filter(
+                User.username == new_username).first()
         except SQLAlchemyError as e:
             logger.error(f'SQLAlchemy Error: {e}')
 
@@ -235,23 +239,25 @@ class RegisterHandler(BaseHandler):
             if user is not None and user.username == new_username:
                 logger.error(f"Username {new_username} already exists")
                 common.echo_json_response(
-                            self, 409, "User %s already exists" % (new_username))
+                    self, 409, "User %s already exists" % (new_username))
             else:
                 try:
-                    new_user = User(username=new_username, password=generate_password_hash(new_password), email=new_email, group_id=new_group_id)
+                    new_user = User(username=new_username, password=generate_password_hash(
+                        new_password), email=new_email, group_id=new_group_id)
                     session.add(new_user)
                     session.commit()
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
                     common.echo_json_response(
-                                self, 500, "Internal server error %s " % (e))
+                        self, 500, "Internal server error %s " % (e))
                 logger.info(f"Username {new_username} registered successfully")
                 common.echo_json_response(
-                            self, 200, "Username %s registered successfully" % (new_username))
+                    self, 200, "Username %s registered successfully" % (new_username))
         else:
             logger.info(f"Only admin users are authorized to add new users")
             common.echo_json_response(
-                            self, 409, "Only admin users are authorized to add new users")
+                self, 409, "Only admin users are authorized to add new users")
+
 
 @jwtauth
 class AgentsHandler(BaseHandler):
@@ -270,6 +276,7 @@ class AgentsHandler(BaseHandler):
         """
         session = self.make_session(engine)
         rest_params = common.get_restful_params(self.request.uri)
+
         if rest_params is None:
             common.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
@@ -284,7 +291,8 @@ class AgentsHandler(BaseHandler):
         agent_id = rest_params["agents"]
 
         if agent_id is not None:
-            agent = session.query(VerfierMain).filter_by(agent_id=agent_id).one()
+            agent = session.query(VerfierMain).filter_by(
+                agent_id=agent_id).one()
 
             if agent is not None:
                 response = cloud_verifier_common.process_get_status(agent)
@@ -353,7 +361,6 @@ class AgentsHandler(BaseHandler):
                 logger.error(f'SQLAlchemy Error: {e}')
 
     def post(self):
-        print('POST event')
         session = self.make_session(engine)
         """This method handles the POST requests to add agents to the Cloud Verifier.
 
@@ -733,13 +740,15 @@ def check_user_db():
     if user is None:
         logger.info("Creating admin user")
         admin_pass = get_random_string(16)
-        new_user = User(username="admin", password=generate_password_hash(admin_pass), email="admin@localhost", group_id="1", role_id="1")
+        new_user = User(username="admin", password=generate_password_hash(
+            admin_pass), email="admin@localhost", group_id="1", role_id="1")
         try:
             session.add(new_user)
             session.commit()
         except SQLAlchemyError as e:
             logger.error(f'SQLAlchemy Error: {e}')
-        logger.warn(f"Admin password is: {admin_pass} This must be changed immediately.")
+        logger.warn(
+            f"Admin password is: {admin_pass} This must be changed immediately.")
 
 
 def start_tornado(tornado_server, port):
@@ -785,8 +794,9 @@ def main(argv=sys.argv):
 
     settings = {
         'debug': True,
+        'autoreload': False,
         "xsrf_cookies": False,  # change me!
-        }
+    }
 
     app = tornado.web.Application([
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
