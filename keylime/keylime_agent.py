@@ -45,8 +45,8 @@ from keylime import openstack
 from keylime import revocation_notifier
 from keylime import registrar_client
 from keylime import secure_mount
-from keylime import tpm_obj
-from keylime.tpm_abstract import TPM_Utilities
+from keylime.tpm import tpm_obj
+from keylime.tpm.tpm_abstract import TPM_Utilities
 
 # Configure logger
 logger = keylime_logging.init_logging('cloudagent')

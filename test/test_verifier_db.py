@@ -1,6 +1,6 @@
 import unittest
-from keylime.verifier_db import VerfierMain
-from keylime.keylime_database import SessionManager
+from keylime.db.verifier_db import VerfierMain
+from keylime.db.keylime_db import SessionManager
 from sqlalchemy import create_engine
 
 # BEGIN TEST DATA

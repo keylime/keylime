@@ -37,8 +37,8 @@ from keylime import httpclient_requests
 from keylime import common
 from keylime import keylime_logging
 from keylime import registrar_client
-from keylime import tpm_obj
-from keylime.tpm_abstract import  TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+from keylime.tpm import tpm_obj
+from keylime.tpm.tpm_abstract import  TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 from keylime import ima
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
@@ -390,7 +390,7 @@ class Tenant():
             logger.warning("AIK not found in registrar, quote not validated")
             return False
 
-        tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
+        tpm = tpm_obj.getTPM(need_hw_tpm=False, tpm_version=tpm_version)
         if not tpm.check_quote(self.agent_uuid,self.nonce,public_key,quote,reg_keys['aik'],hash_alg=hash_alg):
             if reg_keys['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious host is present.  Run 'regdelete' for this agent and restart")

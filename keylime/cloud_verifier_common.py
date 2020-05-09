@@ -38,8 +38,8 @@ from keylime import registrar_client
 from keylime import crypto
 from keylime import ca_util
 from keylime import revocation_notifier
-from keylime import tpm_obj
-from keylime.tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+from keylime.tpm import tpm_obj
+from keylime.tpm.tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 
 # setup logging
 logger = keylime_logging.init_logging('cloudverifier_common')

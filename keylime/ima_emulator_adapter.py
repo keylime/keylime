@@ -20,14 +20,11 @@ violate any copyrights that exist in this work.
 '''
 
 import sys
-from keylime import ima
-from keylime import common
 import select
 import time
-import hashlib
 import itertools
-from keylime.tpm_abstract import *
-from keylime import tpm_obj
+from keylime.tpm.tpm_abstract import *
+from keylime.tpm import tpm_obj
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)
