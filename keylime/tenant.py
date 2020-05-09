@@ -687,7 +687,7 @@ class Tenant():
             response = httpclient_requests.request("POST", "%s"%(self.cloudagent_ip), self.cloudagent_port, params=params, data=u_json_message)
 
             if response == 503:
-                logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
+                logger.error(f"Cannot connect to Agent at {self.cloudagent_ip} with Port {self.cloudagent_port}. Connection refused.")
                 exit()
             elif response == 504:
                 logger.error(f"Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port} timed out.")
