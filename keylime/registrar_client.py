@@ -121,6 +121,13 @@ def getKeys(registrar_ip,registrar_port,agent_id):
             return None
 
         return response_body["results"]
+
+    except AttributeError as e :
+        if response == 503 :
+            logger.critical("Error: the registrar is not available at %s:%s"%(registrar_ip, registrar_port))
+        else :
+            logger.exception(e)
+
     except Exception as e:
         logger.exception(e)
 
