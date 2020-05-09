@@ -276,6 +276,7 @@ class AgentsHandler(BaseHandler):
         """
         session = self.make_session(engine)
         rest_params = common.get_restful_params(self.request.uri)
+        print('self.request.uri:', self.request.uri)
 
         if rest_params is None:
             common.echo_json_response(
@@ -313,6 +314,7 @@ class AgentsHandler(BaseHandler):
         """
         session = self.make_session(engine)
         rest_params = common.get_restful_params(self.request.uri)
+        print('self.request.uri:', self.request.uri)
         if rest_params is None:
             common.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
@@ -461,6 +463,7 @@ class AgentsHandler(BaseHandler):
         """
         try:
             rest_params = common.get_restful_params(self.request.uri)
+            print('self.request.uri:', self.request.uri)
             if rest_params is None:
                 common.echo_json_response(
                     self, 405, "Not Implemented: Use /agents/ interface")

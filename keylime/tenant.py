@@ -37,7 +37,6 @@ try:
 except ImportError:
     raise("Simplejson is mandatory, please install")
 
-from keylime import httpclient_requests
 from keylime.requests_client import RequestsClient
 from keylime import tornado_requests
 from keylime import common
@@ -128,12 +127,16 @@ class Tenant():
         #     self.context = None
 
     def get_token(self):
-        logger.info("Getting token")
-        payload = {f'username': {api_user}, 'password': {api_pass}}
-        url = (f'https://{self.verifier_ip}:{self.verifier_port}')
-        auth = RequestsClient(url, params=payload, cert=(
-            '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'), verify=False)
-        response = auth.get('/auth/')
+
+        get_token = RequestsClient(self.verifier_base_url)
+        auth_cred = {f'username': {api_user}, 'password': {api_pass}}
+        response = get_token.get(
+            ('/auth/'),
+            params=auth_cred,
+            cert=(
+                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            verify=False
+        )
         return response.json()["status"]["token"]
 
     def get_tls_context(self):
@@ -475,21 +478,21 @@ class Tenant():
 
             if retval != 0:
                 raise UserError("External check script failed to validate EK")
-            while True:
-                line = proc.stdout.readline()
-                if line == "":
-                    break
-                logger.debug(f"ek_check output: {line.strip()}")
-            return False
-        else:
-            logger.debug(
-                "External check script successfully to validated EK")
-            while True:
-                line = proc.stdout.readline()
-                if line == "":
-                    break
-                logger.debug(f"ek_check output: {line.strip()}")
-        return True
+                while True:
+                    line = proc.stdout.readline()
+                    if line == "":
+                        break
+                    logger.debug(f"ek_check output: {line.strip()}")
+                return False
+            else:
+                logger.debug(
+                    "External check script successfully to validated EK")
+                while True:
+                    line = proc.stdout.readline()
+                    if line == "":
+                        break
+                    logger.debug(f"ek_check output: {line.strip()}")
+            return True
 
     def do_cv(self):
         """initiaite v, agent_id and ip
@@ -510,11 +513,9 @@ class Tenant():
             'accept_tpm_signing_algs': self.accept_tpm_signing_algs,
         }
         json_message = json.dumps(data)
-        logger.info(f" Authentificating {api_user}")
         token = self.get_token()
         logger.info("Getting do_cv")
 
-        # this works!
         do_cv = RequestsClient(self.verifier_base_url)
         response = do_cv.post(
             (f'/agents/{self.agent_uuid}'),
@@ -620,8 +621,8 @@ class Tenant():
             for _ in range(12):
                 logger.info("Getting poll_delete")
 
-                do_cvdelete = RequestsClient(self.verifier_base_url)
-                response = do_cvdelete.delete(
+                get_cvdelete = RequestsClient(self.verifier_base_url)
+                response = get_cvdelete.get(
                     (f'/agents/{self.agent_uuid}'),
                     headers={"Authorization": "Bearer " + token},
                     cert=(
@@ -680,25 +681,13 @@ class Tenant():
 
     def do_cvstop(self):
         token = self.get_token()
-
         logger.info("Getting do_cvstop")
-        # url = (
-        #     f'https://{self.verifier_ip}:{self.verifier_port}/agents/{self.agent_uuid}/stop')
-        # do_cvstop = RequestsClient(
-        #     url,
-        #     headers={"Authorization": "Bearer " + token},
-        #     data=b'',
-        #     cert=(
-        #         '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
-        #     verify=False
-        # )
-        # response = do_cvstop.put("")
+        params = f'/agents/{self.agent_uuid}/stop'
 
         do_cvstop = RequestsClient(self.verifier_base_url)
         response = do_cvstop.put(
-            (f'/agents/{self.agent_uuid}/stop'),
+            params,
             headers={"Authorization": "Bearer " + token},
-            data=b'',
             cert=(
                 '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
             verify=False
@@ -732,26 +721,12 @@ class Tenant():
         while True:
             try:
                 logger.info("Getting do_quote")
-                # url = (
-                #     f'https://{self.verifier_ip}:{self.verifier_port}/quotes/identity?nonce={self.nonce}')
-                # do_quote = RequestsClient(
-                #     url,
-                #     headers={"Authorization": "Bearer " + token},
-                #     data=b'',
-                #     cert=(
-                #         '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
-                #     verify=False
-                # )
-                # response = do_quote.put("")
-
-                do_quote = RequestsClient(self.verifier_base_url)
-                response = do_quote.put(
-                    (f'/quotes/identity?nonce={self.nonce}'),
-                    headers={"Authorization": "Bearer " + token},
-                    data=b'',
-                    cert=(
-                        '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
-                    verify=False
+                cloudagent_base_url = (
+                    f'http://{self.cloudagent_ip}:{self.cloudagent_port}'
+                )
+                do_quote = RequestsClient(cloudagent_base_url)
+                response = do_quote.get(
+                    f'/quotes/identity?nonce={self.nonce}'
                 )
                 response_body = response.json()
             except Exception as e:
@@ -779,7 +754,7 @@ class Tenant():
             if "results" not in response_body:
                 raise UserError(
                     "Error: unexpected http response body from Cloud Agent: %s" % str(response))
-            print('pre-quote response_body:', response_body)
+
             quote = response_body["results"]["quote"]
             logger.debug(f"agent_quote received quote: {quote}")
 
@@ -835,25 +810,24 @@ class Tenant():
                 data['payload'] = self.payload
 
             u_json_message = json.dumps(data)
-            logger.info("Getting do_quote 837")
 
-            do_quote = RequestsClient(self.verifier_base_url)
-            response = do_quote.post(
+            # Post UKEY back to Agent
+            cloudagent_base_url = (
+                f'http://{self.cloudagent_ip}:{self.cloudagent_port}'
+            )
+            post_ukey = RequestsClient(self.verifier_base_url)
+            response = post_ukey.post(
                 ('/keys/ukey'),
-                headers={"Authorization": "Bearer " + token},
-                data=u_json_message,
-                cert=(
-                    '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
-                verify=False
+                data=u_json_message
             )
 
             if response.status_code == 503:
                 logger.error(
-                    f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
+                    f"Cannot connect to Agent at {self.cloudagent_ip} with Port {self.cloudagent_port}. Connection refused.")
                 exit()
             elif response.status_code == 504:
                 logger.error(
-                    f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
+                    f"Agent at {self.cloudagent_ip} with Port {self.cloudagent_port} timed out.")
                 exit()
 
             if response.status_code != 200:
@@ -873,16 +847,6 @@ class Tenant():
         while True:
             try:
                 logger.info("Getting do_verify")
-                # url = (
-                #     f'https://{self.verifier_ip}:{self.verifier_port}/keys/verify?challenge={challenge}')
-                # do_verify = RequestsClient(
-                #     url,
-                #     headers={"Authorization": "Bearer " + token},
-                #     cert=(
-                #         '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
-                #     verify=False
-                # )
-                # response = do_verify.get("")
 
                 do_verify = RequestsClient(self.verifier_base_url)
                 response = do_verify.get(
@@ -893,9 +857,6 @@ class Tenant():
                     verify=False
                 )
 
-                # params = f'/keys/verify?challenge={challenge}'
-                # response = httpclient_requests.request("GET", "%s" % (
-                #     self.cloudagent_ip), self.cloudagent_port, params=params)
             except Exception as e:
                 if response.status_code == 503 or 504:
                     numtries += 1
