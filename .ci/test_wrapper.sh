@@ -4,7 +4,7 @@ set -x
 KEYLIME_HOME=/root/keylime
 
 # Configure swtpm2
-cd ${KEYLIME_HOME}/swtpm2_scripts
+cd ${KEYLIME_HOME}/scripts
 chmod +x init_tpm_server
 chmod +x tpm_serverd
 install -c tpm_serverd /usr/local/bin/tpm_serverd
