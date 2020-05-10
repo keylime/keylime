@@ -45,7 +45,7 @@ coverage.xml
 docs/_build/
 
 # Keylime specifics
-swtpm2_scripts/NVChip
+scripts/NVChip
 test/.auditing-*
 test/NVChip
 NVChip

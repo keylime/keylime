@@ -88,7 +88,7 @@ case "$ID" in
     ;;
 
     rhel | centos)
-        case "${VERSION_ID}" in 
+        case "${VERSION_ID}" in
             7)
                 echo "${ID} ${VERSION_ID} selected."
                 PACKAGE_MGR=$(command -v yum)
@@ -106,7 +106,7 @@ case "$ID" in
                 PYTHON_PREIN="python3 python3-devel python3-setuptools python3-pip"
                 PYTHON_DEPS="gcc gcc-c++ openssl-devel python3-yaml python3-requests swig python3-cryptography wget git python3-tornado python3-zmq python3-simplejson"
                 BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel"
-                #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools tpm2-abrmd" TODO: still on 3.1.1 tpm2_tools 
+                #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools tpm2-abrmd" TODO: still on 3.1.1 tpm2_tools
                 NEED_BUILD_TOOLS=1
                 NEED_PYTHON_DIR=1
                 POWERTOOLS="--enablerepo=PowerTools install autoconf-archive"
@@ -118,7 +118,7 @@ case "$ID" in
     ;;
 
     fedora)
-        echo "${ID} selected."       
+        echo "${ID} selected."
         PACKAGE_MGR=$(command -v dnf)
         PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
         PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto  python3-zmq python3-cryptography python3-tornado python3-simplejson python3-requests yaml-cpp-devel procps-ng"
@@ -296,7 +296,7 @@ if [[ "$OPENSSL" -eq "0" ]] ; then
     if [[ -r "/etc/profile.d/go.sh" ]]; then
         source "/etc/profile.d/go.sh"
     fi
-    
+
     if [[ "$HAS_GO_PKG" -eq "1" ]] ; then
         $PACKAGE_MGR install -y $GOPKG
         if [[ $? > 0 ]] ; then
@@ -406,13 +406,13 @@ if [[ "$NEED_BUILD_TOOLS" -eq "1" ]] ; then
     # Create temp dir for building tpm
     TMPDIR=`mktemp -d` || exit 1
     echo "INFO: Using temp tpm directory: $TMPDIR"
-    
+
     $PACKAGE_MGR -y install $BUILD_TOOLS
     if [[ $? > 0 ]] ; then
         echo "ERROR: Package(s) failed to install properly!"
         exit 1
     fi
-    
+
     if [[ -n "${POWERTOOLS}" ]] ; then
     	$PACKAGE_MGR -y $POWERTOOLS
     	if [[ $? > 0 ]] ; then
@@ -420,7 +420,7 @@ if [[ "$NEED_BUILD_TOOLS" -eq "1" ]] ; then
         	exit 1
     	fi
     fi
-    
+
     mkdir -p $TMPDIR/tpm
     cd $TMPDIR/tpm
 fi
@@ -479,12 +479,12 @@ elif [[ "$TPM_VERSION" -eq "2" ]] ; then
         make install
         ldconfig
         popd # tpm
-        
+
 #        if [[ ! -f /usr/lib/libtss.so ]] ; then
 #            echo "ERROR: tpm2-tss failed to build and install properly!"
 #            exit 1
 #        fi
-    
+
         # Example installation instructions for using the tpm2-abrmd resource
         # manager for Ubuntu 18 LTS. The tools and Keylime could run without this
         # by directly communicating with the TPM (though not recommended) by setting:
@@ -511,7 +511,7 @@ elif [[ "$TPM_VERSION" -eq "2" ]] ; then
         #
         # NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as:
         # sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
-    
+
         echo
         echo "=================================================================================="
         echo $'\t\t\t\tBuild and install tpm2-tools'
@@ -529,12 +529,12 @@ elif [[ "$TPM_VERSION" -eq "2" ]] ; then
         make install
         popd # tpm
     fi
-    
+
     if [[ -z "$(command -v tpm2_getrandom)" ]] ; then
         echo "ERROR: Failed to build tpm2_tss/tools!"
         exit 1
     fi
-    
+
     if [[ "$TPM_SOCKET" -eq "1" ]] ; then
         echo
         echo "=================================================================================="
@@ -551,10 +551,6 @@ elif [[ "$TPM_VERSION" -eq "2" ]] ; then
         mkdir swtpm2
         tar -C ./swtpm2 -xzf $TMPFILE
         pushd swtpm2
-
-        # Copy over necessary files
-        mkdir scripts
-        cp $KEYLIME_DIR/swtpm2_scripts/* scripts/
 
         # Begin building and installing swtpm2
         pushd src
