@@ -616,10 +616,3 @@ def main(argv=sys.argv):
             logger.info("TERM Signal received, shutting down...")
             tpm.flush_keys()
             server.shutdown()
-
-
-if __name__=="__main__":
-    try:
-        main()
-    except Exception as e:
-        logger.exception(e)

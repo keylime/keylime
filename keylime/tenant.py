@@ -15,7 +15,6 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import datetime
 import argparse
 import base64
 import hashlib
@@ -35,7 +34,6 @@ except ImportError:
     raise("Simplejson is mandatory, please install")
 
 from keylime import httpclient_requests
-from keylime import tornado_requests
 from keylime import common
 from keylime import keylime_logging
 from keylime import registrar_client
@@ -43,7 +41,7 @@ from keylime import tpm_obj
 from keylime.tpm_abstract import  TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 from keylime import ima
 from keylime import crypto
-from keylime import user_data_encrypt
+from keylime.cmd import user_data_encrypt
 from keylime import ca_util
 from keylime import cloud_verifier_common
 
@@ -841,11 +839,3 @@ def main(argv=sys.argv):
         mytenant.do_regdelete()
     else:
         raise UserError("Invalid command specified: %s"%(args.command))
-
-if __name__=="__main__":
-    try:
-        main()
-    except UserError as ue:
-        logger.error(str(ue))
-    except Exception as e:
-        logger.exception(e)
