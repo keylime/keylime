@@ -22,7 +22,6 @@ import datetime
 import hashlib
 import io
 import json
-import jwt
 import logging
 import os
 import subprocess

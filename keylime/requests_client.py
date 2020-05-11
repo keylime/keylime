@@ -3,8 +3,6 @@ import requests
 
 class RequestsClient:
     def __init__(self, base_url, **kwargs):
-        # print('base_url:', base_url)
-        # print(f'** kwargs: {kwargs}')
         self.base_url = base_url
         self.session = requests.Session()
         for arg in kwargs:
