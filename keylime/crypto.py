@@ -135,6 +135,9 @@ def rsa_decrypt(key, ciphertext):
     return key.decrypt(ciphertext, cryptography.hazmat.primitives.asymmetric.padding.OAEP(mgf=cryptography.hazmat.primitives.asymmetric.padding.MGF1(algorithm=hashes.SHA1()),
                                                                                           algorithm=hashes.SHA1(),
                                                                                           label=None))
+def get_random_string(size):
+    """ Generate random bytes  """
+    return secrets.token_hex(size)
 
 
 def get_random_bytes(size):

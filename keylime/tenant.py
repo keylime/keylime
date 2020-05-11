@@ -17,6 +17,7 @@ violate any copyrights that exist in this work.
 
 import argparse
 import base64
+import datetime
 import hashlib
 import io
 import logging
@@ -26,13 +27,13 @@ import ssl
 import sys
 import time
 import zipfile
-import json
 
 try:
     import simplejson as json
 except ImportError:
     raise("Simplejson is mandatory, please install")
 
+from keylime.requests_client import RequestsClient
 from keylime import httpclient_requests
 from keylime import common
 from keylime import keylime_logging
@@ -48,8 +49,11 @@ from keylime import cloud_verifier_common
 # setup logging
 logger = keylime_logging.init_logging('tenant')
 
-
 config = common.get_config()
+
+# auth
+api_user = os.getenv('KL_API_USER')
+api_pass = os.getenv('KL_API_PASS')
 
 # special exception that suppresses stack traces when it happens
 class UserError(Exception):
@@ -94,23 +98,39 @@ class Tenant():
     context = None
 
     def __init__(self):
-        self.cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
-        self.cloudagent_port = config.get('cloud_agent', 'cloudagent_port')
+        self.verifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
+        self.verifier_port = config.get('cloud_verifier', 'cloudverifier_port')
+        self.agent_port = config.get('cloud_agent', 'cloudagent_port')
         self.registrar_port = config.get('registrar', 'registrar_tls_port')
         self.webapp_port = config.getint('webapp', 'webapp_port')
         if not common.REQUIRE_ROOT and self.webapp_port < 1024:
             self.webapp_port+=2000
-
-        self.cloudverifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
         self.registrar_ip = config.get('registrar', 'registrar_ip')
+        self.verifier_base_url = (
+            f'https://{self.verifier_ip}:{self.verifier_port}')
         self.webapp_ip = config.get('webapp', 'webapp_ip')
 
-        if config.getboolean('general',"enable_tls"):
-            self.context = self.get_tls_context()
-        else:
-            logger.warning("TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
-            self.context = None
+        # if config.getboolean('general',"enable_tls"):
+        #     self.context = self.get_tls_context()
+        # else:
+        #     logger.warning("TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
+        #     self.context = None
 
+    def get_token(self):
+
+        get_token = RequestsClient(self.verifier_base_url)
+        auth_cred = {f'username': {api_user}, 'password': {api_pass}}
+        response = get_token.get(
+            ('/auth/'),
+            params=auth_cred,
+            cert=(
+                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            verify=False
+        )
+        if response.status_code == 401:
+            logger.error(f'Failed authentification for user {api_user}')
+        else:
+            return response.json()["status"]["token"]
 
     def get_tls_context(self):
         ca_cert = config.get('tenant', 'ca_cert')
@@ -149,15 +169,15 @@ class Tenant():
     def init_add(self, args):
         # command line options can overwrite config values
         if "agent_ip" in args:
-            self.cloudagent_ip = args["agent_ip"]
+            self.agent_ip = args["agent_ip"]
 
         if 'agent_port' in args and args['agent_port'] is not None:
-            self.cloudagent_port = args['agent_port']
+            self.agent_port = args['agent_port']
 
         if 'cv_agent_ip' in args and args['cv_agent_ip'] is not None:
             self.cv_cloudagent_ip = args['cv_agent_ip']
         else:
-            self.cv_cloudagent_ip = self.cloudagent_ip
+            self.cv_cloudagent_ip = self.agent_ip
 
         # Make sure all keys exist in dictionary
         if "file" not in args:
@@ -457,7 +477,7 @@ class Tenant():
         data = {
             'v': b64_v,
             'cloudagent_ip': self.cv_cloudagent_ip,
-            'cloudagent_port': self.cloudagent_port,
+            'cloudagent_port': self.agent_port,
             'tpm_policy': json.dumps(self.tpm_policy),
             'vtpm_policy':json.dumps(self.vtpm_policy),
             'ima_whitelist':json.dumps(self.ima_whitelist),
@@ -468,27 +488,37 @@ class Tenant():
             'accept_tpm_signing_algs':self.accept_tpm_signing_algs,
         }
         json_message = json.dumps(data)
-        params = f'/agents/{self.agent_uuid}'
-        #params = '/agents/%s'% (self.agent_uuid)
-        response = httpclient_requests.request("POST", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=json_message, context=self.context)
+        token = self.get_token()
+        do_cv = RequestsClient(self.verifier_base_url)
+        response = do_cv.post(
+            (f'/agents/{self.agent_uuid}'),
+            data=json_message,
+            headers={"Authorization": "Bearer " + token},
+            cert=(
+                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            verify=False
+        )
+        # params = f'/agents/{self.agent_uuid}'
+        # response = httpclient_requests.request("POST", "%s"%(self.verifier_ip), self.verifier_port, params=params, data=json_message, context=self.context)
 
-        if response == 503:
-            logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
+        if response.status_code == 503:
+            logger.error(f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
             exit()
-        elif response == 504:
-            logger.error(f"Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port} timed out.")
+        elif response.status_code == 504:
+            logger.error(f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
             exit()
 
-        if response.status == 409:
+        if response.status_code == 409:
             # this is a conflict, need to update or delete it
-            logger.error("Agent %s already existed at CV.  Please use delete or update."%self.agent_uuid)
+            logger.error(f"Agent {self.agent_uuid} already existed at CV.  Please use delete or update.")
             exit()
-        elif response.status != 200:
-            keylime_logging.log_http_response(logger,logging.ERROR,response.read().decode()())
-            logger.error(f"POST command response: {response.status} Unexpected response from Cloud Verifier: {response.read().decode()}")
+        elif response.status_code != 200:
+            keylime_logging.log_http_response(logger,logging.ERROR,response.json())
+            logger.error(f"POST command response: {response.status} Unexpected response from Cloud Verifier: {response.read()}")
             exit()
 
     def do_cvstatus(self,listing=False):
+        token = self.get_token()
         """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
@@ -497,25 +527,34 @@ class Tenant():
         if not listing:
             agent_uuid=self.agent_uuid
 
-        params = f'/agents/{agent_uuid}'
-        response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
+        # params = f'/agents/{agent_uuid}'
+        # response = httpclient_requests.request("GET", "%s"%(self.verifier_ip), self.verifier_port, params=params, context=self.context)
 
-        if response == 503:
-            logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
+        do_cvstatus = RequestsClient(self.verifier_base_url)
+        response = do_cvstatus.get(
+            (f'/agents/{self.agent_uuid}'),
+            headers={"Authorization": "Bearer " + token},
+            cert=(
+                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            verify=False
+        )
+
+        if response.status_code  == 503:
+            logger.error(f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
             exit()
         elif response == 504:
-            logger.error(f"Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port} timed out.")
+            logger.error(f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
             exit()
 
-        if response.status == 404:
+        if response.status_code == 404:
             logger.error(f"Agent {agent_uuid} does not exist on the verifier. Please try to add or update agent")
             exit()
 
-        if response.status != 200:
+        if response.status_code != 200:
             logger.error(f"Status command response: {response.status}. Unexpected response from Cloud Verifier.")
             exit()
         else:
-            response_json = json.loads(response.read().decode())
+            response_json = response.json()
             if not listing:
                 operational_state = response_json["results"]["operational_state"]
                 logger.info(f'Agent Status: "{states[operational_state]}"')
@@ -524,20 +563,37 @@ class Tenant():
                 logger.info(f'Agents: "{agent_array}"')
 
     def do_cvdelete(self):
-        params = f'/agents/{self.agent_uuid}'
-        response = httpclient_requests.request("DELETE", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params,  context=self.context)
-        if response == 503:
-            logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
+        token = self.get_token()
+        do_cvdelete = RequestsClient(self.verifier_base_url)
+        response = do_cvdelete.delete(
+            (f'/agents/{self.agent_uuid}'),
+            headers={"Authorization": "Bearer " + token},
+            cert=(
+                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            verify=False
+        )
+        # params = f'/agents/{self.agent_uuid}'
+        # response = httpclient_requests.request("DELETE", "%s"%(self.verifier_ip), self.verifier_port, params=params,  context=self.context)
+        if response.status_code  == 503:
+            logger.error(f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
             exit()
-        elif response == 504:
-            logger.error(f"Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port} timed out.")
+        elif response.status_code  == 504:
+            logger.error(f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
             exit()
 
-        if response.status == 202:
+        if response.status_code == 202:
             deleted = False
             for _ in range(12):
-                response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.context)
-                if response.status == 404:
+                get_cvdelete = RequestsClient(self.verifier_base_url)
+                response = get_cvdelete.get(
+                    (f'/agents/{self.agent_uuid}'),
+                    headers={"Authorization": "Bearer " + token},
+                    cert=(
+                        '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+                    verify=False
+                )
+                # response = httpclient_requests.request("GET", "%s"%(self.verifier_ip), self.verifier_port, params=params, context=self.context)
+                if response.status_code == 200 or 404:
                     deleted=True
                     break
                 time.sleep(.4)
@@ -546,10 +602,10 @@ class Tenant():
             else:
                 logger.error(f"Timed out waiting for delete of agent {self.agent_uuid} to complete at CV")
                 exit()
-        elif response.status == 200:
+        elif response.status_code == 200:
             logger.info(f"Agent {self.agent_uuid} deleted from the CV")
         else:
-            response_body = json.loads(response.read().decode())
+            response_body = response.json()
             keylime_logging.log_http_response(logger,logging.ERROR,response_body)
 
 
@@ -558,39 +614,59 @@ class Tenant():
         registrar_client.doRegistrarDelete(self.registrar_ip,self.registrar_port,self.agent_uuid)
 
     def do_cvreactivate(self):
-        #params = '/agents/%s/reactivate'% (self.agent_uuid)
-        params = f'/agents/{self.agent_uuid}/reactivate'
-        response = httpclient_requests.request("PUT", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=b'',  context=self.context)
+        token = self.get_token()
+        do_cvreactivate = RequestsClient(self.verifier_base_url)
+        response = do_cvreactivate.put(
+            (f'/agents/{self.agent_uuid}/reactivate'),
+            headers={"Authorization": "Bearer " + token},
+            data=b'',
+            cert=(
+                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            verify=False
+        )
+        # params = f'/agents/{self.agent_uuid}/reactivate'
+        # response = httpclient_requests.request("PUT", "%s"%(self.verifier_ip), self.verifier_port, params=params, data=b'',  context=self.context)
 
-        if response == 503:
-            logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
+        if response.status_code == 503:
+            logger.error(f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
             exit()
-        elif response == 504:
-            logger.error(f"Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port} timed out.")
+        elif response.status_code == 504:
+            logger.error(f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
             exit()
 
-        response_body = json.loads(response.read().decode())
-        if response.status != 200:
+        response_body = response.json()
+
+        if response.status_code != 200:
             keylime_logging.log_http_response(logger,logging.ERROR,response_body)
-            raise UserError("Update command response: %d Unexpected response from Cloud Verifier."%response.status)
+            logger.error(f"Update command response: {response.status_code} Unexpected response from Cloud Verifier.")
         else:
             logger.info(f"Agent {self.agent_uuid} re-activated")
 
 
     def do_cvstop(self):
-        # params = '/agents/%s/stop'% (self.agent_uuid)
+        token = self.get_token()
         params = f'/agents/{self.agent_uuid}/stop'
-        response = httpclient_requests.request("PUT", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=b'',  context=self.context)
+        do_cvstop = RequestsClient(self.verifier_base_url)
+        response = do_cvstop.put(
+            params,
+            headers={"Authorization": "Bearer " + token},
+            cert=(
+                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            data=b'',
+            verify=False
+        )
+        # params = f'/agents/{self.agent_uuid}/stop'
+        # response = httpclient_requests.request("PUT", "%s"%(self.verifier_ip), self.verifier_port, params=params, data=b'',  context=self.context)
 
-        if response == 503:
-            logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
+        if response.status_code == 503:
+            logger.error(f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
             exit()
-        elif response == 504:
-            logger.error(f"Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port} timed out.")
+        elif response.status_code == 504:
+            logger.error(f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
             exit()
 
-        response_body = json.loads(response.read().decode())
-        if response.status != 200:
+        response_body = response.json()
+        if response.status_code != 200:
             keylime_logging.log_http_response(logger,logging.ERROR,response_body)
         else:
             logger.info(f"Agent {self.agent_uuid} stopped")
@@ -605,19 +681,27 @@ class Tenant():
         # Note: We need a specific retry handler (perhaps in common), no point having localised unless we have too.
         while True:
             try:
+                params = '/quotes/identity?nonce=%s'%(self.nonce)
+                cloudagent_base_url = (
+                    f'http://{self.agent_ip}:{self.agent_port}'
+                )
+                do_quote = RequestsClient(cloudagent_base_url)
+                response = do_quote.get(
+                    params,
+                )
+                response_body = response.json()
                 #params = '/quotes/identity?nonce=%s'%(self.nonce)
-                params = f'/quotes/identity?nonce={self.nonce}'
-                response = httpclient_requests.request("GET", "%s"%(self.cloudagent_ip), self.cloudagent_port, params=params, context=None)
-                response_body = json.loads(response.read().decode())
+                # params = f'/quotes/identity?nonce={self.nonce}'
+                # response = httpclient_requests.request("GET", "%s"%(self.agent_ip), self.agent_port, params=params, context=None)
             except Exception as e:
-                if response == 503 or response == 504:
+                if response.status_code in (503, 504):
                     numtries+=1
                     maxr = config.getint('tenant','max_retries')
                     if numtries >= maxr:
-                        logger.error(f"tenant cannot establish connection to agent on {self.cloudagent_ip} with port {self.cloudagent_port}")
+                        logger.error(f"tenant cannot establish connection to agent on {self.agent_ip} with port {self.agent_port}")
                         exit()
                     retry  = config.getfloat('tenant','retry_interval')
-                    logger.info(f"tenant connection to agent at {self.cloudagent_ip} refused {numtries}/{maxr} times, trying again in {retry} seconds...")
+                    logger.info(f"tenant connection to agent at {self.agent_ip} refused {numtries}/{maxr} times, trying again in {retry} seconds...")
                     time.sleep(retry)
                     continue
                 else:
@@ -625,7 +709,7 @@ class Tenant():
             break
 
         try:
-            if response is not None and response.status != 200:
+            if response is not None and response.status_code != 200:
                 raise UserError("Status command response: %d Unexpected response from Cloud Agent."%response.status)
 
             if "results" not in response_body:
@@ -662,7 +746,7 @@ class Tenant():
             if not self.validate_tpm_quote(public_key, quote, tpm_version, hash_alg):
                 raise UserError("TPM Quote from cloud agent is invalid for nonce: %s"%self.nonce)
 
-            logger.info(f"Quote from {self.cloudagent_ip} validated")
+            logger.info(f"Quote from {self.agent_ip} validated")
 
             # encrypt U with the public key
             # encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),str(self.U))
@@ -682,18 +766,41 @@ class Tenant():
 
             #post encrypted U back to CloudAgent
             params = '/keys/ukey'
-            response = httpclient_requests.request("POST", "%s"%(self.cloudagent_ip), self.cloudagent_port, params=params, data=u_json_message)
+            cloudagent_base_url = (
+                f'http://{self.agent_ip}:{self.agent_port}'
+            )
+            print('cloudagent_base_url', cloudagent_base_url)
 
-            if response == 503:
-                logger.error(f"Cannot connect to Agent at {self.cloudagent_ip} with Port {self.cloudagent_port}. Connection refused.")
+            post_ukey = RequestsClient(cloudagent_base_url)
+            response = post_ukey.post(
+                params,
+                data=u_json_message
+            )
+
+            if response.status_code == 503:
+                logger.error(f"Cannot connect to Agent at {self.agent_ip} with Port {self.agent_port}. Connection refused.")
                 exit()
-            elif response == 504:
-                logger.error(f"Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port} timed out.")
+            elif response.status_code == 504:
+                logger.error(f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
                 exit()
 
-            if response.status != 200:
+            if response.status_code != 200:
                 keylime_logging.log_http_response(logger,logging.ERROR,response_body)
                 raise UserError("Posting of Encrypted U to the Cloud Agent failed with response code %d" %response.status)
+
+            # params = '/keys/ukey'
+            # response = httpclient_requests.request("POST", "%s"%(self.agent_ip), self.agent_port, params=params, data=u_json_message)
+            #
+            # if response.status == 503:
+            #     logger.error(f"Cannot connect to Agent at {self.agent_ip} with Port {self.agent_port}. Connection refused.")
+            #     exit()
+            # elif response.status == 504:
+            #     logger.error(f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
+            #     exit()
+            #
+            # if response.status != 200:
+            #     keylime_logging.log_http_response(logger,logging.ERROR,response_body)
+            #     raise UserError("Posting of Encrypted U to the Cloud Agent failed with response code %d" %response.status)
 
         except Exception as e:
             self.do_cvstop()
@@ -701,27 +808,39 @@ class Tenant():
 
 
     def do_verify(self):
+        token = self.get_token()
         challenge = TPM_Utilities.random_password(20)
         numtries = 0
         while True:
             try:
-                params = f'/keys/verify?challenge={challenge}'
-                response = httpclient_requests.request("GET", "%s"%(self.cloudagent_ip), self.cloudagent_port, params=params)
+                cloudagent_base_url = (
+                    f'http://{self.agent_ip}:{self.agent_port}'
+                )
+                do_verify = RequestsClient(cloudagent_base_url)
+                response = do_verify.get(
+                    (f'/keys/verify?challenge={challenge}'),
+                    headers={"Authorization": "Bearer " + token},
+                    cert=(
+                        '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+                    verify=False
+                )
+                # params = f'/keys/verify?challenge={challenge}'
+                # response = httpclient_requests.request("GET", "%s"%(self.agent_ip), self.agent_port, params=params)
             except Exception as e:
-                if response == 503 or 504:
+                if response.status_code == 503 or 504:
                     numtries+=1
                     maxr = config.getint('tenant','max_retries')
                     if numtries >= maxr:
-                        logger.error(f"Cannot establish connection to agent on {self.cloudagent_ip} with port {self.cloudagent_port}")
+                        logger.error(f"Cannot establish connection to agent on {self.agent_ip} with port {self.agent_port}")
                         exit()
                     retry  = config.getfloat('tenant','retry_interval')
-                    logger.info(f"Verifier connection to agent at {self.cloudagent_ip} refused {numtries}/{maxr} times, trying again in {retry} seconds...")
+                    logger.info(f"Verifier connection to agent at {self.agent_ip} refused {numtries}/{maxr} times, trying again in {retry} seconds...")
                     time.sleep(retry)
                     continue
                 else:
                     raise(e)
-            response_body = json.loads(response.read().decode())
-            if response.status == 200:
+            response_body = response.json()
+            if response.status_code == 200:
                 if "results" not in response_body or 'hmac' not in response_body['results']:
                     logger.critical(f"Error: unexpected http response body from Cloud Agent: {response.status}")
                     break

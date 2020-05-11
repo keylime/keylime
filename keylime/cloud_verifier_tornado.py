@@ -19,6 +19,8 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
+import datetime
+import jwt
 import traceback
 import os
 import sys
@@ -35,9 +37,12 @@ from keylime import common
 from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
+from keylime.keylime_auth import jwtauth
+from keylime.crypto import get_random_string
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Database imports
-from keylime.verifier_db import VerfierMain
+from keylime.verifier_db import VerfierMain, User
 from keylime.keylime_database import SessionManager
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import create_engine
@@ -54,6 +59,9 @@ if sys.version_info[0] < 3:
     raise Exception("Python 3 or a more recent version is required.")
 
 config = common.get_config()
+
+SECRET = 'my_secret_key'
+PREFIX = 'Bearer '
 
 drivername = config.get('cloud_verifier', 'drivername')
 
@@ -153,7 +161,105 @@ class MainHandler(tornado.web.RequestHandler):
         common.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
+class AuthHandler(BaseHandler):
+    """
+        Handle to auth method.
+        This method aim to provide a new authorization token
+        There is a fake payload (for tutorial purpose)
+    """
 
+    def get(self, *args, **kwargs):
+        session = self.make_session(engine)
+        """
+            return the generated token
+        """
+        print('self.request.uri:', self.request.uri)
+        rest_params = common.get_restful_params(self.request.uri)
+        if rest_params is None:
+            common.echo_json_response(
+                self, 405, "Not Implemented: Use /auth/ interface")
+            return
+
+        if "auth" not in rest_params:
+            common.echo_json_response(self, 400, "uri not supported")
+            logger.warning(
+                'GET returning 400 response. uri not supported: ' + self.request.path)
+            return
+
+        username = self.get_argument("username")
+        password = self.get_argument("password")
+
+        user = session.query(User).filter(User.username == username).first()
+        if user is not None and user.username == username:
+            if check_password_hash(user.password, password):
+                logger.info(f"User {username} authorized")
+                encoded = jwt.encode({
+                    'group_id': user.group_id,
+                    'role_id': user.role_id,
+                    'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=1)},
+                    SECRET,
+                    'HS256'
+                ).decode('utf-8')
+                response = {'token': encoded}
+                common.echo_json_response(
+                    self, 200, response)
+            else:
+                logger.error(f"User {username} authorization failed")
+                common.echo_json_response(
+                    self, 401, "User %s authorization failed" % (username))
+        else:
+            logger.error(f"User {username} account not found")
+            common.echo_json_response(
+                self, 404, "User account %s not found" % (username))
+
+
+@jwtauth
+class RegisterHandler(BaseHandler):
+    """
+        User registration, should only be allowed by admin
+    """
+
+    def post(self):
+        session = self.make_session(engine)
+        # Get the new user details.
+        new_username = self.get_argument("username")
+        new_password = self.get_argument("password")
+        new_email = self.get_argument("email")
+        new_group_id = self.get_argument("group_id")
+        token = self.request.headers.get("Authorization")[len(PREFIX):]
+        payload = jwt.decode(token, SECRET, algorithms='HS256')
+
+        try:
+            user = session.query(User).filter(
+                User.username == new_username).first()
+        except SQLAlchemyError as e:
+            logger.error(f'SQLAlchemy Error: {e}')
+
+        if payload['role_id'] == 1:
+            if user is not None and user.username == new_username:
+                logger.error(f"Username {new_username} already exists")
+                common.echo_json_response(
+                    self, 409, "User %s already exists" % (new_username))
+            else:
+                try:
+                    new_user = User(username=new_username, password=generate_password_hash(
+                        new_password), email=new_email, group_id=new_group_id)
+                    session.add(new_user)
+                    session.commit()
+                except SQLAlchemyError as e:
+                    logger.error(f'SQLAlchemy Error: {e}')
+                    common.echo_json_response(
+                        self, 500, "Internal server error %s " % (e))
+                logger.info(f"Username {new_username} registered successfully")
+                common.echo_json_response(
+                    self, 200, "Username %s registered successfully" % (new_username))
+        else:
+            logger.info(f"Only admin users are authorized to add new users")
+            common.echo_json_response(
+                self, 409, "Only admin users are authorized to add new users")
+
+
+@jwtauth
 class AgentsHandler(BaseHandler):
     def head(self):
         """HEAD not supported"""
@@ -639,6 +745,23 @@ class AgentsHandler(BaseHandler):
             logger.exception(e)
 
 
+def check_user_db():
+    session = SessionManager().make_session(engine)
+    user = session.query(User).filter(User.username == "admin").first()
+    if user is None:
+        logger.info("Creating admin user")
+        admin_pass = get_random_string(16)
+        new_user = User(username="admin", password=generate_password_hash(
+            admin_pass), email="admin@localhost", group_id="1", role_id="1")
+        try:
+            session.add(new_user)
+            session.commit()
+        except SQLAlchemyError as e:
+            logger.error(f'SQLAlchemy Error: {e}')
+        logger.warn(
+            f"Admin password is: {admin_pass} This must be changed immediately.")
+
+
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
     print("Starting Torando on port " + str(port))
@@ -670,13 +793,25 @@ def main(argv=sys.argv):
         agent_ids = session.query(VerfierMain.agent_id).all()
         logger.info("agent ids in db loaded from file: %s" % agent_ids)
 
+    check_user_db()
+
     logger.info('Starting Cloud Verifier (tornado) on port ' +
                 cloudverifier_port + ', use <Ctrl-C> to stop')
 
+    settings = {
+        'debug': True,
+        'autoreload': False,
+        "xsrf_cookies": False,  # change me!
+    }
+
     app = tornado.web.Application([
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
+        (r"/(?:v[0-9]/)?auth/.*", AuthHandler),
+        #(r"/auth", AuthHandler),
+        (r"/(?:v[0-9]/)?register/.*", RegisterHandler),
+        #(r"/register", RegisterHandler),
         (r".*", MainHandler),
-    ])
+    ], **settings)
 
     context = cloud_verifier_common.init_mtls()
 
