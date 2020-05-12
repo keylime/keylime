@@ -70,7 +70,3 @@ PCR14:
 - MokList, MokListX, and MokSBState will be extended into PCR14 if they are
   set.
 
-
-
-
-e
