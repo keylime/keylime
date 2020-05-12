@@ -162,11 +162,6 @@ class MainHandler(tornado.web.RequestHandler):
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
 class AuthHandler(BaseHandler):
-    """
-        Handle to auth method.
-        This method aim to provide a new authorization token
-        There is a fake payload (for tutorial purpose)
-    """
 
     def get(self, *args, **kwargs):
         session = self.make_session(engine)
