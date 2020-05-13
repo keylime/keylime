@@ -101,6 +101,8 @@ class Tenant():
     context = None
 
     def __init__(self):
+        """ Set up required values and TLS
+        """
         self.verifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
         self.verifier_port = config.get('cloud_verifier', 'cloudverifier_port')
         self.agent_port = config.get('cloud_agent', 'cloudagent_port')
@@ -120,6 +122,11 @@ class Tenant():
                 "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
 
     def get_tls_context(self):
+        """Generate certifcate naming and path
+
+        Returns:
+            string -- my_cert (client_cert), my_priv_key (client private key)
+        """
         my_cert = config.get('tenant', 'my_cert')
         my_priv_key = config.get('tenant', 'private_key')
 
@@ -130,7 +137,6 @@ class Tenant():
             my_priv_key = 'client-private.pem'
             tls_dir = 'cv_ca'
 
-        # this is relative path, convert to absolute in WORK_DIR
         if tls_dir[0] != '/':
             tls_dir = os.path.abspath('%s/%s' % (common.WORK_DIR, tls_dir))
 
@@ -141,6 +147,13 @@ class Tenant():
         return my_cert, my_priv_key
 
     def get_token(self):
+        """Generate a JSON WEB Token for user sessions
+
+        Returns:
+            string -- JWT token
+        """
+
+        # Check if user has set AUTH credential variables in OS environment
         if os.getenv('KL_API_USER') is None or os.getenv('KL_API_PASS') is None:
             logger.error(
                 "Both KL_API_USER and KL_API_PASS must be set as environment variables")
@@ -149,6 +162,7 @@ class Tenant():
             api_user = os.getenv('KL_API_USER')
             api_pass = os.getenv('KL_API_PASS')
 
+        # Query Verifier with env vars for  {api_user} and  {api_pass}
         get_token = RequestsClient(self.verifier_base_url, context=True)
         auth_cred = {f'username': {api_user}, 'password': {api_pass}}
         response = get_token.get(
@@ -157,6 +171,8 @@ class Tenant():
             cert=(self.my_cert, self.my_priv_key),
             verify=False
         )
+
+        # If successful, return a valid token, if not inform tenant of failure
         if response.status_code == 401:
             logger.error(f'Failed authentification for user {api_user}')
         elif response.status_code != 200:
@@ -166,7 +182,11 @@ class Tenant():
             return response.json()["status"]["token"]
 
     def init_add(self, args):
-        # command line options can overwrite config values
+        """ Set up required values. Command line options can overwrite these config values
+
+        Arguments:
+            args {[string]} -- agent_ip|agent_port|cv_agent_ip
+        """
         if "agent_ip" in args:
             self.agent_ip = args["agent_ip"]
 
@@ -387,7 +407,8 @@ class Tenant():
                 len(self.payload), config.getint('tenant', 'max_payload_size')))
 
     def preloop(self):
-        # encrypt the agent UUID as a check for delivering the correct key
+        """ encrypt the agent UUID as a check for delivering the correct key
+        """
         self.auth_tag = crypto.do_hmac(self.K, self.agent_uuid)
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
         if common.INSECURE_DEBUG:
@@ -397,7 +418,16 @@ class Tenant():
             logger.debug(F"Auth Tag: {self.auth_tag}")
 
     def check_ek(self, ek, ekcert, tpm):
-        # config option must be on to check for EK certs
+        """ Check the Entity Key
+
+        Arguments:
+            ek {[type]} -- [description]
+            ekcert {[type]} -- [description]
+            tpm {[type]} -- [description]
+
+        Returns:
+            [type] -- [description]
+        """
         if config.getboolean('tenant', 'require_ek_cert'):
             if common.STUB_TPM:
                 logger.debug("not checking ekcert due to STUB_TPM mode")
@@ -416,6 +446,20 @@ class Tenant():
         return True
 
     def validate_tpm_quote(self, public_key, quote, tpm_version, hash_alg):
+        """ Validate TPM Quote received from the Agent
+
+        Arguments:
+            public_key {[type]} -- [description]
+            quote {[type]} -- [description]
+            tpm_version {[type]} -- [description]
+            hash_alg {bool} -- [description]
+
+        Raises:
+            UserError: [description]
+
+        Returns:
+            [type] -- [description]
+        """
         registrar_client.init_client_tls(config, 'tenant')
         reg_keys = registrar_client.getKeys(
             self.registrar_ip, self.registrar_port, self.agent_uuid)
@@ -485,8 +529,8 @@ class Tenant():
         return True
 
     def do_cv(self):
-        """initiaite v, agent_id and ip
-        initiate the cloudinit sequence"""
+        """ Initiaite v, agent_id and ip and initiate the cloudinit sequence
+        """
         b64_v = base64.b64encode(self.V).decode('utf-8')
         logger.debug("b64_v:" + b64_v)
         data = {
@@ -512,8 +556,6 @@ class Tenant():
             cert=(self.my_cert, self.my_priv_key),
             verify=False
         )
-        # params = f'/agents/{self.agent_uuid}'
-        # response = httpclient_requests.request("POST", "%s"%(self.verifier_ip), self.verifier_port, params=params, data=json_message, context=self.context)
 
         if response.status_code == 503:
             logger.error(
@@ -537,16 +579,16 @@ class Tenant():
             exit()
 
     def do_cvstatus(self, listing=False):
+        """ Perform opertional state look up for agent
+
+        Keyword Arguments:
+            listing {bool} -- If True, list all agent statues (default: {False})
+        """
         token = self.get_token()
-        """initiaite v, agent_id and ip
-        initiate the cloudinit sequence"""
         states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
         agent_uuid = ""
         if not listing:
             agent_uuid = self.agent_uuid
-
-        # params = f'/agents/{agent_uuid}'
-        # response = httpclient_requests.request("GET", "%s"%(self.verifier_ip), self.verifier_port, params=params, context=self.context)
 
         do_cvstatus = RequestsClient(self.verifier_base_url, context=True)
         response = do_cvstatus.get(
@@ -584,6 +626,8 @@ class Tenant():
                 logger.info(f'Agents: "{agent_array}"')
 
     def do_cvdelete(self):
+        """Delete agent from Verifier
+        """
         token = self.get_token()
         do_cvdelete = RequestsClient(self.verifier_base_url, context=True)
         response = do_cvdelete.delete(
@@ -592,8 +636,7 @@ class Tenant():
             cert=(self.my_cert, self.my_priv_key),
             verify=False
         )
-        # params = f'/agents/{self.agent_uuid}'
-        # response = httpclient_requests.request("DELETE", "%s"%(self.verifier_ip), self.verifier_port, params=params,  context=self.context)
+
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
@@ -614,8 +657,8 @@ class Tenant():
                     cert=(self.my_cert, self.my_priv_key),
                     verify=False
                 )
-                # response = httpclient_requests.request("GET", "%s"%(self.verifier_ip), self.verifier_port, params=params, context=self.context)
-                if response.status_code == 200 or 404:
+
+                if response.status_code in (200, 404):
                     deleted = True
                     break
                 time.sleep(.4)
@@ -634,11 +677,15 @@ class Tenant():
                 logger, logging.ERROR, response_body)
 
     def do_regdelete(self):
+        """ Delete agent from Registrar
+        """
         registrar_client.init_client_tls(config, 'tenant')
         registrar_client.doRegistrarDelete(
             self.registrar_ip, self.registrar_port, self.agent_uuid)
 
     def do_cvreactivate(self):
+        """ Reactive Agent
+        """
         token = self.get_token()
         do_cvreactivate = RequestsClient(self.verifier_base_url, context=True)
         response = do_cvreactivate.put(
@@ -648,8 +695,6 @@ class Tenant():
             cert=(self.my_cert, self.my_priv_key),
             verify=False
         )
-        # params = f'/agents/{self.agent_uuid}/reactivate'
-        # response = httpclient_requests.request("PUT", "%s"%(self.verifier_ip), self.verifier_port, params=params, data=b'',  context=self.context)
 
         if response.status_code == 503:
             logger.error(
@@ -671,6 +716,8 @@ class Tenant():
             logger.info(f"Agent {self.agent_uuid} re-activated")
 
     def do_cvstop(self):
+        """ Stop declared active agent
+        """
         token = self.get_token()
         params = f'/agents/{self.agent_uuid}/stop'
         do_cvstop = RequestsClient(self.verifier_base_url, context=True)
@@ -681,8 +728,6 @@ class Tenant():
             data=b'',
             verify=False
         )
-        # params = f'/agents/{self.agent_uuid}/stop'
-        # response = httpclient_requests.request("PUT", "%s"%(self.verifier_ip), self.verifier_port, params=params, data=b'',  context=self.context)
 
         if response.status_code == 503:
             logger.error(
@@ -701,8 +746,11 @@ class Tenant():
             logger.info(f"Agent {self.agent_uuid} stopped")
 
     def do_quote(self):
-        """initiaite v, agent_id and ip
-        initiate the cloudinit sequence"""
+        """ Perform TPM quote by GET towards Agent
+
+        Raises:
+            UserError: Connection handler
+        """
         self.nonce = TPM_Utilities.random_password(20)
 
         numtries = 0
@@ -719,9 +767,7 @@ class Tenant():
                     params,
                 )
                 response_body = response.json()
-                #params = '/quotes/identity?nonce=%s'%(self.nonce)
-                # params = f'/quotes/identity?nonce={self.nonce}'
-                # response = httpclient_requests.request("GET", "%s"%(self.agent_ip), self.agent_port, params=params, context=None)
+
             except Exception as e:
                 if response.status_code in (503, 504):
                     numtries += 1
@@ -788,7 +834,6 @@ class Tenant():
             logger.info(f"Quote from {self.agent_ip} validated")
 
             # encrypt U with the public key
-            # encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),str(self.U))
             encrypted_U = crypto.rsa_encrypt(
                 crypto.rsa_import_pubkey(public_key), self.U)
 
@@ -830,26 +875,13 @@ class Tenant():
                     logger, logging.ERROR, response_body)
                 raise UserError(
                     "Posting of Encrypted U to the Cloud Agent failed with response code %d" % response.status)
-
-            # params = '/keys/ukey'
-            # response = httpclient_requests.request("POST", "%s"%(self.agent_ip), self.agent_port, params=params, data=u_json_message)
-            #
-            # if response.status == 503:
-            #     logger.error(f"Cannot connect to Agent at {self.agent_ip} with Port {self.agent_port}. Connection refused.")
-            #     exit()
-            # elif response.status == 504:
-            #     logger.error(f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            #     exit()
-            #
-            # if response.status != 200:
-            #     keylime_logging.log_http_response(logger,logging.ERROR,response_body)
-            #     raise UserError("Posting of Encrypted U to the Cloud Agent failed with response code %d" %response.status)
-
         except Exception as e:
             self.do_cvstop()
             raise e
 
     def do_verify(self):
+        """ Perform verify using a random generated challenge
+        """
         token = self.get_token()
         challenge = TPM_Utilities.random_password(20)
         numtries = 0
@@ -865,10 +897,8 @@ class Tenant():
                     cert=(self.my_cert, self.my_priv_key),
                     verify=False
                 )
-                # params = f'/keys/verify?challenge={challenge}'
-                # response = httpclient_requests.request("GET", "%s"%(self.agent_ip), self.agent_port, params=params)
             except Exception as e:
-                if response.status_code == 503 or 504:
+                if response.status_code in (503, 504):
                     numtries += 1
                     maxr = config.getint('tenant', 'max_retries')
                     if numtries >= maxr:
@@ -908,6 +938,16 @@ class Tenant():
 
 
 def main(argv=sys.argv):
+    """[summary]
+
+    Keyword Arguments:
+        argv {[type]} -- [description] (default: {sys.argv})
+
+    Raises:
+        UserError: [description]
+        UserError: [description]
+        UserError: [description]
+    """
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument('-c', '--command', action='store', dest='command', default='add',
                         help="valid commands are add,delete,update,status,list,reactivate,regdelete. defaults to add")
