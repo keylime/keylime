@@ -120,10 +120,13 @@ class Tenant():
         #     self.context = None
 
     def get_token(self):
-        if api_user or api_pass is None:
+        if os.getenv('KL_API_USER') is None or os.getenv('KL_API_PASS') is None:
             logger.error(
-                'You must set api_user and api_pass as enviroment variables')
+                "Both KL_API_USER and KL_API_PASS must be set as environment variables")
             exit(1)
+        else:
+            api_user = os.getenv('KL_API_USER')
+            api_pass = os.getenv('KL_API_PASS')
 
         get_token = RequestsClient(self.verifier_base_url)
         auth_cred = {f'username': {api_user}, 'password': {api_pass}}
@@ -136,6 +139,9 @@ class Tenant():
         )
         if response.status_code == 401:
             logger.error(f'Failed authentification for user {api_user}')
+        elif response.status_code != 200:
+            logger.error(
+                f'Status code {response.status_code}. Status: {response.json()["status"]}')
         else:
             return response.json()["status"]["token"]
 
@@ -553,7 +559,6 @@ class Tenant():
         """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
-        #print('states:', states)
         agent_uuid = ""
         if not listing:
             agent_uuid = self.agent_uuid
@@ -826,7 +831,6 @@ class Tenant():
             cloudagent_base_url = (
                 f'http://{self.agent_ip}:{self.agent_port}'
             )
-            print('cloudagent_base_url', cloudagent_base_url)
 
             post_ukey = RequestsClient(cloudagent_base_url)
             response = post_ukey.post(
