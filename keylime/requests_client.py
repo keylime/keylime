@@ -2,8 +2,11 @@ import requests
 
 
 class RequestsClient:
-    def __init__(self, base_url, **kwargs):
-        self.base_url = base_url
+    def __init__(self, base_url, context, **kwargs):
+        if context:
+            self.base_url = f'https://{base_url}'
+        else:
+            self.base_url = f'http://{base_url}'
         self.session = requests.Session()
         for arg in kwargs:
             if isinstance(kwargs[arg], dict):
