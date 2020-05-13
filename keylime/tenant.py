@@ -113,11 +113,32 @@ class Tenant():
             f'{self.verifier_ip}:{self.verifier_port}')
         self.webapp_ip = config.get('webapp', 'webapp_ip')
 
-        # if config.getboolean('general',"enable_tls"):
-        #     self.context = self.get_tls_context()
-        # else:
-        #     logger.warning("TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
-        #     self.context = None
+        if config.getboolean('general', "enable_tls"):
+            self.my_cert, self.my_priv_key = self.get_tls_context()
+        else:
+            logger.warning(
+                "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
+
+    def get_tls_context(self):
+        my_cert = config.get('tenant', 'my_cert')
+        my_priv_key = config.get('tenant', 'private_key')
+
+        tls_dir = config.get('tenant', 'tls_dir')
+
+        if tls_dir == 'default':
+            my_cert = 'client-cert.crt'
+            my_priv_key = 'client-private.pem'
+            tls_dir = 'cv_ca'
+
+        # this is relative path, convert to absolute in WORK_DIR
+        if tls_dir[0] != '/':
+            tls_dir = os.path.abspath('%s/%s' % (common.WORK_DIR, tls_dir))
+
+        logger.info(f"Setting up client TLS in {tls_dir}")
+        my_cert = "%s/%s" % (tls_dir, my_cert)
+        my_priv_key = "%s/%s" % (tls_dir, my_priv_key)
+
+        return my_cert, my_priv_key
 
     def get_token(self):
         if os.getenv('KL_API_USER') is None or os.getenv('KL_API_PASS') is None:
@@ -133,8 +154,7 @@ class Tenant():
         response = get_token.get(
             ('/auth/'),
             params=auth_cred,
-            cert=(
-                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            cert=(self.my_cert, self.my_priv_key),
             verify=False
         )
         if response.status_code == 401:
@@ -144,43 +164,6 @@ class Tenant():
                 f'Status code {response.status_code}. Status: {response.json()["status"]}')
         else:
             return response.json()["status"]["token"]
-
-    def get_tls_context(self):
-        ca_cert = config.get('tenant', 'ca_cert')
-        my_cert = config.get('tenant', 'my_cert')
-        my_priv_key = config.get('tenant', 'private_key')
-        my_key_pw = config.get('tenant', 'private_key_pw')
-
-        tls_dir = config.get('tenant', 'tls_dir')
-
-        if tls_dir == 'default':
-            ca_cert = 'cacert.crt'
-            my_cert = 'client-cert.crt'
-            my_priv_key = 'client-private.pem'
-            tls_dir = 'cv_ca'
-
-        # this is relative path, convert to absolute in WORK_DIR
-        if tls_dir[0] != '/':
-            tls_dir = os.path.abspath('%s/%s' % (common.WORK_DIR, tls_dir))
-
-        if my_key_pw == 'default':
-            logger.warning(
-                "CAUTION: using default password for private key, please set private_key_pw to a strong password")
-
-        logger.info(f"Setting up client TLS in {tls_dir}")
-
-        ca_path = "%s/%s" % (tls_dir, ca_cert)
-        my_cert = "%s/%s" % (tls_dir, my_cert)
-        my_priv_key = "%s/%s" % (tls_dir, my_priv_key)
-
-        context = ssl.create_default_context()
-        context.load_verify_locations(cafile=ca_path)
-        context.load_cert_chain(
-            certfile=my_cert, keyfile=my_priv_key, password=my_key_pw)
-        context.verify_mode = ssl.CERT_REQUIRED
-        context.check_hostname = config.getboolean(
-            'general', 'tls_check_hostnames')
-        return context
 
     def init_add(self, args):
         # command line options can overwrite config values
@@ -526,8 +509,7 @@ class Tenant():
             (f'/agents/{self.agent_uuid}'),
             data=json_message,
             headers={"Authorization": "Bearer " + token},
-            cert=(
-                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            cert=(self.my_cert, self.my_priv_key),
             verify=False
         )
         # params = f'/agents/{self.agent_uuid}'
@@ -570,8 +552,7 @@ class Tenant():
         response = do_cvstatus.get(
             (f'/agents/{self.agent_uuid}'),
             headers={"Authorization": "Bearer " + token},
-            cert=(
-                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            cert=(self.my_cert, self.my_priv_key),
             verify=False
         )
 
@@ -608,8 +589,7 @@ class Tenant():
         response = do_cvdelete.delete(
             (f'/agents/{self.agent_uuid}'),
             headers={"Authorization": "Bearer " + token},
-            cert=(
-                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            cert=(self.my_cert, self.my_priv_key),
             verify=False
         )
         # params = f'/agents/{self.agent_uuid}'
@@ -631,8 +611,7 @@ class Tenant():
                 response = get_cvdelete.get(
                     (f'/agents/{self.agent_uuid}'),
                     headers={"Authorization": "Bearer " + token},
-                    cert=(
-                        '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+                    cert=(self.my_cert, self.my_priv_key),
                     verify=False
                 )
                 # response = httpclient_requests.request("GET", "%s"%(self.verifier_ip), self.verifier_port, params=params, context=self.context)
@@ -666,8 +645,7 @@ class Tenant():
             (f'/agents/{self.agent_uuid}/reactivate'),
             headers={"Authorization": "Bearer " + token},
             data=b'',
-            cert=(
-                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            cert=(self.my_cert, self.my_priv_key),
             verify=False
         )
         # params = f'/agents/{self.agent_uuid}/reactivate'
@@ -699,8 +677,7 @@ class Tenant():
         response = do_cvstop.put(
             params,
             headers={"Authorization": "Bearer " + token},
-            cert=(
-                '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+            cert=(self.my_cert, self.my_priv_key),
             data=b'',
             verify=False
         )
@@ -885,8 +862,7 @@ class Tenant():
                 response = do_verify.get(
                     (f'/keys/verify?challenge={challenge}'),
                     headers={"Authorization": "Bearer " + token},
-                    cert=(
-                        '/var/lib/keylime/cv_ca/client-cert.crt', '/var/lib/keylime/cv_ca/client-private.pem'),
+                    cert=(self.my_cert, self.my_priv_key),
                     verify=False
                 )
                 # params = f'/keys/verify?challenge={challenge}'
