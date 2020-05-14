@@ -98,7 +98,7 @@ class Tenant():
     accept_tpm_signing_algs = []
 
     payload = None
-    context = None
+    # cert = {}
 
     def __init__(self):
         """ Set up required values and TLS
@@ -114,10 +114,12 @@ class Tenant():
         self.verifier_base_url = (
             f'{self.verifier_ip}:{self.verifier_port}')
         self.webapp_ip = config.get('webapp', 'webapp_ip')
-
+        self.my_cert, self.my_priv_key = self.get_tls_context()
+        self.cert = (self.my_cert, self.my_priv_key)
         if config.getboolean('general', "enable_tls"):
-            self.my_cert, self.my_priv_key = self.get_tls_context()
+            self.tls_enabled = True
         else:
+            self.tls_enabled = False
             logger.warning(
                 "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
 
@@ -163,12 +165,12 @@ class Tenant():
             api_pass = os.getenv('KL_API_PASS')
 
         # Query Verifier with env vars for  {api_user} and  {api_pass}
-        get_token = RequestsClient(self.verifier_base_url, context=True)
+        get_token = RequestsClient(self.verifier_base_url, self.tls_enabled)
         auth_cred = {f'username': {api_user}, 'password': {api_pass}}
         response = get_token.get(
             ('/auth/'),
             params=auth_cred,
-            cert=(self.my_cert, self.my_priv_key),
+            cert=self.cert,
             verify=False
         )
 
@@ -548,7 +550,7 @@ class Tenant():
         }
         json_message = json.dumps(data)
         token = self.get_token()
-        do_cv = RequestsClient(self.verifier_base_url, context=True)
+        do_cv = RequestsClient(self.verifier_base_url, self.tls_enabled)
         response = do_cv.post(
             (f'/agents/{self.agent_uuid}'),
             data=json_message,
@@ -590,7 +592,7 @@ class Tenant():
         if not listing:
             agent_uuid = self.agent_uuid
 
-        do_cvstatus = RequestsClient(self.verifier_base_url, context=True)
+        do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled)
         response = do_cvstatus.get(
             (f'/agents/{self.agent_uuid}'),
             headers={"Authorization": "Bearer " + token},
@@ -629,7 +631,7 @@ class Tenant():
         """Delete agent from Verifier
         """
         token = self.get_token()
-        do_cvdelete = RequestsClient(self.verifier_base_url, context=True)
+        do_cvdelete = RequestsClient(self.verifier_base_url, self.tls_enabled)
         response = do_cvdelete.delete(
             (f'/agents/{self.agent_uuid}'),
             headers={"Authorization": "Bearer " + token},
@@ -650,7 +652,7 @@ class Tenant():
             deleted = False
             for _ in range(12):
                 get_cvdelete = RequestsClient(
-                    self.verifier_base_url, context=True)
+                    self.verifier_base_url, self.tls_enabled)
                 response = get_cvdelete.get(
                     (f'/agents/{self.agent_uuid}'),
                     headers={"Authorization": "Bearer " + token},
@@ -687,7 +689,8 @@ class Tenant():
         """ Reactive Agent
         """
         token = self.get_token()
-        do_cvreactivate = RequestsClient(self.verifier_base_url, context=True)
+        do_cvreactivate = RequestsClient(
+            self.verifier_base_url, self.tls_enabled)
         response = do_cvreactivate.put(
             (f'/agents/{self.agent_uuid}/reactivate'),
             headers={"Authorization": "Bearer " + token},
@@ -720,7 +723,7 @@ class Tenant():
         """
         token = self.get_token()
         params = f'/agents/{self.agent_uuid}/stop'
-        do_cvstop = RequestsClient(self.verifier_base_url, context=True)
+        do_cvstop = RequestsClient(self.verifier_base_url, self.tls_enabled)
         response = do_cvstop.put(
             params,
             headers={"Authorization": "Bearer " + token},
@@ -762,9 +765,11 @@ class Tenant():
                 cloudagent_base_url = (
                     f'{self.agent_ip}:{self.agent_port}'
                 )
-                do_quote = RequestsClient(cloudagent_base_url, context=False)
+                do_quote = RequestsClient(
+                    cloudagent_base_url, tls_enabled=False)
                 response = do_quote.get(
                     params,
+                    cert=self.cert
                 )
                 response_body = response.json()
 
@@ -855,7 +860,7 @@ class Tenant():
                 f'{self.agent_ip}:{self.agent_port}'
             )
 
-            post_ukey = RequestsClient(cloudagent_base_url, context=False)
+            post_ukey = RequestsClient(cloudagent_base_url, tls_enabled=False)
             response = post_ukey.post(
                 params,
                 data=u_json_message
@@ -890,7 +895,8 @@ class Tenant():
                 cloudagent_base_url = (
                     f'{self.agent_ip}:{self.agent_port}'
                 )
-                do_verify = RequestsClient(cloudagent_base_url, context=False)
+                do_verify = RequestsClient(
+                    cloudagent_base_url, tls_enabled=False)
                 response = do_verify.get(
                     (f'/keys/verify?challenge={challenge}'),
                     headers={"Authorization": "Bearer " + token},

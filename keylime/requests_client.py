@@ -2,8 +2,8 @@ import requests
 
 
 class RequestsClient:
-    def __init__(self, base_url, context, **kwargs):
-        if context:
+    def __init__(self, base_url, tls_enabled, **kwargs):
+        if tls_enabled:
             self.base_url = f'https://{base_url}'
         else:
             self.base_url = f'http://{base_url}'
