@@ -80,7 +80,7 @@ A hardware TPM should always be used when real secrets and trust is required.
 * [Meeting Information](#project-meetings)
 * [First Timers Support](#first-timers-support)
 * [Additional Reading](#additional-reading)
-* [License](#license)
+* [Disclaimer](#disclaimer)
 
 ## Installation
 
