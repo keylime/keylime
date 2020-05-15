@@ -14,7 +14,7 @@ Trusted Grub 2.
 How to use
 ----------
 
-Select which PCRs you would like Keylime to measure, by using the `tpm2_pcrlist`
+Select which PCRs you would like Keylime to measure, by using the `tpm2_pcrread` from the `tpm2-tools <https://github.com/tpm2-software/tpm2-tools>_`
 tool.
 
 Now you can set the PCR values as an array in either the `keylime.conf` file::
