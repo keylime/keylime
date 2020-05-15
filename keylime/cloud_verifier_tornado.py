@@ -60,8 +60,8 @@ if sys.version_info[0] < 3:
 
 config = common.get_config()
 
-# drivername = config.get('cloud_verifier', 'jwt_secret')
-SECRET = 'my_secret_key'
+jwt_hmac_passphrase = config.get('cloud_verifier', 'jwt_hmac_passphrase')
+jwt_dsa = config.get('cloud_verifier', 'jwt_dsa')
 PREFIX = 'Bearer '
 
 drivername = config.get('cloud_verifier', 'drivername')
@@ -169,7 +169,6 @@ class AuthHandler(BaseHandler):
         """
             return the generated token
         """
-        print('self.request.uri:', self.request.uri)
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
             common.echo_json_response(
@@ -193,8 +192,8 @@ class AuthHandler(BaseHandler):
                     'group_id': user.group_id,
                     'role_id': user.role_id,
                     'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=1)},
-                    SECRET,
-                    'HS256'
+                    jwt_hmac_passphrase,
+                    jwt_dsa
                 ).decode('utf-8')
                 response = {'token': encoded}
                 common.echo_json_response(
@@ -223,7 +222,7 @@ class RegisterHandler(BaseHandler):
         new_email = self.get_argument("email")
         new_group_id = self.get_argument("group_id")
         token = self.request.headers.get("Authorization")[len(PREFIX):]
-        payload = jwt.decode(token, SECRET, algorithms='HS256')
+        payload = jwt.decode(token, jwt_hmac_passphrase, algorithms=jwt_dsa)
 
         try:
             user = session.query(User).filter(

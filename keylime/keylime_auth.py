@@ -1,11 +1,30 @@
-"""
-    JSON Web Token auth for Tornado
-"""
+""" MIT License
+
+Copyright (c) [2020] [Luke Hinds, Red Hat ltd]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE. """
+
 import jwt
+from keylime import common
 
 AUTHORIZATION_HEADER = 'Authorization'
 AUTHORIZATION_METHOD = 'bearer'
-SECRET_KEY = "my_secret_key"
 INVALID_HEADER_MESSAGE = "invalid header authorization"
 MISSING_AUTHORIZATION_KEY = "Missing authorization"
 AUTHORIZTION_ERROR_CODE = 401
@@ -17,6 +36,11 @@ jwt_options = {
     'verify_iat': True,
     'verify_aud': False
 }
+
+config = common.get_config()
+
+jwt_hmac_passphrase = config.get('cloud_verifier', 'jwt_hmac_passphrase')
+jwt_dsa = config.get('cloud_verifier', 'jwt_dsa')
 
 
 def is_valid_header(parts):
@@ -68,7 +92,7 @@ def jwtauth(handler_class):
                 try:
                     jwt.decode(
                         token,
-                        SECRET_KEY,
+                        jwt_hmac_passphrase,
                         options=jwt_options
                     )
                 except Exception as err:
