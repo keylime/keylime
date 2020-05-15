@@ -168,6 +168,33 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
     return context
 
 
+def init_jwt(jw_dsa):
+    jwt_dir = config.get('cloud_verifier', 'jwt_dir')
+
+    if jwt_dir == 'default':
+        jwt_path = ('/var/lib/keylime/jwt')
+        jwt_priv_key = config.get('cloud_verifier', 'jwt_priv_key')
+        jwt_pub_key = config.get('cloud_verifier', 'jwt_pub_key')
+        priv_keyname = (f'{jwt_path}/{jwt_priv_key}')
+        pub_keyname = (f'{jwt_path}/{jwt_pub_key}')
+
+        if os.path.exists(priv_keyname):
+            logger.info(
+                f'Existing JWT Keys found in {jwt_path}, not generating a new ones')
+        else:
+            logger.info(
+                f'Creating new jwt keys in {jwt_path}')
+            if not os.path.exists(jwt_path):
+                os.makedirs(jwt_path, 0o700)
+            priv_rsa_key = crypto.rsa_generate(2048)
+
+            with open(priv_keyname, "wb") as f:
+                f.write(crypto.rsa_export_privkey(priv_rsa_key))
+
+            with open(pub_keyname, "wb") as f:
+                f.write(crypto.rsa_export_pubkey(priv_rsa_key))
+
+
 def process_quote_response(agent, json_response):
     """Validates the response from the Cloud agent.
 
