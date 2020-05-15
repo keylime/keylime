@@ -14,7 +14,7 @@ Trusted Grub 2.
 How to use
 ----------
 
-Select which PCRs you would like Keylime to measure, by using the `tpm2_pcrread` from the `tpm2-tools <https://github.com/tpm2-software/tpm2-tools>_`
+Select which PCRs you would like Keylime to measure, by using the `tpm2_pcrread` from the `tpm2-tools <https://github.com/tpm2-software/tpm2-tools>`_
 tool.
 
 Now you can set the PCR values as an array in either the `keylime.conf` file::
@@ -33,7 +33,7 @@ Or you can add a node to using `keylime_tenant`::
 rhboot shim-loader
 ------------------
 
-The following is sourced from the `rhboot shim repository <https://github.com/rhboot/shim/blob/master/README.tpm`>_
+The following is sourced from the `rhboot shim repository <https://github.com/rhboot/shim/blob/master/README.tpm>`_
 please visit the upstream README to ensure information is still accurate
 
 The following PCRs are extended by shim:
