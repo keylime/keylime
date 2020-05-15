@@ -5,7 +5,7 @@ User Selected PCR Monitoring
     This page is still under development and not complete. It will be so until
     this warning is removed.
 
-Using use the `tpm_policy` feature in Keylime, it is possible to mointor a
+Using use the `tpm_policy` feature in Keylime, it is possible to monitor a
 remote machine for any given PCR.
 
 This can be used for Trusted Boot checks for both the `rhboot` shim loader and
