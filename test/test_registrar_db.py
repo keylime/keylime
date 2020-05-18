@@ -1,3 +1,8 @@
+'''
+SPDX-License-Identifier: MIT
+Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
+'''
+
 import unittest
 from keylime.db.registrar_db import RegistrarMain
 from keylime.db.keylime_db import SessionManager

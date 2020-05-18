@@ -1,3 +1,8 @@
+'''
+SPDX-License-Identifier: MIT
+Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
+'''
+
 import http.client
 
 
