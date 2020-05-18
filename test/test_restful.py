@@ -95,8 +95,7 @@ from keylime import tenant
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import secure_mount
-from keylime import tpm_obj
-from keylime import tpm_abstract
+from keylime.tpm import tpm_obj, tpm_abstract
 
 # Will be used to communicate with the TPM
 tpm = None

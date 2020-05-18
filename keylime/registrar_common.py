@@ -20,7 +20,6 @@ violate any copyrights that exist in this work.
 import os
 import threading
 import sys
-import base64
 import signal
 import time
 import hashlib
@@ -32,18 +31,17 @@ except ImportError:
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
-from urllib.parse import urlparse
 
 from keylime import registrar_client
 from keylime import crypto
 from keylime import cloud_verifier_common
-from keylime import tpm_obj
+from keylime.tpm import tpm_obj
 from keylime import common
 from keylime import keylime_logging
 
 # Database imports
-from keylime.registrar_db import RegistrarMain
-from keylime.keylime_database import SessionManager
+from keylime.db.registrar_db import RegistrarMain
+from keylime.db.keylime_db import SessionManager
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL

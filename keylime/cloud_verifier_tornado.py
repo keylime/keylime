@@ -26,9 +26,6 @@ import functools
 import asyncio
 import tornado.ioloop
 import tornado.web
-from tornado import httpserver
-from tornado.httpclient import AsyncHTTPClient
-from tornado.httputil import url_concat
 import keylime.tornado_requests as tornado_requests
 
 from keylime import common
@@ -37,8 +34,8 @@ from keylime import cloud_verifier_common
 from keylime import revocation_notifier
 
 # Database imports
-from keylime.verifier_db import VerfierMain
-from keylime.keylime_database import SessionManager
+from keylime.db.verifier_db import VerfierMain
+from keylime.db.keylime_db import SessionManager
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL

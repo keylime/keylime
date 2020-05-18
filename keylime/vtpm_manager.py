@@ -21,9 +21,7 @@ violate any copyrights that exist in this work.
 
 
 import base64
-import errno
 import hashlib
-import inspect
 import logging
 import os.path
 import subprocess
@@ -40,13 +38,12 @@ except ImportError:
 
 from keylime import common
 from keylime import keylime_logging
-from keylime import tpm_obj
+from keylime.tpm import tpm_obj
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)
 
 sys.path.append(os.path.dirname(__file__))
-from tpm_initialize import get_mod_from_pem
 
 # Logging boiler plate
 logger = keylime_logging.init_logging('vtpmmgr')
