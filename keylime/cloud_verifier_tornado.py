@@ -102,6 +102,22 @@ exclude_db = {
 }
 
 
+def _from_db_obj(agent_db_obj):
+    fields = ['agent_id', 'v', 'ip', 'port',
+              'operational_state', 'public_key',
+              'tpm_policy', 'vtpm_policy', 'meta_data',
+              'ima_whitelist', 'revocation_key',
+              'tpm_version',
+              'accept_tpm_hash_algs',
+              'accept_tpm_encryption_algs',
+              'accept_tpm_signing_algs',
+              'hash_alg', 'enc_alg', 'sign_alg']
+    agent_dict = {}
+    for field in fields:
+        agent_dict[field] = getattr(agent_db_obj, field, None)
+    return agent_dict
+
+
 class BaseHandler(tornado.web.RequestHandler, SessionManager):
     def prepare(self):
         super(BaseHandler, self).prepare()
@@ -491,6 +507,10 @@ class AgentsHandler(BaseHandler):
                 agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
 
     async def process_agent(self, agent, new_operational_state):
+        # Convert to dict if the agent arg is a db object
+        if not isinstance(agent, dict):
+            agent = _from_db_obj(agent)
+
         session = self.make_session(engine)
         try:
             main_agent_operational_state = agent['operational_state']
