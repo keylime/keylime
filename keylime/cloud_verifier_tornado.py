@@ -129,12 +129,12 @@ exclude_db = {
 
 
 class BaseHandler(tornado.web.RequestHandler, SessionManager):
-    def __init__(self):
-        self.jwt_path = ('/var/lib/keylime/jwt')
-        self.jwt_priv_key = config.get('cloud_verifier', 'jwt_priv_key')
-        self.jwt_pub_key = config.get('cloud_verifier', 'jwt_pub_key')
-        self.priv_keyname = (f'{jwt_path}/{jwt_priv_key}')
-        self.pub_keyname = (f'{jwt_path}/{jwt_pub_key}')
+    # def __init__(self):
+    #     self.jwt_path = ('/var/lib/keylime/jwt')
+    #     self.jwt_priv_key = config.get('cloud_verifier', 'jwt_priv_key')
+    #     self.jwt_pub_key = config.get('cloud_verifier', 'jwt_pub_key')
+    #     self.priv_keyname = (f'{jwt_path}/{jwt_priv_key}')
+    #     self.pub_keyname = (f'{jwt_path}/{jwt_pub_key}')
 
     def prepare(self):
         super(BaseHandler, self).prepare()
