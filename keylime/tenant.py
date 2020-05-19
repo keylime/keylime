@@ -120,6 +120,7 @@ class Tenant():
             self.tls_enabled = True
         else:
             self.tls_enabled = False
+            self.cert = ""
             logger.warning(
                 "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
 
@@ -165,6 +166,7 @@ class Tenant():
             api_pass = os.getenv('KL_API_PASS')
 
         # Query Verifier with env vars for  {api_user} and  {api_pass}
+
         get_token = RequestsClient(self.verifier_base_url, self.tls_enabled)
         auth_cred = {f'username': {api_user}, 'password': {api_pass}}
         response = get_token.get(
@@ -555,7 +557,7 @@ class Tenant():
             (f'/agents/{self.agent_uuid}'),
             data=json_message,
             headers={"Authorization": "Bearer " + token},
-            cert=(self.my_cert, self.my_priv_key),
+            cert=self.cert,
             verify=False
         )
 
@@ -596,7 +598,7 @@ class Tenant():
         response = do_cvstatus.get(
             (f'/agents/{self.agent_uuid}'),
             headers={"Authorization": "Bearer " + token},
-            cert=(self.my_cert, self.my_priv_key),
+            cert=self.cert,
             verify=False
         )
 
@@ -635,7 +637,7 @@ class Tenant():
         response = do_cvdelete.delete(
             (f'/agents/{self.agent_uuid}'),
             headers={"Authorization": "Bearer " + token},
-            cert=(self.my_cert, self.my_priv_key),
+            cert=self.cert,
             verify=False
         )
 
@@ -656,7 +658,7 @@ class Tenant():
                 response = get_cvdelete.get(
                     (f'/agents/{self.agent_uuid}'),
                     headers={"Authorization": "Bearer " + token},
-                    cert=(self.my_cert, self.my_priv_key),
+                    cert=self.cert,
                     verify=False
                 )
 
@@ -695,7 +697,7 @@ class Tenant():
             (f'/agents/{self.agent_uuid}/reactivate'),
             headers={"Authorization": "Bearer " + token},
             data=b'',
-            cert=(self.my_cert, self.my_priv_key),
+            cert=self.cert,
             verify=False
         )
 
@@ -727,7 +729,7 @@ class Tenant():
         response = do_cvstop.put(
             params,
             headers={"Authorization": "Bearer " + token},
-            cert=(self.my_cert, self.my_priv_key),
+            cert=self.cert,
             data=b'',
             verify=False
         )
@@ -900,7 +902,7 @@ class Tenant():
                 response = do_verify.get(
                     (f'/keys/verify?challenge={challenge}'),
                     headers={"Authorization": "Bearer " + token},
-                    cert=(self.my_cert, self.my_priv_key),
+                    cert=self.cert,
                     verify=False
                 )
             except Exception as e:
