@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 '''
-SPDX-License-Identifier: MIT
 Copyright 2017 Massachusetts Institute of Technology.
+SPDX-License-Identifier: BSD-2-Clause
 '''
 
 

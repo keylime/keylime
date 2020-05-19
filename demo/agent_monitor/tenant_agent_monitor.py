@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 
 '''
-SPDX-License-Identifier: MIT
 Copyright 2017 Massachusetts Institute of Technology.
+SPDX-License-Identifier: BSD-2-Clause
 '''
+
 # wget  --ca-certificate=/var/lib/keylime/secure/unzipped/cacert.crt --post-data '{}'
 #       --certificate=/var/lib/keylime/secure/unzipped/D432FBB3-D2F1-4A97-9EF7-75BD81C00000-cert.crt
 #       --private-key=/var/lib/keylime/secure/unzipped/D432FBB3-D2F1-4A97-9EF7-75BD81C00000-private.pem

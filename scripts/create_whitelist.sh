@@ -1,10 +1,8 @@
 #!/bin/bash
-##########################################################################################
-#
-# SPDX-License-Identifier: MIT
+################################################################################
 # Copyright 2017 Massachusetts Institute of Technology.
-#
-##########################################################################################
+# SPDX-License-Identifier: BSD-2-Clause
+################################################################################
 
 # Configure the installer here
 INITRAMFS_TOOLS_GIT=https://salsa.debian.org/kernel-team/initramfs-tools.git

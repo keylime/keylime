@@ -1,9 +1,8 @@
 #!/usr/bin/python3
 '''
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: BSD Clause 2
 Copyright 2017 Massachusetts Institute of Technology.
 '''
-
 
 import sys
 import base64
