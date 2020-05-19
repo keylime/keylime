@@ -1,5 +1,5 @@
 '''
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: BSD-2-Clause
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
