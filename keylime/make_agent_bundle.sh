@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# SPDX-License-Identifier: BSD CLause 2
+# SPDX-License-Identifier: BSD-2-Clause
 # Copyright 2017 Massachusetts Institute of Technology.
 ################################################################################
 
