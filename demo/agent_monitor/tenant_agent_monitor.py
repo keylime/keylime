@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 
 '''
-Copyright 2017 Massachusetts Institute of Technology.
 SPDX-License-Identifier: BSD-2-Clause
+Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 # wget  --ca-certificate=/var/lib/keylime/secure/unzipped/cacert.crt --post-data '{}'
