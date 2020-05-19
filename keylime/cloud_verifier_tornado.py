@@ -63,21 +63,10 @@ config = common.get_config()
 
 jwt_hmac_passphrase = config.get('cloud_verifier', 'jwt_hmac_passphrase')
 jwt_dsa = config.get('cloud_verifier', 'jwt_dsa')
+
 PREFIX = 'Bearer '
 
-SUPPORTED_JWT_DSA = ["HS256",
-                     "HS384",
-                     "HS512",
-                     "ES256",
-                     "ES384",
-                     "ES512",
-                     "RS256",
-                     "RS384",
-                     "RS512",
-                     "PS256",
-                     "PS384",
-                     "PS512"
-                     ]
+SUPPORTED_JWT_DSA = ["HS256", "HS384", "HS512"]
 
 drivername = config.get('cloud_verifier', 'drivername')
 
@@ -129,12 +118,6 @@ exclude_db = {
 
 
 class BaseHandler(tornado.web.RequestHandler, SessionManager):
-    # def __init__(self):
-    #     self.jwt_path = ('/var/lib/keylime/jwt')
-    #     self.jwt_priv_key = config.get('cloud_verifier', 'jwt_priv_key')
-    #     self.jwt_pub_key = config.get('cloud_verifier', 'jwt_pub_key')
-    #     self.priv_keyname = (f'{jwt_path}/{jwt_priv_key}')
-    #     self.pub_keyname = (f'{jwt_path}/{jwt_pub_key}')
 
     def prepare(self):
         super(BaseHandler, self).prepare()
@@ -768,9 +751,9 @@ class AgentsHandler(BaseHandler):
 def check_user_db():
     session = SessionManager().make_session(engine)
     user = session.query(User).filter(User.username == "admin").first()
+    admin_pass = 'changeme'
     if user is None:
         logger.info("Creating admin user")
-        admin_pass = get_random_string(16)
         new_user = User(username="admin", password=generate_password_hash(
             admin_pass), email="admin@localhost", group_id="1", role_id="1")
         try:
@@ -779,7 +762,11 @@ def check_user_db():
         except SQLAlchemyError as e:
             logger.error(f'SQLAlchemy Error: {e}')
         logger.warn(
-            f"Admin password is: {admin_pass} This must be changed immediately.")
+            f"Admin password is: {admin_pass} This must be changed immediately!!")
+    else:
+        if check_password_hash(user.password, admin_pass):
+            logger.error(
+                'WARNING! Using the default Admin password is putting your system at risk!')
 
 
 def start_tornado(tornado_server, port):
@@ -827,27 +814,20 @@ def main(argv=sys.argv):
     app = tornado.web.Application([
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
         (r"/(?:v[0-9]/)?auth/.*", AuthHandler),
-        #(r"/auth", AuthHandler),
         (r"/(?:v[0-9]/)?register/.*", RegisterHandler),
-        #(r"/register", RegisterHandler),
         (r".*", MainHandler),
     ], **settings)
 
     context = cloud_verifier_common.init_mtls()
 
-    jw_dsa = config.get('cloud_verifier', 'jwt_dsa')
-    if jw_dsa not in SUPPORTED_JWT_DSA:
-        logger.error(f'Unsupported Digital Signature Algorithm: {jw_dsa}')
+    if jwt_dsa not in SUPPORTED_JWT_DSA:
+        logger.error(f'Unsupported Digital Signature Algorithm: {jwt_dsa}')
         exit()
 
-    if fnmatch.fnmatch(jw_dsa, 'HS*'):
-        logger.info(f'Using HMAC Based Algorithm for JWT: {jw_dsa}')
-    else:
-        cloud_verifier_common.init_jwt(jw_dsa)
+    if fnmatch.fnmatch(jwt_dsa, 'HS*'):
+        logger.info(f'Using HMAC Based Algorithm for JWT: {jwt_dsa}')
 
-        # cloud_verifier_common.init_jwt()
-
-        # after TLS is up, start revocation notifier
+    # after TLS is up, start revocation notifier
     if config.getboolean('cloud_verifier', 'revocation_notifier'):
         logger.info("Starting service for revocation notifications on port %s" %
                     config.getint('cloud_verifier', 'revocation_notifier_port'))
