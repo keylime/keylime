@@ -29,6 +29,7 @@ import functools
 import asyncio
 import tornado.ioloop
 import tornado.web
+from urllib.parse import urlparse
 from tornado import httpserver
 from tornado.httpclient import AsyncHTTPClient
 from tornado.httputil import url_concat
@@ -214,49 +215,119 @@ class AuthHandler(BaseHandler):
 
 
 @jwtauth
-class RegisterHandler(BaseHandler):
+class UsersHandler(BaseHandler):
     """
         User registration, should only be allowed by admin
     """
 
-    def post(self):
+    def patch(self):
+        """ Update user details. Must be admin or user themselves
+        """
         session = self.make_session(engine)
-        # Get the new user details.
-        new_username = self.get_argument("username")
-        new_password = self.get_argument("password")
-        new_email = self.get_argument("email")
-        new_group_id = self.get_argument("group_id")
+
+    def get(self):
+        """Get user or users
+        """
+        session = self.make_session(engine)
+        request = self.request.uri
+        uripath = urlparse(request)
+
+        if "username" in uripath.params:
+            username = self.get_argument("username")
+
+            try:
+                user = session.query(User).filter(
+                    User.username == username).first()
+            except SQLAlchemyError as e:
+                logger.error(f'SQLAlchemy Error: {e}')
+            for i in user:
+                print(i)
+
+    def delete(self):
+        """Delete user (not admin!)
+        """
+        session = self.make_session(engine)
+        username = self.get_argument("username")
+
         token = self.request.headers.get("Authorization")[len(PREFIX):]
-        payload = jwt.decode(token, jwt_hmac_passphrase, algorithms=jwt_dsa)
+        payload = jwt.decode(
+            token, jwt_hmac_passphrase, algorithms=jwt_dsa)
 
         try:
             user = session.query(User).filter(
-                User.username == new_username).first()
+                User.username == username).first()
         except SQLAlchemyError as e:
             logger.error(f'SQLAlchemy Error: {e}')
 
         if payload['role_id'] == 1:
-            if user is not None and user.username == new_username:
-                logger.error(f"Username {new_username} already exists")
+            print('role_id', )
+            if username == 'admin':
+                logger.error("Cannot delete admin user")
                 common.echo_json_response(
-                    self, 409, "User %s already exists" % (new_username))
-            else:
+                    self, 409, "Cannot delete admin user")
+            elif user is not None and user.username == username:
                 try:
-                    new_user = User(username=new_username, password=generate_password_hash(
-                        new_password), email=new_email, group_id=new_group_id)
-                    session.add(new_user)
+                    session.delete(user)
                     session.commit()
+                    logger.info(f"Deleted {user.username}")
+                    common.echo_json_response(
+                        self, 409, f"Deleted {user.username}")
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
-                    common.echo_json_response(
-                        self, 500, "Internal server error %s " % (e))
-                logger.info(f"Username {new_username} registered successfully")
+            else:
+                logger.error(f"User {username} not found")
                 common.echo_json_response(
-                    self, 200, "Username %s registered successfully" % (new_username))
+                    self, 409, f"User {username} not found")
         else:
-            logger.info(f"Only admin users are authorized to add new users")
+            logger.error(f"Only admin user can delete user account")
             common.echo_json_response(
-                self, 409, "Only admin users are authorized to add new users")
+                self, 409, "Only admin user can delete user account")
+
+    def post(self):
+        request = self.request.uri
+        uripath = urlparse(request)
+
+        if "register" in uripath.path:
+            # Register a new user
+            session = self.make_session(engine)
+            new_username = self.get_argument("username")
+            new_password = self.get_argument("password")
+            new_email = self.get_argument("email")
+            new_group_id = self.get_argument("group_id")
+            token = self.request.headers.get("Authorization")[len(PREFIX):]
+            payload = jwt.decode(
+                token, jwt_hmac_passphrase, algorithms=jwt_dsa)
+
+            try:
+                user = session.query(User).filter(
+                    User.username == new_username).first()
+            except SQLAlchemyError as e:
+                logger.error(f'SQLAlchemy Error: {e}')
+
+            if payload['role_id'] == 1:
+                if user is not None and user.username == new_username:
+                    logger.error(f"Username {new_username} already exists")
+                    common.echo_json_response(
+                        self, 409, "User %s already exists" % (new_username))
+                else:
+                    try:
+                        new_user = User(username=new_username, password=generate_password_hash(
+                            new_password), email=new_email, group_id=new_group_id)
+                        session.add(new_user)
+                        session.commit()
+                    except SQLAlchemyError as e:
+                        logger.error(f'SQLAlchemy Error: {e}')
+                        common.echo_json_response(
+                            self, 500, "Internal server error %s " % (e))
+                    logger.info(
+                        f"Username {new_username} registered successfully")
+                    common.echo_json_response(
+                        self, 200, "Username %s registered successfully" % (new_username))
+            else:
+                logger.info(
+                    f"Only admin users are authorized to add new users")
+                common.echo_json_response(
+                    self, 409, "Only admin users are authorized to add new users")
 
 
 @jwtauth
@@ -813,8 +884,8 @@ def main(argv=sys.argv):
 
     app = tornado.web.Application([
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
-        (r"/(?:v[0-9]/)?auth/.*", AuthHandler),
-        (r"/(?:v[0-9]/)?register/.*", RegisterHandler),
+        (r"/(?:v[0-9]/)?auth.*", AuthHandler),
+        (r"/(?:v[0-9]/)?user.*", UsersHandler),
         (r".*", MainHandler),
     ], **settings)
 
