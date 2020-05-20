@@ -232,7 +232,7 @@ class UsersHandler(BaseHandler):
         request = self.request.uri
         uripath = urlparse(request)
 
-        if "username" in uripath.params:
+        if "username" in uripath.query:
             username = self.get_argument("username")
 
             try:
@@ -240,8 +240,25 @@ class UsersHandler(BaseHandler):
                     User.username == username).first()
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')
-            for i in user:
-                print(i)
+
+            if user is not None:
+                userdata = {
+                    'user_id': user.user_id,
+                    'username': user.username,
+                    'email': user.email,
+                    'group_id': user.group_id,
+                    'role_id': user.role_id
+                }
+                common.echo_json_response(self, 200, "Success", {
+                    'user': userdata})
+            else:
+                logger.error(f"User: {username} not found")
+                common.echo_json_response(
+                    self, 200, f"User: {username} not found")
+        else:
+            json_response = session.query(User.username).all()
+            common.echo_json_response(self, 200, "Success", {
+                'users': json_response})
 
     def delete(self):
         """Delete user (not admin!)
@@ -294,6 +311,7 @@ class UsersHandler(BaseHandler):
             new_password = self.get_argument("password")
             new_email = self.get_argument("email")
             new_group_id = self.get_argument("group_id")
+            new_role_id = self.get_argument("role_id")
             token = self.request.headers.get("Authorization")[len(PREFIX):]
             payload = jwt.decode(
                 token, jwt_hmac_passphrase, algorithms=jwt_dsa)
@@ -311,8 +329,12 @@ class UsersHandler(BaseHandler):
                         self, 409, "User %s already exists" % (new_username))
                 else:
                     try:
-                        new_user = User(username=new_username, password=generate_password_hash(
-                            new_password), email=new_email, group_id=new_group_id)
+                        new_user = User(username=new_username,
+                                        password=generate_password_hash(
+                                            new_password),
+                                        email=new_email,
+                                        group_id=new_group_id,
+                                        role_id=new_role_id)
                         session.add(new_user)
                         session.commit()
                     except SQLAlchemyError as e:

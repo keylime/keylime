@@ -35,6 +35,7 @@ class VerfierMain(Base):
     enc_alg = Column(String)
     sign_alg = Column(String)
 
+
 class User(Base):
     __tablename__ = 'users'
     user_id = Column(Integer, primary_key=True)
@@ -42,7 +43,7 @@ class User(Base):
     password = Column(String(80), unique=True, nullable=False)
     email = Column(String(120), unique=True, nullable=False)
     group_id = Column(Integer, nullable=False)
-    role_id = Column(Integer,  autoincrement=True)
+    role_id = Column(Integer,  nullable=False)
 
     def __repr__(self):
         return '<User %r>' % self.username
