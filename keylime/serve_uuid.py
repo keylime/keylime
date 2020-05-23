@@ -16,7 +16,8 @@ except ImportError:
 TESTING_MODE = False
 
 if not TESTING_MODE:
-    from keylime import provider_vtpm_add
+    from keylime.cmd import provider_vtpm_add
+
 
 class myHandler(BaseHTTPRequestHandler):
 
