@@ -1,3 +1,8 @@
+'''
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
+'''
+
 import http.client
 
 

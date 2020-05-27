@@ -1,22 +1,8 @@
 '''
-DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
-
-This material is based upon work supported by the Assistant Secretary of Defense for 
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
-FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the 
-Assistant Secretary of Defense for Research and Engineering.
-
-Copyright 2015 Massachusetts Institute of Technology.
-
-The software/firmware is provided to you on an As-Is basis
-
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-above. Use of this work other than as specifically authorized by the U.S. Government may 
-violate any copyrights that exist in this work.
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2017 Massachusetts Institute of Technology.
 '''
+
 
 import unittest
 import threading
@@ -56,7 +42,7 @@ num_threads = 5
 
 config = configparser.RawConfigParser()
 config.read(common.CONFIG_FILE)
-  
+
 cloudverifier_port = config.get('general', 'cloudverifier_port')
 cloudagent_port = config.get('general', 'cloudagent_port')
 registrar_port = config.get('general', 'registrar_port')
@@ -80,9 +66,9 @@ K = None
 U = None
 V = None
 
-def readKUV():        
+def readKUV():
     global K, U, V
-    
+
     # read the keys in
     f = open('content_keys.txt','r')
     K = base64.b64decode(f.readline())
@@ -95,15 +81,15 @@ def text_callback(request, context):
     return '{}'
 
 class Test(unittest.TestCase):
-  
+
     cloudverifier_process = None
-  
+
     @classmethod
     def setUpClass(cls):
 
         cls.test_table = {
             "test_cloudagent_tenant_get_nonce" : {
-                "prerun_function"  : {"name":"launch_cloudagent", "argument": None},                             
+                "prerun_function"  : {"name":"launch_cloudagent", "argument": None},
                 "state_change_functions": [
 
                     {
@@ -117,10 +103,10 @@ class Test(unittest.TestCase):
                         "check_function" : {"name":"check_test_cloudagent_tenant_get_nonce"},
                     }
                 ],
-                "postrun_function"  : {"name":"kill_cloudagent", "argument": None},                                
+                "postrun_function"  : {"name":"kill_cloudagent", "argument": None},
             },
             "test_cloudagent_tenant_get_quote" : {
-                "prerun_function"  : {"name":"launch_cloudagent", "argument": None},    
+                "prerun_function"  : {"name":"launch_cloudagent", "argument": None},
                 "state_change_functions": [
 
                     {
@@ -133,8 +119,8 @@ class Test(unittest.TestCase):
                         "http_result_status_expected": 200,
                     }
                 ],
-                "postrun_function"  : {"name":"kill_cloudagent", "argument": None}, 
-            }, 
+                "postrun_function"  : {"name":"kill_cloudagent", "argument": None},
+            },
             "test_cloudverifier_tenant_provide_v" : {
                 #"prerun_function"  : {"name":"launch_cloudverifier", "argument": None},
                 "state_change_functions": [
@@ -151,8 +137,8 @@ class Test(unittest.TestCase):
                         #"concurrent_instances" : 10,
                         #"concurrent_new_thread_function" : "new_thread",
                         #"test_iterations" : 100,
-                    },                    
-                ],           
+                    },
+                ],
             },
             "test_concurrent_access" : {
                 "prerun_function"  : {"name":"launch_cloudverifier", "argument": None},
@@ -168,8 +154,8 @@ class Test(unittest.TestCase):
                         "http_result_status_expected": 200,
                         "concurrency" : {"instances": 5, "new_thread_function":"new_thread"},
                         "test_iterations" : 100,
-                    },                    
-                ],   
+                    },
+                ],
                 "state_validation_functions": [
                     {
                         "function_name": "test_agent_id_list",
@@ -180,15 +166,15 @@ class Test(unittest.TestCase):
                         #"http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","agent_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"check_and_delete_all_entries", "argument": 500}
-                    },                               
+                    },
                 ],
-                "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},              
+                "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},
             },
             "test_concurrent_cloudnodiness" : {
                 #"prerun_function"  : {"name":"launch_cloudagents", "args": {'starting_port':9000, 'num_cloudagent_instances':250}},
                 "prerun_function"  : {"name":"launch_cloudagents", "args": {'port_file':'cloudagent_port.txt', 'num_cloudagent_instances':test_num_cloudagents}},
                 "state_change_functions": [
- 
+
                     {
                         "pre_function" : {"name":"test_concurrent_cloudnodiness_modify_request", "argument": 500},
                         "function_name": "test_concurrent_cloudnodiness",
@@ -200,9 +186,9 @@ class Test(unittest.TestCase):
                         "http_result_status_expected": 200,
                         "test_iterations" : test_num_cloudagents,
                         "post_function" : {"name":"test_concurrent_cloudnodiness_reset_request", "args": {"ip_file": "cloudagent_ip.txt","port_file":"cloudagent_port.txt"} },
-                    },                    
-                ],   
-                "postrun_function"  : {"name":"kill_cloudagents_after_delay", "args": {'sleep': test_duration, 'port_file':'cloudagent_port.txt', 'num_cloudagent_instances':test_num_cloudagents} },              
+                    },
+                ],
+                "postrun_function"  : {"name":"kill_cloudagents_after_delay", "args": {'sleep': test_duration, 'port_file':'cloudagent_port.txt', 'num_cloudagent_instances':test_num_cloudagents} },
             },
             "test_full_integration_happy_path" : {
                 #"prerun_function"  : {"name":"launch_required_servers", "argument": None},
@@ -219,7 +205,7 @@ class Test(unittest.TestCase):
                         "check_function" : {"name":"provide_e"},
                         #"concurrent_new_thread_function" : "new_thread",
                         #"test_iterations" : 100,
-                    },   
+                    },
                     {
                         "function_name": "do_cloudverifier_part",
                         "http_request_verb":"POST",
@@ -231,10 +217,10 @@ class Test(unittest.TestCase):
                         "check_function" : {"name":"check_test_sleep", "argument": 5},
                         #"concurrent_new_thread_function" : "new_thread",
                         #"test_iterations" : 100,
-                    },                    
-                ], 
-                #"postrun_function"  : {"name":"kill_required_servers", "argument": None},             
-            }, 
+                    },
+                ],
+                #"postrun_function"  : {"name":"kill_required_servers", "argument": None},
+            },
             "test_persistance_file_load" : {
                 "prerun_function"  : {"name":"launch_cloudverifier", "args": '{"06480EC4-6BF3-4F00-8323-FE6AE5868297": {"tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}, "ip": "127.0.0.1", "port": "8882", "v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU="}}'},
                 "state_change_functions": [
@@ -248,10 +234,10 @@ class Test(unittest.TestCase):
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"check_test_persistance_file_load", "argument": "06480EC4-6BF3-4F00-8323-FE6AE5868297"},
 
-                    },                    
-                ], 
-                "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},             
-            },              
+                    },
+                ],
+                "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},
+            },
             "test_persistance_file_write" : {
                 "prerun_function"  : {"name":"launch_cloudverifier", "args": '{}'},
                 "state_change_functions": [
@@ -264,13 +250,13 @@ class Test(unittest.TestCase):
                         "http_request_body": '{"v": "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=","agent_id":"06480EC4-6BF3-4F00-8323-FE6AE5868297","cloudagent_ip":"127.0.0.1","cloudagent_port":"8882","tpm_policy": {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}}',
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"check_test_persistance_file_write", "argument": "06480EC4-6BF3-4F00-8323-FE6AE5868297"},
-                    },                     
-                ], 
-                "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},            
+                    },
+                ],
+                "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},
             },
             "test_persistance_file_bad" : {
                 "prerun_function"  : {"name":"launch_cloudverifier", "args": '{'},
-            }, 
+            },
             "test_persistance_file_empty" : {
                 "prerun_function"  : {"name":"launch_cloudverifier", "args": ''},
                 "state_change_functions": [
@@ -282,9 +268,9 @@ class Test(unittest.TestCase):
                         "http_request_path": "/v1/instances",
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"test_check_persistance_file_empty", "argument": None},
-                    },                    
-                ], 
-                "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},               
+                    },
+                ],
+                "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},
             },
             "test_persistance_file_nonexistent" : {
                 "prerun_function"  : {"name":"launch_cloudverifier", "args": None},
@@ -297,38 +283,38 @@ class Test(unittest.TestCase):
                         "http_request_path": "/v1/instances",
                         "http_result_status_expected": 200,
                         "check_function" : {"name":"test_check_persistance_file_empty", "argument": None},
-                    },                    
-                ], 
-                "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},                
-            },                                     
+                    },
+                ],
+                "postrun_function"  : {"name":"kill_cloudverifier", "argument": None},
+            },
         }
 
     def test_concurrent_cloudnodiness(self):
-        self.execute_test_definition() 
+        self.execute_test_definition()
     def test_cloudagent_tenant_get_nonce(self):
-        self.execute_test_definition()        
+        self.execute_test_definition()
     def test_cloudagent_tenant_get_quote(self):
-        self.execute_test_definition() 
+        self.execute_test_definition()
     def test_cloudverifier_tenant_provide_v(self):
         self.execute_test_definition()
     def test_concurrent_access(self):
-        self.execute_test_definition()  
+        self.execute_test_definition()
     def test_full_integration_happy_path(self):
         self.execute_test_definition()
     def test_persistance_file_load(self):
         self.execute_test_definition()
     def test_persistance_file_write(self):
-        self.execute_test_definition() 
+        self.execute_test_definition()
     def test_persistance_file_bad(self):
-        self.execute_test_definition() 
+        self.execute_test_definition()
     def test_persistance_file_empty(self):
-        self.execute_test_definition() 
+        self.execute_test_definition()
     def test_persistance_file_nonexistent(self):
-        self.execute_test_definition() 
+        self.execute_test_definition()
 
-        
+
     def test_cloudagent_cloud_verifier_get_quote(self):
-        pass  
+        pass
 
     def check_test_sleep(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         time.sleep(argument)
@@ -351,9 +337,9 @@ class Test(unittest.TestCase):
                 request_body = test_functions.get("http_request_body")
                 try:
                     json_request_body = json.loads(request_body)
-                    
+
                     tmpp_policy = json_request_body['tpm_policy']
-                    
+
                     mask = 0
                     for key in list(tmpp_policy.keys()):
                         if key.isdigit() :
@@ -362,42 +348,42 @@ class Test(unittest.TestCase):
                     mask_str = "0x%X"%(mask)
                     tmpp_policy['mask'] = mask_str
                     json_request_body['tpm_policy'] = tmpp_policy
-                    
-                    cloudagent_ip = json_request_body['cloudagent_ip']                                      
+
+                    cloudagent_ip = json_request_body['cloudagent_ip']
                     if cloudagent_ip.endswith('.txt'):
                         cloudagent_ip_file = cloudagent_ip
                         cloudagent_ip_read_from_file = self.read_line_in_file(cloudagent_ip_file, test_iteration)
-                        json_request_body['cloudagent_ip'] = cloudagent_ip_read_from_file.strip()  
-                             
- 
-                    cloudagent_port = json_request_body['cloudagent_port']                                      
+                        json_request_body['cloudagent_ip'] = cloudagent_ip_read_from_file.strip()
+
+
+                    cloudagent_port = json_request_body['cloudagent_port']
                     if cloudagent_port.endswith('.txt'):
                         cloudagent_port_file = cloudagent_port
                         cloudagent_port_read_from_file = self.read_line_in_file(cloudagent_port_file, test_iteration)
-                        json_request_body['cloudagent_port'] = cloudagent_port_read_from_file.strip() 
+                        json_request_body['cloudagent_port'] = cloudagent_port_read_from_file.strip()
 
 #                     parser = ConfigParser.RawConfigParser()
 #                     parser.read(common.CONFIG_FILE)
 #                     test_agent_uuid = parser.get('general', 'agent_uuid')
-                    
+
                     test_agent_uuid = json_request_body['agent_id']
-                    
-                    
+
+
                     port_string_length = len(str(json_request_body['cloudagent_port']))
                     contrived_uuid = test_agent_uuid[:-port_string_length]
-                    contrived_uuid = contrived_uuid + str(json_request_body['cloudagent_port'])   
+                    contrived_uuid = contrived_uuid + str(json_request_body['cloudagent_port'])
                     json_request_body['agent_id'] = contrived_uuid
-                        
-                    test_functions['http_request_body'] = json.dumps(json_request_body)        
-                                                           
-                    
+
+                    test_functions['http_request_body'] = json.dumps(json_request_body)
+
+
                 except Exception as e:
-                    self.fail("Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudagent_ip or cloudagent_port.  Error: %s"%e)         
+                    self.fail("Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudagent_ip or cloudagent_port.  Error: %s"%e)
 
     def test_concurrent_cloudnodiness_reset_request(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
 
         #time.sleep(2)
-        
+
         test_record = self.test_table.get(test_method_name)
         #perform each of the test functions and store the results
         for test_functions in test_record[state_change_or_validation]:
@@ -405,15 +391,15 @@ class Test(unittest.TestCase):
                 request_body = test_functions.get("http_request_body")
                 try:
                     json_request_body = json.loads(request_body)
-                    
+
                     #reset the request body to file arguments for next iteration
-                    json_request_body['cloudagent_ip'] =  argument["ip_file"]                                
+                    json_request_body['cloudagent_ip'] =  argument["ip_file"]
                     json_request_body['cloudagent_port'] = argument["port_file"]
 
-                    test_functions['http_request_body'] = json.dumps(json_request_body)  
+                    test_functions['http_request_body'] = json.dumps(json_request_body)
 
                 except Exception as e:
-                    self.fail("Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudagent_ip or cloudagent_port.  Error: %s"%e) 
+                    self.fail("Problem in test_concurrent_cloudnodiness_modify_request() replacing cloudagent_ip or cloudagent_port.  Error: %s"%e)
 
 
     def test_check_persistance_file_empty(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
@@ -426,10 +412,10 @@ class Test(unittest.TestCase):
                     jsondecoded = json.loads(target_body)
                     # test to make sure these two keys (and values) are in the return
                     if len(jsondecoded) != 0:
-                        self.fail("Expected empty persistence file to replace non existent persistence file on startup.") 
+                        self.fail("Expected empty persistence file to replace non existent persistence file on startup.")
                 except Exception as e:
-                    self.fail("Problem reading persistence file after replacement of empty persistence file.  Error: %s"%e) 
-                     
+                    self.fail("Problem reading persistence file after replacement of empty persistence file.  Error: %s"%e)
+
     def check_test_persistance_file_write(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         test_record = self.test_table.get(test_method_name)
         uuid_str = argument
@@ -437,26 +423,26 @@ class Test(unittest.TestCase):
         for test_functions in test_record[state_change_or_validation]:
             if test_functions.get("function_name") == test_function_name:
                 try:
-                    with open(cv_persistence_filename, "r") as persistance_file:    
+                    with open(cv_persistence_filename, "r") as persistance_file:
                         file_contents = persistance_file.read()
-    
+
                         json_content = json.loads(file_contents)
                         if len(json_content) != 1 or json_content.get(uuid_str) is None:
                             self.fail("Unexpected persistence file contents.")
                 except Exception as e:
-                    self.fail("Problem reading persistence file after POST.  Error: %s"%e)  
-                try:                                                
-                    with open(cv_persistence_filename + ".bak", "r") as backup_persistance_file:    
+                    self.fail("Problem reading persistence file after POST.  Error: %s"%e)
+                try:
+                    with open(cv_persistence_filename + ".bak", "r") as backup_persistance_file:
                         backup_file_contents = backup_persistance_file.read()
-    
+
                         json_backup_content = json.loads(backup_file_contents)
                         if len(json_backup_content) != 0:
-                            self.fail("Unexpected backup persistence file contents.")                          
+                            self.fail("Unexpected backup persistence file contents.")
                 except Exception as e:
-                    self.fail("Problem reading backup persistence file after POST.  Error: %s"%e)                          
+                    self.fail("Problem reading backup persistence file after POST.  Error: %s"%e)
 
-                    
-                    
+
+
     def check_test_persistance_file_load(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         test_record = self.test_table.get(test_method_name)
         uuid_str = argument
@@ -467,16 +453,16 @@ class Test(unittest.TestCase):
                 jsondecoded = json.loads(target_body)
                 # test to make sure these two keys (and values) are in the return
                 if len(jsondecoded) != 1 or jsondecoded.get(uuid_str) is None :
-                    self.fail("Expected " + uuid_str + " to be in the list of active agent_ids")   
+                    self.fail("Expected " + uuid_str + " to be in the list of active agent_ids")
 
 #     def do_mock_for_test_cloudverifier_tenant_provide_v(self, argument):
 #         global text_callback
 #         nonce = tpm_initialize.random_password(20)
 #         tpm_policy = {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff" }
 #         #theurl = 'http://' + cloudagent_ip + ':' + cloudagent_port + "/v1/quotes/cloudverifier" + "?nonce=" + nonce + "&mask=" + tpm_policy['mask']
-#         theurl = 'http://' + cloudagent_ip + ':' + cloudagent_port + "/v1/quotes/cloudverifier" 
+#         theurl = 'http://' + cloudagent_ip + ':' + cloudagent_port + "/v1/quotes/cloudverifier"
 #         with requests_mock.Mocker(real_http=True) as m:
-#             m.get(requests_mock.ANY, text=text_callback)       
+#             m.get(requests_mock.ANY, text=text_callback)
 
     def provide_e(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         test_record = self.test_table.get(test_method_name)
@@ -486,26 +472,26 @@ class Test(unittest.TestCase):
             if test_functions.get("function_name") == test_function_name:
                 response_body = test_functions.get("http_result_body_actual")
                 jsondecoded = json.loads(response_body)
-                
+
                 public_key = jsondecoded.get("pubkey")
                 quote = jsondecoded.get("quote")
-                
+
                 # test to make sure these two keys (and values) are in the return
                 if public_key == None or quote == None:
                     self.fail("Expected both pubkey and quote arguments." )
                 else:
-                    
+
                     mytenant = tenant.Tenant()
-    
+
                     # command line options can overwrite config values
                     mytenant.cloudagent_ip = cloudagent_ip
                     mytenant.cloudverifier_ip = cloudverifier_ip
                     mytenant.agent_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
-                    
-                    if mytenant.validate_tpm_quote(public_key, quote): 
+
+                    if mytenant.validate_tpm_quote(public_key, quote):
                         # encrypt U with the public key
                         global U, K
-                        
+
                         encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key),str(U))
                         encrypt_check = crypto.do_hmac(K,mytenant.agent_uuid)
                         b64_encrypted_u = base64.b64encode(encrypted_U)
@@ -514,14 +500,14 @@ class Test(unittest.TestCase):
                                   'encrypt_check': encrypt_check
                                 }
                         u_json_message = json.dumps(data)
-                        
+
                         #post encrypted U back to Cloud Agent
                         response = tornado_requests.request("POST", "http://%s:%s/v1/quotes/tenant"%(cloudagent_ip,cloudagent_port),data=u_json_message)
-                        
+
                         if response.status_code != 200:
-                            self.fail("Posting of Encrypted U to the Cloud Agent failed with response code %d" %response.status_code )                 
+                            self.fail("Posting of Encrypted U to the Cloud Agent failed with response code %d" %response.status_code )
                     else:
-                        self.fail("TPM Quote from cloud agent is invalid for nonce: %s"%self.nonce )                                
+                        self.fail("TPM Quote from cloud agent is invalid for nonce: %s"%self.nonce )
 
     def check_test_cloudagent_tenant_get_nonce(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         test_record = self.test_table.get(test_method_name)
@@ -533,7 +519,7 @@ class Test(unittest.TestCase):
                 jsondecoded = json.loads(target_body)
                 # test to make sure these two keys (and values) are in the return
                 if jsondecoded.get("pubkey") == None or jsondecoded.get("quote") == None:
-                    self.fail("Expected both pubkey and quote arguments." )     
+                    self.fail("Expected both pubkey and quote arguments." )
 
     def check_validate_test_cloudverifier_tenant_provide_v(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         test_record = self.test_table.get(test_method_name)
@@ -543,21 +529,21 @@ class Test(unittest.TestCase):
             if test_functions.get("function_name") == test_function_name:
                 target_body = test_functions.get("http_result_body_actual")
                 jsondecoded = json.loads(target_body)
-    
+
                 v = jsondecoded.get("v")
-                ip = jsondecoded.get("ip")  
+                ip = jsondecoded.get("ip")
                 port = jsondecoded.get("port")
-                tpm_policy = jsondecoded.get("tpm_policy")  
+                tpm_policy = jsondecoded.get("tpm_policy")
 
                 if v is None or v !=  "nsRIy93UeeAi3GhAxpEcMH6R7OmaB7ArBdn2bEgyEwU=":
-                    self.fail("Returned v from instance 06480EC4-6BF3-4F00-8323-FE6AE5868297 was not correct.")     
+                    self.fail("Returned v from instance 06480EC4-6BF3-4F00-8323-FE6AE5868297 was not correct.")
                 if ip is None or ip !=  "127.0.0.1":
-                    self.fail("Returned ip from instance 06480EC4-6BF3-4F00-8323-FE6AE5868297 was not correct.")     
+                    self.fail("Returned ip from instance 06480EC4-6BF3-4F00-8323-FE6AE5868297 was not correct.")
                 if port is None or port !=  "8882":
-                    self.fail("Returned port from instance 06480EC4-6BF3-4F00-8323-FE6AE5868297 was not correct.")  
+                    self.fail("Returned port from instance 06480EC4-6BF3-4F00-8323-FE6AE5868297 was not correct.")
                 if tpm_policy is None or tpm_policy !=  {"00": "0000000000000000000000000000000000000000", "mask": "0x400801", "22": "ffffffffffffffffffffffffffffffffffffffff"}:
-                    self.fail("Returned tpm_policy from instance 06480EC4-6BF3-4F00-8323-FE6AE5868297 was not correct.") 
-                       
+                    self.fail("Returned tpm_policy from instance 06480EC4-6BF3-4F00-8323-FE6AE5868297 was not correct.")
+
     def check_and_delete_all_entries(self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument):
         test_record = self.test_table.get(test_method_name)
 
@@ -566,30 +552,30 @@ class Test(unittest.TestCase):
             if test_functions.get("function_name") == test_function_name:
                 target_body = test_functions.get("http_result_body_actual")
                 agent_id_list = json.loads(target_body)
-                
+
                 expected_len = argument
                 actual_len = len(agent_id_list)
                 if actual_len != expected_len:
-                    self.fail("Expected " +  str(expected_len) +" instance id's but received " + str(actual_len))  
-                
+                    self.fail("Expected " +  str(expected_len) +" instance id's but received " + str(actual_len))
+
                 for agent_id in agent_id_list:
                     params = {
                         'agent_id': agent_id,
                         }
-                    try:  
+                    try:
                         response = tornado_requests.request("DELETE",
                         "http://" + cloudverifier_ip + ":" + cloudverifier_port + "/v1/instances",
-                        params=params)  
-                        
-                        if response.status_code != 200:
-                            self.fail("Delete of agent_id " + agent_id + " failed.")  
-  
-                    except Exception as e:
-                        self.fail("Delete of agent_id " + agent_id + " failed with exception: %s"%e)                    
-                       
-    
+                        params=params)
 
-    def execute_the_test(self, setup_or_state_change_or_validation, test_functions, test_iteration ):          
+                        if response.status_code != 200:
+                            self.fail("Delete of agent_id " + agent_id + " failed.")
+
+                    except Exception as e:
+                        self.fail("Delete of agent_id " + agent_id + " failed with exception: %s"%e)
+
+
+
+    def execute_the_test(self, setup_or_state_change_or_validation, test_functions, test_iteration ):
 
         # call the pre_function
         pre_function = test_functions.get("pre_function")
@@ -600,31 +586,31 @@ class Test(unittest.TestCase):
             if function_return == False:
                 self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ":" + pre_function_name + " pre_function failure, test aborted." )
 
-        full_url = "http://" + test_functions.get("http_request_ip") + ":" + test_functions.get("http_request_port") + test_functions.get("http_request_path")  
-        http_request_body_tag = test_functions.get("http_request_body") 
+        full_url = "http://" + test_functions.get("http_request_ip") + ":" + test_functions.get("http_request_port") + test_functions.get("http_request_path")
+        http_request_body_tag = test_functions.get("http_request_body")
         http_request_body_file_tag = test_functions.get("http_request_body_file")
         if http_request_body_tag != None and http_request_body_file_tag != None :
             self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + " contains both http_request_body and http_request_body_file tags." )
-        
+
         thedata = ''
         if http_request_body_tag == None and http_request_body_file_tag != None:
             thedata = open(http_request_body_file_tag).read()
         else:
             thedata=http_request_body_tag
-        verb =  test_functions.get("http_request_verb") 
-        query = test_functions.get("http_request_query","") 
+        verb =  test_functions.get("http_request_verb")
+        query = test_functions.get("http_request_query","")
         test_functions.get("http_request_header")
         req_header = test_functions.get("http_request_header")
-        
-        response = tornado_requests.request(verb, full_url, 
-            params=query, 
-            data=thedata, 
+
+        response = tornado_requests.request(verb, full_url,
+            params=query,
+            data=thedata,
             headers=req_header)
-            
+
         temp = tempfile.TemporaryFile()
         for chunk in response.iter_content(1024):
             temp.write(chunk)
-        
+
         temp.seek(0)
         # copy the results for future checking
         test_functions["http_result_status_actual"] = response.status_code
@@ -654,7 +640,7 @@ class Test(unittest.TestCase):
             function_return = getattr(self, post_function_name)(self._testMethodName, test_functions["function_name"], setup_or_state_change_or_validation, test_iteration, post_function_args)
             if function_return == False:
                 self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ":" + post_function_name + " post_function failure, test aborted." )
-        
+
         temp.close()
 
 
@@ -663,11 +649,11 @@ class Test(unittest.TestCase):
             # Table data does not provide ability to inject unique agent_id's for each concurrent instance.
             # The queue stores unique agent_id objects, injected by the new_thread function.
             # Get the agent_id from the Queue and modify the original table data to change the agent_id to something unique.
-            http_request_body_tag = test_functions.get("http_request_body") 
+            http_request_body_tag = test_functions.get("http_request_body")
             http_request_body_file_tag = test_functions.get("http_request_body_file")
             if http_request_body_tag != None and http_request_body_file_tag != None :
                 self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + " contains both http_request_body and http_request_body_file tags." )
-            
+
             thedata = ''
             if http_request_body_tag == None and http_request_body_file_tag != None:
                 thedata = open(http_request_body_file_tag).read()
@@ -678,15 +664,15 @@ class Test(unittest.TestCase):
             jsondata = json.loads(thedata)
             jsondata['agent_id'] = the_uid
             newdata = json.dumps(jsondata)
-            
+
             # call the inline task passing the new data with the unique agent_id
             self.execute_the_test(setup_or_state_change_or_validation, test_functions, test_iteration )
 
         except Exception as e:
-            self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ", unexpected exception error: %s"%e )    
-        finally: 
+            self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ", unexpected exception error: %s"%e )
+        finally:
             queue.task_done()
-            
+
     def modify_persistence_file(self, argument):
         string_to_write = None
         if isinstance(argument, dict):
@@ -698,12 +684,12 @@ class Test(unittest.TestCase):
             argument.close()
         elif argument is None:
             if os.path.isfile(cv_persistence_filename):
-                os.remove(cv_persistence_filename)   
-                         
-        if string_to_write is not None:       
-            with open(cv_persistence_filename, "w") as persistance_file:    
+                os.remove(cv_persistence_filename)
+
+        if string_to_write is not None:
+            with open(cv_persistence_filename, "w") as persistance_file:
                 persistance_file.write(string_to_write)
-            
+
         backup_file_name = cv_persistence_filename + ".bak"
         if os.path.isfile(backup_file_name):
             os.remove(backup_file_name)
@@ -711,45 +697,45 @@ class Test(unittest.TestCase):
     def launch_cloudverifier(self, argument):
 
         readKUV()
-        
+
         #modify the persistence file per the passed argument
         if argument is not None:
             string_to_write = self.modify_persistence_file(argument)
-            
-        global cv_process 
-        cv_process = subprocess.Popen("python cloud_verifier.py", shell=True) 
+
+        global cv_process
+        cv_process = subprocess.Popen("python cloud_verifier.py", shell=True)
         time.sleep(1)
         return True
 
     def overwrite_config_file(self, path, section, option, value):
         parser = configparser.RawConfigParser()
         parser.read(path)
-        
-        
+
+
         parser.set(section, option, value)
-        
+
         # Writing our configuration file to 'example.ini'
         with open(path, 'wb') as configfile:
             parser.write(configfile)
 
 
     def launch_cloudagents(self, argument):
-        
-        
+
+
         #self.launch_cloudverifier(None)
         port_file = argument.get('port_file')
         cloudagent_start_port = argument.get('starting_port')
         num_cloudagent_instances =  argument['num_cloudagent_instances']
-        
+
         if cloudagent_start_port is not None:
 
             parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             original_cloudagent_port = parser.get('general', 'cloudagent_port')
             test_agent_uuid = parser.get('general', 'agent_uuid')
-      
-      
-            for cn in range(num_cloudagent_instances): 
+
+
+            for cn in range(num_cloudagent_instances):
                 new_dir = r'../cloudagent_on_port_' + str(cloudagent_start_port)
                 config_file_path = new_dir + "/keylime.conf"
                 copy_tree('.', new_dir)
@@ -761,25 +747,25 @@ class Test(unittest.TestCase):
                 port_string_length = len(str(cloudagent_start_port))
                 contrived_uuid = test_agent_uuid[:-port_string_length]
                 contrived_uuid = contrived_uuid + str(cloudagent_start_port)
-                self.overwrite_config_file(config_file_path, 'general', 'agent_uuid', contrived_uuid)  
-                          
-                cn_process_list.append(subprocess.Popen("python cloud_agent.py", shell=True, cwd=new_dir, preexec_fn=os.setsid).pid) 
+                self.overwrite_config_file(config_file_path, 'general', 'agent_uuid', contrived_uuid)
+
+                cn_process_list.append(subprocess.Popen("python cloud_agent.py", shell=True, cwd=new_dir, preexec_fn=os.setsid).pid)
                 cloudagent_start_port = cloudagent_start_port + 1
                 #time.sleep(2)
-    
+
             self.overwrite_config_file(common.CONFIG_FILE, 'general', 'cloudagent_port', str(original_cloudagent_port))
-            
+
         elif port_file is not None:
 
             parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             original_cloudagent_port = parser.get('general', 'cloudagent_port')
             test_agent_uuid = parser.get('general', 'agent_uuid')
-      
-      
-            for cn in range(num_cloudagent_instances): 
+
+
+            for cn in range(num_cloudagent_instances):
                 cloudagent_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
-                
+
                 new_dir = r'../cloudagent_on_port_' + cloudagent_port_read_from_file
                 config_file_path = new_dir + "/keylime.conf"
                 copy_tree('.', new_dir)
@@ -791,52 +777,52 @@ class Test(unittest.TestCase):
                 port_string_length = len(cloudagent_port_read_from_file)
                 contrived_uuid = test_agent_uuid[:-port_string_length]
                 contrived_uuid = contrived_uuid + cloudagent_port_read_from_file
-                self.overwrite_config_file(config_file_path, 'general', 'agent_uuid', contrived_uuid)  
-                          
-                cn_process_list.append(subprocess.Popen("python cloud_agent.py", shell=True, cwd=new_dir, preexec_fn=os.setsid).pid) 
+                self.overwrite_config_file(config_file_path, 'general', 'agent_uuid', contrived_uuid)
+
+                cn_process_list.append(subprocess.Popen("python cloud_agent.py", shell=True, cwd=new_dir, preexec_fn=os.setsid).pid)
                 cloudagent_port = int(cloudagent_port_read_from_file) + 1
                 #time.sleep(2)
-    
-            self.overwrite_config_file(common.CONFIG_FILE, 'general', 'cloudagent_port', str(original_cloudagent_port))            
+
+            self.overwrite_config_file(common.CONFIG_FILE, 'general', 'cloudagent_port', str(original_cloudagent_port))
         print("done creating cloud agents, waiting for them to start...")
         time.sleep(10)
         print("starting test...")
-        
-        
+
+
     def kill_cloudagents_after_delay(self, argument):
-        
+
         sleep_time = argument.get('sleep')
         time.sleep(sleep_time)
-        
 
-        
+
+
         #self.launch_cloudverifier(None)
         port_file = argument.get('port_file')
         cloudagent_start_port = argument.get('starting_port')
         num_cloudagent_instances =  argument['num_cloudagent_instances']
-        
+
         if cloudagent_start_port is not None:
 
             parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
 
-      
-      
-            for cn in range(num_cloudagent_instances): 
+
+
+            for cn in range(num_cloudagent_instances):
                 new_dir = r'../cloudagent_on_port_' + str(cloudagent_start_port)
                 shutil.rmtree(new_dir)
                 cloudagent_port = cloudagent_start_port + 1
 
 
-            
+
         elif port_file is not None:
 
             parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             test_agent_uuid = parser.get('general', 'agent_uuid')
-      
-      
-            for cn in range(num_cloudagent_instances): 
+
+
+            for cn in range(num_cloudagent_instances):
                 cloudagent_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
                 port_string_length = len(cloudagent_port_read_from_file)
                 contrived_uuid = test_agent_uuid[:-port_string_length]
@@ -848,16 +834,16 @@ class Test(unittest.TestCase):
                     print(("Sending #" + str(cn) + " DELETE request to CV for uuid: " +  contrived_uuid))
                     response = tornado_requests.request("DELETE",
                     "http://" + cloudverifier_ip + ":" + cloudverifier_port + "/v1/instances",
-                    params=params)  
-                    
-                    if response.status_code != 200:
-                        self.fail("Delete of agent_id " + contrived_uuid + " failed.")  
-                
-                except Exception as e:
-                    self.fail("Delete of agent_id " + contrived_uuid + " failed with exception: %s"%e)  
-                
+                    params=params)
 
-            for cn in range(num_cloudagent_instances): 
+                    if response.status_code != 200:
+                        self.fail("Delete of agent_id " + contrived_uuid + " failed.")
+
+                except Exception as e:
+                    self.fail("Delete of agent_id " + contrived_uuid + " failed with exception: %s"%e)
+
+
+            for cn in range(num_cloudagent_instances):
                 cloudagent_port_read_from_file = self.read_line_in_file(port_file, cn).strip()
                 new_dir = r'../cloudagent_on_port_' + cloudagent_port_read_from_file
                 shutil.rmtree(new_dir)
@@ -871,11 +857,11 @@ class Test(unittest.TestCase):
         return True
 
     def launch_cloudagent(self, argument):
-        
+
         readKUV()
-        
-        global cn_process 
-        cn_process = subprocess.Popen("python cloud_agent.py", shell=True) 
+
+        global cn_process
+        cn_process = subprocess.Popen("python cloud_agent.py", shell=True)
         time.sleep(1)
         return True
 
@@ -892,13 +878,13 @@ class Test(unittest.TestCase):
         self.kill_cloudagent(argument)
         self.kill_cloudverifier(argument)
         return True
-        
+
     def new_thread(self, args):
         #create a new uuid, and place it in the queue
         the_global_queue = args[0]
         new_uuid = str(uuid.uuid4())
         the_global_queue.put(new_uuid)
-        
+
         return threading.Thread(target=self.request_task,args=args)
 
     def execute_test_function_set(self, setup_or_state_change_or_validation):
@@ -909,43 +895,43 @@ class Test(unittest.TestCase):
         if change_or_validation is not None:
             for test_functions in test_record[setup_or_state_change_or_validation]:
 
-                
-#                 full_url = "http://" + test_functions.get("http_request_ip") + ":" + test_functions.get("http_request_port") + test_functions.get("http_request_path")  
-#                 http_request_body_tag = test_functions.get("http_request_body") 
+
+#                 full_url = "http://" + test_functions.get("http_request_ip") + ":" + test_functions.get("http_request_port") + test_functions.get("http_request_path")
+#                 http_request_body_tag = test_functions.get("http_request_body")
 #                 http_request_body_file_tag = test_functions.get("http_request_body_file")
 #                 if http_request_body_tag != None and http_request_body_file_tag != None :
 #                     self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + " contains both http_request_body and http_request_body_file tags." )
-# 
+#
 #                 thedata = ''
 #                 if http_request_body_tag == None and http_request_body_file_tag != None:
 #                     thedata = open(http_request_body_file_tag).read()
 #                 else:
 #                     thedata=http_request_body_tag
-#                 verb =  test_functions.get("http_request_verb") 
-#                 query = test_functions.get("http_request_query","") 
+#                 verb =  test_functions.get("http_request_verb")
+#                 query = test_functions.get("http_request_query","")
 #                 test_functions.get("http_request_header")
 #                 req_header = test_functions.get("http_request_header")
-                
+
                 concurrent_instances = None
-                concurrent_new_thread_function = None               
-                  
+                concurrent_new_thread_function = None
+
                 concurrency_dict = test_functions.get("concurrency")
                 if concurrency_dict is not None:
                     concurrent_instances = concurrency_dict.get("instances")
-                    concurrent_new_thread_function = concurrency_dict.get("new_thread_function") 
-                
+                    concurrent_new_thread_function = concurrency_dict.get("new_thread_function")
+
                     if concurrent_instances is None or concurrent_new_thread_function is None:
                         self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + ' contains concurrency agent without mandatory \\"instances\\" or and \\"new_thread_function\\" specifiers' )
 
                 for test_iteration in range(int(test_functions.get("test_iterations","1"))):
-                    
+
                     if concurrent_instances is None:
 
                         # do it inline on this thread
                         self.execute_the_test(setup_or_state_change_or_validation, test_functions, test_iteration)
 
                     else:
-      
+
                         threads = []
                         for count in range(concurrent_instances):
                             args = (queue, setup_or_state_change_or_validation, test_functions, test_iteration)
@@ -954,19 +940,19 @@ class Test(unittest.TestCase):
                             # the task given to the thread must not block and call task_done() on completion regardless of success or failure
                             new_thread = getattr(self, concurrent_new_thread_function)(args)
                             threads.append(new_thread)
-                        
+
                         #start the threads
                         for t in threads:
                             t.start()
-                        
+
                         # blocks until all tasks have called task_done()
                         queue.join()
-                        
+
                         #blocks until all threads are complete
                         for t in threads:
                             t.join()
 
-            
+
     def execute_test_definition(self):
         test_record = self.test_table.get(self._testMethodName)
         prerun_function_dict = test_record.get("prerun_function")
@@ -974,17 +960,17 @@ class Test(unittest.TestCase):
             prerun_function_name = prerun_function_dict.get("name")
             prerun_function_args = prerun_function_dict.get("args")
             function_return = getattr(self, prerun_function_name)(prerun_function_args)
-            
+
         self.execute_test_function_set("setup_functions")
-        self.execute_test_function_set("state_change_functions")    
-        self.execute_test_function_set("state_validation_functions") 
-        postrun_function_dict = test_record.get("postrun_function") 
-          
+        self.execute_test_function_set("state_change_functions")
+        self.execute_test_function_set("state_validation_functions")
+        postrun_function_dict = test_record.get("postrun_function")
+
         if postrun_function_dict is not None:
             postrun_function_name = postrun_function_dict.get("name")
             postrun_function_args = postrun_function_dict.get("args")
-            function_return = getattr(self, postrun_function_name)(postrun_function_args)  
-                          
+            function_return = getattr(self, postrun_function_name)(postrun_function_args)
+
     def setUp(self):
         pass
 

@@ -1,3 +1,8 @@
+'''
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
+'''
+
 import unittest
 from keylime.db.verifier_db import VerfierMain
 from keylime.db.keylime_db import SessionManager
