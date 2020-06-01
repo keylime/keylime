@@ -1,3 +1,8 @@
+'''
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2017 Massachusetts Institute of Technology.
+'''
+
 import unittest
 import os
 import sys

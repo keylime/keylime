@@ -1,22 +1,8 @@
 '''
-DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
-
-This material is based upon work supported by the Assistant Secretary of Defense for
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
-FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the
-Assistant Secretary of Defense for Research and Engineering.
-
-Copyright 2016 Massachusetts Institute of Technology.
-
-The software/firmware is provided to you on an As-Is basis
-
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
-above. Use of this work other than as specifically authorized by the U.S. Government may
-violate any copyrights that exist in this work.
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2017 Massachusetts Institute of Technology.
 '''
+
 import ast
 import codecs
 import sys
@@ -139,9 +125,15 @@ def process_measurement_list(lines, lists=None, m2w=None):
     else:
         whitelist = None
 
-    combined = None
+    compiled_regex = None
     if exclude_list != []:
-        combined = "(" + ")|(".join(exclude_list) + ")"
+        combined_regex = "(" + ")|(".join(exclude_list) + ")"
+        try:
+            compiled_regex = re.compile(combined_regex)
+        except re.error as regex_err:
+            msg = "Invalid regular expression '" + regex_err.pattern + "': "
+            msg += regex_err.msg + " at position " + str(regex_err.pos) + ". Exclude list will be ignored."
+            logger.error(msg)
 
     for line in lines:
         line = line.strip()
@@ -220,7 +212,7 @@ def process_measurement_list(lines, lists=None, m2w=None):
                 continue
 
             # determine if path matches any exclusion list items
-            if combined is not None and re.match(combined, path):
+            if compiled_regex is not None and compiled_regex.match(path):
                 logger.debug("IMA: ignoring excluded path %s" % path)
                 continue
 

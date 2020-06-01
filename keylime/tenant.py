@@ -1,21 +1,10 @@
 #!/usr/bin/python3
 
-'''DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
-This material is based upon work supported by the Assistant Secretary of Defense for
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
-FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the
-Assistant Secretary of Defense for Research and Engineering.
-Copyright 2015 Massachusetts Institute of Technology.
-The software/firmware is provided to you on an As-Is basis
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
-above. Use of this work other than as specifically authorized by the U.S. Government may
-violate any copyrights that exist in this work.
+'''
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2017 Massachusetts Institute of Technology.
 '''
 
-import datetime
 import argparse
 import base64
 import hashlib
@@ -35,15 +24,14 @@ except ImportError:
     raise("Simplejson is mandatory, please install")
 
 from keylime import httpclient_requests
-from keylime import tornado_requests
 from keylime import common
 from keylime import keylime_logging
 from keylime import registrar_client
-from keylime import tpm_obj
-from keylime.tpm_abstract import  TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+from keylime.tpm import tpm_obj
+from keylime.tpm.tpm_abstract import  TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 from keylime import ima
 from keylime import crypto
-from keylime import user_data_encrypt
+from keylime.cmd import user_data_encrypt
 from keylime import ca_util
 from keylime import cloud_verifier_common
 
@@ -392,7 +380,7 @@ class Tenant():
             logger.warning("AIK not found in registrar, quote not validated")
             return False
 
-        tpm = tpm_obj.getTPM(need_hw_tpm=False,tpm_version=tpm_version)
+        tpm = tpm_obj.getTPM(need_hw_tpm=False, tpm_version=tpm_version)
         if not tpm.check_quote(self.agent_uuid,self.nonce,public_key,quote,reg_keys['aik'],hash_alg=hash_alg):
             if reg_keys['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious host is present.  Run 'regdelete' for this agent and restart")
@@ -687,7 +675,7 @@ class Tenant():
             response = httpclient_requests.request("POST", "%s"%(self.cloudagent_ip), self.cloudagent_port, params=params, data=u_json_message)
 
             if response == 503:
-                logger.error(f"Cannot connect to Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port}. Connection refused.")
+                logger.error(f"Cannot connect to Agent at {self.cloudagent_ip} with Port {self.cloudagent_port}. Connection refused.")
                 exit()
             elif response == 504:
                 logger.error(f"Verifier at {self.cloudverifier_ip} with Port {self.cloudverifier_port} timed out.")
@@ -841,11 +829,3 @@ def main(argv=sys.argv):
         mytenant.do_regdelete()
     else:
         raise UserError("Invalid command specified: %s"%(args.command))
-
-if __name__=="__main__":
-    try:
-        main()
-    except UserError as ue:
-        logger.error(str(ue))
-    except Exception as e:
-        logger.exception(e)

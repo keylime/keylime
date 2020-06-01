@@ -1,22 +1,7 @@
 #!/usr/bin/python3
 '''
-DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
-
-This material is based upon work supported by the Assistant Secretary of Defense for
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
-FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the
-Assistant Secretary of Defense for Research and Engineering.
-
-Copyright 2015 Massachusetts Institute of Technology.
-
-The software/firmware is provided to you on an As-Is basis
-
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
-above. Use of this work other than as specifically authorized by the U.S. Government may
-violate any copyrights that exist in this work.
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import traceback
@@ -26,9 +11,6 @@ import functools
 import asyncio
 import tornado.ioloop
 import tornado.web
-from tornado import httpserver
-from tornado.httpclient import AsyncHTTPClient
-from tornado.httputil import url_concat
 import keylime.tornado_requests as tornado_requests
 
 from keylime import common
@@ -37,8 +19,8 @@ from keylime import cloud_verifier_common
 from keylime import revocation_notifier
 
 # Database imports
-from keylime.verifier_db import VerfierMain
-from keylime.keylime_database import SessionManager
+from keylime.db.verifier_db import VerfierMain
+from keylime.db.keylime_db import SessionManager
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
@@ -103,6 +85,22 @@ exclude_db = {
     'pending_event': None,
     'first_verified': False,
 }
+
+
+def _from_db_obj(agent_db_obj):
+    fields = ['agent_id', 'v', 'ip', 'port',
+              'operational_state', 'public_key',
+              'tpm_policy', 'vtpm_policy', 'meta_data',
+              'ima_whitelist', 'revocation_key',
+              'tpm_version',
+              'accept_tpm_hash_algs',
+              'accept_tpm_encryption_algs',
+              'accept_tpm_signing_algs',
+              'hash_alg', 'enc_alg', 'sign_alg']
+    agent_dict = {}
+    for field in fields:
+        agent_dict[field] = getattr(agent_db_obj, field, None)
+    return agent_dict
 
 
 class BaseHandler(tornado.web.RequestHandler, SessionManager):
@@ -494,6 +492,10 @@ class AgentsHandler(BaseHandler):
                 agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
 
     async def process_agent(self, agent, new_operational_state):
+        # Convert to dict if the agent arg is a db object
+        if not isinstance(agent, dict):
+            agent = _from_db_obj(agent)
+
         session = self.make_session(engine)
         try:
             main_agent_operational_state = agent['operational_state']
@@ -700,10 +702,3 @@ def main(argv=sys.argv):
         tornado.ioloop.IOLoop.instance().stop()
         if config.getboolean('cloud_verifier', 'revocation_notifier'):
             revocation_notifier.stop_broker()
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        logger.exception(e)
