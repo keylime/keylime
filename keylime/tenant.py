@@ -503,10 +503,11 @@ class Tenant():
                 "Agent %s already existed at CV.  Please use delete or update." % self.agent_uuid)
             exit()
         elif response.status != 200:
+            response_json = json.loads(response.read().decode())
             keylime_logging.log_http_response(
-                logger, logging.ERROR, response.read().decode()())
+                logger, logging.ERROR, response_json)
             logger.error(
-                f"POST command response: {response.status} Unexpected response from Cloud Verifier: {response.read().decode()}")
+                f"POST command response: {response.status} Unexpected response from Cloud Verifier: {response_json}")
             exit()
 
     def do_cvstatus(self, listing=False):
