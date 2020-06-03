@@ -9,6 +9,7 @@ import logging.config
 import sys
 import urllib.parse
 import random
+import re
 import time
 import tornado.web
 from http.server import BaseHTTPRequestHandler
@@ -300,6 +301,28 @@ def get_restful_params(urlstring):
     path_params["api_version"] = api_version
     path_params.update(query_params)
     return path_params
+
+
+def valid_exclude_list(exclude_list):
+    if not exclude_list:
+        return True, None, None
+
+    combined_regex = "(" + ")|(".join(exclude_list) + ")"
+    return valid_regex(combined_regex)
+
+
+def valid_regex(regex):
+    if regex is None:
+        return True, None, None
+
+    try:
+        compiled_regex = re.compile(regex)
+    except re.error as regex_err:
+        err = "Invalid regex: " + regex_err.msg + "."
+        return False, None, err
+
+    return True, compiled_regex, None
+
 
 # this doesn't currently work
 # if LOAD_TEST:
