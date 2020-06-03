@@ -314,6 +314,12 @@ class AgentsHandler(BaseHandler):
                     agent_data['sign_alg'] = ""
                     agent_data['agent_id'] = agent_id
 
+                    is_valid, err_msg = cloud_verifier_common.validate_agent_data(agent_data)
+                    if not is_valid:
+                        common.echo_json_response(self, 400, err_msg)
+                        logger.warning(err_msg)
+                        return
+
                     try:
                         new_agent_count = session.query(
                             VerfierMain).filter_by(agent_id=agent_id).count()
