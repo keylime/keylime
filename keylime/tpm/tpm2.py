@@ -458,10 +458,8 @@ class tpm2(tpm_abstract.AbstractTPM):
     def __use_ek(self, ek_handle, config_pw):
         ek_handle = int(ek_handle, 16)
         logger.info("Using an already created ek with handle: %s"%hex(ek_handle))
-        
+
         self._set_tpm_metadata('owner_pw', config_pw)
-        current_handle = self.get_tpm_metadata("ek_handle")
-        owner_pw = self.get_tpm_metadata("owner_pw")
 
         with tempfile.NamedTemporaryFile() as tmppath:
             if tools_version == "3.2":
@@ -476,7 +474,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception("tpm2_readpublic failed with code "+str(code)+": "+str(reterr))
             self._set_tpm_metadata('ek_tpm', base64.b64encode(ek_tpm))        
-        
+
         self._set_tpm_metadata('ek_handle', int(ek_handle))
 
         return
