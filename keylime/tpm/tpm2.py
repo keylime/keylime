@@ -473,7 +473,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             ek_tpm = retDict['fileouts'][tmppath.name]
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception("tpm2_readpublic failed with code "+str(code)+": "+str(reterr))
-            self._set_tpm_metadata('ek_tpm', base64.b64encode(ek_tpm))        
+            self._set_tpm_metadata('ek_tpm', base64.b64encode(ek_tpm))
 
         self._set_tpm_metadata('ek_handle', int(ek_handle))
 
