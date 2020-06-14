@@ -30,33 +30,13 @@ from keylime.db.registrar_db import RegistrarMain
 from keylime.db.keylime_db import SessionManager
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import create_engine
-from sqlalchemy.engine.url import URL
+
 
 logger = keylime_logging.init_logging('registrar-common')
 # setup config
 config = common.get_config()
 
-drivername = config.get('registrar', 'drivername')
-
-
-if drivername == 'sqlite':
-    database = "%s/%s" % (common.WORK_DIR,
-                          config.get('registrar', 'database'))
-    url = URL(
-        drivername=drivername,
-        username='',
-        password='',
-        host='',
-        database=(database)
-    )
-else:
-    url = URL(
-        drivername=drivername,
-        username=config.get('registrar', 'username'),
-        password=config.get('registrar', 'password'),
-        host=config.get('registrar', 'host'),
-        database=config.get('registrar', 'database')
-    )
+url = config.get('registrar', 'db_connection')
 
 try:
     engine = create_engine(url,

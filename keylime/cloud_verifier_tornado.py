@@ -37,33 +37,7 @@ if sys.version_info[0] < 3:
 
 config = common.get_config()
 
-drivername = config.get('cloud_verifier', 'drivername')
-
-if drivername == 'sqlite':
-    database = "%s/%s" % (common.WORK_DIR,
-                          config.get('cloud_verifier', 'database'))
-    # Create the path to where the sqlite database will be store with a perm umask of 077
-    os.umask(0o077)
-    kl_dir = os.path.dirname(os.path.abspath(database))
-    if not os.path.exists(kl_dir):
-        os.makedirs(kl_dir, 0o700)
-
-    url = URL(
-        drivername=drivername,
-        username='',
-        password='',
-        host='',
-        database=(database)
-    )
-else:
-    url = URL(
-        drivername=drivername,
-        username=config.get('cloud_verifier', 'username'),
-        password=config.get('cloud_verifier', 'password'),
-        host=config.get('cloud_verifier', 'host'),
-        database=config.get('cloud_verifier', 'database')
-    )
-
+url = config.get('cloud_verifier', 'db_connection')
 
 try:
     engine = create_engine(url,
