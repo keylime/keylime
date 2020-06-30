@@ -114,7 +114,7 @@ class Tenant():
 
             tls_dir = config.get('tenant',component + 'tls_dir')
 
-            if tls_dir == 'default':
+            if tls_dir == 'default' or tls_dir == 'CV' :
                 ca_cert = 'cacert.crt'
                 my_cert = 'client-cert.crt'
                 my_priv_key = 'client-private.pem'
