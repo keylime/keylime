@@ -21,6 +21,7 @@ RUN dnf -y install git \
            golang \
            python3-devel \
            python3-pip \
+           python3-jwt \
            python3-setuptools \
            python3-tornado \
            python3-virtualenv \
