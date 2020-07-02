@@ -31,6 +31,7 @@ RUN dnf -y install git \
            python3-m2crypto \
            python3-cryptography \
            python3-sqlalchemy \
+           python3-werkzeug \
            procps \
            openssl-devel \
            libtool \

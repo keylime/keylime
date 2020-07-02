@@ -39,6 +39,7 @@ python3-pip \
 python3-setuptools \
 python3-sqlalchemy \
 python3-tornado \
+python3-werkzeug \
 python3-virtualenv \
 python3-yaml \
 python3-zmq \
