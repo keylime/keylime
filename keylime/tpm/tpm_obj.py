@@ -21,8 +21,7 @@ violate any copyrights that exist in this work.
 import distutils.spawn
 import os
 
-from keylime import tpm1
-from keylime import tpm2
+from keylime.tpm import tpm1, tpm2
 from keylime import common
 from keylime import keylime_logging
 

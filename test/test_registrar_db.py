@@ -1,6 +1,11 @@
+'''
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
+'''
+
 import unittest
-from keylime.registrar_db import RegistrarMain
-from keylime.keylime_database import SessionManager
+from keylime.db.registrar_db import RegistrarMain
+from keylime.db.keylime_db import SessionManager
 from sqlalchemy import create_engine
 
 # BEGIN TEST DATA

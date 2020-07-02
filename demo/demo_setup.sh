@@ -1,32 +1,15 @@
 #!/bin/bash
-##########################################################################################
-#
-# DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
-#
-# This material is based upon work supported by the Assistant Secretary of Defense for 
-# Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
-# FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in 
-# this material are those of the author(s) and do not necessarily reflect the views of the 
-# Assistant Secretary of Defense for Research and Engineering.
-#
+################################################################################
+# SPDX-License-Identifier: BSD-2-Clause
 # Copyright 2017 Massachusetts Institute of Technology.
-#
-# The software/firmware is provided to you on an As-Is basis
-#
-# Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-# 252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-# rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-# above. Use of this work other than as specifically authorized by the U.S. Government may 
-# violate any copyrights that exist in this work.
-#
-##########################################################################################
+################################################################################
 
 # Configure the installer here
 HTML_DIR=/var/www/html/
 TGRUB_GIT=https://github.com/Rohde-Schwarz-Cybersecurity/TrustedGRUB2.git
 
 
-# Command line params 
+# Command line params
 KEYLIME_DIR=
 NOPASSWD=
 NOPASSWD_USR=
@@ -37,29 +20,29 @@ TRUSTED_GRUB_DIR=/dev/sda
 CONFIRM=1
 while getopts ":yniwthfp:N:T:" opt; do
     case $opt in
-        p) 
+        p)
             KEYLIME_DIR=$OPTARG
             # Ensure absolute path
             if [[ "$KEYLIME_DIR" != "/"* ]] ; then
                 KEYLIME_DIR=`pwd`"/$KEYLIME_DIR"
             fi
             ;;
-        n) 
+        n)
             NOPASSWD=1
             NOPASSWD_USR=$SUDO_USER
             ;;
-        N) 
+        N)
             NOPASSWD=1
             NOPASSWD_USR=$OPTARG
             ;;
         i)  IMA_ENABLE=1 ;;
         w)  WEBSERVER=1 ;;
         t)  TRUSTED_GRUB=1 ;;
-        T)  
+        T)
             TRUSTED_GRUB=1
             TRUSTED_GRUB_DIR=$OPTARG
             ;;
-        f) 
+        f)
             WEBSERVER=1
             IMA_ENABLE=1
             NOPASSWD=1
@@ -67,7 +50,7 @@ while getopts ":yniwthfp:N:T:" opt; do
             TRUSTED_GRUB=1
             ;;
         y)  CONFIRM= ;;
-        h) 
+        h)
             echo "Usage: $0 [option...]"
             echo "Options:"
             echo $'-p PATH \t\t Use PATH as Keylime path'
@@ -98,7 +81,7 @@ if [ -f /etc/os-release ]; then
         exit 1
 fi
 
-# Ensure the nopasswd sudo user is defined 
+# Ensure the nopasswd sudo user is defined
 if [[ "$NOPASSWD" -eq "1" ]] ; then
     if [[ -z "$NOPASSWD_USR" ]] ; then
         echo "This script must be run with sudo to do a no-password sudo, or use -N USER" 1>&2
@@ -107,13 +90,13 @@ if [[ "$NOPASSWD" -eq "1" ]] ; then
     echo "INFO: No-password sudo for user '$NOPASSWD_USR'"
 fi
 
-# Make sure TrustedGRUB install path is valid 
+# Make sure TrustedGRUB install path is valid
 if [[ "$TRUSTED_GRUB" -eq "1" ]] ; then
     if [[ ! $(lsblk -npdo NAME | grep "^$TRUSTED_GRUB_DIR\$") ]] ; then
         echo "Could not find TrustedGRUB install path '$TRUSTED_GRUB_DIR'" 1>&2
         exit 1
     fi
-    
+
     if [[ "$CONFIRM" -eq "1" ]] ; then
         echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
         echo "You've chosen to install TrustedGRUB2.  This requires a physical TPM, "
@@ -137,7 +120,7 @@ if [[ -z "$KEYLIME_DIR" ]] ; then
     KEYLIME_DIR=`pwd`
 fi
 
-# Sanity check 
+# Sanity check
 if [[ ! -d "$KEYLIME_DIR/demo" || ! -d "$KEYLIME_DIR/keylime" ]] ; then
     echo "ERROR: Invalid keylime directory at $KEYLIME_DIR"
     exit
@@ -160,7 +143,7 @@ case "$ID" in
 
     fedora)
         PACKAGE_MANAGER="dnf"
-    
+
     ;;
 
     *)
@@ -168,17 +151,17 @@ case "$ID" in
         exit 1
 esac
 
-# Ensure everything is latest 
+# Ensure everything is latest
 
-echo 
+echo
 echo "=================================================================================="
 echo $'\t\t\t\tUpdating packages'
 echo "=================================================================================="
-${PACKAGE_MANAGER} update -y 
+${PACKAGE_MANAGER} update -y
 
 # Keylime webserver-related dependencies
 if [[ "$WEBSERVER" -eq "1" ]] ; then
-    echo 
+    echo
     echo "=================================================================================="
     echo $'\t\t\tInstalling nginx and cryptsetup'
     echo "=================================================================================="
@@ -186,7 +169,7 @@ if [[ "$WEBSERVER" -eq "1" ]] ; then
 
 
     # Install demo files to respective directories
-    echo 
+    echo
     echo "=================================================================================="
     echo $'\t\t\t\tInstalling demo files'
     echo "=================================================================================="
@@ -198,18 +181,18 @@ fi
 
 # Install TrustedGRUB2
 if [[ "$TRUSTED_GRUB" -eq "1" ]] ; then
-    echo 
+    echo
     echo "=================================================================================="
     echo $'\t\t\t\tTrustedGRUB2 Installation'
     echo "=================================================================================="
-    
-    # Create temp dir for building trusted grub 
+
+    # Create temp dir for building trusted grub
     TMPDIR=`mktemp -d` || exit 1
     echo -n "INFO: Using temp grub directory: "
     echo $TMPDIR
-    
+
     # Install dependencies
-    ${PACKAGE_MANAGER} -y install git autogen autoconf automake gcc bison flex 
+    ${PACKAGE_MANAGER} -y install git autogen autoconf automake gcc bison flex
 
     case "$ID" in
     debian | ubuntu)
@@ -224,17 +207,17 @@ if [[ "$TRUSTED_GRUB" -eq "1" ]] ; then
         echo "${ID} is not currently supported."
         exit 1
     esac
-    
-    
+
+
     # Build TrustedGRUB2
     mkdir -p $TMPDIR/TrustedGRUB2
     mkdir -p $TMPDIR/tgrub-build
     cd $TMPDIR/TrustedGRUB2
     git clone $TGRUB_GIT .
-    
+
     patch --forward --verbose -s -p1 < $KEYLIME_DIR/patches/trustedgrub-patch.txt \
         && echo "INFO: TrustedGRUB2 patched!"
-    
+
     ./autogen.sh
     ./configure --prefix=$TMPDIR/tgrub-build/ --target=i386 --with-platform=pc
     if [[ "$CONFIRM" -eq "1" ]] ; then
@@ -242,21 +225,21 @@ if [[ "$TRUSTED_GRUB" -eq "1" ]] ; then
     fi
     make
     make install
-    
+
     # Install to device (!!!)
     cd $TMPDIR/tgrub-build/sbin/
     if [[ "$CONFIRM" -eq "1" ]] ; then
         read -p "TrustedGRUB built.  Press ENTER to install to $TRUSTED_GRUB_DIR."
     fi
     ./grub-install --directory=$TMPDIR/tgrub-build/lib/grub/i386-pc $TRUSTED_GRUB_DIR
-    # No turning back now 
+    # No turning back now
     update-grub
 fi
 
 
-# Enable no-password sudo mode 
+# Enable no-password sudo mode
 if [[ "$NOPASSWD" -eq "1" ]] ; then
-    echo 
+    echo
     echo "=================================================================================="
     echo $'\t\t\t\tNo-password sudo mode'
     echo "=================================================================================="
@@ -264,9 +247,9 @@ if [[ "$NOPASSWD" -eq "1" ]] ; then
 fi
 
 
-# Installing IMA policy (THIS MUST BE LAST!) 
+# Installing IMA policy (THIS MUST BE LAST!)
 if [[ "$IMA_ENABLE" -eq "1" ]] ; then
-    echo 
+    echo
     echo "=================================================================================="
     echo $'\t\t\t\tInstalling IMA policy'
     echo "=================================================================================="
@@ -277,12 +260,12 @@ if [[ "$IMA_ENABLE" -eq "1" ]] ; then
         cp $KEYLIME_DIR/demo/ima-policy /etc/ima/
     fi
     echo "INFO: Restart required to enable IMA!"
-    
-    # Generating IMA whitelist 
-    echo 
+
+    # Generating IMA whitelist
+    echo
     echo "=================================================================================="
     echo $'\t\t\t\tGenerating IMA whitelist'
     echo "=================================================================================="
-    cd $KEYLIME_DIR/keylime/
+    cd $KEYLIME_DIR/scripts
     ./create_whitelist.sh whitelist.txt
 fi

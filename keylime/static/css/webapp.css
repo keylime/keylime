@@ -1,21 +1,6 @@
-/* 
- * DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
- *
- * This material is based upon work supported by the Assistant Secretary of Defense for 
- * Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
- * FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in 
- * this material are those of the author(s) and do not necessarily reflect the views of the 
- * Assistant Secretary of Defense for Research and Engineering.
- *
- * Copyright 2017 Massachusetts Institute of Technology.
- *
- * The software/firmware is provided to you on an As-Is basis
- *
- * Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
- * 252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
- * rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
- * above. Use of this work other than as specifically authorized by the U.S. Government may 
- * violate any copyrights that exist in this work.
+/*
+* SPDX-License-Identifier: BSD-2-Clause
+* Copyright 2017 Massachusetts Institute of Technology.
 */
 
 html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sans-serif;}
@@ -49,8 +34,8 @@ html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sa
 .table_control {width:50px;display:block;float:left;text-align:center;padding:5px;}
 .table_col {width:200px;display:block;float:left;text-align:center;padding:5px;}
 
-.tbl_ctrl, .tbl_ctrl_inactive, 
-    .tbl_ctrl_processing, .tbl_ctrl_processed, 
+.tbl_ctrl, .tbl_ctrl_inactive,
+    .tbl_ctrl_processing, .tbl_ctrl_processed,
     .tbl_ctrl_failed, .tbl_ctrl_invalid {margin:2px;width:50px;display:block;float:left;text-align:center;padding:5px;cursor:pointer;}
 .tbl_ctrl_inactive {background:#BEBEBE url('/static/icons/png/plus-2x.png') no-repeat center;}
 .tbl_ctrl_processing {background:#FFFF00 url('/static/icons/png/trash-2x.png') no-repeat center;}
@@ -58,8 +43,8 @@ html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sa
 .tbl_ctrl_failed {background:#FF6666 url('/static/icons/png/bug-2x.png') no-repeat center;}
 .tbl_ctrl_invalid {background:#FF6666 url('/static/icons/png/ban-2x.png') no-repeat center;}
 
-.tbl_col, .tbl_col_inactive, 
-    .tbl_col_processing, .tbl_col_processed, 
+.tbl_col, .tbl_col_inactive,
+    .tbl_col_processing, .tbl_col_processed,
     .tbl_col_failed, .tbl_col_invalid {margin:2px;width:200px;display:block;float:left;text-align:center;padding:5px;}
 .tbl_col_inactive {background-color:#BEBEBE;}
 .tbl_col_processing {background-color:#FFFF00;}
@@ -67,8 +52,8 @@ html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sa
 .tbl_col_failed {background-color:#FF6666;}
 .tbl_col_invalid {background-color:#FF6666;}
 
-.tbl_det, .tbl_det_inactive, 
-    .tbl_det_processing, .tbl_det_processed, 
+.tbl_det, .tbl_det_inactive,
+    .tbl_det_processing, .tbl_det_processed,
     .tbl_det_failed, .tbl_det_invalid {margin-left:66px;padding:15px;width:608px;overflow:auto;}
 .tbl_det_inactive {background-color:#BEBEBE;}
 .tbl_det_processing {background-color:#FFFF00;}

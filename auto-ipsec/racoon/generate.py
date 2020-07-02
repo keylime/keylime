@@ -1,23 +1,8 @@
 #!/usr/bin/env python
 
 '''
-DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
-
-This material is based upon work supported by the Assistant Secretary of Defense for 
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or 
-FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the 
-Assistant Secretary of Defense for Research and Engineering.
-
-Copyright 2018 Massachusetts Institute of Technology.
-
-The software/firmware is provided to you on an As-Is basis
-
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part 
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government 
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed 
-above. Use of this work other than as specifically authorized by the U.S. Government may 
-violate any copyrights that exist in this work.
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import sys
@@ -51,7 +36,7 @@ def usage():
 def main(argv=sys.argv):
     if len(argv)<2:
         usage()
-    
+
     subnets=None
     exclude=None
     with open(argv[1],'r') as f:
@@ -63,27 +48,27 @@ def main(argv=sys.argv):
             if line=='ipsec':
                 subnets=[]
                 continue
-            
+
             if line=='exclude':
                 exclude=[]
                 continue
-            
+
             if exclude is not None:
                 exclude.append(line)
                 continue
-            
+
             if subnets is not None:
                 subnets.append(line)
-    
+
     if subnets is None:
         usage()
     if exclude is None:
         exclude=[]
-  
+
     print("Preparing extra files for ipsec config in directory: ipsec-extra")
     print("enabling ipsec for subnets:  %s"%subnets)
     print("disabling ipsec for subnets: %s"%exclude)
-    
+
     if os.path.exists('ipsec-extra'):
         shutil.rmtree('ipsec-extra')
     os.mkdir("ipsec-extra")
@@ -94,18 +79,18 @@ def main(argv=sys.argv):
             f.write(IPSEC_TOOLS_SUBNET%(subnet,subnet))
         for subnet in exclude:
             f.write(IPSEC_TOOLS_EXCLUDE%(subnet,subnet))
-            
+
     with open("ipsec-extra/action_list",'w') as f:
         f.write("local_action_update_crl,local_action_deletesa\n")
-        
+
     shutil.copy("src/local_action_update_crl.py","ipsec-extra")
     shutil.copy("src/local_action_deletesa.py",'ipsec-extra')
     shutil.copy("src/autorun.sh",'ipsec-extra')
     shutil.copy("src/racoon.conf",'ipsec-extra')
-    
+
     print("include directory ipsec-extra when using keylime in cert mode to enable ipsec")
-    
-    
+
+
 if __name__=="__main__":
     try:
         main()

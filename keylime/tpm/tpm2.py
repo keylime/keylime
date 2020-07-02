@@ -19,8 +19,6 @@ violate any copyrights that exist in this work.
 
 import base64
 import binascii
-import distutils.spawn
-import hashlib
 import os
 import re
 import sys
@@ -28,9 +26,8 @@ import tempfile
 import threading
 import time
 import zlib
-import yaml
 import codecs
-from distutils.version import LooseVersion, StrictVersion
+from distutils.version import StrictVersion
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
 except ImportError:
@@ -42,13 +39,12 @@ except ImportError:
     raise("Simplejson is mandatory, please install")
 
 import M2Crypto
-from M2Crypto import m2
 
 from keylime import cmd_exec
 from keylime import common
 from keylime import keylime_logging
 from keylime import secure_mount
-from keylime import tpm_abstract
+from keylime.tpm import tpm_abstract
 from keylime import tpm_ek_ca
 
 logger = keylime_logging.init_logging('tpm2')
@@ -1114,7 +1110,8 @@ class tpm2(tpm_abstract.AbstractTPM):
                     pcrs.append("PCR " + str(pcrval) + " " + '{0:0{1}x}'.format(hashval, alg_size))
             # IMA is always in SHA1 format, so don't leave it behind!
             if hash_alg != tpm_abstract.Hash_Algorithms.SHA1:
-                if tpm_abstract.Hash_Algorithms.SHA1 in jsonout["pcrs"] and common.IMA_PCR in jsonout["pcrs"][tpm_abstract.Hash_Algorithms.SHA1]:
+                if tpm_abstract.Hash_Algorithms.SHA1 in jsonout["pcrs"] and common.IMA_PCR in jsonout["pcrs"][
+                    tpm_abstract.Hash_Algorithms.SHA1]:
                     sha1_size = tpm_abstract.Hash_Algorithms.get_hash_size(tpm_abstract.Hash_Algorithms.SHA1) // 4
                     ima_val = jsonout["pcrs"][tpm_abstract.Hash_Algorithms.SHA1][common.IMA_PCR]
                     pcrs.append("PCR " + str(common.IMA_PCR) + " " + '{0:0{1}x}'.format(ima_val, sha1_size))

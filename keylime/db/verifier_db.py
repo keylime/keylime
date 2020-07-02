@@ -1,3 +1,8 @@
+'''
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
+'''
+
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, String, Integer, PickleType, Text
 

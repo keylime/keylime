@@ -1,4 +1,7 @@
 #!/bin/bash
+################################################################################
+# SPDX-License-Identifier: BSD-2-Clause
+################################################################################
 
 if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root" 1>&2
@@ -30,4 +33,3 @@ chmod 664 /etc/systemd/system/keylime_verifier.service
 systemctl enable keylime_agent.service
 systemctl enable keylime_registrar.service
 systemctl enable keylime_verifier.service
-

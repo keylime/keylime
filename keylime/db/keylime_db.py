@@ -1,6 +1,11 @@
-from keylime import keylime_logging
+'''
+SPDX-License-Identifier: BSD-2-Clause
+Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
+'''
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.exc import SQLAlchemyError
+
+from keylime import keylime_logging
 
 logger = keylime_logging.init_logging('sql_session_manager')
 
