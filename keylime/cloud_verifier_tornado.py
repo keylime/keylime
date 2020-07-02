@@ -15,9 +15,6 @@ import asyncio
 import tornado.ioloop
 import tornado.web
 from urllib.parse import urlparse
-from tornado import httpserver
-from tornado.httpclient import AsyncHTTPClient
-from tornado.httputil import url_concat
 import keylime.tornado_requests as tornado_requests
 
 from keylime import common
@@ -173,9 +170,6 @@ class AuthHandler(BaseHandler):
 
     def get(self, *args, **kwargs):
         session = self.make_session(engine)
-        """
-            return the generated token
-        """
         rest_params = common.get_restful_params(self.request.uri)
         if rest_params is None:
             common.echo_json_response(
@@ -224,7 +218,7 @@ class UsersHandler(BaseHandler):
     def patch(self):
         """ Update user details. Must be admin or user themselves
         """
-        session = self.make_session(engine)
+        pass
 
     def get(self):
         """Get user or users

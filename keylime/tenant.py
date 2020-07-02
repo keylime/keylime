@@ -40,10 +40,6 @@ logger = keylime_logging.init_logging('tenant')
 
 config = common.get_config()
 
-# auth
-api_user = os.getenv('KL_API_USER')
-api_pass = os.getenv('KL_API_PASS')
-
 # special exception that suppresses stack traces when it happens
 
 
