@@ -29,7 +29,7 @@ from keylime.crypto import get_random_string
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Database imports
-from keylime.db.verifier_db import VerfierMain
+from keylime.db.verifier_db import VerfierMain, User
 from keylime.db.keylime_db import SessionManager
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import create_engine

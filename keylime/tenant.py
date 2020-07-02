@@ -27,8 +27,8 @@ from keylime.requests_client import RequestsClient
 from keylime import common
 from keylime import keylime_logging
 from keylime import registrar_client
-from keylime import tpm_obj
-from keylime.tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+from keylime.tpm import tpm_obj
+from keylime.tpm.tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
 from keylime import ima
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
