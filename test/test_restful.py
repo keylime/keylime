@@ -90,7 +90,7 @@ sys.path.append(KEYLIME_DIR)
 # keylime imports
 from keylime import common
 from keylime import tornado_requests
-from keylime import httpclient_requests
+from keylime.requests_client import RequestsClient
 from keylime import tenant
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
@@ -112,6 +112,10 @@ if os.geteuid() != 0 and common.REQUIRE_ROOT:
 # Force sorting tests alphabetically
 unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(x, y)
 
+# Set up JWT credentials
+os.environ["KL_API_USER"] = 'admin'
+os.environ["KL_API_PASS"] = 'changeme'
+
 # Config-related stuff
 config = configparser.ConfigParser()
 config.read(common.CONFIG_FILE)
@@ -132,6 +136,11 @@ ek = None
 aik = None
 vtpm = False
 
+# Set up mTLS
+my_cert = config.get('tenant', 'my_cert')
+my_priv_key = config.get('tenant', 'private_key')
+cert = (my_cert, my_priv_key)
+tls_enabled = True
 
 
 # Like os.remove, but ignore file DNE exceptions
@@ -201,9 +210,24 @@ def setUpModule():
     global tenant_templ
     tenant_templ = tenant.Tenant()
     tenant_templ.cloudagent_ip = "localhost"
+    tenant_templ.cloudagent_port = config.get('cloud_agent', 'cloudagent_port')
+    tenant_templ.cloudverifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
+    tenant_templ.cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
+    tenant_templ.registrar_ip = config.get('registrar', 'registrar_ip')
     tenant_templ.agent_uuid = config.get('cloud_agent', 'agent_uuid')
     tenant_templ.registrar_boot_port = config.get('registrar', 'registrar_port')
     tenant_templ.registrar_tls_boot_port = config.get('registrar', 'registrar_tls_port')
+    tenant_templ.verifier_base_url = (
+        f'{tenant_templ.cloudverifier_ip}:{tenant_templ.cloudverifier_port}')
+    tenant_templ.registrar_base_url = (
+        f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_boot_port}')
+    tenant_templ.registrar_base_tls_url = (
+        f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_tls_boot_port}')
+    tenant_templ.agent_base_url = (
+        f'{tenant_templ.cloudagent_ip}:{tenant_templ.cloudagent_port}')
+    # Set up TLS
+    my_cert, my_priv_key = tenant_templ.get_tls_context()
+    tenant_templ.cert = (my_cert, my_priv_key)
 # Destroy everything on teardown
 def tearDownModule():
     # Tear down in reverse order of dependencies
@@ -325,7 +349,6 @@ def services_running():
     return False
 
 
-
 class TestRestful(unittest.TestCase):
 
     # Static class members (won't change between tests)
@@ -369,8 +392,6 @@ class TestRestful(unittest.TestCase):
         """Nothing to set up before each test"""
         pass
 
-
-
     """Ensure everyone is running before doing tests"""
     def test_000_services(self):
         self.assertTrue(services_running(), "Not all services started successfully!")
@@ -413,11 +434,16 @@ class TestRestful(unittest.TestCase):
         }
         v_json_message = json.dumps(data)
 
-        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("POST", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
+        test_010_reg_agent_post = RequestsClient(tenant_templ.registrar_base_url, tls_enabled = False)
+        response = test_010_reg_agent_post.post(
+            (f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}'),
+            data=v_json_message,
+            cert="",
+            verify=False
+        )
 
-        self.assertEqual(response.status, 200, "Non-successful Registrar agent Add return code!")
-        json_response = json.loads(response.read().decode())
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent Add return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -441,11 +467,16 @@ class TestRestful(unittest.TestCase):
             'auth_tag': crypto.do_hmac(key,tenant_templ.agent_uuid),
         }
         v_json_message = json.dumps(data)
+        test_011_reg_agent_activate_put = RequestsClient(tenant_templ.registrar_base_url, tls_enabled = False)
+        response = test_011_reg_agent_activate_put.put(
+            (f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}/activate'),
+            data=v_json_message,
+            cert="",
+            verify=False
+        )
 
-        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}/activate"
-        response = httpclient_requests.request("PUT", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_boot_port, params=params, data=v_json_message, context=None)
-        self.assertEqual(response.status, 200, "Non-successful Registrar agent Activate return code!")
-        json_response = json.loads(response.read().decode())
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent Activate return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -467,10 +498,16 @@ class TestRestful(unittest.TestCase):
         }
         v_json_message = json.dumps(data)
 
-        params = '/v%s/agents/%s/vactivate'% self.api_version, tenant_templ.agent_uuid
-        response = httpclient_requests.request("PUT", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_tls_boot_port, params=params, data=v_json_message, context=tenant_templ.context)
-        self.assertEqual(response.status, 200, "Non-successful Registrar agent vActivate return code!")
-        json_response = json.loads(response.read().decode())
+        test_012_reg_agent_vactivate_put = RequestsClient(tenant_templ.registrar_base_url, tls_enabled = False)
+        response = test_012_reg_agent_vactivate_put.put(
+            (f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}/vactivate'),
+            data=v_json_message,
+            cert="",
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent vActivate return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -478,11 +515,16 @@ class TestRestful(unittest.TestCase):
 
     def test_013_reg_agents_get(self):
         """Test registrar's GET /v2/agents Interface"""
-        params = f"/v{self.api_version}/agents/"
-        response = httpclient_requests.request("GET", "%s"%tenant_templ.registrar_ip,tenant_templ.registrar_tls_boot_port, params=params,  context=tenant_templ.context)
 
-        self.assertEqual(response.status, 200, "Non-successful Registrar agent List return code!")
-        json_response = json.loads(response.read().decode())
+        test_013_reg_agents_get = RequestsClient(tenant_templ.registrar_base_tls_url, tls_enabled = True)
+        response = test_013_reg_agents_get.get(
+            (f'/v{self.api_version}/agents/'),
+            cert=tenant_templ.cert,
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent List return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -495,11 +537,15 @@ class TestRestful(unittest.TestCase):
     def test_014_reg_agent_get(self):
         """Test registrar's GET /v2/agents/{UUID} Interface"""
         global aik
-        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("GET", "%s"%(tenant_templ.registrar_ip),tenant_templ.registrar_tls_boot_port, params=params, data=None, context=tenant_templ.context)
+        test_014_reg_agent_get = RequestsClient(tenant_templ.registrar_base_tls_url, tls_enabled = True)
+        response = test_014_reg_agent_get.get(
+            (f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}'),
+            cert=tenant_templ.cert,
+            verify=False
+        )
 
-        self.assertEqual(response.status, 200, "Non-successful Registrar agent return code!")
-        json_response = json.loads(response.read().decode())
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -512,12 +558,17 @@ class TestRestful(unittest.TestCase):
 
 
     def test_015_reg_agent_delete(self):
-        """Test registrar's DELETE /v2/agents/{UUID} Interface"""
-        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("DELETE", "%s"%(tenant_templ.registrar_ip),tenant_templ.registrar_tls_boot_port, params=params, context=tenant_templ.context)
 
-        self.assertEqual(response.status, 200, "Non-successful Registrar Delete return code!")
-        json_response = json.loads(response.read().decode())
+        """Test registrar's DELETE /v2/agents/{UUID} Interface"""
+        test_015_reg_agent_delete = RequestsClient(tenant_templ.registrar_base_tls_url, tls_enabled = True)
+        response = test_015_reg_agent_delete.delete(
+            (f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}'),
+            cert=tenant_templ.cert,
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar Delete return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -532,11 +583,15 @@ class TestRestful(unittest.TestCase):
         # We want a real cloud agent to communicate with!
         launch_cloudagent()
         time.sleep(10)
-        params = f"/v{self.api_version}/keys/pubkey"
-        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params)
+        test_020_agent_keys_pubkey_get = RequestsClient(tenant_templ.agent_base_url, tls_enabled = False)
+        response = test_020_agent_keys_pubkey_get.get(
+            (f'/v{self.api_version}/keys/pubkey'),
+            cert="",
+            verify=False
+        )
 
-        self.assertEqual(response.status, 200, "Non-successful Agent pubkey return code!")
-        json_response = json.loads(response.read().decode())
+        self.assertEqual(response.status_code, 200, "Non-successful Agent pubkey return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -561,14 +616,20 @@ class TestRestful(unittest.TestCase):
 
         numretries = config.getint('tenant','max_retries')
         while numretries >= 0:
-            params = f"/v{self.api_version}/quotes/identity?nonce={nonce}"
-            response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params, data=None, context=None)
-            if response.status == 200:
+            test_022_agent_quotes_identity_get = RequestsClient(tenant_templ.agent_base_url, tls_enabled = False)
+            response = test_022_agent_quotes_identity_get.get(
+                (f'/v{self.api_version}/quotes/identity?nonce={nonce}'),
+                data=None,
+                cert="",
+                verify=False
+            )
+
+            if response.status_code == 200:
                 break
             numretries-=1
             time.sleep(config.getint('tenant','max_retries'))
-        self.assertEqual(response.status, 200, "Non-successful Agent identity return code!")
-        json_response = json.loads(response.read().decode())
+        self.assertEqual(response.status_code, 200, "Non-successful Agent identity return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -597,11 +658,16 @@ class TestRestful(unittest.TestCase):
                 }
         v_json_message = json.dumps(data)
 
-        params = f"/v{self.api_version}/keys/vkey"
-        response = httpclient_requests.request("POST", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params, data=v_json_message)
-        self.assertEqual(response.status, 200, "Non-successful Agent vkey post return code!")
-        json_response = json.loads(response.read().decode())
+        test_023_agent_keys_vkey_post = RequestsClient(tenant_templ.agent_base_url, tls_enabled = False)
+        response = test_023_agent_keys_vkey_post.post(
+            (f'/v{self.api_version}/keys/vkey'),
+            data=v_json_message,
+            cert="",
+            verify=False
+        )
 
+        self.assertEqual(response.status_code, 200, "Non-successful Agent vkey post return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -625,10 +691,16 @@ class TestRestful(unittest.TestCase):
                 }
         u_yaml_message = json.dumps(data)
 
-        params = '/v%s/keys/ukey'% self.api_version
-        response = httpclient_requests.request("POST", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params, data=u_yaml_message)
-        self.assertEqual(response.status, 200, "Non-successful Agent ukey post return code!")
-        json_response = json.loads(response.read().decode())
+        test_024_agent_keys_ukey_post = RequestsClient(tenant_templ.agent_base_url, tls_enabled = False)
+        response = test_024_agent_keys_ukey_post.post(
+            (f'/v{self.api_version}/keys/ukey'),
+            data=u_yaml_message,
+            cert="",
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful Agent ukey post return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -657,11 +729,19 @@ class TestRestful(unittest.TestCase):
         }
         yaml_message = json.dumps(data)
 
-        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("POST", "%s"%(tenant_templ.cloudverifier_ip),tenant_templ.cloudverifier_port, params=params, data=yaml_message, context=tenant_templ.context)
+        token = tenant_templ.get_token()
 
-        self.assertEqual(response.status, 200, "Non-successful CV agent Post return code!")
-        json_response = json.loads(response.read().decode())
+        test_030_cv_agent_post = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        response = test_030_cv_agent_post.post(
+            (f'/agents/{tenant_templ.agent_uuid}'),
+            data=yaml_message,
+            headers={"Authorization": "Bearer " + token},
+            cert=tenant_templ.cert,
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful CV agent Post return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -673,11 +753,18 @@ class TestRestful(unittest.TestCase):
     def test_031_cv_agent_put(self):
         """Test CV's PUT /v2/agents/{UUID} Interface"""
         #TODO: this should actually test PUT functionality (e.g., make agent fail and then PUT back up)
-        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("PUT", "%s"%(tenant_templ.cloudverifier_ip),tenant_templ.cloudverifier_port, params=params, data=b'', context=tenant_templ.context)
+        token = tenant_templ.get_token()
 
-        self.assertEqual(response.status, 200, "Non-successful CV agent Post return code!")
-        json_response = json.loads(response.read().decode())
+        test_031_cv_agent_put = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        response = test_031_cv_agent_put.put(
+            (f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}'),
+            data=b'',
+            headers={"Authorization": "Bearer " + token},
+            cert=tenant_templ.cert,
+            verify=False
+        )
+        self.assertEqual(response.status_code, 200, "Non-successful CV agent Post return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -685,11 +772,18 @@ class TestRestful(unittest.TestCase):
 
     def test_032_cv_agents_get(self):
         """Test CV's GET /v2/agents Interface"""
-        params = f"/v{self.api_version}/agents/"
-        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
+        token = tenant_templ.get_token()
 
-        self.assertEqual(response.status, 200, "Non-successful CV agent List return code!")
-        json_response = json.loads(response.read().decode())
+        test_032_cv_agents_get = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        response = test_032_cv_agents_get.get(
+            (f'/v{self.api_version}/agents/'),
+            headers={"Authorization": "Bearer " + token},
+            cert=tenant_templ.cert,
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful CV agent List return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -701,10 +795,18 @@ class TestRestful(unittest.TestCase):
 
     def test_033_cv_agent_get(self):
         """Test CV's GET /v2/agents/{UUID} Interface"""
-        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
-        self.assertEqual(response.status, 200, "Non-successful CV agent return code!")
-        json_response = json.loads(response.read().decode())
+        token = tenant_templ.get_token()
+
+        test_033_cv_agent_get = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        response = test_033_cv_agent_get.get(
+            (f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}'),
+            headers={"Authorization": "Bearer " + token},
+            cert=tenant_templ.cert,
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful CV agent return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -731,10 +833,15 @@ class TestRestful(unittest.TestCase):
         if public_key is None:
             partial = "0"
 
-        params = f"/v{self.api_version}/quotes/integrity?nonce={nonce}&mask={mask}&vmask={vmask}&partial={partial}"
-        response = httpclient_requests.request("GET", "%s"%tenant_templ.cloudagent_ip,tenant_templ.cloudagent_port, params=params)
-        self.assertEqual(response.status, 200, "Non-successful Agent Integrity Get return code!")
-        json_response = json.loads(response.read().decode())
+        test_040_agent_quotes_integrity_get = RequestsClient(tenant_templ.agent_base_url, tls_enabled = False)
+        response = test_040_agent_quotes_integrity_get.get(
+            (f'/v{self.api_version}/quotes/integrity?nonce={nonce}&mask={mask}&vmask={vmask}&partial={partial}'),
+            cert="",
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful Agent Integrity Get return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
@@ -787,11 +894,17 @@ class TestRestful(unittest.TestCase):
     def test_050_cv_agent_delete(self):
         """Test CV's DELETE /v2/agents/{UUID} Interface"""
         time.sleep(5)
+        token = tenant_templ.get_token()
+        test_050_cv_agent_delete = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        response = test_050_cv_agent_delete.delete(
+            (f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}'),
+            headers={"Authorization": "Bearer " + token},
+            cert=tenant_templ.cert,
+            verify=False
+        )
 
-        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
-        response = httpclient_requests.request("DELETE", "%s"%tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port, params=params, context=tenant_templ.context)
-        self.assertEqual(response.status, 202, "Non-successful CV agent Delete return code!")
-        json_response = json.loads(response.read().decode())
+        self.assertEqual(response.status_code, 202, "Non-successful CV agent Delete return code!")
+        json_response = response.json()
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")

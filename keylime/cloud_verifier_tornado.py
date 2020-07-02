@@ -842,6 +842,9 @@ class AgentsHandler(BaseHandler):
 
 
 def check_user_db():
+    """ Checks that admin account exists, if not it will create one
+    and warn about default password
+    """
     session = SessionManager().make_session(engine)
     user = session.query(User).filter(User.username == "admin").first()
     admin_pass = 'changeme'
@@ -855,11 +858,11 @@ def check_user_db():
         except SQLAlchemyError as e:
             logger.error(f'SQLAlchemy Error: {e}')
         logger.warn(
-            f"Admin password is: {admin_pass} This must be changed immediately!!")
+            f"Admin password is: {admin_pass} THIS MUST BE CHANGED IMMEDIATELY!!")
     else:
         if check_password_hash(user.password, admin_pass):
             logger.error(
-                'WARNING! Using the default Admin password is putting your system at risk!')
+                'WARNING! Using the default Admin password is PUTTING YOUR SYSTEM AT RISK!')
 
 
 def start_tornado(tornado_server, port):

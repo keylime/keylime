@@ -34,7 +34,6 @@ except ImportError:
     raise("Simplejson is mandatory, please install")
 
 from keylime.requests_client import RequestsClient
-from keylime import httpclient_requests
 from keylime import common
 from keylime import keylime_logging
 from keylime import registrar_client

@@ -30,6 +30,9 @@ KEYLIME_DIR=`pwd`/../
 # Get list of tests in the test directory
 TEST_LIST=`ls | grep "^test_.*\.py$"`
 
+# JWT test
+KL_API_USER=admin
+KL_API_PASS=password
 
 # Command line params
 USER_MODE=0
