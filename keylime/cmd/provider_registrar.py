@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -16,9 +16,11 @@ config = common.get_config()
 
 
 def main(argv=sys.argv):
-    registrar_common.start(config.getint('registrar', 'provider_registrar_tls_port'),config.getint('registrar', 'provider_registrar_port'),config.get('registrar','prov_db_filename'))
+    registrar_common.start(config.getint('registrar', 'provider_registrar_tls_port'), config.getint(
+        'registrar', 'provider_registrar_port'), config.get('registrar', 'prov_db_filename'))
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     try:
         main()
     except Exception as e:

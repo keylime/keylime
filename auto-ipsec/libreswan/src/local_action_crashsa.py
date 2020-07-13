@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -23,21 +23,25 @@ config = common.get_config()
 
 logger = keylime_logging.init_logging('delete-sa')
 
+
 async def execute(revocation):
     json_meta = json.loads(revocation['meta_data'])
     serial = json_meta['cert_serial']
     subject = json_meta['subject']
-    if revocation.get('type',None) != 'revocation' or serial is None or subject is None:
-        logger.error("Unsupported revocation message: %s"%revocation)
+    if revocation.get('type', None) != 'revocation' or serial is None or subject is None:
+        logger.error("Unsupported revocation message: %s" % revocation)
 
     # import the crl into NSS
     secdir = secure_mount.mount()
-    logger.info("loading updated CRL from %s/unzipped/cacrl.der into NSS"%secdir)
-    cmd_exec.run("crlutil -I -i %s/unzipped/cacrl.der -d sql:/etc/ipsec.d"%secdir,lock=False)
+    logger.info(
+        "loading updated CRL from %s/unzipped/cacrl.der into NSS" % secdir)
+    cmd_exec.run(
+        "crlutil -I -i %s/unzipped/cacrl.der -d sql:/etc/ipsec.d" % secdir, lock=False)
 
     # need to find any sa's that were established with that cert subject name
-    output = cmd_exec.run("ipsec whack --trafficstatus",lock=False,raiseOnError=True)['retout']
-    deletelist=set()
+    output = cmd_exec.run("ipsec whack --trafficstatus",
+                          lock=False, raiseOnError=True)['retout']
+    deletelist = set()
     id = ""
     for line in output:
         line = line.strip()
@@ -56,20 +60,21 @@ async def execute(revocation):
             continue
 
     # kill all the commas
-    id = id.replace(",","")
-    cursubj={}
+    id = id.replace(",", "")
+    cursubj = {}
     for token in id.split():
         cur = token.split('=')
-        cursubj[cur[0]]=cur[1]
+        cursubj[cur[0]] = cur[1]
 
-    cert ={}
+    cert = {}
     for token in subject[1:].split("/"):
         cur = token.split('=')
-        cert[cur[0]]=cur[1]
+        cert[cur[0]] = cur[1]
 
     if cert == cursubj:
         deletelist.add(ip)
 
     for todelete in deletelist:
-        logger.info("deleting IPsec sa with %s"%todelete)
-        cmd_exec.run("ipsec whack --crash %s"%todelete,raiseOnError=False,lock=False)
+        logger.info("deleting IPsec sa with %s" % todelete)
+        cmd_exec.run("ipsec whack --crash %s" %
+                     todelete, raiseOnError=False, lock=False)

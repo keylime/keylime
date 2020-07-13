@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -71,7 +71,6 @@ try:
 except SQLAlchemyError as e:
     logger.error(f'Error creating SQL engine: {e}')
     exit(1)
-
 
 
 # The "exclude_db" dict values are removed from the response before adding the dict to the DB
@@ -183,7 +182,8 @@ class AgentsHandler(BaseHandler):
 
         if agent_id is not None:
             try:
-                agent = session.query(VerfierMain).filter_by(agent_id=agent_id).one_or_none()
+                agent = session.query(VerfierMain).filter_by(
+                    agent_id=agent_id).one_or_none()
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')
 
@@ -222,9 +222,10 @@ class AgentsHandler(BaseHandler):
             logger.warning(
                 'DELETE returning 400 response. uri not supported: ' + self.request.path)
         try:
-            agent = session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+            agent = session.query(VerfierMain).filter_by(
+                agent_id=agent_id).first()
         except SQLAlchemyError as e:
-                logger.error(f'SQLAlchemy Error: {e}')
+            logger.error(f'SQLAlchemy Error: {e}')
 
         if agent is None:
             common.echo_json_response(self, 404, "agent id not found")
@@ -239,7 +240,8 @@ class AgentsHandler(BaseHandler):
                 op_state == cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED or \
                 op_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
             try:
-                session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
+                session.query(VerfierMain).filter_by(
+                    agent_id=agent_id).delete()
                 session.commit()
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')

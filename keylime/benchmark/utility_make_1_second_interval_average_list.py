@@ -1,5 +1,5 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -10,11 +10,15 @@ from itertools import count
 from collections import OrderedDict
 import glob
 
+
 def main(argv=sys.argv):
 
-    parser = argparse.ArgumentParser("keylime-utility-make_1_second_interval_average_list")
-    parser.add_argument('-i', '--infile',action='store', required=True ,dest='infile')
-    parser.add_argument('-o', '--outfile',action='store', required=True, dest='outfile')
+    parser = argparse.ArgumentParser(
+        "keylime-utility-make_1_second_interval_average_list")
+    parser.add_argument('-i', '--infile', action='store',
+                        required=True, dest='infile')
+    parser.add_argument('-o', '--outfile', action='store',
+                        required=True, dest='outfile')
 
     args = parser.parse_args(argv[1:])
 
@@ -24,7 +28,7 @@ def main(argv=sys.argv):
     number_map = OrderedDict()
 
     for each_file in glob.glob(infile + "*.txt"):
-    # command line options can overwrite config values
+        # command line options can overwrite config values
         if each_file is not None:
 
             with open(each_file) as input_file:
@@ -54,6 +58,5 @@ def main(argv=sys.argv):
             index = index + 1
 
 
-
-if __name__=="__main__":
+if __name__ == "__main__":
     main()

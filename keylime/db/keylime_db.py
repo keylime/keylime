@@ -1,5 +1,5 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
 '''
 from sqlalchemy.orm import sessionmaker, scoped_session
