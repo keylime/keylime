@@ -1,9 +1,10 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 
+from keylime import ca_impl_openssl
 import unittest
 import os
 import sys
@@ -15,7 +16,6 @@ CODE_ROOT = (f"{PACKAGE_ROOT}/keylime/")
 
 # Custom imports
 sys.path.insert(0, CODE_ROOT)
-from keylime import ca_impl_openssl
 
 
 class OpenSSL_Test(unittest.TestCase):
@@ -23,7 +23,7 @@ class OpenSSL_Test(unittest.TestCase):
     def test_openssl(self):
         _ = ca_impl_openssl.mk_cacert("my ca")
         (ca_cert, ca_pk, _) = ca_impl_openssl.mk_cacert()
-        cert,_ = ca_impl_openssl.mk_signed_cert(ca_cert, ca_pk, "cert", 4)
+        cert, _ = ca_impl_openssl.mk_signed_cert(ca_cert, ca_pk, "cert", 4)
 
         self.assertTrue(cert.verify(ca_cert.get_pubkey()))
 

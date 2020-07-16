@@ -1,5 +1,5 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -132,7 +132,8 @@ def process_measurement_list(lines, lists=None, m2w=None):
             compiled_regex = re.compile(combined_regex)
         except re.error as regex_err:
             msg = "Invalid regular expression '" + regex_err.pattern + "': "
-            msg += regex_err.msg + " at position " + str(regex_err.pos) + ". Exclude list will be ignored."
+            msg += regex_err.msg + " at position " + \
+                str(regex_err.pos) + ". Exclude list will be ignored."
             logger.error(msg)
 
     for line in lines:
