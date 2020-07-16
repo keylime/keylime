@@ -186,7 +186,7 @@ def process_quote_response(agent, json_response):
         agent['provide_V'] = False
         received_public_key = agent['public_key']
 
-    if agent.get('registrar_keys', "") is "":
+    if agent.get('registrar_keys', "") == "":
         registrar_client.init_client_tls(config, 'cloud_verifier')
         registrar_keys = registrar_client.getKeys(config.get("registrar", "registrar_ip"), config.get(
             "registrar", "registrar_tls_port"), agent['agent_id'])

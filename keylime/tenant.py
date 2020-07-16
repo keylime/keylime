@@ -427,7 +427,7 @@ class Tenant():
 
         # check all EKs with optional script:
         script = config.get('tenant', 'ek_check_script')
-        if script is not "":
+        if script != "":
             if script[0] != '/':
                 script = "%s/%s" % (common.WORK_DIR, script)
 

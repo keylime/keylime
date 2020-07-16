@@ -124,7 +124,7 @@ class AgentsHandler(BaseHandler):
 
                     # Execute specified script if all is well
                     global initscript
-                    if initscript is not None and initscript is not "":
+                    if initscript is not None and initscript != "":
                         def initthread():
                             import subprocess
                             logger.debug(
