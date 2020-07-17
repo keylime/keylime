@@ -22,7 +22,5 @@ if '--with-clime' in sys.argv:
     sys.argv.remove('--with-clime')
 
 setuptools.setup(
-    setup_requires=['pbr'],
-    pbr=True,
     ext_modules=extensions,
     data_files=[('/etc', ['keylime.conf'])])
