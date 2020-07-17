@@ -285,7 +285,7 @@ class Handler(BaseHTTPRequestHandler):
 
                 # run an included script if one has been provided
                 initscript = config.get('cloud_agent', 'payload_script')
-                if initscript is not "":
+                if initscript != "":
                     def initthread():
                         import subprocess
                         env = os.environ.copy()
