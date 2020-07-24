@@ -369,3 +369,15 @@ def notify_error(agent, msgtype='revocation'):
     else:
         tosend['signature'] = "none"
     revocation_notifier.notify(tosend)
+
+def validate_agent_data(agent_data):
+    if agent_data is None:
+        return False, None
+
+    # Validate exlude list contains valid regular expressions
+    lists = ast.literal_eval(agent_data['ima_whitelist'])
+    is_valid, _, err_msg = common.valid_exclude_list(lists.get('exclude'))
+    if not is_valid:
+        err_msg += " Exclude list regex is misformatted. Please correct the issue and try again."
+
+    return is_valid, err_msg
