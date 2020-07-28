@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -186,7 +186,7 @@ def process_quote_response(agent, json_response):
         agent['provide_V'] = False
         received_public_key = agent['public_key']
 
-    if agent.get('registrar_keys', "") is "":
+    if agent.get('registrar_keys', "") == "":
         registrar_client.init_client_tls(config, 'cloud_verifier')
         registrar_keys = registrar_client.getKeys(config.get("registrar", "registrar_ip"), config.get(
             "registrar", "registrar_tls_port"), agent['agent_id'])
@@ -369,3 +369,15 @@ def notify_error(agent, msgtype='revocation'):
     else:
         tosend['signature'] = "none"
     revocation_notifier.notify(tosend)
+
+def validate_agent_data(agent_data):
+    if agent_data is None:
+        return False, None
+
+    # Validate exlude list contains valid regular expressions
+    lists = ast.literal_eval(agent_data['ima_whitelist'])
+    is_valid, _, err_msg = common.valid_exclude_list(lists.get('exclude'))
+    if not is_valid:
+        err_msg += " Exclude list regex is misformatted. Please correct the issue and try again."
+
+    return is_valid, err_msg

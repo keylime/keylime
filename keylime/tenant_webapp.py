@@ -7,6 +7,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import base64
 import functools
+import jwt
 import os
 import ssl
 import traceback
@@ -35,6 +36,10 @@ config = common.get_config()
 # auth
 api_user = os.getenv('KL_API_USER')
 api_pass = os.getenv('KL_API_PASS')
+
+# jwt
+jwt_dsa = config.get('cloud_verifier', 'jwt_dsa')
+jwt_hmac_passphrase = config.get('cloud_verifier', 'jwt_hmac_passphrase')
 
 tenant_templ = tenant.Tenant()
 my_cert, my_priv_key = tenant_templ.get_tls_context()
@@ -310,7 +315,10 @@ class AgentsHandler(BaseHandler):
 
     async def get_agent_state(self, agent_id):
         try:
+            print('Getting token....')
             token = tenant_templ.get_token()
+            my_token = jwt.decode(token, verify=False)
+            print('token: ', my_token)
             get_agent_state = RequestsClient(verifier_base_url, tls_enabled)
             response = get_agent_state.get(
                 (f'/agents/{agent_id}'),

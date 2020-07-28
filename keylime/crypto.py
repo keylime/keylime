@@ -1,5 +1,5 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -87,7 +87,7 @@ def rsa_verify(public_key, message, signature):
             padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
                 salt_length=padding.PSS.MAX_LENGTH
-                ),
+            ),
             hashes.SHA256()
         )
     except exceptions.InvalidSignature:

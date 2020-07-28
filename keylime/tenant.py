@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -117,7 +117,6 @@ class Tenant():
         """
         my_cert = config.get('tenant', 'my_cert')
         my_priv_key = config.get('tenant', 'private_key')
-
         tls_dir = config.get('tenant', 'tls_dir')
 
         if tls_dir == 'default':

@@ -535,3 +535,7 @@ Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
 FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
 material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
+
+Keylimes license was changed from BSD Clause-2 to Apache 2.0. The original BSD
+Clause-2 licensed code can be found on the [MIT github
+organization](https://github.com/mit-ll/MIT-keylime).

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -188,7 +188,6 @@ class AuthHandler(BaseHandler):
         user = session.query(User).filter(User.username == username).first()
         if user is not None and user.username == username:
             if check_password_hash(user.password, password):
-                logger.info(f"User {username} authorized")
                 encoded = jwt.encode({
                     'group_id': user.group_id,
                     'role_id': user.role_id,
@@ -510,6 +509,12 @@ class AgentsHandler(BaseHandler):
                     agent_data['enc_alg'] = ""
                     agent_data['sign_alg'] = ""
                     agent_data['agent_id'] = agent_id
+
+                    is_valid, err_msg = cloud_verifier_common.validate_agent_data(agent_data)
+                    if not is_valid:
+                        common.echo_json_response(self, 400, err_msg)
+                        logger.warning(err_msg)
+                        return
 
                     try:
                         new_agent_count = session.query(

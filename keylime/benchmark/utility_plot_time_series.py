@@ -1,10 +1,12 @@
 #!/usr/bin/python3
 
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+import glob
+import pylab
 import argparse
 import sys
 import math
@@ -12,16 +14,14 @@ from itertools import count
 from collections import OrderedDict
 import matplotlib
 matplotlib.use('Agg')
-import pylab
-import glob
-
 
 
 def main(argv=sys.argv):
 
     parser = argparse.ArgumentParser("keylime-utility-plot_time_series")
-    parser.add_argument('-i', '--infile', required=True, action='store',dest='infile')
-    parser.add_argument('-o', '--outfile',action='store',dest='outfile')
+    parser.add_argument('-i', '--infile', required=True,
+                        action='store', dest='infile')
+    parser.add_argument('-o', '--outfile', action='store', dest='outfile')
 
     args = parser.parse_args(argv[1:])
 
@@ -29,16 +29,16 @@ def main(argv=sys.argv):
     #infile = "time_series_log_file_776058270.txt"
     outfile = args.outfile
 
-
     cycle_quantity_per_second_list = []
 
     with open(infile) as input_file:
         content = [x.strip() for x in input_file.readlines()]
         index = 0
         for cycle_quantity_per_second in content:
-            #throw out the first two and the last 2
-            #if index >= 5 and index <= (len(content) - 6):
-            cycle_quantity_per_second_list.append(float(cycle_quantity_per_second.strip()))
+            # throw out the first two and the last 2
+            # if index >= 5 and index <= (len(content) - 6):
+            cycle_quantity_per_second_list.append(
+                float(cycle_quantity_per_second.strip()))
             index = index + 1
 
 
@@ -54,16 +54,15 @@ def main(argv=sys.argv):
 #                         difference_list.append(msecs)
 #                     index = index + 1
     pylab.clf()
-    pylab.plot(cycle_quantity_per_second_list,"-x")
-    pylab.ylim([0,max(cycle_quantity_per_second_list)])
+    pylab.plot(cycle_quantity_per_second_list, "-x")
+    pylab.ylim([0, max(cycle_quantity_per_second_list)])
     pylab.ylabel('cycles per second')
     pylab.xlabel('time')
 
     if outfile is not None:
         pylab.savefig(outfile)
 
-    #plt.show()
-
+    # plt.show()
 
 
 #     if outfile is not None:
@@ -78,6 +77,5 @@ def main(argv=sys.argv):
 #                 index = index + 1
 
 
-
-if __name__=="__main__":
+if __name__ == "__main__":
     main()

@@ -1,5 +1,5 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -25,4 +25,4 @@ setuptools.setup(
     setup_requires=['pbr'],
     pbr=True,
     ext_modules=extensions,
-    data_files = [('/etc', ['keylime.conf'])])
+    data_files=[('/etc', ['keylime.conf'])])
