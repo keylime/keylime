@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -697,6 +697,40 @@ class TestRestful(unittest.TestCase):
         self.assertIn("operational_state", json_response["results"], "Malformed response body!")
         self.assertIn("ip", json_response["results"], "Malformed response body!")
         self.assertIn("port", json_response["results"], "Malformed response body!")
+
+
+    def test_034_cv_agent_post_invalid_exclude_list(self):
+        """Test CV's POST /v2/agents/{UUID} Interface"""
+        self.assertIsNotNone(self.V, "Required value not set.  Previous step may have failed?")
+
+        b64_v = base64.b64encode(self.V)
+        # Set unsupported regex in exclude list
+        ima_whitelist = { 'exclude': ['*'] }
+        data = {
+            'v': b64_v,
+            'cloudagent_ip': tenant_templ.cloudagent_ip,
+            'cloudagent_port': tenant_templ.cloudagent_port,
+            'tpm_policy': json.dumps(self.tpm_policy),
+            'vtpm_policy':json.dumps(self.vtpm_policy),
+            'ima_whitelist':json.dumps(ima_whitelist),
+            'metadata':json.dumps(self.metadata),
+            'revocation_key':self.revocation_key,
+            'accept_tpm_hash_algs': config.get('tenant','accept_tpm_hash_algs').split(','),
+            'accept_tpm_encryption_algs': config.get('tenant','accept_tpm_encryption_algs').split(','),
+            'accept_tpm_signing_algs': config.get('tenant','accept_tpm_signing_algs').split(','),
+        }
+
+        agent_data = json.dumps(data)
+        params = f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}"
+        response = httpclient_requests.request("POST", "%s"%(tenant_templ.cloudverifier_ip),
+                        tenant_templ.cloudverifier_port, params=params,
+                        data=agent_data, context=tenant_templ.context)
+
+        self.assertEqual(response.status, 400, "Successful CV agent Post return code!")
+        json_response = json.loads(response.read().decode())
+
+        # Ensure response is well-formed
+        self.assertIn("results", json_response, "Malformed response body!")
 
 
 

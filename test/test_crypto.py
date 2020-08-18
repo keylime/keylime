@@ -1,8 +1,9 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+from keylime.crypto import *
 import unittest
 import os
 import sys
@@ -13,7 +14,6 @@ KEYLIME_DIR = Path(__file__).parents[1]
 
 # Custom imports
 sys.path.insert(0, KEYLIME_DIR)
-from keylime.crypto import *
 
 
 class Crypto_Test(unittest.TestCase):
@@ -32,42 +32,42 @@ class Crypto_Test(unittest.TestCase):
     def test_aes(self):
         message = b"a secret message!"
         aeskey = get_random_bytes(32)
-        ciphertext = encrypt(message,aeskey)
-        plaintext = decrypt(ciphertext,aeskey)
+        ciphertext = encrypt(message, aeskey)
+        plaintext = decrypt(ciphertext, aeskey)
         self.assertEqual(plaintext, message)
 
     def test_hmac(self):
         message = "a secret message!"
-        aeskey=kdf(message,'salty-McSaltface')
-        digest = do_hmac(aeskey,message)
-        aeskey2 = kdf(message,'salty-McSaltface')
-        self.assertEqual(do_hmac(aeskey2,message), digest)
+        aeskey = kdf(message, 'salty-McSaltface')
+        digest = do_hmac(aeskey, message)
+        aeskey2 = kdf(message, 'salty-McSaltface')
+        self.assertEqual(do_hmac(aeskey2, message), digest)
 
     def test_xor(self):
         k = get_random_bytes(32)
         s1 = generate_random_key(32)
         s2 = strbitxor(s1, k)
-        self.assertEqual(strbitxor(s1,s2), k)
+        self.assertEqual(strbitxor(s1, s2), k)
 
     def test_errors(self):
-        encrypt(None,get_random_bytes(32))
+        encrypt(None, get_random_bytes(32))
 
         with self.assertRaises(Exception):
-            decrypt("",None)
+            decrypt("", None)
 
         invalid = base64.b64encode(get_random_bytes(45))
         with self.assertRaises(Exception):
-            decrypt(invalid,None)
+            decrypt(invalid, None)
 
     def test_rsa_sign(self):
         message = b"a secret message!"
         private = rsa_generate(2048)
         public_key = get_public_key(private)
         signature = rsa_sign(private, message)
-        self.assertTrue(rsa_verify(public_key, message,signature))
+        self.assertTrue(rsa_verify(public_key, message, signature))
 
         message = b"another message!"
-        self.assertFalse(rsa_verify(public_key, message,signature))
+        self.assertFalse(rsa_verify(public_key, message, signature))
 
 
 if __name__ == '__main__':

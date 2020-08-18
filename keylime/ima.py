@@ -1,5 +1,5 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -125,15 +125,12 @@ def process_measurement_list(lines, lists=None, m2w=None):
     else:
         whitelist = None
 
-    compiled_regex = None
-    if exclude_list != []:
-        combined_regex = "(" + ")|(".join(exclude_list) + ")"
-        try:
-            compiled_regex = re.compile(combined_regex)
-        except re.error as regex_err:
-            msg = "Invalid regular expression '" + regex_err.pattern + "': "
-            msg += regex_err.msg + " at position " + str(regex_err.pos) + ". Exclude list will be ignored."
-            logger.error(msg)
+    is_valid, compiled_regex, err_msg = common.valid_exclude_list(exclude_list)
+    if not is_valid:
+        # This should not happen as the exclude list has already been validated
+        # by the verifier before acceping it. This is a safety net just in case.
+        err_msg += " Exclude list will be ignored."
+        logger.error(err_msg)
 
     for line in lines:
         line = line.strip()

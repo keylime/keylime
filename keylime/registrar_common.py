@@ -1,5 +1,5 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -102,7 +102,8 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         if agent_id is not None:
             try:
-                agent = session.query(RegistrarMain).filter_by(agent_id=agent_id).first()
+                agent = session.query(RegistrarMain).filter_by(
+                    agent_id=agent_id).first()
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')
 
