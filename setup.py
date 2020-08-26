@@ -38,7 +38,7 @@ setuptools.setup(
     author_email='keylime@groups.io',
     url='https://keylime.dev',
     python_requires='>=3.6',
-    packages=['keylime'],
+    packages=setuptools.find_packages(exclude=['test*']),
     classifiers=[
         'Environment :: Console',
         'Intended Audience :: Developers',
