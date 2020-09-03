@@ -333,13 +333,12 @@ class AbstractTPM(object, metaclass=ABCMeta):
 
     def __check_ima(self, agent_id, pcrval, ima_measurement_list, ima_whitelist):
         logger.info(f"Checking IMA measurement list on agent: {agent_id}")
-        ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), ima_whitelist)
+        if common.STUB_IMA:
+            pcrval=None
+        ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), ima_whitelist, pcrval=pcrval)
         if ex_value is None:
             return False
 
-        if pcrval != ex_value and not common.STUB_IMA:
-            logger.error("IMA measurement list expected pcr value %s does not match TPM PCR %s"%(ex_value, pcrval))
-            return False
         logger.debug(f"IMA measurement list of agent {agent_id} validated")
         return True
 
