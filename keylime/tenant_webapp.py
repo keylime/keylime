@@ -287,7 +287,7 @@ class AgentsHandler(BaseHandler):
     async def get_agent_state(self, agent_id):
         try:
             res = tornado_requests.request("GET",
-                                           "http://%s:%s/agents/%s" % (tenant_templ.cloudverifier_ip, tenant_templ.cloudverifier_port, agent_id), context=tenant_templ.context)
+                                        "http://%s:%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,agent_id),context=tenant_templ.cloudverifier_context)
             response = await res
 
         except Exception as e:
@@ -363,7 +363,7 @@ class AgentsHandler(BaseHandler):
         # If no agent ID, get list of all agents from Registrar
         try:
             res = tornado_requests.request("GET",
-                                           "http://%s:%s/agents/" % (tenant_templ.registrar_ip, tenant_templ.registrar_port), context=tenant_templ.context)
+                                        "http://%s:%s/agents/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port),context=tenant_templ.registrar_context)
             response = await res
 
         except Exception as e:
@@ -649,10 +649,9 @@ def main(argv=sys.argv):
     ])
 
     # WebApp Server TLS
-    server_context = tenant_templ.get_tls_context()
-    # config.getboolean('general','tls_check_hostnames')
-    server_context.check_hostname = False
-    server_context.verify_mode = ssl.CERT_NONE  # ssl.CERT_REQUIRED
+    server_context, x = tenant_templ.get_tls_context()
+    server_context.check_hostname = False # config.getboolean('general','tls_check_hostnames')
+    server_context.verify_mode = ssl.CERT_NONE # ssl.CERT_REQUIRED
 
     # Set up server
     server = tornado.httpserver.HTTPServer(app, ssl_options=server_context)
