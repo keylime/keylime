@@ -38,10 +38,15 @@ config = common.get_config()
 
 drivername = config.get('registrar', 'drivername')
 
-
 if drivername == 'sqlite':
     database = "%s/%s" % (common.WORK_DIR,
                           config.get('registrar', 'database'))
+    # Create the path to where the sqlite database will be store with a perm umask of 077
+    os.umask(0o077)
+    kl_dir = os.path.dirname(os.path.abspath(database))
+    if not os.path.exists(kl_dir):
+        os.makedirs(kl_dir, 0o700)
+
     url = URL(
         drivername=drivername,
         username='',
@@ -49,6 +54,12 @@ if drivername == 'sqlite':
         host='',
         database=(database)
     )
+    try:
+        engine = create_engine(url,
+                            connect_args={'check_same_thread': False},)
+    except SQLAlchemyError as e:
+        logger.error(f'Error creating SQL engine: {e}')
+        exit(1)
 else:
     url = URL(
         drivername=drivername,
@@ -57,14 +68,11 @@ else:
         host=config.get('registrar', 'host'),
         database=config.get('registrar', 'database')
     )
-
-try:
-    engine = create_engine(url,
-                           connect_args={'check_same_thread': False},)
-except SQLAlchemyError as e:
-    logger.error(f'Error creating SQL engine: {e}')
-    exit(1)
-
+    try:
+        engine = create_engine(url)
+    except SQLAlchemyError as e:
+        logger.error(f'Error creating SQL engine: {e}')
+        exit(1)
 
 class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
@@ -498,10 +506,6 @@ def start(tlsport, port):
     servers = []
     serveraddr = ('', tlsport)
 
-    os.umask(0o077)
-    kl_dir = os.path.dirname(os.path.abspath(database))
-    if not os.path.exists(kl_dir):
-        os.makedirs(kl_dir, 0o700)
     RegistrarMain.metadata.create_all(engine, checkfirst=True)
     session = SessionManager().make_session(engine)
     try:
