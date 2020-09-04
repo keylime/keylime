@@ -55,6 +55,12 @@ if drivername == 'sqlite':
         host='',
         database=(database)
     )
+    try:
+        engine = create_engine(url,
+                            connect_args={'check_same_thread': False},)
+    except SQLAlchemyError as e:
+        logger.error(f'Error creating SQL engine: {e}')
+        exit(1)
 else:
     url = URL(
         drivername=drivername,
@@ -63,14 +69,11 @@ else:
         host=config.get('cloud_verifier', 'host'),
         database=config.get('cloud_verifier', 'database')
     )
-
-
-try:
-    engine = create_engine(url,
-                           connect_args={'check_same_thread': False},)
-except SQLAlchemyError as e:
-    logger.error(f'Error creating SQL engine: {e}')
-    exit(1)
+    try:
+        engine = create_engine(url)
+    except SQLAlchemyError as e:
+        logger.error(f'Error creating SQL engine: {e}')
+        exit(1)
 
 
 # The "exclude_db" dict values are removed from the response before adding the dict to the DB
