@@ -236,9 +236,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
 
     # check PCR value has been found
     if not found_pcr:
-        logger.error(
-            "IMA measurement list expected pcr value %s does not match TPM PCR %s"
-            %(codecs.encode(runninghash, 'hex').decode('utf-8'), pcrval))
+        logger.error("IMA measurement list does not match TPM PCR %s" % pcrval)
         return None
 
     # clobber the retval if there were IMA file errors
