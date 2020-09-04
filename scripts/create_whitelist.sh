@@ -39,6 +39,14 @@ then
     exit $NOARGS;
 fi
 
+# Where to look for initramfs image
+INITRAMFS_LOC="/boot/"
+if [ -d "/ostree" ]; then
+    # If we are on an ostree system change where we look for initramfs image
+    loc=$(grep -E "/ostree/[^/]([^/]*)" -o /proc/cmdline | head -n 1 | cut -d / -f 3)
+    INITRAMFS_LOC="/boot/ostree/${loc}/"
+fi
+
 if [ $# -eq 2 ]
 then
     ALGO=$2
@@ -62,7 +70,7 @@ mkdir -p /tmp/ima
 
 # Iterate through init ram disks and add files to whitelist
 echo "Creating whitelist for init ram disk"
-for i in `ls /boot/initr*`
+for i in `ls ${INITRAMFS_LOC}/initr*`
 do
     echo "extracting $i"
     mkdir -p /tmp/ima/$i-extracted
