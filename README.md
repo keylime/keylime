@@ -479,7 +479,7 @@ Once installed, you can run and inspect the services `keylime_verifier`,
 
 Keylime feature requests are tracked as enhancements in the [enhancements repository](https://github.com/keylime/enhancements)
 
-The enhancement process has been in implemented to provide a way to review and
+The enhancement process has been implemented to provide a way to review and
 assess the impact(s) of significant changes to Keylime.
 
 ## Report a Security Vulnerability
