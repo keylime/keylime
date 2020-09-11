@@ -76,6 +76,7 @@ A hardware TPM should always be used when real secrets and trust is required.
   * [Running keylime](#running-keylime)
   * [Provisioning](#provisioning)
   * [Using keylime CA](#using-keylime-ca)
+* [Request a Feature](#request-a-feature)
 * [Report a Security Vulnerability](#report-a-security-vulnerability)
 * [Meeting Information](#project-meetings)
 * [First Timers Support](#first-timers-support)
@@ -473,6 +474,13 @@ You can install the services with the following command:
 
 Once installed, you can run and inspect the services `keylime_verifier`,
 `keylime_agent` and `keylime_registrar` via `systemctl`.
+
+### Request a feature
+
+Keylime feature requests are tracked as enhancements in the [enhancements repository](https://github.com/keylime/enhancements)
+
+The enhancement process has been implemented to provide a way to review and
+assess the impact(s) of significant changes to Keylime.
 
 ## Report a Security Vulnerability
 
