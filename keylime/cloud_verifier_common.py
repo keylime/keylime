@@ -374,8 +374,10 @@ def validate_agent_data(agent_data):
     if agent_data is None:
         return False, None
 
+    # validate that the ima_whitelist is proper JSON
+    lists = json.loads(agent_data['ima_whitelist'])
+
     # Validate exlude list contains valid regular expressions
-    lists = ast.literal_eval(agent_data['ima_whitelist'])
     is_valid, _, err_msg = common.valid_exclude_list(lists.get('exclude'))
     if not is_valid:
         err_msg += " Exclude list regex is misformatted. Please correct the issue and try again."

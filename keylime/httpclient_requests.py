@@ -5,6 +5,11 @@ Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
 
 import http.client
 
+from keylime import keylime_logging
+
+# setup logging
+logger = keylime_logging.init_logging('httpclient_requests')
+
 
 def request(method, host, port, params=None, data=None, context=None,
             timeout=5):
@@ -33,12 +38,16 @@ def request(method, host, port, params=None, data=None, context=None,
             timeout=timeout)
 
     try:
+        logger.debug(f"Making HTTP {method} request to {host}:{port}{params}")
         conn.request(method, params, body=data)
     except http.client.HTTPException as e:
+        logger.error(f"HTTPException: {e}")
         return 500, str(e)
-    except ConnectionError:
+    except ConnectionError as e:
+        logger.error(f"ConnectionError: {e}")
         return 503
-    except TimeoutError:
+    except TimeoutError as e:
+        logger.error(f"TimeoutError: {e}")
         return 504
     response = conn.getresponse()
     return response

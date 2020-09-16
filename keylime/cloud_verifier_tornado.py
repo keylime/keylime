@@ -666,6 +666,11 @@ def main(argv=sys.argv):
     config = common.get_config()
     cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
 
+    # allow tornado's max upload size to be configurable
+    max_upload_size = None
+    if config.has_option('cloud_verifier', 'max_upload_size'):
+        max_upload_size = config.get('cloud_verifier', 'max_upload_size')
+
     VerfierMain.metadata.create_all(engine, checkfirst=True)
     session = SessionManager().make_session(engine)
     try:
@@ -704,7 +709,7 @@ def main(argv=sys.argv):
     tornado.process.fork_processes(config.getint(
         'cloud_verifier', 'multiprocessing_pool_num_workers'))
     asyncio.set_event_loop(asyncio.new_event_loop())
-    server = tornado.httpserver.HTTPServer(app, ssl_options=context)
+    server = tornado.httpserver.HTTPServer(app, ssl_options=context, max_buffer_size=max_upload_size)
     server.add_sockets(sockets)
 
     try:
