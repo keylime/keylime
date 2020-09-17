@@ -2,7 +2,7 @@
 
 ## Enhancements process
 
-Keylime is in the process of implementing an kubernetes style enhancement system
+Keylime is in the process of implementing a kubernetes style enhancement system
 that will be used to manage the projects on going Roadmap. For details of the
 enhancement process, please visit the enhancements [repository](https://github.com/keylime/enhancements)
 
@@ -12,7 +12,7 @@ Until this work is complete we will collate our project roadmap here.
 #### End of Q4-2020
 
 The Keylime agent is being ported to Rust Lang. This decision was made based on
-serval reasons:
+several reasons:
 
 * Rust is statically linked and does not require the ability to retrieve
   dependencies. (Important for non internet connected machines or immutable read
@@ -63,7 +63,7 @@ extensions in the future.
 Further details can be [found here](https://github.com/keylime/enhancements/issues/16)
 
 ## vTPM support and container based integrity measurement.
-#### End of Q2-2021
+#### End of Q2-2021 (TBD)
 
 We are working with the Kernel community to develop an IMA Namespace to allow us
 to measure within a container by means of a Virtual TPM. At present we have not
