@@ -24,7 +24,7 @@ For further details of development, please consult the [rust-keylime](https://gi
 repository
 
 ## Multi Tenancy and Federation
-#### End of Q1-2020
+#### End of Q1-2021
 Keylime is at present monolithic in that there is no concept of multi tenancy in
 the form of groups, users and permission based access control of Keylime agents.
 
