@@ -41,6 +41,25 @@ forcefully or gracefully brought offline for a significant amount of time
 
 Further details can be [found here](https://github.com/lukehinds/enhancements/blob/master/1_persist_agent_restart.md)
 
+## Github Actions
+#### End of Q4-2020
+
+Migrate from travis to GitHub Actions
+
+Further details can be [found here](https://github.com/lukehinds/enhancements/blob/master/1_persist_agent_restart.md)
+
+## Measurement list format and retrieval system
+#### End of Q4-2020
+
+This enhancement proposes a way to allow Keylime to automatically
+import IMA Allow-Lists from external sources. These allow-lists will
+follow a prescribed JSON format that allows the `keylime_tenant` to
+download, cryptographically verify and then upload these lists to the
+verifier. This will be done in versioned manner to allow upgrades and
+extensions in the future.
+
+Further details can be [found here](https://github.com/keylime/enhancements/issues/16)
+
 ## vTPM support and container based integrity measurement.
 #### End of Q2-2021
 
@@ -48,18 +67,3 @@ We are working with the Kernel community to develop an IMA Namespace to allow us
 to measure within a container by means of a Virtual TPM. At present we have not
 agreed a specific design, as this would be contingent upon the upstream
 implementation.
-
-## Github Actions
-#### End of Q4-2020
-
-@mbestavros
-
-## Dedicated system user
-#### End of Q4-2020
-
-@axelsimon
-
-## Measurement list format and retrieval system
-#### End of Q4-2020
-
-@mpeters
