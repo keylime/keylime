@@ -48,7 +48,7 @@ Further details can be [found here](https://github.com/lukehinds/enhancements/bl
 
 Migrate from travis to GitHub Actions
 
-Further details can be [found here](https://github.com/lukehinds/enhancements/blob/master/1_persist_agent_restart.md)
+Further details can be [found here](https://github.com/keylime/enhancements/issues/18)
 
 ## Measurement list format and retrieval system
 #### End of Q4-2020
