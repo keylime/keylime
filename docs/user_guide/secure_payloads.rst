@@ -45,10 +45,11 @@ securely delivered.  If the `extract_payload_zip` option in `keylime.conf` is
 set (which it is by default), then Keylime will automatically extract the zip
 file to `/var/lib/keylime/secure/unzipped`. Finally, Keylime can also execute a
 script contained in the zip file once it has been unzipped.  You can think of
-this like a very simple form of `cloud-init <https://cloudinit.readthedocs.io/>`_.
-By default this script is called `autorun.sh`. You can configure this to some 
-other script with the `payload_script` option in `keylime.conf`.  Note that this 
-script must be contained in the encrypted zip file and must be located in
+this as a very simple form of `cloud-init <https://cloudinit.readthedocs.io/>`_.
+By default this script is called `autorun.sh`. You can override this default
+with a different script name by adjusting the `payload_script` option in
+`keylime.conf`. Note also that this script must be contained in the encrypted 
+zip file, from which it will be extraced and then placed in 
 `/var/lib/keylime/secure/unzipped`.
 
 Because the keys that Keylime uses to decrypt the data and the decrypted data
@@ -59,7 +60,7 @@ large your payload is, you may need to increase the size of this mounted
 partition by adjusting the `secure_size` option in `keylime.conf`.
 
 This simple mode of operation is suitable for many situations where the secrets
-and other bootstrapping information is basic.  However, there are several
+and other bootstrapping information are basic.  However, there are several
 features that Keylime supports like revocation and certificate management that
 do not work in this mode.  For those, you'll need the next mode: Certificate
 Package Mode.
@@ -68,19 +69,20 @@ Package Mode.
 Certificate Package Mode
 ------------------------
 
-This mode of Keylime automates many common actions that tenants will want to do
-when provisioning their Agents.  First, Keylime can create an X509 certificate
-authority (CA) and then issue certificates and corresponding private keys to each
-provisioned node.  This CA lives on the tenant and can be used to bootstrap many
-other security solutions like mutual TLS or SSH.  To use this mode, pass
-the `--cert` option and a directory where the CA is located as the parameter to
-this option.  Keylime will then create a certificate for the node (with the common
-name set to the Agent's UUID) and then create a zip file containing the newly
-generated X509 certificates, trust roots, and private keys. It then uses the
-same process for single file encryption as described above to securely deliver
-all the keys to the Agent.  Optionally, the user can specify with the `--include`
-option a directory of additional files to be put into the certification package zip
-and securely delivered to the Agent.
+This mode of Keylime automates many common actions that tenants will want to
+take when provisioning their Agents.  First, Keylime can create an X509
+certificate authority (CA) using `keylime_ca -d listen` and then issue
+certificates and the corresponding private keys to each provisioned node.  This
+CA lives on the same host where the tenant issues the `keylime_ca` command and
+can be used to bootstrap many other security solutions like mutual TLS or SSH.
+To use this mode, pass the `--cert` option and a directory where the CA is
+located as the parameter to this option. Keylime will then create a certificate
+for the node (with the common name set to the Agent's UUID) and then create a
+zip file containing the newly generated X509 certificates, trust roots, and
+private keys. It then uses the same process for single file encryption as
+described above to securely deliver all the keys to the Agent.  Optionally, the
+user can specify with the `--include` option a directory of additional files to
+be put into the certification package zip and securely delivered to the Agent.
 
 This mode of operation also natively supports certificate revocation. If the Keylime
 Verifier detects an Agent that no longer satisfies its integrity policy (e.g., it booted
@@ -196,8 +198,8 @@ import os
 from M2Crypto import X509
 import keylime.secure_mount as secure_mount
 
-async def execute(json_revocation):
-    if json_revocation['type']!='revocation':
+async def execute(event):
+    if event['type']!='revocation':
         return
 
     serial = revocation.get("metadata",{}).get("cert_serial",None)
