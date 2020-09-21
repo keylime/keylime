@@ -1,5 +1,5 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -114,9 +114,10 @@ def read_measurement_list_bin(path, whitelist):
         #tokens = template['desc-fmt'].split('|')
 
 
-def process_measurement_list(lines, lists=None, m2w=None):
+def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
     errs = [0, 0, 0, 0]
     runninghash = START_HASH
+    found_pcr = (pcrval == None)
 
     if lists is not None:
         lists = ast.literal_eval(lists)
@@ -125,15 +126,12 @@ def process_measurement_list(lines, lists=None, m2w=None):
     else:
         whitelist = None
 
-    compiled_regex = None
-    if exclude_list != []:
-        combined_regex = "(" + ")|(".join(exclude_list) + ")"
-        try:
-            compiled_regex = re.compile(combined_regex)
-        except re.error as regex_err:
-            msg = "Invalid regular expression '" + regex_err.pattern + "': "
-            msg += regex_err.msg + " at position " + str(regex_err.pos) + ". Exclude list will be ignored."
-            logger.error(msg)
+    is_valid, compiled_regex, err_msg = common.valid_exclude_list(exclude_list)
+    if not is_valid:
+        # This should not happen as the exclude list has already been validated
+        # by the verifier before acceping it. This is a safety net just in case.
+        err_msg += " Exclude list will be ignored."
+        logger.error(err_msg)
 
     for line in lines:
         line = line.strip()
@@ -199,6 +197,10 @@ def process_measurement_list(lines, lists=None, m2w=None):
         # update hash
         runninghash = hashlib.sha1(runninghash+template_hash).digest()
 
+        if not found_pcr:
+            found_pcr = \
+                (codecs.encode(runninghash, 'hex').decode('utf-8') == pcrval)
+
         # write out the new hash
         if m2w is not None:
             m2w.write("%s %s\n" % (codecs.encode(
@@ -231,6 +233,11 @@ def process_measurement_list(lines, lists=None, m2w=None):
                 continue
 
         errs[3] += 1
+
+    # check PCR value has been found
+    if not found_pcr:
+        logger.error("IMA measurement list does not match TPM PCR %s" % pcrval)
+        return None
 
     # clobber the retval if there were IMA file errors
     if sum(errs[:3]) > 0:

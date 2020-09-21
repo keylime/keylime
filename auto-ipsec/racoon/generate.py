@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -10,14 +10,15 @@ import argparse
 import os
 import shutil
 
-IPSEC_TOOLS_CONF="flush;\n\
+IPSEC_TOOLS_CONF = "flush;\n\
 spdflush;\n"
 
-IPSEC_TOOLS_SUBNET="spdadd 0.0.0.0/0 %s any -P out ipsec esp/transport//require;\n\
+IPSEC_TOOLS_SUBNET = "spdadd 0.0.0.0/0 %s any -P out ipsec esp/transport//require;\n\
 spdadd %s 0.0.0.0/0 any -P in ipsec esp/transport//require;\n"
 
-IPSEC_TOOLS_EXCLUDE="spdadd 0.0.0.0/0 %s any -P out none;\n\
+IPSEC_TOOLS_EXCLUDE = "spdadd 0.0.0.0/0 %s any -P out none;\n\
 spdadd %s 0.0.0.0/0 any -P in none;\n"
+
 
 def usage():
     print("ERROR: you must specify a configuration file with one or more subnets for ipsec")
@@ -33,24 +34,25 @@ def usage():
     print("192.168.0.1/32")
     sys.exit(1)
 
+
 def main(argv=sys.argv):
-    if len(argv)<2:
+    if len(argv) < 2:
         usage()
 
-    subnets=None
-    exclude=None
-    with open(argv[1],'r') as f:
+    subnets = None
+    exclude = None
+    with open(argv[1], 'r') as f:
         for line in f:
             line = line.strip()
-            if line[0]=='#':
+            if line[0] == '#':
                 continue
 
-            if line=='ipsec':
-                subnets=[]
+            if line == 'ipsec':
+                subnets = []
                 continue
 
-            if line=='exclude':
-                exclude=[]
+            if line == 'exclude':
+                exclude = []
                 continue
 
             if exclude is not None:
@@ -63,35 +65,35 @@ def main(argv=sys.argv):
     if subnets is None:
         usage()
     if exclude is None:
-        exclude=[]
+        exclude = []
 
     print("Preparing extra files for ipsec config in directory: ipsec-extra")
-    print("enabling ipsec for subnets:  %s"%subnets)
-    print("disabling ipsec for subnets: %s"%exclude)
+    print("enabling ipsec for subnets:  %s" % subnets)
+    print("disabling ipsec for subnets: %s" % exclude)
 
     if os.path.exists('ipsec-extra'):
         shutil.rmtree('ipsec-extra')
     os.mkdir("ipsec-extra")
 
-    with open('ipsec-extra/ipsec-tools.conf','w') as f:
+    with open('ipsec-extra/ipsec-tools.conf', 'w') as f:
         f.write(IPSEC_TOOLS_CONF)
         for subnet in subnets:
-            f.write(IPSEC_TOOLS_SUBNET%(subnet,subnet))
+            f.write(IPSEC_TOOLS_SUBNET % (subnet, subnet))
         for subnet in exclude:
-            f.write(IPSEC_TOOLS_EXCLUDE%(subnet,subnet))
+            f.write(IPSEC_TOOLS_EXCLUDE % (subnet, subnet))
 
-    with open("ipsec-extra/action_list",'w') as f:
+    with open("ipsec-extra/action_list", 'w') as f:
         f.write("local_action_update_crl,local_action_deletesa\n")
 
-    shutil.copy("src/local_action_update_crl.py","ipsec-extra")
-    shutil.copy("src/local_action_deletesa.py",'ipsec-extra')
-    shutil.copy("src/autorun.sh",'ipsec-extra')
-    shutil.copy("src/racoon.conf",'ipsec-extra')
+    shutil.copy("src/local_action_update_crl.py", "ipsec-extra")
+    shutil.copy("src/local_action_deletesa.py", 'ipsec-extra')
+    shutil.copy("src/autorun.sh", 'ipsec-extra')
+    shutil.copy("src/racoon.conf", 'ipsec-extra')
 
     print("include directory ipsec-extra when using keylime in cert mode to enable ipsec")
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     try:
         main()
     except Exception as e:

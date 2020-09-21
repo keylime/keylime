@@ -76,6 +76,7 @@ A hardware TPM should always be used when real secrets and trust is required.
   * [Running keylime](#running-keylime)
   * [Provisioning](#provisioning)
   * [Using keylime CA](#using-keylime-ca)
+* [Request a Feature](#request-a-feature)
 * [Report a Security Vulnerability](#report-a-security-vulnerability)
 * [Meeting Information](#project-meetings)
 * [First Timers Support](#first-timers-support)
@@ -474,6 +475,13 @@ You can install the services with the following command:
 Once installed, you can run and inspect the services `keylime_verifier`,
 `keylime_agent` and `keylime_registrar` via `systemctl`.
 
+### Request a feature
+
+Keylime feature requests are tracked as enhancements in the [enhancements repository](https://github.com/keylime/enhancements)
+
+The enhancement process has been implemented to provide a way to review and
+assess the impact(s) of significant changes to Keylime.
+
 ## Report a Security Vulnerability
 
 Please contact us directly at [security@keylime.groups.io](mailto:security@keylime.groups.io)
@@ -535,3 +543,7 @@ Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
 FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
 material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
+
+Keylimes license was changed from BSD Clause-2 to Apache 2.0. The original BSD
+Clause-2 licensed code can be found on the [MIT github
+organization](https://github.com/mit-ll/MIT-keylime).

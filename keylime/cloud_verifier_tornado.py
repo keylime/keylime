@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -55,6 +55,12 @@ if drivername == 'sqlite':
         host='',
         database=(database)
     )
+    try:
+        engine = create_engine(url,
+                            connect_args={'check_same_thread': False},)
+    except SQLAlchemyError as e:
+        logger.error(f'Error creating SQL engine: {e}')
+        exit(1)
 else:
     url = URL(
         drivername=drivername,
@@ -63,15 +69,11 @@ else:
         host=config.get('cloud_verifier', 'host'),
         database=config.get('cloud_verifier', 'database')
     )
-
-
-try:
-    engine = create_engine(url,
-                           connect_args={'check_same_thread': False},)
-except SQLAlchemyError as e:
-    logger.error(f'Error creating SQL engine: {e}')
-    exit(1)
-
+    try:
+        engine = create_engine(url)
+    except SQLAlchemyError as e:
+        logger.error(f'Error creating SQL engine: {e}')
+        exit(1)
 
 
 # The "exclude_db" dict values are removed from the response before adding the dict to the DB
@@ -183,7 +185,8 @@ class AgentsHandler(BaseHandler):
 
         if agent_id is not None:
             try:
-                agent = session.query(VerfierMain).filter_by(agent_id=agent_id).one_or_none()
+                agent = session.query(VerfierMain).filter_by(
+                    agent_id=agent_id).one_or_none()
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')
 
@@ -222,9 +225,10 @@ class AgentsHandler(BaseHandler):
             logger.warning(
                 'DELETE returning 400 response. uri not supported: ' + self.request.path)
         try:
-            agent = session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+            agent = session.query(VerfierMain).filter_by(
+                agent_id=agent_id).first()
         except SQLAlchemyError as e:
-                logger.error(f'SQLAlchemy Error: {e}')
+            logger.error(f'SQLAlchemy Error: {e}')
 
         if agent is None:
             common.echo_json_response(self, 404, "agent id not found")
@@ -239,7 +243,8 @@ class AgentsHandler(BaseHandler):
                 op_state == cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED or \
                 op_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
             try:
-                session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
+                session.query(VerfierMain).filter_by(
+                    agent_id=agent_id).delete()
                 session.commit()
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')
@@ -311,6 +316,12 @@ class AgentsHandler(BaseHandler):
                     agent_data['enc_alg'] = ""
                     agent_data['sign_alg'] = ""
                     agent_data['agent_id'] = agent_id
+
+                    is_valid, err_msg = cloud_verifier_common.validate_agent_data(agent_data)
+                    if not is_valid:
+                        common.echo_json_response(self, 400, err_msg)
+                        logger.warning(err_msg)
+                        return
 
                     try:
                         new_agent_count = session.query(
@@ -655,6 +666,11 @@ def main(argv=sys.argv):
     config = common.get_config()
     cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
 
+    # allow tornado's max upload size to be configurable
+    max_upload_size = None
+    if config.has_option('cloud_verifier', 'max_upload_size'):
+        max_upload_size = config.get('cloud_verifier', 'max_upload_size')
+
     VerfierMain.metadata.create_all(engine, checkfirst=True)
     session = SessionManager().make_session(engine)
     try:
@@ -693,7 +709,7 @@ def main(argv=sys.argv):
     tornado.process.fork_processes(config.getint(
         'cloud_verifier', 'multiprocessing_pool_num_workers'))
     asyncio.set_event_loop(asyncio.new_event_loop())
-    server = tornado.httpserver.HTTPServer(app, ssl_options=context)
+    server = tornado.httpserver.HTTPServer(app, ssl_options=context, max_buffer_size=max_upload_size)
     server.add_sockets(sockets)
 
     try:

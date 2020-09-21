@@ -1,20 +1,6 @@
-'''DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
-
-This material is based upon work supported by the Assistant Secretary of Defense for
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
-FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the
-Assistant Secretary of Defense for Research and Engineering.
-
-Copyright 2015 Massachusetts Institute of Technology.
-
-The software/firmware is provided to you on an As-Is basis
-
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
-above. Use of this work other than as specifically authorized by the U.S. Government may
-violate any copyrights that exist in this work.
+'''
+SPDX-License-Identifier: Apache-2.0
+Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import base64
@@ -73,9 +59,12 @@ class tpm2(tpm_abstract.AbstractTPM):
         defaultEncrypt = config.get('cloud_agent', "tpm_encryption_alg")
         defaultSign = config.get('cloud_agent', "tpm_signing_alg")
 
+        ek_handle = config.get('cloud_agent', 'ek_handle')
+
         if self.need_hw_tpm:
-            # Start up the TPM
-            self.__startup_tpm()
+            if ek_handle == "generate" :
+                # Start up the TPM
+                self.__startup_tpm()
 
             # Figure out which algorithms the TPM supports
             self.__get_tpm_algorithms()
@@ -94,7 +83,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         self.defaults['hash'] = defaultHash
         self.defaults['encrypt'] = defaultEncrypt
         self.defaults['sign'] = defaultSign
-
+        self.defaults['ek_handle'] = ek_handle
     def get_tpm_version(self):
         return 2
 
@@ -452,6 +441,30 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         return
 
+    def __use_ek(self, ek_handle, config_pw):
+        ek_handle = int(ek_handle, 16)
+        logger.info("Using an already created ek with handle: %s"%hex(ek_handle))
+
+        self._set_tpm_metadata('owner_pw', config_pw)
+
+        with tempfile.NamedTemporaryFile() as tmppath:
+            if tools_version == "3.2":
+                retDict = self.__run("tpm2_readpublic -H %s -o %s -f tss"%(hex(ek_handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
+            else:
+                retDict = self.__run("tpm2_readpublic -c %s -o %s -f tss"%(hex(ek_handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
+
+            output = retDict['retout']
+            reterr = retDict['reterr']
+            code = retDict['code']
+            ek_tpm = retDict['fileouts'][tmppath.name]
+            if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+                raise Exception("tpm2_readpublic failed with code "+str(code)+": "+str(reterr))
+            self._set_tpm_metadata('ek_tpm', base64.b64encode(ek_tpm))
+
+        self._set_tpm_metadata('ek_handle', int(ek_handle))
+
+        return
+
     def __take_ownership(self, config_pw):
         # if no ownerpassword
         if config_pw == 'generate':
@@ -688,11 +701,12 @@ class tpm2(tpm_abstract.AbstractTPM):
         owner_pw = self.get_tpm_metadata("owner_pw")
         jsonout = common.yaml_to_dict(retout)
         for key in jsonout:
-            logger.debug("Flushing key handle %s"%hex(key))
-            if tools_version == "3.2":
-                self.__run("tpm2_evictcontrol -A o -c %s -P %s"%(hex(key), owner_pw), raiseOnError=False)
-            else:
-                self.__run("tpm2_evictcontrol -C o -c %s -P %s"%(hex(key), owner_pw), raiseOnError=False)
+            if str(hex(key)) != self.defaults['ek_handle'] :
+                logger.debug("Flushing key handle %s"%hex(key))
+                if tools_version == "3.2":
+                    self.__run("tpm2_evictcontrol -A o -c %s -P %s"%(hex(key), owner_pw), raiseOnError=False)
+                else:
+                    self.__run("tpm2_evictcontrol -C o -c %s -P %s"%(hex(key), owner_pw), raiseOnError=False)
 
     def encryptAIK(self, uuid, pubaik, pubek, ek_tpm, aik_name):
         pubaikFile = None
@@ -905,9 +919,12 @@ class tpm2(tpm_abstract.AbstractTPM):
     def tpm_init(self, self_activate=False, config_pw=None):
         # this was called tpm_initialize.init before
         self.warn_emulator()
-        self.__take_ownership(config_pw)
 
-        self.__create_ek()
+        if self.defaults['ek_handle'] == "generate" :
+            self.__take_ownership(config_pw)
+            self.__create_ek()
+        else :
+            self.__use_ek(self.defaults['ek_handle'], config_pw)
 
         self.__get_pub_ek()
 

@@ -1,5 +1,5 @@
 '''
-SPDX-License-Identifier: BSD-2-Clause
+SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
@@ -31,6 +31,7 @@ class myHandler(BaseHTTPRequestHandler):
             myUUID = provider_vtpm_add.add_vtpm("current_group.tpm")
         self.request.sendall(json.dumps({'uuid': myUUID}))
         return
+
 
 try:
     port_number = None
