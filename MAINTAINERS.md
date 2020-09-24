@@ -9,6 +9,7 @@ keylime/keylime
 keylime/rust-keylime
 @ashcrow
 @mbestavros
+@lukehinds
 
 keylime/ansible-keylime
 @lukehinds
