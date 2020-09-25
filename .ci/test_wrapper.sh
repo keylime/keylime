@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
 
-KEYLIME_HOME=/root/keylime
+KEYLIME_HOME="${KEYLIME_HOME=:-/root/keylime}"
 
 # Configure swtpm2
 cd ${KEYLIME_HOME}/scripts
