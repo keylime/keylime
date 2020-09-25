@@ -4,7 +4,7 @@
 
 The Keylime community adheres to the following principles:
 
-- Open: Keylime is open source, advertised on [our website](https://Keylime.io/community).
+- Open: Keylime is open source.
 - Welcoming and respectful: See [Code of Conduct](CODE-OF-CONDUCT.md).
 - Transparent and accessible: Changes to the Keylime organization, Keylime code repositories, and CNCF related activities (e.g. level, involvement, etc) are done in public.
 - Merit: Ideas and contributions are accepted according to their technical merit and alignment with
@@ -80,7 +80,7 @@ The project lead can volunteer to step down.
 Changes in project governance (GOVERNANCE.md) could be initiated by opening a github PR.
 The PR should only be opened no earlier than 6 weeks before the end of the project lead's term.
 The PR should be kept open for no less than 4 weeks. The PR can only be merged follow the same
-voting process as in `Changes in Project Lead`.
+voting process as in [Changes in Project Lead](#Changes_in_Project_Lead)
 
 ## Decision making process
 
@@ -116,7 +116,7 @@ following criteria:
 - Must be supported by a Maintainer not associated or affiliated with the author(s) of the sub-projects
 
 The submission process starts as an enhancement on the
-[keylime/Keylime](https://github.com/keylime/enhancements) repository with the
+[keylime/enhancements](https://github.com/keylime/enhancements) repository with the
 required information mentioned above. Once a project is accepted, it's
 considered a __CNCF sub-project under the umbrella of Keylime__.
 
