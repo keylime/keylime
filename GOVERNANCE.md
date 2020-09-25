@@ -5,7 +5,7 @@
 The Keylime community adheres to the following principles:
 
 - Open: Keylime is open source.
-- Welcoming and respectful: See [Code of Conduct](CODE-OF-CONDUCT.md).
+- Welcoming and respectful: See [Code of Conduct](CODE_OF_CONDUCT.md).
 - Transparent and accessible: Changes to the Keylime organization, Keylime code repositories, and CNCF related activities (e.g. level, involvement, etc) are done in public.
 - Merit: Ideas and contributions are accepted according to their technical merit and alignment with
   project objectives, scope, and design principles.
@@ -22,7 +22,7 @@ The term of the project lead is one year, with no term limit restriction.
 
 The project lead is elected by Keylime maintainers.
 
-The current project lead is identified in the [MAINTAINERS](MAINTAINERS.md) file with the string
+The current project lead is identified in the [MAINTAINERS](MAINTAINERS) file with the string
 `project lead` and the term behind the name in a comment at the top of the file.
 
 ## Expectations from Maintainers
@@ -35,7 +35,7 @@ in a *reasonable* time frame, either providing insights, or assign the Pull Requ
 maintainers.
 
 Every Maintainer is listed in the
-[CODEOWNERS](https://github.com/keylime/Keylime/blob/master/MAINTAINERS.md)
+[CODEOWNERS](https://github.com/keylime/Keylime/blob/master/MAINTAINERS)
 file, with their Github handle.
 
 A Maintainer should be active within the CNCF slack #keylime channel
@@ -54,7 +54,7 @@ step down.
 
 The Keylime organization will never forcefully remove a current Maintainer, unless a maintainer
 fails to meet the principles of Keylime community,
-or adhere to the [Code of Conduct](CODE-OF-CONDUCT.md).
+or adhere to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Changes in Project Lead
 
@@ -63,7 +63,7 @@ Changes in project lead or term is initiated by opening a github PR.
 Anyone from Keylime community can vote on the PR with either +1 or -1.
 
 Only the following votes are binding:
-1) Any maintainer that has been listed in the [MAINTAINERS](MAINTAINERS.md) file before the PR is opened.
+1) Any maintainer that has been listed in the [MAINTAINERS](MAINTAINERS) file before the PR is opened.
 2) Any maintainer from an organization may cast the vote for that organization. However, no organization
 should have more binding votes than 1/5 of the total number of maintainers defined in 1).
 
@@ -130,7 +130,7 @@ permits, or a _reasonable_ time frame to allow maintainers to have a chance to v
 
 ## Code of Conduct
 
-The [Keylime Code of Conduct](CODE-OF-CONDUCT.md) is aligned with the CNCF Code of Conduct.
+The [Keylime Code of Conduct](CODE_OF_CONDUCT.md) is aligned with the CNCF Code of Conduct.
 
 ## Credits
 
