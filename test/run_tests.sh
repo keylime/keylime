@@ -7,8 +7,8 @@
 # Set python3 as default
 alias python='/usr/bin/python3'
 
-# Find Keylime directory (we're in test/ directory)
-KEYLIME_DIR=`pwd`/../
+# Find Keylime directory. It's one directory above the location of this script
+KEYLIME_DIR=$(realpath "$(dirname "$(readlink -f "$0")")/../")
 
 # Get list of tests in the test directory
 TEST_LIST=`ls | grep "^test_.*\.py$"`
