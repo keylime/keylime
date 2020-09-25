@@ -5,11 +5,17 @@ keylime/keylime
 @amylily1011
 @mpeters
 @maugustosilva
+@font
+@axelsimon
+@ashcrow
 
 keylime/rust-keylime
 @ashcrow
 @mbestavros
 @lukehinds
+@lkatalin
+@puiterwijk
+@mpeters
 
 keylime/ansible-keylime
 @lukehinds
