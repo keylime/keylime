@@ -669,7 +669,7 @@ def main(argv=sys.argv):
     # allow tornado's max upload size to be configurable
     max_upload_size = None
     if config.has_option('cloud_verifier', 'max_upload_size'):
-        max_upload_size = int(config.get('cloud_verifier', 'max_upload_size'))
+        int(max_upload_size = config.get('cloud_verifier', 'max_upload_size'))
 
     VerfierMain.metadata.create_all(engine, checkfirst=True)
     session = SessionManager().make_session(engine)
