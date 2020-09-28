@@ -177,6 +177,46 @@ def _extract_from_ima_ng(tokens, template_hash):
     return filedata_hash, path, error
 
 
+def _extract_from_ima_sig(tokens, template_hash):
+    """ Extract filedata_hash & path form 'ima-sig' entry; return 1 in case error occurred """
+    filedata = tokens[3]
+    ftokens = filedata.split(":")
+    filedata_hash = codecs.decode(ftokens[1], 'hex')
+    path = str(tokens[4])
+
+    # this is some IMA weirdness
+    if template_hash == START_HASH:
+        return filedata_hash, path, None, None, 0
+
+    filedata_algo = str(ftokens[0])
+    # verify template hash. yep this is terrible
+    fmt = "<I%dsBB%dsI%dsB" % (len(filedata_algo), len(filedata_hash), len(path))
+    # +2 for the : and the null terminator, and +1 on path for null terminator
+    tohash = struct.pack(fmt,
+                         len(filedata_hash) + len(filedata_algo) + 2,
+                         filedata_algo.encode('utf-8'), ord(':'), ord('\0'),
+                         filedata_hash,
+                         len(path) + 1,
+                         path.encode("utf-8"),
+                         ord('\0'))
+    signature = b''
+    if len(tokens) == 6:
+        signature = codecs.decode(tokens[5], 'hex')
+    tohash += struct.pack("<I%ds" % len(signature), len(signature), signature)
+    expected_template_hash = hashlib.sha1(tohash).digest()
+
+    if expected_template_hash != template_hash:
+        error = 1
+        logger.warning("template hash for file %s does not match %s != %s" %
+                       (path,
+                        codecs.encode(expected_template_hash, 'hex').decode('utf-8'),
+                        codecs.encode(template_hash, 'hex').decode('utf-8')))
+    else:
+        error = 0
+
+    return filedata_hash, path, signature, filedata_algo, error
+
+
 def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
     errs = [0, 0, 0, 0]
     runninghash = START_HASH
@@ -202,8 +242,8 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
         if line == '':
             continue
 
-        tokens = line.split(None, 4)
-        if len(tokens) != 5:
+        tokens = line.split(None, 5)
+        if len(tokens) < 5 or len(tokens) > 6:
             logger.error("invalid measurement list file line: -%s-" % (line))
             return None
 
@@ -215,6 +255,9 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
         if mode == "ima-ng":
             filedata_hash, path, error = _extract_from_ima_ng(tokens,
                                                               template_hash)
+        elif mode == "ima-sig":
+            filedata_hash, path, _, _, error = \
+                _extract_from_ima_sig(tokens, template_hash)
         elif mode == 'ima':
             filedata_hash, path, error = _extract_from_ima(tokens,
                                                            template_hash)
