@@ -2,14 +2,17 @@
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
+
+# importing all the required libraries 
 import sys
 import setuptools
 
 from setuptools import Extension
 
-
+# setting up the extentions 
 extensions = []
 
+# using nested if loops 
 if '--with-clime' in sys.argv:
     if 'linux' in sys.platform:
         extensions.append(
@@ -22,11 +25,11 @@ if '--with-clime' in sys.argv:
                       runtime_library_dirs=['/usr/local/lib']))
     sys.argv.remove('--with-clime')
 
-
+# reading the README.md file
 with open('README.md', 'r') as fh:
     long_description = fh.read()
 
-
+#setting up the tools required with appropriate details
 setuptools.setup(
     name='keylime',
     description=(
