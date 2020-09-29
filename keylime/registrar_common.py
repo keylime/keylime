@@ -391,6 +391,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     except SQLAlchemyError as e:
                         logger.error(f'SQLAlchemy Error: {e}')
                 else:
+                    try :
+                        agent.key = agent.key.encode('utf-8')
+                    except :
+                        Pass
                     ex_mac = crypto.do_hmac(agent.key, agent_id)
                     if ex_mac == auth_tag:
                         try:
