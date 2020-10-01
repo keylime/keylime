@@ -318,7 +318,7 @@ class TestRestful(unittest.TestCase):
     tpm_policy = None
     vtpm_policy = {}
     metadata = {}
-    ima_whitelist = {}
+    allowlist = {}
     revocation_key = ""
     K = None
     U = None
@@ -632,7 +632,7 @@ class TestRestful(unittest.TestCase):
             'cloudagent_port': tenant_templ.cloudagent_port,
             'tpm_policy': json.dumps(self.tpm_policy),
             'vtpm_policy':json.dumps(self.vtpm_policy),
-            'ima_whitelist':json.dumps(self.ima_whitelist),
+            'allowlist':json.dumps(self.allowlist),
             'metadata':json.dumps(self.metadata),
             'revocation_key':self.revocation_key,
             'accept_tpm_hash_algs': config.get('tenant','accept_tpm_hash_algs').split(','),
@@ -705,14 +705,14 @@ class TestRestful(unittest.TestCase):
 
         b64_v = base64.b64encode(self.V)
         # Set unsupported regex in exclude list
-        ima_whitelist = { 'exclude': ['*'] }
+        allowlist = { 'exclude': ['*'] }
         data = {
             'v': b64_v,
             'cloudagent_ip': tenant_templ.cloudagent_ip,
             'cloudagent_port': tenant_templ.cloudagent_port,
             'tpm_policy': json.dumps(self.tpm_policy),
             'vtpm_policy':json.dumps(self.vtpm_policy),
-            'ima_whitelist':json.dumps(ima_whitelist),
+            'allowlist':json.dumps(allowlist),
             'metadata':json.dumps(self.metadata),
             'revocation_key':self.revocation_key,
             'accept_tpm_hash_algs': config.get('tenant','accept_tpm_hash_algs').split(','),

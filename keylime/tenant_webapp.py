@@ -131,12 +131,12 @@ class WebAppHandler(BaseHandler):
                                 </div>
                                 <div id="imalist_block">
                                     <div class="form_block">
-                                        <label for='w_list'>Whitelist: </label>
-                                        <div id='w_list' name='w_list' class='file_drop'>
+                                        <label for='a_list'>Allow-List: </label>
+                                        <div id='a_list' name='a_list' class='file_drop'>
                                             <i>Drag payload here &hellip;</i>
                                         </div>
-                                        <input type='hidden' name='w_list_data' id='w_list_data' value=''>
-                                        <input type='hidden' name='w_list_name' id='w_list_name' value=''>
+                                        <input type='hidden' name='a_list_data' id='a_list_data' value=''>
+                                        <input type='hidden' name='a_list_name' id='a_list_name' value=''>
                                         <br>
                                     </div>
 
@@ -509,13 +509,13 @@ class AgentsHandler(BaseHandler):
         if vtpm_policy == "":
             vtpm_policy = None
 
-        # Pull in IMA white list
-        ima_whitelist = None
-        w_list_data = self.get_argument("w_list_data", None, True)
-        if w_list_data != "":
-            ima_whitelist_str = parse_data_uri(w_list_data)
-            if ima_whitelist_str is not None:
-                ima_whitelist = ima_whitelist_str[0].splitlines()
+        # Pull in allowlist
+        allowlist = None
+        a_list_data = self.get_argument("a_list_data", None, True)
+        if a_list_data != "":
+            allowlist_str = parse_data_uri(a_list_data)
+            if allowlist_str is not None:
+                allowlist = allowlist_str[0].splitlines()
 
         # Pull in IMA exclude list
         ima_exclude = None
@@ -536,7 +536,7 @@ class AgentsHandler(BaseHandler):
             'ca_dir_pw': ca_dir_pw,
             'tpm_policy': tpm_policy,
             'vtpm_policy': vtpm_policy,
-            'ima_whitelist': ima_whitelist,
+            'allowlist': allowlist,
             'ima_exclude': ima_exclude,
         }
 

@@ -646,7 +646,7 @@ class tpm1(tpm_abstract.AbstractTPM):
         retDict = self.__run(cmd,lock=False)
         return retDict['retout']
 
-    def check_deep_quote(self,agent_id,nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima_measurement_list=None,ima_whitelist={}):
+    def check_deep_quote(self,agent_id,nonce,data,quote,vAIK,hAIK,vtpm_policy={},tpm_policy={},ima_measurement_list=None,allowlist={}):
         quoteFile=None
         vAIKFile=None
         hAIKFile=None
@@ -715,7 +715,7 @@ class tpm1(tpm_abstract.AbstractTPM):
 
         # don't pass in data to check pcrs for physical quote
         return self.check_pcrs(agent_id,tpm_policy,pcrs,None,False,None,None) and \
-            self.check_pcrs(agent_id,vtpm_policy, vpcrs, data, True,ima_measurement_list,ima_whitelist)
+            self.check_pcrs(agent_id,vtpm_policy, vpcrs, data, True,ima_measurement_list,allowlist)
 
     def __check_quote_c(self, aikFile, quoteFile, extData):
         os.putenv('TPM_SERVER_PORT', '9999')
@@ -741,7 +741,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             retDict = self.__run("checkquote -aik %s -quote %s -nonce %s"%(aikFile, quoteFile, extData),lock=False)
             return retDict['retout']
 
-    def check_quote(self,agent_id,nonce,data,quote,aikFromRegistrar,tpm_policy={},ima_measurement_list=None,ima_whitelist={},hash_alg=None):
+    def check_quote(self,agent_id,nonce,data,quote,aikFromRegistrar,tpm_policy={},ima_measurement_list=None,allowlist={},hash_alg=None):
         quoteFile=None
         aikFile=None
 
@@ -793,7 +793,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             if pcrs is not None:
                 pcrs.append(line.decode('utf-8'))
 
-        return self.check_pcrs(agent_id,tpm_policy,pcrs,data,False,ima_measurement_list,ima_whitelist)
+        return self.check_pcrs(agent_id,tpm_policy,pcrs,data,False,ima_measurement_list,allowlist)
 
     def sim_extend(self,hashval_1,hashval_0=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure
