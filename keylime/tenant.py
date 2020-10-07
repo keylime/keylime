@@ -450,7 +450,7 @@ class Tenant():
             if retval != 0:
                 raise UserError("External check script failed to validate EK")
                 while True:
-                    line = proc.stdout.readline()
+                    line = proc.stdout.readline().decode()
                     if line == "":
                         break
                     logger.debug(f"ek_check output: {line.strip()}")
@@ -459,7 +459,7 @@ class Tenant():
                 logger.debug(
                     "External check script successfully to validated EK")
                 while True:
-                    line = proc.stdout.readline()
+                    line = proc.stdout.readline().decode()
                     if line == "":
                         break
                     logger.debug(f"ek_check output: {line.strip()}")
