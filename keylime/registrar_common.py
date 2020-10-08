@@ -3,7 +3,6 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
-import os
 import threading
 import sys
 import signal
@@ -27,52 +26,18 @@ from keylime import keylime_logging
 
 # Database imports
 from keylime.db.registrar_db import RegistrarMain
-from keylime.db.keylime_db import SessionManager
+from keylime.db.keylime_db import DBEngineManager, SessionManager
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import create_engine
-from sqlalchemy.engine.url import URL
 
 logger = keylime_logging.init_logging('registrar-common')
-# setup config
 config = common.get_config()
 
-drivername = config.get('registrar', 'drivername')
+try:
+    engine = DBEngineManager().make_engine('registrar')
+except SQLAlchemyError as e:
+    logger.error(f'Error creating SQL engine: {e}')
+    exit(1)
 
-if drivername == 'sqlite':
-    database = "%s/%s" % (common.WORK_DIR,
-                          config.get('registrar', 'database'))
-    # Create the path to where the sqlite database will be store with a perm umask of 077
-    os.umask(0o077)
-    kl_dir = os.path.dirname(os.path.abspath(database))
-    if not os.path.exists(kl_dir):
-        os.makedirs(kl_dir, 0o700)
-
-    url = URL(
-        drivername=drivername,
-        username='',
-        password='',
-        host='',
-        database=(database)
-    )
-    try:
-        engine = create_engine(url,
-                            connect_args={'check_same_thread': False},)
-    except SQLAlchemyError as e:
-        logger.error(f'Error creating SQL engine: {e}')
-        exit(1)
-else:
-    url = URL(
-        drivername=drivername,
-        username=config.get('registrar', 'username'),
-        password=config.get('registrar', 'password'),
-        host=config.get('registrar', 'host'),
-        database=config.get('registrar', 'database')
-    )
-    try:
-        engine = create_engine(url)
-    except SQLAlchemyError as e:
-        logger.error(f'Error creating SQL engine: {e}')
-        exit(1)
 
 class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
@@ -391,6 +356,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     except SQLAlchemyError as e:
                         logger.error(f'SQLAlchemy Error: {e}')
                 else:
+                    drivername = config.get('registrar', 'drivername')
                     if drivername == "mysql" :
                         agent.key = agent.key.encode('utf-8')
 

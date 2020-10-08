@@ -68,7 +68,10 @@ setuptools.setup(
             'keylime_ca=keylime.cmd.ca:main',
             'keylime_ima_emulator=keylime.cmd.ima_emulator_adapter:main',
             'keylime_webapp=keylime.cmd.webapp:main',
+            'keylime_migrations_apply=keylime.cmd.migrations_apply:main',
         ],
     },
     ext_modules=extensions,
-    data_files=[('/etc', ['keylime.conf'])])
+    data_files=[('/etc', ['keylime.conf'])],
+    package_data={'keylime': ['migrations/alembic.ini']}
+)
