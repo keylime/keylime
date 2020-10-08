@@ -10,6 +10,7 @@ import sys
 from keylime import registrar_common
 from keylime import common
 from keylime import keylime_logging
+import keylime.cmd.migrations_apply
 
 logger = keylime_logging.init_logging('registrar')
 
@@ -17,6 +18,10 @@ config = common.get_config()
 
 
 def main(argv=sys.argv):
+    # if we are configured to auto-migrate the DB, check if there are any migrations to perform
+    if config.has_option('registrar', 'auto_migrate_db') and config.getboolean('registrar', 'auto_migrate_db'):
+        keylime.cmd.migrations_apply.apply('registrar')
+
     registrar_common.start(config.getint(
         'registrar', 'registrar_tls_port'), config.getint('registrar', 'registrar_port'))
 
