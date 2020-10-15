@@ -1017,7 +1017,7 @@ class tpm2(tpm_abstract.AbstractTPM):
     def __checkdeepquote_c(self, hAIK, vAIK, deepquoteFile, nonce):
         raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
 
-    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}):
+    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):
         raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
 
     def __check_quote_c(self, pubaik, nonce, quoteFile, sigFile, pcrFile, hash_alg):
@@ -1046,7 +1046,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         retDict = self.__run(command.format(**cmdargs), lock=False)
         return retDict
 
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}, hash_alg=None):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
@@ -1136,7 +1136,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         if len(pcrs) == 0:
             pcrs = None
 
-        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, ima_whitelist)
+        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist)
 
     def sim_extend(self,hashval_1,hashval_0=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure

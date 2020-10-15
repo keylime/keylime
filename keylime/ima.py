@@ -76,7 +76,7 @@ supported_fields = {
 }
 
 
-def read_measurement_list_bin(path, whitelist):
+def read_measurement_list_bin(path, allowlist):
     raise Exception("not implementated fully yet")
     f = open(path, 'rb')
 
@@ -121,10 +121,10 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
 
     if lists is not None:
         lists = ast.literal_eval(lists)
-        whitelist = lists['whitelist']
+        allowlist = lists['allowlist']
         exclude_list = lists['exclude']
     else:
-        whitelist = None
+        allowlist = None
 
     is_valid, compiled_regex, err_msg = common.valid_exclude_list(exclude_list)
     if not is_valid:
@@ -206,7 +206,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
             m2w.write("%s %s\n" % (codecs.encode(
                 filedata_hash, 'hex').decode('utf-8'), path))
 
-        if whitelist is not None:
+        if allowlist is not None:
 
             # just skip if it is a weird overwritten path
             if template_hash == FF_HASH:
@@ -218,10 +218,10 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
                 logger.debug("IMA: ignoring excluded path %s" % path)
                 continue
 
-            accept_list = whitelist.get(path, None)
+            accept_list = allowlist.get(path, None)
             accept_list = accept_list
             if accept_list is None:
-                logger.warning("File not found in whitelist: %s" % (path))
+                logger.warning("File not found in allowlist: %s" % (path))
                 errs[1] += 1
                 continue
             # print('codecs.encode', codecs.encode(filedata_hash, 'hex').decode('utf-8'))
@@ -248,29 +248,29 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
     return codecs.encode(runninghash, 'hex').decode('utf-8')
 
 
-def process_whitelists(wl_data, excl_data):
+def process_allowlists(al_data, excl_data):
     # Pull in default config values if not specified
-    if wl_data is None:
-        wl_data = read_whitelist()
+    if al_data is None:
+        al_data = read_allowlist()
     if excl_data is None:
         excl_data = read_excllist()
 
-    whitelist = {}
-    for line in wl_data:
+    allowlist = {}
+    for line in al_data:
         line = line.strip()
         tokens = line.split(None, 1)
         if len(tokens) != 2:
             continue
         fhash = tokens[0]
         path = str(tokens[1])
-        tmp = whitelist.get(path, [])
+        tmp = allowlist.get(path, [])
         tmp.append(fhash)
-        whitelist[path] = tmp
+        allowlist[path] = tmp
 
-    if whitelist.get('boot_aggregate', None) is None:
+    if allowlist.get('boot_aggregate', None) is None:
         logger.warning(
-            "No boot_aggregate value found in whitelist, adding an empty one")
-        whitelist['boot_aggregate'] = [
+            "No boot_aggregate value found in allowlist, adding an empty one")
+        allowlist['boot_aggregate'] = [
             '0000000000000000000000000000000000000000']
 
     for excl in excl_data:
@@ -280,23 +280,23 @@ def process_whitelists(wl_data, excl_data):
         if excl == "":
             excl_data.remove(excl)
 
-    return{'whitelist': whitelist, 'exclude': excl_data}
+    return{'allowlist': allowlist, 'exclude': excl_data}
 
 
-def read_whitelist(wl_path=None):
-    if wl_path is None:
-        wl_path = config.get('tenant', 'ima_whitelist')
+def read_allowlist(al_path=None):
+    if al_path is None:
+        al_path = config.get('tenant', 'ima_allowlist')
         if common.STUB_IMA:
-            wl_path = '../scripts/ima/whitelist.txt'
+            al_path = '../scripts/ima/allowlist.txt'
 
     # Purposefully die if path doesn't exist
-    with open(wl_path, 'r') as f:
-        wlist = f.read()
-    wlist = wlist.splitlines()
+    with open(al_path, 'r') as f:
+        alist = f.read()
+    alist = alist.splitlines()
 
-    logger.debug("Loaded whitelist from %s" % (wl_path))
+    logger.debug("Loaded allowlist from %s" % (al_path))
 
-    return wlist
+    return alist
 
 
 def read_excllist(exclude_path=None):
@@ -320,18 +320,16 @@ def read_excllist(exclude_path=None):
 def main(argv=sys.argv):
     #read_measurement_list_bin("/sys/kernel/security/ima/binary_runtime_measurements", None)
 
-    whitelist_path = 'whitelist.txt'
-    #whitelist_path = '../scripts/gerardo/whitelist.txt'
-    #whitelist_path = '../scripts/ima/whitelist.txt'
-    print("reading white list from %s" % whitelist_path)
+    allowlist_path = 'allowlist.txt'
+    print("reading allowlist from %s" % allowlist_path)
 
     exclude_path = 'exclude.txt'
     #exclude_path = '../scripts/ima/exclude.txt'
     print("reading exclude list from %s" % exclude_path)
 
-    wl_data = read_whitelist(whitelist_path)
+    al_data = read_allowlist(allowlist_path)
     excl_data = read_excllist(exclude_path)
-    lists = process_whitelists(wl_data, excl_data)
+    lists = process_allowlists(al_data, excl_data)
 
     measure_path = common.IMA_ML
     # measure_path='../scripts/ima/ascii_runtime_measurements_ima'
@@ -340,17 +338,17 @@ def main(argv=sys.argv):
     f = open(measure_path, 'r')
     lines = f.readlines()
 
-    m2w = open('measure2white.txt', "w")
-    digest = process_measurement_list(lines, lists, m2w)
+    m2a = open('measure2allow.txt', "w")
+    digest = process_measurement_list(lines, lists, m2a)
     print("final digest is %s" % digest)
     f.close()
-    m2w.close()
+    m2a.close()
 
-    print("using m2w")
+    print("using m2a")
 
-    wl_data = read_whitelist('measure2white.txt')
+    al_data = read_allowlist('measure2allow.txt')
     excl_data = read_excllist(exclude_path)
-    lists2 = process_whitelists(wl_data, excl_data)
+    lists2 = process_allowlists(al_data, excl_data)
     process_measurement_list(lines, lists2)
 
     print("done")

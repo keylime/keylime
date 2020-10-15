@@ -145,7 +145,7 @@ def main():
         'tpm_policy': '{"ab":"1"}',
         'vtpm_policy': '{"ab":"1"}',
         'metadata': '{"cert_serial":"1"}',
-        'ima_whitelist': '{}',
+        'allowlist': '{}',
         'revocation_key': '',
         'revocation': '{"cert_serial":"1"}',
     }

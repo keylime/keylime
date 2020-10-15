@@ -232,7 +232,7 @@ def process_quote_response(agent, json_response):
                                           agent['vtpm_policy'],
                                           agent['tpm_policy'],
                                           ima_measurement_list,
-                                          agent['ima_whitelist'])
+                                          agent['allowlist'])
     else:
         validQuote = tpm.check_quote(agent['agent_id'],
                                      agent['nonce'],
@@ -241,7 +241,7 @@ def process_quote_response(agent, json_response):
                                      agent['registrar_keys']['aik'],
                                      agent['tpm_policy'],
                                      ima_measurement_list,
-                                     agent['ima_whitelist'],
+                                     agent['allowlist'],
                                      hash_alg)
     if not validQuote:
         return False
@@ -301,11 +301,11 @@ def prepare_get_quote(agent):
 
 
 def process_get_status(agent):
-    ima_whitelist = ast.literal_eval(agent.ima_whitelist)
-    if isinstance(ima_whitelist, dict) and 'whitelist' in ima_whitelist:
-        wl_len = len(ima_whitelist['whitelist'])
+    allowlist = ast.literal_eval(agent.allowlist)
+    if isinstance(allowlist, dict) and 'allowlist' in allowlist:
+        al_len = len(allowlist['allowlist'])
     else:
-        wl_len = 0
+        al_len = 0
     response = {'operational_state': agent.operational_state,
                 'v': agent.v,
                 'ip': agent.ip,
@@ -313,7 +313,7 @@ def process_get_status(agent):
                 'tpm_policy': agent.tpm_policy,
                 'vtpm_policy': agent.vtpm_policy,
                 'meta_data': agent.meta_data,
-                'ima_whitelist_len': wl_len,
+                'allowlist_len': al_len,
                 'tpm_version': agent.tpm_version,
                 'accept_tpm_hash_algs': agent.accept_tpm_hash_algs,
                 'accept_tpm_encryption_algs': agent.accept_tpm_encryption_algs,
@@ -374,8 +374,8 @@ def validate_agent_data(agent_data):
     if agent_data is None:
         return False, None
 
-    # validate that the ima_whitelist is proper JSON
-    lists = json.loads(agent_data['ima_whitelist'])
+    # validate that the allowlist is proper JSON
+    lists = json.loads(agent_data['allowlist'])
 
     # Validate exlude list contains valid regular expressions
     is_valid, _, err_msg = common.valid_exclude_list(lists.get('exclude'))
