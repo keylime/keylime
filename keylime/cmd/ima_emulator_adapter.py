@@ -10,6 +10,7 @@ import time
 import itertools
 from keylime.tpm.tpm_abstract import *
 from keylime.tpm import tpm_obj
+from keylime.utils import algorithms
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)
@@ -45,7 +46,7 @@ def ml_extend(ml, position, searchHash=None):
         if searchHash is None:
             print("extending hash %s for %s" % (template_hash, path))
             # TODO: Add support for other hash algorithms
-            tpm.extendPCR(common.IMA_PCR, template_hash, Hash_Algorithms.SHA1)
+            tpm.extendPCR(common.IMA_PCR, template_hash, algorithms.Hash.SHA1)
         else:
             # Let's only encode if its not a byte
             try:
@@ -79,7 +80,7 @@ def main(argv=sys.argv):
     pos = 0
 
     # check if pcr is clean
-    pcrval = tpm.readPCR(common.IMA_PCR, Hash_Algorithms.SHA1)
+    pcrval = tpm.readPCR(common.IMA_PCR, algorithms.Hash.SHA1)
     if pcrval != start_hash:
         print("Warning: IMA PCR is not empty, trying to find the last updated file in the measurement list...")
         pos = ml_extend(common.IMA_ML, 0, pcrval)

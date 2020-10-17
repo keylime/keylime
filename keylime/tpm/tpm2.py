@@ -32,6 +32,7 @@ from keylime import keylime_logging
 from keylime import secure_mount
 from keylime.tpm import tpm_abstract
 from keylime import tpm_ek_ca
+from keylime.utils import algorithms
 
 logger = keylime_logging.init_logging('tpm2')
 
@@ -140,11 +141,11 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         retyaml = common.yaml_to_dict(output)
         for algorithm,details in retyaml.items():
-            if details["asymmetric"] == 1 and details["object"] == 1 and tpm_abstract.Encrypt_Algorithms.is_recognized(algorithm):
+            if details["asymmetric"] == 1 and details["object"] == 1 and algorithms.Encrypt.is_recognized(algorithm):
                 self.supported['encrypt'].add(algorithm)
-            elif details["hash"] == 1 and tpm_abstract.Hash_Algorithms.is_recognized(algorithm):
+            elif details["hash"] == 1 and algorithms.Hash.is_recognized(algorithm):
                 self.supported['hash'].add(algorithm)
-            elif details["asymmetric"] == 1 and details["signing"] == 1 and tpm_abstract.Sign_Algorithms.is_recognized(algorithm):
+            elif details["asymmetric"] == 1 and details["signing"] == 1 and algorithms.Sign.is_recognized(algorithm):
                 self.supported['sign'].add(algorithm)
 
     #tpm_exec
@@ -943,7 +944,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         ima_appended = ""
         for pcr in range(24):
             if tpm_abstract.TPM_Utilities.check_mask(mask, pcr):
-                if hash_alg != tpm_abstract.Hash_Algorithms.SHA1 and pcr == common.IMA_PCR:
+                if hash_alg != algorithms.Hash.SHA1 and pcr == common.IMA_PCR:
                     # IMA is only in SHA1 format
                     ima_appended = "+sha1:"+str(pcr)
                 else:
@@ -1122,15 +1123,15 @@ class tpm2(tpm_abstract.AbstractTPM):
         jsonout = common.yaml_to_dict(retout)
         if "pcrs" in jsonout:
             if hash_alg in jsonout["pcrs"]:
-                alg_size = tpm_abstract.Hash_Algorithms.get_hash_size(hash_alg) // 4
+                alg_size = algorithms.get_hash_size(hash_alg) // 4
                 for pcrval, hashval in jsonout["pcrs"][hash_alg].items():
                     pcrs.append("PCR " + str(pcrval) + " " + '{0:0{1}x}'.format(hashval, alg_size))
             # IMA is always in SHA1 format, so don't leave it behind!
-            if hash_alg != tpm_abstract.Hash_Algorithms.SHA1:
-                if tpm_abstract.Hash_Algorithms.SHA1 in jsonout["pcrs"] and common.IMA_PCR in jsonout["pcrs"][
-                    tpm_abstract.Hash_Algorithms.SHA1]:
-                    sha1_size = tpm_abstract.Hash_Algorithms.get_hash_size(tpm_abstract.Hash_Algorithms.SHA1) // 4
-                    ima_val = jsonout["pcrs"][tpm_abstract.Hash_Algorithms.SHA1][common.IMA_PCR]
+            if hash_alg != algorithms.Hash.SHA1:
+                if algorithms.Hash.SHA1 in jsonout["pcrs"] and common.IMA_PCR in jsonout["pcrs"][
+                    algorithms.Hash.SHA1]:
+                    sha1_size = algorithms.get_hash_size(algorithms.Hash.SHA1) // 4
+                    ima_val = jsonout["pcrs"][algorithms.Hash.SHA1][common.IMA_PCR]
                     pcrs.append("PCR " + str(common.IMA_PCR) + " " + '{0:0{1}x}'.format(ima_val, sha1_size))
 
         if len(pcrs) == 0:
@@ -1168,7 +1169,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             raise Exception("Invalid hashing algorithm '%s' for reading PCR number %d."%(hash_alg, pcrval))
 
         # alg_size = Hash_Algorithms.get_hash_size(hash_alg)/4
-        alg_size = tpm_abstract.Hash_Algorithms.get_hash_size(hash_alg) // 4
+        alg_size = algorithms.get_hash_size(hash_alg) // 4
         return '{0:0{1}x}'.format(jsonout[hash_alg][pcrval], alg_size)
 
 

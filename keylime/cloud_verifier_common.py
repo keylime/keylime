@@ -25,7 +25,8 @@ from keylime import crypto
 from keylime import ca_util
 from keylime import revocation_notifier
 from keylime.tpm import tpm_obj
-from keylime.tpm.tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+from keylime.tpm.tpm_abstract import TPM_Utilities
+from keylime.utils import algorithms
 
 # setup logging
 logger = keylime_logging.init_logging('cloudverifier_common')
@@ -208,17 +209,17 @@ def process_quote_response(agent, json_response):
     agent['sign_alg'] = sign_alg
 
     # Ensure hash_alg is in accept_tpm_hash_alg list
-    if not Hash_Algorithms.is_accepted(hash_alg, agent['accept_tpm_hash_algs']):
+    if not algorithms.is_accepted(hash_alg, agent['accept_tpm_hash_algs']):
         raise Exception(
             "TPM Quote is using an unaccepted hash algorithm: %s" % hash_alg)
 
     # Ensure enc_alg is in accept_tpm_encryption_algs list
-    if not Encrypt_Algorithms.is_accepted(enc_alg, agent['accept_tpm_encryption_algs']):
+    if not algorithms.is_accepted(enc_alg, agent['accept_tpm_encryption_algs']):
         raise Exception(
             "TPM Quote is using an unaccepted encryption algorithm: %s" % enc_alg)
 
     # Ensure sign_alg is in accept_tpm_encryption_algs list
-    if not Sign_Algorithms.is_accepted(sign_alg, agent['accept_tpm_signing_algs']):
+    if not algorithms.is_accepted(sign_alg, agent['accept_tpm_signing_algs']):
         raise Exception(
             "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 
