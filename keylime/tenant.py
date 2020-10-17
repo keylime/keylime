@@ -28,12 +28,13 @@ from keylime import common
 from keylime import keylime_logging
 from keylime import registrar_client
 from keylime.tpm import tpm_obj
-from keylime.tpm.tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime import ima
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import ca_util
 from keylime import cloud_verifier_common
+from keylime.utils import algorithms
 
 # setup logging
 logger = keylime_logging.init_logging('tenant')
@@ -689,7 +690,7 @@ class Tenant():
             # Ensure hash_alg is in accept_tpm_hash_algs list
             hash_alg = response_body["results"]["hash_alg"]
             logger.debug(f"agent_quote received hash algorithm: {hash_alg}")
-            if not Hash_Algorithms.is_accepted(hash_alg, config.get('tenant', 'accept_tpm_hash_algs').split(',')):
+            if not algorithms.is_accepted(hash_alg, config.get('tenant', 'accept_tpm_hash_algs').split(',')):
                 raise UserError(
                     "TPM Quote is using an unaccepted hash algorithm: %s" % hash_alg)
 
@@ -697,14 +698,14 @@ class Tenant():
             enc_alg = response_body["results"]["enc_alg"]
             logger.debug(
                 f"agent_quote received encryption algorithm: {enc_alg}")
-            if not Encrypt_Algorithms.is_accepted(enc_alg, config.get('tenant', 'accept_tpm_encryption_algs').split(',')):
+            if not algorithms.is_accepted(enc_alg, config.get('tenant', 'accept_tpm_encryption_algs').split(',')):
                 raise UserError(
                     "TPM Quote is using an unaccepted encryption algorithm: %s" % enc_alg)
 
             # Ensure sign_alg is in accept_tpm_encryption_algs list
             sign_alg = response_body["results"]["sign_alg"]
             logger.debug(f"agent_quote received signing algorithm: {sign_alg}")
-            if not Sign_Algorithms.is_accepted(sign_alg, config.get('tenant', 'accept_tpm_signing_algs').split(',')):
+            if not algorithms.is_accepted(sign_alg, config.get('tenant', 'accept_tpm_signing_algs').split(',')):
                 raise UserError(
                     "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 

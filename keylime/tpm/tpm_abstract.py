@@ -27,99 +27,9 @@ from keylime import common
 from keylime import keylime_logging
 from keylime import crypto
 from keylime import ima
+from keylime.utils import algorithms
 
 logger = keylime_logging.init_logging('tpm')
-
-
-class Hash_Algorithms:
-    SHA1 = 'sha1'
-    SHA256 = 'sha256'
-    SHA384 = 'sha384'
-    SHA512 = 'sha512'
-
-    @staticmethod
-    def get_hash_size(algorithm):
-        if algorithm == Hash_Algorithms.SHA1:
-            return 160
-        elif algorithm == Hash_Algorithms.SHA256:
-            return 256
-        elif algorithm == Hash_Algorithms.SHA384:
-            return 384
-        elif algorithm == Hash_Algorithms.SHA512:
-            return 512
-        else:
-            return 0
-
-    @staticmethod
-    def is_accepted(algorithm, accepted):
-        for alg in accepted:
-            if alg == algorithm:
-                return True
-        return False
-
-    @staticmethod
-    def is_recognized(algorithm):
-        if algorithm == Hash_Algorithms.SHA1:
-            return True
-        elif algorithm == Hash_Algorithms.SHA256:
-            return True
-        elif algorithm == Hash_Algorithms.SHA384:
-            return True
-        elif algorithm == Hash_Algorithms.SHA512:
-            return True
-        else:
-            return False
-
-
-class Encrypt_Algorithms:
-    RSA = 'rsa'
-    ECC = 'ecc'
-
-    @staticmethod
-    def is_accepted(algorithm, accepted):
-        for alg in accepted:
-            if alg == algorithm:
-                return True
-        return False
-
-    @staticmethod
-    def is_recognized(algorithm):
-        if algorithm == Encrypt_Algorithms.RSA:
-            return True
-        elif algorithm == Encrypt_Algorithms.ECC:
-            return True
-        else:
-            return False
-
-
-class Sign_Algorithms:
-    RSASSA = 'rsassa'
-    RSAPSS = 'rsapss'
-    ECDSA = 'ecdsa'
-    ECDAA = 'ecdaa'
-    ECSCHNORR = 'ecschnorr'
-
-    @staticmethod
-    def is_accepted(algorithm, accepted):
-        for alg in accepted:
-            if alg == algorithm:
-                return True
-        return False
-
-    @staticmethod
-    def is_recognized(algorithm):
-        if algorithm == Sign_Algorithms.RSASSA:
-            return True
-        elif algorithm == Sign_Algorithms.RSAPSS:
-            return True
-        elif algorithm == Sign_Algorithms.ECDSA:
-            return True
-        elif algorithm == Sign_Algorithms.ECDAA:
-            return True
-        elif algorithm == Sign_Algorithms.ECSCHNORR:
-            return True
-        else:
-            return False
 
 
 class TPM_Utilities:
@@ -181,9 +91,9 @@ class AbstractTPM(object, metaclass=ABCMeta):
         self.global_tpmdata = None
         self.tpmrand_warned = False
         self.defaults = {}
-        self.defaults['hash'] = Hash_Algorithms.SHA1
-        self.defaults['encrypt'] = Encrypt_Algorithms.RSA
-        self.defaults['sign'] = Sign_Algorithms.RSASSA
+        self.defaults['hash'] = algorithms.Hash.SHA1
+        self.defaults['encrypt'] = algorithms.Encrypt.RSA
+        self.defaults['sign'] = algorithms.Sign.RSASSA
         self.supported = {}
 
     @abstractmethod
@@ -287,20 +197,20 @@ class AbstractTPM(object, metaclass=ABCMeta):
         if algorithm is None:
             algorithm = self.defaults['hash']
 
-        alg_size = Hash_Algorithms.get_hash_size(algorithm) // 4
+        alg_size = algorithms.get_hash_size(algorithm) // 4
         return "0"*alg_size
 
     def hashdigest(self, payload, algorithm=None):
         if algorithm is None:
             algorithm = self.defaults['hash']
 
-        if algorithm == Hash_Algorithms.SHA1:
+        if algorithm == algorithms.Hash.SHA1:
             measured = hashlib.sha1(payload).hexdigest()
-        elif algorithm == Hash_Algorithms.SHA256:
+        elif algorithm == algorithms.Hash.SHA256:
             measured = hashlib.sha256(payload).hexdigest()
-        elif algorithm == Hash_Algorithms.SHA384:
+        elif algorithm == algorithms.Hash.SHA384:
             measured = hashlib.sha384(payload).hexdigest()
-        elif algorithm == Hash_Algorithms.SHA512:
+        elif algorithm == algorithms.Hash.SHA512:
             measured = hashlib.sha512(payload).hexdigest()
         else:
             measured = None

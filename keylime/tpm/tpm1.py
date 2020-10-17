@@ -29,6 +29,7 @@ from keylime import keylime_logging
 from keylime import secure_mount
 from keylime.tpm import tpm_abstract
 from keylime import tpm_ek_ca
+from keylime.utils import algorithms
 
 logger = keylime_logging.init_logging('tpm1')
 
@@ -45,13 +46,13 @@ class tpm1(tpm_abstract.AbstractTPM):
         self.tpmutilLock = threading.Lock()
 
         # TPM 1.2 supports fixed set of algorithms
-        self.supported['hash'] = set([tpm_abstract.Hash_Algorithms.SHA1])
-        self.supported['encrypt'] = set([tpm_abstract.Encrypt_Algorithms.RSA])
-        self.supported['sign'] = set([tpm_abstract.Sign_Algorithms.RSASSA])
+        self.supported['hash'] = set([algorithms.Hash.SHA1])
+        self.supported['encrypt'] = set([algorithms.Encrypt.RSA])
+        self.supported['sign'] = set([algorithms.Sign.RSASSA])
 
-        self.defaults['hash'] = tpm_abstract.Hash_Algorithms.SHA1
-        self.defaults['encrypt'] = tpm_abstract.Encrypt_Algorithms.RSA
-        self.defaults['sign'] = tpm_abstract.Sign_Algorithms.RSASSA
+        self.defaults['hash'] = algorithms.Hash.SHA1
+        self.defaults['encrypt'] = algorithms.Encrypt.RSA
+        self.defaults['sign'] = algorithms.Sign.RSASSA
 
     def get_tpm_version(self):
         return 1
