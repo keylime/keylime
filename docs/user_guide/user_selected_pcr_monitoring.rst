@@ -25,7 +25,7 @@ Or you can add a node to using `keylime_tenant`::
 
     keylime_tenant -v 127.0.0.1 -t 127.0.0.1 -f /root/excludes.txt \
     --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 \
-    --whitelist /root/whitelist.txt \
+    --allowlist /root/allowlist.txt \
     --exclude /root/exclude.txt \
     --tpm_policy  {"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]} \
     -c add
@@ -50,10 +50,10 @@ PCR7:
   - DBX - the system blacklist, logged as "dbx"
   - MokListX - the Mok blacklist, logged as "MokListX"
   - vendor_dbx - shim's built-in vendor blacklist, logged as "dbx"
-  - DB - the system whitelist, logged as "db"
-  - MokList the Mok whitelist, logged as "MokList"
-  - vendor_cert - shim's built-in vendor whitelist, logged as "Shim"
-  - shim_cert - shim's build-time generated whitelist, logged as "Shim"
+  - DB - the system allowlist, logged as "db"
+  - MokList the Mok allowlist, logged as "MokList"
+  - vendor_cert - shim's built-in vendor allowlist, logged as "Shim"
+  - shim_cert - shim's build-time generated allowlist, logged as "Shim"
 - MokSBState will be extended into PCR7 if it is set, logged as
   "MokSBState".
 
