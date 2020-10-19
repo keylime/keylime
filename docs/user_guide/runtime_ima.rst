@@ -47,49 +47,49 @@ You can then verify IMA is measuring your system::
   10 7efd8e2a3da367f2de74b26b84f20b37c692b9f9 ima-ng sha1:af78ea0b455f654e9237e2086971f367b6bebc5f /usr/lib/systemd/libsystemd-shared-239.so
   10 784fbf69b54c99d4ae82c0be5fca365a8272414e ima-ng sha1:b0c601bf82d32ff9afa34bccbb7e8f052c48d64e /etc/ld.so.cache
 
-Keylime IMA whitelists
+Keylime IMA allowlists
 ----------------------
 
-A whitelist is a set of "golden" cryptographic hashes of a files un-tampered
+An allowlist is a set of "golden" cryptographic hashes of a files un-tampered
 state.
 
-The structure of the white list is a hash followed by a full POSIX path to the
+The structure of the allowlist is a hash followed by a full POSIX path to the
 file::
 
   ffe3ad4c395985d143bd0e45a9a1dd09aac21b91 /path/to/file
 
-Keylime will load the whitelist into the Keylime Verifier. Keylime will then
+Keylime will load the allowlist into the Keylime Verifier. Keylime will then
 poll tpm quotes to `PCR 10` on the agents TPM and validate the agents file(s)
-state against the whitelist. If the object has been tampered with, the hashes
+state against the allowlist. If the object has been tampered with, the hashes
 will not match and Keylime will place the agent into a failed state. Likewise,
 if any files invoke the actions stated in `ima-policy` that are not matched in
-the whitelist, keylime will place the agent into a failed state.
+the allowlist, keylime will place the agent into a failed state.
 
-Generate a whitelist
+Generate an allowlist
 ~~~~~~~~~~~~~~~~~~~~
 
-Keylime provides a script to generate whitelists from `initramfs`, but this is
+Keylime provides a script to generate allowlists from `initramfs`, but this is
 only a guide. We encourage developers / users of Keylime to be creative and come
-up with their own process for securely creating and maintaining a whitelist.
+up with their own process for securely creating and maintaining an allowlist.
 
-The `create_whitelist.sh` script is `available here <https://github.com/keylime/python-keylime/blob/master/keylime/create_whitelist.sh>`_
+The `create_allowlist.sh` script is `available here <https://github.com/keylime/python-keylime/blob/master/keylime/create_allowlist.sh>`_
 
 Run the script as follows::
 
-  # create_whitelist.sh  whitelist.txt [hash-algo]
+  # create_allowlist.sh  allowlist.txt [hash-algo]
 
 With `[hash-algo]` being `sha1sum`, `sha256sum` (note, you need the OpenSSL app
 installed to have the shasum CLI applications available).
 
-This will then result in `whitelist.txt` being available for Agent provisioning.
+This will then result in `allowlist.txt` being available for Agent provisioning.
 
 .. warning::
-    It’s best practice to create the whitelist in a secure environment. Ideally,
+    It’s best practice to create the allowlist in a secure environment. Ideally,
     this should be on a fully encrypted, air gapped computer that is permanently
-    isolated from the Internet. Disable all network cards and sign the whitelist
+    isolated from the Internet. Disable all network cards and sign the allowlist
     hash to ensure no tampering occurs when transferring to other machines.
 
-Alongside building a whitelist from `initramfs`, you could also generate good
+Alongside building an allowlist from `initramfs`, you could also generate good
 hashes for your applications files or admin scripts that will run on the
 remotely attested machine.
 
@@ -107,38 +107,38 @@ regular expressions. For example the `tmp` directory can be ignored using::
 Remotely Provision Agents
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Now that we have our whitelist available, we can send it to the verifier.
+Now that we have our allowlist available, we can send it to the verifier.
 
 .. note::
   If you're using a TPM Emulator (for example with the ansible-keylime-tpm-emulator, you will also need
   to run the keylime ima emulator. To do this, open a terminal and run `keylime_ima_emulator`
 
-Using the `keylime_tenant` we can send the whitelist and our excludes list as
+Using the `keylime_tenant` we can send the allowlist and our excludes list as
 follows::
 
-  keylime_tenant -v <verifier-ip> -t <agent-ip> -f /path/excludes.txt --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --whitelist /path/whitelist.txt --exclude /path/excludes.txt
+  keylime_tenant -v <verifier-ip> -t <agent-ip> -f /path/excludes.txt --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --allowlist /path/allowlist.txt --exclude /path/excludes.txt
 
 .. note::
   If your agent is already registered, you can use `-c update`
 
-Should you prefer, you can set the values `ima_whitelist` & `ima_excludelist`
+Should you prefer, you can set the values `allowlist` & `ima_excludelist`
 within `/etc/keylime.conf`, you can then use `default` as follows::
 
-  `keylime_tenant -v 127.0.0.1 -t neptune -f /root/excludes.txt --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --whitelist default --exclude default`
+  `keylime_tenant -v 127.0.0.1 -t neptune -f /root/excludes.txt --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --allowlist default --exclude default`
 
-The whitelist can also be uploaded using the WebApp:
+The allowlist can also be uploaded using the WebApp:
 
-.. image:: ../images/whitelist_ui.png
+.. image:: ../images/allowlist_ui.png
 
 How can I test this?
 --------------------
 
 Create a script that does anything (for example `echo "hello world"`) that is not
-present in your whitelist or the excludes list. Run the script as root on the
+present in your allowlist or the excludes list. Run the script as root on the
 agent machine. You will then see the following output on the verifier showing
 the agent status change to failed::
 
   keylime.tpm - INFO - Checking IMA measurement list...
-  keylime.ima - WARNING - File not found in whitelist: /root/evil_script.sh
+  keylime.ima - WARNING - File not found in allowlist: /root/evil_script.sh
   keylime.ima - ERROR - IMA ERRORS: template-hash 0 fnf 1 hash 0 good 781
   keylime.cloudverifier - WARNING - agent D432FBB3-D2F1-4A97-9EF7-75BD81C00000 failed, stopping polling

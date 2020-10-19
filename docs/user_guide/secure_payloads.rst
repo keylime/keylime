@@ -6,16 +6,16 @@ Secure Payloads
     this warning is removed.
 
 Secure payloads offer the ability to provision encrypted data to an enrolled node.
-This encrypted data can be used to deliver secrets needed by the node such as 
+This encrypted data can be used to deliver secrets needed by the node such as
 keys, passwords, certificate roots of trust, etc.
 
 Secure payloads are for anything which requires strong confidentiality and
 integrity to bootstrap your system.
 
 The payload itself is encrypted and sent via the Keylime Tenant CLI (or rest API)
-to the Keylime Agent. The Agent also sends part of the key needed to decrypt the 
+to the Keylime Agent. The Agent also sends part of the key needed to decrypt the
 payload, a key share, called the `u_key` or user key. Only when the Agent has
-passed its enrolment criteria (including any `tpm_policy` or IMA whitelist),
+passed its enrolment criteria (including any `tpm_policy` or IMA allowlist),
 will the other key share of the decryption key, called the `v_key` or verification
 key, be passed to the Agent by the Keylime Verifier to decrypt the payload.
 
@@ -48,8 +48,8 @@ script contained in the zip file once it has been unzipped.  You can think of
 this as a very simple form of `cloud-init <https://cloudinit.readthedocs.io/>`_.
 By default this script is called `autorun.sh`. You can override this default
 with a different script name by adjusting the `payload_script` option in
-`keylime.conf`. Note also that this script must be contained in the encrypted 
-zip file, from which it will be extraced and then placed in 
+`keylime.conf`. Note also that this script must be contained in the encrypted
+zip file, from which it will be extraced and then placed in
 `/var/lib/keylime/secure/unzipped`.
 
 Because the keys that Keylime uses to decrypt the data and the decrypted data
@@ -86,7 +86,7 @@ be put into the certification package zip and securely delivered to the Agent.
 
 This mode of operation also natively supports certificate revocation. If the Keylime
 Verifier detects an Agent that no longer satisfies its integrity policy (e.g., it booted
-an authorized kernel or ran an unauthorized binary not on the IMA whitelist), it
+an authorized kernel or ran an unauthorized binary not on the IMA allowlist), it
 will create a signed revocation notification.  These revocation notifications are
 signed by a special certificate/private key called the RevocationNotifier.  Keylime
 will automatically create this certificate and pass it to the verifier when you add
@@ -232,4 +232,4 @@ Next create the `payload` directory the  `action_list` file containing
     machine from its list of Secure machines in `.ssh/authorized_keys`
 
 Many actions can be executed based on CA revocation. For more details
-and examples, please refer to the `Agent Revocation`_ page. 
+and examples, please refer to the `Agent Revocation`_ page.

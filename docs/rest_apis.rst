@@ -38,7 +38,7 @@ Cloud verifier (CV)
           “tpm_policy” : json,
           “vtpm_policy” : json,
           “metadata” : json,
-          “ima_whitelist” : json,
+          “allowlist” : json,
           “accept_tpm_hash_algs”: list,
           “accept_tpm_encryption_algs”: list,
           “accept_tpm_signing_algs”: list,
