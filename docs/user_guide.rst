@@ -8,5 +8,5 @@ User Guide
 
    user_guide/user_selected_pcr_monitoring.rst
    user_guide/runtime_ima.rst
-   user_guide/encrypted_payload.rst
+   user_guide/secure_payload.rst
    user_guide/revocation.rst
