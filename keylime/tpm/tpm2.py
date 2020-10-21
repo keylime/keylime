@@ -1,20 +1,6 @@
-'''DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
-
-This material is based upon work supported by the Assistant Secretary of Defense for
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
-FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the
-Assistant Secretary of Defense for Research and Engineering.
-
-Copyright 2015 Massachusetts Institute of Technology.
-
-The software/firmware is provided to you on an As-Is basis
-
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
-above. Use of this work other than as specifically authorized by the U.S. Government may
-violate any copyrights that exist in this work.
+'''
+SPDX-License-Identifier: Apache-2.0
+Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import base64
@@ -1031,7 +1017,7 @@ class tpm2(tpm_abstract.AbstractTPM):
     def __checkdeepquote_c(self, hAIK, vAIK, deepquoteFile, nonce):
         raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
 
-    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}):
+    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):
         raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
 
     def __check_quote_c(self, pubaik, nonce, quoteFile, sigFile, pcrFile, hash_alg):
@@ -1060,7 +1046,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         retDict = self.__run(command.format(**cmdargs), lock=False)
         return retDict
 
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}, hash_alg=None):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
@@ -1150,7 +1136,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         if len(pcrs) == 0:
             pcrs = None
 
-        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, ima_whitelist)
+        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist)
 
     def sim_extend(self,hashval_1,hashval_0=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure

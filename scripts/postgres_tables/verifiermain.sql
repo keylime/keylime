@@ -34,7 +34,7 @@ CREATE TABLE public.verifiermain (
     tpm_policy character varying,
     vtpm_policy character varying,
     meta_data character varying,
-    ima_whitelist character varying,
+    allowlist character varying,
     revocation_key character varying,
     tpm_version integer,
     accept_tpm_hash_algs text,

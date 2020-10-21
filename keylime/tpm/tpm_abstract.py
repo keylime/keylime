@@ -1,21 +1,8 @@
-'''DISTRIBUTION STATEMENT A. Approved for public release: distribution unlimited.
-
-This material is based upon work supported by the Assistant Secretary of Defense for
-Research and Engineering under Air Force Contract No. FA8721-05-C-0002 and/or
-FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views of the
-Assistant Secretary of Defense for Research and Engineering.
-
-Copyright 2015 Massachusetts Institute of Technology.
-
-The software/firmware is provided to you on an As-Is basis
-
-Delivered to the US Government with Unlimited Rights, as defined in DFARS Part
-252.227-7013 or 7014 (Feb 2014). Notwithstanding any copyright notice, U.S. Government
-rights in this work are defined by DFARS 252.227-7013 or DFARS 252.227-7014 as detailed
-above. Use of this work other than as specifically authorized by the U.S. Government may
-violate any copyrights that exist in this work.
 '''
+SPDX-License-Identifier: Apache-2.0
+Copyright 2017 Massachusetts Institute of Technology.
+'''
+
 import ast
 import base64
 import fcntl
@@ -163,9 +150,9 @@ class TPM_Utilities:
                 raise Exception("Invalid tpm policy pcr number: %s"%(key))
 
             if int(key) == common.TPM_DATA_PCR:
-                raise Exception("Invalid whitelist PCR number %s, keylime uses this PCR to bind data."%key)
+                raise Exception("Invalid allowlist PCR number %s, keylime uses this PCR to bind data."%key)
             if int(key) == common.IMA_PCR:
-                raise Exception("Invalid whitelist PCR number %s, this PCR is used for IMA."%key)
+                raise Exception("Invalid allowlist PCR number %s, this PCR is used for IMA."%key)
 
             mask = mask + (1<<int(key))
 
@@ -289,11 +276,11 @@ class AbstractTPM(object, metaclass=ABCMeta):
             raise Exception("Invalid quote type %s"%quote[0])
 
     @abstractmethod
-    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}):
+    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):
         pass
 
     @abstractmethod
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}, hash_alg=None):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None):
         pass
 
     def START_HASH(self, algorithm=None):
@@ -331,28 +318,27 @@ class AbstractTPM(object, metaclass=ABCMeta):
     def readPCR(self, pcrval, hash_alg=None):
         pass
 
-    def __check_ima(self, agent_id, pcrval, ima_measurement_list, ima_whitelist):
+    def __check_ima(self, agent_id, pcrval, ima_measurement_list, allowlist):
         logger.info(f"Checking IMA measurement list on agent: {agent_id}")
-        ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), ima_whitelist)
+        if common.STUB_IMA:
+            pcrval=None
+        ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), allowlist, pcrval=pcrval)
         if ex_value is None:
             return False
 
-        if pcrval != ex_value and not common.STUB_IMA:
-            logger.error("IMA measurement list expected pcr value %s does not match TPM PCR %s"%(ex_value, pcrval))
-            return False
         logger.debug(f"IMA measurement list of agent {agent_id} validated")
         return True
 
-    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, ima_whitelist):
+    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist):
         try:
             tpm_policy_ = ast.literal_eval(tpm_policy)
         except ValueError:
             tpm_policy_ = {}
-        pcrWhiteList = tpm_policy_.copy()
+        pcr_allowlist = tpm_policy_.copy()
 
-        if 'mask' in pcrWhiteList: del pcrWhiteList['mask']
+        if 'mask' in pcr_allowlist: del pcr_allowlist['mask']
         # convert all pcr num keys to integers
-        pcrWhiteList = {int(k):v for k, v in list(pcrWhiteList.items())}
+        pcr_allowlist = {int(k):v for k, v in list(pcr_allowlist.items())}
 
         pcrsInQuote = set()
         validatedBindPCR = False
@@ -384,18 +370,18 @@ class AbstractTPM(object, metaclass=ABCMeta):
                     logger.error("IMA PCR in policy, but no measurement list provided")
                     return False
 
-                if self.__check_ima(agent_id, pcrval, ima_measurement_list, ima_whitelist):
+                if self.__check_ima(agent_id, pcrval, ima_measurement_list, allowlist):
                     pcrsInQuote.add(pcrnum)
                     continue
                 else:
                     return False
 
-            if pcrnum not in list(pcrWhiteList.keys()):
+            if pcrnum not in list(pcr_allowlist.keys()):
                 if not common.STUB_TPM and len(list(tpm_policy.keys())) > 0:
                     logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping."%(("", "v")[virtual], pcrnum, ("", "v")[virtual]))
                 continue
-            elif pcrval not in pcrWhiteList[pcrnum] and not common.STUB_TPM:
-                logger.error("%sPCR #%s: %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, pcrWhiteList[pcrnum]))
+            elif pcrval not in pcr_allowlist[pcrnum] and not common.STUB_TPM:
+                logger.error("%sPCR #%s: %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum]))
                 return False
             else:
                 pcrsInQuote.add(pcrnum)
@@ -407,7 +393,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
             logger.error("Binding %sPCR #%s was not included in the quote, but is required"%(("", "v")[virtual], common.TPM_DATA_PCR))
             return False
 
-        missing = list(set(list(pcrWhiteList.keys())).difference(pcrsInQuote))
+        missing = list(set(list(pcr_allowlist.keys())).difference(pcrsInQuote))
         if len(missing) > 0:
             logger.error("%sPCRs specified in policy not in quote: %s"%(("", "v")[virtual], missing))
             return False

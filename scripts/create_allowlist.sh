@@ -58,9 +58,9 @@ OUTPUT=$(readlink -f $1)
 rm -f $OUTPUT
 
 
-echo "Writing whitelist to $OUTPUT with $ALGO..."
+echo "Writing allowlist to $OUTPUT with $ALGO..."
 
-# Add all appropriate files under root FS to whitelist
+# Add all appropriate files under root FS to allowlist
 cd /
 find `ls / | grep -v "\bsys\b\|\brun\b\|\bproc\b\|\blost+found\b\|\bdev\b\|\bmedia\b\|\bsnap\b\|mnt"` \( -fstype rootfs -o -xtype f -type l -o -type f \) -uid 0 -exec $ALGO '/{}' >> $OUTPUT \;
 
@@ -68,8 +68,8 @@ find `ls / | grep -v "\bsys\b\|\brun\b\|\bproc\b\|\blost+found\b\|\bdev\b\|\bmed
 rm -rf /tmp/ima/
 mkdir -p /tmp/ima
 
-# Iterate through init ram disks and add files to whitelist
-echo "Creating whitelist for init ram disk"
+# Iterate through init ram disks and add files to allowlist
+echo "Creating allowlist for init ram disk"
 for i in `ls ${INITRAMFS_LOC}/initr*`
 do
     echo "extracting $i"
