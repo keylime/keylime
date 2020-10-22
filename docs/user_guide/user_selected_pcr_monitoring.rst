@@ -17,7 +17,7 @@ How to use
 Select which PCRs you would like Keylime to measure, by using the `tpm2_pcrread` from the `tpm2-tools <https://github.com/tpm2-software/tpm2-tools>`_
 tool.
 
-Now you can set the PCR values as an array in either the `keylime.conf` file::
+Now you can set the PCR values as a JSON data structure in either the `keylime.conf` file::
 
     tpm_policy = {"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}
 
@@ -47,9 +47,9 @@ PCR4:
 PCR7:
 - Any certificate in one of our certificate databases that matches a binary
   we try to load will be extended into PCR7.  That includes:
-  - DBX - the system blacklist, logged as "dbx"
-  - MokListX - the Mok blacklist, logged as "MokListX"
-  - vendor_dbx - shim's built-in vendor blacklist, logged as "dbx"
+  - DBX - the system denylist, logged as "dbx"
+  - MokListX - the Mok denylist, logged as "MokListX"
+  - vendor_dbx - shim's built-in vendor denylist, logged as "dbx"
   - DB - the system allowlist, logged as "db"
   - MokList the Mok allowlist, logged as "MokList"
   - vendor_cert - shim's built-in vendor allowlist, logged as "Shim"

@@ -115,7 +115,7 @@ that has been revoked.  If an Agent has failed its integrity check, then we
 really can't trust that it won't ignore the revocations and do arbitrarily
 malicious things.  So, revocation actions are for other well-behaving Agents in
 the system to take action against the revoked Agent.  For example, by revoking
-its certificate as described above or blacklisting it from the network, etc.
+its certificate as described above or firewalling it from the network, etc.
 
 There are several revocation actions implemented in Keylime that you can look at
 to get an idea of how to write your own.  See the files starting with `local_action`
