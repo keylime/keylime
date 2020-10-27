@@ -1,6 +1,6 @@
 coverage==4.5.2
 green==2.13.0
-cryptography==2.6.1
+cryptography==3.2
 pyaml==18.11.0
 pyyaml>=4.2b1
 pytest-asyncio==0.10.0
