@@ -28,12 +28,13 @@ from keylime import common
 from keylime import keylime_logging
 from keylime import registrar_client
 from keylime.tpm import tpm_obj
-from keylime.tpm.tpm_abstract import TPM_Utilities, Hash_Algorithms, Encrypt_Algorithms, Sign_Algorithms
+from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime import ima
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import ca_util
 from keylime import cloud_verifier_common
+from keylime.utils import algorithms
 
 # setup logging
 logger = keylime_logging.init_logging('tenant')
@@ -77,7 +78,7 @@ class Tenant():
     tpm_policy = None
     vtpm_policy = {}
     metadata = {}
-    ima_whitelist = {}
+    allowlist = {}
     revocation_key = ""
     accept_tpm_hash_algs = []
     accept_tpm_encryption_algs = []
@@ -193,23 +194,23 @@ class Tenant():
         self.vtpm_policy = TPM_Utilities.readPolicy(vtpm_policy)
         logger.info(f"TPM PCR Mask from policy is {self.vtpm_policy['mask']}")
 
-        # Read command-line path string IMA whitelist
-        wl_data = None
-        if "ima_whitelist" in args and args["ima_whitelist"] is not None:
+        # Read command-line path string allowlist
+        al_data = None
+        if "allowlist" in args and args["allowlist"] is not None:
 
             # Auto-enable IMA (or-bit mask)
             self.tpm_policy['mask'] = "0x%X" % (
                 int(self.tpm_policy['mask'], 0) + (1 << common.IMA_PCR))
 
-            if type(args["ima_whitelist"]) in [str, str]:
-                if args["ima_whitelist"] == "default":
-                    args["ima_whitelist"] = config.get(
-                        'tenant', 'ima_whitelist')
-                wl_data = ima.read_whitelist(args["ima_whitelist"])
-            elif type(args["ima_whitelist"]) is list:
-                wl_data = args["ima_whitelist"]
+            if type(args["allowlist"]) in [str, str]:
+                if args["allowlist"] == "default":
+                    args["allowlist"] = config.get(
+                        'tenant', 'allowlist')
+                al_data = ima.read_allowlist(args["allowlist"])
+            elif type(args["allowlist"]) is list:
+                al_data = args["allowlist"]
             else:
-                raise UserError("Invalid whitelist provided")
+                raise UserError("Invalid allowlist provided")
 
         # Read command-line path string IMA exclude list
         excl_data = None
@@ -228,8 +229,8 @@ class Tenant():
         if TPM_Utilities.check_mask(self.tpm_policy['mask'], common.IMA_PCR) or \
                 TPM_Utilities.check_mask(self.vtpm_policy['mask'], common.IMA_PCR):
 
-            # Process IMA whitelists
-            self.ima_whitelist = ima.process_whitelists(wl_data, excl_data)
+            # Process allowlists
+            self.allowlist = ima.process_allowlists(al_data, excl_data)
 
         # if none
         if (args["file"] is None and
@@ -476,7 +477,7 @@ class Tenant():
             'cloudagent_port': self.cloudagent_port,
             'tpm_policy': json.dumps(self.tpm_policy),
             'vtpm_policy': json.dumps(self.vtpm_policy),
-            'ima_whitelist': json.dumps(self.ima_whitelist),
+            'allowlist': json.dumps(self.allowlist),
             'metadata': json.dumps(self.metadata),
             'revocation_key': self.revocation_key,
             'accept_tpm_hash_algs': self.accept_tpm_hash_algs,
@@ -689,7 +690,7 @@ class Tenant():
             # Ensure hash_alg is in accept_tpm_hash_algs list
             hash_alg = response_body["results"]["hash_alg"]
             logger.debug(f"agent_quote received hash algorithm: {hash_alg}")
-            if not Hash_Algorithms.is_accepted(hash_alg, config.get('tenant', 'accept_tpm_hash_algs').split(',')):
+            if not algorithms.is_accepted(hash_alg, config.get('tenant', 'accept_tpm_hash_algs').split(',')):
                 raise UserError(
                     "TPM Quote is using an unaccepted hash algorithm: %s" % hash_alg)
 
@@ -697,14 +698,14 @@ class Tenant():
             enc_alg = response_body["results"]["enc_alg"]
             logger.debug(
                 f"agent_quote received encryption algorithm: {enc_alg}")
-            if not Encrypt_Algorithms.is_accepted(enc_alg, config.get('tenant', 'accept_tpm_encryption_algs').split(',')):
+            if not algorithms.is_accepted(enc_alg, config.get('tenant', 'accept_tpm_encryption_algs').split(',')):
                 raise UserError(
                     "TPM Quote is using an unaccepted encryption algorithm: %s" % enc_alg)
 
             # Ensure sign_alg is in accept_tpm_encryption_algs list
             sign_alg = response_body["results"]["sign_alg"]
             logger.debug(f"agent_quote received signing algorithm: {sign_alg}")
-            if not Sign_Algorithms.is_accepted(sign_alg, config.get('tenant', 'accept_tpm_signing_algs').split(',')):
+            if not algorithms.is_accepted(sign_alg, config.get('tenant', 'accept_tpm_signing_algs').split(',')):
                 raise UserError(
                     "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 
@@ -827,8 +828,8 @@ def main(argv=sys.argv):
                         help='Specify the encrypted payload to deliver with encrypted keys specified by -k')
     parser.add_argument('--include', action='store', dest='incl_dir', default=None,
                         help="Include additional files in provided directory in certificate zip file.  Must be specified with --cert")
-    parser.add_argument('--whitelist', action='store', dest='ima_whitelist',
-                        default=None, help="Specify the location of an IMA whitelist")
+    parser.add_argument('--allowlist', action='store', dest='allowlist',
+                        default=None, help="Specify the location of an allowlist")
     parser.add_argument('--exclude', action='store', dest='ima_exclude',
                         default=None, help="Specify the location of an IMA exclude list")
     parser.add_argument('--tpm_policy', action='store', dest='tpm_policy', default=None,

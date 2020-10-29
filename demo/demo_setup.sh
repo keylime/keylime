@@ -261,11 +261,11 @@ if [[ "$IMA_ENABLE" -eq "1" ]] ; then
     fi
     echo "INFO: Restart required to enable IMA!"
 
-    # Generating IMA whitelist
+    # Generating IMA allowlist
     echo
     echo "=================================================================================="
-    echo $'\t\t\t\tGenerating IMA whitelist'
+    echo $'\t\t\t\tGenerating IMA allowlist'
     echo "=================================================================================="
     cd $KEYLIME_DIR/scripts
-    ./create_whitelist.sh whitelist.txt
+    ./create_allowlist.sh allowlist.txt
 fi

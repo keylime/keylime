@@ -22,10 +22,10 @@ class RegistrarMain(Base):
     __tablename__ = 'registrarmain'
     agent_id = Column(String(80),
                       primary_key=True)
-    key = Column(String)
-    aik = Column(String)
-    ek = Column(String)
-    ekcert = Column(String)
+    key = Column(String(45))
+    aik = Column(String(500))
+    ek = Column(String(500))
+    ekcert = Column(String(2048))
     virtual = Column(Integer)
     active = Column(Integer)
     provider_keys = Column(JSONPickleType(pickler=json))

@@ -5,7 +5,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import traceback
-import os
 import sys
 import functools
 import asyncio
@@ -20,10 +19,8 @@ from keylime import revocation_notifier
 
 # Database imports
 from keylime.db.verifier_db import VerfierMain
-from keylime.db.keylime_db import SessionManager
+from keylime.db.keylime_db import DBEngineManager, SessionManager
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import create_engine
-from sqlalchemy.engine.url import URL
 
 logger = keylime_logging.init_logging('cloudverifier')
 
@@ -37,43 +34,11 @@ if sys.version_info[0] < 3:
 
 config = common.get_config()
 
-drivername = config.get('cloud_verifier', 'drivername')
-
-if drivername == 'sqlite':
-    database = "%s/%s" % (common.WORK_DIR,
-                          config.get('cloud_verifier', 'database'))
-    # Create the path to where the sqlite database will be store with a perm umask of 077
-    os.umask(0o077)
-    kl_dir = os.path.dirname(os.path.abspath(database))
-    if not os.path.exists(kl_dir):
-        os.makedirs(kl_dir, 0o700)
-
-    url = URL(
-        drivername=drivername,
-        username='',
-        password='',
-        host='',
-        database=(database)
-    )
-    try:
-        engine = create_engine(url,
-                            connect_args={'check_same_thread': False},)
-    except SQLAlchemyError as e:
-        logger.error(f'Error creating SQL engine: {e}')
-        exit(1)
-else:
-    url = URL(
-        drivername=drivername,
-        username=config.get('cloud_verifier', 'username'),
-        password=config.get('cloud_verifier', 'password'),
-        host=config.get('cloud_verifier', 'host'),
-        database=config.get('cloud_verifier', 'database')
-    )
-    try:
-        engine = create_engine(url)
-    except SQLAlchemyError as e:
-        logger.error(f'Error creating SQL engine: {e}')
-        exit(1)
+try:
+    engine = DBEngineManager().make_engine('cloud_verifier')
+except SQLAlchemyError as e:
+    logger.error(f'Error creating SQL engine: {e}')
+    exit(1)
 
 
 # The "exclude_db" dict values are removed from the response before adding the dict to the DB
@@ -93,7 +58,7 @@ def _from_db_obj(agent_db_obj):
     fields = ['agent_id', 'v', 'ip', 'port',
               'operational_state', 'public_key',
               'tpm_policy', 'vtpm_policy', 'meta_data',
-              'ima_whitelist', 'revocation_key',
+              'allowlist', 'revocation_key',
               'tpm_version',
               'accept_tpm_hash_algs',
               'accept_tpm_encryption_algs',
@@ -306,7 +271,7 @@ class AgentsHandler(BaseHandler):
                     agent_data['tpm_policy'] = json_body['tpm_policy']
                     agent_data['vtpm_policy'] = json_body['vtpm_policy']
                     agent_data['meta_data'] = json_body['metadata']
-                    agent_data['ima_whitelist'] = json_body['ima_whitelist']
+                    agent_data['allowlist'] = json_body['allowlist']
                     agent_data['revocation_key'] = json_body['revocation_key']
                     agent_data['tpm_version'] = 0
                     agent_data['accept_tpm_hash_algs'] = json_body['accept_tpm_hash_algs']

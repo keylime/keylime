@@ -27,99 +27,9 @@ from keylime import common
 from keylime import keylime_logging
 from keylime import crypto
 from keylime import ima
+from keylime.utils import algorithms
 
 logger = keylime_logging.init_logging('tpm')
-
-
-class Hash_Algorithms:
-    SHA1 = 'sha1'
-    SHA256 = 'sha256'
-    SHA384 = 'sha384'
-    SHA512 = 'sha512'
-
-    @staticmethod
-    def get_hash_size(algorithm):
-        if algorithm == Hash_Algorithms.SHA1:
-            return 160
-        elif algorithm == Hash_Algorithms.SHA256:
-            return 256
-        elif algorithm == Hash_Algorithms.SHA384:
-            return 384
-        elif algorithm == Hash_Algorithms.SHA512:
-            return 512
-        else:
-            return 0
-
-    @staticmethod
-    def is_accepted(algorithm, accepted):
-        for alg in accepted:
-            if alg == algorithm:
-                return True
-        return False
-
-    @staticmethod
-    def is_recognized(algorithm):
-        if algorithm == Hash_Algorithms.SHA1:
-            return True
-        elif algorithm == Hash_Algorithms.SHA256:
-            return True
-        elif algorithm == Hash_Algorithms.SHA384:
-            return True
-        elif algorithm == Hash_Algorithms.SHA512:
-            return True
-        else:
-            return False
-
-
-class Encrypt_Algorithms:
-    RSA = 'rsa'
-    ECC = 'ecc'
-
-    @staticmethod
-    def is_accepted(algorithm, accepted):
-        for alg in accepted:
-            if alg == algorithm:
-                return True
-        return False
-
-    @staticmethod
-    def is_recognized(algorithm):
-        if algorithm == Encrypt_Algorithms.RSA:
-            return True
-        elif algorithm == Encrypt_Algorithms.ECC:
-            return True
-        else:
-            return False
-
-
-class Sign_Algorithms:
-    RSASSA = 'rsassa'
-    RSAPSS = 'rsapss'
-    ECDSA = 'ecdsa'
-    ECDAA = 'ecdaa'
-    ECSCHNORR = 'ecschnorr'
-
-    @staticmethod
-    def is_accepted(algorithm, accepted):
-        for alg in accepted:
-            if alg == algorithm:
-                return True
-        return False
-
-    @staticmethod
-    def is_recognized(algorithm):
-        if algorithm == Sign_Algorithms.RSASSA:
-            return True
-        elif algorithm == Sign_Algorithms.RSAPSS:
-            return True
-        elif algorithm == Sign_Algorithms.ECDSA:
-            return True
-        elif algorithm == Sign_Algorithms.ECDAA:
-            return True
-        elif algorithm == Sign_Algorithms.ECSCHNORR:
-            return True
-        else:
-            return False
 
 
 class TPM_Utilities:
@@ -150,9 +60,9 @@ class TPM_Utilities:
                 raise Exception("Invalid tpm policy pcr number: %s"%(key))
 
             if int(key) == common.TPM_DATA_PCR:
-                raise Exception("Invalid whitelist PCR number %s, keylime uses this PCR to bind data."%key)
+                raise Exception("Invalid allowlist PCR number %s, keylime uses this PCR to bind data."%key)
             if int(key) == common.IMA_PCR:
-                raise Exception("Invalid whitelist PCR number %s, this PCR is used for IMA."%key)
+                raise Exception("Invalid allowlist PCR number %s, this PCR is used for IMA."%key)
 
             mask = mask + (1<<int(key))
 
@@ -181,9 +91,9 @@ class AbstractTPM(object, metaclass=ABCMeta):
         self.global_tpmdata = None
         self.tpmrand_warned = False
         self.defaults = {}
-        self.defaults['hash'] = Hash_Algorithms.SHA1
-        self.defaults['encrypt'] = Encrypt_Algorithms.RSA
-        self.defaults['sign'] = Sign_Algorithms.RSASSA
+        self.defaults['hash'] = algorithms.Hash.SHA1
+        self.defaults['encrypt'] = algorithms.Encrypt.RSA
+        self.defaults['sign'] = algorithms.Sign.RSASSA
         self.supported = {}
 
     @abstractmethod
@@ -276,31 +186,31 @@ class AbstractTPM(object, metaclass=ABCMeta):
             raise Exception("Invalid quote type %s"%quote[0])
 
     @abstractmethod
-    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}):
+    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):
         pass
 
     @abstractmethod
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, ima_whitelist={}, hash_alg=None):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None):
         pass
 
     def START_HASH(self, algorithm=None):
         if algorithm is None:
             algorithm = self.defaults['hash']
 
-        alg_size = Hash_Algorithms.get_hash_size(algorithm) // 4
+        alg_size = algorithms.get_hash_size(algorithm) // 4
         return "0"*alg_size
 
     def hashdigest(self, payload, algorithm=None):
         if algorithm is None:
             algorithm = self.defaults['hash']
 
-        if algorithm == Hash_Algorithms.SHA1:
+        if algorithm == algorithms.Hash.SHA1:
             measured = hashlib.sha1(payload).hexdigest()
-        elif algorithm == Hash_Algorithms.SHA256:
+        elif algorithm == algorithms.Hash.SHA256:
             measured = hashlib.sha256(payload).hexdigest()
-        elif algorithm == Hash_Algorithms.SHA384:
+        elif algorithm == algorithms.Hash.SHA384:
             measured = hashlib.sha384(payload).hexdigest()
-        elif algorithm == Hash_Algorithms.SHA512:
+        elif algorithm == algorithms.Hash.SHA512:
             measured = hashlib.sha512(payload).hexdigest()
         else:
             measured = None
@@ -318,27 +228,27 @@ class AbstractTPM(object, metaclass=ABCMeta):
     def readPCR(self, pcrval, hash_alg=None):
         pass
 
-    def __check_ima(self, agent_id, pcrval, ima_measurement_list, ima_whitelist):
+    def __check_ima(self, agent_id, pcrval, ima_measurement_list, allowlist):
         logger.info(f"Checking IMA measurement list on agent: {agent_id}")
         if common.STUB_IMA:
             pcrval=None
-        ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), ima_whitelist, pcrval=pcrval)
+        ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), allowlist, pcrval=pcrval)
         if ex_value is None:
             return False
 
         logger.debug(f"IMA measurement list of agent {agent_id} validated")
         return True
 
-    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, ima_whitelist):
+    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist):
         try:
             tpm_policy_ = ast.literal_eval(tpm_policy)
         except ValueError:
             tpm_policy_ = {}
-        pcrWhiteList = tpm_policy_.copy()
+        pcr_allowlist = tpm_policy_.copy()
 
-        if 'mask' in pcrWhiteList: del pcrWhiteList['mask']
+        if 'mask' in pcr_allowlist: del pcr_allowlist['mask']
         # convert all pcr num keys to integers
-        pcrWhiteList = {int(k):v for k, v in list(pcrWhiteList.items())}
+        pcr_allowlist = {int(k):v for k, v in list(pcr_allowlist.items())}
 
         pcrsInQuote = set()
         validatedBindPCR = False
@@ -370,18 +280,18 @@ class AbstractTPM(object, metaclass=ABCMeta):
                     logger.error("IMA PCR in policy, but no measurement list provided")
                     return False
 
-                if self.__check_ima(agent_id, pcrval, ima_measurement_list, ima_whitelist):
+                if self.__check_ima(agent_id, pcrval, ima_measurement_list, allowlist):
                     pcrsInQuote.add(pcrnum)
                     continue
                 else:
                     return False
 
-            if pcrnum not in list(pcrWhiteList.keys()):
+            if pcrnum not in list(pcr_allowlist.keys()):
                 if not common.STUB_TPM and len(list(tpm_policy.keys())) > 0:
                     logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping."%(("", "v")[virtual], pcrnum, ("", "v")[virtual]))
                 continue
-            elif pcrval not in pcrWhiteList[pcrnum] and not common.STUB_TPM:
-                logger.error("%sPCR #%s: %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, pcrWhiteList[pcrnum]))
+            elif pcrval not in pcr_allowlist[pcrnum] and not common.STUB_TPM:
+                logger.error("%sPCR #%s: %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum]))
                 return False
             else:
                 pcrsInQuote.add(pcrnum)
@@ -393,7 +303,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
             logger.error("Binding %sPCR #%s was not included in the quote, but is required"%(("", "v")[virtual], common.TPM_DATA_PCR))
             return False
 
-        missing = list(set(list(pcrWhiteList.keys())).difference(pcrsInQuote))
+        missing = list(set(list(pcr_allowlist.keys())).difference(pcrsInQuote))
         if len(missing) > 0:
             logger.error("%sPCRs specified in policy not in quote: %s"%(("", "v")[virtual], missing))
             return False
