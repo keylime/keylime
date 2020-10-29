@@ -319,9 +319,10 @@ def cmd_revoke(workingdir, name=None, serial=None):
         write_private(priv)
 
         # write out the CRL to the disk
-        with open('cacrl.der', 'wb') as f:
-            f.write(crl)
-        convert_crl_to_pem("cacrl.der", "cacrl.pem")
+        if os.stat('cacrl.der').st_size :
+            with open('cacrl.der', 'wb') as f:
+                f.write(crl)
+            convert_crl_to_pem("cacrl.der", "cacrl.pem")
 
     finally:
         os.chdir(cwd)
@@ -378,7 +379,7 @@ def cmd_listen(workingdir, cert_path):
             logger.info("checking CRL for expiration every hour")
             while True:
                 try:
-                    if os.path.exists('cacrl.der'):
+                    if os.path.exists('cacrl.der') and os.stat('cacrl.der').st_size :
                         retout = cmd_exec.run(
                             "openssl crl -inform der -in cacrl.der -text -noout", lock=False)['retout']
                         for line in retout:
