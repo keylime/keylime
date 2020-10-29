@@ -55,7 +55,8 @@ def mount():
         common.chownroot(secdir, logger)
         size = config.get('cloud_agent', 'secure_size')
         logger.info("mounting secure storage location %s on tmpfs" % secdir)
-        cmd_exec.run("mount -t tmpfs -o size=%s,mode=0700 tmpfs %s" %
-                     (size, secdir), lock=False)
+        cmd = ('mount', '-t', 'tmpfs', '-o', 'size=%s,mode=0700' % size,
+               'tmpfs', secdir)
+        cmd_exec.run(cmd, lock=False)
 
     return secdir

@@ -265,8 +265,9 @@ def convert_crl_to_pem(derfile, pemfile):
         with open(pemfile, 'w') as f:
             f.write("")
     else:
-        cmd_exec.run("openssl crl -in %s -inform der -out %s" %
-                     (derfile, pemfile), lock=False)
+        cmd = ('openssl', 'crl', '-in', derfile, '-inform', 'der',
+               '-out', pemfile)
+        cmd_exec.run(cmd, lock=False)
 
 
 def get_crl_distpoint(cert_path):
@@ -319,7 +320,7 @@ def cmd_revoke(workingdir, name=None, serial=None):
         write_private(priv)
 
         # write out the CRL to the disk
-        if os.stat('cacrl.der').st_size :
+        if os.stat('cacrl.der').st_size:
             with open('cacrl.der', 'wb') as f:
                 f.write(crl)
             convert_crl_to_pem("cacrl.der", "cacrl.pem")
@@ -379,9 +380,11 @@ def cmd_listen(workingdir, cert_path):
             logger.info("checking CRL for expiration every hour")
             while True:
                 try:
-                    if os.path.exists('cacrl.der') and os.stat('cacrl.der').st_size :
-                        retout = cmd_exec.run(
-                            "openssl crl -inform der -in cacrl.der -text -noout", lock=False)['retout']
+                    if (os.path.exists('cacrl.der') and
+                            os.stat('cacrl.der').st_size):
+                        cmd = ('openssl', 'crl', '-inform', 'der', '-in',
+                               'cacrl.der', '-text', '-noout')
+                        retout = cmd_exec.run(cmd, lock=False)['retout']
                         for line in retout:
                             line = line.strip()
                             if line.startswith(b"Next Update:"):

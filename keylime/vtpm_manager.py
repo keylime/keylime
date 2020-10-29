@@ -446,7 +446,7 @@ def tpmconv(inmod):
         inFile.close()
         os.close(infd)
 
-        command = "tpmconv -ik %s -ok %s" % (inFile.name, tmppath)
+        command = ('tpmconv', '-ik', 'inFile.name', '-ok', tmppath)
         tpm.__run(command, lock=False)
 
         # read in the pem
