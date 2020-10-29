@@ -15,6 +15,9 @@ import subprocess
 import sys
 import time
 import zipfile
+import json
+import tempfile
+import requests
 
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 import simplejson as json
@@ -216,9 +219,8 @@ class Tenant():
 
             if isinstance(args["allowlist"], str):
                 if args["allowlist"] == "default":
-                    args["allowlist"] = config.get(
-                        'tenant', 'allowlist')
-                al_data = ima.read_allowlist(args["allowlist"])
+                    args["allowlist"] = config.get('tenant', 'allowlist')
+                al_data = ima.read_allowlist(args["allowlist"], args["allowlist_checksum"], args["allowlist_sig"], args["allowlist_sig_key"])
             elif isinstance(args["allowlist"], list):
                 al_data = args["allowlist"]
             else:
@@ -965,11 +967,21 @@ def main(argv=sys.argv):
     parser.add_argument('--include', action='store', dest='incl_dir', default=None,
                         help="Include additional files in provided directory in certificate zip file.  Must be specified with --cert")
     parser.add_argument('--allowlist', action='store', dest='allowlist',
-                        default=None, help="Specify the location of an allowlist")
+                        default=None, help="Specify the file path of an allowlist")
     parser.add_argument('--sign_verification_key', action='append', dest='ima_sign_verification_keys',
                         default=None, help="Specify an IMA file signature verification key")
     parser.add_argument('--mb_refstate', action='store', dest='mb_refstate',
                         default=None, help="Specify the location of a measure boot reference state (intended state)")
+    parser.add_argument('--allowlist-checksum', action='store', dest='allowlist_checksum',
+                        default=None, help="Specify the SHA2 checksum of an allowlist")
+    parser.add_argument('--allowlist-sig', action='store', dest='allowlist_sig',
+                        default=None, help="Specify the GPG signature file of an allowlist")
+    parser.add_argument('--allowlist-sig-key', action='store', dest='allowlist_sig_key',
+                        default=None, help="Specify the GPG public key file used to validate the --allowlist-sig or --allowlist-sig-url")
+    parser.add_argument('--allowlist-url', action='store', dest='allowlist_url',
+                        default=None, help="Specify the URL of a remote allowlist")
+    parser.add_argument('--allowlist-sig-url', action='store', dest='allowlist_sig_url',
+                        default=None, help="Specify the URL of the remote GPG signature file of an allowlist")
     parser.add_argument('--exclude', action='store', dest='ima_exclude',
                         default=None, help="Specify the location of an IMA exclude list")
     parser.add_argument('--tpm_policy', action='store', dest='tpm_policy', default=None,
@@ -980,6 +992,25 @@ def main(argv=sys.argv):
                         help='Block on cryptographically checked key derivation confirmation from the agent once it has been provisioned')
 
     args = parser.parse_args(argv[1:])
+
+    # Make sure argument dependencies are enforced
+    if( args.allowlist and args.allowlist_url):
+        parser.error("--allowlist and --allowlist-url cannot be specified at the same time")
+    if( args.allowlist_url and not (args.allowlist_sig or args.allowlist_sig_url or args.allowlist_checksum)):
+        parser.error("--allowlist-url must have either --allowlist-sig, --allowlist-sig-url or --allowlist-checksum to verifier integrity")
+    if( args.allowlist_sig and not (args.allowlist_url or args.allowlist)):
+        parser.error("--allowlist-sig must have either --allowlist or --allowlist-url")
+    if( args.allowlist_sig_url and not (args.allowlist_url or args.allowlist)):
+        parser.error("--allowlist-sig-url must have either --allowlist or --allowlist-url")
+    if( args.allowlist_checksum and not (args.allowlist_url or args.allowlist)):
+        parser.error("--allowlist-checksum must have either --allowlist or --allowlist-url")
+    if( args.allowlist_sig and not args.allowlist_sig_key):
+        parser.error("--allowlist-sig must also have --allowlist-sig-key")
+    if( args.allowlist_sig_url and not args.allowlist_sig_key):
+        parser.error("--allowlist-sig-url must also have --allowlist-sig-key")
+    if( args.allowlist_sig_key and not (args.allowlist_sig or args.allowlist_sig_url)):
+        parser.error("--allowlist-sig-key must have either --allowlist-sig or --allowlist-sig-url")
+
     mytenant = Tenant()
 
     if args.command not in ['list', 'regdelete', 'reglist', 'delete', 'status'] and args.agent_ip is None:
@@ -1009,6 +1040,34 @@ def main(argv=sys.argv):
 
     if args.verifier_ip is not None:
         mytenant.verifier_ip = args.verifier_ip
+
+    # we only need to fetch remote files if we are adding or updateing
+    if args.command in ['add', 'update']:
+        delete_tmp_files = logger.level > logging.DEBUG # delete tmp files unless in DEBUG mode
+
+        if args.allowlist_url:
+            logger.info("Downloading Allowlist from %s", args.allowlist_url)
+            response = requests.get(args.allowlist_url, allow_redirects=False)
+            if response.status_code == 200:
+                allowlist_temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)
+                allowlist_temp.write(response.content)
+                allowlist_temp.flush()
+                args.allowlist = allowlist_temp.name
+                logger.debug("Allowlist temporarily saved in %s" % (allowlist_temp.name))
+            else:
+                raise Exception("Downloading allowlist (%s) failed with status code %s!" % (args.allowlist_url, response.status_code))
+
+        if args.allowlist_sig_url:
+            logger.info("Downloading Allowlist signature from %s", args.allowlist_sig_url)
+            response = requests.get(args.allowlist_sig_url, allow_redirects=False)
+            if response.status_code == 200:
+                sig_temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)
+                sig_temp.write(response.content)
+                sig_temp.flush()
+                args.allowlist_sig = sig_temp.name
+                logger.debug("Allowlist signature temporarily saved in %s", sig_temp.name)
+            else:
+                raise Exception("Downloading allowlist signature (%s) failed with status code %s!" % (args.allowlist_sig_url, response.status_code))
 
     if args.command == 'add':
         mytenant.init_add(vars(args))

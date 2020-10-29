@@ -8,6 +8,10 @@ import codecs
 import hashlib
 import struct
 import os
+import re
+import json
+import datetime
+import gnupg
 
 from keylime import config
 from keylime import keylime_logging
@@ -20,6 +24,9 @@ logger = keylime_logging.init_logging('ima')
 
 START_HASH = (codecs.decode('0000000000000000000000000000000000000000', 'hex'))
 FF_HASH = (codecs.decode('ffffffffffffffffffffffffffffffffffffffff', 'hex'))
+
+# The version of the allowlist format that is supported by this keylime release
+ALLOWLIST_CURRENT_VERSION = 1
 
 
 # struct event {
@@ -223,7 +230,8 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
     found_pcr = (pcrval is None)
 
     if lists is not None:
-        lists = ast.literal_eval(lists)
+        if isinstance(lists, str):
+            lists = ast.literal_eval(lists)
         allowlist = lists['allowlist']
         exclude_list = lists['exclude']
     else:
@@ -351,42 +359,30 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
     return codecs.encode(runninghash, 'hex').decode('utf-8')
 
 
-def process_allowlists(al_data, excl_data):
+def process_allowlists(allowlist, exclude):
     # Pull in default config values if not specified
-    if al_data is None:
-        al_data = read_allowlist()
-    if excl_data is None:
-        excl_data = read_excllist()
+    if allowlist is None:
+        allowlist = read_allowlist()
+    if exclude is None:
+        exclude = read_excllist()
 
-    allowlist = {}
-    for line in al_data:
-        line = line.strip()
-        tokens = line.split(None, 1)
-        if len(tokens) != 2:
-            continue
-        fhash = tokens[0]
-        path = str(tokens[1])
-        tmp = allowlist.get(path, [])
-        tmp.append(fhash)
-        allowlist[path] = tmp
+    if allowlist['hashes'].get('boot_aggregate') is None:
+        logger.warning("No boot_aggregate value found in allowlist, adding an empty one")
+        allowlist['hashes']['boot_aggregate'] = ['0000000000000000000000000000000000000000']
 
-    if allowlist.get('boot_aggregate', None) is None:
-        logger.warning(
-            "No boot_aggregate value found in allowlist, adding an empty one")
-        allowlist['boot_aggregate'] = [
-            '0000000000000000000000000000000000000000']
-
-    for excl in excl_data:
+    for excl in exclude:
+        # remove commented out lines
         if excl.startswith("#"):
-            excl_data.remove(excl)
+            exclude.remove(excl)
         # don't allow empty lines in exclude list, it will match everything
         if excl == "":
-            excl_data.remove(excl)
+            exclude.remove(excl)
 
-    return{'allowlist': allowlist, 'exclude': excl_data}
+    return{'allowlist': allowlist['hashes'], 'exclude': exclude}
 
 
-def read_allowlist(al_path=None):
+def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None):
+    alist = {}
     if al_path is None:
         al_path = config.get('tenant', 'ima_allowlist')
         if config.STUB_IMA:
@@ -401,7 +397,88 @@ def read_allowlist(al_path=None):
         alist = f.read()
     alist = alist.splitlines()
 
-    logger.debug("Loaded allowlist from %s" % (al_path))
+    # verify GPG signature if needed
+    if gpg_sig_file and gpg_key_file:
+        gpg = gnupg.GPG()
+        with open(gpg_key_file, 'r') as key_f:
+            logger.debug("Importing GPG key %s", gpg_key_file)
+            gpg_imported = gpg.import_keys(key_f.read())
+            if gpg_imported.count == 1: # pylint: disable=E1101
+                logger.debug("GPG key successfully imported")
+            else:
+                raise Exception(f"Unable to import GPG key: {gpg_key_file}")
+
+        with open(gpg_sig_file, 'rb') as sig_f:
+            logger.debug("Comparing allowlist (%s) against GPG signature (%s)", al_path, gpg_sig_file)
+            verified = gpg.verify_file(sig_f, al_path)
+            if verified:
+                logger.debug("Allowlist passed GPG signature verification")
+            else:
+                raise Exception("Allowlist GPG signature verification failed comparing allowlist (al_path against gpg_sig_file", al_path, gpg_sig_file)
+
+    # Purposefully die if path doesn't exist
+    with open(al_path, 'rb') as f:
+        logger.debug("Loading allowlist from %s", al_path)
+        alist_bytes = f.read()
+        sha256 = hashlib.sha256()
+        sha256.update(alist_bytes)
+        calculated_checksum = sha256.hexdigest()
+        alist_raw = alist_bytes.decode("utf-8")
+        logger.debug("Loaded allowlist from %s with checksum %s", al_path, calculated_checksum)
+
+    if checksum:
+        if checksum == calculated_checksum:
+            logger.debug("Allowlist passed checksum validation")
+        else:
+            raise Exception(f"Checksum of allowlist does not match! Expected {checksum}, Calculated {calculated_checksum}")
+
+    # if the first non-whitespace character in the file is '{' treat it as the new JSON format
+    p = re.compile(r'^\s*{')
+    if p.match(alist_raw):
+        logger.debug("Reading allow list as JSON format")
+        alist = json.loads(alist_raw)
+
+        # verify it's the current version
+        if "meta" in alist and "version" in alist["meta"]:
+            version = alist["meta"]["version"]
+            if int(version) == ALLOWLIST_CURRENT_VERSION:
+                logger.debug("Allowlist has compatible version %s", version)
+            else:
+                # in the future we will support multiple versions and convert between them,
+                # but for now there is only one
+                raise Exception("Allowlist has unsupported version {version}")
+        else:
+            logger.debug("Allowlist does not specify a version. Assuming current version %s", ALLOWLIST_CURRENT_VERSION)
+    else:
+        # convert legacy format into new structured format
+        logger.debug("Converting legacy allowlist format to JSON")
+        alist = {
+            "meta": {
+                "version": ALLOWLIST_CURRENT_VERSION,
+                "generator": "keylime-legacy-format-upgrade",
+                "timestamp": str(datetime.datetime.now()),
+            },
+            "release": 0,
+            "hashes": {}
+        }
+        if checksum:
+            alist["meta"]["checksum"] = checksum
+
+        for line in alist_raw.splitlines():
+            line = line.strip()
+            if len(line) == 0:
+                continue
+
+            pieces = line.split(None, 1)
+            if not len(pieces) == 2:
+                logger.warning("Line in AllowList does not consist of hash and file path: %s", line)
+                continue
+
+            (checksum_hash, path) = pieces
+            if path in alist["hashes"]:
+                alist["hashes"][path].append(checksum_hash)
+            else:
+                alist["hashes"][path] = [checksum_hash]
 
     return alist
 

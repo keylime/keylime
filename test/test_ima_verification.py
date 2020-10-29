@@ -11,13 +11,19 @@ from keylime import ima_file_signatures
 
 # BEGIN TEST DATA
 
-ALLOWLIST = \
-    'e4cb9f5709c88376b5fc3743cd88e76b9aae8f3d992d845678de5215edb31216  boot_aggregate\n'\
-    'f1125b940480d20ad841d26d5ea253edc0704b5ec1548c891edf212cb1a9365e  /lib/modules/5.4.48-openpower1/kernel/drivers/usb/common/usb-common.ko\n'\
-    'cd026b58efdf66658685430ff526490d54a430a3f0066a35ac26a8acab66c55d  /lib/modules/5.4.48-openpower1/kernel/drivers/gpu/drm/drm_panel_orientation_quirks.ko\n' \
-    '1350320e5f7f51553bac8aa403489a1b135bc101  /usr/bin/dd\n' \
-    '1cb84b12db45d7da8de58ba6744187db84082f0e  /usr/bin/zmore\n' \
-    '233ad3a8e77c63a7d9a56063ec2cad1eafa58850  /usr/bin/zless\n'
+ALLOWLIST = {
+    "meta": {
+        "version": 1,
+    },
+    "hashes": {
+        'boot_aggregate': ['e4cb9f5709c88376b5fc3743cd88e76b9aae8f3d992d845678de5215edb31216'],
+        '/lib/modules/5.4.48-openpower1/kernel/drivers/usb/common/usb-common.ko': ['f1125b940480d20ad841d26d5ea253edc0704b5ec1548c891edf212cb1a9365e'],
+        '/lib/modules/5.4.48-openpower1/kernel/drivers/gpu/drm/drm_panel_orientation_quirks.ko': ['cd026b58efdf66658685430ff526490d54a430a3f0066a35ac26a8acab66c55d'],
+        '/usr/bin/dd': ['1350320e5f7f51553bac8aa403489a1b135bc101'],
+        '/usr/bin/zmore': ['1cb84b12db45d7da8de58ba6744187db84082f0e'],
+        '/usr/bin/zless': ['233ad3a8e77c63a7d9a56063ec2cad1eafa58850'],
+    }
+}
 
 MEASUREMENTS = \
     '10 0c8a706a75a5689c1e168f0a573a3cbec33061b5 ima-sig sha256:e4cb9f5709c88376b5fc3743cd88e76b9aae8f3d992d845678de5215edb31216 boot_aggregate\n'\
@@ -41,9 +47,12 @@ class TestIMAVerification(unittest.TestCase):
     def test_measurment_verification(self):
         """ Test IMA measurement list verification """
         lines = MEASUREMENTS.splitlines()
-        lists_map = ima.process_allowlists(ALLOWLIST.splitlines(), '')
+        lists_map = ima.process_allowlists(ALLOWLIST, '')
 
+        self.assertTrue(ima.process_measurement_list(lines, lists_map) is not None)
+        # test with list as a string
         self.assertTrue(ima.process_measurement_list(lines, str(lists_map)) is not None)
+
 
     def test_signature_verification(self):
         """ Test the signature verification """
@@ -72,7 +81,7 @@ class TestIMAVerification(unittest.TestCase):
     def test_mixed_verfication(self):
         """ Test verification using allowlist and keys """
 
-        lists_map = ima.process_allowlists(ALLOWLIST.splitlines(), '')
+        lists_map = ima.process_allowlists(ALLOWLIST, '')
 
         # every entry is covered by the allowlist and there's no keyring -> this should pass
         self.assertTrue(ima.process_measurement_list(COMBINED.splitlines(), str(lists_map)) is not None)
@@ -94,3 +103,59 @@ class TestIMAVerification(unittest.TestCase):
 
         # all entries are either covered by exclude list or by signature verification -> this should pass
         self.assertTrue(ima.process_measurement_list(COMBINED.splitlines(), str(lists_map), ima_keyring=keyring) is not None)
+
+    def test_read_allowlist(self):
+        """ Test reading and processing of the IMA allow-list """
+
+        curdir = os.path.dirname(os.path.abspath(__file__))
+        allowlist_file = os.path.join(curdir, "data", "ima-allowlist-short.txt")
+        allowlist_sig = os.path.join(curdir, "data", "ima-allowlist-short.sig")
+        allowlist_bad_sig = os.path.join(curdir, "data", "ima-allowlist-bad.sig")
+        allowlist_gpg_key = os.path.join(curdir, "data", "gpg-sig.pub")
+        allowlist_checksum = "8b7c2c6a1d7af2568cc663905491bda829c04c397cdba38cc4fc4d8d8a3e69d4"
+        allowlist_bad_checksum = "4c143670836f96535d9e617359b4d87c59e89e633e2773b4d7feae97f561b3dc"
+
+        # simple read, no fancy verification
+        al_data = ima.read_allowlist(allowlist_file)
+        self.assertIsNotNone(al_data, "AllowList data is present")
+        self.assertIsNotNone(al_data["meta"], "AllowList metadata is present")
+        self.assertEqual(al_data["meta"]["version"], 1, "AllowList metadata version is correct")
+        self.assertEqual(al_data["meta"]["generator"], "keylime-legacy-format-upgrade", "AllowList metadata generator is correct")
+        self.assertNotIn("checksum", al_data["meta"], "AllowList metadata no checksum")
+        self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
+        self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
+        self.assertEqual(al_data["hashes"]["/boot/grub2/i386-pc/testload.mod"][0], "68e1d012e3f193dcde955e6ffbbc80e22b0f8778", "AllowList sample hash is correct")
+
+        # validate checkum
+        al_data = ima.read_allowlist(allowlist_file, allowlist_checksum)
+        self.assertIsNotNone(al_data, "AllowList data is present")
+        self.assertEqual(al_data["meta"]["checksum"], allowlist_checksum, "AllowList metadata correct checksum")
+        self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
+        self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
+        self.assertEqual(al_data["hashes"]["/boot/grub2/i386-pc/testload.mod"][0], "68e1d012e3f193dcde955e6ffbbc80e22b0f8778", "AllowList sample hash is correct")
+
+        # test with a bad checksum
+        with self.assertRaises(Exception) as bad_checksum_context:
+            ima.read_allowlist(allowlist_file, allowlist_bad_checksum)
+        self.assertIn('Checksum of allowlist does not match', str(bad_checksum_context.exception))
+
+        # validate GPG signature
+        al_data = ima.read_allowlist(allowlist_file, None, allowlist_sig, allowlist_gpg_key)
+        self.assertIsNotNone(al_data, "AllowList data is present")
+        self.assertNotIn("checksum", al_data["meta"], "AllowList metadata no checksum")
+        self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
+        self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
+        self.assertEqual(al_data["hashes"]["/boot/grub2/i386-pc/testload.mod"][0], "68e1d012e3f193dcde955e6ffbbc80e22b0f8778", "AllowList sample hash is correct")
+
+        # test with a bad GPG sig
+        with self.assertRaises(Exception) as bad_sig_context:
+            ima.read_allowlist(allowlist_file, None, allowlist_bad_sig, allowlist_gpg_key)
+        self.assertIn('GPG signature verification failed', str(bad_sig_context.exception))
+
+        # validate everything together
+        al_data = ima.read_allowlist(allowlist_file, allowlist_checksum, allowlist_sig, allowlist_gpg_key)
+        self.assertIsNotNone(al_data, "AllowList data is present")
+        self.assertEqual(al_data["meta"]["checksum"], allowlist_checksum, "AllowList metadata correct checksum")
+        self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
+        self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
+        self.assertEqual(al_data["hashes"]["/boot/grub2/i386-pc/testload.mod"][0], "68e1d012e3f193dcde955e6ffbbc80e22b0f8778", "AllowList sample hash is correct")
