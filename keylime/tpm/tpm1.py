@@ -127,9 +127,15 @@ class tpm1(tpm_abstract.AbstractTPM):
         while True:
             if lock:
                 with self.tpmutilLock:
-                    retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode, raiseOnError=False, lock=lock, outputpaths=outputpaths, env=env)
+                    retDict = cmd_exec.run(
+                        cmd=cmd, expectedcode=expectedcode,
+                        raiseOnError=False, lock=lock,
+                        outputpaths=outputpaths, env=env, shell=True)
             else:
-                retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode, raiseOnError=False, lock=lock, outputpaths=outputpaths, env=env)
+                retDict = cmd_exec.run(
+                    cmd=cmd, expectedcode=expectedcode, raiseOnError=False,
+                    lock=lock, outputpaths=outputpaths, env=env, shell=True)
+
             t0 = retDict['timing']['t0']
             t1 = retDict['timing']['t1']
             code = retDict['code']
