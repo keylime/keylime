@@ -22,8 +22,10 @@ def main(argv=sys.argv):
     if config.has_option('registrar', 'auto_migrate_db') and config.getboolean('registrar', 'auto_migrate_db'):
         keylime.cmd.migrations_apply.apply('registrar')
 
-    registrar_common.start(config.getint(
-        'registrar', 'registrar_tls_port'), config.getint('registrar', 'registrar_port'))
+    registrar_common.start(
+        config.get('registrar', 'registrar_ip'),
+        config.getint('registrar', 'registrar_tls_port'),
+        config.getint('registrar', 'registrar_port'))
 
 
 if __name__ == "__main__":
