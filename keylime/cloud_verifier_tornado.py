@@ -630,6 +630,7 @@ def main(argv=sys.argv):
 
     config = common.get_config()
     cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
+    cloudverifier_host = config.get('cloud_verifier', 'cloudverifier_ip')
 
     # allow tornado's max upload size to be configurable
     max_upload_size = None
@@ -670,7 +671,7 @@ def main(argv=sys.argv):
         revocation_notifier.start_broker()
 
     sockets = tornado.netutil.bind_sockets(
-        int(cloudverifier_port), address='0.0.0.0')
+        int(cloudverifier_port), address=cloudverifier_host)
     tornado.process.fork_processes(config.getint(
         'cloud_verifier', 'multiprocessing_pool_num_workers'))
     asyncio.set_event_loop(asyncio.new_event_loop())

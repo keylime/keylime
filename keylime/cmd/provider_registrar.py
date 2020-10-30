@@ -16,8 +16,11 @@ config = common.get_config()
 
 
 def main(argv=sys.argv):
-    registrar_common.start(config.getint('registrar', 'provider_registrar_tls_port'), config.getint(
-        'registrar', 'provider_registrar_port'), config.get('registrar', 'prov_db_filename'))
+    registrar_common.start(
+        config.get('registrar', 'provider_registrar_ip'),
+        config.getint('registrar', 'provider_registrar_tls_port'),
+        config.getint('registrar', 'provider_registrar_port'),
+        config.get('registrar', 'prov_db_filename'))
 
 
 if __name__ == "__main__":

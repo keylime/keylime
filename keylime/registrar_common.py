@@ -467,13 +467,13 @@ def do_shutdown(servers):
         server.shutdown()
 
 
-def start(tlsport, port):
+def start(host, tlsport, port):
     """Main method of the Registrar Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
     threads = []
     servers = []
-    serveraddr = ('', tlsport)
+    serveraddr = (host, tlsport)
 
     RegistrarMain.metadata.create_all(engine, checkfirst=True)
     session = SessionManager().make_session(engine)
@@ -493,7 +493,7 @@ def start(tlsport, port):
     threads.append(thread)
 
     # start up the unprotected registrar server
-    serveraddr2 = ('', port)
+    serveraddr2 = (host, port)
     server2 = UnprotectedRegistrarServer(serveraddr2, UnprotectedHandler)
     thread2 = threading.Thread(target=server2.serve_forever)
     threads.append(thread2)
