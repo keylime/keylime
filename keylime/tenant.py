@@ -839,20 +839,7 @@ def main(argv=sys.argv):
     parser.add_argument('--verify', action='store_true', default=False,
                         help='Block on cryptographically checked key derivation confirmation from the agent once it has been provisioned')
 
-    if common.DEVELOP_IN_ECLIPSE and len(argv) == 1:
-        ca_util.setpassword('default')
-        #tmp = ['-c','add','-t','127.0.0.1','-v', '127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','-p','content_payload.txt','-k','content_keys.txt']
-        #tmp = ['-c','add','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9','-f','tenant.py']
-        tmp = ['-c', 'add', '-t', '127.0.0.1', '-v', '127.0.0.1', '-u',
-               'C432FBB3-D2F1-4A97-9EF7-75BD81C866E9', '--cert', 'ca/']
-        #tmp = ['-c','delete','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
-        #tmp = ['-c','reactivate','-t','127.0.0.1','-v','127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
-        #tmp = ['-c','list','-v', '127.0.0.1','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
-        #tmp = ['-c','regdelete','-u','C432FBB3-D2F1-4A97-9EF7-75BD81C866E9']
-    else:
-        tmp = argv[1:]
-
-    args = parser.parse_args(tmp)
+    args = parser.parse_args(argv[1:])
     mytenant = Tenant()
 
     if args.command not in ['list', 'regdelete', 'delete'] and args.agent_ip is None:
@@ -890,18 +877,6 @@ def main(argv=sys.argv):
         mytenant.do_quote()
         if args.verify:
             mytenant.do_verify()
-
-        if common.DEVELOP_IN_ECLIPSE:
-            time.sleep(2)
-            mytenant.do_cvstatus()
-            time.sleep(1)
-            # invalidate it eventually
-            logger.debug("invalidating PCR 15, forcing revocation")
-            tpm = tpm_obj.getTPM(need_hw_tpm=True)
-            tpm.extendPCR(15, tpm.hashdigest(b"garbage"))
-            time.sleep(5)
-            logger.debug("Deleting agent from verifier")
-            mytenant.do_cvdelete()
     elif args.command == 'update':
         mytenant.init_add(vars(args))
         mytenant.do_cvdelete()

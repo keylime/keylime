@@ -523,8 +523,6 @@ def main(argv=sys.argv):
         agent_uuid = hashlib.sha256(ek).hexdigest()
     elif agent_uuid == 'generate' or agent_uuid is None:
         agent_uuid = str(uuid.uuid4())
-    if common.DEVELOP_IN_ECLIPSE:
-        agent_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
     if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing
         jsonIn = common.TPM_CANNED_VALUES
