@@ -53,11 +53,6 @@ def add_vtpm(inputfile):
 
 
 def main(argv=sys.argv):
-    if common.DEVELOP_IN_ECLIPSE and not common.STUB_TPM:
-        raise Exception("Can't use Xen features in Eclipse without STUB_TPM")
-
-    if common.DEVELOP_IN_ECLIPSE:
-        argv = ['provider_platform_register.py', 'current_group.tpm']
 
     if len(argv) < 2:
         print("usage: provider_vtpm_add.py [uuid].tpm")

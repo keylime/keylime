@@ -511,21 +511,7 @@ def main(argv=sys.argv):
     parser.add_argument('-i', '--insecure', action='store_true', default=False,
                         help='create cert packages with unprotected private keys and write them to disk.  USE WITH CAUTION!')
 
-    if common.DEVELOP_IN_ECLIPSE and len(argv) == 1:
-        argv = ['-c', 'init']
-        # argv=['-c','create','-n',socket.getfqdn()]
-        argv = ['-c', 'create', '-n', 'client']
-        # argv=['-c','pkg','-n','client']
-        argv = ['-c', 'revoke', '-n', 'client']
-        argv = ['-c', 'listen', '-d', 'ca']
-    else:
-        argv = argv[1:]
-
-    # never prompt for passwords in development mode
-    if common.DEVELOP_IN_ECLIPSE:
-        setpassword('default')
-
-    args = parser.parse_args(argv)
+    args = parser.parse_args(argv[1:])
 
     if args.dir == None:
         if os.getuid() != 0 and common.REQUIRE_ROOT:

@@ -41,24 +41,6 @@ def convert(data):
 # Current Keylime API version
 API_VERSION = '2'
 
-# SET THIS TO True TO ENABLE THIS TO RUN in ECLIPSE
-# in addition to setting the flags:
-#     MOUNT_SECURE=False
-#     INSECURE_DEBUG=True
-#     REQUIRE_ROOT=False
-#     STUB_IMA=True
-#     DISABLE_EK_CERT_CHECK_EMULATOR=True
-# it also does the following:
-# default ca_util password is set to 'default' to suppress prompts
-# ca_util if passed no args will default to some args listed in ca_util.py
-# agent uuid will be set to C432FBB3-D2F1-4A97-9EF7-75BD81C866E9
-# data_base files from previous runs will be cleared on startup
-# vtpm operations and vtpmmgr commands are all stubbed
-# ek certs are not required
-# tenant if provided no args will use some args listed in tenant.py
-# tenant will also sleep, check status, and then delete the agent after
-# a few seconds
-DEVELOP_IN_ECLIPSE = False
 
 # SET STUB_TPM TO True TO ALLOW ALL TPM Operations to be stubbed out
 # If STUB_TPM=True, TPM_CANNED_VALUES_PATH file must be provided (canned inputs)
@@ -117,13 +99,6 @@ elif STUB_TPM:
     raise Exception(
         'STUB_TPM=True but required TPM_CANNED_VALUES_PATH not provided!')
 
-# flow the flags down
-if DEVELOP_IN_ECLIPSE:
-    MOUNT_SECURE = False
-    INSECURE_DEBUG = True
-    REQUIRE_ROOT = False
-    STUB_IMA = True
-    DISABLE_EK_CERT_CHECK_EMULATOR = True
 
 if not REQUIRE_ROOT:
     MOUNT_SECURE = False
@@ -144,12 +119,9 @@ if getattr(sys, 'frozen', False):
     # we are running in a pyinstaller bundle, redirect tpm tools to bundle
     TPM_TOOLS_PATH = sys._MEIPASS
 
-if DEVELOP_IN_ECLIPSE:
-    CONFIG_FILE = "../keylime.conf"
-# elif LOAD_TEST:
-#     CONFIG_FILE="./keylime.conf"
-else:
-    CONFIG_FILE = os.getenv('KEYLIME_CONFIG', '/etc/keylime.conf')
+
+CONFIG_FILE = os.getenv('KEYLIME_CONFIG', '/etc/keylime.conf')
+
 
 WARN = False
 if not os.path.exists(CONFIG_FILE):

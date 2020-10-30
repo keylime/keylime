@@ -36,8 +36,6 @@ def symlink_force(target, link_name):
 
 
 def main(argv=sys.argv):
-    if common.DEVELOP_IN_ECLIPSE:
-        argv = ['provider_platform_init.py', '1', '2']
 
     if len(argv) < 3:
         print("usage: provider_platform_init.py pubek.pem tpm_ekcert.der")
@@ -51,20 +49,12 @@ def main(argv=sys.argv):
             "\t nv_readvalue -pwdo <owner-password> -in 1000f000 -cert -of tpm_ekcert.der")
         sys.exit(-1)
 
-    if common.DEVELOP_IN_ECLIPSE and not common.STUB_TPM:
-        raise Exception("Can't use Xen features in Eclipse without STUB_TPM")
-
-    # read in the pubek
-    if common.DEVELOP_IN_ECLIPSE:
-        ek = common.TEST_PUB_EK
-        ekcert = common.TEST_EK_CERT
-    else:
-        f = open(argv[1], 'r')
-        ek = f.read()
-        f.close()
-        f = open(argv[2], 'r')
-        ekcert = base64.b64encode(f.read())
-        f.close()
+    f = open(argv[1], 'r')
+    ek = f.read()
+    f.close()
+    f = open(argv[2], 'r')
+    ekcert = base64.b64encode(f.read())
+    f.close()
 
     # fetch configuration parameters
     provider_reg_port = config.get('registrar', 'provider_registrar_port')
