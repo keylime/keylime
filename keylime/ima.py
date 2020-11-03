@@ -217,7 +217,7 @@ def _extract_from_ima_sig(tokens, template_hash):
     return filedata_hash, path, signature, filedata_algo, error
 
 
-def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
+def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyring=None):
     errs = [0, 0, 0, 0]
     runninghash = START_HASH
     found_pcr = (pcrval is None)
@@ -251,12 +251,14 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
         # pcr = tokens[0]
         template_hash = codecs.decode(tokens[1], 'hex')
         mode = tokens[2]
+        signature = None
+        filedata_algo = None
 
         if mode == "ima-ng":
             filedata_hash, path, error = _extract_from_ima_ng(tokens,
                                                               template_hash)
         elif mode == "ima-sig":
-            filedata_hash, path, _, _, error = \
+            filedata_hash, path, signature, filedata_algo, error = \
                 _extract_from_ima_sig(tokens, template_hash)
         elif mode == 'ima':
             filedata_hash, path, error = _extract_from_ima(tokens,
@@ -280,6 +282,13 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
             m2w.write("%s %s\n" %
                       (codecs.encode(filedata_hash, 'hex').decode('utf-8'),
                        path))
+
+        if signature and ima_keyring:
+            if not ima_keyring.integrity_digsig_verify(signature, filedata_hash, filedata_algo):
+                logger.warning("signature for file %s is not valid" % (path))
+                errs[0] += 1
+            else:
+                logger.info("signature for file %s is good" % path)
 
         if allowlist is not None:
 
