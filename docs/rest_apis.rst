@@ -15,7 +15,7 @@ RESTful API for Keylime (v2)
 ----------------------------
 
 Cloud verifier (CV)
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 .. http:get::  /v2/agents/{agent_id:UUID}
 
@@ -89,7 +89,7 @@ Cloud Agent
         “payload”: b64, (opt)
       }
 
-.. http:get::  /v2/keys/pubkey
+.. http:get::  /v2/keys/verify
 
     Get confirmation of bootstrap key derivation
 
@@ -97,7 +97,7 @@ Cloud Agent
 
     .. sourcecode:: js
 
-      challenge : int
+      challenge : string
 
 .. http:get::  /v2/quotes/integrity
 
@@ -134,8 +134,8 @@ Cloud Agent
 
       /v2/quotes/identity?nonce=#
 
-Cloud verifier (CV)
-~~~~~~~~~~~~~~~~~~
+Cloud Registrar
+~~~~~~~~~~~~~~~
 
 .. http:get::  /v2/agents/
 
