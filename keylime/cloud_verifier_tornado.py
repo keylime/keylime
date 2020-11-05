@@ -189,6 +189,8 @@ class AgentsHandler(BaseHandler):
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning(
                 'DELETE returning 400 response. uri not supported: ' + self.request.path)
+            return
+
         try:
             agent = session.query(VerfierMain).filter_by(
                 agent_id=agent_id).first()
@@ -362,6 +364,7 @@ class AgentsHandler(BaseHandler):
                 common.echo_json_response(self, 404, "agent id not found")
                 logger.info(
                     'PUT returning 404 response. agent id: ' + agent_id + ' not found.')
+                return
 
             if "reactivate" in rest_params:
                 agent.operational_state = cloud_verifier_common.CloudAgent_Operational_State.START
