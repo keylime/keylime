@@ -143,6 +143,7 @@ def main():
         'vtpm_policy': '{"ab":"1"}',
         'metadata': '{"cert_serial":"1"}',
         'allowlist': '{}',
+        'ima_sign_verification_keys': '{}',
         'revocation_key': '',
         'revocation': '{"cert_serial":"1"}',
     }
