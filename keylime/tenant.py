@@ -184,6 +184,10 @@ class Tenant():
         logger.info(f"TPM PCR Mask from policy is {self.vtpm_policy['mask']}")
 
         if args.get("ima_sign_verification_keys") is not None:
+            # Auto-enable IMA (or-bit mask)
+            self.tpm_policy['mask'] = "0x%X" % (
+                int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
+
             # Add all IMA file signing verification keys to a keyring
             ima_keyring = ima_file_signatures.ImaKeyring()
             for filename in args["ima_sign_verification_keys"]:
