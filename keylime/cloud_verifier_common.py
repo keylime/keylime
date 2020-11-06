@@ -21,6 +21,7 @@ from keylime import revocation_notifier
 from keylime.tpm import tpm_obj
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime.common import algorithms
+from keylime import ima_file_signatures
 
 # setup logging
 logger = keylime_logging.init_logging('cloudverifier_common')
@@ -198,6 +199,7 @@ def process_quote_response(agent, json_response):
                                           ima_measurement_list,
                                           agent['allowlist'])
     else:
+        ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
         validQuote = tpm.check_quote(agent['agent_id'],
                                      agent['nonce'],
                                      received_public_key,
@@ -206,7 +208,8 @@ def process_quote_response(agent, json_response):
                                      agent['tpm_policy'],
                                      ima_measurement_list,
                                      agent['allowlist'],
-                                     hash_alg)
+                                     hash_alg,
+                                     ima_keyring)
     if not validQuote:
         return False
 
