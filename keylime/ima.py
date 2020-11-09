@@ -375,6 +375,10 @@ def read_allowlist(al_path=None):
         if config.STUB_IMA:
             al_path = '../scripts/ima/allowlist.txt'
 
+    # If user only wants signatures then an allowlist is not required
+    if al_path is None or al_path == '':
+        return []
+
     # Purposefully die if path doesn't exist
     with open(al_path, 'r') as f:
         alist = f.read()
