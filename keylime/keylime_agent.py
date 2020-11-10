@@ -25,6 +25,7 @@ import shutil
 
 from keylime import common
 from keylime import keylime_logging
+from keylime import cmd_exec
 from keylime import crypto
 from keylime import openstack
 from keylime import revocation_notifier
@@ -488,6 +489,15 @@ def main(argv=sys.argv):
         logger.critical("This process must be run as root.")
         return
 
+    if config.get('cloud_agent', 'agent_uuid') == 'dmidecode':
+        if os.getuid() != 0:
+            raise RuntimeError('agent_uuid is configured to use dmidecode, '
+                               'but current process is not running as root.')
+        ret = cmd_exec.run('which dmidecode', raiseOnError=False)
+        if ret['code'] != 0:
+            raise RuntimeError('agent_uuid is configured to use dmidecode, '
+                               'but it\'s is not found on the system.')
+
     # get params for initialization
     registrar_ip = config.get('registrar', 'registrar_ip')
     registrar_port = config.get('registrar', 'registrar_port')
@@ -523,6 +533,10 @@ def main(argv=sys.argv):
         agent_uuid = hashlib.sha256(ek).hexdigest()
     elif agent_uuid == 'generate' or agent_uuid is None:
         agent_uuid = str(uuid.uuid4())
+    elif agent_uuid == 'dmidecode':
+        ret = cmd_exec.run('dmidecode -s system-uuid')
+        sys_uuid = ret['retout'].decode('utf-8')
+        agent_uuid = sys_uuid.strip()
     if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing
         jsonIn = common.TPM_CANNED_VALUES
