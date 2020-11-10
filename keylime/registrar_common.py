@@ -438,19 +438,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 # https://github.com/muayyad-alsadi/python-PooledProcessMixIn
 
 
-class ProtectedRegistrarServer(ThreadingMixIn, HTTPServer):
-    """Handle requests in a separate thread."""
-
-    def __init__(self, server_address, RequestHandlerClass):
-        """Constructor overridden to provide ability to read file"""
-        http.server.HTTPServer.__init__(
-            self, server_address, RequestHandlerClass)
-
-    def shutdown(self):
-        http.server.HTTPServer.shutdown(self)
-
-
-class UnprotectedRegistrarServer(ThreadingMixIn, HTTPServer):
+class RegistrarServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
 
     def __init__(self, server_address, RequestHandlerClass):
@@ -484,7 +472,7 @@ def start(host, tlsport, port):
     if count > 0:
         logger.info("Loaded %d public keys from database" % count)
 
-    server = ProtectedRegistrarServer(serveraddr, ProtectedHandler)
+    server = RegistrarServer(serveraddr, ProtectedHandler)
     context = cloud_verifier_common.init_mtls(section='registrar',
                                               generatedir='reg_ca')
     if context is not None:
@@ -494,7 +482,7 @@ def start(host, tlsport, port):
 
     # start up the unprotected registrar server
     serveraddr2 = (host, port)
-    server2 = UnprotectedRegistrarServer(serveraddr2, UnprotectedHandler)
+    server2 = RegistrarServer(serveraddr2, UnprotectedHandler)
     thread2 = threading.Thread(target=server2.serve_forever)
     threads.append(thread2)
 
