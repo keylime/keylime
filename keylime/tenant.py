@@ -200,7 +200,7 @@ class Tenant():
 
             # Auto-enable IMA (or-bit mask)
             self.tpm_policy['mask'] = "0x%X" % (
-                int(self.tpm_policy['mask'], 0) + (1 << common.IMA_PCR))
+                int(self.tpm_policy['mask'], 0) | (1 << common.IMA_PCR))
 
             if type(args["allowlist"]) in [str, str]:
                 if args["allowlist"] == "default":
