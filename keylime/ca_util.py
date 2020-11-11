@@ -108,7 +108,7 @@ def cmd_mkcert(workingdir, name):
         # write out the private key with password
         with os.fdopen(os.open("%s-private.pem" % name, os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
             biofile = BIO.File(f)
-            pk.save_key_bio(biofile, 'aes_256_cbc', globalcb)
+            pk.save_key_bio(biofile, None)
             biofile.close()
 
         pk.get_rsa().save_pub_key('%s-public.pem' % name)
