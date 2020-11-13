@@ -429,41 +429,36 @@ class Tenant():
 
         # check all EKs with optional script:
         script = config.get('tenant', 'ek_check_script')
-        if script != "":
-            if script[0] != '/':
-                script = "%s/%s" % (common.WORK_DIR, script)
+        if not script:
+            return True
 
-            logger.info(f"Checking EK with script {script}")
-            # now we need to exec the script with the ek and ek cert in vars
-            env = os.environ.copy()
-            env['AGENT_UUID'] = self.agent_uuid
-            env['EK'] = reg_keys['ek']
-            if reg_keys['ekcert'] is not None:
-                env['EK_CERT'] = reg_keys['ekcert']
-            else:
-                env['EK_CERT'] = ""
+        if script[0] != '/':
+            script = "%s/%s" % (common.WORK_DIR, script)
 
-            env['PROVKEYS'] = json.dumps(reg_keys.get('provider_keys', {}))
-            proc = subprocess.Popen(script, env=env, shell=True, cwd=common.WORK_DIR,
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            retval = proc.wait()
+        logger.info(f"Checking EK with script {script}")
+        # now we need to exec the script with the ek and ek cert in vars
+        env = os.environ.copy()
+        env['AGENT_UUID'] = self.agent_uuid
+        env['EK'] = reg_keys['ek']
+        if reg_keys['ekcert'] is not None:
+            env['EK_CERT'] = reg_keys['ekcert']
+        else:
+            env['EK_CERT'] = ""
 
-            if retval != 0:
-                raise UserError("External check script failed to validate EK")
-                while True:
-                    line = proc.stdout.readline().decode()
-                    if line == "":
-                        break
-                    logger.debug(f"ek_check output: {line.strip()}")
-                return False
-            else:
-                logger.debug(
-                    "External check script successfully to validated EK")
-                while True:
-                    line = proc.stdout.readline().decode()
-                    if line == "":
-                        break
-                    logger.debug(f"ek_check output: {line.strip()}")
+        env['PROVKEYS'] = json.dumps(reg_keys.get('provider_keys', {}))
+        proc = subprocess.Popen(script, env=env, shell=True,
+                                cwd=common.WORK_DIR, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+        retval = proc.wait()
+        if retval != 0:
+            raise UserError("External check script failed to validate EK")
+        logger.debug(
+            "External check script successfully to validated EK")
+        while True:
+            line = proc.stdout.readline().decode()
+            if line == "":
+                break
+            logger.debug(f"ek_check output: {line.strip()}")
         return True
 
     def do_cv(self):
