@@ -45,7 +45,7 @@ LOGDIR = '/var/log/keylime'
 if not common.REQUIRE_ROOT:
     LOGSTREAM = './keylime-stream.log'
 else:
-    LOGSTREAM = LOGDIR+'/keylime-stream.log'
+    LOGSTREAM = LOGDIR + '/keylime-stream.log'
 
 logging.config.fileConfig(common.CONFIG_FILE)
 

@@ -90,7 +90,7 @@ def cmd_mkcert(workingdir, name):
         ca_pk = EVP.load_key_string(priv[0]['ca'])
 
         cert, pk = ca_impl.mk_signed_cert(
-            cacert, ca_pk, name, priv[0]['lastserial']+1)
+            cacert, ca_pk, name, priv[0]['lastserial'] + 1)
 
         with open('%s-cert.crt' % name, 'wb') as f:
             f.write(cert.as_pem())
@@ -387,7 +387,7 @@ def cmd_listen(workingdir, cert_path):
                                 expire = datetime.datetime.strptime(
                                     line[13:].decode('utf-8'), "%b %d %H:%M:%S %Y %Z")
                                 # check expiration within 6 hours
-                                in1hour = datetime.datetime.utcnow()+datetime.timedelta(hours=6)
+                                in1hour = datetime.datetime.utcnow() + datetime.timedelta(hours=6)
                                 if expire <= in1hour:
                                     logger.info(
                                         "Certificate to expire soon %s, re-issuing" % expire)
@@ -440,8 +440,7 @@ class ThreadedCRLServer(ThreadingMixIn, HTTPServer):
 
 class CRLHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        logger.info('GET invoked from ' +
-                    str(self.client_address) + ' with uri:' + self.path)
+        logger.info('GET invoked from ' + str(self.client_address) + ' with uri:' + self.path)
 
         if self.server.published_crl is None:
             self.send_response(404)
@@ -513,7 +512,7 @@ def main(argv=sys.argv):
 
     args = parser.parse_args(argv[1:])
 
-    if args.dir == None:
+    if args.dir is None:
         if os.getuid() != 0 and common.REQUIRE_ROOT:
             logger.error(
                 "If you don't specify a working directory, this process must be run as root to access %s" % common.WORK_DIR)

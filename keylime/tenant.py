@@ -101,7 +101,7 @@ class Tenant():
         self.registrar_ip = config.get('registrar', 'registrar_ip')
         self.webapp_ip = config.get('webapp', 'webapp_ip')
 
-        if config.getboolean('general',"enable_tls"):
+        if config.getboolean('general', 'enable_tls'):
             self.cloudverifier_context, self.registrar_context = self.get_tls_context()
         else:
             logger.warning("TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
@@ -111,7 +111,7 @@ class Tenant():
     def get_tls_context(self):
 
         contexts = []
-        for component in [ '', 'registrar_' ] :
+        for component in ['', 'registrar_']:
             ca_cert = config.get('tenant', component + 'ca_cert')
             my_cert = config.get('tenant', component + 'my_cert')
             my_priv_key = config.get('tenant', component + 'private_key')
@@ -119,30 +119,30 @@ class Tenant():
             my_key_pw = config.get('tenant', 'private_key_pw')
             tls_dir = config.get('tenant', 'tls_dir')
 
-            if tls_dir == 'default' or tls_dir == 'CV' :
+            if tls_dir == 'default' or tls_dir == 'CV':
                 ca_cert = 'cacert.crt'
                 my_cert = 'client-cert.crt'
                 my_priv_key = 'client-private.pem'
                 tls_dir = 'cv_ca'
 
             # this is relative path, convert to absolute in WORK_DIR
-            if tls_dir[0]!='/':
-                tls_dir = os.path.abspath('%s/%s'%(common.WORK_DIR,tls_dir))
+            if tls_dir[0] != '/':
+                tls_dir = os.path.abspath('%s/%s' % (common.WORK_DIR, tls_dir))
 
-            if my_key_pw=='default':
+            if my_key_pw == 'default':
                 logger.warning("CAUTION: using default password for private key, please set private_key_pw to a strong password")
 
             logger.info(f"Setting up client TLS in {tls_dir}")
 
-            ca_path = "%s/%s"%(tls_dir,ca_cert)
-            my_cert = "%s/%s"%(tls_dir,my_cert)
-            my_priv_key = "%s/%s"%(tls_dir,my_priv_key)
+            ca_path = "%s/%s" % (tls_dir, ca_cert)
+            my_cert = "%s/%s" % (tls_dir, my_cert)
+            my_priv_key = "%s/%s" % (tls_dir, my_priv_key)
 
             context = ssl.create_default_context()
             context.load_verify_locations(cafile=ca_path)
-            context.load_cert_chain(certfile=my_cert,keyfile=my_priv_key,password=my_key_pw)
+            context.load_cert_chain(certfile=my_cert, keyfile=my_priv_key, password=my_key_pw)
             context.verify_mode = ssl.CERT_REQUIRED
-            context.check_hostname = config.getboolean('general','tls_check_hostnames')
+            context.check_hostname = config.getboolean('general', 'tls_check_hostnames')
             contexts.append(context)
         return contexts
 
@@ -233,9 +233,7 @@ class Tenant():
             self.allowlist = ima.process_allowlists(al_data, excl_data)
 
         # if none
-        if (args["file"] is None and
-            args["keyfile"] is None and
-                args["ca_dir"] is None):
+        if (args["file"] is None and args["keyfile"] is None and args["ca_dir"] is None):
             raise UserError(
                 "You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent")
 
@@ -481,8 +479,13 @@ class Tenant():
         }
         json_message = json.dumps(data)
         params = f'/agents/{self.agent_uuid}'
-        #params = '/agents/%s'% (self.agent_uuid)
-        response = httpclient_requests.request("POST", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=json_message, context=self.cloudverifier_context)
+        # params = '/agents/%s'% (self.agent_uuid)
+        response = httpclient_requests.request("POST",
+                                               "%s" % self.cloudverifier_ip,
+                                               self.cloudverifier_port,
+                                               params=params,
+                                               data=json_message,
+                                               context=self.cloudverifier_context)
 
         if response == 503:
             logger.error(
@@ -510,13 +513,17 @@ class Tenant():
         """initiaite v, agent_id and ip
         initiate the cloudinit sequence"""
         states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
-        #print('states:', states)
+        # print('states:', states)
         agent_uuid = ""
         if not listing:
             agent_uuid = self.agent_uuid
 
         params = f'/agents/{agent_uuid}'
-        response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.cloudverifier_context)
+        response = httpclient_requests.request("GET",
+                                               "%s" % self.cloudverifier_ip,
+                                               self.cloudverifier_port,
+                                               params=params,
+                                               context=self.cloudverifier_context)
 
         if response == 503:
             logger.error(
@@ -547,7 +554,11 @@ class Tenant():
 
     def do_cvdelete(self):
         params = f'/agents/{self.agent_uuid}'
-        response = httpclient_requests.request("DELETE", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params,  context=self.cloudverifier_context)
+        response = httpclient_requests.request("DELETE",
+                                               "%s" % self.cloudverifier_ip,
+                                               self.cloudverifier_port,
+                                               params=params,
+                                               context=self.cloudverifier_context)
 
         if response == 503:
             logger.error(
@@ -561,7 +572,11 @@ class Tenant():
         if response.status == 202:
             deleted = False
             for _ in range(12):
-                response = httpclient_requests.request("GET", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, context=self.cloudverifier_context)
+                response = httpclient_requests.request("GET",
+                                                       "%s" % self.cloudverifier_ip,
+                                                       self.cloudverifier_port,
+                                                       params=params,
+                                                       context=self.cloudverifier_context)
 
                 if response.status == 404:
                     deleted = True
@@ -587,9 +602,14 @@ class Tenant():
             self.registrar_ip, self.registrar_port, self.agent_uuid)
 
     def do_cvreactivate(self):
-        #params = '/agents/%s/reactivate'% (self.agent_uuid)
+        # params = '/agents/%s/reactivate'% (self.agent_uuid)
         params = f'/agents/{self.agent_uuid}/reactivate'
-        response = httpclient_requests.request("PUT", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=b'',  context=self.cloudverifier_context)
+        response = httpclient_requests.request("PUT",
+                                               "%s" % self.cloudverifier_ip,
+                                               self.cloudverifier_port,
+                                               params=params,
+                                               data=b'',
+                                               context=self.cloudverifier_context)
 
         if response == 503:
             logger.error(
@@ -612,7 +632,11 @@ class Tenant():
     def do_cvstop(self):
         # params = '/agents/%s/stop'% (self.agent_uuid)
         params = f'/agents/{self.agent_uuid}/stop'
-        response = httpclient_requests.request("PUT", "%s"%(self.cloudverifier_ip), self.cloudverifier_port, params=params, data=b'',  context=self.cloudverifier_context)
+        response = httpclient_requests.request("PUT",
+                                               "%s" % self.cloudverifier_ip,
+                                               self.cloudverifier_port,
+                                               params=params, data=b'',
+                                               context=self.cloudverifier_context)
 
         if response == 503:
             logger.error(
@@ -640,7 +664,7 @@ class Tenant():
         # Note: We need a specific retry handler (perhaps in common), no point having localised unless we have too.
         while True:
             try:
-                #params = '/quotes/identity?nonce=%s'%(self.nonce)
+                # params = '/quotes/identity?nonce=%s'%(self.nonce)
                 params = f'/quotes/identity?nonce={self.nonce}'
                 response = httpclient_requests.request("GET", "%s" % (
                     self.cloudagent_ip), self.cloudagent_port, params=params, context=None)

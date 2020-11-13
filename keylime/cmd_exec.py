@@ -20,11 +20,11 @@ def run(cmd, expectedcode=EXIT_SUCESS, raiseOnError=True, lock=True, outputpaths
     t0 = time.time()
     if lock:
         with utilLock:
-            proc = subprocess.Popen(cmd,env=env,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+            proc = subprocess.Popen(cmd, env=env, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             (retout, reterr) = proc.communicate()
             code = proc.returncode
     else:
-        proc = subprocess.Popen(cmd,env=env,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        proc = subprocess.Popen(cmd, env=env, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         (retout, reterr) = proc.communicate()
         code = proc.returncode
     t1 = time.time()
@@ -35,8 +35,9 @@ def run(cmd, expectedcode=EXIT_SUCESS, raiseOnError=True, lock=True, outputpaths
     reterr_list = reterr.splitlines(keepends=True)
 
     # Don't bother continuing if call failed and we're raising on error
-    if code!=expectedcode and raiseOnError:
-        raise Exception("Command: %s returned %d, expected %d, output %s, stderr %s"%(cmd,code,expectedcode,retout_list,reterr_list))
+    if code != expectedcode and raiseOnError:
+        raise Exception("Command: %s returned %d, expected %d, output %s, stderr %s" %
+                        (cmd, code, expectedcode, retout_list, reterr_list))
 
     # Prepare to return their file contents (if requested)
     fileouts = {}

@@ -287,7 +287,10 @@ class AgentsHandler(BaseHandler):
     async def get_agent_state(self, agent_id):
         try:
             res = tornado_requests.request("GET",
-                                        "http://%s:%s/agents/%s"%(tenant_templ.cloudverifier_ip,tenant_templ.cloudverifier_port,agent_id),context=tenant_templ.cloudverifier_context)
+                                           "http://%s:%s/agents/%s" %
+                                           (tenant_templ.cloudverifier_ip,
+                                            tenant_templ.cloudverifier_port,
+                                            agent_id), context=tenant_templ.cloudverifier_context)
             response = await res
 
         except Exception as e:
@@ -363,7 +366,10 @@ class AgentsHandler(BaseHandler):
         # If no agent ID, get list of all agents from Registrar
         try:
             res = tornado_requests.request("GET",
-                                        "http://%s:%s/agents/"%(tenant_templ.registrar_ip,tenant_templ.registrar_port),context=tenant_templ.registrar_context)
+                                           "http://%s:%s/agents/" %
+                                           (tenant_templ.registrar_ip,
+                                            tenant_templ.registrar_port),
+                                           context=tenant_templ.registrar_context)
             response = await res
 
         except Exception as e:
@@ -635,7 +641,7 @@ def main(argv=sys.argv):
     else:
         # instead try to locate static directory relative to script
         root_dir = os.path.dirname(os.path.abspath(__file__))
-    if not os.path.exists(root_dir+"/static/"):
+    if not os.path.exists(root_dir + "/static/"):
         raise Exception(
             'Static resource directory could not be found in %s!' % (root_dir))
 
@@ -644,14 +650,14 @@ def main(argv=sys.argv):
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
         (r"/(?:v[0-9]/)?logs/.*", AgentsHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler,
-         {'path': root_dir+"/static/"}),
+         {'path': root_dir + "/static/"}),
         (r".*", MainHandler),
     ])
 
     # WebApp Server TLS
     server_context, x = tenant_templ.get_tls_context()
-    server_context.check_hostname = False # config.getboolean('general','tls_check_hostnames')
-    server_context.verify_mode = ssl.CERT_NONE # ssl.CERT_REQUIRED
+    server_context.check_hostname = False  # config.getboolean('general','tls_check_hostnames')
+    server_context.verify_mode = ssl.CERT_NONE  # ssl.CERT_REQUIRED
 
     # Set up server
     server = tornado.httpserver.HTTPServer(app, ssl_options=server_context)

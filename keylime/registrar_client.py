@@ -186,7 +186,7 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
     v_json_message = json.dumps(data)
     params = '/agents/%s/activate' % (agent_id)
     response = httpclient_requests.request("PUT", "%s" % (
-        registrar_ip), registrar_port, params=params, data=v_json_message,  context=None)
+        registrar_ip), registrar_port, params=params, data=v_json_message, context=None)
     response_body = json.loads(response.read().decode())
     if response.status == 200:
         logger.info("Registration activated for agent %s." % agent_id)
@@ -206,7 +206,7 @@ def doActivateVirtualAgent(registrar_ip, registrar_port, agent_id, deepquote):
     v_json_message = json.dumps(data)
     params = '/agents/%s/vactivate' % (agent_id)
     response = httpclient_requests.request("PUT", "%s" % (
-        registrar_ip), registrar_port, params=params, data=v_json_message,  context=None)
+        registrar_ip), registrar_port, params=params, data=v_json_message, context=None)
     response_body = json.loads(response.read().decode())
     if response.status == 200:
         logger.info("Registration activated for agent %s." % agent_id)
@@ -222,12 +222,11 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
     global context
     params = '/agents/%s' % (agent_id)
     response = httpclient_requests.request("DELETE", "%s" % (
-        registrar_ip), registrar_port, params=params,  context=None)
+        registrar_ip), registrar_port, params=params, context=None)
     response_body = json.loads(response)
     if response.status == 200:
         logger.debug("Registrar deleted.")
     else:
-        logger.warn("Status command response: " +
-                    str(response.status) + " Unexpected response from registrar.")
+        logger.warn("Status command response: " + str(response.status) + " Unexpected response from registrar.")
         keylime_logging.log_http_response(
             logger, logging.WARNING, response_body)

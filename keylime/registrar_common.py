@@ -288,8 +288,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             return
         except Exception as e:
             common.echo_json_response(self, 400, "Error: %s" % e)
-            logger.warning("POST for " + agent_id +
-                           " returning 400 response. Error: %s" % e)
+            logger.warning("POST for " + agent_id + " returning 400 response. Error: %s" % e)
             logger.exception(e)
             return
 
@@ -357,7 +356,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                         logger.error(f'SQLAlchemy Error: {e}')
                 else:
                     drivername = config.get('registrar', 'drivername')
-                    if drivername == "mysql" :
+                    if drivername == "mysql":
                         agent.key = agent.key.encode('utf-8')
 
                     ex_mac = crypto.do_hmac(agent.key, agent_id)
@@ -399,7 +398,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 if not tpm.check_deep_quote(agent_id,
                                             hashlib.sha1(
                                                 agent['key']).hexdigest(),
-                                            agent_id+agent['aik']+agent['ek'],
+                                            agent_id + agent['aik'] + agent['ek'],
                                             deepquote,
                                             agent['aik'],
                                             provider_keys['aik']):
@@ -421,8 +420,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 pass
         except Exception as e:
             common.echo_json_response(self, 400, "Error: %s" % e)
-            logger.warning("PUT for " + agent_id +
-                           " returning 400 response. Error: %s" % e)
+            logger.warning("PUT for " + agent_id + " returning 400 response. Error: %s" % e)
             logger.exception(e)
             return
 

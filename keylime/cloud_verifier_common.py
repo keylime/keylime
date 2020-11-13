@@ -371,6 +371,7 @@ def notify_error(agent, msgtype='revocation'):
         tosend['signature'] = "none"
     revocation_notifier.notify(tosend)
 
+
 def validate_agent_data(agent_data):
     if agent_data is None:
         return False, None
