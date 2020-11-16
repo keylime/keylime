@@ -96,7 +96,7 @@ def read_measurement_list_bin(path, allowlist):
             template['data_len'] = read_unpack(f, "<I")[0]
             print("reading ima len %d" % template['data_len'])
         else:
-            template['data_len'] = SHA_DIGEST_LEN+TCG_EVENT_NAME_LEN_MAX+1
+            template['data_len'] = SHA_DIGEST_LEN + TCG_EVENT_NAME_LEN_MAX + 1
 
         template['data'] = read_unpack(f, "<%ds" % template['data_len'])[0]
 
@@ -111,13 +111,13 @@ def read_measurement_list_bin(path, allowlist):
             template['name'] = 'ima'
         template['desc-fmt'] = defined_templates[template['name']]
 
-        #tokens = template['desc-fmt'].split('|')
+        # tokens = template['desc-fmt'].split('|')
 
 
 def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
     errs = [0, 0, 0, 0]
     runninghash = START_HASH
-    found_pcr = (pcrval == None)
+    found_pcr = (pcrval is None)
 
     if lists is not None:
         lists = ast.literal_eval(lists)
@@ -144,7 +144,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
             return None
 
         # print tokens
-        #pcr = tokens[0]
+        # pcr = tokens[0]
         template_hash = codecs.decode(tokens[1], 'hex')
         mode = tokens[2]
 
@@ -163,8 +163,8 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
                 fmt = "<I%dsBB%dsI%dsB" % (
                     len(filedata_algo), len(filedata_hash), len(path))
                 # +2 for the : and the null terminator, and +1 on path for null terminator
-                tohash = struct.pack(fmt, len(filedata_hash)+len(filedata_algo)+2, filedata_algo.encode(
-                    'utf-8'), ord(':'), ord('\0'), filedata_hash, len(path)+1, path.encode("utf-8"), ord('\0'))
+                tohash = struct.pack(fmt, len(filedata_hash) + len(filedata_algo) + 2, filedata_algo.encode(
+                    'utf-8'), ord(':'), ord('\0'), filedata_hash, len(path) + 1, path.encode("utf-8"), ord('\0'))
                 expected_template_hash = hashlib.sha1(tohash).digest()
 
                 if expected_template_hash != template_hash:
@@ -182,9 +182,9 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
                 # verify template hash. yep this is terrible
                 # name needs to be null padded out to MAX len. +1 is for the null terminator of the string itself
                 fmt = "<%ds%ds%ds" % (len(filedata_hash), len(
-                    path), TCG_EVENT_NAME_LEN_MAX-len(path)+1)
+                    path), TCG_EVENT_NAME_LEN_MAX - len(path) + 1)
                 tohash = struct.pack(fmt, filedata_hash, path.encode(
-                    "utf-8"), bytearray(TCG_EVENT_NAME_LEN_MAX-len(path)+1))
+                    "utf-8"), bytearray(TCG_EVENT_NAME_LEN_MAX - len(path) + 1))
                 expected_template_hash = hashlib.sha1(tohash).digest()
 
                 if expected_template_hash != template_hash:
@@ -195,7 +195,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
             raise Exception("unsupported ima template mode: %s" % mode)
 
         # update hash
-        runninghash = hashlib.sha1(runninghash+template_hash).digest()
+        runninghash = hashlib.sha1(runninghash + template_hash).digest()
 
         if not found_pcr:
             found_pcr = \
@@ -318,13 +318,13 @@ def read_excllist(exclude_path=None):
 
 
 def main(argv=sys.argv):
-    #read_measurement_list_bin("/sys/kernel/security/ima/binary_runtime_measurements", None)
+    # read_measurement_list_bin("/sys/kernel/security/ima/binary_runtime_measurements", None)
 
     allowlist_path = 'allowlist.txt'
     print("reading allowlist from %s" % allowlist_path)
 
     exclude_path = 'exclude.txt'
-    #exclude_path = '../scripts/ima/exclude.txt'
+    # exclude_path = '../scripts/ima/exclude.txt'
     print("reading exclude list from %s" % exclude_path)
 
     al_data = read_allowlist(allowlist_path)
@@ -333,7 +333,7 @@ def main(argv=sys.argv):
 
     measure_path = common.IMA_ML
     # measure_path='../scripts/ima/ascii_runtime_measurements_ima'
-    #measure_path = '../scripts/gerardo/ascii_runtime_measurements'
+    # measure_path = '../scripts/gerardo/ascii_runtime_measurements'
     print("reading measurement list from %s" % measure_path)
     f = open(measure_path, 'r')
     lines = f.readlines()

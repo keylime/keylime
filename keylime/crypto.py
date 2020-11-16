@@ -29,7 +29,7 @@ def rsa_import_pubkey(pubkey):
     """
     try:
         return serialization.load_pem_public_key(pubkey, backend=default_backend())
-    except:
+    except:  # noqa
         return serialization.load_pem_public_key(pubkey.encode('utf-8'), backend=default_backend())
 
 
@@ -39,13 +39,13 @@ def rsa_import_privkey(privkey):
     """
     try:
         return serialization.load_pem_private_key(privkey, password=None, backend=default_backend())
-    except:
+    except:  # noqa
         return serialization.load_pem_private_key(privkey.encode('utf-8'), password=None, backend=default_backend())
 
 
 def x509_import_pubkey(pubkey):
     key = x509.load_pem_x509_certificate(
-        pubkey.encode('utf-8'),  backend=default_backend())
+        pubkey.encode('utf-8'), backend=default_backend())
     return key.public_key()
 
 
@@ -181,9 +181,9 @@ def encrypt(plaintext, key):
     try:
         cipher_text = encryptor.update(
             plaintext.encode('ascii')) + encryptor.finalize()
-    except:
+    except:  # noqa
         cipher_text = encryptor.update(plaintext) + encryptor.finalize()
-    return base64.b64encode(iv+cipher_text+encryptor.tag)
+    return base64.b64encode(iv + cipher_text + encryptor.tag)
 
 
 def decrypt(ciphertext, key):

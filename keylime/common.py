@@ -128,11 +128,11 @@ if not os.path.exists(CONFIG_FILE):
     # try to locate the config file next to the script if bundled
     if getattr(sys, 'frozen', False):
         CONFIG_FILE = os.path.dirname(
-            os.path.abspath(sys.executable))+"/keylime.conf"
+            os.path.abspath(sys.executable)) + "/keylime.conf"
     else:
         # instead try to get config file from python data_files install
         CONFIG_FILE = os.path.dirname(os.path.abspath(
-            __file__))+"/../package_default/keylime.conf"
+            __file__)) + "/../package_default/keylime.conf"
         WARN = True
 
 if not os.path.exists(CONFIG_FILE):
@@ -245,14 +245,14 @@ def list_to_dict(list):
     params = {}
     i = 0
     while (i < len(list)):
-        params[list[i]] = list[i+1] if (i+1) < len(list) else None
-        i = i+2
+        params[list[i]] = list[i + 1] if (i + 1) < len(list) else None
+        i = i + 2
     return params
 
 
 def yaml_to_dict(arry):
     arry = convert(arry)
-    return yaml.load("\n".join(arry),  Loader=SafeLoader)
+    return yaml.load("\n".join(arry), Loader=SafeLoader)
 
 
 def get_restful_params(urlstring):

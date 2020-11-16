@@ -40,10 +40,10 @@ def check_mounted(secdir):
 
 
 def mount():
-    secdir = common.WORK_DIR+"/secure"
+    secdir = common.WORK_DIR + "/secure"
 
     if not common.MOUNT_SECURE:
-        secdir = common.WORK_DIR+"/tmpfs-dev"
+        secdir = common.WORK_DIR + "/tmpfs-dev"
         if not os.path.isdir(secdir):
             os.makedirs(secdir)
         return secdir

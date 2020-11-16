@@ -199,8 +199,7 @@ class AgentsHandler(BaseHandler):
 
         if agent is None:
             common.echo_json_response(self, 404, "agent id not found")
-            logger.info('DELETE returning 404 response. agent id: ' +
-                        agent_id + ' not found.')
+            logger.info('DELETE returning 404 response. agent id: ' + agent_id + ' not found.')
             return
 
         op_state = agent.operational_state

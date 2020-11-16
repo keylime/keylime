@@ -65,7 +65,7 @@ def mk_cacert(name=None):
     cert.set_version(2)
     mk_cert_valid(cert, config.getint('ca', 'cert_ca_lifetime'))
 
-    if name == None:
+    if name is None:
         name = config.get('ca', 'cert_ca_name')
 
     issuer = X509.X509_Name()

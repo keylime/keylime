@@ -67,8 +67,7 @@ class Handler(BaseHTTPRequestHandler):
         The Cloud verifier requires an additional mask paramter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
 
-        logger.info('GET invoked from ' +
-                    str(self.client_address) + ' with uri:' + self.path)
+        logger.info('GET invoked from ' + str(self.client_address) + ' with uri:' + self.path)
 
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
@@ -231,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
             shutil.rmtree("%s/unzipped" % secdir)
 
         # write out key file
-        f = open(secdir+"/"+self.server.enc_keyname, 'w')
+        f = open(secdir + "/" + self.server.enc_keyname, 'w')
         f.write(base64.b64encode(self.server.K).decode())
         f.close()
 
@@ -443,7 +442,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             # TODO check on whether this happens or not.  NVRAM causes trouble
             if both_u_and_v_present:
                 pass
-                #logger.critical("Possible attack from: " + str(handler.client_address) + ".  Both U (potentially stale from TPM NVRAM) and V present but unsuccessful in attempt to decrypt check value.")
+                # logger.critical("Possible attack from: " + str(handler.client_address) + ".  Both U (potentially stale from TPM NVRAM) and V present but unsuccessful in attempt to decrypt check value.")
             return return_value
 
     def decrypt_check(self, decrypted_U, decrypted_V):
@@ -567,7 +566,7 @@ def main(argv=sys.argv):
     retval = False
     if virtual_agent:
         deepquote = tpm.create_deep_quote(
-            hashlib.sha1(key).hexdigest(), agent_uuid+aik+ek)
+            hashlib.sha1(key).hexdigest(), agent_uuid + aik + ek)
         retval = registrar_client.doActivateVirtualAgent(
             registrar_ip, registrar_port, agent_uuid, deepquote)
     else:

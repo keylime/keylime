@@ -110,7 +110,7 @@ def _pad(s):
     except AttributeError:
         pass
     pad_len = AES.block_size - (len(s) % AES.block_size) - 1
-    padding = b'\x80'+b'\0'*pad_len
+    padding = b'\x80' + b'\0' * pad_len
     return s + padding
 
 
