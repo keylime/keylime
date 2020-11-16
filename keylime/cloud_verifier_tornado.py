@@ -356,7 +356,8 @@ class AgentsHandler(BaseHandler):
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
             try:
-                agent = session.query(VerfierMain).filter_by(agent_id=agent_id)
+                agent = session.query(VerfierMain).filter_by(
+                    agent_id=agent_id).one()
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')
 
