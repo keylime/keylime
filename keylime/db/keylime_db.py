@@ -12,6 +12,7 @@ from sqlalchemy.engine.url import URL
 from keylime import common
 from keylime import keylime_logging
 
+
 class DBEngineManager:
     def make_engine(self, service):
         """
@@ -65,4 +66,3 @@ class SessionManager:
             logger = keylime_logging.init_logging('sql_session_manager')
             logger.error(f'Error creating SQL session manager {e}')
         return Session()
-

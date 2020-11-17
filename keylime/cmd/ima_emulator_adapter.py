@@ -36,7 +36,7 @@ def ml_extend(ml, position, searchHash=None):
         position += 1
 
         # get the filename roughly
-        path = str(line[line.rfind(tokens[3])+len(tokens[3])+1:])
+        path = str(line[line.rfind(tokens[3]) + len(tokens[3]) + 1:])
         template_hash = tokens[1]
 
         # this is some IMA weirdness
@@ -59,7 +59,7 @@ def ml_extend(ml, position, searchHash=None):
             except AttributeError:
                 pass
 
-            runninghash = hashlib.sha1(runninghash+template_hash).digest()
+            runninghash = hashlib.sha1(runninghash + template_hash).digest()
 
             if runninghash == searchHash:
                 print("Located last IMA file updated: %s" % (path))
