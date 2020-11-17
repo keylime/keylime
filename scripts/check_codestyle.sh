@@ -9,5 +9,5 @@ if [ -z "${TOOL}" ]; then
 	exit 1
 fi
 
-${TOOL} --max-line-length=2000 --ignore=E741,W504 *.py keylime/*.py
+${TOOL} --max-line-length=2000 --ignore=E741,W504 *.py keylime/*.py keylime/tpm/*.py
 exit $?
