@@ -24,7 +24,7 @@ def main(argv=sys.argv):
             with open(each_file) as f:
                 content = [x.strip() for x in f.readlines()]
                 # remove last element (could be weird)
-                #del content[-1:]
+                # del content[-1:]
                 concat_content.extend(content)
 
     float_list = []
@@ -33,9 +33,9 @@ def main(argv=sys.argv):
 
     float_list = numpy.array(float_list)
 
-    if not "ts_result" in args.filename:
+    if "ts_result" not in args.filename:
         # convert to milliseconds
-        float_list = float_list*1000
+        float_list = float_list * 1000
 
     # print "my list is %s"%(float_list[1:10])
     print("%s mean %.3f, std %.3f, min %.3f, med %.3f, max %.3f" % (args.text_description, numpy.average(

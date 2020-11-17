@@ -26,7 +26,7 @@ def main(argv=sys.argv):
     args = parser.parse_args(argv[1:])
 
     infile = args.infile
-    #infile = "time_series_log_file_776058270.txt"
+    # infile = "time_series_log_file_776058270.txt"
     outfile = args.outfile
 
     cycle_quantity_per_second_list = []
