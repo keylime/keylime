@@ -114,6 +114,71 @@ def read_measurement_list_bin(path, allowlist):
         # tokens = template['desc-fmt'].split('|')
 
 
+def _extract_from_ima(tokens, template_hash):
+    """ Extract filedata_hash & path form 'ima' entry; return 1 in case error occurred """
+    filedata_hash = codecs.decode(tokens[3], "hex")
+    path = str(tokens[4])
+
+    # this is some IMA weirdness
+    if template_hash == START_HASH:
+        return filedata_hash, path, 0
+
+    # verify template hash. yep this is terrible
+    # name needs to be null padded out to MAX len. +1 is for the null terminator of the string itself
+    fmt = "<%ds%ds%ds" % (len(filedata_hash), len(path), TCG_EVENT_NAME_LEN_MAX - len(path) + 1)
+    tohash = struct.pack(fmt,
+                         filedata_hash, path.encode("utf-8"),
+                         bytearray(TCG_EVENT_NAME_LEN_MAX - len(path) + 1))
+    expected_template_hash = hashlib.sha1(tohash).digest()
+
+    if expected_template_hash != template_hash:
+        error = 1
+        logger.warning("template hash for file %s does not match %s != %s" %
+                       (path,
+                        codecs.encode(expected_template_hash, 'hex').decode('utf-8'),
+                        codecs.encode(template_hash, 'hex').decode('utf-8')))
+    else:
+        error = 0
+
+    return filedata_hash, path, error
+
+
+def _extract_from_ima_ng(tokens, template_hash):
+    """ Extract filedata_hash & path form 'ima-ng' entry; return 1 in case error occurred """
+    filedata = tokens[3]
+    ftokens = filedata.split(":")
+    filedata_hash = codecs.decode(ftokens[1], 'hex')
+    path = str(tokens[4])
+
+    # this is some IMA weirdness
+    if template_hash == START_HASH:
+        return filedata_hash, path, 0
+
+    filedata_algo = str(ftokens[0])
+    # verify template hash. yep this is terrible
+    fmt = "<I%dsBB%dsI%dsB" % (len(filedata_algo), len(filedata_hash), len(path))
+    # +2 for the : and the null terminator, and +1 on path for null terminator
+    tohash = struct.pack(fmt,
+                         len(filedata_hash) + len(filedata_algo) + 2,
+                         filedata_algo.encode('utf-8'), ord(':'), ord('\0'),
+                         filedata_hash,
+                         len(path) + 1,
+                         path.encode("utf-8"),
+                         ord('\0'))
+    expected_template_hash = hashlib.sha1(tohash).digest()
+
+    if expected_template_hash != template_hash:
+        error = 1
+        logger.warning("template hash for file %s does not match %s != %s" %
+                       (path,
+                        codecs.encode(expected_template_hash, 'hex').decode('utf-8'),
+                        codecs.encode(template_hash, 'hex').decode('utf-8')))
+    else:
+        error = 0
+
+    return filedata_hash, path, error
+
+
 def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
     errs = [0, 0, 0, 0]
     runninghash = START_HASH
@@ -150,50 +215,17 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
         mode = tokens[2]
 
         if mode == "ima-ng":
-            filedata = tokens[3]
-            ftokens = filedata.split(":")
-            filedata_hash = codecs.decode(ftokens[1], 'hex')
-            path = str(tokens[4])
-
-            # this is some IMA weirdness
-            if template_hash == START_HASH:
-                template_hash = FF_HASH
-            else:
-                filedata_algo = str(ftokens[0])
-                # verify template hash. yep this is terrible
-                fmt = "<I%dsBB%dsI%dsB" % (
-                    len(filedata_algo), len(filedata_hash), len(path))
-                # +2 for the : and the null terminator, and +1 on path for null terminator
-                tohash = struct.pack(fmt, len(filedata_hash) + len(filedata_algo) + 2, filedata_algo.encode(
-                    'utf-8'), ord(':'), ord('\0'), filedata_hash, len(path) + 1, path.encode("utf-8"), ord('\0'))
-                expected_template_hash = hashlib.sha1(tohash).digest()
-
-                if expected_template_hash != template_hash:
-                    errs[0] += 1
-                    logger.warning("template hash for file %s does not match %s != %s" % (path, codecs.encode(
-                        expected_template_hash, 'hex').decode('utf-8'), codecs.encode(template_hash, 'hex').decode('utf-8')))
+            filedata_hash, path, error = _extract_from_ima_ng(tokens,
+                                                              template_hash)
         elif mode == 'ima':
-            filedata_hash = codecs.decode(tokens[3], "hex")
-            path = str(tokens[4])
-
-            # this is some IMA weirdness
-            if template_hash == START_HASH:
-                template_hash = FF_HASH
-            else:
-                # verify template hash. yep this is terrible
-                # name needs to be null padded out to MAX len. +1 is for the null terminator of the string itself
-                fmt = "<%ds%ds%ds" % (len(filedata_hash), len(
-                    path), TCG_EVENT_NAME_LEN_MAX - len(path) + 1)
-                tohash = struct.pack(fmt, filedata_hash, path.encode(
-                    "utf-8"), bytearray(TCG_EVENT_NAME_LEN_MAX - len(path) + 1))
-                expected_template_hash = hashlib.sha1(tohash).digest()
-
-                if expected_template_hash != template_hash:
-                    errs[0] += 1
-                    logger.warning("template hash for file %s does not match %s != %s" % (path, codecs.encode(
-                        expected_template_hash, 'hex').decode('utf-8'), codecs.encode(template_hash, 'hex').decode('utf-8')))
+            filedata_hash, path, error = _extract_from_ima(tokens,
+                                                           template_hash)
         else:
             raise Exception("unsupported ima template mode: %s" % mode)
+
+        errs[0] += error
+        if template_hash == START_HASH:
+            template_hash = FF_HASH
 
         # update hash
         runninghash = hashlib.sha1(runninghash + template_hash).digest()
