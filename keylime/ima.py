@@ -220,7 +220,6 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
                 continue
 
             accept_list = allowlist.get(path, None)
-            accept_list = accept_list
             if accept_list is None:
                 logger.warning("File not found in allowlist: %s" % (path))
                 errs[1] += 1
