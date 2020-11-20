@@ -136,10 +136,10 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
 
     for line in lines:
         line = line.strip()
-        tokens = line.split(None, 4)
-
         if line == '':
             continue
+
+        tokens = line.split(None, 4)
         if len(tokens) != 5:
             logger.error("invalid measurement list file line: -%s-" % (line))
             return None
