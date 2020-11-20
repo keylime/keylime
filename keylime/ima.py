@@ -152,7 +152,6 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
         if mode == "ima-ng":
             filedata = tokens[3]
             ftokens = filedata.split(":")
-            filedata_algo = str(ftokens[0])
             filedata_hash = codecs.decode(ftokens[1], 'hex')
             path = str(tokens[4])
 
@@ -160,6 +159,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
             if template_hash == START_HASH:
                 template_hash = FF_HASH
             else:
+                filedata_algo = str(ftokens[0])
                 # verify template hash. yep this is terrible
                 fmt = "<I%dsBB%dsI%dsB" % (
                     len(filedata_algo), len(filedata_hash), len(path))
