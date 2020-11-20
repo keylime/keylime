@@ -125,6 +125,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
         exclude_list = lists['exclude']
     else:
         allowlist = None
+        exclude_list = None
 
     is_valid, compiled_regex, err_msg = common.valid_exclude_list(exclude_list)
     if not is_valid:
