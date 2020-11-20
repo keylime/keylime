@@ -236,8 +236,9 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
 
         # write out the new hash
         if m2w is not None:
-            m2w.write("%s %s\n" % (codecs.encode(
-                filedata_hash, 'hex').decode('utf-8'), path))
+            m2w.write("%s %s\n" %
+                      (codecs.encode(filedata_hash, 'hex').decode('utf-8'),
+                       path))
 
         if allowlist is not None:
 
@@ -256,11 +257,14 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
                 logger.warning("File not found in allowlist: %s" % (path))
                 errs[1] += 1
                 continue
+
             # print('codecs.encode', codecs.encode(filedata_hash, 'hex').decode('utf-8'))
             # print('accept_list:', accept_list)
             if codecs.encode(filedata_hash, 'hex').decode('utf-8') not in accept_list:
-                logger.warning("Hashes for file %s don't match %s not in %s" % (
-                    path, codecs.encode(filedata_hash, 'hex').decode('utf-8'), accept_list))
+                logger.warning("Hashes for file %s don't match %s not in %s" %
+                               (path,
+                                codecs.encode(filedata_hash, 'hex').decode('utf-8'),
+                                accept_list))
                 errs[2] += 1
                 continue
 
