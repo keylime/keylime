@@ -283,7 +283,15 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
                       (codecs.encode(filedata_hash, 'hex').decode('utf-8'),
                        path))
 
+        evaluated = False
+
         if signature and ima_keyring:
+            evaluated = True
+            # determine if path matches any exclusion list items
+            if compiled_regex is not None and compiled_regex.match(path):
+                logger.debug("IMA: ignoring excluded path %s" % path)
+                continue
+
             if not ima_keyring.integrity_digsig_verify(signature, filedata_hash, filedata_algo):
                 logger.warning("signature for file %s is not valid" % (path))
                 errs[0] += 1
@@ -291,7 +299,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
                 logger.info("signature for file %s is good" % path)
 
         if allowlist is not None:
-
+            evaluated = True
             # just skip if it is a weird overwritten path
             if template_hash == FF_HASH:
                 # print "excluding ffhash %s"%path
@@ -317,6 +325,10 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
                                 accept_list))
                 errs[2] += 1
                 continue
+
+        if ima_keyring and not evaluated:
+            logger.warning("File %s not evaluated with signature or allowlist" % path)
+            errs[1] += 1
 
         errs[3] += 1
 
