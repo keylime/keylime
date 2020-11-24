@@ -7,6 +7,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import base64
 import functools
+import logging
 import os
 import ssl
 import traceback

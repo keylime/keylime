@@ -25,6 +25,7 @@ import uuid
 import time
 import tenant
 
+import _io
 
 from distutils.dir_util import copy_tree
 import shutil
@@ -725,7 +726,7 @@ class Test(unittest.TestCase):
             string_to_write = json.dumps(argument)
         elif isinstance(argument, str):
             string_to_write = argument
-        elif isinstance(argument, file):
+        elif isinstance(argument, _io.TextIOWrapper):
             string_to_write = argument.read()
             argument.close()
         elif argument is None:
