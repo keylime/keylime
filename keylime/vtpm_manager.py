@@ -16,6 +16,11 @@ from uuid import UUID
 
 import simplejson as json
 
+try:
+    from yaml import CSafeDumper as SafeDumper
+except ImportError:
+    from yaml import SafeDumper as SafeDumper
+
 from keylime import common
 from keylime import keylime_logging
 from keylime.tpm import tpm_obj
