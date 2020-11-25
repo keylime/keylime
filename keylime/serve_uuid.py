@@ -8,10 +8,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import sys
 import uuid
 
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
+import simplejson as json
+
 
 TESTING_MODE = False
 

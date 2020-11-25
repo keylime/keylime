@@ -14,10 +14,7 @@ import time
 import tempfile
 from uuid import UUID
 
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
+import simplejson as json
 
 from keylime import common
 from keylime import keylime_logging

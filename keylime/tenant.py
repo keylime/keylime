@@ -16,10 +16,7 @@ import sys
 import time
 import zipfile
 
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
+import simplejson as json
 
 from keylime.requests_client import RequestsClient
 from keylime import common

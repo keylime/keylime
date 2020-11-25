@@ -23,6 +23,8 @@ import io
 import importlib
 import shutil
 
+import simplejson as json
+
 from keylime import common
 from keylime import keylime_logging
 from keylime import cmd_exec
@@ -36,11 +38,6 @@ from keylime.tpm.tpm_abstract import TPM_Utilities
 
 # Configure logger
 logger = keylime_logging.init_logging('cloudagent')
-
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
 
 # read the config file
 config = common.get_config()

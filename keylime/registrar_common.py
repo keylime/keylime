@@ -9,14 +9,14 @@ import signal
 import time
 import hashlib
 import http.server
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
-
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
+from sqlalchemy.exc import SQLAlchemyError
 
+import simplejson as json
+
+from keylime.db.registrar_db import RegistrarMain
+from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import registrar_client
 from keylime import crypto
 from keylime import cloud_verifier_common
@@ -24,10 +24,6 @@ from keylime.tpm import tpm_obj
 from keylime import common
 from keylime import keylime_logging
 
-# Database imports
-from keylime.db.registrar_db import RegistrarMain
-from keylime.db.keylime_db import DBEngineManager, SessionManager
-from sqlalchemy.exc import SQLAlchemyError
 
 logger = keylime_logging.init_logging('registrar-common')
 config = common.get_config()

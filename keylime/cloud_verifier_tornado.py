@@ -8,30 +8,22 @@ import traceback
 import sys
 import functools
 import asyncio
+
+import simplejson as json
+from sqlalchemy.exc import SQLAlchemyError
 import tornado.ioloop
 import tornado.web
-import keylime.tornado_requests as tornado_requests
 
 from keylime import common
+from keylime.db.verifier_db import VerfierMain
+from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
+import keylime.tornado_requests as tornado_requests
 
-# Database imports
-from keylime.db.verifier_db import VerfierMain
-from keylime.db.keylime_db import DBEngineManager, SessionManager
-from sqlalchemy.exc import SQLAlchemyError
 
 logger = keylime_logging.init_logging('cloudverifier')
-
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
-
-if sys.version_info[0] < 3:
-    raise Exception("Python 3 or a more recent version is required.")
-
 config = common.get_config()
 
 try:

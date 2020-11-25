@@ -11,11 +11,8 @@ import os
 import ssl
 import traceback
 import sys
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
 
+import simplejson as json
 import tornado.ioloop
 import tornado.web
 from tornado import httpserver
