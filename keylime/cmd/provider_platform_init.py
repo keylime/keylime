@@ -17,7 +17,7 @@ except ImportError:
 from keylime import common
 from keylime import keylime_logging
 from keylime import registrar_client
-from keylime.keylime_sqlite import vtpm_manager
+from keylime import vtpm_manager
 
 logger = keylime_logging.init_logging('provider_platform_init')
 
