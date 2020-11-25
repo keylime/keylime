@@ -15,7 +15,6 @@ import getpass
 import zipfile
 import io
 import socket
-from keylime import revocation_notifier
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
@@ -31,7 +30,7 @@ import simplejson as json
 from keylime import crypto
 from keylime import cmd_exec
 from keylime import common
-
+from keylime import revocation_notifier
 from keylime import keylime_logging
 logger = keylime_logging.init_logging('ca-util')
 
