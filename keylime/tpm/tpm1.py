@@ -569,13 +569,13 @@ class tpm1(tpm_abstract.AbstractTPM):
         return None
 
     def is_emulator(self):
-        return 'IBM' == self.get_tpm_manufacturer()
+        return self.get_tpm_manufacturer() == 'IBM'
 
     def is_vtpm(self):
         if common.STUB_VTPM:
             return True
         else:
-            return 'ETHZ' == self.get_tpm_manufacturer()
+            return self.get_tpm_manufacturer() == 'ETHZ'
 
     def __is_tpm_owned(self):
         retDict = self.__run("getcapability -cap 5 -scap 111")
