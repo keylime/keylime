@@ -6,7 +6,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import base64
-import functools
 import logging
 import os
 import ssl
@@ -16,9 +15,6 @@ import sys
 import simplejson as json
 import tornado.ioloop
 import tornado.web
-from tornado import httpserver
-from tornado.httpclient import AsyncHTTPClient
-from tornado.httputil import url_concat
 
 from keylime.requests_client import RequestsClient
 from keylime import cloud_verifier_common

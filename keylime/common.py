@@ -5,10 +5,8 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import os.path
 import configparser
-import logging.config
 import sys
 import urllib.parse
-import random
 import re
 import time
 import tornado.web
@@ -16,9 +14,9 @@ from http.server import BaseHTTPRequestHandler
 import http.client
 import yaml
 try:
-    from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
+    from yaml import CSafeLoader as SafeLoader
 except ImportError:
-    from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
+    from yaml import SafeLoader as SafeLoader
 
 import simplejson as json
 
@@ -105,7 +103,7 @@ if not REQUIRE_ROOT:
 
 # Try and import cLime, if it fails set USE_CLIME to False.
 try:
-    import _cLime
+    import _cLime  # pylint: disable=W0611
     USE_CLIME = True
 except ImportError:
     USE_CLIME = False

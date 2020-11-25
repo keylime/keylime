@@ -6,7 +6,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 import argparse
 import sys
 import glob
-import numpy
 
 
 def main(argv=sys.argv):

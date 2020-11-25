@@ -5,7 +5,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import uuid
 
-from keylime import common
 from keylime import keylime_logging
 from keylime import tornado_requests
 

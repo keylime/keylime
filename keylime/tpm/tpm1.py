@@ -17,9 +17,9 @@ import yaml
 import zlib
 import codecs
 try:
-    from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
+    from yaml import CSafeDumper as SafeDumper
 except ImportError:
-    from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
+    from yaml import SafeDumper as SafeDumper
 
 from M2Crypto import m2
 from keylime import crypto

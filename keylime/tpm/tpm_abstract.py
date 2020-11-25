@@ -4,7 +4,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import ast
-import base64
 import fcntl
 import hashlib
 import os
