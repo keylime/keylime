@@ -5,8 +5,6 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
-import asyncio
-
 from keylime import common
 import keylime.keylime_logging as keylime_logging
 

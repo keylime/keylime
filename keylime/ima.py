@@ -8,7 +8,6 @@ import codecs
 import sys
 import hashlib
 import struct
-import re
 import os
 
 from keylime import common

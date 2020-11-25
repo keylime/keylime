@@ -14,10 +14,6 @@ import time
 import zlib
 import codecs
 from distutils.version import StrictVersion
-try:
-    from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
-except ImportError:
-    from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
 
 try:
     import simplejson as json

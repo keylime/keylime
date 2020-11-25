@@ -17,11 +17,8 @@ import io
 import socket
 from keylime import revocation_notifier
 import threading
-import http.server
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
-import functools
-import signal
 import time
 import yaml
 try:

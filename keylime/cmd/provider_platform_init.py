@@ -10,9 +10,9 @@ import os
 import errno
 import yaml
 try:
-    from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
+    from yaml import CSafeDumper as SafeDumper
 except ImportError:
-    from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
+    from yaml import SafeDumper as SafeDumper
 
 from keylime import common
 from keylime import keylime_logging
