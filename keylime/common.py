@@ -20,10 +20,7 @@ try:
 except ImportError:
     from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
 
-try:
-    import simplejson as json
-except ImportError:
-    raise(Exception("Simplejson is mandatory, please install"))
+import simplejson as json
 
 
 def convert(data):
