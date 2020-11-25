@@ -310,7 +310,7 @@ class AgentsHandler(BaseHandler):
             logger.exception(e)
             common.echo_json_response(
                 self, 500, "Unexpected response from Cloud Verifier", str(e))
-            logger.error("Unexpected response from Cloud Verifier: ", str(e))
+            logger.error("Unexpected response from Cloud Verifier: %s" % str(e))
             return
 
         inst_response_body = response.json()
