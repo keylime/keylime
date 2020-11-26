@@ -3,13 +3,11 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
 '''
 
+import simplejson as json
+
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, String, Integer, PickleType, Text
 
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
 
 Base = declarative_base()
 
