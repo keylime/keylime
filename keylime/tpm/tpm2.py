@@ -15,12 +15,8 @@ import zlib
 import codecs
 from distutils.version import StrictVersion
 
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
-
 import M2Crypto
+import simplejson as json
 
 from keylime import cmd_exec
 from keylime import common

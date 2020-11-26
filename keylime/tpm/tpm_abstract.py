@@ -3,24 +3,20 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+from abc import ABCMeta, abstractmethod
 import ast
 import fcntl
 import hashlib
 import os
 import string
 import struct
+
+import simplejson as json
 import yaml
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
 except ImportError:
     from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
-
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
-
-from abc import ABCMeta, abstractmethod
 
 from keylime import common
 from keylime import keylime_logging
