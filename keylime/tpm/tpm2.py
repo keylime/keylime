@@ -32,7 +32,177 @@ logger = keylime_logging.init_logging('tpm2')
 config = common.get_config()
 
 
+def _get_cmd_env():
+    env = os.environ.copy()
+    lib_path = ""
+    if 'LD_LIBRARY_PATH' in env:
+        lib_path = env['LD_LIBRARY_PATH']
+    if 'TPM2TOOLS_TCTI' not in env:
+        # Don't clobber existing setting (if present)
+        env['TPM2TOOLS_TCTI'] = 'tabrmd:bus_name=com.intel.tss2.Tabrmd'
+        # Other (not recommended) options are direct emulator and chardev communications:
+        # env['TPM2TOOLS_TCTI'] = 'mssim:port=2321'
+        # env['TPM2TOOLS_TCTI'] = 'device:/dev/tpm0'
+    env['PATH'] = env['PATH'] + ":%s" % common.TPM_TOOLS_PATH
+    env['LD_LIBRARY_PATH'] = lib_path + ":%s" % common.TPM_LIBS_PATH
+    return env
+
+
+def _stub_command(fprt, lock, cmd, outputpaths):
+    if not isinstance(cmd, str):
+        cmd = ' '.join(cmd)
+    # Use canned values for stubbing
+    jsonIn = common.TPM_CANNED_VALUES
+    if fprt in jsonIn:
+        # The value we're looking for has been canned!
+        thisTiming = jsonIn[fprt]['timing']
+        thisRetout = jsonIn[fprt]['retout']
+        thisCode = jsonIn[fprt]['code']
+        thisFileout = jsonIn[fprt]['fileout']
+        fileoutEncoded = {}
+
+        # Decode files that are supplied (and requested)
+        if outputpaths is not None and len(outputpaths) > 0:
+            if len(thisFileout) == 1 and len(outputpaths) == 1:
+                # fileoutEncoded[outputpaths[0]] = base64.b64decode(next(iter(thisFileout.values()))).decode("zlib")
+                fileoutEncoded[outputpaths[0]] = zlib.decompress(base64.b64decode(next(iter(thisFileout.values()))))
+            elif fprt == "tpm2_deluxequote":
+                # quotes need 3 outputs, so we need a consistent way to match them back up when reading
+                quote_msg = ""
+                match = re.search(r"-m ([^\s]+)", cmd)
+                if match:
+                    quote_msg = match.group(1)
+                    if "file://quoteMessage" in thisFileout:
+                        # fileoutEncoded[quote_msg] = base64.b64decode(thisFileout["file://quoteMessage"]).decode("zlib")
+                        fileoutEncoded[quote_msg] = zlib.decompress(
+                            base64.b64decode(thisFileout["file://quoteMessage"]))
+                quote_sig = ""
+                match = re.search(r"-s ([^\s]+)", cmd)
+                if match:
+                    quote_sig = match.group(1)
+                    if "file://quoteSignature" in thisFileout:
+                        # fileoutEncoded[quote_sig] = base64.b64decode(thisFileout["file://quoteSignature"]).decode("zlib")
+                        fileoutEncoded[quote_sig] = zlib.decompress(
+                            base64.b64decode(thisFileout["file://quoteSignature"]))
+                quote_pcr = ""
+                match = re.search(r"-p ([^\s]+)", cmd)
+                if match:
+                    quote_pcr = match.group(1)
+                    if "file://quotePCR" in thisFileout:
+                        # fileoutEncoded[quote_pcr] = base64.b64decode(thisFileout["file://quotePCR"]).decode("zlib")
+                        fileoutEncoded[quote_pcr] = zlib.decompress(
+                            base64.b64decode(thisFileout["file://quotePCR"]))
+            else:
+                raise Exception("Command %s is using multiple files unexpectedly!" % fprt)
+
+        logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec" % (fprt, thisTiming))
+        time.sleep(thisTiming)
+
+        # Package for return
+        returnDict = {
+            'retout': thisRetout,
+            'reterr': [],
+            'code': thisCode,
+            'fileouts': fileoutEncoded,
+            'timing': thisTiming,
+        }
+        return returnDict
+    elif not lock:
+        # non-lock calls don't go to the TPM (just let it pass through)
+        pass
+    else:
+        # Our command hasn't been canned!
+        raise Exception("Command %s not found in canned YAML!" % fprt)
+
+
+def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
+    if not isinstance(cmd, str):
+        cmd = ' '.join(cmd)
+    t0 = cmd_ret['timing']['t0']
+    t1 = cmd_ret['timing']['t1']
+    code = cmd_ret['code']
+    retout = cmd_ret['retout']
+    reterr = cmd_ret['reterr']
+    fileouts = cmd_ret['fileouts']
+
+    pad = ""
+    if len(fprt) < 8:
+        pad += "\t"
+    if len(fprt) < 16:
+        pad += "\t"
+    if len(fprt) < 24:
+        pad += "\t"
+
+    filelen = 0
+    if fileouts is not None:
+        filelen = len(fileouts)
+
+    # Print out benchmarking information for TPM (if requested)
+    # print "\033[95mTIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\033[0m" % (fprt, pad, t1-t0, len(retout), filelen, cmd)
+    if common.TPM_BENCHMARK_PATH is not None:
+        with open(common.TPM_BENCHMARK_PATH, "ab") as f:
+            f.write(
+                "TIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\n" % (fprt, pad, t1 - t0, len(retout), filelen, cmd))
+
+    # Print out YAML canned values (if requested)
+    # NOTE: resulting file will be missing the surrounding braces! (must add '{' and '}' for reading)
+    if common.TPM_CANNED_VALUES_PATH is not None:
+        with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
+            fileoutEncoded = {}
+
+            # Process files
+            if outputpaths is not None and len(outputpaths) > 0:
+                if len(fileouts) == 1 and len(outputpaths) == 1:
+                    # fileoutEncoded[outputpaths[0]] = base64.b64encode(iter(fileouts.values()).next().encode("zlib"))
+                    fileoutEncoded[outputpaths[0]] = zlib.compress(base64.b64decode(iter(fileouts.values()).next()))
+                elif fprt == "tpm2_deluxequote":
+                    # quotes need 3 outputs, so we need a consistent way to match them back up when reading
+                    quote_msg = ""
+                    match = re.search(r"-m ([^\s]+)", cmd)
+                    if match:
+                        quote_msg = match.group(1)
+                        if quote_msg in fileouts:
+                            # fileoutEncoded["file://quoteMessage"] = base64.b64encode(fileouts[quote_msg].encode("zlib"))
+                            fileoutEncoded["file://quoteMessage"] = zlib.compress(base64.b64decode(fileouts[quote_msg]))
+                    quote_sig = ""
+                    match = re.search(r"-s ([^\s]+)", cmd)
+                    if match:
+                        quote_sig = match.group(1)
+                        if quote_sig in fileouts:
+                            # fileoutEncoded["file://quoteSignature"] = base64.b64encode(fileouts[quote_sig].encode("zlib"))
+                            fileoutEncoded["file://quoteSignature"] = zlib.compress(
+                                base64.b64decode(fileouts[quote_sig]))
+                    quote_pcr = ""
+                    match = re.search(r"-p ([^\s]+)", cmd)
+                    if match:
+                        quote_pcr = match.group(1)
+                        if quote_pcr in fileouts:
+                            # fileoutEncoded["file://quotePCR"] = base64.b64encode(fileouts[quote_pcr].encode("zlib"))
+                            fileoutEncoded["file://quotePCR"] = zlib.compress(base64.b64decode(fileouts[quote_pcr]))
+                else:
+                    raise Exception("Command %s is using multiple files unexpectedly!" % (fprt))
+
+            # tpm_cexec will need to know the nonce
+            nonce = ""
+            match = re.search(r"-q ([\w]+)", cmd)
+            if match:
+                nonce = binascii.a2b_hex(match.group(1))
+
+            jsonObj = {
+                'type': fprt,
+                'retout': retout,
+                'fileout': fileoutEncoded,
+                'cmd': cmd,
+                'timing': t1 - t0,
+                'code': code,
+                'nonce': nonce
+            }
+            can.write("\"%s\": %s,\n" % (fprt, json.dumps(jsonObj, indent=4, sort_keys=True)))
+
+
 class tpm2(tpm_abstract.AbstractTPM):
+
+    VERSION = 2
 
     def __init__(self, need_hw_tpm=False):
         tpm_abstract.AbstractTPM.__init__(self, need_hw_tpm)
@@ -77,9 +247,6 @@ class tpm2(tpm_abstract.AbstractTPM):
         self.defaults['encrypt'] = defaultEncrypt
         self.defaults['sign'] = defaultSign
         self.defaults['ek_handle'] = ek_handle
-
-    def get_tpm_version(self):
-        return 2
 
     def __get_tpm2_tools(self):
         global tools_version
@@ -145,7 +312,10 @@ class tpm2(tpm_abstract.AbstractTPM):
     @staticmethod
     def __fingerprint(cmd):
         # Creates a unique-enough ID from the given command
-        fprt = cmd.split()[0]
+        if isinstance(cmd, str):
+            fprt = cmd.split()[0]
+        else:
+            fprt = cmd[0]
         if fprt == 'tpm2_nvread':
             if '0x1c00002' in cmd:  # read_ekcert_nvram
                 fprt += '-ekcert'
@@ -162,18 +332,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         return fprt
 
     def __run(self, cmd, expectedcode=tpm_abstract.AbstractTPM.EXIT_SUCESS, raiseOnError=True, lock=True, outputpaths=None):
-        env = os.environ.copy()
-        lib_path = ""
-        if 'LD_LIBRARY_PATH' in env:
-            lib_path = env['LD_LIBRARY_PATH']
-        if 'TPM2TOOLS_TCTI' not in env:
-            # Don't clobber existing setting (if present)
-            env['TPM2TOOLS_TCTI'] = 'tabrmd:bus_name=com.intel.tss2.Tabrmd'
-            # Other (not recommended) options are direct emulator and chardev communications:
-            # env['TPM2TOOLS_TCTI'] = 'mssim:port=2321'
-            # env['TPM2TOOLS_TCTI'] = 'device:/dev/tpm0'
-        env['PATH'] = env['PATH'] + ":%s" % common.TPM_TOOLS_PATH
-        env['LD_LIBRARY_PATH'] = lib_path + ":%s" % common.TPM_LIBS_PATH
+        env = _get_cmd_env()
 
         # Convert single outputpath to list
         if isinstance(outputpaths, str):
@@ -182,75 +341,27 @@ class tpm2(tpm_abstract.AbstractTPM):
         # Handle stubbing the TPM out
         fprt = tpm2.__fingerprint(cmd)
         if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
-            # Use canned values for stubbing
-            jsonIn = common.TPM_CANNED_VALUES
-            if fprt in jsonIn:
-                # The value we're looking for has been canned!
-                thisTiming = jsonIn[fprt]['timing']
-                thisRetout = jsonIn[fprt]['retout']
-                thisCode = jsonIn[fprt]['code']
-                thisFileout = jsonIn[fprt]['fileout']
-                fileoutEncoded = {}
-
-                # Decode files that are supplied (and requested)
-                if outputpaths is not None and len(outputpaths) > 0:
-                    if len(thisFileout) == 1 and len(outputpaths) == 1:
-                        # fileoutEncoded[outputpaths[0]] = base64.b64decode(next(iter(thisFileout.values()))).decode("zlib")
-                        fileoutEncoded[outputpaths[0]] = zlib.decompress(base64.b64decode(next(iter(thisFileout.values()))))
-                    elif fprt == "tpm2_deluxequote":
-                        # quotes need 3 outputs, so we need a consistent way to match them back up when reading
-                        quote_msg = ""
-                        match = re.search(r"-m ([^\s]+)", cmd)
-                        if match:
-                            quote_msg = match.group(1)
-                            if "file://quoteMessage" in thisFileout:
-                                # fileoutEncoded[quote_msg] = base64.b64decode(thisFileout["file://quoteMessage"]).decode("zlib")
-                                fileoutEncoded[quote_msg] = zlib.decompress(base64.b64decode(thisFileout["file://quoteMessage"]))
-                        quote_sig = ""
-                        match = re.search(r"-s ([^\s]+)", cmd)
-                        if match:
-                            quote_sig = match.group(1)
-                            if "file://quoteSignature" in thisFileout:
-                                # fileoutEncoded[quote_sig] = base64.b64decode(thisFileout["file://quoteSignature"]).decode("zlib")
-                                fileoutEncoded[quote_sig] = zlib.decompress(base64.b64decode(thisFileout["file://quoteSignature"]))
-                        quote_pcr = ""
-                        match = re.search(r"-p ([^\s]+)", cmd)
-                        if match:
-                            quote_pcr = match.group(1)
-                            if "file://quotePCR" in thisFileout:
-                                # fileoutEncoded[quote_pcr] = base64.b64decode(thisFileout["file://quotePCR"]).decode("zlib")
-                                fileoutEncoded[quote_pcr] = zlib.decompress(base64.b64decode(thisFileout["file://quotePCR"]))
-                    else:
-                        raise Exception("Command %s is using multiple files unexpectedly!" % fprt)
-
-                logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec" % (fprt, thisTiming))
-                time.sleep(thisTiming)
-
-                # Package for return
-                returnDict = {
-                    'retout': thisRetout,
-                    'reterr': [],
-                    'code': thisCode,
-                    'fileouts': fileoutEncoded,
-                    'timing': thisTiming,
-                }
-                return returnDict
-            elif not lock:
-                # non-lock calls don't go to the TPM (just let it pass through)
-                pass
-            else:
-                # Our command hasn't been canned!
-                raise Exception("Command %s not found in canned YAML!" % fprt)
+            stub = _stub_command(fprt, lock, cmd, outputpaths)
+            if stub:
+                return stub
 
         numtries = 0
         while True:
+            # TODO(kaifeng) Handle shell till all commands are updated.
+            shell = False
+            if isinstance(cmd, str):
+                shell = True
             if lock:
                 with self.tpmutilLock:
-                    retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode, raiseOnError=False, lock=lock, outputpaths=outputpaths, env=env, shell=True)
+                    retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode,
+                                           raiseOnError=False, lock=lock,
+                                           outputpaths=outputpaths, env=env,
+                                           shell=shell)
             else:
-                retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode, raiseOnError=False, lock=lock, outputpaths=outputpaths, env=env, shell=True)
-            t0 = retDict['timing']['t0']
-            t1 = retDict['timing']['t1']
+                retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode,
+                                       raiseOnError=False, lock=lock,
+                                       outputpaths=outputpaths, env=env,
+                                       shell=shell)
             code = retDict['code']
             retout = retDict['retout']
             reterr = retDict['reterr']
@@ -276,83 +387,13 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         # Metric output
         if lock or self.tpmutilLock.locked():
-            pad = ""
-            if len(fprt) < 8:
-                pad += "\t"
-            if len(fprt) < 16:
-                pad += "\t"
-            if len(fprt) < 24:
-                pad += "\t"
-
-            filelen = 0
-            if fileouts is not None:
-                filelen = len(fileouts)
-
-            # Print out benchmarking information for TPM (if requested)
-            # print "\033[95mTIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\033[0m" % (fprt, pad, t1-t0, len(retout), filelen, cmd)
-            if common.TPM_BENCHMARK_PATH is not None:
-                with open(common.TPM_BENCHMARK_PATH, "ab") as f:
-                    f.write("TIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\n" % (fprt, pad, t1 - t0, len(retout), filelen, cmd))
-
-            # Print out YAML canned values (if requested)
-            # NOTE: resulting file will be missing the surrounding braces! (must add '{' and '}' for reading)
-            if common.TPM_CANNED_VALUES_PATH is not None:
-                with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
-                    fileoutEncoded = {}
-
-                    # Process files
-                    if outputpaths is not None and len(outputpaths) > 0:
-                        if len(fileouts) == 1 and len(outputpaths) == 1:
-                            # fileoutEncoded[outputpaths[0]] = base64.b64encode(iter(fileouts.values()).next().encode("zlib"))
-                            fileoutEncoded[outputpaths[0]] = zlib.compress(base64.b64decode(iter(fileouts.values()).next()))
-                        elif fprt == "tpm2_deluxequote":
-                            # quotes need 3 outputs, so we need a consistent way to match them back up when reading
-                            quote_msg = ""
-                            match = re.search(r"-m ([^\s]+)", cmd)
-                            if match:
-                                quote_msg = match.group(1)
-                                if quote_msg in fileouts:
-                                    # fileoutEncoded["file://quoteMessage"] = base64.b64encode(fileouts[quote_msg].encode("zlib"))
-                                    fileoutEncoded["file://quoteMessage"] = zlib.compress(base64.b64decode(fileouts[quote_msg]))
-                            quote_sig = ""
-                            match = re.search(r"-s ([^\s]+)", cmd)
-                            if match:
-                                quote_sig = match.group(1)
-                                if quote_sig in fileouts:
-                                    # fileoutEncoded["file://quoteSignature"] = base64.b64encode(fileouts[quote_sig].encode("zlib"))
-                                    fileoutEncoded["file://quoteSignature"] = zlib.compress(base64.b64decode(fileouts[quote_sig]))
-                            quote_pcr = ""
-                            match = re.search(r"-p ([^\s]+)", cmd)
-                            if match:
-                                quote_pcr = match.group(1)
-                                if quote_pcr in fileouts:
-                                    # fileoutEncoded["file://quotePCR"] = base64.b64encode(fileouts[quote_pcr].encode("zlib"))
-                                    fileoutEncoded["file://quotePCR"] = zlib.compress(base64.b64decode(fileouts[quote_pcr]))
-                        else:
-                            raise Exception("Command %s is using multiple files unexpectedly!" % (fprt))
-
-                    # tpm_cexec will need to know the nonce
-                    nonce = ""
-                    match = re.search(r"-q ([\w]+)", cmd)
-                    if match:
-                        nonce = binascii.a2b_hex(match.group(1))
-
-                    jsonObj = {
-                        'type': fprt,
-                        'retout': retout,
-                        'fileout': fileoutEncoded,
-                        'cmd': cmd,
-                        'timing': t1 - t0,
-                        'code': code,
-                        'nonce': nonce
-                    }
-                    can.write("\"%s\": %s,\n" % (fprt, json.dumps(jsonObj, indent=4, sort_keys=True)))
+            _output_metrics(fprt, cmd, retDict, outputpaths)
 
         return retDict
 
     # tpm_initialize
     def __startup_tpm(self):
-        retDict = self.__run("tpm2_startup -c")
+        retDict = self.__run(['tpm2_startup', '-c'])
         output = common.list_convert(retDict['retout'])
         errout = common.list_convert(retDict['reterr'])
         code = retDict['code']

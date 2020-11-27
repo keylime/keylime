@@ -44,7 +44,7 @@ config = common.get_config()
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)
-tpm_version = tpm.get_tpm_version()
+tpm_version = tpm.VERSION
 
 # lock required for multithreaded operation
 uvLock = threading.Lock()

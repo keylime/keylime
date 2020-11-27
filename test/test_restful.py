@@ -410,7 +410,7 @@ class TestRestful(unittest.TestCase):
             'aik': aik,
             'aik_name': aik_name,
             'ek_tpm': ek_tpm,
-            'tpm_version': tpm.get_tpm_version(),
+            'tpm_version': tpm.VERSION,
         }
 
         test_010_reg_agent_post = RequestsClient(tenant_templ.registrar_base_url, tls_enabled=False)
