@@ -6,12 +6,12 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import ast
-from urllib.parse import urlparse
 import base64
-import time
 import os
 import ssl
 import socket
+import time
+from urllib.parse import urlparse
 
 import simplejson as json
 
@@ -144,11 +144,21 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
     else:
         my_priv_key = "%s/%s" % (tls_dir, my_priv_key)
 
-    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    context.load_verify_locations(cafile=ca_path)
-    context.load_cert_chain(
-        certfile=my_cert, keyfile=my_priv_key, password=my_key_pw)
-    context.verify_mode = ssl.CERT_REQUIRED
+    try:
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.load_verify_locations(cafile=ca_path)
+        context.load_cert_chain(
+            certfile=my_cert, keyfile=my_priv_key, password=my_key_pw)
+        context.verify_mode = ssl.CERT_REQUIRED
+    except ssl.SSLError as exc:
+        if exc.reason == 'EE_KEY_TOO_SMALL':
+            logger.error('Higher key strength is required for keylime '
+                         'running on this system. If keylime is responsible '
+                         'to generate the certificate, please raise the value '
+                         'of configuration option [ca]cert_bits, remove '
+                         'generated certificate and re-run keylime service')
+        raise exc
+
     return context
 
 
