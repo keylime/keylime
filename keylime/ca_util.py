@@ -17,11 +17,8 @@ import io
 import socket
 from keylime import revocation_notifier
 import threading
-import http.server
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
-import functools
-import signal
 import time
 import yaml
 try:
@@ -29,10 +26,7 @@ try:
 except ImportError:
     from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
 
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
+import simplejson as json
 
 from keylime import crypto
 from keylime import cmd_exec
@@ -90,7 +84,7 @@ def cmd_mkcert(workingdir, name):
         ca_pk = EVP.load_key_string(priv[0]['ca'])
 
         cert, pk = ca_impl.mk_signed_cert(
-            cacert, ca_pk, name, priv[0]['lastserial']+1)
+            cacert, ca_pk, name, priv[0]['lastserial'] + 1)
 
         with open('%s-cert.crt' % name, 'wb') as f:
             f.write(cert.as_pem())
@@ -108,7 +102,7 @@ def cmd_mkcert(workingdir, name):
         # write out the private key with password
         with os.fdopen(os.open("%s-private.pem" % name, os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
             biofile = BIO.File(f)
-            pk.save_key_bio(biofile, 'aes_256_cbc', globalcb)
+            pk.save_key_bio(biofile, None)
             biofile.close()
 
         pk.get_rsa().save_pub_key('%s-public.pem' % name)
@@ -265,8 +259,9 @@ def convert_crl_to_pem(derfile, pemfile):
         with open(pemfile, 'w') as f:
             f.write("")
     else:
-        cmd_exec.run("openssl crl -in %s -inform der -out %s" %
-                     (derfile, pemfile), lock=False)
+        cmd = ('openssl', 'crl', '-in', derfile, '-inform', 'der',
+               '-out', pemfile)
+        cmd_exec.run(cmd, lock=False)
 
 
 def get_crl_distpoint(cert_path):
@@ -319,9 +314,10 @@ def cmd_revoke(workingdir, name=None, serial=None):
         write_private(priv)
 
         # write out the CRL to the disk
-        with open('cacrl.der', 'wb') as f:
-            f.write(crl)
-        convert_crl_to_pem("cacrl.der", "cacrl.pem")
+        if os.stat('cacrl.der').st_size:
+            with open('cacrl.der', 'wb') as f:
+                f.write(crl)
+            convert_crl_to_pem("cacrl.der", "cacrl.pem")
 
     finally:
         os.chdir(cwd)
@@ -378,16 +374,18 @@ def cmd_listen(workingdir, cert_path):
             logger.info("checking CRL for expiration every hour")
             while True:
                 try:
-                    if os.path.exists('cacrl.der'):
-                        retout = cmd_exec.run(
-                            "openssl crl -inform der -in cacrl.der -text -noout", lock=False)['retout']
+                    if (os.path.exists('cacrl.der') and
+                            os.stat('cacrl.der').st_size):
+                        cmd = ('openssl', 'crl', '-inform', 'der', '-in',
+                               'cacrl.der', '-text', '-noout')
+                        retout = cmd_exec.run(cmd, lock=False)['retout']
                         for line in retout:
                             line = line.strip()
                             if line.startswith(b"Next Update:"):
                                 expire = datetime.datetime.strptime(
                                     line[13:].decode('utf-8'), "%b %d %H:%M:%S %Y %Z")
                                 # check expiration within 6 hours
-                                in1hour = datetime.datetime.utcnow()+datetime.timedelta(hours=6)
+                                in1hour = datetime.datetime.utcnow() + datetime.timedelta(hours=6)
                                 if expire <= in1hour:
                                     logger.info(
                                         "Certificate to expire soon %s, re-issuing" % expire)
@@ -440,8 +438,7 @@ class ThreadedCRLServer(ThreadingMixIn, HTTPServer):
 
 class CRLHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        logger.info('GET invoked from ' +
-                    str(self.client_address) + ' with uri:' + self.path)
+        logger.info('GET invoked from ' + str(self.client_address) + ' with uri:' + self.path)
 
         if self.server.published_crl is None:
             self.send_response(404)
@@ -511,23 +508,9 @@ def main(argv=sys.argv):
     parser.add_argument('-i', '--insecure', action='store_true', default=False,
                         help='create cert packages with unprotected private keys and write them to disk.  USE WITH CAUTION!')
 
-    if common.DEVELOP_IN_ECLIPSE and len(argv) == 1:
-        argv = ['-c', 'init']
-        # argv=['-c','create','-n',socket.getfqdn()]
-        argv = ['-c', 'create', '-n', 'client']
-        # argv=['-c','pkg','-n','client']
-        argv = ['-c', 'revoke', '-n', 'client']
-        argv = ['-c', 'listen', '-d', 'ca']
-    else:
-        argv = argv[1:]
+    args = parser.parse_args(argv[1:])
 
-    # never prompt for passwords in development mode
-    if common.DEVELOP_IN_ECLIPSE:
-        setpassword('default')
-
-    args = parser.parse_args(argv)
-
-    if args.dir == None:
+    if args.dir is None:
         if os.getuid() != 0 and common.REQUIRE_ROOT:
             logger.error(
                 "If you don't specify a working directory, this process must be run as root to access %s" % common.WORK_DIR)

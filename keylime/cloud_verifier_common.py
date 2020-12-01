@@ -13,10 +13,7 @@ import os
 import ssl
 import socket
 
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
+import simplejson as json
 
 from keylime import common
 from keylime import keylime_logging
@@ -370,6 +367,7 @@ def notify_error(agent, msgtype='revocation'):
     else:
         tosend['signature'] = "none"
     revocation_notifier.notify(tosend)
+
 
 def validate_agent_data(agent_data):
     if agent_data is None:

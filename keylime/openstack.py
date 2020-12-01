@@ -5,7 +5,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import uuid
 
-from keylime import common
 from keylime import keylime_logging
 from keylime import tornado_requests
 
@@ -25,7 +24,7 @@ def get_openstack_uuid(uuid_service_ip='169.254.169.254',
             return response_body["uuid"]
         logger.debug("Forcing using locally generated uuid.")
         return str(uuid.uuid4())
-    except Exception:
+    except Exception as e:
         logger.debug(
             "Using locally generated uuid.  Error getting UUID from openstack: %s\n" % (e))
         return str(uuid.uuid4())

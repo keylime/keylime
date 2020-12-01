@@ -5,13 +5,9 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
-import glob
 import pylab
 import argparse
 import sys
-import math
-from itertools import count
-from collections import OrderedDict
 import matplotlib
 matplotlib.use('Agg')
 
@@ -26,7 +22,7 @@ def main(argv=sys.argv):
     args = parser.parse_args(argv[1:])
 
     infile = args.infile
-    #infile = "time_series_log_file_776058270.txt"
+    # infile = "time_series_log_file_776058270.txt"
     outfile = args.outfile
 
     cycle_quantity_per_second_list = []

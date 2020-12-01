@@ -12,10 +12,7 @@ import requests
 import shutil
 import sys
 
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
+import simplejson as json
 
 from keylime import common
 from keylime import keylime_logging
@@ -65,7 +62,7 @@ def start_cfssl(cmdline=""):
     global cfsslproc
     cmd = "cfssl serve -loglevel=1 %s " % cmdline
     env = os.environ.copy()
-    env['PATH'] = env['PATH']+":/usr/local/bin"
+    env['PATH'] = env['PATH'] + ":/usr/local/bin"
 
     # make sure cfssl isn't running
     os.system('pkill -f cfssl')

@@ -63,7 +63,7 @@ setuptools.setup(
             'keylime_userdata_encrypt=keylime.cmd.user_data_encrypt:main',
             'keylime_registrar=keylime.cmd.registrar:main',
             'keylime_provider_registrar=keylime.cmd.provider_registrar:main',
-            'keylime_provider_platform_init=keylime.cmd.provider_platform_init:main', # noqa
+            'keylime_provider_platform_init=keylime.cmd.provider_platform_init:main',  # noqa
             'keylime_provider_vtpm_add=keylime.cmd.provider_vtpm_add:main',
             'keylime_ca=keylime.cmd.ca:main',
             'keylime_ima_emulator=keylime.cmd.ima_emulator_adapter:main',

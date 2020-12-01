@@ -14,17 +14,9 @@ import time
 import zlib
 import codecs
 from distutils.version import StrictVersion
-try:
-    from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
-except ImportError:
-    from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
-
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
 
 import M2Crypto
+import simplejson as json
 
 from keylime import cmd_exec
 from keylime import common
@@ -63,7 +55,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         ek_handle = config.get('cloud_agent', 'ek_handle')
 
         if self.need_hw_tpm:
-            if ek_handle == "generate" :
+            if ek_handle == "generate":
                 # Start up the TPM
                 self.__startup_tpm()
 
@@ -72,11 +64,11 @@ class tpm2(tpm_abstract.AbstractTPM):
 
             # Ensure TPM supports the defaults requested
             if defaultHash not in self.supported['hash']:
-                raise Exception('Unsupported hash algorithm specified: %s!'%(defaultHash))
+                raise Exception('Unsupported hash algorithm specified: %s!' % (defaultHash))
             if defaultEncrypt not in self.supported['encrypt']:
-                raise Exception('Unsupported encryption algorithm specified: %s!'%(defaultEncrypt))
+                raise Exception('Unsupported encryption algorithm specified: %s!' % (defaultEncrypt))
             if defaultSign not in self.supported['sign']:
-                raise Exception('Unsupported signing algorithm specified: %s!'%(defaultSign))
+                raise Exception('Unsupported signing algorithm specified: %s!' % (defaultSign))
         else:
             # Assume their defaults are sane?
             pass
@@ -85,6 +77,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         self.defaults['encrypt'] = defaultEncrypt
         self.defaults['sign'] = defaultSign
         self.defaults['ek_handle'] = ek_handle
+
     def get_tpm_version(self):
         return 2
 
@@ -96,7 +89,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         output = ''.join(common.list_convert(retDict['retout']))
         errout = ''.join(common.list_convert(retDict['reterr']))
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            raise Exception("Error establishing tpm2-tools version using TPM2_Startup: %s"+str(code)+": "+str(errout))
+            raise Exception("Error establishing tpm2-tools version using TPM2_Startup: %s" + str(code) + ": " + str(errout))
 
         # Extract the `version="x.x.x"` from tools
         version_str = re.search(r'version="([^"]+)"', output).group(1)
@@ -129,7 +122,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            raise Exception("get_tpm_algorithms failed with code "+str(code)+": "+str(errout))
+            raise Exception("get_tpm_algorithms failed with code " + str(code) + ": " + str(errout))
 
         if tools_version == "3.2":
             # output, human-readable -> json
@@ -140,7 +133,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             output = [output]
 
         retyaml = common.yaml_to_dict(output)
-        for algorithm,details in retyaml.items():
+        for algorithm, details in retyaml.items():
             if details["asymmetric"] == 1 and details["object"] == 1 and algorithms.Encrypt.is_recognized(algorithm):
                 self.supported['encrypt'].add(algorithm)
             elif details["hash"] == 1 and algorithms.Hash.is_recognized(algorithm):
@@ -148,15 +141,15 @@ class tpm2(tpm_abstract.AbstractTPM):
             elif details["asymmetric"] == 1 and details["signing"] == 1 and algorithms.Sign.is_recognized(algorithm):
                 self.supported['sign'].add(algorithm)
 
-    #tpm_exec
+    # tpm_exec
     @staticmethod
     def __fingerprint(cmd):
         # Creates a unique-enough ID from the given command
         fprt = cmd.split()[0]
         if fprt == 'tpm2_nvread':
-            if '0x1c00002' in cmd: # read_ekcert_nvram
+            if '0x1c00002' in cmd:  # read_ekcert_nvram
                 fprt += '-ekcert'
-            else: # read_key_nvram
+            else:  # read_key_nvram
                 fprt += '-key'
         elif fprt == "tpm2_getcap":
             if 'handles-persistent' in cmd:
@@ -177,10 +170,10 @@ class tpm2(tpm_abstract.AbstractTPM):
             # Don't clobber existing setting (if present)
             env['TPM2TOOLS_TCTI'] = 'tabrmd:bus_name=com.intel.tss2.Tabrmd'
             # Other (not recommended) options are direct emulator and chardev communications:
-            #env['TPM2TOOLS_TCTI'] = 'mssim:port=2321'
-            #env['TPM2TOOLS_TCTI'] = 'device:/dev/tpm0'
-        env['PATH'] = env['PATH']+":%s"%common.TPM_TOOLS_PATH
-        env['LD_LIBRARY_PATH'] = lib_path+":%s"%common.TPM_LIBS_PATH
+            # env['TPM2TOOLS_TCTI'] = 'mssim:port=2321'
+            # env['TPM2TOOLS_TCTI'] = 'device:/dev/tpm0'
+        env['PATH'] = env['PATH'] + ":%s" % common.TPM_TOOLS_PATH
+        env['LD_LIBRARY_PATH'] = lib_path + ":%s" % common.TPM_LIBS_PATH
 
         # Convert single outputpath to list
         if isinstance(outputpaths, str):
@@ -202,35 +195,35 @@ class tpm2(tpm_abstract.AbstractTPM):
                 # Decode files that are supplied (and requested)
                 if outputpaths is not None and len(outputpaths) > 0:
                     if len(thisFileout) == 1 and len(outputpaths) == 1:
-                        #fileoutEncoded[outputpaths[0]] = base64.b64decode(next(iter(thisFileout.values()))).decode("zlib")
+                        # fileoutEncoded[outputpaths[0]] = base64.b64decode(next(iter(thisFileout.values()))).decode("zlib")
                         fileoutEncoded[outputpaths[0]] = zlib.decompress(base64.b64decode(next(iter(thisFileout.values()))))
                     elif fprt == "tpm2_deluxequote":
                         # quotes need 3 outputs, so we need a consistent way to match them back up when reading
                         quote_msg = ""
-                        match = re.search("-m ([^\s]+)", cmd)
+                        match = re.search(r"-m ([^\s]+)", cmd)
                         if match:
                             quote_msg = match.group(1)
                             if "file://quoteMessage" in thisFileout:
-                                #fileoutEncoded[quote_msg] = base64.b64decode(thisFileout["file://quoteMessage"]).decode("zlib")
+                                # fileoutEncoded[quote_msg] = base64.b64decode(thisFileout["file://quoteMessage"]).decode("zlib")
                                 fileoutEncoded[quote_msg] = zlib.decompress(base64.b64decode(thisFileout["file://quoteMessage"]))
                         quote_sig = ""
-                        match = re.search("-s ([^\s]+)", cmd)
+                        match = re.search(r"-s ([^\s]+)", cmd)
                         if match:
                             quote_sig = match.group(1)
                             if "file://quoteSignature" in thisFileout:
-                                #fileoutEncoded[quote_sig] = base64.b64decode(thisFileout["file://quoteSignature"]).decode("zlib")
+                                # fileoutEncoded[quote_sig] = base64.b64decode(thisFileout["file://quoteSignature"]).decode("zlib")
                                 fileoutEncoded[quote_sig] = zlib.decompress(base64.b64decode(thisFileout["file://quoteSignature"]))
                         quote_pcr = ""
-                        match = re.search("-p ([^\s]+)", cmd)
+                        match = re.search(r"-p ([^\s]+)", cmd)
                         if match:
                             quote_pcr = match.group(1)
                             if "file://quotePCR" in thisFileout:
-                                #fileoutEncoded[quote_pcr] = base64.b64decode(thisFileout["file://quotePCR"]).decode("zlib")
+                                # fileoutEncoded[quote_pcr] = base64.b64decode(thisFileout["file://quotePCR"]).decode("zlib")
                                 fileoutEncoded[quote_pcr] = zlib.decompress(base64.b64decode(thisFileout["file://quotePCR"]))
                     else:
-                        raise Exception("Command %s is using multiple files unexpectedly!"%(fprt))
+                        raise Exception("Command %s is using multiple files unexpectedly!" % fprt)
 
-                logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec"%(fprt, thisTiming))
+                logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec" % (fprt, thisTiming))
                 time.sleep(thisTiming)
 
                 # Package for return
@@ -247,16 +240,15 @@ class tpm2(tpm_abstract.AbstractTPM):
                 pass
             else:
                 # Our command hasn't been canned!
-                raise Exception("Command %s not found in canned YAML!"%(fprt))
+                raise Exception("Command %s not found in canned YAML!" % fprt)
 
         numtries = 0
         while True:
             if lock:
                 with self.tpmutilLock:
-                    retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode, raiseOnError=False, lock=lock, outputpaths=outputpaths, env=env)
+                    retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode, raiseOnError=False, lock=lock, outputpaths=outputpaths, env=env, shell=True)
             else:
-                retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode, raiseOnError=False, lock=lock, outputpaths=outputpaths, env=env)
-
+                retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode, raiseOnError=False, lock=lock, outputpaths=outputpaths, env=env, shell=True)
             t0 = retDict['timing']['t0']
             t1 = retDict['timing']['t1']
             code = retDict['code']
@@ -272,7 +264,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                     logger.error("Agent did not return proper quote due to PCR race condition.")
                     break
                 retry = self.config.getfloat('cloud_agent', 'retry_interval')
-                logger.info("Failed to get quote %d/%d times, trying again in %f seconds..."%(numtries, maxr, retry))
+                logger.info("Failed to get quote %d/%d times, trying again in %f seconds..." % (numtries, maxr, retry))
                 time.sleep(retry)
                 continue
             else:
@@ -280,7 +272,7 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         # Don't bother continuing if TPM call failed and we're raising on error
         if code != expectedcode and raiseOnError:
-            raise Exception("Command: %s returned %d, expected %d, output %s, stderr %s"%(cmd, code, expectedcode, retout, reterr))
+            raise Exception("Command: %s returned %d, expected %d, output %s, stderr %s" % (cmd, code, expectedcode, retout, reterr))
 
         # Metric output
         if lock or self.tpmutilLock.locked():
@@ -297,10 +289,10 @@ class tpm2(tpm_abstract.AbstractTPM):
                 filelen = len(fileouts)
 
             # Print out benchmarking information for TPM (if requested)
-            #print "\033[95mTIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\033[0m" % (fprt, pad, t1-t0, len(retout), filelen, cmd)
+            # print "\033[95mTIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\033[0m" % (fprt, pad, t1-t0, len(retout), filelen, cmd)
             if common.TPM_BENCHMARK_PATH is not None:
                 with open(common.TPM_BENCHMARK_PATH, "ab") as f:
-                    f.write("TIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\n" % (fprt, pad, t1-t0, len(retout), filelen, cmd))
+                    f.write("TIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\n" % (fprt, pad, t1 - t0, len(retout), filelen, cmd))
 
             # Print out YAML canned values (if requested)
             # NOTE: resulting file will be missing the surrounding braces! (must add '{' and '}' for reading)
@@ -311,54 +303,61 @@ class tpm2(tpm_abstract.AbstractTPM):
                     # Process files
                     if outputpaths is not None and len(outputpaths) > 0:
                         if len(fileouts) == 1 and len(outputpaths) == 1:
-                            #fileoutEncoded[outputpaths[0]] = base64.b64encode(iter(fileouts.values()).next().encode("zlib"))
+                            # fileoutEncoded[outputpaths[0]] = base64.b64encode(iter(fileouts.values()).next().encode("zlib"))
                             fileoutEncoded[outputpaths[0]] = zlib.compress(base64.b64decode(iter(fileouts.values()).next()))
                         elif fprt == "tpm2_deluxequote":
                             # quotes need 3 outputs, so we need a consistent way to match them back up when reading
                             quote_msg = ""
-                            match = re.search("-m ([^\s]+)", cmd)
+                            match = re.search(r"-m ([^\s]+)", cmd)
                             if match:
                                 quote_msg = match.group(1)
                                 if quote_msg in fileouts:
                                     # fileoutEncoded["file://quoteMessage"] = base64.b64encode(fileouts[quote_msg].encode("zlib"))
                                     fileoutEncoded["file://quoteMessage"] = zlib.compress(base64.b64decode(fileouts[quote_msg]))
                             quote_sig = ""
-                            match = re.search("-s ([^\s]+)", cmd)
+                            match = re.search(r"-s ([^\s]+)", cmd)
                             if match:
                                 quote_sig = match.group(1)
                                 if quote_sig in fileouts:
                                     # fileoutEncoded["file://quoteSignature"] = base64.b64encode(fileouts[quote_sig].encode("zlib"))
                                     fileoutEncoded["file://quoteSignature"] = zlib.compress(base64.b64decode(fileouts[quote_sig]))
                             quote_pcr = ""
-                            match = re.search("-p ([^\s]+)", cmd)
+                            match = re.search(r"-p ([^\s]+)", cmd)
                             if match:
                                 quote_pcr = match.group(1)
                                 if quote_pcr in fileouts:
                                     # fileoutEncoded["file://quotePCR"] = base64.b64encode(fileouts[quote_pcr].encode("zlib"))
                                     fileoutEncoded["file://quotePCR"] = zlib.compress(base64.b64decode(fileouts[quote_pcr]))
                         else:
-                            raise Exception("Command %s is using multiple files unexpectedly!"%(fprt))
+                            raise Exception("Command %s is using multiple files unexpectedly!" % (fprt))
 
                     # tpm_cexec will need to know the nonce
                     nonce = ""
-                    match = re.search("-q ([\w]+)", cmd)
+                    match = re.search(r"-q ([\w]+)", cmd)
                     if match:
                         nonce = binascii.a2b_hex(match.group(1))
 
-                    jsonObj = {'type':fprt, 'retout':retout, 'fileout':fileoutEncoded, 'cmd':cmd, 'timing':t1-t0, 'code':code, 'nonce':nonce}
-                    can.write("\"%s\": %s,\n"%(fprt, json.dumps(jsonObj, indent=4, sort_keys=True)))
+                    jsonObj = {
+                        'type': fprt,
+                        'retout': retout,
+                        'fileout': fileoutEncoded,
+                        'cmd': cmd,
+                        'timing': t1 - t0,
+                        'code': code,
+                        'nonce': nonce
+                    }
+                    can.write("\"%s\": %s,\n" % (fprt, json.dumps(jsonObj, indent=4, sort_keys=True)))
 
         return retDict
 
-
-    #tpm_initialize
+    # tpm_initialize
     def __startup_tpm(self):
         retDict = self.__run("tpm2_startup -c")
         output = common.list_convert(retDict['retout'])
         errout = common.list_convert(retDict['reterr'])
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            raise Exception("Error initializing emulated TPM with TPM2_Startup: %s"+str(code)+": "+str(errout))
+            raise Exception("Error initializing emulated TPM with TPM2_Startup: %s" + str(code) + ": " + str(errout))
 
     def __create_ek(self, asym_alg=None):
         # this function is intended to be idempotent
@@ -370,7 +369,7 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         # clear out old handle before starting again (give idempotence)
         if current_handle is not None and owner_pw is not None:
-            logger.info("Flushing old ek handle: %s"%hex(current_handle))
+            logger.info("Flushing old ek handle: %s" % hex(current_handle))
             if tools_version == "3.2":
                 retDict = self.__run("tpm2_getcap -c handles-persistent", raiseOnError=False)
             elif tools_version in ["4.0", "4.2"]:
@@ -380,20 +379,20 @@ class tpm2(tpm_abstract.AbstractTPM):
             code = retDict['code']
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                raise Exception("tpm2_getcap failed with code "+str(code)+": "+str(reterr))
+                raise Exception("tpm2_getcap failed with code " + str(code) + ": " + str(reterr))
 
             outjson = common.yaml_to_dict(output)
             if outjson is not None and current_handle in outjson:
                 if tools_version == "3.2":
-                    retDict = self.__run("tpm2_evictcontrol -A o -c %s -P %s"%(hex(current_handle), owner_pw), raiseOnError=False)
+                    retDict = self.__run("tpm2_evictcontrol -A o -c %s -P %s" % (hex(current_handle), owner_pw), raiseOnError=False)
                 else:
-                    retDict = self.__run("tpm2_evictcontrol -C o -c %s -P %s"%(hex(current_handle), owner_pw), raiseOnError=False)
+                    retDict = self.__run("tpm2_evictcontrol -C o -c %s -P %s" % (hex(current_handle), owner_pw), raiseOnError=False)
                 output = retDict['retout']
                 reterr = retDict['reterr']
                 code = retDict['code']
 
                 if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                    logger.info("Failed to flush old ek handle: %s.  Code %s"%(hex(current_handle), str(code)+": "+str(reterr)))
+                    logger.info("Failed to flush old ek handle: %s.  Code %s" % (hex(current_handle), str(code) + ": " + str(reterr)))
 
                 self._set_tpm_metadata('ek_handle', None)
                 self._set_tpm_metadata('ek_pw', None)
@@ -426,7 +425,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             ek_tpm = retDict['fileouts'][tmppath.name]
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                raise Exception("createek failed with code "+str(code)+": "+str(reterr))
+                raise Exception("createek failed with code " + str(code) + ": " + str(reterr))
 
             if tools_version == "3.2":
                 handle = int(0x81010007)
@@ -444,22 +443,22 @@ class tpm2(tpm_abstract.AbstractTPM):
 
     def __use_ek(self, ek_handle, config_pw):
         ek_handle = int(ek_handle, 16)
-        logger.info("Using an already created ek with handle: %s"%hex(ek_handle))
+        logger.info("Using an already created ek with handle: %s" % hex(ek_handle))
 
         self._set_tpm_metadata('owner_pw', config_pw)
 
         with tempfile.NamedTemporaryFile() as tmppath:
             if tools_version == "3.2":
-                retDict = self.__run("tpm2_readpublic -H %s -o %s -f tss"%(hex(ek_handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
+                retDict = self.__run("tpm2_readpublic -H %s -o %s -f tss" % (hex(ek_handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
             else:
-                retDict = self.__run("tpm2_readpublic -c %s -o %s -f tss"%(hex(ek_handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
+                retDict = self.__run("tpm2_readpublic -c %s -o %s -f tss" % (hex(ek_handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
 
             output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             ek_tpm = retDict['fileouts'][tmppath.name]
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                raise Exception("tpm2_readpublic failed with code "+str(code)+": "+str(reterr))
+                raise Exception("tpm2_readpublic failed with code " + str(code) + ": " + str(reterr))
             self._set_tpm_metadata('ek_tpm', base64.b64encode(ek_tpm))
 
         self._set_tpm_metadata('ek_handle', int(ek_handle))
@@ -472,54 +471,54 @@ class tpm2(tpm_abstract.AbstractTPM):
             logger.info("Generating random TPM owner password")
             owner_pw = tpm_abstract.TPM_Utilities.random_password(20)
         else:
-            logger.info("Taking ownership with config provided TPM owner password: %s"%config_pw)
+            logger.info("Taking ownership with config provided TPM owner password: %s" % config_pw)
             owner_pw = config_pw
 
         if tools_version == "3.2":
             retDict = self.__run("tpm2_takeownership -c", raiseOnError=False)
-            retDict = self.__run("tpm2_takeownership -o %s -e %s"%(owner_pw, owner_pw), raiseOnError=False)
+            retDict = self.__run("tpm2_takeownership -o %s -e %s" % (owner_pw, owner_pw), raiseOnError=False)
         elif tools_version in ["4.0", "4.2"]:
-            retDict = self.__run("tpm2_changeauth -c o %s"%(owner_pw), raiseOnError=False)
-            retDict = self.__run("tpm2_changeauth -c e %s"%(owner_pw), raiseOnError=False)
+            retDict = self.__run("tpm2_changeauth -c o %s" % (owner_pw), raiseOnError=False)
+            retDict = self.__run("tpm2_changeauth -c e %s" % (owner_pw), raiseOnError=False)
 
         output = retDict['retout']
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             # if we fail, see if already owned with this pw
             if tools_version == "3.2":
-                retDict = self.__run("tpm2_takeownership -o %s -e %s -O %s -E %s"%(owner_pw, owner_pw, owner_pw, owner_pw), raiseOnError=False)
+                retDict = self.__run("tpm2_takeownership -o %s -e %s -O %s -E %s" % (owner_pw, owner_pw, owner_pw, owner_pw), raiseOnError=False)
             elif tools_version in ["4.0", "4.2"]:
-                retDict = self.__run("tpm2_changeauth -c o -p %s %s"%(owner_pw, owner_pw), raiseOnError=False)
-                retDict = self.__run("tpm2_changeauth -c e -p %s %s"%(owner_pw, owner_pw), raiseOnError=False)
+                retDict = self.__run("tpm2_changeauth -c o -p %s %s" % (owner_pw, owner_pw), raiseOnError=False)
+                retDict = self.__run("tpm2_changeauth -c e -p %s %s" % (owner_pw, owner_pw), raiseOnError=False)
 
             output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 # ut-oh, already owned but not with provided pw!
-                raise Exception("Owner password unknown, TPM reset required. Code %s"+str(code)+": "+str(reterr))
+                raise Exception("Owner password unknown, TPM reset required. Code %s" + str(code) + ": " + str(reterr))
 
         self._set_tpm_metadata('owner_pw', owner_pw)
-        logger.info("TPM Owner password confirmed: %s"%owner_pw)
+        logger.info("TPM Owner password confirmed: %s" % owner_pw)
 
-    def __get_pub_ek(self): # assumes that owner_pw is correct at this point
+    def __get_pub_ek(self):  # assumes that owner_pw is correct at this point
         handle = self.get_tpm_metadata('ek_handle')
         if handle is None:
             raise Exception("create_ek has not been run yet?")
-        #make a temp file for the output
+        # make a temp file for the output
         with tempfile.NamedTemporaryFile() as tmppath:
             # generates pubek.pem
             if tools_version == "3.2":
-                retDict = self.__run("tpm2_readpublic -H %s -o %s -f pem"%(hex(handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
+                retDict = self.__run("tpm2_readpublic -H %s -o %s -f pem" % (hex(handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
             else:
-                retDict = self.__run("tpm2_readpublic -c %s -o %s -f pem"%(hex(handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
+                retDict = self.__run("tpm2_readpublic -c %s -o %s -f pem" % (hex(handle), tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
 
             output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             ek = retDict['fileouts'][tmppath.name]
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                raise Exception("tpm2_readpublic failed with code "+str(code)+": "+str(reterr))
+                raise Exception("tpm2_readpublic failed with code " + str(code) + ": " + str(reterr))
 
         self._set_tpm_metadata('ek', ek)
 
@@ -540,17 +539,17 @@ class tpm2(tpm_abstract.AbstractTPM):
         handle = self.get_tpm_metadata('aik_handle')
         if handle is None:
             raise Exception("tpm2_getpubak has not been run yet?")
-        #make a temp file for the output
+        # make a temp file for the output
         with tempfile.NamedTemporaryFile() as akpubfile:
             # generates pubak.pem
-            retDict = self.__run("tpm2_readpublic -H %s -o %s -f pem"%(hex(handle), akpubfile.name), raiseOnError=False, outputpaths=akpubfile.name)
+            retDict = self.__run("tpm2_readpublic -H %s -o %s -f pem" % (hex(handle), akpubfile.name), raiseOnError=False, outputpaths=akpubfile.name)
             output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             pem = retDict['fileouts'][akpubfile.name]
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                raise Exception("tpm2_readpublic failed with code "+str(code)+": "+str(reterr))
+                raise Exception("tpm2_readpublic failed with code " + str(code) + ": " + str(reterr))
 
             if pem == "":
                 raise Exception("unable to read public aik from create identity.  Is your tpm2-tools installation up to date?")
@@ -571,17 +570,17 @@ class tpm2(tpm_abstract.AbstractTPM):
         if self.get_tpm_metadata('aik') is not None and self.get_tpm_metadata('aik_name') is not None:
             aik_handle = self.get_tpm_metadata('aik_handle')
             if tools_version == "3.2":
-                logger.info("Flushing old ak handle: %s"%hex(aik_handle))
+                logger.info("Flushing old ak handle: %s" % hex(aik_handle))
                 retDict = self.__run("tpm2_getcap -c handles-persistent", raiseOnError=False)
             elif tools_version in ["4.0", "4.2"]:
-                logger.info("Flushing old ak handle: %s"%aik_handle)
+                logger.info("Flushing old ak handle: %s" % aik_handle)
                 retDict = self.__run("tpm2_getcap handles-persistent", raiseOnError=False)
             output = common.list_convert(retDict['retout'])
             errout = common.list_convert(retDict['reterr'])
             code = retDict['code']
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                raise Exception("tpm2_getcap failed with code "+str(code)+": "+str(errout))
+                raise Exception("tpm2_getcap failed with code " + str(code) + ": " + str(errout))
 
             if tools_version == "3.2":
                 # output, human-readable -> json
@@ -592,9 +591,9 @@ class tpm2(tpm_abstract.AbstractTPM):
             outjson = common.yaml_to_dict(output)
             if outjson is not None and aik_handle in outjson:
                 if tools_version == "3.2":
-                    retDict = self.__run("tpm2_evictcontrol -A o -c %s -P %s"%(hex(aik_handle), owner_pw), raiseOnError=False)
+                    retDict = self.__run("tpm2_evictcontrol -A o -c %s -P %s" % (hex(aik_handle), owner_pw), raiseOnError=False)
                 else:
-                    retDict = self.__run("tpm2_evictcontrol -C o -c %s -P %s"%(aik_handle, owner_pw), raiseOnError=False)
+                    retDict = self.__run("tpm2_evictcontrol -C o -c %s -P %s" % (aik_handle, owner_pw), raiseOnError=False)
 
                 output = retDict['retout']
                 reterr = retDict['reterr']
@@ -602,9 +601,9 @@ class tpm2(tpm_abstract.AbstractTPM):
 
                 if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                     if tools_version == "3.2":
-                        logger.info("Failed to flush old ak handle: %s.  Code %s"%(hex(aik_handle), str(code)+": "+str(reterr)))
+                        logger.info("Failed to flush old ak handle: %s.  Code %s" % (hex(aik_handle), str(code) + ": " + str(reterr)))
                     elif tools_version in ["4.0", "4.2"]:
-                        logger.info("Failed to flush old ak handle: %s.  Code %s"%(aik_handle, str(code)+": "+str(reterr)))
+                        logger.info("Failed to flush old ak handle: %s.  Code %s" % (aik_handle, str(code) + ": " + str(reterr)))
 
                 self._set_tpm_metadata('aik', None)
                 self._set_tpm_metadata('aik_name', None)
@@ -619,12 +618,12 @@ class tpm2(tpm_abstract.AbstractTPM):
             raise Exception("Failed to create AIK, since EK has not yet been created!")
 
         aik_pw = tpm_abstract.TPM_Utilities.random_password(20)
-        #make a temp file for the output
+        # make a temp file for the output
         with tempfile.NamedTemporaryFile() as akpubfile:
             secpath = ""
             if tools_version in ["4.0", "4.2"]:
                 # ok lets write out the key now
-                secdir = secure_mount.mount() # confirm that storage is still securely mounted
+                secdir = secure_mount.mount()  # confirm that storage is still securely mounted
                 secfd, secpath = tempfile.mkstemp(dir=secdir)
 
             cmdargs = {
@@ -648,14 +647,14 @@ class tpm2(tpm_abstract.AbstractTPM):
             code = retDict['code']
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                raise Exception("tpm2_createak failed with code "+str(code)+": "+str(reterr))
+                raise Exception("tpm2_createak failed with code " + str(code) + ": " + str(reterr))
 
             jsonout = common.yaml_to_dict(retout)
             akname = jsonout['loaded-key']['name']
 
             if tools_version == "3.2":
                 if 'loaded-key' not in jsonout or 'name' not in jsonout['loaded-key']:
-                    raise Exception("tpm2_createak failed to create aik: return "+str(reterr))
+                    raise Exception("tpm2_createak failed to create aik: return " + str(reterr))
 
                 handle = int(0x81010008)
 
@@ -664,7 +663,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 self.__get_pub_aik()
             else:
                 if 'loaded-key' not in jsonout:
-                    raise Exception("tpm2_createak failed to create aik: return "+str(reterr))
+                    raise Exception("tpm2_createak failed to create aik: return " + str(reterr))
 
                 handle = secpath
                 pem = retDict['fileouts'][akpubfile.name]
@@ -682,16 +681,16 @@ class tpm2(tpm_abstract.AbstractTPM):
     def flush_keys(self):
         logger.debug("Flushing keys from TPM...")
         if tools_version == "3.2":
-                retDict = self.__run("tpm2_getcap -c handles-persistent")
+            retDict = self.__run("tpm2_getcap -c handles-persistent")
         elif tools_version in ["4.0", "4.2"]:
-                retDict = self.__run("tpm2_getcap handles-persistent")
+            retDict = self.__run("tpm2_getcap handles-persistent")
         # retout = retDict['retout']
         retout = common.list_convert(retDict['retout'])
         errout = common.list_convert(retDict['reterr'])
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            logger.debug("tpm2_getcap failed with code "+str(code)+": "+str(errout))
+            logger.debug("tpm2_getcap failed with code " + str(code) + ": " + str(errout))
 
         if tools_version == "3.2":
             # output, human-readable -> json
@@ -702,12 +701,12 @@ class tpm2(tpm_abstract.AbstractTPM):
         owner_pw = self.get_tpm_metadata("owner_pw")
         jsonout = common.yaml_to_dict(retout)
         for key in jsonout:
-            if str(hex(key)) != self.defaults['ek_handle'] :
-                logger.debug("Flushing key handle %s"%hex(key))
+            if str(hex(key)) != self.defaults['ek_handle']:
+                logger.debug("Flushing key handle %s" % hex(key))
                 if tools_version == "3.2":
-                    self.__run("tpm2_evictcontrol -A o -c %s -P %s"%(hex(key), owner_pw), raiseOnError=False)
+                    self.__run("tpm2_evictcontrol -A o -c %s -P %s" % (hex(key), owner_pw), raiseOnError=False)
                 else:
-                    self.__run("tpm2_evictcontrol -C o -c %s -P %s"%(hex(key), owner_pw), raiseOnError=False)
+                    self.__run("tpm2_evictcontrol -C o -c %s -P %s" % (hex(key), owner_pw), raiseOnError=False)
 
     def encryptAIK(self, uuid, pubaik, pubek, ek_tpm, aik_name):
         pubaikFile = None
@@ -752,7 +751,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 command = "tpm2_makecredential -T none -e {ekpub} -s {challenge} -n {akname} -o {blobout}".format(**cmdargs)
             self.__run(command, lock=False)
 
-            logger.info("Encrypting AIK for UUID %s"%uuid)
+            logger.info("Encrypting AIK for UUID %s" % uuid)
 
             # read in the blob
             f = open(blobpath, "rb")
@@ -764,7 +763,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             key = base64.b64encode(challenge)
 
         except Exception as e:
-            logger.error("Error encrypting AIK: "+str(e))
+            logger.error("Error encrypting AIK: " + str(e))
             logger.exception(e)
             return None
         finally:
@@ -796,7 +795,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             os.close(kfd)
 
             # ok lets write out the key now
-            secdir = secure_mount.mount() # confirm that storage is still securely mounted
+            secdir = secure_mount.mount()  # confirm that storage is still securely mounted
 
             secfd, secpath = tempfile.mkstemp(dir=secdir)
             sessfd, sesspath = tempfile.mkstemp(dir=secdir)
@@ -838,7 +837,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             os.remove(secpath)
 
         except Exception as e:
-            logger.error("Error decrypting AIK: "+str(e))
+            logger.error("Error decrypting AIK: " + str(e))
             logger.exception(e)
             return False
         finally:
@@ -856,7 +855,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         :param ekpem: the endorsement public key in PEM format
         :returns: True if the certificate can be verified, false otherwise
         """
-        #openssl x509 -inform der -in certificate.cer -out certificate.pem
+        # openssl x509 -inform der -in certificate.cer -out certificate.pem
         try:
             ek509 = M2Crypto.X509.load_cert_der_string(ekcert)
             ekcertpem = ek509.get_pubkey().get_rsa().as_pem(cipher=None).decode('utf-8')
@@ -895,7 +894,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            raise Exception("get_tpm_manufacturer failed with code "+str(code)+": "+str(reterr))
+            raise Exception("get_tpm_manufacturer failed with code " + str(code) + ": " + str(reterr))
 
         # Clean up TPM manufacturer information (strip control characters)
         # These strings are supposed to be printable ASCII characters, but
@@ -921,10 +920,10 @@ class tpm2(tpm_abstract.AbstractTPM):
         # this was called tpm_initialize.init before
         self.warn_emulator()
 
-        if self.defaults['ek_handle'] == "generate" :
+        if self.defaults['ek_handle'] == "generate":
             self.__take_ownership(config_pw)
             self.__create_ek()
-        else :
+        else:
             self.__use_ek(self.defaults['ek_handle'], config_pw)
 
         self.__get_pub_ek()
@@ -937,8 +936,7 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         return self.get_tpm_metadata('ek'), self.get_tpm_metadata('ekcert'), self.get_tpm_metadata('aik'), self.get_tpm_metadata('ek_tpm'), self.get_tpm_metadata('aik_name')
 
-
-    #tpm_quote
+    # tpm_quote
     def __pcr_mask_to_list(self, mask, hash_alg):
         pcr_list = []
         ima_appended = ""
@@ -946,10 +944,10 @@ class tpm2(tpm_abstract.AbstractTPM):
             if tpm_abstract.TPM_Utilities.check_mask(mask, pcr):
                 if hash_alg != algorithms.Hash.SHA1 and pcr == common.IMA_PCR:
                     # IMA is only in SHA1 format
-                    ima_appended = "+sha1:"+str(pcr)
+                    ima_appended = "+sha1:" + str(pcr)
                 else:
                     pcr_list.append(str(pcr))
-        return ",".join(pcr_list)+ima_appended
+        return ",".join(pcr_list) + ima_appended
 
     def create_deep_quote(self, nonce, data=None, vpcrmask=tpm_abstract.AbstractTPM.EMPTYMASK, pcrmask=tpm_abstract.AbstractTPM.EMPTYMASK):
         raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
@@ -970,19 +968,19 @@ class tpm2(tpm_abstract.AbstractTPM):
                         pcrmask = tpm_abstract.AbstractTPM.EMPTYMASK
 
                     # add PCR 16 to pcrmask
-                    pcrmask = "0x%X"%(int(pcrmask,0) + (1 << common.TPM_DATA_PCR))
+                    pcrmask = "0x%X" % (int(pcrmask, 0) + (1 << common.TPM_DATA_PCR))
 
                     pcrlist = self.__pcr_mask_to_list(pcrmask, hash_alg)
 
                     with self.tpmutilLock:
                         if data is not None:
-                            self.__run("tpm2_pcrreset %d"%common.TPM_DATA_PCR, lock=False)
+                            self.__run("tpm2_pcrreset %d" % common.TPM_DATA_PCR, lock=False)
                             self.extendPCR(pcrval=common.TPM_DATA_PCR, hashval=self.hashdigest(data), lock=False)
 
                         if tools_version == "3.2":
                             cmdargs = {
                                 'aik_handle': hex(keyhandle),
-                                'hashalg' : hash_alg,
+                                'hashalg': hash_alg,
                                 'pcrlist': pcrlist,
                                 'nonce': bytes(nonce, encoding="utf8").hex(),
                                 'outquote': quotepath.name,
@@ -994,7 +992,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                         else:
                             cmdargs = {
                                 'aik_handle': keyhandle,
-                                'hashalg' : hash_alg,
+                                'hashalg': hash_alg,
                                 'pcrlist': pcrlist,
                                 'nonce': bytes(nonce, encoding="utf8").hex(),
                                 'outquote': quotepath.name,
@@ -1012,8 +1010,8 @@ class tpm2(tpm_abstract.AbstractTPM):
                         sigraw_b64encode = base64.b64encode(zlib.compress(sigraw))
                         pcrraw = retDict['fileouts'][pcrpath.name]
                         pcrraw_b64encode = base64.b64encode(zlib.compress(pcrraw))
-                        quote = quote_b64encode.decode('utf-8')+":"+sigraw_b64encode.decode('utf-8')+":"+pcrraw_b64encode.decode('utf-8')
-        return 'r'+quote
+                        quote = quote_b64encode.decode('utf-8') + ":" + sigraw_b64encode.decode('utf-8') + ":" + pcrraw_b64encode.decode('utf-8')
+        return 'r' + quote
 
     def __checkdeepquote_c(self, hAIK, vAIK, deepquoteFile, nonce):
         raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
@@ -1032,13 +1030,12 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         cmdargs = {
             'pubak': pubaik,
-            'quotefile' : quoteFile,
+            'quotefile': quoteFile,
             'sigfile': sigFile,
             'pcrfile': pcrFile,
             'hashalg': hash_alg,
             'nonce': bytes(nonce, encoding="utf8").hex()
         }
-
 
         if tools_version == "3.2":
             command = "tpm2_checkquote -c {pubak} -m {quotefile} -s {sigfile} -p {pcrfile} -G {hashalg} -q {nonce}"
@@ -1057,13 +1054,13 @@ class tpm2(tpm_abstract.AbstractTPM):
         pcrFile = None
 
         if quote[0] != 'r':
-            raise Exception("Invalid quote type %s"%quote[0])
+            raise Exception("Invalid quote type %s" % quote[0])
         quote = quote[1:]
 
         quote_tokens = quote.split(":")
         if len(quote_tokens) < 3:
 
-            raise Exception("Quote is not compound! %s"%quote)
+            raise Exception("Quote is not compound! %s" % quote)
 
         quoteblob = zlib.decompress(base64.b64decode(quote_tokens[0]))
         sigblob = zlib.decompress(base64.b64decode(quote_tokens[1]))
@@ -1102,7 +1099,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             reterr = retDict['reterr']
             code = retDict['code']
         except Exception as e:
-            logger.error("Error verifying quote: "+str(e))
+            logger.error("Error verifying quote: " + str(e))
             logger.exception(e)
             return False
         finally:
@@ -1116,7 +1113,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 os.remove(pcrFile.name)
 
         if len(retout) < 1 or code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            logger.error("Failed to validate signature, output: %s"%reterr)
+            logger.error("Failed to validate signature, output: %s" % reterr)
             return False
 
         pcrs = []
@@ -1128,8 +1125,8 @@ class tpm2(tpm_abstract.AbstractTPM):
                     pcrs.append("PCR " + str(pcrval) + " " + '{0:0{1}x}'.format(hashval, alg_size))
             # IMA is always in SHA1 format, so don't leave it behind!
             if hash_alg != algorithms.Hash.SHA1:
-                if algorithms.Hash.SHA1 in jsonout["pcrs"] and common.IMA_PCR in jsonout["pcrs"][
-                    algorithms.Hash.SHA1]:
+                if algorithms.Hash.SHA1 in jsonout["pcrs"] and \
+                   common.IMA_PCR in jsonout["pcrs"][algorithms.Hash.SHA1]:
                     sha1_size = algorithms.get_hash_size(algorithms.Hash.SHA1) // 4
                     ima_val = jsonout["pcrs"][algorithms.Hash.SHA1][common.IMA_PCR]
                     pcrs.append("PCR " + str(common.IMA_PCR) + " " + '{0:0{1}x}'.format(ima_val, sha1_size))
@@ -1139,21 +1136,22 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist)
 
-    def sim_extend(self,hashval_1,hashval_0=None):
+    def sim_extend(self, hashval_1, hashval_0=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure
 
         if hashval_0 is None:
             hashval_0 = self.START_HASH()
 
         # compute expected value  H(0|H(data))
-        extendedval = self.hashdigest(codecs.decode(hashval_0,'hex_codec')+codecs.decode(self.hashdigest(hashval_1.encode('utf-8')),'hex_codec')).lower()
+        extendedval = self.hashdigest(codecs.decode(hashval_0, 'hex_codec') +
+                                      codecs.decode(self.hashdigest(hashval_1.encode('utf-8')), 'hex_codec')).lower()
         return extendedval
 
     def extendPCR(self, pcrval, hashval, hash_alg=None, lock=True):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
-        self.__run("tpm2_pcrextend %d:%s=%s"%(pcrval, hash_alg, hashval), lock=lock)
+        self.__run("tpm2_pcrextend %d:%s=%s" % (pcrval, hash_alg, hashval), lock=lock)
 
     def readPCR(self, pcrval, hash_alg=None):
         if hash_alg is None:
@@ -1166,16 +1164,15 @@ class tpm2(tpm_abstract.AbstractTPM):
         jsonout = common.yaml_to_dict(output)
 
         if hash_alg not in jsonout:
-            raise Exception("Invalid hashing algorithm '%s' for reading PCR number %d."%(hash_alg, pcrval))
+            raise Exception("Invalid hashing algorithm '%s' for reading PCR number %d." % (hash_alg, pcrval))
 
         # alg_size = Hash_Algorithms.get_hash_size(hash_alg)/4
         alg_size = algorithms.get_hash_size(hash_alg) // 4
         return '{0:0{1}x}'.format(jsonout[hash_alg][pcrval], alg_size)
 
-
-    #tpm_random
+    # tpm_random
     def _get_tpm_rand_block(self, size=32):
-        #make a temp file for the output
+        # make a temp file for the output
         rand = None
         with tempfile.NamedTemporaryFile() as randpath:
             try:
@@ -1186,13 +1183,12 @@ class tpm2(tpm_abstract.AbstractTPM):
                 rand = retDict['fileouts'][randpath.name]
             except Exception as e:
                 if not self.tpmrand_warned:
-                    logger.warn("TPM randomness not available: %s"%e)
+                    logger.warn("TPM randomness not available: %s" % e)
                     self.tpmrand_warned = True
                 return None
         return rand
 
-
-    #tpm_nvram
+    # tpm_nvram
     def write_key_nvram(self, key):
         owner_pw = self.get_tpm_metadata('owner_pw')
 
@@ -1203,15 +1199,15 @@ class tpm2(tpm_abstract.AbstractTPM):
 
             attrs = "ownerread|ownerwrite"
             if tools_version == "3.2":
-                self.__run("tpm2_nvdefine -x 0x1500018 -a 0x40000001 -s %s -t \"%s\" -I %s -P %s"%(common.BOOTSTRAP_KEY_SIZE, attrs, owner_pw, owner_pw), raiseOnError=False)
-                self.__run("tpm2_nvwrite -x 0x1500018 -a 0x40000001 -P %s %s"%(owner_pw, keyFile.name), raiseOnError=False)
+                self.__run("tpm2_nvdefine -x 0x1500018 -a 0x40000001 -s %s -t \"%s\" -I %s -P %s" % (common.BOOTSTRAP_KEY_SIZE, attrs, owner_pw, owner_pw), raiseOnError=False)
+                self.__run("tpm2_nvwrite -x 0x1500018 -a 0x40000001 -P %s %s" % (owner_pw, keyFile.name), raiseOnError=False)
             else:
-                self.__run("tpm2_nvdefine 0x1500018 -C 0x40000001 -s %s -a \"%s\" -p %s -P %s"%(common.BOOTSTRAP_KEY_SIZE, attrs, owner_pw, owner_pw), raiseOnError=False)
-                self.__run("tpm2_nvwrite 0x1500018 -C 0x40000001 -P %s -i %s"%(owner_pw, keyFile.name), raiseOnError=False)
+                self.__run("tpm2_nvdefine 0x1500018 -C 0x40000001 -s %s -a \"%s\" -p %s -P %s" % (common.BOOTSTRAP_KEY_SIZE, attrs, owner_pw, owner_pw), raiseOnError=False)
+                self.__run("tpm2_nvwrite 0x1500018 -C 0x40000001 -P %s -i %s" % (owner_pw, keyFile.name), raiseOnError=False)
         return
 
     def read_ekcert_nvram(self):
-        #make a temp file for the quote
+        # make a temp file for the quote
         with tempfile.NamedTemporaryFile() as nvpath:
 
             # Check for RSA EK cert in NVRAM (and get length)
@@ -1225,9 +1221,9 @@ class tpm2(tpm_abstract.AbstractTPM):
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 if tools_version == "3.2":
-                    raise Exception("tpm2_nvlist for ekcert failed with code "+str(code)+": "+str(reterr))
+                    raise Exception("tpm2_nvlist for ekcert failed with code " + str(code) + ": " + str(reterr))
                 elif tools_version in ["4.0", "4.2"]:
-                    raise Exception("tpm2_nvreadpublic for ekcert failed with code "+str(code)+": "+str(reterr))
+                    raise Exception("tpm2_nvreadpublic for ekcert failed with code " + str(code) + ": " + str(reterr))
 
             outjson = common.yaml_to_dict(output)
 
@@ -1239,25 +1235,25 @@ class tpm2(tpm_abstract.AbstractTPM):
 
             # Read the RSA EK cert from NVRAM (DER format)
             if tools_version == "3.2":
-                retDict = self.__run("tpm2_nvread -x 0x1c00002 -s %s -f %s -a 0x01c00002"%(ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
+                retDict = self.__run("tpm2_nvread -x 0x1c00002 -s %s -f %s -a 0x01c00002" % (ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
             elif tools_version in ["4.0", "4.2"]:
-                retDict = self.__run("tpm2_nvread 0x1c00002 -s %s -o %s"%(ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
+                retDict = self.__run("tpm2_nvread 0x1c00002 -s %s -o %s" % (ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
             output = common.list_convert(retDict['retout'])
             errout = common.list_convert(retDict['reterr'])
             code = retDict['code']
             ekcert = retDict['fileouts'][nvpath.name]
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                raise Exception("tpm2_nvread for ekcert failed with code "+str(code)+": "+str(errout))
+                raise Exception("tpm2_nvread for ekcert failed with code " + str(code) + ": " + str(errout))
 
         return base64.b64encode(ekcert)
 
     def read_key_nvram(self):
         owner_pw = self.get_tpm_metadata('owner_pw')
         if tools_version == "3.2":
-            retDict = self.__run("tpm2_nvread -x 0x1500018 -a 0x40000001 -s %s -P %s"%(common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
+            retDict = self.__run("tpm2_nvread -x 0x1500018 -a 0x40000001 -s %s -P %s" % (common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
         else:
-            retDict = self.__run("tpm2_nvread 0x1500018 -C 0x40000001 -s %s -P %s"%(common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
+            retDict = self.__run("tpm2_nvread 0x1500018 -C 0x40000001 -s %s -P %s" % (common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
 
         output = retDict['retout']
         errout = common.list_convert(retDict['reterr'])
@@ -1274,9 +1270,9 @@ class tpm2(tpm_abstract.AbstractTPM):
                 logger.debug("No stored U in TPM NVRAM")
                 return None
             else:
-                raise Exception("nv_readvalue failed with code "+str(code)+": "+str(errout))
+                raise Exception("nv_readvalue failed with code " + str(code) + ": " + str(errout))
 
         if len(output) != common.BOOTSTRAP_KEY_SIZE:
-            logger.debug("Invalid key length from NVRAM: %d"%(len(output)))
+            logger.debug("Invalid key length from NVRAM: %d" % (len(output)))
             return None
         return output

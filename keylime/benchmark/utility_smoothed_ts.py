@@ -6,7 +6,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 import argparse
 import sys
 import glob
-import numpy
 
 
 def main(argv=sys.argv):
@@ -24,15 +23,15 @@ def main(argv=sys.argv):
             with open(each_file) as f:
                 content = [x.strip() for x in f.readlines()]
                 # remove last element (could be weird)
-                #del content[-1:]
+                # del content[-1:]
                 concat_content.extend(content)
 
     float_list = []
     for i in concat_content:
         float_list.append(float(i))
 
-    time = float_list[-1]-float_list[0]
-    print("%s %.3f" % (args.text_description, len(float_list)/time))
+    time = float_list[-1] - float_list[0]
+    print("%s %.3f" % (args.text_description, len(float_list) / time))
 
 
 if __name__ == "__main__":

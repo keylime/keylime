@@ -6,7 +6,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 from keylime import ca_impl_openssl
 import unittest
-import os
 import sys
 from pathlib import Path
 

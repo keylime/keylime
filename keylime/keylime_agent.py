@@ -23,8 +23,11 @@ import io
 import importlib
 import shutil
 
+import simplejson as json
+
 from keylime import common
 from keylime import keylime_logging
+from keylime import cmd_exec
 from keylime import crypto
 from keylime import openstack
 from keylime import revocation_notifier
@@ -35,11 +38,6 @@ from keylime.tpm.tpm_abstract import TPM_Utilities
 
 # Configure logger
 logger = keylime_logging.init_logging('cloudagent')
-
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
 
 # read the config file
 config = common.get_config()
@@ -66,8 +64,7 @@ class Handler(BaseHTTPRequestHandler):
         The Cloud verifier requires an additional mask paramter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
 
-        logger.info('GET invoked from ' +
-                    str(self.client_address) + ' with uri:' + self.path)
+        logger.info('GET invoked from ' + str(self.client_address) + ' with uri:' + self.path)
 
         rest_params = common.get_restful_params(self.path)
         if rest_params is None:
@@ -230,7 +227,7 @@ class Handler(BaseHTTPRequestHandler):
             shutil.rmtree("%s/unzipped" % secdir)
 
         # write out key file
-        f = open(secdir+"/"+self.server.enc_keyname, 'w')
+        f = open(secdir + "/" + self.server.enc_keyname, 'w')
         f.write(base64.b64encode(self.server.K).decode())
         f.close()
 
@@ -442,7 +439,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             # TODO check on whether this happens or not.  NVRAM causes trouble
             if both_u_and_v_present:
                 pass
-                #logger.critical("Possible attack from: " + str(handler.client_address) + ".  Both U (potentially stale from TPM NVRAM) and V present but unsuccessful in attempt to decrypt check value.")
+                # logger.critical("Possible attack from: " + str(handler.client_address) + ".  Both U (potentially stale from TPM NVRAM) and V present but unsuccessful in attempt to decrypt check value.")
             return return_value
 
     def decrypt_check(self, decrypted_U, decrypted_V):
@@ -488,6 +485,16 @@ def main(argv=sys.argv):
         logger.critical("This process must be run as root.")
         return
 
+    if config.get('cloud_agent', 'agent_uuid') == 'dmidecode':
+        if os.getuid() != 0:
+            raise RuntimeError('agent_uuid is configured to use dmidecode, '
+                               'but current process is not running as root.')
+        cmd = ['which', 'dmidecode']
+        ret = cmd_exec.run(cmd, raiseOnError=False)
+        if ret['code'] != 0:
+            raise RuntimeError('agent_uuid is configured to use dmidecode, '
+                               'but it\'s is not found on the system.')
+
     # get params for initialization
     registrar_ip = config.get('registrar', 'registrar_ip')
     registrar_port = config.get('registrar', 'registrar_port')
@@ -523,8 +530,11 @@ def main(argv=sys.argv):
         agent_uuid = hashlib.sha256(ek).hexdigest()
     elif agent_uuid == 'generate' or agent_uuid is None:
         agent_uuid = str(uuid.uuid4())
-    if common.DEVELOP_IN_ECLIPSE:
-        agent_uuid = "C432FBB3-D2F1-4A97-9EF7-75BD81C866E9"
+    elif agent_uuid == 'dmidecode':
+        cmd = ['dmidecode', '-s', 'system-uuid']
+        ret = cmd_exec.run(cmd)
+        sys_uuid = ret['retout'].decode('utf-8')
+        agent_uuid = sys_uuid.strip()
     if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing
         jsonIn = common.TPM_CANNED_VALUES
@@ -555,7 +565,7 @@ def main(argv=sys.argv):
     retval = False
     if virtual_agent:
         deepquote = tpm.create_deep_quote(
-            hashlib.sha1(key).hexdigest(), agent_uuid+aik+ek)
+            hashlib.sha1(key).hexdigest(), agent_uuid + aik + ek)
         retval = registrar_client.doActivateVirtualAgent(
             registrar_ip, registrar_port, agent_uuid, deepquote)
     else:

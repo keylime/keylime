@@ -2,6 +2,11 @@
 dist: bionic
 
 sudo: required
+addons:
+  apt:
+    packages:
+      - python3-pip
+      - python3-setuptools
 
 # If the change is a markdown file, don't run CI build. Or at a later point
 # we can set a specific job in here (such as a markdown lint)
@@ -27,6 +32,8 @@ services:
   - docker
 
 before_install:
+  - sudo pip3 install pylint --upgrade
+  - make check
   - 'docker pull ${tpm12image}:${tpm12tag}'
   - 'docker pull ${tpm20image}:${tpm20tag}'
 

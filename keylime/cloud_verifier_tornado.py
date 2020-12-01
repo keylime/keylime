@@ -8,30 +8,22 @@ import traceback
 import sys
 import functools
 import asyncio
+
+import simplejson as json
+from sqlalchemy.exc import SQLAlchemyError
 import tornado.ioloop
 import tornado.web
-import keylime.tornado_requests as tornado_requests
 
 from keylime import common
+from keylime.db.verifier_db import VerfierMain
+from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
+import keylime.tornado_requests as tornado_requests
 
-# Database imports
-from keylime.db.verifier_db import VerfierMain
-from keylime.db.keylime_db import DBEngineManager, SessionManager
-from sqlalchemy.exc import SQLAlchemyError
 
 logger = keylime_logging.init_logging('cloudverifier')
-
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
-
-if sys.version_info[0] < 3:
-    raise Exception("Python 3 or a more recent version is required.")
-
 config = common.get_config()
 
 try:
@@ -189,6 +181,8 @@ class AgentsHandler(BaseHandler):
             common.echo_json_response(self, 400, "uri not supported")
             logger.warning(
                 'DELETE returning 400 response. uri not supported: ' + self.request.path)
+            return
+
         try:
             agent = session.query(VerfierMain).filter_by(
                 agent_id=agent_id).first()
@@ -197,8 +191,7 @@ class AgentsHandler(BaseHandler):
 
         if agent is None:
             common.echo_json_response(self, 404, "agent id not found")
-            logger.info('DELETE returning 404 response. agent id: ' +
-                        agent_id + ' not found.')
+            logger.info('DELETE returning 404 response. agent id: ' + agent_id + ' not found.')
             return
 
         op_state = agent.operational_state
@@ -354,7 +347,8 @@ class AgentsHandler(BaseHandler):
                 common.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
             try:
-                agent = session.query(VerfierMain).filter_by(agent_id=agent_id)
+                agent = session.query(VerfierMain).filter_by(
+                    agent_id=agent_id).one()
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')
 
@@ -362,6 +356,7 @@ class AgentsHandler(BaseHandler):
                 common.echo_json_response(self, 404, "agent id not found")
                 logger.info(
                     'PUT returning 404 response. agent id: ' + agent_id + ' not found.')
+                return
 
             if "reactivate" in rest_params:
                 agent.operational_state = cloud_verifier_common.CloudAgent_Operational_State.START
@@ -630,6 +625,7 @@ def main(argv=sys.argv):
 
     config = common.get_config()
     cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
+    cloudverifier_host = config.get('cloud_verifier', 'cloudverifier_ip')
 
     # allow tornado's max upload size to be configurable
     max_upload_size = None
@@ -670,7 +666,7 @@ def main(argv=sys.argv):
         revocation_notifier.start_broker()
 
     sockets = tornado.netutil.bind_sockets(
-        int(cloudverifier_port), address='0.0.0.0')
+        int(cloudverifier_port), address=cloudverifier_host)
     tornado.process.fork_processes(config.getint(
         'cloud_verifier', 'multiprocessing_pool_num_workers'))
     asyncio.set_event_loop(asyncio.new_event_loop())

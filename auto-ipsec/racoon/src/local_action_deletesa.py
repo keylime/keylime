@@ -37,13 +37,14 @@ async def execute(revocation):
     ca = X509.load_cert('%s/unzipped/cacert.crt' % secdir)
 
     # need to find any sa's that were established with that cert serial
-    output = cmd_exec.run("racoonctl show-sa ipsec",
-                          lock=False, raiseOnError=True)['retout']
+    cmd = ('racoonctl', 'show-sa', 'ipsec')
+    output = cmd_exec.run(cmd, lock=False, raiseOnError=True)['retout']
     deletelist = set()
     for line in output:
         if not line.startswith(b"\t"):
-            certder = cmd_exec.run("racoonctl get-cert inet %s" %
-                                   line.strip(), raiseOnError=False, lock=False)['retout']
+            cmd = ('racoonctl', 'get-cert', 'inet', line.strip())
+            certder = cmd_exec.run(cmd, raiseOnError=False,
+                                   lock=False)['retout']
             if len(certder) == 0:
                 continue
             certobj = X509.load_cert_der_string(b''.join(certder))
@@ -57,11 +58,12 @@ async def execute(revocation):
 
     for todelete in deletelist:
         logger.info("deleting IPsec sa between %s" % todelete)
-        cmd_exec.run("racoonctl delete-sa isakmp inet %s" %
-                     todelete, lock=False)
+        cmd = ('racoonctl', 'delete-sa', 'isakmp', 'inet', todelete)
+        cmd_exec.run(cmd, lock=False)
         tokens = todelete.split()
-        cmd_exec.run("racoonctl delete-sa isakmp inet %s %s" %
-                     (tokens[1], tokens[0]), lock=False)
+        cmd = ('racoonctl', 'delete-sa', 'isakmp', 'inet', tokens[1],
+               tokens[0])
+        cmd_exec.run(cmd, lock=False)
 
     # for each pair returned that doens't start with whitespace
     # racoonctl get-cert inet 192.168.240.128 192.168.240.254 (the pair from before)

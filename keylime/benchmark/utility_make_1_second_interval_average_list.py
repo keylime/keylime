@@ -6,7 +6,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 import argparse
 import sys
 import math
-from itertools import count
 from collections import OrderedDict
 import glob
 

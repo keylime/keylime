@@ -3,25 +3,20 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+from abc import ABCMeta, abstractmethod
 import ast
-import base64
 import fcntl
 import hashlib
 import os
 import string
 import struct
+
+import simplejson as json
 import yaml
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
 except ImportError:
     from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
-
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
-
-from abc import ABCMeta, abstractmethod
 
 from keylime import common
 from keylime import keylime_logging
@@ -38,7 +33,7 @@ class TPM_Utilities:
     def check_mask(mask, pcr):
         if mask is None:
             return False
-        return bool(1<<pcr & int(mask, 0))
+        return bool(1 << pcr & int(mask, 0))
 
     @staticmethod
     def random_password(length=20):
@@ -57,14 +52,14 @@ class TPM_Utilities:
         mask = 0
         for key in list(policy.keys()):
             if not key.isdigit() or int(key) > 24:
-                raise Exception("Invalid tpm policy pcr number: %s"%(key))
+                raise Exception("Invalid tpm policy pcr number: %s" % (key))
 
             if int(key) == common.TPM_DATA_PCR:
-                raise Exception("Invalid allowlist PCR number %s, keylime uses this PCR to bind data."%key)
+                raise Exception("Invalid allowlist PCR number %s, keylime uses this PCR to bind data." % key)
             if int(key) == common.IMA_PCR:
-                raise Exception("Invalid allowlist PCR number %s, this PCR is used for IMA."%key)
+                raise Exception("Invalid allowlist PCR number %s, this PCR is used for IMA." % key)
 
-            mask = mask + (1<<int(key))
+            mask = mask + (1 << int(key))
 
             # wrap it in a list if it is a singleton
             if isinstance(policy[key], str):
@@ -73,7 +68,7 @@ class TPM_Utilities:
             # convert all hash values to lowercase
             policy[key] = [x.lower() for x in policy[key]]
 
-        policy['mask'] = "0x%X"%(mask)
+        policy['mask'] = "0x%X" % (mask)
         return policy
 
 
@@ -135,7 +130,6 @@ class AbstractTPM(object, metaclass=ABCMeta):
             logger.warning("INSECURE: The security of Keylime is NOT linked to a hardware root of trust.")
             logger.warning("INSECURE: Only use Keylime in this mode for testing or debugging purposes.")
 
-
     def __read_tpm_data(self):
         if os.path.exists('tpmdata.yml'):
             with open('tpmdata.yml', 'rb') as f:
@@ -167,8 +161,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
     def tpm_init(self, self_activate=False, config_pw=None):
         pass
 
-
-    #tpm_quote
+    # tpm_quote
     @abstractmethod
     def create_deep_quote(self, nonce, data=None, vpcrmask=EMPTYMASK, pcrmask=EMPTYMASK):
         pass
@@ -183,7 +176,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
         elif quote[0] == 'r':
             return False
         else:
-            raise Exception("Invalid quote type %s"%quote[0])
+            raise Exception("Invalid quote type %s" % quote[0])
 
     @abstractmethod
     def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):
@@ -198,7 +191,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
             algorithm = self.defaults['hash']
 
         alg_size = algorithms.get_hash_size(algorithm) // 4
-        return "0"*alg_size
+        return "0" * alg_size
 
     def hashdigest(self, payload, algorithm=None):
         if algorithm is None:
@@ -217,7 +210,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
         return measured
 
     @abstractmethod
-    def sim_extend(self,hashval_1,hashval_0=None):
+    def sim_extend(self, hashval_1, hashval_0=None):
         pass
 
     @abstractmethod
@@ -231,7 +224,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
     def __check_ima(self, agent_id, pcrval, ima_measurement_list, allowlist):
         logger.info(f"Checking IMA measurement list on agent: {agent_id}")
         if common.STUB_IMA:
-            pcrval=None
+            pcrval = None
         ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), allowlist, pcrval=pcrval)
         if ex_value is None:
             return False
@@ -246,16 +239,17 @@ class AbstractTPM(object, metaclass=ABCMeta):
             tpm_policy_ = {}
         pcr_allowlist = tpm_policy_.copy()
 
-        if 'mask' in pcr_allowlist: del pcr_allowlist['mask']
+        if 'mask' in pcr_allowlist:
+            del pcr_allowlist['mask']
         # convert all pcr num keys to integers
-        pcr_allowlist = {int(k):v for k, v in list(pcr_allowlist.items())}
+        pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
         pcrsInQuote = set()
         validatedBindPCR = False
         for line in pcrs:
             tokens = line.split()
             if len(tokens) < 3:
-                logger.error("Invalid %sPCR in quote: %s"%(("", "v")[virtual], pcrs))
+                logger.error("Invalid %sPCR in quote: %s" % (("", "v")[virtual], pcrs))
                 continue
 
             # always lower case
@@ -264,12 +258,12 @@ class AbstractTPM(object, metaclass=ABCMeta):
             try:
                 pcrnum = int(tokens[1])
             except Exception:
-                logger.error("Invalid PCR number %s"%tokens[1])
+                logger.error("Invalid PCR number %s" % tokens[1])
 
             if pcrnum == common.TPM_DATA_PCR and data is not None:
                 expectedval = self.sim_extend(data)
                 if expectedval != pcrval and not common.STUB_TPM:
-                    logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, expectedval))
+                    logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s" % (("", "v")[virtual], pcrnum, pcrval, expectedval))
                     return False
                 validatedBindPCR = True
                 continue
@@ -288,10 +282,10 @@ class AbstractTPM(object, metaclass=ABCMeta):
 
             if pcrnum not in list(pcr_allowlist.keys()):
                 if not common.STUB_TPM and len(list(tpm_policy.keys())) > 0:
-                    logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping."%(("", "v")[virtual], pcrnum, ("", "v")[virtual]))
+                    logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping." % (("", "v")[virtual], pcrnum, ("", "v")[virtual]))
                 continue
             elif pcrval not in pcr_allowlist[pcrnum] and not common.STUB_TPM:
-                logger.error("%sPCR #%s: %s from quote does not match expected value %s"%(("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum]))
+                logger.error("%sPCR #%s: %s from quote does not match expected value %s" % (("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum]))
                 return False
             else:
                 pcrsInQuote.add(pcrnum)
@@ -300,31 +294,29 @@ class AbstractTPM(object, metaclass=ABCMeta):
             return True
 
         if not validatedBindPCR:
-            logger.error("Binding %sPCR #%s was not included in the quote, but is required"%(("", "v")[virtual], common.TPM_DATA_PCR))
+            logger.error("Binding %sPCR #%s was not included in the quote, but is required" % (("", "v")[virtual], common.TPM_DATA_PCR))
             return False
 
         missing = list(set(list(pcr_allowlist.keys())).difference(pcrsInQuote))
         if len(missing) > 0:
-            logger.error("%sPCRs specified in policy not in quote: %s"%(("", "v")[virtual], missing))
+            logger.error("%sPCRs specified in policy not in quote: %s" % (("", "v")[virtual], missing))
             return False
         return True
 
-
-    #tpm_random
+    # tpm_random
     def init_system_rand(self):
         RNDADDENTROPY = 0x40085203
         rand_data = self._get_tpm_rand_block()
         if common.REQUIRE_ROOT and rand_data is not None:
             try:
-                t = struct.pack("ii%ds"%len(rand_data), 8, len(rand_data), rand_data)
+                t = struct.pack("ii%ds" % len(rand_data), 8, len(rand_data), rand_data)
                 with open("/dev/random", mode='wb') as fp:
                     # as fp has a method fileno(), you can pass it to ioctl
                     fcntl.ioctl(fp, RNDADDENTROPY, t)
             except Exception as e:
-                logger.warning("TPM randomness not added to system entropy pool: %s"%e)
+                logger.warning("TPM randomness not added to system entropy pool: %s" % e)
 
-
-    #tpm_nvram
+    # tpm_nvram
     @abstractmethod
     def write_key_nvram(self, key):
         pass

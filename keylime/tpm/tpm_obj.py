@@ -19,13 +19,14 @@ __tpm1 = None
 __tpm2 = None
 __version = None
 
+
 def __guess_tpm_version():
     if __version is not None:
         return __version
 
     # Ensure we have paths needed
     env = os.environ.copy()
-    env['PATH']=env['PATH']+":%s"%common.TPM_TOOLS_PATH
+    env['PATH'] = env['PATH'] + ":%s" % common.TPM_TOOLS_PATH
 
     # Probe for existence of get capability tools
     has_tpm1_tools = distutils.spawn.find_executable("getcapability", env['PATH']) is not None
@@ -48,6 +49,7 @@ def __guess_tpm_version():
             # Assume tpm2 tools work if tpm1 tools failed
             return 2
 
+
 # public getter method for the TPM object
 def getTPM(need_hw_tpm, tpm_version=None):
     global __tpm1, __tpm2
@@ -69,4 +71,4 @@ def getTPM(need_hw_tpm, tpm_version=None):
             __tpm2 = tpm2.tpm2(need_hw_tpm)
         return __tpm2
     else:
-        raise Exception('Unsupported TPM version specified: %s!'%(tpm_version))
+        raise Exception('Unsupported TPM version specified: %s!' % tpm_version)

@@ -9,14 +9,14 @@ import signal
 import time
 import hashlib
 import http.server
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
-
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
+from sqlalchemy.exc import SQLAlchemyError
 
+import simplejson as json
+
+from keylime.db.registrar_db import RegistrarMain
+from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import registrar_client
 from keylime import crypto
 from keylime import cloud_verifier_common
@@ -24,10 +24,6 @@ from keylime.tpm import tpm_obj
 from keylime import common
 from keylime import keylime_logging
 
-# Database imports
-from keylime.db.registrar_db import RegistrarMain
-from keylime.db.keylime_db import DBEngineManager, SessionManager
-from sqlalchemy.exc import SQLAlchemyError
 
 logger = keylime_logging.init_logging('registrar-common')
 config = common.get_config()
@@ -288,8 +284,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             return
         except Exception as e:
             common.echo_json_response(self, 400, "Error: %s" % e)
-            logger.warning("POST for " + agent_id +
-                           " returning 400 response. Error: %s" % e)
+            logger.warning("POST for " + agent_id + " returning 400 response. Error: %s" % e)
             logger.exception(e)
             return
 
@@ -357,7 +352,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                         logger.error(f'SQLAlchemy Error: {e}')
                 else:
                     drivername = config.get('registrar', 'drivername')
-                    if drivername == "mysql" :
+                    if drivername == "mysql":
                         agent.key = agent.key.encode('utf-8')
 
                     ex_mac = crypto.do_hmac(agent.key, agent_id)
@@ -399,7 +394,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 if not tpm.check_deep_quote(agent_id,
                                             hashlib.sha1(
                                                 agent['key']).hexdigest(),
-                                            agent_id+agent['aik']+agent['ek'],
+                                            agent_id + agent['aik'] + agent['ek'],
                                             deepquote,
                                             agent['aik'],
                                             provider_keys['aik']):
@@ -421,8 +416,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 pass
         except Exception as e:
             common.echo_json_response(self, 400, "Error: %s" % e)
-            logger.warning("PUT for " + agent_id +
-                           " returning 400 response. Error: %s" % e)
+            logger.warning("PUT for " + agent_id + " returning 400 response. Error: %s" % e)
             logger.exception(e)
             return
 
@@ -438,19 +432,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 # https://github.com/muayyad-alsadi/python-PooledProcessMixIn
 
 
-class ProtectedRegistrarServer(ThreadingMixIn, HTTPServer):
-    """Handle requests in a separate thread."""
-
-    def __init__(self, server_address, RequestHandlerClass):
-        """Constructor overridden to provide ability to read file"""
-        http.server.HTTPServer.__init__(
-            self, server_address, RequestHandlerClass)
-
-    def shutdown(self):
-        http.server.HTTPServer.shutdown(self)
-
-
-class UnprotectedRegistrarServer(ThreadingMixIn, HTTPServer):
+class RegistrarServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
 
     def __init__(self, server_address, RequestHandlerClass):
@@ -467,13 +449,13 @@ def do_shutdown(servers):
         server.shutdown()
 
 
-def start(tlsport, port):
+def start(host, tlsport, port):
     """Main method of the Registrar Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
     threads = []
     servers = []
-    serveraddr = ('', tlsport)
+    serveraddr = (host, tlsport)
 
     RegistrarMain.metadata.create_all(engine, checkfirst=True)
     session = SessionManager().make_session(engine)
@@ -484,7 +466,7 @@ def start(tlsport, port):
     if count > 0:
         logger.info("Loaded %d public keys from database" % count)
 
-    server = ProtectedRegistrarServer(serveraddr, ProtectedHandler)
+    server = RegistrarServer(serveraddr, ProtectedHandler)
     context = cloud_verifier_common.init_mtls(section='registrar',
                                               generatedir='reg_ca')
     if context is not None:
@@ -493,8 +475,8 @@ def start(tlsport, port):
     threads.append(thread)
 
     # start up the unprotected registrar server
-    serveraddr2 = ('', port)
-    server2 = UnprotectedRegistrarServer(serveraddr2, UnprotectedHandler)
+    serveraddr2 = (host, port)
+    server2 = RegistrarServer(serveraddr2, UnprotectedHandler)
     thread2 = threading.Thread(target=server2.serve_forever)
     threads.append(thread2)
 

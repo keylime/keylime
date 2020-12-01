@@ -5,7 +5,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import os.path
 from keylime import common
-import sys
 import logging.config
 
 
@@ -45,7 +44,7 @@ LOGDIR = '/var/log/keylime'
 if not common.REQUIRE_ROOT:
     LOGSTREAM = './keylime-stream.log'
 else:
-    LOGSTREAM = LOGDIR+'/keylime-stream.log'
+    LOGSTREAM = LOGDIR + '/keylime-stream.log'
 
 logging.config.fileConfig(common.CONFIG_FILE)
 
@@ -54,7 +53,8 @@ def init_logging(loggername):
     logger = logging.getLogger("keylime.%s" % (loggername))
     logging.getLogger("requests").setLevel(logging.WARNING)
     mainlogger = logging.getLogger("keylime")
-
+    basic_formatter = logging.Formatter(
+        '%(asctime)s %(name)s %(levelname)s %(message)s')
     if loggername in LOG_TO_FILE:
         if not common.REQUIRE_ROOT:
             logfilename = "./keylime-all.log"
@@ -72,16 +72,12 @@ def init_logging(loggername):
 
         fh = logging.FileHandler(logfilename)
         fh.setLevel(logger.getEffectiveLevel())
-        basic_formatter = logging.Formatter(
-            '%(created)s  %(name)s  %(levelname)s  %(message)s')
         fh.setFormatter(basic_formatter)
         mainlogger.addHandler(fh)
 
     if loggername in LOG_TO_STREAM:
         fh = logging.FileHandler(filename=LOGSTREAM, mode='w')
         fh.setLevel(logger.getEffectiveLevel())
-        basic_formatter = logging.Formatter(
-            '%(created)s  %(name)s  %(levelname)s  %(message)s')
         fh.setFormatter(basic_formatter)
         mainlogger.addHandler(fh)
 
