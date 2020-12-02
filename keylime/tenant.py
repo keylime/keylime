@@ -529,7 +529,7 @@ class Tenant():
 
         do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled)
         response = do_cvstatus.get(
-            (f'/agents/{self.agent_uuid}'),
+            (f'/agents/{agent_uuid}'),
             cert=self.cert,
             verify=False
         )
