@@ -12,6 +12,8 @@ from sqlalchemy.engine.url import URL
 from keylime import config
 from keylime import keylime_logging
 
+logger = keylime_logging.init_logging('keylime_db')
+
 
 class DBEngineManager:
 
@@ -24,8 +26,16 @@ class DBEngineManager:
         """
         self.service = service
 
-        drivername = config.get(service, 'drivername')
+        database_url = config.get(service, 'database_url')
+        if database_url:
+            engine = create_engine(database_url)
+            return engine
 
+        # TODO(kaifeng) Remove following code as well as related configuration
+        # options when the deprecation period is reached.
+        logger.warning('database_url is not set, using deprecated database '
+                       'configuration options')
+        drivername = config.get(service, 'drivername')
         if drivername == 'sqlite':
             database = "%s/%s" % (config.WORK_DIR,
                                   config.get(service, 'database'))
@@ -69,6 +79,5 @@ class SessionManager:
             Session = scoped_session(sessionmaker())
             Session.configure(bind=self.engine)
         except SQLAlchemyError as e:
-            logger = keylime_logging.init_logging('sql_session_manager')
             logger.error(f'Error creating SQL session manager {e}')
         return Session()

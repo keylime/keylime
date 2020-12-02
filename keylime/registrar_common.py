@@ -341,8 +341,8 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     except SQLAlchemyError as e:
                         logger.error(f'SQLAlchemy Error: {e}')
                 else:
-                    drivername = config.get('registrar', 'drivername')
-                    if drivername == "mysql":
+                    # TODO(kaifeng) Special handling should be removed
+                    if engine.dialect.name == "mysql":
                         agent.key = agent.key.encode('utf-8')
 
                     ex_mac = crypto.do_hmac(agent.key, agent_id)
