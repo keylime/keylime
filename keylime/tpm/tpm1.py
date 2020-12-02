@@ -32,12 +32,113 @@ from keylime import tpm_ek_ca
 from keylime.utils import algorithms
 
 logger = keylime_logging.init_logging('tpm1')
-
 # read the config file
 config = common.get_config()
 
 
+def _get_cmd_env():
+    env = os.environ.copy()
+    env['TPM_SERVER_PORT'] = '9998'
+    env['TPM_SERVER_NAME'] = 'localhost'
+    env['PATH'] = env['PATH'] + ":%s" % common.TPM_TOOLS_PATH
+    return env
+
+
+def _stub_command(fprt, lock, outputpaths):
+    # Use canned values for stubbing
+    yamlIn = common.TPM_CANNED_VALUES
+    if fprt in yamlIn:
+        # The value we're looking for has been canned!
+        thisTiming = yamlIn[fprt]['timing']
+        thisRetout = yamlIn[fprt]['retout']
+        thisCode = yamlIn[fprt]['code']
+        thisFileout = yamlIn[fprt]['fileout']
+        fileoutEncoded = {}
+
+        # Decode files that are supplied
+        if outputpaths is not None and len(outputpaths) == 1:
+            if thisFileout != '':
+                fileoutEncoded[outputpaths[0]] = zlib.decompress(base64.b64decode(thisFileout))
+
+        logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec" % (fprt, thisTiming))
+        time.sleep(thisTiming)
+
+        # Package for return
+        returnDict = {
+            'retout': thisRetout,
+            'code': thisCode,
+            'fileouts': fileoutEncoded,
+            'timing': thisTiming,
+        }
+        return returnDict
+    elif not lock:
+        # non-lock calls don't go to the TPM (just let it pass through)
+        pass
+    else:
+        # Our command hasn't been canned!
+        raise Exception("Command %s not found in canned YAML!" % (fprt))
+
+
+def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
+    if not isinstance(cmd, str):
+        cmd = ' '.join(cmd)
+    t0 = cmd_ret['timing']['t0']
+    t1 = cmd_ret['timing']['t1']
+    code = cmd_ret['code']
+    retout = cmd_ret['retout']
+    fileouts = cmd_ret['fileouts']
+
+    pad = ""
+    if len(fprt) < 8:
+        pad += "\t"
+    if len(fprt) < 16:
+        pad += "\t"
+    if len(fprt) < 24:
+        pad += "\t"
+
+    filelen = 0
+    if fileouts is not None:
+        filelen = len(fileouts)
+
+    # Print out benchmarking information for TPM (if requested)
+    # print "\033[95mTIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\033[0m" % (fprt,pad,t1-t0,len(retout),filelen,cmd)
+    if common.TPM_BENCHMARK_PATH is not None:
+        with open(common.TPM_BENCHMARK_PATH, "ab") as bench:
+            bench.write(
+                "TIMING: %s%s\ttime:%f\toutlines:%d\tfilecount:%d\t%s\n" % (fprt, pad, t1 - t0, len(retout), filelen, cmd))
+
+    # Print out YAML canned values (if requested)
+    # NOTE: resulting file will be missing the surrounding braces! (must add '{' and '}' for reading)
+    if common.TPM_CANNED_VALUES_PATH is not None:
+        with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
+            fileoutEncoded = ""
+            if outputpaths is not None and len(outputpaths) > 0:
+                if len(fileouts) == 1 and len(outputpaths) == 1:
+                    fileoutEncoded = zlib.compress(base64.b64encode(iter(fileouts.values()).next()))
+                else:
+                    raise Exception("Command %s is using multiple files unexpectedly!" % (fprt))
+
+            # tpm_cexec will need to know the nonce
+            nonce = ""
+            match = re.search(r"-nonce ([\w]+)", cmd)
+            if match:
+                nonce = match.group(1)
+
+            yamlObj = {
+                'type': fprt,
+                'retout': retout,
+                'fileout': fileoutEncoded,
+                'cmd': cmd,
+                'timing': t1 - t0,
+                'code': code,
+                'nonce': nonce
+            }
+            can.write("\"%s\": %s,\n" % (fprt, yaml.dump(yamlObj, indent=4, sort_keys=True, Dumper=SafeDumper)))
+
+
 class tpm1(tpm_abstract.AbstractTPM):
+
+    VERSION = 1
 
     def __init__(self, need_hw_tpm=False):
         tpm_abstract.AbstractTPM.__init__(self, need_hw_tpm)
@@ -54,14 +155,14 @@ class tpm1(tpm_abstract.AbstractTPM):
         self.defaults['encrypt'] = algorithms.Encrypt.RSA
         self.defaults['sign'] = algorithms.Sign.RSASSA
 
-    def get_tpm_version(self):
-        return 1
-
     # tpm_exec
     @staticmethod
     def __fingerprint(cmd):
         # Creates a unique-enough ID from the given command
-        fprt = cmd.split()[0]
+        if isinstance(cmd, str):
+            fprt = cmd.split()[0]
+        else:
+            fprt = cmd[0]
         if fprt == 'getcapability':
             if '-cap 5' in cmd:  # is_tpm_owned
                 fprt += '-cap5'
@@ -78,10 +179,7 @@ class tpm1(tpm_abstract.AbstractTPM):
         return fprt
 
     def __run(self, cmd, expectedcode=tpm_abstract.AbstractTPM.EXIT_SUCESS, raiseOnError=True, lock=True, outputpaths=None):
-        env = os.environ.copy()
-        env['TPM_SERVER_PORT'] = '9998'
-        env['TPM_SERVER_NAME'] = 'localhost'
-        env['PATH'] = env['PATH'] + ":%s" % common.TPM_TOOLS_PATH
+        env = _get_cmd_env()
 
         # Backwards compat with string input (force all to be dict)
         if isinstance(outputpaths, str):
@@ -90,54 +188,27 @@ class tpm1(tpm_abstract.AbstractTPM):
         # Handle stubbing the TPM out
         fprt = tpm1.__fingerprint(cmd)
         if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
-            # Use canned values for stubbing
-            yamlIn = common.TPM_CANNED_VALUES
-            if fprt in yamlIn:
-                # The value we're looking for has been canned!
-                thisTiming = yamlIn[fprt]['timing']
-                thisRetout = yamlIn[fprt]['retout']
-                thisCode = yamlIn[fprt]['code']
-                thisFileout = yamlIn[fprt]['fileout']
-                fileoutEncoded = {}
-
-                # Decode files that are supplied
-                if outputpaths is not None and len(outputpaths) == 1:
-                    if thisFileout != '':
-                        fileoutEncoded[outputpaths[0]] = zlib.decompress(base64.b64decode(thisFileout))
-
-                logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec" % (fprt, thisTiming))
-                time.sleep(thisTiming)
-
-                # Package for return
-                returnDict = {
-                    'retout': thisRetout,
-                    'code': thisCode,
-                    'fileouts': fileoutEncoded,
-                    'timing': thisTiming,
-                }
-                return returnDict
-            elif not lock:
-                # non-lock calls don't go to the TPM (just let it pass through)
-                pass
-            else:
-                # Our command hasn't been canned!
-                raise Exception("Command %s not found in canned YAML!" % (fprt))
+            stub = _stub_command(fprt, lock, outputpaths)
+            if stub:
+                return stub
 
         numtries = 0
         while True:
+            # TODO(kaifeng) Handle shell till all commands are updated.
+            shell = False
+            if isinstance(cmd, str):
+                shell = True
             if lock:
                 with self.tpmutilLock:
                     retDict = cmd_exec.run(
                         cmd=cmd, expectedcode=expectedcode,
                         raiseOnError=False, lock=lock,
-                        outputpaths=outputpaths, env=env, shell=True)
+                        outputpaths=outputpaths, env=env, shell=shell)
             else:
                 retDict = cmd_exec.run(
                     cmd=cmd, expectedcode=expectedcode, raiseOnError=False,
-                    lock=lock, outputpaths=outputpaths, env=env, shell=True)
+                    lock=lock, outputpaths=outputpaths, env=env, shell=shell)
 
-            t0 = retDict['timing']['t0']
-            t1 = retDict['timing']['t1']
             code = retDict['code']
             retout = retDict['retout']
             fileouts = retDict['fileouts']
@@ -162,51 +233,7 @@ class tpm1(tpm_abstract.AbstractTPM):
 
         # Metric output
         if lock or self.tpmutilLock.locked():
-            pad = ""
-            if len(fprt) < 8:
-                pad += "\t"
-            if len(fprt) < 16:
-                pad += "\t"
-            if len(fprt) < 24:
-                pad += "\t"
-
-            filelen = 0
-            if fileouts is not None:
-                filelen = len(fileouts)
-
-            # Print out benchmarking information for TPM (if requested)
-            # print "\033[95mTIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\033[0m" % (fprt,pad,t1-t0,len(retout),filelen,cmd)
-            if common.TPM_BENCHMARK_PATH is not None:
-                with open(common.TPM_BENCHMARK_PATH, "ab") as bench:
-                    bench.write("TIMING: %s%s\ttime:%f\toutlines:%d\tfilecount:%d\t%s\n" % (fprt, pad, t1 - t0, len(retout), filelen, cmd))
-
-            # Print out YAML canned values (if requested)
-            # NOTE: resulting file will be missing the surrounding braces! (must add '{' and '}' for reading)
-            if common.TPM_CANNED_VALUES_PATH is not None:
-                with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
-                    fileoutEncoded = ""
-                    if outputpaths is not None and len(outputpaths) > 0:
-                        if len(fileouts) == 1 and len(outputpaths) == 1:
-                            fileoutEncoded = zlib.compress(base64.b64encode(iter(fileouts.values()).next()))
-                        else:
-                            raise Exception("Command %s is using multiple files unexpectedly!" % (fprt))
-
-                    # tpm_cexec will need to know the nonce
-                    nonce = ""
-                    match = re.search(r"-nonce ([\w]+)", cmd)
-                    if match:
-                        nonce = match.group(1)
-
-                    yamlObj = {
-                        'type': fprt,
-                        'retout': retout,
-                        'fileout': fileoutEncoded,
-                        'cmd': cmd,
-                        'timing': t1 - t0,
-                        'code': code,
-                        'nonce': nonce
-                    }
-                    can.write("\"%s\": %s,\n" % (fprt, yaml.dump(yamlObj, indent=4, sort_keys=True, Dumper=SafeDumper)))
+            _output_metrics(fprt, cmd, retDict, outputpaths)
 
         return retDict
 
@@ -542,13 +569,13 @@ class tpm1(tpm_abstract.AbstractTPM):
         return None
 
     def is_emulator(self):
-        return 'IBM' == self.get_tpm_manufacturer()
+        return self.get_tpm_manufacturer() == 'IBM'
 
     def is_vtpm(self):
         if common.STUB_VTPM:
             return True
         else:
-            return 'ETHZ' == self.get_tpm_manufacturer()
+            return self.get_tpm_manufacturer() == 'ETHZ'
 
     def __is_tpm_owned(self):
         retDict = self.__run("getcapability -cap 5 -scap 111")

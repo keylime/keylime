@@ -91,10 +91,6 @@ class AbstractTPM(object, metaclass=ABCMeta):
         self.defaults['sign'] = algorithms.Sign.RSASSA
         self.supported = {}
 
-    @abstractmethod
-    def get_tpm_version(self):
-        pass
-
     # tpm_initialize
     @abstractmethod
     def flush_keys(self):

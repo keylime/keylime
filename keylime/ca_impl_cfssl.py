@@ -70,7 +70,7 @@ def start_cfssl(cmdline=""):
     cfsslproc = subprocess.Popen(cmd, env=env, shell=True, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, universal_newlines=True)
     if cfsslproc.returncode is not None:
-        raise Exception("Unable to launch %: failed with code " %
+        raise Exception("Unable to launch %s: failed with code %d" %
                         (cmd, cfsslproc.returncode))
 
     logger.debug("Waiting for cfssl to start...")

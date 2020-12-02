@@ -420,6 +420,8 @@ class AgentsHandler(BaseHandler):
                 json_response = json.loads(response.body)
 
                 # validate the cloud agent response
+                if 'provide_V' not in agent :
+                    agent['provide_V'] = True
                 if cloud_verifier_common.process_quote_response(agent, json_response['results']):
                     if agent['provide_V']:
                         asyncio.ensure_future(self.process_agent(
