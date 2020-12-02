@@ -149,7 +149,8 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
         context.load_verify_locations(cafile=ca_path)
         context.load_cert_chain(
             certfile=my_cert, keyfile=my_priv_key, password=my_key_pw)
-        context.verify_mode = ssl.CERT_REQUIRED
+        if config.getboolean(section, 'check_client_cert', fallback=True):
+            context.verify_mode = ssl.CERT_REQUIRED
     except ssl.SSLError as exc:
         if exc.reason == 'EE_KEY_TOO_SMALL':
             logger.error('Higher key strength is required for keylime '
