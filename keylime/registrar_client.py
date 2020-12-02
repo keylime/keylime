@@ -38,7 +38,6 @@ def init_client_tls(config, section):
 
     my_cert = config.get(section, 'registrar_my_cert')
     my_priv_key = config.get(section, 'registrar_private_key')
-    my_key_pw = config.get(section, 'registrar_private_key_pw')
 
     if tls_dir == 'default':
         tls_dir = 'reg_ca'

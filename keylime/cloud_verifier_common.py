@@ -86,7 +86,6 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
     my_cert = config.get(section, 'my_cert')
     ca_cert = config.get(section, 'ca_cert')
     my_priv_key = config.get(section, 'private_key')
-    my_key_pw = config.get(section, 'private_key_pw')
     tls_dir = config.get(section, 'tls_dir')
 
     if tls_dir == 'generate':
@@ -108,10 +107,6 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
             logger.info("use keylime_ca -d %s to manage this CA" % tls_dir)
             if not os.path.exists(tls_dir):
                 os.makedirs(tls_dir, 0o700)
-            if my_key_pw == 'default':
-                logger.warning(
-                    "CAUTION: using default password for CA, please set private_key_pw to a strong password")
-            ca_util.setpassword(my_key_pw)
             ca_util.cmd_init(tls_dir)
             ca_util.cmd_mkcert(tls_dir, socket.gethostname())
             ca_util.cmd_mkcert(tls_dir, 'client')
@@ -147,7 +142,7 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.load_verify_locations(cafile=ca_path)
     context.load_cert_chain(
-        certfile=my_cert, keyfile=my_priv_key, password=my_key_pw)
+        certfile=my_cert, keyfile=my_priv_key)
     context.verify_mode = ssl.CERT_REQUIRED
     return context
 
