@@ -150,6 +150,26 @@ def get_config():
     return _CURRENT_CONFIG
 
 
+def get(section, option):
+    return get_config().get(section, option)
+
+
+def getint(section, option):
+    return get_config().getint(section, option)
+
+
+def getboolean(section, option):
+    return get_config().getboolean(section, option)
+
+
+def getfloat(section, option):
+    return get_config().getfloat(section, option)
+
+
+def has_option(section, option):
+    return get_config().has_option(section, option)
+
+
 if not REQUIRE_ROOT:
     WORK_DIR = os.path.abspath(".")
 else:

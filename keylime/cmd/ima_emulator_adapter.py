@@ -10,7 +10,7 @@ import time
 import itertools
 from keylime.tpm.tpm_abstract import *
 from keylime.tpm import tpm_obj
-from keylime.utils import algorithms
+from keylime.common import algorithms
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)
@@ -46,7 +46,7 @@ def ml_extend(ml, position, searchHash=None):
         if searchHash is None:
             print("extending hash %s for %s" % (template_hash, path))
             # TODO: Add support for other hash algorithms
-            tpm.extendPCR(common.IMA_PCR, template_hash, algorithms.Hash.SHA1)
+            tpm.extendPCR(config.IMA_PCR, template_hash, algorithms.Hash.SHA1)
         else:
             # Let's only encode if its not a byte
             try:
@@ -80,14 +80,14 @@ def main(argv=sys.argv):
     pos = 0
 
     # check if pcr is clean
-    pcrval = tpm.readPCR(common.IMA_PCR, algorithms.Hash.SHA1)
+    pcrval = tpm.readPCR(config.IMA_PCR, algorithms.Hash.SHA1)
     if pcrval != start_hash:
         print("Warning: IMA PCR is not empty, trying to find the last updated file in the measurement list...")
-        pos = ml_extend(common.IMA_ML, 0, pcrval)
+        pos = ml_extend(config.IMA_ML, 0, pcrval)
 
-    print("Monitoring %s" % (common.IMA_ML))
+    print("Monitoring %s" % (config.IMA_ML))
     poll_object = select.poll()
-    fd_object = open(common.IMA_ML, "r")
+    fd_object = open(config.IMA_ML, "r")
     number = fd_object.fileno()
     poll_object.register(fd_object, select.POLLIN | select.POLLPRI)
 
@@ -96,7 +96,7 @@ def main(argv=sys.argv):
         for result in results:
             if result[0] != number:
                 continue
-            pos = ml_extend(common.IMA_ML, pos)
+            pos = ml_extend(config.IMA_ML, pos)
             time.sleep(0.2)
     sys.exit(1)
 

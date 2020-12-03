@@ -6,10 +6,9 @@ Copyright 2017 Massachusetts Institute of Technology.
 import time
 
 from M2Crypto import X509, EVP, RSA, ASN1
-from keylime import common
-from keylime import keylime_logging
 
-config = common.get_config()
+from keylime import config
+from keylime import keylime_logging
 
 
 def mk_cert_valid(cert, days=365):

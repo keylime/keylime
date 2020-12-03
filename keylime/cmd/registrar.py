@@ -8,13 +8,13 @@ Copyright 2017 Massachusetts Institute of Technology.
 import sys
 
 from keylime import registrar_common
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 import keylime.cmd.migrations_apply
 
 logger = keylime_logging.init_logging('registrar')
 
-config = common.get_config()
+config = config.get_config()
 
 
 def main(argv=sys.argv):

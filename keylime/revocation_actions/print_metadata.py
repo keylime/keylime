@@ -7,11 +7,11 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import simplejson as json
 
-from keylime import common
+from keylime import config
 import keylime.keylime_logging as keylime_logging
 
 
-config = common.get_config()
+config = config.get_config()
 
 logger = keylime_logging.init_logging('print_metadata')
 

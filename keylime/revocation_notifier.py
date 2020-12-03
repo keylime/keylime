@@ -14,12 +14,11 @@ import zmq
 
 import simplejson as json
 
-from keylime import common
-from keylime import keylime_logging
+from keylime import config
 from keylime import crypto
+from keylime import keylime_logging
 
 logger = keylime_logging.init_logging('revocation_notifier')
-config = common.get_config()
 broker_proc = None
 
 

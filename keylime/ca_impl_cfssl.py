@@ -14,14 +14,13 @@ import sys
 
 import simplejson as json
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import secure_mount
 from M2Crypto import EVP, X509
 
 logger = keylime_logging.init_logging('ca_impl_cfssl')
 
-config = common.get_config()
 cfssl_ip = config.get('ca', 'cfssl_ip')
 cfssl_port = config.get('ca', 'cfssl_port')
 
@@ -149,7 +148,7 @@ def mk_signed_cert(cacert, ca_pk, name, serialnum):
     # check CRL distribution point
     disturl = config.get('ca', 'cert_crl_dist')
     if disturl == 'default':
-        disturl = "http://%s:%s/crl.der" % (socket.getfqdn(), common.CRL_PORT)
+        disturl = "http://%s:%s/crl.der" % (socket.getfqdn(), config.CRL_PORT)
 
     # set up config for cfssl server
     cfsslconfig = {

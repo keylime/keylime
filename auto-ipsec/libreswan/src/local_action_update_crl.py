@@ -11,7 +11,7 @@ import os
 import keylime.tornado_requests as tornado_requests
 import keylime.ca_util as ca_util
 import keylime.secure_mount as secure_mount
-import keylime.common as common
+import keylime.config as common
 import keylime.keylime_logging as keylime_logging
 
 # read the config file

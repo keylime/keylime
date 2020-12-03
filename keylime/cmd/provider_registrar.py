@@ -7,12 +7,12 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import sys
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_common
 
 logger = keylime_logging.init_logging('provider-registrar')
-config = common.get_config()
+config = config.get_config()
 
 
 def main(argv=sys.argv):

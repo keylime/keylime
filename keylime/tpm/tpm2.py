@@ -19,17 +19,14 @@ import M2Crypto
 import simplejson as json
 
 from keylime import cmd_exec
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import secure_mount
 from keylime.tpm import tpm_abstract
 from keylime import tpm_ek_ca
-from keylime.utils import algorithms
+from keylime.common import algorithms
 
 logger = keylime_logging.init_logging('tpm2')
-
-# Read the config file
-config = common.get_config()
 
 
 def _get_cmd_env():
@@ -43,8 +40,8 @@ def _get_cmd_env():
         # Other (not recommended) options are direct emulator and chardev communications:
         # env['TPM2TOOLS_TCTI'] = 'mssim:port=2321'
         # env['TPM2TOOLS_TCTI'] = 'device:/dev/tpm0'
-    env['PATH'] = env['PATH'] + ":%s" % common.TPM_TOOLS_PATH
-    env['LD_LIBRARY_PATH'] = lib_path + ":%s" % common.TPM_LIBS_PATH
+    env['PATH'] = env['PATH'] + ":%s" % config.TPM_TOOLS_PATH
+    env['LD_LIBRARY_PATH'] = lib_path + ":%s" % config.TPM_LIBS_PATH
     return env
 
 
@@ -52,7 +49,7 @@ def _stub_command(fprt, lock, cmd, outputpaths):
     if not isinstance(cmd, str):
         cmd = ' '.join(cmd)
     # Use canned values for stubbing
-    jsonIn = common.TPM_CANNED_VALUES
+    jsonIn = config.TPM_CANNED_VALUES
     if fprt in jsonIn:
         # The value we're looking for has been canned!
         thisTiming = jsonIn[fprt]['timing']
@@ -139,15 +136,15 @@ def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
 
     # Print out benchmarking information for TPM (if requested)
     # print "\033[95mTIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\033[0m" % (fprt, pad, t1-t0, len(retout), filelen, cmd)
-    if common.TPM_BENCHMARK_PATH is not None:
-        with open(common.TPM_BENCHMARK_PATH, "ab") as f:
+    if config.TPM_BENCHMARK_PATH is not None:
+        with open(config.TPM_BENCHMARK_PATH, "ab") as f:
             f.write(
                 "TIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\n" % (fprt, pad, t1 - t0, len(retout), filelen, cmd))
 
     # Print out YAML canned values (if requested)
     # NOTE: resulting file will be missing the surrounding braces! (must add '{' and '}' for reading)
-    if common.TPM_CANNED_VALUES_PATH is not None:
-        with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
+    if config.TPM_CANNED_VALUES_PATH is not None:
+        with open(config.TPM_CANNED_VALUES_PATH, "ab") as can:
             fileoutEncoded = {}
 
             # Process files
@@ -253,8 +250,8 @@ class tpm2(tpm_abstract.AbstractTPM):
         retDict = self.__run("tpm2_startup --version")
 
         code = retDict['code']
-        output = ''.join(common.list_convert(retDict['retout']))
-        errout = ''.join(common.list_convert(retDict['reterr']))
+        output = ''.join(config.list_convert(retDict['retout']))
+        errout = ''.join(config.list_convert(retDict['reterr']))
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             raise Exception("Error establishing tpm2-tools version using TPM2_Startup: %s" + str(code) + ": " + str(errout))
 
@@ -284,8 +281,8 @@ class tpm2(tpm_abstract.AbstractTPM):
         elif tools_version in ["4.0", "4.2"]:
             retDict = self.__run("tpm2_getcap algorithms")
 
-        output = common.list_convert(retDict['retout'])
-        errout = common.list_convert(retDict['reterr'])
+        output = config.list_convert(retDict['retout'])
+        errout = config.list_convert(retDict['reterr'])
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -299,7 +296,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             output = output.replace("clear", "0")
             output = [output]
 
-        retyaml = common.yaml_to_dict(output)
+        retyaml = config.yaml_to_dict(output)
         for algorithm, details in retyaml.items():
             if details["asymmetric"] == 1 and details["object"] == 1 and algorithms.Encrypt.is_recognized(algorithm):
                 self.supported['encrypt'].add(algorithm)
@@ -340,7 +337,7 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         # Handle stubbing the TPM out
         fprt = tpm2.__fingerprint(cmd)
-        if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
+        if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:
             stub = _stub_command(fprt, lock, cmd, outputpaths)
             if stub:
                 return stub
@@ -394,8 +391,8 @@ class tpm2(tpm_abstract.AbstractTPM):
     # tpm_initialize
     def __startup_tpm(self):
         retDict = self.__run(['tpm2_startup', '-c'])
-        output = common.list_convert(retDict['retout'])
-        errout = common.list_convert(retDict['reterr'])
+        output = config.list_convert(retDict['retout'])
+        errout = config.list_convert(retDict['reterr'])
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             raise Exception("Error initializing emulated TPM with TPM2_Startup: %s" + str(code) + ": " + str(errout))
@@ -422,7 +419,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception("tpm2_getcap failed with code " + str(code) + ": " + str(reterr))
 
-            outjson = common.yaml_to_dict(output)
+            outjson = config.yaml_to_dict(output)
             if outjson is not None and current_handle in outjson:
                 if tools_version == "3.2":
                     retDict = self.__run("tpm2_evictcontrol -A o -c %s -P %s" % (hex(current_handle), owner_pw), raiseOnError=False)
@@ -472,7 +469,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 handle = int(0x81010007)
             else:
                 handle = None
-                retyaml = common.yaml_to_dict(output)
+                retyaml = config.yaml_to_dict(output)
                 if "persistent-handle" in retyaml:
                     handle = retyaml["persistent-handle"]
 
@@ -616,8 +613,8 @@ class tpm2(tpm_abstract.AbstractTPM):
             elif tools_version in ["4.0", "4.2"]:
                 logger.info("Flushing old ak handle: %s" % aik_handle)
                 retDict = self.__run("tpm2_getcap handles-persistent", raiseOnError=False)
-            output = common.list_convert(retDict['retout'])
-            errout = common.list_convert(retDict['reterr'])
+            output = config.list_convert(retDict['retout'])
+            errout = config.list_convert(retDict['reterr'])
             code = retDict['code']
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -629,7 +626,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 output = output.replace("0x", " - 0x")
                 output = [output]
 
-            outjson = common.yaml_to_dict(output)
+            outjson = config.yaml_to_dict(output)
             if outjson is not None and aik_handle in outjson:
                 if tools_version == "3.2":
                     retDict = self.__run("tpm2_evictcontrol -A o -c %s -P %s" % (hex(aik_handle), owner_pw), raiseOnError=False)
@@ -690,7 +687,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception("tpm2_createak failed with code " + str(code) + ": " + str(reterr))
 
-            jsonout = common.yaml_to_dict(retout)
+            jsonout = config.yaml_to_dict(retout)
             akname = jsonout['loaded-key']['name']
 
             if tools_version == "3.2":
@@ -726,8 +723,8 @@ class tpm2(tpm_abstract.AbstractTPM):
         elif tools_version in ["4.0", "4.2"]:
             retDict = self.__run("tpm2_getcap handles-persistent")
         # retout = retDict['retout']
-        retout = common.list_convert(retDict['retout'])
-        errout = common.list_convert(retDict['reterr'])
+        retout = config.list_convert(retDict['retout'])
+        errout = config.list_convert(retDict['reterr'])
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -740,7 +737,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             retout = [retout]
 
         owner_pw = self.get_tpm_metadata("owner_pw")
-        jsonout = common.yaml_to_dict(retout)
+        jsonout = config.yaml_to_dict(retout)
         for key in jsonout:
             if str(hex(key)) != self.defaults['ek_handle']:
                 logger.debug("Flushing key handle %s" % hex(key))
@@ -943,7 +940,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         for i, s in enumerate(output):
             output[i] = re.sub(r"[\x01-\x1F\x7F]", "", s.decode('utf-8')).encode('utf-8')
 
-        retyaml = common.yaml_to_dict(output)
+        retyaml = config.yaml_to_dict(output)
         if "TPM2_PT_VENDOR_STRING_1" in retyaml:
             vendorStr = retyaml["TPM2_PT_VENDOR_STRING_1"]["value"]
         elif "TPM_PT_VENDOR_STRING_1" in retyaml:
@@ -983,7 +980,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         ima_appended = ""
         for pcr in range(24):
             if tpm_abstract.TPM_Utilities.check_mask(mask, pcr):
-                if hash_alg != algorithms.Hash.SHA1 and pcr == common.IMA_PCR:
+                if hash_alg != algorithms.Hash.SHA1 and pcr == config.IMA_PCR:
                     # IMA is only in SHA1 format
                     ima_appended = "+sha1:" + str(pcr)
                 else:
@@ -1009,14 +1006,14 @@ class tpm2(tpm_abstract.AbstractTPM):
                         pcrmask = tpm_abstract.AbstractTPM.EMPTYMASK
 
                     # add PCR 16 to pcrmask
-                    pcrmask = "0x%X" % (int(pcrmask, 0) + (1 << common.TPM_DATA_PCR))
+                    pcrmask = "0x%X" % (int(pcrmask, 0) + (1 << config.TPM_DATA_PCR))
 
                     pcrlist = self.__pcr_mask_to_list(pcrmask, hash_alg)
 
                     with self.tpmutilLock:
                         if data is not None:
-                            self.__run("tpm2_pcrreset %d" % common.TPM_DATA_PCR, lock=False)
-                            self.extendPCR(pcrval=common.TPM_DATA_PCR, hashval=self.hashdigest(data), lock=False)
+                            self.__run("tpm2_pcrreset %d" % config.TPM_DATA_PCR, lock=False)
+                            self.extendPCR(pcrval=config.TPM_DATA_PCR, hashval=self.hashdigest(data), lock=False)
 
                         if tools_version == "3.2":
                             cmdargs = {
@@ -1061,8 +1058,8 @@ class tpm2(tpm_abstract.AbstractTPM):
         raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
 
     def __check_quote_c(self, pubaik, nonce, quoteFile, sigFile, pcrFile, hash_alg):
-        if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
-            jsonIn = common.TPM_CANNED_VALUES
+        if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:
+            jsonIn = config.TPM_CANNED_VALUES
             if 'tpm2_deluxequote' in jsonIn and 'nonce' in jsonIn['tpm2_deluxequote']:
                 # YAML unicode-ifies strings, and C calls require byte strings (str)
                 nonce = str(jsonIn['tpm2_deluxequote']['nonce'])
@@ -1158,7 +1155,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             return False
 
         pcrs = []
-        jsonout = common.yaml_to_dict(retout)
+        jsonout = config.yaml_to_dict(retout)
         if "pcrs" in jsonout:
             if hash_alg in jsonout["pcrs"]:
                 alg_size = algorithms.get_hash_size(hash_alg) // 4
@@ -1167,10 +1164,10 @@ class tpm2(tpm_abstract.AbstractTPM):
             # IMA is always in SHA1 format, so don't leave it behind!
             if hash_alg != algorithms.Hash.SHA1:
                 if algorithms.Hash.SHA1 in jsonout["pcrs"] and \
-                   common.IMA_PCR in jsonout["pcrs"][algorithms.Hash.SHA1]:
+                   config.IMA_PCR in jsonout["pcrs"][algorithms.Hash.SHA1]:
                     sha1_size = algorithms.get_hash_size(algorithms.Hash.SHA1) // 4
-                    ima_val = jsonout["pcrs"][algorithms.Hash.SHA1][common.IMA_PCR]
-                    pcrs.append("PCR " + str(common.IMA_PCR) + " " + '{0:0{1}x}'.format(ima_val, sha1_size))
+                    ima_val = jsonout["pcrs"][algorithms.Hash.SHA1][config.IMA_PCR]
+                    pcrs.append("PCR " + str(config.IMA_PCR) + " " + '{0:0{1}x}'.format(ima_val, sha1_size))
 
         if len(pcrs) == 0:
             pcrs = None
@@ -1198,11 +1195,11 @@ class tpm2(tpm_abstract.AbstractTPM):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
         if tools_version == "3.2":
-            output = common.list_convert(self.__run("tpm2_pcrlist")['retout'])
+            output = config.list_convert(self.__run("tpm2_pcrlist")['retout'])
         elif tools_version in ["4.0", "4.2"]:
-            output = common.list_convert(self.__run("tpm2_pcrread")['retout'])
+            output = config.list_convert(self.__run("tpm2_pcrread")['retout'])
 
-        jsonout = common.yaml_to_dict(output)
+        jsonout = config.yaml_to_dict(output)
 
         if hash_alg not in jsonout:
             raise Exception("Invalid hashing algorithm '%s' for reading PCR number %d." % (hash_alg, pcrval))
@@ -1240,10 +1237,10 @@ class tpm2(tpm_abstract.AbstractTPM):
 
             attrs = "ownerread|ownerwrite"
             if tools_version == "3.2":
-                self.__run("tpm2_nvdefine -x 0x1500018 -a 0x40000001 -s %s -t \"%s\" -I %s -P %s" % (common.BOOTSTRAP_KEY_SIZE, attrs, owner_pw, owner_pw), raiseOnError=False)
+                self.__run("tpm2_nvdefine -x 0x1500018 -a 0x40000001 -s %s -t \"%s\" -I %s -P %s" % (config.BOOTSTRAP_KEY_SIZE, attrs, owner_pw, owner_pw), raiseOnError=False)
                 self.__run("tpm2_nvwrite -x 0x1500018 -a 0x40000001 -P %s %s" % (owner_pw, keyFile.name), raiseOnError=False)
             else:
-                self.__run("tpm2_nvdefine 0x1500018 -C 0x40000001 -s %s -a \"%s\" -p %s -P %s" % (common.BOOTSTRAP_KEY_SIZE, attrs, owner_pw, owner_pw), raiseOnError=False)
+                self.__run("tpm2_nvdefine 0x1500018 -C 0x40000001 -s %s -a \"%s\" -p %s -P %s" % (config.BOOTSTRAP_KEY_SIZE, attrs, owner_pw, owner_pw), raiseOnError=False)
                 self.__run("tpm2_nvwrite 0x1500018 -C 0x40000001 -P %s -i %s" % (owner_pw, keyFile.name), raiseOnError=False)
         return
 
@@ -1266,7 +1263,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 elif tools_version in ["4.0", "4.2"]:
                     raise Exception("tpm2_nvreadpublic for ekcert failed with code " + str(code) + ": " + str(reterr))
 
-            outjson = common.yaml_to_dict(output)
+            outjson = config.yaml_to_dict(output)
 
             if outjson is None or 0x1c00002 not in outjson or "size" not in outjson[0x1c00002]:
                 logger.warn("No EK certificate found in TPM NVRAM")
@@ -1279,8 +1276,8 @@ class tpm2(tpm_abstract.AbstractTPM):
                 retDict = self.__run("tpm2_nvread -x 0x1c00002 -s %s -f %s -a 0x01c00002" % (ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
             elif tools_version in ["4.0", "4.2"]:
                 retDict = self.__run("tpm2_nvread 0x1c00002 -s %s -o %s" % (ekcert_size, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
-            output = common.list_convert(retDict['retout'])
-            errout = common.list_convert(retDict['reterr'])
+            output = config.list_convert(retDict['retout'])
+            errout = config.list_convert(retDict['reterr'])
             code = retDict['code']
             ekcert = retDict['fileouts'][nvpath.name]
 
@@ -1292,12 +1289,12 @@ class tpm2(tpm_abstract.AbstractTPM):
     def read_key_nvram(self):
         owner_pw = self.get_tpm_metadata('owner_pw')
         if tools_version == "3.2":
-            retDict = self.__run("tpm2_nvread -x 0x1500018 -a 0x40000001 -s %s -P %s" % (common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
+            retDict = self.__run("tpm2_nvread -x 0x1500018 -a 0x40000001 -s %s -P %s" % (config.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
         else:
-            retDict = self.__run("tpm2_nvread 0x1500018 -C 0x40000001 -s %s -P %s" % (common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
+            retDict = self.__run("tpm2_nvread 0x1500018 -C 0x40000001 -s %s -P %s" % (config.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
 
         output = retDict['retout']
-        errout = common.list_convert(retDict['reterr'])
+        errout = config.list_convert(retDict['reterr'])
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -1313,7 +1310,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             else:
                 raise Exception("nv_readvalue failed with code " + str(code) + ": " + str(errout))
 
-        if len(output) != common.BOOTSTRAP_KEY_SIZE:
+        if len(output) != config.BOOTSTRAP_KEY_SIZE:
             logger.debug("Invalid key length from NVRAM: %d" % (len(output)))
             return None
         return output

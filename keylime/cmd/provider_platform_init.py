@@ -14,14 +14,14 @@ try:
 except ImportError:
     from yaml import SafeDumper as SafeDumper
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_client
 from keylime import vtpm_manager
 
 logger = keylime_logging.init_logging('provider_platform_init')
 
-config = common.get_config()
+config = config.get_config()
 
 
 def symlink_force(target, link_name):
