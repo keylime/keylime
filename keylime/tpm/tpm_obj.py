@@ -8,11 +8,10 @@ import distutils.spawn
 import os
 
 from keylime.tpm import tpm1, tpm2
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 
 logger = keylime_logging.init_logging('tpmobj')
-config = common.get_config()
 
 # singleton objects for working with the TPM
 __tpm1 = None
@@ -26,7 +25,7 @@ def __guess_tpm_version():
 
     # Ensure we have paths needed
     env = os.environ.copy()
-    env['PATH'] = env['PATH'] + ":%s" % common.TPM_TOOLS_PATH
+    env['PATH'] = env['PATH'] + ":%s" % config.TPM_TOOLS_PATH
 
     # Probe for existence of get capability tools
     has_tpm1_tools = distutils.spawn.find_executable("getcapability", env['PATH']) is not None

@@ -6,10 +6,9 @@ Copyright 2017 Massachusetts Institute of Technology.
 import glob
 import os
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 
-config = common.get_config()
 logger = keylime_logging.init_logging('tpm_ek_ca')
 trusted_certs = {}
 tpm_cert_store = config.get('tenant', 'tpm_cert_store')

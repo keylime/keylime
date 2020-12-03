@@ -21,7 +21,7 @@ violate any copyrights that exist in this work.
 '''
 
 
-import keylime.common
+import keylime.config
 from keylime.tpm_quote import create_quote, create_deep_quote
 import keylime.tpm_initialize
 from timeit import timeit
@@ -42,7 +42,7 @@ os.chdir('../keylime')
 
 #ensure things are initialized
 keylime.tpm_initialize.main()
-keylime.common.USE_CLIME=False
+keylime.config.USE_CLIME=False
 print('Creating quote %s times... '%(runs), end='')
 setup = 'from __main__ import nonce, rsa_key, mask, create_quote'
 c = timeit('create_quote(nonce, rsa_key, mask)', number=runs, setup=setup)
@@ -50,14 +50,14 @@ print('DONE')
 print("create_quote: %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
 
 print('Creating quote %s times... '%(runs), end='')
-keylime.common.USE_CLIME=True
+keylime.config.USE_CLIME=True
 c = timeit('create_quote(nonce, rsa_key, mask)', number=runs, setup=setup)
 print('DONE')
 print("create_quote (clime): %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
 
 print("\n================================\n\n")
 
-keylime.common.USE_CLIME=False
+keylime.config.USE_CLIME=False
 print('Creating deep quote %s times... '%(runs), end='')
 vpcrmask = '0x400000'
 setup = 'from __main__ import nonce, rsa_key, mask, vpcrmask,create_deep_quote'

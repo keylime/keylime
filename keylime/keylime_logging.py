@@ -3,9 +3,10 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
-import os.path
-from keylime import common
 import logging.config
+import os.path
+
+from keylime import config
 
 
 def log_http_response(logger, loglevel, response_body):
@@ -41,12 +42,12 @@ LOG_TO_FILE = ['registrar', 'provider_registrar', 'cloudverifier']
 # not clear that this works right.  console logging may not work
 LOG_TO_STREAM = ['tenant_webapp']
 LOGDIR = '/var/log/keylime'
-if not common.REQUIRE_ROOT:
+if not config.REQUIRE_ROOT:
     LOGSTREAM = './keylime-stream.log'
 else:
     LOGSTREAM = LOGDIR + '/keylime-stream.log'
 
-logging.config.fileConfig(common.CONFIG_FILE)
+logging.config.fileConfig(config.CONFIG_FILE)
 
 
 def init_logging(loggername):
@@ -56,7 +57,7 @@ def init_logging(loggername):
     basic_formatter = logging.Formatter(
         '%(asctime)s %(name)s %(levelname)s %(message)s')
     if loggername in LOG_TO_FILE:
-        if not common.REQUIRE_ROOT:
+        if not config.REQUIRE_ROOT:
             logfilename = "./keylime-all.log"
         else:
             logfilename = "%s/%s.log" % (LOGDIR, loggername)
@@ -67,7 +68,7 @@ def init_logging(loggername):
             else:
                 if not os.path.exists(LOGDIR):
                     os.makedirs(LOGDIR, 0o750)
-                common.chownroot(LOGDIR, logger)
+                config.chownroot(LOGDIR, logger)
                 os.chmod(LOGDIR, 0o750)
 
         fh = logging.FileHandler(logfilename)

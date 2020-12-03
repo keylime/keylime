@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine.url import URL
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 
 
@@ -20,11 +20,10 @@ class DBEngineManager:
         """
         self.service = service
 
-        config = common.get_config()
         drivername = config.get(service, 'drivername')
 
         if drivername == 'sqlite':
-            database = "%s/%s" % (common.WORK_DIR,
+            database = "%s/%s" % (config.WORK_DIR,
                                   config.get(service, 'database'))
             # Create the path to where the sqlite database will be store with a perm umask of 077
             os.umask(0o077)

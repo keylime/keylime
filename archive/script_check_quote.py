@@ -21,8 +21,8 @@ violate any copyrights that exist in this work.
 '''
 
 
-import keylime.common
-keylime.common.USE_CLIME=True
+import keylime.config
+keylime.config.USE_CLIME=True
 from keylime.tpm_quote import check_deep_quote, check_quote
 from timeit import timeit
 from timeit import default_timer as timer
@@ -40,8 +40,8 @@ runs = 250
 test_clime=True
 
 tpm_policy = {'22':'ffffffffffffffffffffffffffffffffffffffff','16':'0000000000000000000000000000000000000000'}
-quote = keylime.common.TEST_QUOTE
-aik=keylime.common.TEST_AIK
+quote = keylime.config.TEST_QUOTE
+aik=keylime.config.TEST_AIK
 
 # now do it raw
 try:
@@ -59,7 +59,7 @@ try:
     aikFile.close()
     os.close(afd)
     print('Checking quote raw %d times ... '%(runs), end='')
-    cmd = "for i in `seq 1 %d`; do checkquote -aik %s -quote %s -nonce %s > /dev/null; done"%(runs,aikFile.name, quoteFile.name, keylime.common.TEST_NONCE)
+    cmd = "for i in `seq 1 %d`; do checkquote -aik %s -quote %s -nonce %s > /dev/null; done"%(runs,aikFile.name, quoteFile.name, keylime.config.TEST_NONCE)
     
     start = timer()
     proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
@@ -85,15 +85,15 @@ finally:
 
 
 print('Checking quote %s times ... '%(runs), end='')
-keylime.common.STUB_TPM=True
-keylime.common.USE_CLIME=False
+keylime.config.STUB_TPM=True
+keylime.config.USE_CLIME=False
 setup = 'from __main__ import quote,aik,logger,tpm_policy, check_quote'
 c = timeit('check_quote(None, None, quote,aik,logger,tpm_policy)', number=runs, setup=setup)
 print('DONE')
 print("check_quote: %d runs, total time %f, avg %f ms per run" % (runs,c,c/runs*1000))
 
 if test_clime:
-    keylime.common.USE_CLIME=True
+    keylime.config.USE_CLIME=True
     print('Checking quote %s times with cLime... '%(runs), end='')
     setup = 'from __main__ import quote,aik,logger,tpm_policy, check_quote'
     c = timeit('check_quote(None, None, quote,aik,logger,tpm_policy)', number=runs, setup=setup)
@@ -103,12 +103,12 @@ if test_clime:
 
 print("\n================================\n\n")
 
-keylime.common.USE_CLIME=True
+keylime.config.USE_CLIME=True
 tpm_policy = {'22':'ffffffffffffffffffffffffffffffffffffffff','16':'0000000000000000000000000000000000000000'}
 vtpm_policy = {'23':'0000000000000000000000000000000000000000','16':'0000000000000000000000000000000000000000'}
-quote = keylime.common.TEST_DQ
-vaik=keylime.common.TEST_VAIK
-haik=keylime.common.TEST_HAIK
+quote = keylime.config.TEST_DQ
+vaik=keylime.config.TEST_VAIK
+haik=keylime.config.TEST_HAIK
 
 
 # now do it raw
@@ -133,7 +133,7 @@ try:
     os.close(afd)
      
     print('Checking deep quote raw %d times ... '%(runs), end='')
-    cmd = "for i in `seq 1 %d`; do checkdeepquote -aik %s -deepquote %s -nonce %s -vaik %s > /dev/null ; done"%(runs,hAIKFile.name, quoteFile.name, keylime.common.TEST_DQ_NONCE,vAIKFile.name)
+    cmd = "for i in `seq 1 %d`; do checkdeepquote -aik %s -deepquote %s -nonce %s -vaik %s > /dev/null ; done"%(runs, hAIKFile.name, quoteFile.name, keylime.config.TEST_DQ_NONCE, vAIKFile.name)
     start = timer()
     proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     proc.wait()
@@ -162,7 +162,7 @@ finally:
 
 
 print('Checking deep quote %s times ... '%(runs), end='')
-keylime.common.STUB_TPM=True
+keylime.config.STUB_TPM=True
 setup = 'from __main__ import quote,vaik,haik,logger,vtpm_policy,tpm_policy, check_deep_quote'
 c = timeit('check_deep_quote(None, None, quote,vaik,haik,logger,vtpm_policy,tpm_policy)', number=runs, setup=setup)
 print('DONE')

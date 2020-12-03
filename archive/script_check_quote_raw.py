@@ -20,8 +20,8 @@ above. Use of this work other than as specifically authorized by the U.S. Govern
 violate any copyrights that exist in this work.
 '''
 
-import keylime.common
-keylime.common.USE_CLIME=True
+import keylime.config
+keylime.config.USE_CLIME=True
 from keylime.tpm_quote import check_deep_quote, check_quote
 from timeit import timeit
 from timeit import default_timer as timer
@@ -38,8 +38,8 @@ logger = logging.getLogger('test_check_quote')
 runs = 10000
 
 tpm_policy = {'22':'ffffffffffffffffffffffffffffffffffffffff','16':'0000000000000000000000000000000000000000'}
-quote = keylime.common.TEST_QUOTE
-aik=keylime.common.TEST_AIK
+quote = keylime.config.TEST_QUOTE
+aik=keylime.config.TEST_AIK
 
 # now do it raw
 try:
@@ -57,7 +57,7 @@ try:
     aikFile.close()
     os.close(afd)
     print('Checking signature raw %d times ... '%(runs), end='')
-    cmd = "checkquote -aik %s -quote %s -nonce %s -repeat %d > /dev/null"%(aikFile.name, quoteFile.name, keylime.common.TEST_NONCE,runs)
+    cmd = "checkquote -aik %s -quote %s -nonce %s -repeat %d > /dev/null"%(aikFile.name, quoteFile.name, keylime.config.TEST_NONCE, runs)
     
     start = timer()
     proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
@@ -83,12 +83,12 @@ finally:
 
 print("\n================================\n")
 
-keylime.common.USE_CLIME=True
+keylime.config.USE_CLIME=True
 tpm_policy = {'22':'ffffffffffffffffffffffffffffffffffffffff','16':'0000000000000000000000000000000000000000'}
 vtpm_policy = {'23':'0000000000000000000000000000000000000000','16':'0000000000000000000000000000000000000000'}
-quote = keylime.common.TEST_DQ
-vaik=keylime.common.TEST_VAIK
-haik=keylime.common.TEST_HAIK
+quote = keylime.config.TEST_DQ
+vaik=keylime.config.TEST_VAIK
+haik=keylime.config.TEST_HAIK
 
 
 # now do it raw
@@ -113,7 +113,7 @@ try:
     os.close(afd)
      
     print('Checking deep quote signature %d times ... '%(runs), end='')
-    cmd = "checkdeepquote -aik %s -deepquote %s -nonce %s -vaik %s -repeat %d > /dev/null"%(hAIKFile.name, quoteFile.name, keylime.common.TEST_DQ_NONCE,vAIKFile.name,runs)
+    cmd = "checkdeepquote -aik %s -deepquote %s -nonce %s -vaik %s -repeat %d > /dev/null"%(hAIKFile.name, quoteFile.name, keylime.config.TEST_DQ_NONCE, vAIKFile.name, runs)
     start = timer()
     proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     proc.wait()

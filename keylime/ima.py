@@ -10,11 +10,10 @@ import hashlib
 import struct
 import os
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 
 logger = keylime_logging.init_logging('ima')
-config = common.get_config()
 
 #         m = ima_measure_re.match(measure_line)
 #         measure  = m.group('file_hash')
@@ -191,7 +190,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
         allowlist = None
         exclude_list = None
 
-    is_valid, compiled_regex, err_msg = common.valid_exclude_list(exclude_list)
+    is_valid, compiled_regex, err_msg = config.valid_exclude_list(exclude_list)
     if not is_valid:
         # This should not happen as the exclude list has already been validated
         # by the verifier before acceping it. This is a safety net just in case.
@@ -321,7 +320,7 @@ def process_allowlists(al_data, excl_data):
 def read_allowlist(al_path=None):
     if al_path is None:
         al_path = config.get('tenant', 'ima_allowlist')
-        if common.STUB_IMA:
+        if config.STUB_IMA:
             al_path = '../scripts/ima/allowlist.txt'
 
     # Purposefully die if path doesn't exist
@@ -337,7 +336,7 @@ def read_allowlist(al_path=None):
 def read_excllist(exclude_path=None):
     if exclude_path is None:
         exclude_path = config.get('tenant', 'ima_excludelist')
-        if common.STUB_IMA:
+        if config.STUB_IMA:
             exclude_path = '../scripts/ima/exclude.txt'
 
     excl_list = []
@@ -366,7 +365,7 @@ def main(argv=sys.argv):
     excl_data = read_excllist(exclude_path)
     lists = process_allowlists(al_data, excl_data)
 
-    measure_path = common.IMA_ML
+    measure_path = config.IMA_ML
     # measure_path='../scripts/ima/ascii_runtime_measurements_ima'
     # measure_path = '../scripts/gerardo/ascii_runtime_measurements'
     print("reading measurement list from %s" % measure_path)
