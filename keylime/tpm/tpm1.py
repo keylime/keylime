@@ -581,10 +581,7 @@ class tpm1(tpm_abstract.AbstractTPM):
         retDict = self.__run("getcapability -cap 5 -scap 111")
         retout = retDict['retout']
         tokens = retout[0].decode('utf-8').split()
-        if tokens[-1] == 'TRUE':
-            return True
-        else:
-            return False
+        return tokens[-1] == 'TRUE'
 
     def __get_mod_from_pem(self, pem):
         """ Extract public modulus for the RSA key """
