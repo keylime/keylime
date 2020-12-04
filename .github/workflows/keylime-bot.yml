@@ -52,6 +52,5 @@ jobs:
     steps:
       - uses: actions-automation/pull-request-responsibility@main
         with:
-          LABEL: "keylime-bot for keylime"
           reviewers: "core"
           num_to_request: 3
