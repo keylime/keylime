@@ -131,17 +131,21 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
 
     if ca_cert == 'default':
         ca_path = "%s/cacert.crt" % (tls_dir)
-    else:
+    elif not os.path.isabs(ca_cert):
         ca_path = "%s/%s" % (tls_dir, ca_cert)
+    else:
+        ca_path = ca_cert
 
     if my_cert == 'default':
         my_cert = "%s/%s-cert.crt" % (tls_dir, socket.gethostname())
-    else:
+    elif not os.path.isabs(my_cert):
         my_cert = "%s/%s" % (tls_dir, my_cert)
+    else:
+        pass
 
     if my_priv_key == 'default':
         my_priv_key = "%s/%s-private.pem" % (tls_dir, socket.gethostname())
-    else:
+    elif not os.path.isabs(my_priv_key):
         my_priv_key = "%s/%s" % (tls_dir, my_priv_key)
 
     try:
