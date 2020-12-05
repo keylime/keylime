@@ -109,7 +109,7 @@ def _stub_command(fprt, lock, cmd, outputpaths):
         return returnDict
     elif not lock:
         # non-lock calls don't go to the TPM (just let it pass through)
-        pass
+        return None
     else:
         # Our command hasn't been canned!
         raise Exception("Command %s not found in canned YAML!" % fprt)

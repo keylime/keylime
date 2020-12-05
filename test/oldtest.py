@@ -338,6 +338,7 @@ class Test(unittest.TestCase):
             for i, line in enumerate(fp):
                 if i == line_number:
                     return line
+        return ''
 
     def sleep_for_a_while(self, argument):
         time.sleep(float(argument))
