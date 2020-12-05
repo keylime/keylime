@@ -60,7 +60,7 @@ class CloudAgent_Operational_State:
     }
 
 
-class Timer(object):
+class Timer():
     def __init__(self, verbose=False):
         self.verbose = verbose
 
