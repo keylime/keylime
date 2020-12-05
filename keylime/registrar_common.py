@@ -503,9 +503,8 @@ def start(host, tlsport, port):
         if not any([thread.isAlive() for thread in threads]):
             # All threads have stopped
             break
-        else:
-            # Some threads are still going
-            time.sleep(1)
+        # Some threads are still going
+        time.sleep(1)
 
     for thread in threads:
         thread.join()
