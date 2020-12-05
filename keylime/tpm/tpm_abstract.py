@@ -72,7 +72,7 @@ class TPM_Utilities:
         return policy
 
 
-class AbstractTPM(object, metaclass=ABCMeta):
+class AbstractTPM(metaclass=ABCMeta):
     # Abstract base class
     EXIT_SUCESS = 0
     TPM_IO_ERR = 5
