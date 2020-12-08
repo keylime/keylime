@@ -334,7 +334,7 @@ class TestRestful(unittest.TestCase):
     # Static class members (won't change between tests)
     payload = None
     auth_tag = None
-    tpm_policy = None
+    tpm_policy = {}
     vtpm_policy = {}
     metadata = {}
     allowlist = {}
