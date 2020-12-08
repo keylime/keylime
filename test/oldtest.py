@@ -748,7 +748,7 @@ class Test(unittest.TestCase):
 
         # modify the persistence file per the passed argument
         if argument is not None:
-            string_to_write = self.modify_persistence_file(argument)
+            self.modify_persistence_file(argument)
 
         global cv_process
         cv_process = subprocess.Popen("python cloud_verifier.py", shell=True)
