@@ -15,6 +15,7 @@ import base64
 import configparser
 import uuid
 import os
+import socket
 import sys
 import time
 import hashlib
@@ -535,6 +536,8 @@ def main(argv=sys.argv):
         ret = cmd_exec.run(cmd)
         sys_uuid = ret['retout'].decode('utf-8')
         agent_uuid = sys_uuid.strip()
+    elif agent_uuid == 'hostname':
+        agent_uuid = socket.getfqdn()
     if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing
         jsonIn = common.TPM_CANNED_VALUES
