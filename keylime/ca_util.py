@@ -371,7 +371,7 @@ def cmd_listen(workingdir, cert_path):
 
         def check_expiration():
             logger.info("checking CRL for expiration every hour")
-            while True:
+            while True:  # pylint: disable=R1702
                 try:
                     if (os.path.exists('cacrl.der') and
                             os.stat('cacrl.der').st_size):
