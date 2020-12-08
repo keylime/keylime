@@ -131,7 +131,7 @@ def cmd_init(workingdir):
         if common.CA_IMPL == 'cfssl':
             pk_str, cacert, ca_pk, _ = ca_impl.mk_cacert()
         elif common.CA_IMPL == 'openssl':
-            cacert, ca_pk, _ = ca_impl.mk_cacert()
+            cacert, ca_pk, _ = ca_impl.mk_cacert()  # pylint: disable=W0632
         else:
             raise Exception("Unknown CA implementation: %s" % common.CA_IMPL)
 
