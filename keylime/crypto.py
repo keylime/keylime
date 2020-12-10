@@ -29,7 +29,7 @@ def rsa_import_pubkey(pubkey):
     """
     try:
         return serialization.load_pem_public_key(pubkey, backend=default_backend())
-    except:  # noqa
+    except Exception:
         return serialization.load_pem_public_key(pubkey.encode('utf-8'), backend=default_backend())
 
 
@@ -39,7 +39,7 @@ def rsa_import_privkey(privkey):
     """
     try:
         return serialization.load_pem_private_key(privkey, password=None, backend=default_backend())
-    except:  # noqa
+    except Exception:
         return serialization.load_pem_private_key(privkey.encode('utf-8'), password=None, backend=default_backend())
 
 
@@ -181,7 +181,7 @@ def encrypt(plaintext, key):
     try:
         cipher_text = encryptor.update(
             plaintext.encode('ascii')) + encryptor.finalize()
-    except:  # noqa
+    except Exception:
         cipher_text = encryptor.update(plaintext) + encryptor.finalize()
     return base64.b64encode(iv + cipher_text + encryptor.tag)
 
