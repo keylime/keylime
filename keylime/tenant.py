@@ -79,6 +79,8 @@ class Tenant():
     def __init__(self):
         """ Set up required values and TLS
         """
+        self.agent_ip = None
+        self.nonce = None
         self.verifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
         self.verifier_port = config.get('cloud_verifier', 'cloudverifier_port')
         self.agent_port = config.get('cloud_agent', 'cloudagent_port')

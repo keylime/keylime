@@ -14,6 +14,10 @@ from keylime import keylime_logging
 
 
 class DBEngineManager:
+
+    def __init__(self):
+        self.service = None
+
     def make_engine(self, service):
         """
         To use: engine = self.make_engine('cloud_verifier')
@@ -53,6 +57,9 @@ class DBEngineManager:
 
 
 class SessionManager:
+    def __init__(self):
+        self.engine = None
+
     def make_session(self, engine):
         """
         To use: session = self.make_session(engine)
