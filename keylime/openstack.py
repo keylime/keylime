@@ -6,7 +6,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 import uuid
 
 from keylime import keylime_logging
-from keylime import tornado_requests
+from keylime.requests_client import RequestsClient
 
 logger = keylime_logging.init_logging('openstack')
 
@@ -17,10 +17,10 @@ def get_openstack_uuid(uuid_service_ip='169.254.169.254',
     logger.debug("Getting instance UUID from openstack http://%s%s" %
                  (uuid_service_ip, uuid_service_resource))
     try:
-        response = tornado_requests.request(
-            "GET", "http://" + uuid_service_ip + uuid_service_resource)
+        client = RequestsClient(uuid_service_ip, False)
+        response = client.get(uuid_service_resource)
         if response.status_code == 200:
-            response_body = response.yaml()
+            response_body = response.json()
             return response_body["uuid"]
         logger.debug("Forcing using locally generated uuid.")
         return str(uuid.uuid4())
