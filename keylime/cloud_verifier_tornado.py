@@ -63,7 +63,7 @@ def _from_db_obj(agent_db_obj):
 
 
 class BaseHandler(tornado.web.RequestHandler, SessionManager):
-    def prepare(self):
+    def prepare(self):  # pylint: disable=W0235
         super().prepare()
 
     def write_error(self, status_code, **kwargs):
