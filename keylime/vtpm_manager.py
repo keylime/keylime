@@ -284,7 +284,7 @@ def show_group(group_num):
         vtpms = [stringify_uuid(vtpm) for vtpm in vtpms]
         for i, vtpm in enumerate(vtpms):
             logger.info('    [%d]: %s', i, vtpm)
-        out['vtpms'].append(vtpm)
+            out['vtpms'].append(vtpm)
     out['uuid'] = uuid
     return out
 

@@ -131,7 +131,7 @@ def cmd_init(workingdir):
         if common.CA_IMPL == 'cfssl':
             pk_str, cacert, ca_pk, _ = ca_impl.mk_cacert()
         elif common.CA_IMPL == 'openssl':
-            cacert, ca_pk, _ = ca_impl.mk_cacert()
+            cacert, ca_pk, _ = ca_impl.mk_cacert()  # pylint: disable=W0632
         else:
             raise Exception("Unknown CA implementation: %s" % common.CA_IMPL)
 
@@ -371,7 +371,7 @@ def cmd_listen(workingdir, cert_path):
 
         def check_expiration():
             logger.info("checking CRL for expiration every hour")
-            while True:
+            while True:  # pylint: disable=R1702
                 try:
                     if (os.path.exists('cacrl.der') and
                             os.stat('cacrl.der').st_size):
