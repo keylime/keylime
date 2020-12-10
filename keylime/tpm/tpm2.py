@@ -328,6 +328,9 @@ class tpm2(tpm_abstract.AbstractTPM):
             pass
         return fprt
 
+    def run(self, cmd):
+        return self.__run(cmd, lock=False)
+
     def __run(self, cmd, expectedcode=tpm_abstract.AbstractTPM.EXIT_SUCESS, raiseOnError=True, lock=True, outputpaths=None):
         env = _get_cmd_env()
 

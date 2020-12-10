@@ -112,7 +112,7 @@ TPM_LIBS_PATH = '/usr/local/lib/'
 TPM_TOOLS_PATH = '/usr/local/bin/'
 if getattr(sys, 'frozen', False):
     # we are running in a pyinstaller bundle, redirect tpm tools to bundle
-    TPM_TOOLS_PATH = sys._MEIPASS
+    TPM_TOOLS_PATH = sys._MEIPASS  # pylint: disable=W0212
 
 
 CONFIG_FILE = os.getenv('KEYLIME_CONFIG', '/etc/keylime.conf')
