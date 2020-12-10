@@ -921,7 +921,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             logger.exception(e)
             raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?").with_traceback(sys.exc_info()[2])
 
-        logger.error(f"No Root CA matched EK Certificate")
+        logger.error("No Root CA matched EK Certificate")
         return False
 
     def get_tpm_manufacturer(self):

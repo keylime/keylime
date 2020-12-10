@@ -377,7 +377,7 @@ class AgentsHandler(BaseHandler):
         try:
             get_agents = RequestsClient(registrar_base_tls_url, tls_enabled)
             response = get_agents.get(
-                (f'/agents/'),
+                ('/agents/'),
                 cert=cert,
                 verify=False
             )
