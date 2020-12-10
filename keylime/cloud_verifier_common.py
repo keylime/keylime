@@ -60,6 +60,10 @@ class CloudAgent_Operational_State:
 class Timer():
     def __init__(self, verbose=False):
         self.verbose = verbose
+        self.start = 0
+        self.end = 0
+        self.secs = 0
+        self.msecs = 0
 
     def __enter__(self):
         self.start = time.time()
