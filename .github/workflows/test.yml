@@ -1,9 +1,17 @@
 name: test
 
-on: pull_request
+on: [pull_request, workflow_dispatch]
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: quay.io/keylime/keylime-ci:latest
+      options: --user root --mount type=tmpfs,destination=/var/lib/keylime/,tmpfs-mode=1770
+      env:
+        KEYLIME_TEST: True
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Run tests
+      run: .ci/test_wrapper_gha.sh
