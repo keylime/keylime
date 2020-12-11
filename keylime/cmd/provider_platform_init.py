@@ -21,8 +21,6 @@ from keylime import vtpm_manager
 
 logger = keylime_logging.init_logging('provider_platform_init')
 
-config = config.get_config()
-
 
 def symlink_force(target, link_name):
     try:

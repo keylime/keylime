@@ -18,8 +18,6 @@ from keylime import keylime_logging
 from keylime import registrar_client
 from keylime import vtpm_manager
 
-# read the config file
-config = config.get_config()
 
 logger = keylime_logging.init_logging('platform-init')
 

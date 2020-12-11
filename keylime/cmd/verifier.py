@@ -12,8 +12,6 @@ import keylime.cmd.migrations_apply
 
 logger = keylime_logging.init_logging('cloudverifier')
 
-config = config.get_config()
-
 
 def main():
     # if we are configured to auto-migrate the DB, check if there are any migrations to perform

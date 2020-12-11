@@ -12,7 +12,6 @@ from keylime import keylime_logging
 from keylime import registrar_common
 
 logger = keylime_logging.init_logging('provider-registrar')
-config = config.get_config()
 
 
 def main(argv=sys.argv):
