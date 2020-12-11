@@ -14,8 +14,6 @@ import keylime.cmd.migrations_apply
 
 logger = keylime_logging.init_logging('registrar')
 
-config = config.get_config()
-
 
 def main(argv=sys.argv):
     # if we are configured to auto-migrate the DB, check if there are any migrations to perform
