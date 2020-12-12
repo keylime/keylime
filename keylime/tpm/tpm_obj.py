@@ -33,20 +33,20 @@ def __guess_tpm_version():
 
     if has_tpm1_tools and not has_tpm2_tools:
         return 1
-    elif not has_tpm1_tools and has_tpm2_tools:
+    if not has_tpm1_tools and has_tpm2_tools:
         return 2
-    else:
-        # Both toolsets are installed!  See if tpm1 tools work:
-        try:
-            temp_tpm1 = tpm1.tpm1(True)
-            manufacturer = temp_tpm1.get_tpm_manufacturer()
-            if isinstance(manufacturer, str):
-                return 1
-            else:
-                return 2
-        except Exception as e:
-            # Assume tpm2 tools work if tpm1 tools failed
-            return 2
+
+    # Both toolsets are installed!  See if tpm1 tools work:
+    try:
+        temp_tpm1 = tpm1.tpm1(True)
+        manufacturer = temp_tpm1.get_tpm_manufacturer()
+        if isinstance(manufacturer, str):
+            return 1
+
+        return 2
+    except Exception as e:
+        # Assume tpm2 tools work if tpm1 tools failed
+        return 2
 
 
 # public getter method for the TPM object
@@ -65,9 +65,9 @@ def getTPM(need_hw_tpm, tpm_version=None):
         if __tpm1 is None:
             __tpm1 = tpm1.tpm1(need_hw_tpm)
         return __tpm1
-    elif tpm_version == 2:
+    if tpm_version == 2:
         if __tpm2 is None:
             __tpm2 = tpm2.tpm2(need_hw_tpm)
         return __tpm2
-    else:
-        raise Exception('Unsupported TPM version specified: %s!' % tpm_version)
+
+    raise Exception('Unsupported TPM version specified: %s!' % tpm_version)

@@ -49,8 +49,8 @@ async def request(method, url, params=None, data=None, context=None):
 def is_refused(e):
     if hasattr(e, 'strerror'):
         return "Connection refused" in e.strerror
-    else:
-        return False
+
+    return False
 
 
 class tornado_response():

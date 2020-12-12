@@ -151,13 +151,13 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                     logger.error(f'SQLAlchemy Error: {e}')
                 config.echo_json_response(self, 200, "Success")
                 return
-            else:
-                # send response
-                config.echo_json_response(self, 404)
-                return
-        else:
+
+            # send response
             config.echo_json_response(self, 404)
             return
+
+        config.echo_json_response(self, 404)
+        return
 
     def log_message(self, logformat, *args):
         return

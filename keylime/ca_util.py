@@ -486,14 +486,14 @@ def read_private(warn=False):
             raise Exception("Invalid password for keystore")
 
         return yaml.load(plain, Loader=SafeLoader), toread['salt']
-    else:
-        if warn:
-            # file doesn't exist, just invent a salt
-            logger.warning("Private certificate data %s does not exist yet." %
-                           os.path.abspath("private.yml"))
-            logger.warning(
-                "Keylime will attempt to load private certificate data again when it is needed.")
-        return {'revoked_keys': []}, base64.b64encode(crypto.generate_random_key()).decode()
+
+    if warn:
+        # file doesn't exist, just invent a salt
+        logger.warning("Private certificate data %s does not exist yet." %
+                       os.path.abspath("private.yml"))
+        logger.warning(
+            "Keylime will attempt to load private certificate data again when it is needed.")
+    return {'revoked_keys': []}, base64.b64encode(crypto.generate_random_key()).decode()
 
 
 def main(argv=sys.argv):

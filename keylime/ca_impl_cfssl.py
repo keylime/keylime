@@ -119,8 +119,8 @@ def mk_cacert():
         pkey = cert.get_pubkey()
 
         return pk_str, cert, pk, pkey
-    else:
-        raise Exception("Unable to create CA")
+
+    raise Exception("Unable to create CA")
 
 
 def mk_signed_cert(cacert, ca_pk, name, serialnum):
@@ -185,8 +185,8 @@ def mk_signed_cert(cacert, ca_pk, name, serialnum):
         cert = X509.load_cert_string(
             body['result']['certificate'].encode("utf-8"))
         return cert, pk
-    else:
-        raise Exception("Unable to create cert for %s" % name)
+
+    raise Exception("Unable to create cert for %s" % name)
 
 
 def gencrl(serials, cert, ca_pk):

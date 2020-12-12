@@ -490,9 +490,9 @@ def add_vtpm_group(rsa_mod=None):
                 fprt, thisTiming))
             time.sleep(thisTiming)
             return tuple(thisRetout)
-        else:
-            # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!" % (fprt))
+
+        # Our command hasn't been canned!
+        raise Exception("Command %s not found in canned JSON!" % (fprt))
 
     logger.debug('Adding group')
 
@@ -546,9 +546,9 @@ def activate_group(uuid, keyblob):
                 fprt, thisTiming))
             time.sleep(thisTiming)
             return base64.b64decode(thisRetout)
-        else:
-            # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!" % (fprt))
+
+        # Our command hasn't been canned!
+        raise Exception("Command %s not found in canned JSON!" % (fprt))
 
     t0 = time.time()
     group_id = get_group_num(uuid)
@@ -594,9 +594,9 @@ def add_vtpm_to_group(uuid):
                 fprt, thisTiming))
             time.sleep(thisTiming)
             return thisRetout
-        else:
-            # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!" % (fprt))
+
+        # Our command hasn't been canned!
+        raise Exception("Command %s not found in canned JSON!" % (fprt))
 
     t0 = time.time()
     num = get_group_num(uuid)

@@ -245,14 +245,14 @@ def echo_json_response(handler, code, status=None, results=None):
         handler.end_headers()
         handler.wfile.write(json_response)
         return True
-    elif isinstance(handler, tornado.web.RequestHandler):
+    if isinstance(handler, tornado.web.RequestHandler):
         handler.set_status(code)
         handler.set_header('Content-Type', 'application/json')
         handler.write(json_response)
         handler.finish()
         return True
-    else:
-        return False
+
+    return False
 
 
 def list_to_dict(alist):
