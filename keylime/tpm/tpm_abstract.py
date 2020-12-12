@@ -271,18 +271,18 @@ class AbstractTPM(metaclass=ABCMeta):
                 if self.__check_ima(agent_id, pcrval, ima_measurement_list, allowlist):
                     pcrsInQuote.add(pcrnum)
                     continue
-                else:
-                    return False
+
+                return False
 
             if pcrnum not in list(pcr_allowlist.keys()):
                 if not config.STUB_TPM and len(list(tpm_policy.keys())) > 0:
                     logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping." % (("", "v")[virtual], pcrnum, ("", "v")[virtual]))
                 continue
-            elif pcrval not in pcr_allowlist[pcrnum] and not config.STUB_TPM:
+            if pcrval not in pcr_allowlist[pcrnum] and not config.STUB_TPM:
                 logger.error("%sPCR #%s: %s from quote does not match expected value %s" % (("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum]))
                 return False
-            else:
-                pcrsInQuote.add(pcrnum)
+
+            pcrsInQuote.add(pcrnum)
 
         if config.STUB_TPM:
             return True

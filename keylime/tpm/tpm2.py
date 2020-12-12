@@ -271,7 +271,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             tools_version = "3.2"
         else:
             logger.error(f"TPM2-TOOLS Version {tools_version[0]} is not supported.")
-            exit()
+            sys.exit()
 
     def __get_tpm_algorithms(self):
         vendorStr = None
@@ -378,8 +378,8 @@ class tpm2(tpm_abstract.AbstractTPM):
                 logger.info("Failed to get quote %d/%d times, trying again in %f seconds..." % (numtries, maxr, retry))
                 time.sleep(retry)
                 continue
-            else:
-                break
+
+            break
 
         # Don't bother continuing if TPM call failed and we're raising on error
         if code != expectedcode and raiseOnError:
