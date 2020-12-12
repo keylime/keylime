@@ -195,11 +195,11 @@ class AgentsHandler(BaseHandler):
             return
 
         op_state = agent.operational_state
-        if op_state == cloud_verifier_common.CloudAgent_Operational_State.SAVED or \
-                op_state == cloud_verifier_common.CloudAgent_Operational_State.FAILED or \
-                op_state == cloud_verifier_common.CloudAgent_Operational_State.TERMINATED or \
-                op_state == cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED or \
-                op_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
+        if op_state in [cloud_verifier_common.CloudAgent_Operational_State.SAVED,
+                cloud_verifier_common.CloudAgent_Operational_State.FAILED,
+                cloud_verifier_common.CloudAgent_Operational_State.TERMINATED,
+                cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED,
+                cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE]:
             try:
                 session.query(VerfierMain).filter_by(
                     agent_id=agent_id).delete()
@@ -501,8 +501,9 @@ class AgentsHandler(BaseHandler):
 
             # If failed during processing, log regardless and drop it on the floor
             # The administration application (tenant) can GET the status and act accordingly (delete/retry/etc).
-            if new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.FAILED or \
-                    new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
+            if new_operational_state in \
+                   [cloud_verifier_common.CloudAgent_Operational_State.FAILED,
+                    cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE]:
                 agent['operational_state'] = new_operational_state
 
                 # issue notification for invalid quotes
@@ -551,8 +552,9 @@ class AgentsHandler(BaseHandler):
                 await self.invoke_provide_v(agent)
                 return
 
-            if (main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V or
-                    main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE) and \
+            if main_agent_operational_state in \
+                    [cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V,
+                     cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE] and \
                     new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE:
                 agent['num_retries'] = 0
                 interval = config.getfloat('cloud_verifier', 'quote_interval')

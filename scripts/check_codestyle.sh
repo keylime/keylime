@@ -12,6 +12,6 @@ pylint \
   --disable W1203 \
   --disable E0401,E1101,E1120 \
   --disable R0801,R0902,R0903,R0912,R0914,R0915,R1711,R0201,R0911 \
-  --disable R0913,R1714,R0124,R0904 \
+  --disable R0913,R0124,R0904 \
   *.py $(find ./keylime ./test -name '*.py')
 exit $?
