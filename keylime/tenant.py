@@ -82,10 +82,10 @@ class Tenant():
         self.nonce = None
         self.agent_ip = None
         self.agent_port = config.get('cloud_agent', 'cloudagent_port')
-        self.verifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
-        self.verifier_port = config.get('cloud_verifier', 'cloudverifier_port')
-        self.registrar_ip = config.get('registrar', 'registrar_ip')
-        self.registrar_port = config.get('registrar', 'registrar_tls_port')
+        self.verifier_ip = config.get('tenant', 'cloudverifier_ip')
+        self.verifier_port = config.get('tenant', 'cloudverifier_port')
+        self.registrar_ip = config.get('tenant', 'registrar_ip')
+        self.registrar_port = config.get('tenant', 'registrar_port')
         self.webapp_port = config.getint('webapp', 'webapp_port')
         if not config.REQUIRE_ROOT and self.webapp_port < 1024:
             self.webapp_port += 2000
