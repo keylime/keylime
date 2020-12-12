@@ -259,7 +259,7 @@ def list_to_dict(alist):
     """Convert list into dictionary via grouping [k0,v0,k1,v1,...]"""
     params = {}
     i = 0
-    while (i < len(alist)):
+    while i < len(alist):
         params[alist[i]] = alist[i + 1] if (i + 1) < len(alist) else None
         i = i + 2
     return params
