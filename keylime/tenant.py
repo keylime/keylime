@@ -709,7 +709,7 @@ class Tenant():
                     time.sleep(retry)
                     continue
                 else:
-                    raise(e)
+                    raise e
             break
 
         try:
@@ -837,7 +837,7 @@ class Tenant():
                     time.sleep(retry)
                     continue
                 else:
-                    raise(e)
+                    raise e
             response_body = response.json()
             if response.status_code == 200:
                 if "results" not in response_body or 'hmac' not in response_body['results']:
