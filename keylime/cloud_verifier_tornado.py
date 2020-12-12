@@ -30,7 +30,7 @@ try:
     engine = DBEngineManager().make_engine('cloud_verifier')
 except SQLAlchemyError as e:
     logger.error(f'Error creating SQL engine: {e}')
-    exit(1)
+    sys.exit(1)
 
 
 # The "exclude_db" dict values are removed from the response before adding the dict to the DB

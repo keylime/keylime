@@ -414,7 +414,7 @@ class Tenant():
         if not tpm.check_quote(self.agent_uuid, self.nonce, public_key, quote, reg_keys['aik'], hash_alg=hash_alg):
             if reg_keys['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious host is present.  Run 'regdelete' for this agent and restart")
-                exit()
+                sys.exit()
             return False
 
         if reg_keys['regcount'] > 1:
@@ -496,23 +496,23 @@ class Tenant():
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
-            exit()
+            sys.exit()
         elif response.status_code == 504:
             logger.error(
                 f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            exit()
+            sys.exit()
 
         if response.status_code == 409:
             # this is a conflict, need to update or delete it
             logger.error(
                 f"Agent {self.agent_uuid} already existed at CV.  Please use delete or update.")
-            exit()
+            sys.exit()
         elif response.status_code != 200:
             keylime_logging.log_http_response(
                 logger, logging.ERROR, response.json())
             logger.error(
                 f"POST command response: {response.status} Unexpected response from Cloud Verifier: {response.read()}")
-            exit()
+            sys.exit()
 
     def do_cvstatus(self, listing=False):
         """ Perform opertional state look up for agent
@@ -535,21 +535,21 @@ class Tenant():
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
-            exit()
+            sys.exit()
         elif response == 504:
             logger.error(
                 f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            exit()
+            sys.exit()
 
         if response.status_code == 404:
             logger.error(
                 f"Agent {agent_uuid} does not exist on the verifier. Please try to add or update agent")
-            exit()
+            sys.exit()
 
         if response.status_code != 200:
             logger.error(
                 f"Status command response: {response.status}. Unexpected response from Cloud Verifier.")
-            exit()
+            sys.exit()
         else:
             response_json = response.json()
             if not listing:
@@ -572,11 +572,11 @@ class Tenant():
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
-            exit()
+            sys.exit()
         elif response.status_code == 504:
             logger.error(
                 f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            exit()
+            sys.exit()
 
         if response.status_code == 202:
             deleted = False
@@ -599,7 +599,7 @@ class Tenant():
             else:
                 logger.error(
                     f"Timed out waiting for delete of agent {self.agent_uuid} to complete at CV")
-                exit()
+                sys.exit()
         elif response.status_code == 200:
             logger.info(f"Agent {self.agent_uuid} deleted from the CV")
         else:
@@ -629,11 +629,11 @@ class Tenant():
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
-            exit()
+            sys.exit()
         elif response.status_code == 504:
             logger.error(
                 f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            exit()
+            sys.exit()
 
         response_body = response.json()
 
@@ -660,11 +660,11 @@ class Tenant():
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
-            exit()
+            sys.exit()
         elif response.status_code == 504:
             logger.error(
                 f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            exit()
+            sys.exit()
 
         response_body = response.json()
         if response.status_code != 200:
@@ -702,7 +702,7 @@ class Tenant():
                     if numtries >= maxr:
                         logger.error(
                             f"tenant cannot establish connection to agent on {self.agent_ip} with port {self.agent_port}")
-                        exit()
+                        sys.exit()
                     retry = config.getfloat('tenant', 'retry_interval')
                     logger.info(
                         f"tenant connection to agent at {self.agent_ip} refused {numtries}/{maxr} times, trying again in {retry} seconds...")
@@ -791,11 +791,11 @@ class Tenant():
             if response.status_code == 503:
                 logger.error(
                     f"Cannot connect to Agent at {self.agent_ip} with Port {self.agent_port}. Connection refused.")
-                exit()
+                sys.exit()
             elif response.status_code == 504:
                 logger.error(
                     f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-                exit()
+                sys.exit()
 
             if response.status_code != 200:
                 keylime_logging.log_http_response(
@@ -830,7 +830,7 @@ class Tenant():
                     if numtries >= maxr:
                         logger.error(
                             f"Cannot establish connection to agent on {self.agent_ip} with port {self.agent_port}")
-                        exit()
+                        sys.exit()
                     retry = config.getfloat('tenant', 'retry_interval')
                     logger.info(
                         f"Verifier connection to agent at {self.agent_ip} refused {numtries}/{maxr} times, trying again in {retry} seconds...")
