@@ -12,6 +12,7 @@ import base64
 import argparse
 import datetime
 import getpass
+import glob
 import zipfile
 import io
 import socket
@@ -450,7 +451,6 @@ class CRLHandler(BaseHTTPRequestHandler):
 
 
 def rmfiles(path):
-    import glob
     files = glob.glob(path)
     for f in files:
         os.remove(f)
