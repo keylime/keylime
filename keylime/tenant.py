@@ -186,12 +186,12 @@ class Tenant():
             self.tpm_policy['mask'] = "0x%X" % (
                 int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
 
-            if type(args["allowlist"]) in [str, str]:
+            if isinstance(args["allowlist"], str):
                 if args["allowlist"] == "default":
                     args["allowlist"] = config.get(
                         'tenant', 'allowlist')
                 al_data = ima.read_allowlist(args["allowlist"])
-            elif type(args["allowlist"]) is list:
+            elif isinstance(args["allowlist"], list):
                 al_data = args["allowlist"]
             else:
                 raise UserError("Invalid allowlist provided")
@@ -199,12 +199,12 @@ class Tenant():
         # Read command-line path string IMA exclude list
         excl_data = None
         if "ima_exclude" in args and args["ima_exclude"] is not None:
-            if type(args["ima_exclude"]) in [str, str]:
+            if isinstance(args["ima_exclude"], str):
                 if args["ima_exclude"] == "default":
                     args["ima_exclude"] = config.get(
                         'tenant', 'ima_excludelist')
                 excl_data = ima.read_excllist(args["ima_exclude"])
-            elif type(args["ima_exclude"]) is list:
+            elif isinstance(args["ima_exclude"], list):
                 excl_data = args["ima_exclude"]
             else:
                 raise UserError("Invalid exclude list provided")
@@ -227,8 +227,8 @@ class Tenant():
                     "You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent")
 
             # read the keys in
-            if type(args["keyfile"]) is dict and "data" in args["keyfile"]:
-                if type(args["keyfile"]["data"]) is list and len(args["keyfile"]["data"]) == 1:
+            if isinstance(args["keyfile"], dict) and "data" in args["keyfile"]:
+                if isinstance(args["keyfile"]["data"], list) and len(args["keyfile"]["data"]) == 1:
                     keyfile = args["keyfile"]["data"][0]
                     if keyfile is None:
                         raise UserError("Invalid key file contents")
@@ -243,8 +243,8 @@ class Tenant():
             f.close()
 
             # read the payload in (opt.)
-            if type(args["payload"]) is dict and "data" in args["payload"]:
-                if type(args["payload"]["data"]) is list and len(args["payload"]["data"]) > 0:
+            if isinstance(args["payload"], dict) and "data" in args["payload"]:
+                if isinstance(args["payload"]["data"], list) and len(args["payload"]["data"]) > 0:
                     self.payload = args["payload"]["data"][0]
             else:
                 if args["payload"] is not None:
@@ -257,8 +257,8 @@ class Tenant():
                 raise UserError(
                     "You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent")
 
-            if type(args["file"]) is dict and "data" in args["file"]:
-                if type(args["file"]["data"]) is list and len(args["file"]["data"]) > 0:
+            if isinstance(args["file"], dict) and "data" in args["file"]:
+                if isinstance(args["file"]["data"], list) and len(args["file"]["data"]) > 0:
                     contents = args["file"]["data"][0]
                     if contents is None:
                         raise UserError("Invalid file payload contents")
@@ -314,8 +314,8 @@ class Tenant():
 
                 # add additional files to zip
                 if args["incl_dir"] is not None:
-                    if type(args["incl_dir"]) is dict and "data" in args["incl_dir"] and "name" in args["incl_dir"]:
-                        if type(args["incl_dir"]["data"]) is list and type(args["incl_dir"]["name"]) is list:
+                    if isinstance(args["incl_dir"], dict) and "data" in args["incl_dir"] and "name" in args["incl_dir"]:
+                        if isinstance(args["incl_dir"]["data"], list) and isinstance(args["incl_dir"]["name"], list):
                             if len(args["incl_dir"]["data"]) != len(args["incl_dir"]["name"]):
                                 raise UserError("Invalid incl_dir provided")
                             for i in range(len(args["incl_dir"]["data"])):
