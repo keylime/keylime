@@ -5,6 +5,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import os
 import logging
+import sys
 
 import simplejson as json
 
@@ -156,7 +157,7 @@ def doRegisterAgent(registrar_ip, registrar_port, agent_id, tpm_version, pub_ek,
         if response and response.status_code == 503:
             logger.error(
                 f"Agent cannot establish connection to registrar at {registrar_ip}:{registrar_port}")
-            exit()
+            sys.exit()
         else:
             logger.exception(e)
 
