@@ -1263,7 +1263,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 if tools_version == "3.2":
                     raise Exception("tpm2_nvlist for ekcert failed with code " + str(code) + ": " + str(reterr))
-                elif tools_version in ["4.0", "4.2"]:
+                if tools_version in ["4.0", "4.2"]:
                     raise Exception("tpm2_nvreadpublic for ekcert failed with code " + str(code) + ": " + str(reterr))
 
             outjson = config.yaml_to_dict(output)

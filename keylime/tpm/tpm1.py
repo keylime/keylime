@@ -309,8 +309,8 @@ class tpm1(tpm_abstract.AbstractTPM):
 
         if not ownerpw_known:
             raise Exception("Owner password unknown, TPM reset required")
-        else:
-            logger.info("TPM Owner password confirmed: %s" % owner_pw)
+
+        logger.info("TPM Owner password confirmed: %s" % owner_pw)
 
     def __get_pub_ek(self):  # assumes that owner_pw is correct at this point
         owner_pw = self.get_tpm_metadata('owner_pw')
