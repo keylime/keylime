@@ -152,8 +152,8 @@ def process_quote_response(agent, json_response):
 
     if agent.get('registrar_keys', "") == "":
         registrar_client.init_client_tls('cloud_verifier')
-        registrar_keys = registrar_client.getKeys(config.get("registrar", "registrar_ip"), config.get(
-            "registrar", "registrar_tls_port"), agent['agent_id'])
+        registrar_keys = registrar_client.getKeys(config.get("cloud_verifier", "registrar_ip"), config.get(
+            "cloud_verifier", "registrar_port"), agent['agent_id'])
         if registrar_keys is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
