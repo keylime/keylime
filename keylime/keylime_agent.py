@@ -311,7 +311,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # now extend a measurement of the payload and key if there was one
         pcr = config.getint('cloud_agent', 'measure_payload_pcr')
-        if pcr > 0 and pcr < 24:
+        if 0 < pcr < 24:
             logger.info("extending measurement of payload into PCR %s" % pcr)
             measured = tpm.hashdigest(tomeasure)
             tpm.extendPCR(pcr, measured)
