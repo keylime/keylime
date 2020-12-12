@@ -224,8 +224,8 @@ class tpm1(tpm_abstract.AbstractTPM):
                 logger.info("Failed to call TPM %d/%d times, trying again in %f seconds..." % (numtries, maxr, retry))
                 time.sleep(retry)
                 continue
-            else:
-                break
+
+            break
 
         # Don't bother continuing if TPM call failed and we're raising on error
         if code != expectedcode and raiseOnError:
