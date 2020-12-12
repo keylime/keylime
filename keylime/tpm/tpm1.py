@@ -768,6 +768,7 @@ class tpm1(tpm_abstract.AbstractTPM):
 
         # print('Executing "%s"' % ("checkquote -aik %s -quote %s -nonce %s"%(aikFile, quoteFile, extData),))
         if config.USE_CLIME:
+            # pylint: disable=C0415
             import _cLime
             retout = _cLime.checkquote('-aik', aikFile, '-quote', quoteFile, '-nonce', extData)
             retout = [line + '\n' for line in retout.split('\n')]

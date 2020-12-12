@@ -23,6 +23,7 @@ import zipfile
 import io
 import importlib
 import shutil
+import subprocess
 
 import simplejson as json
 
@@ -282,7 +283,6 @@ class Handler(BaseHTTPRequestHandler):
                 initscript = config.get('cloud_agent', 'payload_script')
                 if initscript != "":
                     def initthread():
-                        import subprocess
                         env = os.environ.copy()
                         env['AGENT_UUID'] = self.server.agent_uuid
                         proc = subprocess.Popen(["/bin/bash", initscript], env=env, shell=False, cwd='%s/unzipped' % secdir,
