@@ -65,11 +65,10 @@ def init_logging(loggername):
                 logger.warning(
                     "Unable to log to %s. please run as root" % logfilename)
                 return logger
-            else:
-                if not os.path.exists(LOGDIR):
-                    os.makedirs(LOGDIR, 0o750)
-                config.chownroot(LOGDIR, logger)
-                os.chmod(LOGDIR, 0o750)
+            if not os.path.exists(LOGDIR):
+                os.makedirs(LOGDIR, 0o750)
+            config.chownroot(LOGDIR, logger)
+            os.chmod(LOGDIR, 0o750)
 
         fh = logging.FileHandler(logfilename)
         fh.setLevel(logger.getEffectiveLevel())

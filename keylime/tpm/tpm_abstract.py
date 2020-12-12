@@ -168,10 +168,9 @@ class AbstractTPM(metaclass=ABCMeta):
     def is_deep_quote(self, quote):
         if quote[0] == 'd':
             return True
-        elif quote[0] == 'r':
+        if quote[0] == 'r':
             return False
-        else:
-            raise Exception("Invalid quote type %s" % quote[0])
+        raise Exception("Invalid quote type %s" % quote[0])
 
     @abstractmethod
     def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):

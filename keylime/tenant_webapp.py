@@ -329,10 +329,8 @@ class AgentsHandler(BaseHandler):
         # Agent not added to CV (but still registered)
         if response.status_code == 404:
             return {"operational_state": cloud_verifier_common.CloudAgent_Operational_State.REGISTERED}
-        else:
-            return inst_response_body["results"]
 
-        return None
+        return inst_response_body["results"]
 
     async def get(self):
         """This method handles the GET requests to retrieve status on agents from the WebApp.
@@ -357,7 +355,7 @@ class AgentsHandler(BaseHandler):
                 config.echo_json_response(self, 200, "Success", {
                                           'log': logValue[offset:]})
             return
-        elif "agents" not in rest_params:
+        if "agents" not in rest_params:
             # otherwise they must be looking for agent info
             config.echo_json_response(self, 400, "uri not supported")
             logger.warning(

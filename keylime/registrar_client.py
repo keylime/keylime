@@ -29,9 +29,9 @@ def init_client_tls(section):
     if not config.getboolean('general', "enable_tls"):
         logger.warning("TLS is currently disabled, AIKs may not be authentic.")
         return
-    else:
-        logger.warning("TLS is enabled.")
-        tls_enabled = True
+
+    logger.warning("TLS is enabled.")
+    tls_enabled = True
 
     logger.info("Setting up client TLS...")
     tls_dir = config.get(section, 'registrar_tls_dir')
@@ -77,8 +77,8 @@ def getAIK(registrar_ip, registrar_port, agent_id):
     retval = getKeys(registrar_ip, registrar_port, agent_id)
     if retval is None:
         return retval
-    else:
-        return retval['aik']
+
+    return retval['aik']
 
 
 def getKeys(registrar_ip, registrar_port, agent_id):
@@ -181,11 +181,11 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
     if response.status_code == 200:
         logger.info("Registration activated for agent %s." % agent_id)
         return True
-    else:
-        logger.error(
-            "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
-        keylime_logging.log_http_response(logger, logging.ERROR, response_body)
-        return False
+
+    logger.error(
+        "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
+    keylime_logging.log_http_response(logger, logging.ERROR, response_body)
+    return False
 
 
 def doActivateVirtualAgent(registrar_ip, registrar_port, agent_id, deepquote):
@@ -198,11 +198,11 @@ def doActivateVirtualAgent(registrar_ip, registrar_port, agent_id, deepquote):
     if response.status_code == 200:
         logger.info("Registration activated for agent %s." % agent_id)
         return True
-    else:
-        logger.error(
-            "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
-        keylime_logging.log_http_response(logger, logging.ERROR, response_body)
-        return False
+
+    logger.error(
+        "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
+    keylime_logging.log_http_response(logger, logging.ERROR, response_body)
+    return False
 
 
 def doRegistrarDelete(registrar_ip, registrar_port, agent_id):

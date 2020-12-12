@@ -69,12 +69,11 @@ def _stub_command(fprt, lock, outputpaths):
             'timing': thisTiming,
         }
         return returnDict
-    elif not lock:
+    if not lock:
         # non-lock calls don't go to the TPM (just let it pass through)
         return None
-    else:
-        # Our command hasn't been canned!
-        raise Exception("Command %s not found in canned YAML!" % (fprt))
+    # Our command hasn't been canned!
+    raise Exception("Command %s not found in canned YAML!" % (fprt))
 
 
 def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
@@ -262,7 +261,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 if len(output) > 0 and output[0].startswith("Error Authentication failed (Incorrect Password) from TPM_OwnerReadPubek"):
                     return False
-                elif len(output) > 0 and output[0].startswith("Error Defend lock running from TPM_OwnerReadPubek"):
+                if len(output) > 0 and output[0].startswith("Error Defend lock running from TPM_OwnerReadPubek"):
                     if reentry:
                         logger.error("Unable to unlock TPM")
                         return False
@@ -272,8 +271,7 @@ class tpm1(tpm_abstract.AbstractTPM):
                     self.__run("resetlockvalue -pwdo %s" % owner_pw, raiseOnError=False)
                     self.__run("resetlockvalue -pwdo %s" % owner_pw, raiseOnError=False)
                     return self.__test_ownerpw(owner_pw, True)
-                else:
-                    raise Exception("test ownerpw, getpubek failed with code " + str(code) + ": " + str(output))
+                raise Exception("test ownerpw, getpubek failed with code " + str(code) + ": " + str(output))
         return True
 
     def __take_ownership(self, config_pw):
@@ -575,8 +573,7 @@ class tpm1(tpm_abstract.AbstractTPM):
     def is_vtpm(self):
         if config.STUB_VTPM:
             return True
-        else:
-            return self.get_tpm_manufacturer() == 'ETHZ'
+        return self.get_tpm_manufacturer() == 'ETHZ'
 
     def __is_tpm_owned(self):
         retDict = self.__run("getcapability -cap 5 -scap 111")
@@ -774,9 +771,9 @@ class tpm1(tpm_abstract.AbstractTPM):
             retout = [line + '\n' for line in retout.split('\n')]
             # Try and be transparent to tpm_quote.py
             return retout
-        else:
-            retDict = self.__run("checkquote -aik %s -quote %s -nonce %s" % (aikFile, quoteFile, extData), lock=False)
-            return retDict['retout']
+
+        retDict = self.__run("checkquote -aik %s -quote %s -nonce %s" % (aikFile, quoteFile, extData), lock=False)
+        return retDict['retout']
 
     def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None):
         quoteFile = None
@@ -901,7 +898,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS and len(output) > 0 and output[0].startswith("Error Illegal index from NV_ReadValue"):
                 logger.warn("No EK certificate found in TPM NVRAM")
                 return None
-            elif code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+            if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception("nv_readvalue for ekcert failed with code " + str(code) + ": " + str(output))
 
         return base64.b64encode(ekcert)
@@ -919,7 +916,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS and len(output) > 0 and (output[0].startswith("Error Illegal index from NV_ReadValue") or output[0].startswith("Error Authentication failed")):
                 logger.debug("No stored U in TPM NVRAM")
                 return None
-            elif code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+            if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception("nv_readvalue failed with code " + str(code) + ": " + str(output))
 
         if len(key) != config.BOOTSTRAP_KEY_SIZE:

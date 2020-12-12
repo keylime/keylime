@@ -104,12 +104,12 @@ def _stub_command(fprt, lock, cmd, outputpaths):
             'timing': thisTiming,
         }
         return returnDict
-    elif not lock:
+    if not lock:
         # non-lock calls don't go to the TPM (just let it pass through)
         return None
-    else:
-        # Our command hasn't been canned!
-        raise Exception("Command %s not found in canned YAML!" % fprt)
+
+    # Our command hasn't been canned!
+    raise Exception("Command %s not found in canned YAML!" % fprt)
 
 
 def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
@@ -1304,14 +1304,14 @@ class tpm2(tpm_abstract.AbstractTPM):
             if len(errout) > 0 and "handle does not exist" in "\n".join(errout):
                 logger.debug("No stored U in TPM NVRAM")
                 return None
-            elif len(errout) > 0 and "ERROR: Failed to read NVRAM public area at index" in "\n".join(errout):
+            if len(errout) > 0 and "ERROR: Failed to read NVRAM public area at index" in "\n".join(errout):
                 logger.debug("No stored U in TPM NVRAM")
                 return None
-            elif len(errout) > 0 and "the handle is not correct for the use" in "\n".join(errout):
+            if len(errout) > 0 and "the handle is not correct for the use" in "\n".join(errout):
                 logger.debug("No stored U in TPM NVRAM")
                 return None
-            else:
-                raise Exception("nv_readvalue failed with code " + str(code) + ": " + str(errout))
+
+            raise Exception("nv_readvalue failed with code " + str(code) + ": " + str(errout))
 
         if len(output) != config.BOOTSTRAP_KEY_SIZE:
             logger.debug("Invalid key length from NVRAM: %d" % (len(output)))

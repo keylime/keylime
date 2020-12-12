@@ -472,8 +472,8 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             self.final_U = decrypted_U
             self.K = candidate_key
             return True
-        else:
-            logger.error("Failed to derive K for UUID %s", self.agent_uuid)
+
+        logger.error("Failed to derive K for UUID %s", self.agent_uuid)
 
         return False
 
