@@ -21,7 +21,7 @@ try:
 except ImportError:
     from yaml import SafeDumper as SafeDumper
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime.tpm import tpm_obj
 
@@ -284,7 +284,7 @@ def show_group(group_num):
         vtpms = [stringify_uuid(vtpm) for vtpm in vtpms]
         for i, vtpm in enumerate(vtpms):
             logger.info('    [%d]: %s', i, vtpm)
-        out['vtpms'].append(vtpm)
+            out['vtpms'].append(vtpm)
     out['uuid'] = uuid
     return out
 
@@ -449,7 +449,7 @@ def tpmconv(inmod):
         os.close(infd)
 
         command = ('tpmconv', '-ik', 'inFile.name', '-ok', tmppath)
-        tpm.__run(command, lock=False)
+        tpm.run(command)
 
         # read in the pem
         f = open(tmppath, "rb")
@@ -479,9 +479,9 @@ def get_group_num(desired_uuid):
 def add_vtpm_group(rsa_mod=None):
     """ Add new vtpm group"""
     fprt = "add_vtpm_group"
-    if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
+    if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing
-        jsonIn = common.TPM_CANNED_VALUES
+        jsonIn = config.TPM_CANNED_VALUES
         if fprt in jsonIn:
             # The value we're looking for has been canned!
             thisTiming = jsonIn[fprt]['timing']
@@ -516,8 +516,8 @@ def add_vtpm_group(rsa_mod=None):
 
     retout = (uuid, aikpem, group_num, base64.b64encode(aik_priv_ca))
 
-    if common.TPM_CANNED_VALUES_PATH is not None:
-        with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
+    if config.TPM_CANNED_VALUES_PATH is not None:
+        with open(config.TPM_CANNED_VALUES_PATH, "ab") as can:
             jsonObj = {
                 'type': "add_vtpm_group",
                 'retout': list(retout),
@@ -535,9 +535,9 @@ def add_vtpm_group(rsa_mod=None):
 
 def activate_group(uuid, keyblob):
     fprt = "activate_group"
-    if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
+    if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing
-        jsonIn = common.TPM_CANNED_VALUES
+        jsonIn = config.TPM_CANNED_VALUES
         if fprt in jsonIn:
             # The value we're looking for has been canned!
             thisTiming = jsonIn[fprt]['timing']
@@ -564,8 +564,8 @@ def activate_group(uuid, keyblob):
                 algId, encScheme, size)
     logger.info('Key: %r', body)
 
-    if common.TPM_CANNED_VALUES_PATH is not None:
-        with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
+    if config.TPM_CANNED_VALUES_PATH is not None:
+        with open(config.TPM_CANNED_VALUES_PATH, "ab") as can:
             jsonObj = {
                 'type': "activate_group",
                 'retout': base64.b64encode(body),
@@ -583,9 +583,9 @@ def activate_group(uuid, keyblob):
 
 def add_vtpm_to_group(uuid):
     fprt = "add_vtpm_to_group"
-    if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
+    if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing
-        jsonIn = common.TPM_CANNED_VALUES
+        jsonIn = config.TPM_CANNED_VALUES
         if fprt in jsonIn:
             # The value we're looking for has been canned!
             thisTiming = jsonIn[fprt]['timing']
@@ -605,8 +605,8 @@ def add_vtpm_to_group(uuid):
 
     retout = str(UUID(vtpm_uuid)).upper()
 
-    if common.TPM_CANNED_VALUES_PATH is not None:
-        with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
+    if config.TPM_CANNED_VALUES_PATH is not None:
+        with open(config.TPM_CANNED_VALUES_PATH, "ab") as can:
             jsonObj = {
                 'type': "add_vtpm_to_group",
                 'retout': retout,

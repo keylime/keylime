@@ -11,7 +11,6 @@ import unittest
 import subprocess
 import time
 import os
-import configparser
 import base64
 import threading
 import shutil
@@ -19,7 +18,9 @@ import errno
 import hashlib
 from pathlib import Path
 
-from keylime import common
+import simplejson as json
+
+from keylime import config
 from keylime import tornado_requests
 from keylime.requests_client import RequestsClient
 from keylime import tenant
@@ -27,11 +28,6 @@ from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import secure_mount
 from keylime.tpm import tpm_obj, tpm_abstract
-
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
 
 
 """ NOTE:
@@ -88,15 +84,11 @@ def cmp(a, b):
 
 
 # Ensure this is run as root
-if os.geteuid() != 0 and common.REQUIRE_ROOT:
+if os.geteuid() != 0 and config.REQUIRE_ROOT:
     exit("Tests need to be run with root privileges, or set env KEYLIME_TEST=True!")
 
 # Force sorting tests alphabetically
 unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(x, y)
-
-# Config-related stuff
-config = configparser.ConfigParser()
-config.read(common.CONFIG_FILE)
 
 # Environment to pass to services
 script_env = os.environ.copy()
@@ -164,10 +156,10 @@ def setUpModule():
 
     try:
         # Start with a clean slate for this test
-        fileRemove(common.WORK_DIR + "/tpmdata.yaml")
-        fileRemove(common.WORK_DIR + "/cv_data.sqlite")
-        fileRemove(common.WORK_DIR + "/reg_data.sqlite")
-        shutil.rmtree(common.WORK_DIR + "/cv_ca", True)
+        fileRemove(config.WORK_DIR + "/tpmdata.yaml")
+        fileRemove(config.WORK_DIR + "/cv_data.sqlite")
+        fileRemove(config.WORK_DIR + "/reg_data.sqlite")
+        shutil.rmtree(config.WORK_DIR + "/cv_ca", True)
     except Exception as e:
         print("WARNING: Cleanup of TPM files failed!")
 
@@ -334,7 +326,7 @@ class TestRestful(unittest.TestCase):
     # Static class members (won't change between tests)
     payload = None
     auth_tag = None
-    tpm_policy = None
+    tpm_policy = {}
     vtpm_policy = {}
     metadata = {}
     allowlist = {}
@@ -342,7 +334,7 @@ class TestRestful(unittest.TestCase):
     K = None
     U = None
     V = None
-    api_version = common.API_VERSION
+    api_version = config.API_VERSION
 
     @classmethod
     def setUpClass(cls):
@@ -365,7 +357,7 @@ class TestRestful(unittest.TestCase):
         cls.vtpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.vtpm_policy)
 
         """Allow targeting a specific API version (default latest)"""
-        cls.api_version = common.API_VERSION
+        cls.api_version = config.API_VERSION
 
     def setUp(self):
         """Nothing to set up before each test"""
@@ -382,7 +374,7 @@ class TestRestful(unittest.TestCase):
 
         # Change CWD for TPM-related operations
         cwd = os.getcwd()
-        common.ch_dir(common.WORK_DIR, None)
+        config.ch_dir(config.WORK_DIR, None)
         secdir = secure_mount.mount()
 
         # Initialize the TPM with AIK
@@ -391,7 +383,7 @@ class TestRestful(unittest.TestCase):
         vtpm = tpm.is_vtpm()
 
         # Seed RNG (root only)
-        if common.REQUIRE_ROOT:
+        if config.REQUIRE_ROOT:
             tpm.init_system_rand()
 
         # Handle virtualized and emulated TPMs
@@ -402,7 +394,7 @@ class TestRestful(unittest.TestCase):
                 ekcert = 'emulator'
 
         # Get back to our original CWD
-        common.ch_dir(cwd, None)
+        config.ch_dir(cwd, None)
 
         data = {
             'ek': ek,

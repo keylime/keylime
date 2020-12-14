@@ -7,20 +7,19 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import sys
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_common
 
 logger = keylime_logging.init_logging('provider-registrar')
-config = common.get_config()
+config = config.get_config()
 
 
 def main(argv=sys.argv):
     registrar_common.start(
         config.get('registrar', 'provider_registrar_ip'),
         config.getint('registrar', 'provider_registrar_tls_port'),
-        config.getint('registrar', 'provider_registrar_port'),
-        config.get('registrar', 'prov_db_filename'))
+        config.getint('registrar', 'provider_registrar_port'))
 
 
 if __name__ == "__main__":

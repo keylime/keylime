@@ -8,9 +8,9 @@ import logging
 
 import simplejson as json
 
-from keylime import common
-from keylime import keylime_logging
+from keylime import config
 from keylime import crypto
+from keylime import keylime_logging
 from keylime.requests_client import RequestsClient
 
 logger = keylime_logging.init_logging('registrar_client')
@@ -18,7 +18,7 @@ tls_cert_info = ()
 tls_enabled = False
 
 
-def init_client_tls(config, section):
+def init_client_tls(section):
     global tls_cert_info
     global tls_enabled
 
@@ -52,7 +52,7 @@ def init_client_tls(config, section):
 
     # this is relative path, convert to absolute in WORK_DIR
     if tls_dir[0] != '/':
-        tls_dir = os.path.abspath('%s/%s' % (common.WORK_DIR, tls_dir))
+        tls_dir = os.path.abspath('%s/%s' % (config.WORK_DIR, tls_dir))
 
     ca_cert = config.get(section, 'registrar_ca_cert')
 

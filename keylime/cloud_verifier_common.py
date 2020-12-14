@@ -6,16 +6,16 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import ast
-from urllib.parse import urlparse
 import base64
-import time
 import os
 import ssl
 import socket
+import time
+from urllib.parse import urlparse
 
 import simplejson as json
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_client
 from keylime import crypto
@@ -23,13 +23,10 @@ from keylime import ca_util
 from keylime import revocation_notifier
 from keylime.tpm import tpm_obj
 from keylime.tpm.tpm_abstract import TPM_Utilities
-from keylime.utils import algorithms
+from keylime.common import algorithms
 
 # setup logging
 logger = keylime_logging.init_logging('cloudverifier_common')
-
-# setup config
-config = common.get_config()
 
 
 class CloudAgent_Operational_State:
@@ -60,9 +57,13 @@ class CloudAgent_Operational_State:
     }
 
 
-class Timer(object):
+class Timer():
     def __init__(self, verbose=False):
         self.verbose = verbose
+        self.start = 0
+        self.end = 0
+        self.secs = 0
+        self.msecs = 0
 
     def __enter__(self):
         self.start = time.time()
@@ -96,7 +97,7 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
 
         if generatedir[0] != '/':
             generatedir = os.path.abspath(
-                '%s/%s' % (common.WORK_DIR, generatedir))
+                '%s/%s' % (config.WORK_DIR, generatedir))
         tls_dir = generatedir
         ca_path = "%s/cacert.crt" % (tls_dir)
         if os.path.exists(ca_path):
@@ -120,35 +121,51 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
         if section != 'registrar':
             raise Exception(
                 "You only use the CV option to tls_dir for the registrar not %s" % section)
-        tls_dir = os.path.abspath('%s/%s' % (common.WORK_DIR, 'cv_ca'))
+        tls_dir = os.path.abspath('%s/%s' % (config.WORK_DIR, 'cv_ca'))
         if not os.path.exists("%s/cacert.crt" % (tls_dir)):
             raise Exception(
                 "It appears that the verifier has not yet created a CA and certificates, please run the verifier first")
 
     # if it is relative path, convert to absolute in WORK_DIR
     if tls_dir[0] != '/':
-        tls_dir = os.path.abspath('%s/%s' % (common.WORK_DIR, tls_dir))
+        tls_dir = os.path.abspath('%s/%s' % (config.WORK_DIR, tls_dir))
 
     if ca_cert == 'default':
         ca_path = "%s/cacert.crt" % (tls_dir)
-    else:
+    elif not os.path.isabs(ca_cert):
         ca_path = "%s/%s" % (tls_dir, ca_cert)
+    else:
+        ca_path = ca_cert
 
     if my_cert == 'default':
         my_cert = "%s/%s-cert.crt" % (tls_dir, socket.gethostname())
-    else:
+    elif not os.path.isabs(my_cert):
         my_cert = "%s/%s" % (tls_dir, my_cert)
+    else:
+        pass
 
     if my_priv_key == 'default':
         my_priv_key = "%s/%s-private.pem" % (tls_dir, socket.gethostname())
-    else:
+    elif not os.path.isabs(my_priv_key):
         my_priv_key = "%s/%s" % (tls_dir, my_priv_key)
 
-    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    context.load_verify_locations(cafile=ca_path)
-    context.load_cert_chain(
-        certfile=my_cert, keyfile=my_priv_key, password=my_key_pw)
-    context.verify_mode = ssl.CERT_REQUIRED
+    try:
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.load_verify_locations(cafile=ca_path)
+        context.load_cert_chain(
+            certfile=my_cert, keyfile=my_priv_key, password=my_key_pw)
+        if (config.has_option(section, 'check_client_cert')
+                and config.getboolean(section, 'check_client_cert')):
+            context.verify_mode = ssl.CERT_REQUIRED
+    except ssl.SSLError as exc:
+        if exc.reason == 'EE_KEY_TOO_SMALL':
+            logger.error('Higher key strength is required for keylime '
+                         'running on this system. If keylime is responsible '
+                         'to generate the certificate, please raise the value '
+                         'of configuration option [ca]cert_bits, remove '
+                         'generated certificate and re-run keylime service')
+        raise exc
+
     return context
 
 
@@ -185,7 +202,7 @@ def process_quote_response(agent, json_response):
         received_public_key = agent['public_key']
 
     if agent.get('registrar_keys', "") == "":
-        registrar_client.init_client_tls(config, 'cloud_verifier')
+        registrar_client.init_client_tls('cloud_verifier')
         registrar_keys = registrar_client.getKeys(config.get("registrar", "registrar_ip"), config.get(
             "registrar", "registrar_tls_port"), agent['agent_id'])
         if registrar_keys is None:
@@ -260,7 +277,7 @@ def process_quote_response(agent, json_response):
 
 def prepare_v(agent):
     # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
-    if common.INSECURE_DEBUG:
+    if config.INSECURE_DEBUG:
         logger.debug("b64_V (non encrypted): " + agent['v'])
 
     if agent.get('b64_encrypted_V', "") != "":
@@ -377,7 +394,7 @@ def validate_agent_data(agent_data):
     lists = json.loads(agent_data['allowlist'])
 
     # Validate exlude list contains valid regular expressions
-    is_valid, _, err_msg = common.valid_exclude_list(lists.get('exclude'))
+    is_valid, _, err_msg = config.valid_exclude_list(lists.get('exclude'))
     if not is_valid:
         err_msg += " Exclude list regex is misformatted. Please correct the issue and try again."
 

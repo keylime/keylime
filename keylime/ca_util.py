@@ -27,21 +27,21 @@ except ImportError:
 
 import simplejson as json
 
-from keylime import crypto
 from keylime import cmd_exec
-from keylime import common
+from keylime import config
+from keylime import crypto
 from keylime import revocation_notifier
 from keylime import keylime_logging
+
+
 logger = keylime_logging.init_logging('ca-util')
 
-if common.CA_IMPL == 'cfssl':
+if config.CA_IMPL == 'cfssl':
     from keylime import ca_impl_cfssl as ca_impl
-elif common.CA_IMPL == 'openssl':
+elif config.CA_IMPL == 'openssl':
     from keylime import ca_impl_openssl as ca_impl
 else:
-    raise Exception("Unknown CA implementation: %s" % common.CA_IMPL)
-
-config = common.get_config()
+    raise Exception("Unknown CA implementation: %s" % config.CA_IMPL)
 
 
 """
@@ -77,7 +77,7 @@ def setpassword(pw):
 def cmd_mkcert(workingdir, name):
     cwd = os.getcwd()
     try:
-        common.ch_dir(workingdir, logger)
+        config.ch_dir(workingdir, logger)
         priv = read_private()
         cacert = X509.load_cert('cacert.crt')
         ca_pk = EVP.load_key_string(priv[0]['ca'])
@@ -120,7 +120,7 @@ def cmd_mkcert(workingdir, name):
 def cmd_init(workingdir):
     cwd = os.getcwd()
     try:
-        common.ch_dir(workingdir, logger)
+        config.ch_dir(workingdir, logger)
 
         rmfiles("*.pem")
         rmfiles("*.crt")
@@ -128,12 +128,12 @@ def cmd_init(workingdir):
         rmfiles("*.der")
         rmfiles("private.yml")
 
-        if common.CA_IMPL == 'cfssl':
+        if config.CA_IMPL == 'cfssl':
             pk_str, cacert, ca_pk, _ = ca_impl.mk_cacert()
-        elif common.CA_IMPL == 'openssl':
-            cacert, ca_pk, _ = ca_impl.mk_cacert()
+        elif config.CA_IMPL == 'openssl':
+            cacert, ca_pk, _ = ca_impl.mk_cacert()  # pylint: disable=W0632
         else:
-            raise Exception("Unknown CA implementation: %s" % common.CA_IMPL)
+            raise Exception("Unknown CA implementation: %s" % config.CA_IMPL)
 
         priv = read_private()
 
@@ -155,12 +155,12 @@ def cmd_init(workingdir):
         ca_pk.get_rsa().save_pub_key('ca-public.pem')
 
         # generate an empty crl
-        if common.CA_IMPL == 'cfssl':
+        if config.CA_IMPL == 'cfssl':
             crl = ca_impl.gencrl([], cacert.as_pem(), pk_str)
-        elif common.CA_IMPL == 'openssl':
+        elif config.CA_IMPL == 'openssl':
             crl = ca_impl.gencrl([], cacert.as_pem(), str(priv[0]['ca']))
         else:
-            raise Exception("Unknown CA implementation: %s" % common.CA_IMPL)
+            raise Exception("Unknown CA implementation: %s" % config.CA_IMPL)
 
         if isinstance(crl, str):
             crl = crl.encode('utf-8')
@@ -183,7 +183,7 @@ def cmd_init(workingdir):
 def cmd_certpkg(workingdir, name, insecure=False):
     cwd = os.getcwd()
     try:
-        common.ch_dir(workingdir, logger)
+        config.ch_dir(workingdir, logger)
         # zip up the crt, private key, and public key
 
         with open('cacert.crt', 'r') as f:
@@ -284,7 +284,7 @@ def get_crl_distpoint(cert_path):
 def cmd_revoke(workingdir, name=None, serial=None):
     cwd = os.getcwd()
     try:
-        common.ch_dir(workingdir, logger)
+        config.ch_dir(workingdir, logger)
         priv = read_private()
 
         if name is not None and serial is not None:
@@ -328,7 +328,7 @@ def cmd_revoke(workingdir, name=None, serial=None):
 def cmd_regencrl(workingdir):
     cwd = os.getcwd()
     try:
-        common.ch_dir(workingdir, logger)
+        config.ch_dir(workingdir, logger)
         priv = read_private()
 
         # get the ca key cert and keys as strings
@@ -353,11 +353,11 @@ def cmd_regencrl(workingdir):
 def cmd_listen(workingdir, cert_path):
     cwd = os.getcwd()
     try:
-        common.ch_dir(workingdir, logger)
+        config.ch_dir(workingdir, logger)
         # just load up the password for later
         read_private(True)
 
-        serveraddr = ('', common.CRL_PORT)
+        serveraddr = ('', config.CRL_PORT)
         server = ThreadedCRLServer(serveraddr, CRLHandler)
         if os.path.exists('cacrl.der'):
             logger.info("Loading existing crl: %s" %
@@ -366,12 +366,12 @@ def cmd_listen(workingdir, cert_path):
                 server.setcrl(f.read())
         t = threading.Thread(target=server.serve_forever)
         logger.info("Hosting CRL on %s:%d" %
-                    (socket.getfqdn(), common.CRL_PORT))
+                    (socket.getfqdn(), config.CRL_PORT))
         t.start()
 
         def check_expiration():
             logger.info("checking CRL for expiration every hour")
-            while True:
+            while True:  # pylint: disable=R1702
                 try:
                     if (os.path.exists('cacrl.der') and
                             os.stat('cacrl.der').st_size):
@@ -510,11 +510,11 @@ def main(argv=sys.argv):
     args = parser.parse_args(argv[1:])
 
     if args.dir is None:
-        if os.getuid() != 0 and common.REQUIRE_ROOT:
+        if os.getuid() != 0 and config.REQUIRE_ROOT:
             logger.error(
-                "If you don't specify a working directory, this process must be run as root to access %s" % common.WORK_DIR)
+                "If you don't specify a working directory, this process must be run as root to access %s" % config.WORK_DIR)
             sys.exit(-1)
-        workingdir = common.CA_WORK_DIR
+        workingdir = config.CA_WORK_DIR
     else:
         workingdir = args.dir
 

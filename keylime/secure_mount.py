@@ -5,19 +5,16 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import os
 
-from keylime import cmd_exec
-from keylime import common
 from keylime import keylime_logging
+from keylime import cmd_exec
+from keylime import config
 
 logger = keylime_logging.init_logging('secure_mount')
-
-# read the config file
-config = common.get_config()
 
 
 def check_mounted(secdir):
     whatsmounted = cmd_exec.run("mount", lock=False)['retout']
-    whatsmounted_converted = common.list_convert(whatsmounted)
+    whatsmounted_converted = config.list_convert(whatsmounted)
     for line in whatsmounted_converted:
         tokens = line.split()
         tmpfs = False
@@ -40,10 +37,10 @@ def check_mounted(secdir):
 
 
 def mount():
-    secdir = common.WORK_DIR + "/secure"
+    secdir = config.WORK_DIR + "/secure"
 
-    if not common.MOUNT_SECURE:
-        secdir = common.WORK_DIR + "/tmpfs-dev"
+    if not config.MOUNT_SECURE:
+        secdir = config.WORK_DIR + "/tmpfs-dev"
         if not os.path.isdir(secdir):
             os.makedirs(secdir)
         return secdir
@@ -52,7 +49,7 @@ def mount():
         # ok now we know it isn't already mounted, go ahead and create and mount
         if not os.path.exists(secdir):
             os.makedirs(secdir, 0o700)
-        common.chownroot(secdir, logger)
+        config.chownroot(secdir, logger)
         size = config.get('cloud_agent', 'secure_size')
         logger.info("mounting secure storage location %s on tmpfs" % secdir)
         cmd = ('mount', '-t', 'tmpfs', '-o', 'size=%s,mode=0700' % size,

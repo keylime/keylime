@@ -338,6 +338,7 @@ class Test(unittest.TestCase):
             for i, line in enumerate(fp):
                 if i == line_number:
                     return line
+        return ''
 
     def sleep_for_a_while(self, argument):
         time.sleep(float(argument))
@@ -747,7 +748,7 @@ class Test(unittest.TestCase):
 
         # modify the persistence file per the passed argument
         if argument is not None:
-            string_to_write = self.modify_persistence_file(argument)
+            self.modify_persistence_file(argument)
 
         global cv_process
         cv_process = subprocess.Popen("python cloud_verifier.py", shell=True)

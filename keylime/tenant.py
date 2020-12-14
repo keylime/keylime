@@ -19,7 +19,7 @@ import zipfile
 import simplejson as json
 
 from keylime.requests_client import RequestsClient
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_client
 from keylime.tpm import tpm_obj
@@ -29,16 +29,12 @@ from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import ca_util
 from keylime import cloud_verifier_common
-from keylime.utils import algorithms
+from keylime.common import algorithms
 
 # setup logging
 logger = keylime_logging.init_logging('tenant')
 
-config = common.get_config()
-
 # special exception that suppresses stack traces when it happens
-
-
 class UserError(Exception):
     pass
 
@@ -83,12 +79,14 @@ class Tenant():
     def __init__(self):
         """ Set up required values and TLS
         """
+        self.agent_ip = None
+        self.nonce = None
         self.verifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
         self.verifier_port = config.get('cloud_verifier', 'cloudverifier_port')
         self.agent_port = config.get('cloud_agent', 'cloudagent_port')
         self.registrar_port = config.get('registrar', 'registrar_tls_port')
         self.webapp_port = config.getint('webapp', 'webapp_port')
-        if not common.REQUIRE_ROOT and self.webapp_port < 1024:
+        if not config.REQUIRE_ROOT and self.webapp_port < 1024:
             self.webapp_port += 2000
         self.registrar_ip = config.get('registrar', 'registrar_ip')
         self.verifier_base_url = f'{self.verifier_ip}:{self.verifier_port}'
@@ -120,7 +118,7 @@ class Tenant():
             tls_dir = 'cv_ca'
 
         if tls_dir[0] != '/':
-            tls_dir = os.path.abspath('%s/%s' % (common.WORK_DIR, tls_dir))
+            tls_dir = os.path.abspath('%s/%s' % (config.WORK_DIR, tls_dir))
 
         logger.info(f"Setting up client TLS in {tls_dir}")
         my_cert = "%s/%s" % (tls_dir, my_cert)
@@ -186,7 +184,7 @@ class Tenant():
 
             # Auto-enable IMA (or-bit mask)
             self.tpm_policy['mask'] = "0x%X" % (
-                int(self.tpm_policy['mask'], 0) | (1 << common.IMA_PCR))
+                int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
 
             if type(args["allowlist"]) in [str, str]:
                 if args["allowlist"] == "default":
@@ -212,8 +210,8 @@ class Tenant():
                 raise UserError("Invalid exclude list provided")
 
         # Set up IMA
-        if TPM_Utilities.check_mask(self.tpm_policy['mask'], common.IMA_PCR) or \
-                TPM_Utilities.check_mask(self.vtpm_policy['mask'], common.IMA_PCR):
+        if TPM_Utilities.check_mask(self.tpm_policy['mask'], config.IMA_PCR) or \
+                TPM_Utilities.check_mask(self.vtpm_policy['mask'], config.IMA_PCR):
 
             # Process allowlists
             self.allowlist = ima.process_allowlists(al_data, excl_data)
@@ -283,7 +281,7 @@ class Tenant():
                 raise UserError(
                     "You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent")
             if args["ca_dir"] == 'default':
-                args["ca_dir"] = common.CA_WORK_DIR
+                args["ca_dir"] = config.CA_WORK_DIR
 
             if "ca_dir_pw" in args and args["ca_dir_pw"] is not None:
                 ca_util.setpassword(args["ca_dir_pw"])
@@ -356,7 +354,7 @@ class Tenant():
         """
         self.auth_tag = crypto.do_hmac(self.K, self.agent_uuid)
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
-        if common.INSECURE_DEBUG:
+        if config.INSECURE_DEBUG:
             logger.debug(F"K: {base64.b64encode(self.K)}")
             logger.debug(F"V: {base64.b64encode(self.V)}")
             logger.debug(F"U: {base64.b64encode(self.U)}")
@@ -374,11 +372,11 @@ class Tenant():
             [type] -- [description]
         """
         if config.getboolean('tenant', 'require_ek_cert'):
-            if common.STUB_TPM:
+            if config.STUB_TPM:
                 logger.debug("not checking ekcert due to STUB_TPM mode")
             elif ekcert == 'virtual':
                 logger.debug("not checking ekcert of VTPM")
-            elif ekcert == 'emulator' and common.DISABLE_EK_CERT_CHECK_EMULATOR:
+            elif ekcert == 'emulator' and config.DISABLE_EK_CERT_CHECK_EMULATOR:
                 logger.debug("not checking ekcert of TPM emulator")
             elif ekcert is None:
                 logger.warning(
@@ -405,7 +403,7 @@ class Tenant():
         Returns:
             [type] -- [description]
         """
-        registrar_client.init_client_tls(config, 'tenant')
+        registrar_client.init_client_tls('tenant')
         reg_keys = registrar_client.getKeys(
             self.registrar_ip, self.registrar_port, self.agent_uuid)
         if reg_keys is None:
@@ -422,7 +420,7 @@ class Tenant():
         if reg_keys['regcount'] > 1:
             logger.warn("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured.  Run 'regdelete' for this agent and restart")
 
-        if not common.STUB_TPM and (not config.getboolean('tenant', 'require_ek_cert') and config.get('tenant', 'ek_check_script') == ""):
+        if not config.STUB_TPM and (not config.getboolean('tenant', 'require_ek_cert') and config.get('tenant', 'ek_check_script') == ""):
             logger.warn(
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
@@ -440,7 +438,7 @@ class Tenant():
             return True
 
         if script[0] != '/':
-            script = "%s/%s" % (common.WORK_DIR, script)
+            script = "%s/%s" % (config.WORK_DIR, script)
 
         logger.info(f"Checking EK with script {script}")
         # now we need to exec the script with the ek and ek cert in vars
@@ -454,7 +452,7 @@ class Tenant():
 
         env['PROVKEYS'] = json.dumps(reg_keys.get('provider_keys', {}))
         proc = subprocess.Popen(script, env=env, shell=True,
-                                cwd=common.WORK_DIR, stdout=subprocess.PIPE,
+                                cwd=config.WORK_DIR, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT)
         retval = proc.wait()
         if retval != 0:
@@ -529,7 +527,7 @@ class Tenant():
 
         do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled)
         response = do_cvstatus.get(
-            (f'/agents/{self.agent_uuid}'),
+            (f'/agents/{agent_uuid}'),
             cert=self.cert,
             verify=False
         )
@@ -612,7 +610,7 @@ class Tenant():
     def do_regdelete(self):
         """ Delete agent from Registrar
         """
-        registrar_client.init_client_tls(config, 'tenant')
+        registrar_client.init_client_tls('tenant')
         registrar_client.doRegistrarDelete(
             self.registrar_ip, self.registrar_port, self.agent_uuid)
 
@@ -928,9 +926,9 @@ def main(argv=sys.argv):
             "Using default UUID D432FBB3-D2F1-4A97-9EF7-75BD81C00000")
         mytenant.agent_uuid = "D432FBB3-D2F1-4A97-9EF7-75BD81C00000"
 
-    if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
+    if config.STUB_VTPM and config.TPM_CANNED_VALUES is not None:
         # Use canned values for agent UUID
-        jsonIn = common.TPM_CANNED_VALUES
+        jsonIn = config.TPM_CANNED_VALUES
         if "add_vtpm_to_group" in jsonIn:
             mytenant.agent_uuid = jsonIn['add_vtpm_to_group']['retout']
         else:

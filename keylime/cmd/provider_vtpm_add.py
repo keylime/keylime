@@ -13,13 +13,13 @@ try:
 except ImportError:
     from yaml import SafeLoader as SafeLoader
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_client
 from keylime import vtpm_manager
 
 # read the config file
-config = common.get_config()
+config = config.get_config()
 
 logger = keylime_logging.init_logging('platform-init')
 

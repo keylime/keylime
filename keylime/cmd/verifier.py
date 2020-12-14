@@ -6,13 +6,13 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 from keylime import keylime_logging
-from keylime import common
+from keylime import config
 from keylime import cloud_verifier_tornado
 import keylime.cmd.migrations_apply
 
 logger = keylime_logging.init_logging('cloudverifier')
 
-config = common.get_config()
+config = config.get_config()
 
 
 def main():

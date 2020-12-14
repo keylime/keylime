@@ -15,6 +15,7 @@ import base64
 import configparser
 import uuid
 import os
+import socket
 import sys
 import time
 import hashlib
@@ -25,7 +26,7 @@ import shutil
 
 import simplejson as json
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import cmd_exec
 from keylime import crypto
@@ -38,9 +39,6 @@ from keylime.tpm.tpm_abstract import TPM_Utilities
 
 # Configure logger
 logger = keylime_logging.init_logging('cloudagent')
-
-# read the config file
-config = common.get_config()
 
 # get the tpm object
 tpm = tpm_obj.getTPM(need_hw_tpm=True)
@@ -55,7 +53,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         """Not supported"""
-        common.echo_json_response(self, 405, "HEAD not supported")
+        config.echo_json_response(self, 405, "HEAD not supported")
 
     def do_GET(self):
         """This method services the GET request typically from either the Tenant or the Cloud Verifier.
@@ -66,9 +64,9 @@ class Handler(BaseHTTPRequestHandler):
 
         logger.info('GET invoked from ' + str(self.client_address) + ' with uri:' + self.path)
 
-        rest_params = common.get_restful_params(self.path)
+        rest_params = config.get_restful_params(self.path)
         if rest_params is None:
-            common.echo_json_response(
+            config.echo_json_response(
                 self, 405, "Not Implemented: Use /keys/ or /quotes/ interfaces")
             return
 
@@ -76,13 +74,13 @@ class Handler(BaseHTTPRequestHandler):
             if self.server.K is None:
                 logger.info(
                     'GET key challenge returning 400 response. bootstrap key not available')
-                common.echo_json_response(
+                config.echo_json_response(
                     self, 400, "Bootstrap key not yet available.")
                 return
             challenge = rest_params['challenge']
             response = {}
             response['hmac'] = crypto.do_hmac(self.server.K, challenge)
-            common.echo_json_response(self, 200, "Success", response)
+            config.echo_json_response(self, 200, "Success", response)
             logger.info('GET key challenge returning 200 response.')
 
         # If agent pubkey requested
@@ -90,7 +88,7 @@ class Handler(BaseHTTPRequestHandler):
             response = {}
             response['pubkey'] = self.server.rsapublickey_exportable
 
-            common.echo_json_response(self, 200, "Success", response)
+            config.echo_json_response(self, 200, "Success", response)
             logger.info('GET pubkey returning 200 response.')
             return
 
@@ -103,7 +101,7 @@ class Handler(BaseHTTPRequestHandler):
             if nonce is None:
                 logger.warning(
                     'GET quote returning 400 response. nonce not provided as an HTTP parameter in request')
-                common.echo_json_response(
+                config.echo_json_response(
                     self, 400, "nonce not provided as an HTTP parameter in request")
                 return
 
@@ -111,7 +109,7 @@ class Handler(BaseHTTPRequestHandler):
             if not (nonce.isalnum() and (pcrmask is None or pcrmask.isalnum()) and (vpcrmask is None or vpcrmask.isalnum())):
                 logger.warning(
                     'GET quote returning 400 response. parameters should be strictly alphanumeric')
-                common.echo_json_response(
+                config.echo_json_response(
                     self, 400, "parameters should be strictly alphanumeric")
                 return
 
@@ -148,16 +146,16 @@ class Handler(BaseHTTPRequestHandler):
                 }
 
             # return a measurement list if available
-            if TPM_Utilities.check_mask(imaMask, common.IMA_PCR):
-                if not os.path.exists(common.IMA_ML):
+            if TPM_Utilities.check_mask(imaMask, config.IMA_PCR):
+                if not os.path.exists(config.IMA_ML):
                     logger.warn(
-                        "IMA measurement list not available: %s" % (common.IMA_ML))
+                        "IMA measurement list not available: %s" % (config.IMA_ML))
                 else:
-                    with open(common.IMA_ML, 'r') as f:
+                    with open(config.IMA_ML, 'r') as f:
                         ml = f.read()
                     response['ima_measurement_list'] = ml
 
-            common.echo_json_response(self, 200, "Success", response)
+            config.echo_json_response(self, 200, "Success", response)
             logger.info('GET %s quote returning 200 response.' %
                         (rest_params["quotes"]))
             return
@@ -165,7 +163,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             logger.warning(
                 'GET returning 400 response. uri not supported: ' + self.path)
-            common.echo_json_response(self, 400, "uri not supported")
+            config.echo_json_response(self, 400, "uri not supported")
             return
 
     def do_POST(self):
@@ -174,10 +172,10 @@ class Handler(BaseHTTPRequestHandler):
         Only tenant and cloudverifier uri's are supported. Both requests require a nonce parameter.
         The Cloud verifier requires an additional mask parameter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
-        rest_params = common.get_restful_params(self.path)
+        rest_params = config.get_restful_params(self.path)
 
         if rest_params is None:
-            common.echo_json_response(
+            config.echo_json_response(
                 self, 405, "Not Implemented: Use /keys/ interface")
             return
 
@@ -185,7 +183,7 @@ class Handler(BaseHTTPRequestHandler):
         if content_length <= 0:
             logger.warning(
                 'POST returning 400 response, expected content in message. url:  ' + self.path)
-            common.echo_json_response(self, 400, "expected content in message")
+            config.echo_json_response(self, 400, "expected content in message")
             return
 
         post_body = self.rfile.read(content_length)
@@ -208,11 +206,11 @@ class Handler(BaseHTTPRequestHandler):
         else:
             logger.warning(
                 'POST returning  response. uri not supported: ' + self.path)
-            common.echo_json_response(self, 400, "uri not supported")
+            config.echo_json_response(self, 400, "uri not supported")
             return
         logger.info('POST of %s key returning 200' %
                     (('V', 'U')[rest_params["keys"] == "ukey"]))
-        common.echo_json_response(self, 200, "Success")
+        config.echo_json_response(self, 200, "Success")
 
         # no key yet, then we're done
         if not have_derived_key:
@@ -240,7 +238,7 @@ class Handler(BaseHTTPRequestHandler):
         # if we have a good key, now attempt to write out the encrypted payload
         dec_path = "%s/%s" % (secdir,
                               config.get('cloud_agent', "dec_payload_file"))
-        enc_path = "%s/encrypted_payload" % common.WORK_DIR
+        enc_path = "%s/encrypted_payload" % config.WORK_DIR
 
         dec_payload = None
         enc_payload = None
@@ -403,7 +401,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         """
         with uvLock:
             # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
-            if common.INSECURE_DEBUG:
+            if config.INSECURE_DEBUG:
                 logger.debug("Adding U len %d data:%s" %
                              (len(u), base64.b64encode(u)))
             self.u_set.add(u)
@@ -414,7 +412,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         """
         with uvLock:
             # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
-            if common.INSECURE_DEBUG:
+            if config.INSECURE_DEBUG:
                 logger.debug(F"Adding V: {base64.b64encode(v)}")
             self.v_set.add(v)
 
@@ -461,7 +459,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         candidate_key = crypto.strbitxor(decrypted_U, decrypted_V)
 
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
-        if common.INSECURE_DEBUG:
+        if config.INSECURE_DEBUG:
             logger.debug(F"U: {base64.b64encode(decrypted_U)}")
             logger.debug(F"V: {base64.b64encode(decrypted_V)}")
             logger.debug(F"K: {base64.b64encode(candidate_key)}")
@@ -481,7 +479,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 def main(argv=sys.argv):
-    if os.getuid() != 0 and common.REQUIRE_ROOT:
+    if os.getuid() != 0 and config.REQUIRE_ROOT:
         logger.critical("This process must be run as root.")
         return
 
@@ -503,7 +501,7 @@ def main(argv=sys.argv):
     secdir = secure_mount.mount()
 
     # change dir to working dir
-    common.ch_dir(common.WORK_DIR, logger)
+    config.ch_dir(config.WORK_DIR, logger)
 
     # initialize tpm
     (ek, ekcert, aik, ek_tpm, aik_name) = tpm.tpm_init(self_activate=False, config_pw=config.get(
@@ -535,9 +533,11 @@ def main(argv=sys.argv):
         ret = cmd_exec.run(cmd)
         sys_uuid = ret['retout'].decode('utf-8')
         agent_uuid = sys_uuid.strip()
-    if common.STUB_VTPM and common.TPM_CANNED_VALUES is not None:
+    elif agent_uuid == 'hostname':
+        agent_uuid = socket.getfqdn()
+    if config.STUB_VTPM and config.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing
-        jsonIn = common.TPM_CANNED_VALUES
+        jsonIn = config.TPM_CANNED_VALUES
         if "add_vtpm_to_group" in jsonIn:
             # The value we're looking for has been canned!
             agent_uuid = jsonIn['add_vtpm_to_group']['retout']
@@ -591,7 +591,7 @@ def main(argv=sys.argv):
             cert_path = '%s/unzipped/RevocationNotifier-cert.crt' % (secdir)
         elif cert_path[0] != '/':
             # if it is a relative, convert to absolute in work_dir
-            cert_path = os.path.abspath('%s/%s' % (common.WORK_DIR, cert_path))
+            cert_path = os.path.abspath('%s/%s' % (config.WORK_DIR, cert_path))
 
         def perform_actions(revocation):
             actionlist = []

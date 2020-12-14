@@ -14,7 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import tornado.ioloop
 import tornado.web
 
-from keylime import common
+from keylime import config
 from keylime.db.verifier_db import VerfierMain
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import keylime_logging
@@ -24,7 +24,7 @@ import keylime.tornado_requests as tornado_requests
 
 
 logger = keylime_logging.init_logging('cloudverifier')
-config = common.get_config()
+
 
 try:
     engine = DBEngineManager().make_engine('cloud_verifier')
@@ -63,8 +63,8 @@ def _from_db_obj(agent_db_obj):
 
 
 class BaseHandler(tornado.web.RequestHandler, SessionManager):
-    def prepare(self):
-        super(BaseHandler, self).prepare()
+    def prepare(self):  # pylint: disable=W0235
+        super().prepare()
 
     def write_error(self, status_code, **kwargs):
 
@@ -91,30 +91,30 @@ class BaseHandler(tornado.web.RequestHandler, SessionManager):
 class MainHandler(tornado.web.RequestHandler):
 
     def head(self):
-        common.echo_json_response(
+        config.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def get(self):
-        common.echo_json_response(
+        config.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def delete(self):
-        common.echo_json_response(
+        config.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def post(self):
-        common.echo_json_response(
+        config.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def put(self):
-        common.echo_json_response(
+        config.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
 
 class AgentsHandler(BaseHandler):
     def head(self):
         """HEAD not supported"""
-        common.echo_json_response(self, 405, "HEAD not supported")
+        config.echo_json_response(self, 405, "HEAD not supported")
 
     def get(self):
         """This method handles the GET requests to retrieve status on agents from the Cloud Verifier.
@@ -126,14 +126,14 @@ class AgentsHandler(BaseHandler):
         to contact the Cloud Agent.
         """
         session = self.make_session(engine)
-        rest_params = common.get_restful_params(self.request.uri)
+        rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(
+            config.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            config.echo_json_response(self, 400, "uri not supported")
             logger.warning(
                 'GET returning 400 response. uri not supported: ' + self.request.path)
             return
@@ -149,12 +149,12 @@ class AgentsHandler(BaseHandler):
 
             if agent is not None:
                 response = cloud_verifier_common.process_get_status(agent)
-                common.echo_json_response(self, 200, "Success", response)
+                config.echo_json_response(self, 200, "Success", response)
             else:
-                common.echo_json_response(self, 404, "agent id not found")
+                config.echo_json_response(self, 404, "agent id not found")
         else:
             json_response = session.query(VerfierMain.agent_id).all()
-            common.echo_json_response(self, 200, "Success", {
+            config.echo_json_response(self, 200, "Success", {
                 'uuids': json_response})
             logger.info('GET returning 200 response for agent_id list')
 
@@ -165,20 +165,20 @@ class AgentsHandler(BaseHandler):
         agents requests require a single agent_id parameter which identifies the agent to be deleted.
         """
         session = self.make_session(engine)
-        rest_params = common.get_restful_params(self.request.uri)
+        rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
-            common.echo_json_response(
+            config.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if "agents" not in rest_params:
-            common.echo_json_response(self, 400, "uri not supported")
+            config.echo_json_response(self, 400, "uri not supported")
             return
 
         agent_id = rest_params["agents"]
 
         if agent_id is None:
-            common.echo_json_response(self, 400, "uri not supported")
+            config.echo_json_response(self, 400, "uri not supported")
             logger.warning(
                 'DELETE returning 400 response. uri not supported: ' + self.request.path)
             return
@@ -190,7 +190,7 @@ class AgentsHandler(BaseHandler):
             logger.error(f'SQLAlchemy Error: {e}')
 
         if agent is None:
-            common.echo_json_response(self, 404, "agent id not found")
+            config.echo_json_response(self, 404, "agent id not found")
             logger.info('DELETE returning 404 response. agent id: ' + agent_id + ' not found.')
             return
 
@@ -206,7 +206,7 @@ class AgentsHandler(BaseHandler):
                 session.commit()
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')
-            common.echo_json_response(self, 200, "Success")
+            config.echo_json_response(self, 200, "Success")
             logger.info(
                 'DELETE returning 200 response for agent id: ' + agent_id)
         else:
@@ -218,7 +218,7 @@ class AgentsHandler(BaseHandler):
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
                 session.commit()
-                common.echo_json_response(self, 202, "Accepted")
+                config.echo_json_response(self, 202, "Accepted")
                 logger.info(
                     'DELETE returning 202 response for agent id: ' + agent_id)
             except SQLAlchemyError as e:
@@ -232,14 +232,14 @@ class AgentsHandler(BaseHandler):
         agents requests require a json block sent in the body
         """
         try:
-            rest_params = common.get_restful_params(self.request.uri)
+            rest_params = config.get_restful_params(self.request.uri)
             if rest_params is None:
-                common.echo_json_response(
+                config.echo_json_response(
                     self, 405, "Not Implemented: Use /agents/ interface")
                 return
 
             if "agents" not in rest_params:
-                common.echo_json_response(self, 400, "uri not supported")
+                config.echo_json_response(self, 400, "uri not supported")
                 logger.warning(
                     'POST returning 400 response. uri not supported: ' + self.request.path)
                 return
@@ -249,7 +249,7 @@ class AgentsHandler(BaseHandler):
             if agent_id is not None:
                 content_length = len(self.request.body)
                 if content_length == 0:
-                    common.echo_json_response(
+                    config.echo_json_response(
                         self, 400, "Expected non zero content length")
                     logger.warning(
                         'POST returning 400 response. Expected non zero content length.')
@@ -277,7 +277,7 @@ class AgentsHandler(BaseHandler):
 
                     is_valid, err_msg = cloud_verifier_common.validate_agent_data(agent_data)
                     if not is_valid:
-                        common.echo_json_response(self, 400, err_msg)
+                        config.echo_json_response(self, 400, err_msg)
                         logger.warning(err_msg)
                         return
 
@@ -290,7 +290,7 @@ class AgentsHandler(BaseHandler):
                     # don't allow overwriting
 
                     if new_agent_count > 0:
-                        common.echo_json_response(
+                        config.echo_json_response(
                             self, 409, "Agent of uuid %s already exists" % (agent_id))
                         logger.warning(
                             "Agent of uuid %s already exists" % (agent_id))
@@ -306,15 +306,15 @@ class AgentsHandler(BaseHandler):
                             agent_data[key] = exclude_db[key]
                         asyncio.ensure_future(self.process_agent(
                             agent_data, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
-                        common.echo_json_response(self, 200, "Success")
+                        config.echo_json_response(self, 200, "Success")
                         logger.info(
                             'POST returning 200 response for adding agent id: ' + agent_id)
             else:
-                common.echo_json_response(self, 400, "uri not supported")
+                config.echo_json_response(self, 400, "uri not supported")
                 logger.warning(
                     "POST returning 400 response. uri not supported")
         except Exception as e:
-            common.echo_json_response(self, 400, "Exception error: %s" % e)
+            config.echo_json_response(self, 400, "Exception error: %s" % e)
             logger.warning(
                 "POST returning 400 response. Exception error: %s" % e)
             logger.exception(e)
@@ -329,14 +329,14 @@ class AgentsHandler(BaseHandler):
         agents requests require a json block sent in the body
         """
         try:
-            rest_params = common.get_restful_params(self.request.uri)
+            rest_params = config.get_restful_params(self.request.uri)
             if rest_params is None:
-                common.echo_json_response(
+                config.echo_json_response(
                     self, 405, "Not Implemented: Use /agents/ interface")
                 return
 
             if "agents" not in rest_params:
-                common.echo_json_response(self, 400, "uri not supported")
+                config.echo_json_response(self, 400, "uri not supported")
                 logger.warning(
                     'PUT returning 400 response. uri not supported: ' + self.request.path)
                 return
@@ -344,7 +344,7 @@ class AgentsHandler(BaseHandler):
             agent_id = rest_params["agents"]
 
             if agent_id is None:
-                common.echo_json_response(self, 400, "uri not supported")
+                config.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
             try:
                 agent = session.query(VerfierMain).filter_by(
@@ -353,7 +353,7 @@ class AgentsHandler(BaseHandler):
                 logger.error(f'SQLAlchemy Error: {e}')
 
             if agent is None:
-                common.echo_json_response(self, 404, "agent id not found")
+                config.echo_json_response(self, 404, "agent id not found")
                 logger.info(
                     'PUT returning 404 response. agent id: ' + agent_id + ' not found.')
                 return
@@ -362,7 +362,7 @@ class AgentsHandler(BaseHandler):
                 agent.operational_state = cloud_verifier_common.CloudAgent_Operational_State.START
                 asyncio.ensure_future(self.process_agent(
                     agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
-                common.echo_json_response(self, 200, "Success")
+                config.echo_json_response(self, 200, "Success")
                 logger.info(
                     'PUT returning 200 response for agent id: ' + agent_id)
             elif "stop" in rest_params:
@@ -375,15 +375,15 @@ class AgentsHandler(BaseHandler):
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
 
-                common.echo_json_response(self, 200, "Success")
+                config.echo_json_response(self, 200, "Success")
                 logger.info(
                     'PUT returning 200 response for agent id: ' + agent_id)
             else:
-                common.echo_json_response(self, 400, "uri not supported")
+                config.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
 
         except Exception as e:
-            common.echo_json_response(self, 400, "Exception error: %s" % e)
+            config.echo_json_response(self, 400, "Exception error: %s" % e)
             logger.warning(
                 "PUT returning 400 response. Exception error: %s" % e)
             logger.exception(e)
@@ -625,7 +625,6 @@ def main(argv=sys.argv):
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
-    config = common.get_config()
     cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
     cloudverifier_host = config.get('cloud_verifier', 'cloudverifier_ip')
 

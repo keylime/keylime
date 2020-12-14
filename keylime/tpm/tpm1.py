@@ -24,29 +24,27 @@ except ImportError:
 from M2Crypto import m2
 from keylime import crypto
 from keylime import cmd_exec
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import secure_mount
 from keylime.tpm import tpm_abstract
 from keylime import tpm_ek_ca
-from keylime.utils import algorithms
+from keylime.common import algorithms
 
 logger = keylime_logging.init_logging('tpm1')
-# read the config file
-config = common.get_config()
 
 
 def _get_cmd_env():
     env = os.environ.copy()
     env['TPM_SERVER_PORT'] = '9998'
     env['TPM_SERVER_NAME'] = 'localhost'
-    env['PATH'] = env['PATH'] + ":%s" % common.TPM_TOOLS_PATH
+    env['PATH'] = env['PATH'] + ":%s" % config.TPM_TOOLS_PATH
     return env
 
 
 def _stub_command(fprt, lock, outputpaths):
     # Use canned values for stubbing
-    yamlIn = common.TPM_CANNED_VALUES
+    yamlIn = config.TPM_CANNED_VALUES
     if fprt in yamlIn:
         # The value we're looking for has been canned!
         thisTiming = yamlIn[fprt]['timing']
@@ -73,7 +71,7 @@ def _stub_command(fprt, lock, outputpaths):
         return returnDict
     elif not lock:
         # non-lock calls don't go to the TPM (just let it pass through)
-        pass
+        return None
     else:
         # Our command hasn't been canned!
         raise Exception("Command %s not found in canned YAML!" % (fprt))
@@ -102,15 +100,15 @@ def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
 
     # Print out benchmarking information for TPM (if requested)
     # print "\033[95mTIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\033[0m" % (fprt,pad,t1-t0,len(retout),filelen,cmd)
-    if common.TPM_BENCHMARK_PATH is not None:
-        with open(common.TPM_BENCHMARK_PATH, "ab") as bench:
+    if config.TPM_BENCHMARK_PATH is not None:
+        with open(config.TPM_BENCHMARK_PATH, "ab") as bench:
             bench.write(
                 "TIMING: %s%s\ttime:%f\toutlines:%d\tfilecount:%d\t%s\n" % (fprt, pad, t1 - t0, len(retout), filelen, cmd))
 
     # Print out YAML canned values (if requested)
     # NOTE: resulting file will be missing the surrounding braces! (must add '{' and '}' for reading)
-    if common.TPM_CANNED_VALUES_PATH is not None:
-        with open(common.TPM_CANNED_VALUES_PATH, "ab") as can:
+    if config.TPM_CANNED_VALUES_PATH is not None:
+        with open(config.TPM_CANNED_VALUES_PATH, "ab") as can:
             fileoutEncoded = ""
             if outputpaths is not None and len(outputpaths) > 0:
                 if len(fileouts) == 1 and len(outputpaths) == 1:
@@ -178,6 +176,9 @@ class tpm1(tpm_abstract.AbstractTPM):
             pass
         return fprt
 
+    def run(self, cmd):
+        return self.__run(cmd, lock=False)
+
     def __run(self, cmd, expectedcode=tpm_abstract.AbstractTPM.EXIT_SUCESS, raiseOnError=True, lock=True, outputpaths=None):
         env = _get_cmd_env()
 
@@ -187,7 +188,7 @@ class tpm1(tpm_abstract.AbstractTPM):
 
         # Handle stubbing the TPM out
         fprt = tpm1.__fingerprint(cmd)
-        if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
+        if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:
             stub = _stub_command(fprt, lock, outputpaths)
             if stub:
                 return stub
@@ -241,7 +242,7 @@ class tpm1(tpm_abstract.AbstractTPM):
     def __create_ek(self):
         # this function is intended to be idempotent
         retDict = self.__run("createek", raiseOnError=False)
-        output = common.list_convert(retDict['retout'])
+        output = config.list_convert(retDict['retout'])
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             if len(output) > 0 and output[0].startswith("Error Target command disabled from TPM_CreateEndorsementKeyPair"):
@@ -256,7 +257,7 @@ class tpm1(tpm_abstract.AbstractTPM):
         # make a temp file for the output
         with tempfile.NamedTemporaryFile() as tmppath:
             retDict = self.__run("getpubek -pwdo %s -ok %s" % (owner_pw, tmppath.name), raiseOnError=False, outputpaths=tmppath.name)
-            output = common.list_convert(retDict['retout'])
+            output = config.list_convert(retDict['retout'])
             code = retDict['code']
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 if len(output) > 0 and output[0].startswith("Error Authentication failed (Incorrect Password) from TPM_OwnerReadPubek"):
@@ -318,7 +319,7 @@ class tpm1(tpm_abstract.AbstractTPM):
         # make a temp file for the output
         with tempfile.NamedTemporaryFile() as tmppath:
             retDict = self.__run("getpubek -pwdo %s -ok %s" % (owner_pw, tmppath.name), raiseOnError=False, outputpaths=tmppath.name)  # generates pubek.pem
-            output = common.list_convert(retDict['retout'])
+            output = config.list_convert(retDict['retout'])
             code = retDict['code']
             ek = retDict['fileouts'][tmppath.name]
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -341,7 +342,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             # make a temp file for the output
             with tempfile.NamedTemporaryFile() as tmppath:
                 retDict = self.__run("identity -la aik -ok %s -pwdo %s -pwdk %s %s" % (tmppath.name, owner_pw, aik_pw, extra), outputpaths=tmppath.name)
-                retout = common.list_convert(retDict['retout'])
+                retout = config.list_convert(retDict['retout'])
                 code = retDict['code']
                 fileout = retDict['fileouts'][tmppath.name]
                 inPem = False
@@ -572,7 +573,7 @@ class tpm1(tpm_abstract.AbstractTPM):
         return self.get_tpm_manufacturer() == 'IBM'
 
     def is_vtpm(self):
-        if common.STUB_VTPM:
+        if config.STUB_VTPM:
             return True
         else:
             return self.get_tpm_manufacturer() == 'ETHZ'
@@ -581,10 +582,7 @@ class tpm1(tpm_abstract.AbstractTPM):
         retDict = self.__run("getcapability -cap 5 -scap 111")
         retout = retDict['retout']
         tokens = retout[0].decode('utf-8').split()
-        if tokens[-1] == 'TRUE':
-            return True
-        else:
-            return False
+        return tokens[-1] == 'TRUE'
 
     def __get_mod_from_pem(self, pem):
         """ Extract public modulus for the RSA key """
@@ -625,9 +623,9 @@ class tpm1(tpm_abstract.AbstractTPM):
             with self.tpmutilLock:
                 if data is not None:
                     # add PCR 16 to pcrmask
-                    vpcrmask = "0x%X" % (int(vpcrmask, 0) + (1 << common.TPM_DATA_PCR))
-                    self.__run("pcrreset -ix %d" % common.TPM_DATA_PCR, lock=False)
-                    self.__run("extend -ix %d -ic %s" % (common.TPM_DATA_PCR, hashlib.sha1(data).hexdigest()), lock=False)
+                    vpcrmask = "0x%X" % (int(vpcrmask, 0) + (1 << config.TPM_DATA_PCR))
+                    self.__run("pcrreset -ix %d" % config.TPM_DATA_PCR, lock=False)
+                    self.__run("extend -ix %d -ic %s" % (config.TPM_DATA_PCR, hashlib.sha1(data).hexdigest()), lock=False)
 
                 command = "deepquote -vk %s -hm %s -vm %s -nonce %s -pwdo %s -pwdk %s -oq %s" % (keyhandle, pcrmask, vpcrmask, nonce, owner_pw, aik_pw, quotepath.name)
                 # print("Executing %s"%(command))
@@ -651,9 +649,9 @@ class tpm1(tpm_abstract.AbstractTPM):
             with self.tpmutilLock:
                 if data is not None:
                     # add PCR 16 to pcrmask
-                    pcrmask = "0x%X" % (int(pcrmask, 0) + (1 << common.TPM_DATA_PCR))
-                    self.__run("pcrreset -ix %d" % common.TPM_DATA_PCR, lock=False)
-                    self.__run("extend -ix %d -ic %s" % (common.TPM_DATA_PCR, self.hashdigest(data)), lock=False)
+                    pcrmask = "0x%X" % (int(pcrmask, 0) + (1 << config.TPM_DATA_PCR))
+                    self.__run("pcrreset -ix %d" % config.TPM_DATA_PCR, lock=False)
+                    self.__run("extend -ix %d -ic %s" % (config.TPM_DATA_PCR, self.hashdigest(data)), lock=False)
 
                 command = "tpmquote -hk %s -pwdk %s -bm %s -nonce %s -noverify -oq %s" % (keyhandle, aik_pw, pcrmask, nonce, quotepath.name)
                 retDict = self.__run(command, lock=False, outputpaths=quotepath.name)
@@ -669,8 +667,8 @@ class tpm1(tpm_abstract.AbstractTPM):
         os.putenv('TPM_SERVER_NAME', '9999')
         os.putenv('PATH', os.getenv('PATH') + ':/usr/local/bin')
 
-        if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
-            yamlIn = common.TPM_CANNED_VALUES
+        if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:
+            yamlIn = config.TPM_CANNED_VALUES
             if 'deepquote' in yamlIn:
                 # YAML unicode-ifies strings, and C calls require byte strings (str)
                 if 'nonce' in yamlIn['deepquote']:
@@ -760,8 +758,8 @@ class tpm1(tpm_abstract.AbstractTPM):
         os.putenv('TPM_SERVER_NAME', '9999')
         os.putenv('PATH', os.getenv('PATH') + ':/usr/local/bin')
 
-        if common.STUB_TPM and common.TPM_CANNED_VALUES is not None:
-            yamlIn = common.TPM_CANNED_VALUES
+        if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:
+            yamlIn = config.TPM_CANNED_VALUES
             if 'tpmquote' in yamlIn and 'nonce' in yamlIn['tpmquote']:
                 # YAML unicode-ifies strings, and C calls require byte strings (str)
                 extData = str(yamlIn['tpmquote']['nonce'])
@@ -769,7 +767,7 @@ class tpm1(tpm_abstract.AbstractTPM):
                 raise Exception("Could not get quote nonce from canned YAML!")
 
         # print('Executing "%s"' % ("checkquote -aik %s -quote %s -nonce %s"%(aikFile, quoteFile, extData),))
-        if common.USE_CLIME:
+        if config.USE_CLIME:
             import _cLime
             retout = _cLime.checkquote('-aik', aikFile, '-quote', quoteFile, '-nonce', extData)
             retout = [line + '\n' for line in retout.split('\n')]
@@ -885,7 +883,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             keyFile.write(key)
             keyFile.flush()
 
-            self.__run("nv_definespace -pwdo %s -in 1 -sz %d -pwdd %s -per 40004" % (owner_pw, common.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
+            self.__run("nv_definespace -pwdo %s -in 1 -sz %d -pwdd %s -per 40004" % (owner_pw, config.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
             self.__run("nv_writevalue -pwdd %s -in 1 -if %s" % (owner_pw, keyFile.name), raiseOnError=False)
         return
 
@@ -895,7 +893,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             owner_pw = self.get_tpm_metadata('owner_pw')
 
             retDict = self.__run("nv_readvalue -pwdo %s -in 1000f000 -cert -of %s" % (owner_pw, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
-            output = common.list_convert(retDict['retout'])
+            output = config.list_convert(retDict['retout'])
             code = retDict['code']
             ekcert = retDict['fileouts'][nvpath.name]
 
@@ -912,8 +910,8 @@ class tpm1(tpm_abstract.AbstractTPM):
             owner_pw = self.get_tpm_metadata('owner_pw')
 
             retDict = self.__run("nv_readvalue -pwdd %s -in 1 -sz %d -of %s" %
-                                 (owner_pw, common.BOOTSTRAP_KEY_SIZE, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
-            output = common.list_convert(retDict['retout'])
+                                 (owner_pw, config.BOOTSTRAP_KEY_SIZE, nvpath.name), raiseOnError=False, outputpaths=nvpath.name)
+            output = config.list_convert(retDict['retout'])
             code = retDict['code']
             key = retDict['fileouts'][nvpath.name]
 
@@ -923,7 +921,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             elif code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception("nv_readvalue failed with code " + str(code) + ": " + str(output))
 
-        if len(key) != common.BOOTSTRAP_KEY_SIZE:
+        if len(key) != config.BOOTSTRAP_KEY_SIZE:
             logger.debug("Invalid key length from NVRAM: %d" % (len(key)))
             return None
         return key

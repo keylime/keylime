@@ -18,11 +18,11 @@ try:
 except ImportError:
     from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
 
-from keylime import common
+from keylime import config
 from keylime import keylime_logging
 from keylime import crypto
 from keylime import ima
-from keylime.utils import algorithms
+from keylime.common import algorithms
 
 logger = keylime_logging.init_logging('tpm')
 
@@ -54,9 +54,9 @@ class TPM_Utilities:
             if not key.isdigit() or int(key) > 24:
                 raise Exception("Invalid tpm policy pcr number: %s" % (key))
 
-            if int(key) == common.TPM_DATA_PCR:
+            if int(key) == config.TPM_DATA_PCR:
                 raise Exception("Invalid allowlist PCR number %s, keylime uses this PCR to bind data." % key)
-            if int(key) == common.IMA_PCR:
+            if int(key) == config.IMA_PCR:
                 raise Exception("Invalid allowlist PCR number %s, this PCR is used for IMA." % key)
 
             mask = mask + (1 << int(key))
@@ -72,7 +72,7 @@ class TPM_Utilities:
         return policy
 
 
-class AbstractTPM(object, metaclass=ABCMeta):
+class AbstractTPM(metaclass=ABCMeta):
     # Abstract base class
     EXIT_SUCESS = 0
     TPM_IO_ERR = 5
@@ -81,7 +81,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
     # constructor
     def __init__(self, need_hw_tpm=True):
         # read the config file
-        self.config = common.get_config()
+        self.config = config.get_config()
         self.need_hw_tpm = need_hw_tpm
         self.global_tpmdata = None
         self.tpmrand_warned = False
@@ -135,7 +135,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
 
     def __write_tpm_data(self):
         os.umask(0o077)
-        if os.geteuid() != 0 and common.REQUIRE_ROOT:
+        if os.geteuid() != 0 and config.REQUIRE_ROOT:
             logger.warning("Creating tpm metadata file without root.  Sensitive trust roots may be at risk!")
         with open('tpmdata.yml', 'w') as f:
             yaml.dump(self.global_tpmdata, f, Dumper=SafeDumper)
@@ -219,7 +219,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
 
     def __check_ima(self, agent_id, pcrval, ima_measurement_list, allowlist):
         logger.info(f"Checking IMA measurement list on agent: {agent_id}")
-        if common.STUB_IMA:
+        if config.STUB_IMA:
             pcrval = None
         ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), allowlist, pcrval=pcrval)
         if ex_value is None:
@@ -256,16 +256,16 @@ class AbstractTPM(object, metaclass=ABCMeta):
             except Exception:
                 logger.error("Invalid PCR number %s" % tokens[1])
 
-            if pcrnum == common.TPM_DATA_PCR and data is not None:
+            if pcrnum == config.TPM_DATA_PCR and data is not None:
                 expectedval = self.sim_extend(data)
-                if expectedval != pcrval and not common.STUB_TPM:
+                if expectedval != pcrval and not config.STUB_TPM:
                     logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s" % (("", "v")[virtual], pcrnum, pcrval, expectedval))
                     return False
                 validatedBindPCR = True
                 continue
 
             # check for ima PCR
-            if pcrnum == common.IMA_PCR and not common.STUB_TPM:
+            if pcrnum == config.IMA_PCR and not config.STUB_TPM:
                 if ima_measurement_list is None:
                     logger.error("IMA PCR in policy, but no measurement list provided")
                     return False
@@ -277,20 +277,20 @@ class AbstractTPM(object, metaclass=ABCMeta):
                     return False
 
             if pcrnum not in list(pcr_allowlist.keys()):
-                if not common.STUB_TPM and len(list(tpm_policy.keys())) > 0:
+                if not config.STUB_TPM and len(list(tpm_policy.keys())) > 0:
                     logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping." % (("", "v")[virtual], pcrnum, ("", "v")[virtual]))
                 continue
-            elif pcrval not in pcr_allowlist[pcrnum] and not common.STUB_TPM:
+            elif pcrval not in pcr_allowlist[pcrnum] and not config.STUB_TPM:
                 logger.error("%sPCR #%s: %s from quote does not match expected value %s" % (("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum]))
                 return False
             else:
                 pcrsInQuote.add(pcrnum)
 
-        if common.STUB_TPM:
+        if config.STUB_TPM:
             return True
 
         if not validatedBindPCR:
-            logger.error("Binding %sPCR #%s was not included in the quote, but is required" % (("", "v")[virtual], common.TPM_DATA_PCR))
+            logger.error("Binding %sPCR #%s was not included in the quote, but is required" % (("", "v")[virtual], config.TPM_DATA_PCR))
             return False
 
         missing = list(set(list(pcr_allowlist.keys())).difference(pcrsInQuote))
@@ -303,7 +303,7 @@ class AbstractTPM(object, metaclass=ABCMeta):
     def init_system_rand(self):
         RNDADDENTROPY = 0x40085203
         rand_data = self._get_tpm_rand_block()
-        if common.REQUIRE_ROOT and rand_data is not None:
+        if config.REQUIRE_ROOT and rand_data is not None:
             try:
                 t = struct.pack("ii%ds" % len(rand_data), 8, len(rand_data), rand_data)
                 with open("/dev/random", mode='wb') as fp:
