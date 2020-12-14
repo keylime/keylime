@@ -61,8 +61,15 @@ def init_client_tls(section):
     else:
         ca_path = "%s/%s" % (tls_dir, ca_cert)
 
-    tls_cert = "%s/%s" % (tls_dir, my_cert)
-    tls_priv_key = "%s/%s" % (tls_dir, my_priv_key)
+    if os.path.isabs(my_cert):
+        tls_cert = my_cert
+    else:
+        tls_cert = "%s/%s" % (tls_dir, my_cert)
+    if os.path.isabs(my_priv_key):
+        tls_priv_key = my_priv_key
+    else:
+        tls_priv_key = "%s/%s" % (tls_dir, my_priv_key)
+
     tls_cert_info = (tls_cert, tls_priv_key)
 
 
