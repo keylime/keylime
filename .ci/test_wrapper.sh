@@ -1,6 +1,8 @@
 #!/bin/bash
 set -x
 
+KEYLIME_HOME="${KEYLIME_HOME=:-/root/keylime}"
+
 # Configure swtpm2
 mkdir /tmp/tpmdir
 swtpm_setup --tpm2 \
@@ -17,5 +19,6 @@ swtpm socket --tpm2 \
 export TPM2TOOLS_TCTI=swtpm:
 
 # Run tests
+cd ${KEYLIME_HOME}/test
 chmod +x ./run_tests.sh
 ./run_tests.sh -s openssl
