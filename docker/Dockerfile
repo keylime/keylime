@@ -22,6 +22,7 @@ ENV PKGS_DEPS="automake \
 cargo \
 clang-devel \
 dbus \
+dbus-daemon \
 dbus-devel \
 dnf-plugins-core \
 gcc \
