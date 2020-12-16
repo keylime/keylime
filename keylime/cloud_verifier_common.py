@@ -1,9 +1,7 @@
-#!/usr/bin/python3
-
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
 import ast
 import base64
@@ -11,7 +9,6 @@ import os
 import ssl
 import socket
 import time
-from urllib.parse import urlparse
 
 import simplejson as json
 
@@ -27,26 +24,6 @@ from keylime.common import algorithms
 
 # setup logging
 logger = keylime_logging.init_logging('cloudverifier_common')
-
-
-class Timer:
-    def __init__(self, verbose=False):
-        self.verbose = verbose
-        self.start = 0
-        self.end = 0
-        self.secs = 0
-        self.msecs = 0
-
-    def __enter__(self):
-        self.start = time.time()
-        return self
-
-    def __exit__(self, *args):
-        self.end = time.time()
-        self.secs = self.end - self.start
-        self.msecs = self.secs * 1000  # millisecs
-        if self.verbose:
-            print('elapsed time: %f ms' % self.msecs)
 
 
 def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
@@ -311,23 +288,6 @@ def process_get_status(agent):
                 }
     return response
 
-
-def get_query_tag_value(path, query_tag):
-    """This is a utility method to query for specific the http parameters in the uri.
-
-    Returns the value of the parameter, or None if not found."""
-    data = {}
-    parsed_path = urlparse(path)
-    query_tokens = parsed_path.query.split('&')
-    # find the 'ids' query, there can only be one
-    for tok in query_tokens:
-        query_tok = tok.split('=')
-        query_key = query_tok[0]
-        if query_key is not None and query_key == query_tag:
-            # ids tag contains a comma delimited list of ids
-            data[query_tag] = query_tok[1]
-            break
-    return data.get(query_tag, None)
 
 # sign a message with revocation key.  telling of verification problem
 
