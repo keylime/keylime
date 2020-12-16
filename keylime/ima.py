@@ -76,6 +76,7 @@ supported_fields = {
 
 def read_measurement_list_bin(path, allowlist):
     raise Exception("not implementated fully yet")
+    # pylint: disable=W0101
     f = open(path, 'rb')
 
     while True:
