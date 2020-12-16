@@ -15,7 +15,6 @@ ENV container docker
 ENV HOME /root
 ENV KEYLIME_HOME ${HOME}/keylime
 ENV TPM_HOME ${HOME}/swtpm2
-COPY dbus-policy.conf /etc/dbus-1/system.d/
 
 # Packaged dependencies
 ENV PKGS_DEPS="automake \
