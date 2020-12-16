@@ -8,7 +8,8 @@ import sys
 import select
 import time
 import itertools
-from keylime.tpm.tpm_abstract import *
+
+from keylime.tpm.tpm_abstract import config, hashlib
 from keylime.tpm import tpm_obj
 from keylime.common import algorithms
 

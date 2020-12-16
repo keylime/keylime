@@ -3,11 +3,15 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
-from keylime.crypto import *
 import unittest
-import os
 import sys
 from pathlib import Path
+
+from keylime.crypto import rsa_sign, rsa_verify, rsa_generate,\
+   rsa_import_pubkey, rsa_export_pubkey, \
+   rsa_import_privkey, rsa_export_privkey, rsa_encrypt, rsa_decrypt,\
+   get_public_key, encrypt, decrypt, base64, get_random_bytes, do_hmac,\
+   generate_random_key, kdf, strbitxor
 
 # Useful constants for the test
 KEYLIME_DIR = Path(__file__).parents[1]
