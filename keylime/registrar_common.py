@@ -154,7 +154,8 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         config.echo_json_response(self, 404)
 
-    def log_message(self, logformat, *args):
+    # pylint: disable=W0622
+    def log_message(self, format, *args):
         return
 
 
@@ -413,7 +414,8 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         """DELETE not supported"""
         config.echo_json_response(self, 405, "DELETE not supported")
 
-    def log_message(self, logformat, *args):
+    # pylint: disable=W0622
+    def log_message(self, format, *args):
         return
 
 # consider using PooledProcessMixIn

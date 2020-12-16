@@ -338,7 +338,8 @@ class Handler(BaseHTTPRequestHandler):
                 break
         return data.get(query_tag, None)
 
-    def log_message(self, logformat, *args):
+    # pylint: disable=W0622
+    def log_message(self, format, *args):
         return
 
 # consider using PooledProcessMixIn
