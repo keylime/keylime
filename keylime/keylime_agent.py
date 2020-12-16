@@ -10,7 +10,6 @@ import http.server
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 import threading
-from urllib.parse import urlparse
 import base64
 import configparser
 import uuid
@@ -320,23 +319,6 @@ class Handler(BaseHTTPRequestHandler):
             payload_thread.start()
 
         return
-
-    def get_query_tag_value(self, path, query_tag):
-        """This is a utility method to query for specific the http parameters in the uri.
-
-        Returns the value of the parameter, or None if not found."""
-        data = {}
-        parsed_path = urlparse(self.path)
-        query_tokens = parsed_path.query.split('&')
-        # find the 'ids' query, there can only be one
-        for tok in query_tokens:
-            query_tok = tok.split('=')
-            query_key = query_tok[0]
-            if query_key is not None and query_key == query_tag:
-                # ids tag contains a comma delimited list of ids
-                data[query_tag] = query_tok[1]
-                break
-        return data.get(query_tag, None)
 
     # pylint: disable=W0622
     def log_message(self, format, *args):

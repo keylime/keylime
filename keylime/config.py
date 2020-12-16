@@ -8,7 +8,6 @@ import configparser
 import sys
 import urllib.parse
 import re
-import time
 import tornado.web
 from http.server import BaseHTTPRequestHandler
 import http.client
@@ -110,9 +109,6 @@ except ImportError:
 
 TPM_LIBS_PATH = '/usr/local/lib/'
 TPM_TOOLS_PATH = '/usr/local/bin/'
-if getattr(sys, 'frozen', False):
-    # we are running in a pyinstaller bundle, redirect tpm tools to bundle
-    TPM_TOOLS_PATH = sys._MEIPASS  # pylint: disable=W0212
 
 
 CONFIG_FILE = os.getenv('KEYLIME_CONFIG', '/etc/keylime.conf')
@@ -188,26 +184,6 @@ def list_convert(data):
     if isinstance(data, list):
         return list(map(convert, data))
     return data
-
-
-def timerfunc(func):
-    """
-    A timer decorator for debugging function return times.
-    To use, decorate a function with @common.timerfunc
-    """
-    def function_timer(*args, **kwargs):
-        """
-        A nested function for timing other functions
-        """
-        start = time.time()
-        value = func(*args, **kwargs)
-        end = time.time()
-        runtime = end - start
-        msg = "The runtime for {func} took {time} seconds to complete"
-        print(msg.format(func=func.__name__,
-                         time=runtime))
-        return value
-    return function_timer
 
 
 def chownroot(path, logger):
