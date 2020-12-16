@@ -84,7 +84,7 @@ def read_measurement_list_bin(path, allowlist):
          template['name_len']) = read_unpack(f, "<I20sI")
 
         if template['name_len'] > TCG_EVENT_NAME_LEN_MAX:
-            raise Exception("Error event name too long %d",
+            raise Exception("Error event name too long: %d" %
                             template['name_len'])
 
         name = read_unpack(f, "<%ds" % template['name_len'])[0]
