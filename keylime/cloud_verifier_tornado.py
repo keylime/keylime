@@ -225,12 +225,12 @@ class AgentsHandler(BaseHandler):
                 logger.error(f'SQLAlchemy Error: {e}')
 
     def post(self):
-        session = self.make_session(engine)
         """This method handles the POST requests to add agents to the Cloud Verifier.
 
         Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's will return errors.
         agents requests require a json block sent in the body
         """
+        session = self.make_session(engine)
         try:
             rest_params = config.get_restful_params(self.request.uri)
             if rest_params is None:
@@ -322,12 +322,12 @@ class AgentsHandler(BaseHandler):
         self.finish()
 
     def put(self):
-        session = self.make_session(engine)
         """This method handles the PUT requests to add agents to the Cloud Verifier.
 
         Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
         agents requests require a json block sent in the body
         """
+        session = self.make_session(engine)
         try:
             rest_params = config.get_restful_params(self.request.uri)
             if rest_params is None:
