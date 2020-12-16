@@ -348,7 +348,7 @@ class Handler(BaseHTTPRequestHandler):
 class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     """Http Server which will handle each request in a separate thread."""
 
-    ''' Do not modify directly unless you acquire uvLock. Set chosen for uniqueness of contained values'''
+    # Do not modify directly unless you acquire uvLock. Set chosen for uniqueness of contained values
     u_set = set([])
     v_set = set([])
 

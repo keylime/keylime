@@ -2,6 +2,30 @@
 '''
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
+
+NOTE:
+This unittest is being used as a procedural test.
+The tests must be run in-order and CANNOT be parallelized!
+
+Tests all but two RESTful interfaces:
+    * agent's POST /v2/keys/vkey
+        - Done by CV after the CV's POST /v2/agents/{UUID} command is performed
+    * CV's PUT /v2/agents/{UUID}
+        - POST already bootstraps agent, so PUT is redundant in this test
+
+The registrar's PUT vactivate interface is only tested if a vTPM is present!
+
+
+USAGE:
+Should be run in test directory under root privileges with either command:
+    * python -m unittest -v test_restful
+    * green -vv
+        (with `pip install green`)
+
+To run without root privileges, be sure to export KEYLIME_TEST=True
+
+For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
+    * coverage run --parallel-mode test_restful.py
 '''
 
 import dbus
@@ -30,31 +54,6 @@ from keylime import secure_mount
 from keylime.tpm import tpm_obj, tpm_abstract
 
 
-""" NOTE:
-This unittest is being used as a procedural test.
-The tests must be run in-order and CANNOT be parallelized!
-
-Tests all but two RESTful interfaces:
-    * agent's POST /v2/keys/vkey
-        - Done by CV after the CV's POST /v2/agents/{UUID} command is performed
-    * CV's PUT /v2/agents/{UUID}
-        - POST already bootstraps agent, so PUT is redundant in this test
-
-The registrar's PUT vactivate interface is only tested if a vTPM is present!
-"""
-
-
-""" USAGE:
-Should be run in test directory under root privileges with either command:
-    * python -m unittest -v test_restful
-    * green -vv
-        (with `pip install green`)
-
-To run without root privileges, be sure to export KEYLIME_TEST=True
-
-For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
-    * coverage run --parallel-mode test_restful.py
-"""
 
 # Coverage support
 if "COVERAGE_FILE" in os.environ:
@@ -347,27 +346,27 @@ class TestRestful(unittest.TestCase):
         cls.V = ret['v']
         cls.payload = ret['ciphertext']
 
-        """Set up to register an agent"""
+        # Set up to register an agent
         cls.auth_tag = crypto.do_hmac(cls.K, tenant_templ.agent_uuid)
 
-        """Prepare policies for agent"""
+        # Prepare policies for agent
         cls.tpm_policy = config.get('tenant', 'tpm_policy')
         cls.vtpm_policy = config.get('tenant', 'vtpm_policy')
         cls.tpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.tpm_policy)
         cls.vtpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.vtpm_policy)
 
-        """Allow targeting a specific API version (default latest)"""
+        # Allow targeting a specific API version (default latest)
         cls.api_version = config.API_VERSION
 
     def setUp(self):
         """Nothing to set up before each test"""
         pass
 
-    """Ensure everyone is running before doing tests"""
     def test_000_services(self):
+        """Ensure everyone is running before doing tests"""
         self.assertTrue(services_running(), "Not all services started successfully!")
 
-    """Registrar Testset"""
+    # Registrar Testset
     def test_010_reg_agent_post(self):
         """Test registrar's POST /v2/agents/{UUID} Interface"""
         global keyblob, aik, vtpm, ek
@@ -537,7 +536,7 @@ class TestRestful(unittest.TestCase):
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
 
-    """Agent Setup Testset"""
+    # Agent Setup Testset
 
     def test_020_agent_keys_pubkey_get(self):
         """Test agent's GET /v2/keys/pubkey Interface"""
@@ -664,7 +663,7 @@ class TestRestful(unittest.TestCase):
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
 
-    """Cloud Verifier Testset"""
+    # Cloud Verifier Testset
 
     def test_030_cv_agent_post(self):
         """Test CV's POST /v2/agents/{UUID} Interface"""
@@ -792,7 +791,7 @@ class TestRestful(unittest.TestCase):
         json_response = response.json()
         self.assertIn("results", json_response, "Malformed response body!")
 
-    """Agent Poll Testset"""
+    # Agent Poll Testset
 
     def test_040_agent_quotes_integrity_get(self):
         """Test agent's GET /v2/quotes/integrity Interface"""
@@ -862,7 +861,7 @@ class TestRestful(unittest.TestCase):
         # ex_mac = crypto.do_hmac(self.K, challenge)
         self.assertEqual(mac, ex_mac, "Agent failed to validate challenge code!")
 
-    """CV Cleanup Testset"""
+    # CV Cleanup Testset
 
     def test_050_cv_agent_delete(self):
         """Test CV's DELETE /v2/agents/{UUID} Interface"""
