@@ -17,7 +17,7 @@ import tornado.ioloop
 import tornado.web
 
 from keylime.requests_client import RequestsClient
-from keylime import cloud_verifier_common
+from keylime.common import states
 from keylime import config
 from keylime import keylime_logging
 from keylime import tenant
@@ -328,7 +328,7 @@ class AgentsHandler(BaseHandler):
 
         # Agent not added to CV (but still registered)
         if response.status_code == 404:
-            return {"operational_state": cloud_verifier_common.CloudAgent_Operational_State.REGISTERED}
+            return {"operational_state": states.REGISTERED}
 
         return inst_response_body["results"]
 
@@ -411,8 +411,7 @@ class AgentsHandler(BaseHandler):
 
         # Pre-create sorted agents list
         sorted_by_state = {}
-        states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
-        for state in states:
+        for state in states.VALID_STATES:
             sorted_by_state[state] = {}
 
         # Build sorted agents list
@@ -420,7 +419,10 @@ class AgentsHandler(BaseHandler):
             state = agents[agent_id]["operational_state"]
             sorted_by_state[state][agent_id] = agents[agent_id]
 
-        print_order = [10, 9, 7, 3, 4, 5, 6, 2, 1, 8, 0]
+        print_order = [states.TENANT_FAILED, states.INVALID_QUOTE,
+                       states.FAILED, states.GET_QUOTE, states.GET_QUOTE_RETRY,
+                       states.PROVIDE_V, states.PROVIDE_V_RETRY, states.SAVED,
+                       states.START, states.TERMINATED, states.REGISTERED]
         sorted_agents = []
         for state in print_order:
             for agent_id in sorted_by_state[state]:

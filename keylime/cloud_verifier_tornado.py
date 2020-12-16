@@ -15,6 +15,7 @@ import tornado.ioloop
 import tornado.web
 
 from keylime import config
+from keylime.common import states
 from keylime.db.verifier_db import VerfierMain
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import keylime_logging
@@ -195,11 +196,8 @@ class AgentsHandler(BaseHandler):
             return
 
         op_state = agent.operational_state
-        if op_state in [cloud_verifier_common.CloudAgent_Operational_State.SAVED,
-                cloud_verifier_common.CloudAgent_Operational_State.FAILED,
-                cloud_verifier_common.CloudAgent_Operational_State.TERMINATED,
-                cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED,
-                cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE]:
+        if op_state in (states.SAVED, states.FAILED, states.TERMINATED,
+                        states.TENANT_FAILED, states.INVALID_QUOTE):
             try:
                 session.query(VerfierMain).filter_by(
                     agent_id=agent_id).delete()
@@ -212,7 +210,7 @@ class AgentsHandler(BaseHandler):
         else:
             try:
                 update_agent = session.query(VerfierMain).get(agent_id)
-                update_agent.operational_state = cloud_verifier_common.CloudAgent_Operational_State.TERMINATED
+                update_agent.operational_state = states.TERMINATED
                 try:
                     session.add(update_agent)
                 except SQLAlchemyError as e:
@@ -259,7 +257,7 @@ class AgentsHandler(BaseHandler):
                     agent_data['v'] = json_body['v']
                     agent_data['ip'] = json_body['cloudagent_ip']
                     agent_data['port'] = int(json_body['cloudagent_port'])
-                    agent_data['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.START
+                    agent_data['operational_state'] = states.START
                     agent_data['public_key'] = ""
                     agent_data['tpm_policy'] = json_body['tpm_policy']
                     agent_data['vtpm_policy'] = json_body['vtpm_policy']
@@ -304,8 +302,8 @@ class AgentsHandler(BaseHandler):
 
                         for key in list(exclude_db.keys()):
                             agent_data[key] = exclude_db[key]
-                        asyncio.ensure_future(self.process_agent(
-                            agent_data, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
+                        asyncio.ensure_future(
+                            self.process_agent(agent_data, states.GET_QUOTE))
                         config.echo_json_response(self, 200, "Success")
                         logger.info(
                             'POST returning 200 response for adding agent id: ' + agent_id)
@@ -359,9 +357,9 @@ class AgentsHandler(BaseHandler):
                 return
 
             if "reactivate" in rest_params:
-                agent.operational_state = cloud_verifier_common.CloudAgent_Operational_State.START
-                asyncio.ensure_future(self.process_agent(
-                    agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
+                agent.operational_state = states.START
+                asyncio.ensure_future(
+                    self.process_agent(agent, states.GET_QUOTE))
                 config.echo_json_response(self, 200, "Success")
                 logger.info(
                     'PUT returning 200 response for agent id: ' + agent_id)
@@ -370,7 +368,7 @@ class AgentsHandler(BaseHandler):
                 logger.debug("Stopping polling on %s" % agent_id)
                 try:
                     session.query(VerfierMain).filter(agent_id == agent_id).update(
-                        {'operational_state': cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED})
+                        {'operational_state': states.TENANT_FAILED})
                     session.commit()
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
@@ -407,14 +405,14 @@ class AgentsHandler(BaseHandler):
             # this is a connection error, retry get quote
             if response.status_code == 599:
                 asyncio.ensure_future(self.process_agent(
-                    agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE_RETRY))
+                    agent, states.GET_QUOTE_RETRY))
             else:
                 # catastrophic error, do not continue
                 error = "Unexpected Get Quote response error for cloud agent " + \
                     agent['agent_id'] + ", Error: " + str(response.status_code)
                 logger.critical(error)
                 asyncio.ensure_future(self.process_agent(
-                    agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED))
+                    agent, states.FAILED))
         else:
             try:
                 json_response = json.loads(response.body)
@@ -424,14 +422,14 @@ class AgentsHandler(BaseHandler):
                     agent['provide_V'] = True
                 if cloud_verifier_common.process_quote_response(agent, json_response['results']):
                     if agent['provide_V']:
-                        asyncio.ensure_future(self.process_agent(
-                            agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V))
+                        asyncio.ensure_future(
+                            self.process_agent(agent, states.PROVIDE_V))
                     else:
-                        asyncio.ensure_future(self.process_agent(
-                            agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
+                        asyncio.ensure_future(
+                            self.process_agent(agent, states.GET_QUOTE))
                 else:
-                    asyncio.ensure_future(self.process_agent(
-                        agent, cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE))
+                    asyncio.ensure_future(
+                        self.process_agent(agent, states.INVALID_QUOTE))
 
             except Exception as e:
                 logger.exception(e)
@@ -451,18 +449,16 @@ class AgentsHandler(BaseHandler):
 
         if response.status_code != 200:
             if response.status_code == 599:
-                asyncio.ensure_future(self.process_agent(
-                    agent, cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY))
+                asyncio.ensure_future(
+                    self.process_agent(agent, states.PROVIDE_V_RETRY))
             else:
                 # catastrophic error, do not continue
                 error = "Unexpected Provide V response error for cloud agent " + \
                     agent['agent_id'] + ", Error: " + str(response.error)
                 logger.critical(error)
-                asyncio.ensure_future(self.process_agent(
-                    agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED))
+                asyncio.ensure_future(self.process_agent(agent, states.FAILED))
         else:
-            asyncio.ensure_future(self.process_agent(
-                agent, cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE))
+            asyncio.ensure_future(self.process_agent(agent, states.GET_QUOTE))
 
     async def process_agent(self, agent, new_operational_state):
         # Convert to dict if the agent arg is a db object
@@ -479,7 +475,7 @@ class AgentsHandler(BaseHandler):
                 logger.error(f'SQLAlchemy Error: {e}')
 
             # if the user did terminated this agent
-            if stored_agent.operational_state == cloud_verifier_common.CloudAgent_Operational_State.TERMINATED:
+            if stored_agent.operational_state == states.TERMINATED:
                 logger.warning("agent %s terminated by user." %
                                agent['agent_id'])
                 if agent['pending_event'] is not None:
@@ -491,7 +487,7 @@ class AgentsHandler(BaseHandler):
                 return
 
             # if the user tells us to stop polling because the tenant quote check failed
-            if stored_agent.operational_state == cloud_verifier_common.CloudAgent_Operational_State.TENANT_FAILED:
+            if stored_agent.operational_state == states.TENANT_FAILED:
                 logger.warning(
                     "agent %s has failed tenant quote.  stopping polling" % agent['agent_id'])
                 if agent['pending_event'] is not None:
@@ -501,13 +497,11 @@ class AgentsHandler(BaseHandler):
 
             # If failed during processing, log regardless and drop it on the floor
             # The administration application (tenant) can GET the status and act accordingly (delete/retry/etc).
-            if new_operational_state in \
-                   [cloud_verifier_common.CloudAgent_Operational_State.FAILED,
-                    cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE]:
+            if new_operational_state in (states.FAILED, states.INVALID_QUOTE):
                 agent['operational_state'] = new_operational_state
 
                 # issue notification for invalid quotes
-                if new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.INVALID_QUOTE:
+                if new_operational_state == states.INVALID_QUOTE:
                     cloud_verifier_common.notify_error(agent)
 
                 if agent['pending_event'] is not None:
@@ -538,27 +532,25 @@ class AgentsHandler(BaseHandler):
                 logger.error(f'SQLAlchemy Error: {e}')
 
             # if new, get a quote
-            if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.START and \
-                    new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE:
+            if (main_agent_operational_state == states.START and
+                    new_operational_state == states.GET_QUOTE):
                 agent['num_retries'] = 0
-                agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
+                agent['operational_state'] = states.GET_QUOTE
                 await self.invoke_get_quote(agent, True)
                 return
 
-            if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE and \
-                    (new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V):
+            if (main_agent_operational_state == states.GET_QUOTE and
+                    new_operational_state == states.PROVIDE_V):
                 agent['num_retries'] = 0
-                agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V
+                agent['operational_state'] = states.PROVIDE_V
                 await self.invoke_provide_v(agent)
                 return
 
-            if main_agent_operational_state in \
-                    [cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V,
-                     cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE] and \
-                    new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE:
+            if (main_agent_operational_state in (states.PROVIDE_V, states.GET_QUOTE) and
+                    new_operational_state == states.GET_QUOTE):
                 agent['num_retries'] = 0
                 interval = config.getfloat('cloud_verifier', 'quote_interval')
-                agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
+                agent['operational_state'] = states.GET_QUOTE
                 if interval == 0:
                     await self.invoke_get_quote(agent, False)
                 else:
@@ -572,8 +564,8 @@ class AgentsHandler(BaseHandler):
 
             maxr = config.getint('cloud_verifier', 'max_retries')
             retry = config.getfloat('cloud_verifier', 'retry_interval')
-            if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE and \
-                    new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE_RETRY:
+            if (main_agent_operational_state == states.GET_QUOTE and
+                    new_operational_state == states.GET_QUOTE_RETRY):
                 if agent['num_retries'] >= maxr:
                     logger.warning("agent %s was not reachable for quote in %d tries, setting state to FAILED" % (
                         agent['agent_id'], maxr))
@@ -583,9 +575,9 @@ class AgentsHandler(BaseHandler):
                     else:
                         logger.debug(
                             "Communication error for new agent.  no notification will be sent")
-                    await self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
+                    await self.process_agent(agent, states.FAILED)
                 else:
-                    agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.GET_QUOTE
+                    agent['operational_state'] = states.GET_QUOTE
                     cb = functools.partial(self.invoke_get_quote, agent, True)
                     agent['num_retries'] += 1
                     logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds" %
@@ -593,16 +585,16 @@ class AgentsHandler(BaseHandler):
                     tornado.ioloop.IOLoop.current().call_later(retry, cb)
                 return
 
-            if main_agent_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V and \
-                    new_operational_state == cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V_RETRY:
+            if (main_agent_operational_state == states.PROVIDE_V and
+                    new_operational_state == states.PROVIDE_V_RETRY):
                 if agent['num_retries'] >= maxr:
                     logger.warning("agent %s was not reachable to provide v in %d tries, setting state to FAILED" % (
                         agent['agent_id'], maxr))
                     cloud_verifier_common.notify_error(
                         agent, msgtype='comm_error')
-                    await self.process_agent(agent, cloud_verifier_common.CloudAgent_Operational_State.FAILED)
+                    await self.process_agent(agent, states.FAILED)
                 else:
-                    agent['operational_state'] = cloud_verifier_common.CloudAgent_Operational_State.PROVIDE_V
+                    agent['operational_state'] = states.PROVIDE_V
                     cb = functools.partial(self.invoke_provide_v, agent)
                     agent['num_retries'] += 1
                     logger.info("connection to %s refused after %d/%d tries, trying again in %f seconds" %
@@ -642,7 +634,7 @@ def main(argv=sys.argv):
     except SQLAlchemyError as e:
         logger.error(f'SQLAlchemy Error: {e}')
     for row in query_all:
-        row.operational_state = cloud_verifier_common.CloudAgent_Operational_State.SAVED
+        row.operational_state = states.SAVED
     try:
         session.commit()
     except SQLAlchemyError as e:
