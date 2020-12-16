@@ -29,35 +29,7 @@ from keylime.common import algorithms
 logger = keylime_logging.init_logging('cloudverifier_common')
 
 
-class CloudAgent_Operational_State:
-    REGISTERED = 0
-    START = 1
-    SAVED = 2
-    GET_QUOTE = 3
-    GET_QUOTE_RETRY = 4
-    PROVIDE_V = 5
-    PROVIDE_V_RETRY = 6
-    FAILED = 7
-    TERMINATED = 8
-    INVALID_QUOTE = 9
-    TENANT_FAILED = 10
-
-    STR_MAPPINGS = {
-        0: "Registered",
-        1: "Start",
-        2: "Saved",
-        3: "Get Quote",
-        4: "Get Quote (retry)",
-        5: "Provide V",
-        6: "Provide V (retry)",
-        7: "Failed",
-        8: "Terminated",
-        9: "Invalid Quote",
-        10: "Tenant Quote Failed"
-    }
-
-
-class Timer():
+class Timer:
     def __init__(self, verbose=False):
         self.verbose = verbose
         self.start = 0

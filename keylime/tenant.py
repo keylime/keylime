@@ -19,6 +19,7 @@ import zipfile
 import simplejson as json
 
 from keylime.requests_client import RequestsClient
+from keylime.common import states
 from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_client
@@ -28,7 +29,6 @@ from keylime import ima
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import ca_util
-from keylime import cloud_verifier_common
 from keylime.common import algorithms
 
 # setup logging
@@ -520,7 +520,6 @@ class Tenant():
         Keyword Arguments:
             listing {bool} -- If True, list all agent statues (default: {False})
         """
-        states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
         agent_uuid = ""
         if not listing:
             agent_uuid = self.agent_uuid
@@ -554,7 +553,7 @@ class Tenant():
             response_json = response.json()
             if not listing:
                 operational_state = response_json["results"]["operational_state"]
-                logger.info(f'Agent Status: "{states[operational_state]}"')
+                logger.info(f'Agent Status: "{states.state_to_str(operational_state)}"')
             else:
                 agent_array = response_json["results"]["uuids"]
                 logger.info(f'Agents: "{agent_array}"')
