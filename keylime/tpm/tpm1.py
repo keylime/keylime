@@ -250,7 +250,6 @@ class tpm1(tpm_abstract.AbstractTPM):
                 logger.debug("createek failed.  TPM locked, will attempt unlock during while taking ownership.  To manually repair run resetlockvalue -pwdo [owner_password]")
             else:
                 raise Exception("createek failed with code " + str(code) + ": " + str(output))
-        return
 
     def __test_ownerpw(self, owner_pw, reentry=False):
         # make a temp file for the output
@@ -883,7 +882,6 @@ class tpm1(tpm_abstract.AbstractTPM):
 
             self.__run("nv_definespace -pwdo %s -in 1 -sz %d -pwdd %s -per 40004" % (owner_pw, config.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
             self.__run("nv_writevalue -pwdd %s -in 1 -if %s" % (owner_pw, keyFile.name), raiseOnError=False)
-        return
 
     def read_ekcert_nvram(self):
         # make a temp file for the quote

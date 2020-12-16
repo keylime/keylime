@@ -486,8 +486,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             self._set_tpm_metadata('ek_pw', ek_pw)
             self._set_tpm_metadata('ek_tpm', base64.b64encode(ek_tpm))
 
-        return
-
     def __use_ek(self, ek_handle, config_pw):
         ek_handle = int(ek_handle, 16)
         logger.info("Using an already created ek with handle: %s" % hex(ek_handle))
@@ -513,8 +511,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             self._set_tpm_metadata('ek_tpm', base64.b64encode(ek_tpm))
 
         self._set_tpm_metadata('ek_handle', int(ek_handle))
-
-        return
 
     def __take_ownership(self, config_pw):
         # if no ownerpassword
@@ -1265,7 +1261,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             else:
                 self.__run("tpm2_nvdefine 0x1500018 -C 0x40000001 -s %s -a \"%s\" -p %s -P %s" % (config.BOOTSTRAP_KEY_SIZE, attrs, owner_pw, owner_pw), raiseOnError=False)
                 self.__run("tpm2_nvwrite 0x1500018 -C 0x40000001 -P %s -i %s" % (owner_pw, keyFile.name), raiseOnError=False)
-        return
 
     def read_ekcert_nvram(self):
         # make a temp file for the quote
