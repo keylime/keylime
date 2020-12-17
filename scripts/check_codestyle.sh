@@ -6,10 +6,12 @@ if [ -z "$(type -P pylint)" ]; then
 fi
 
 pylint \
+  --jobs=0 \
+  --ignored-modules=zmq,alembic.op,alembic.context,M2Crypto.m2 \
   --disable C0200,W0223,W1509 \
   --disable C0103,C0115,C0116,C0301,C0302,C0111 \
   --disable W0102,W0511,W0603,W0703,W1201,W1203 \
-  --disable E0401,E1101,E1120 \
+  --disable E0401,E1120 \
   --disable R0801,R0902,R0903,R0904,R0912,R0913,R0914,R0915,R0201,R0911 \
   *.py $(find ./keylime ./test -name '*.py' ! -name 'oldtest.py')
 exit $?
