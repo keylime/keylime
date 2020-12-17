@@ -857,32 +857,20 @@ class tpm2(tpm_abstract.AbstractTPM):
             secfd, secpath = tempfile.mkstemp(dir=secdir)
             sessfd, sesspath = tempfile.mkstemp(dir=secdir)
 
+            apw = self.get_tpm_metadata('aik_pw')
             if self.tools_version == "3.2":
-                cmdargs = {
-                    'akhandle': hex(aik_keyhandle),
-                    'ekhandle': hex(ek_keyhandle),
-                    'keyblobfile': keyblobFile.name,
-                    'credfile': secpath,
-                    'apw': self.get_tpm_metadata('aik_pw'),
-                    'epw': owner_pw
-                }
-                command = "tpm2_activatecredential -H {akhandle} -k {ekhandle} -f {keyblobfile} -o {credfile} -P {apw} -e {epw}".format(**cmdargs)
+                command = ["tpm2_activatecredential", "-H", hex(aik_keyhandle),
+                           "-k", hex(ek_keyhandle), "-f", keyblobFile.name,
+                           "-o", secpath, "-P", apw, "-e", owner_pw]
                 retDict = self.__run(command, outputpaths=secpath)
             else:
-                cmdargs = {
-                    'akhandle': aik_keyhandle,
-                    'ekhandle': hex(ek_keyhandle),
-                    'keyblobfile': keyblobFile.name,
-                    'sessfile': sesspath,
-                    'credfile': secpath,
-                    'apw': self.get_tpm_metadata('aik_pw'),
-                    'epw': owner_pw
-                }
-                self.__run("tpm2_startauthsession --policy-session -S {sessfile}".format(**cmdargs))
-                self.__run("tpm2_policysecret -S {sessfile} -c 0x4000000B {epw}".format(**cmdargs))
-                command = "tpm2_activatecredential -c {akhandle} -C {ekhandle} -i {keyblobfile} -o {credfile} -p {apw} -P \"session:{sessfile}\"".format(**cmdargs)
+                self.__run(["tpm2_startauthsession", "--policy-session", "-S", sesspath])
+                self.__run(["tpm2_policysecret", "-S", sesspath, "-c", "0x4000000B", owner_pw])
+                command = ["tpm2_activatecredential", "-c", aik_keyhandle, "-C", hex(ek_keyhandle),
+                           "-i", keyblobFile.name, "-o", secpath, "-p", apw,
+                           "-P", "session:%s" % sesspath]
                 retDict = self.__run(command, outputpaths=secpath)
-                self.__run("tpm2_flushcontext {sessfile}".format(**cmdargs))
+                self.__run(["tpm2_flushcontext", sesspath])
 
             retout = retDict['retout']
             code = retDict['code']
