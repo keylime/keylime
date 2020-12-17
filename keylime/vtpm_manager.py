@@ -19,7 +19,7 @@ import simplejson as json
 try:
     from yaml import CSafeDumper as SafeDumper
 except ImportError:
-    from yaml import SafeDumper as SafeDumper
+    from yaml import SafeDumper
 
 from keylime import config
 from keylime import keylime_logging

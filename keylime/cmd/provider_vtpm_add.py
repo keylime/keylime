@@ -11,7 +11,7 @@ import yaml
 try:
     from yaml import CSafeLoader as SafeLoader
 except ImportError:
-    from yaml import SafeLoader as SafeLoader
+    from yaml import SafeLoader
 
 from keylime import config
 from keylime import keylime_logging
