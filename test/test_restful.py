@@ -334,6 +334,8 @@ class TestRestful(unittest.TestCase):
     U = None
     V = None
     api_version = config.API_VERSION
+    cloudagent_ip = None
+    cloudagent_port = None
 
     @classmethod
     def setUpClass(cls):

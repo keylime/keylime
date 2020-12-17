@@ -215,6 +215,10 @@ class AbstractTPM(metaclass=ABCMeta):
     def readPCR(self, pcrval, hash_alg=None):
         pass
 
+    @abstractmethod
+    def _get_tpm_rand_block(self, size=4096):
+        pass
+
     def __check_ima(self, agent_id, pcrval, ima_measurement_list, allowlist):
         logger.info(f"Checking IMA measurement list on agent: {agent_id}")
         if config.STUB_IMA:
