@@ -455,7 +455,6 @@ class tpm1(tpm_abstract.AbstractTPM):
                 os.remove(blobpath)
             if keypath is not None:
                 os.remove(keypath)
-            pass
         return (keyblob, key)
 
     def activate_identity(self, keyblob):
@@ -719,7 +718,6 @@ class tpm1(tpm_abstract.AbstractTPM):
                 os.remove(hAIKFile.name)
             if quoteFile is not None:
                 os.remove(quoteFile.name)
-            pass
 
         if len(retout) < 1:
             return False
@@ -807,7 +805,6 @@ class tpm1(tpm_abstract.AbstractTPM):
                 os.remove(aikFile.name)
             if quoteFile is not None:
                 os.remove(quoteFile.name)
-            pass
 
         if len(retout) < 1:
             return False
