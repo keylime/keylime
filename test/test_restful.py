@@ -360,7 +360,7 @@ class TestRestful(unittest.TestCase):
 
     def setUp(self):
         """Nothing to set up before each test"""
-        pass
+        return
 
     def test_000_services(self):
         """Ensure everyone is running before doing tests"""
@@ -881,12 +881,12 @@ class TestRestful(unittest.TestCase):
 
     def tearDown(self):
         """Nothing to bring down after each test"""
-        pass
+        return
 
     @classmethod
     def tearDownClass(cls):
         """Nothing to bring down"""
-        pass
+        return
 
 
 if __name__ == '__main__':
