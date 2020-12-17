@@ -19,7 +19,7 @@ import codecs
 try:
     from yaml import CSafeDumper as SafeDumper
 except ImportError:
-    from yaml import SafeDumper as SafeDumper
+    from yaml import SafeDumper
 
 from M2Crypto import m2
 from keylime import crypto

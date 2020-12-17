@@ -10,12 +10,12 @@ import yaml
 try:
     from yaml import CSafeLoader as SafeLoader
 except ImportError:
-    from yaml import SafeLoader as SafeLoader
+    from yaml import SafeLoader
 
 from tornado import httpclient
 
 
-async def request(method, url, params=None, data=None, context=None):
+async def request(method, url, params=None, data=None, context=None, headers=None):
 
     http_client = httpclient.AsyncHTTPClient()
     if params is not None and len(list(params.keys())) > 0:
@@ -31,7 +31,8 @@ async def request(method, url, params=None, data=None, context=None):
         request = httpclient.HTTPRequest(url=url,
                                          method=method,
                                          ssl_options=context,
-                                         body=data)
+                                         body=data,
+                                         headers=headers)
         response = await http_client.fetch(request)
 
     except httpclient.HTTPError as e:
