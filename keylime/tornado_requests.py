@@ -28,12 +28,12 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
         url = url.replace('http://', 'https://', 1)
 
     try:
-        request = httpclient.HTTPRequest(url=url,
-                                         method=method,
-                                         ssl_options=context,
-                                         body=data,
-                                         headers=headers)
-        response = await http_client.fetch(request)
+        req = httpclient.HTTPRequest(url=url,
+                                     method=method,
+                                     ssl_options=context,
+                                     body=data,
+                                     headers=headers)
+        response = await http_client.fetch(req)
 
     except httpclient.HTTPError as e:
         if e.response is None:

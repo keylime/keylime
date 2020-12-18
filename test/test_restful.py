@@ -191,8 +191,8 @@ def setUpModule():
     tenant_templ.registrar_base_tls_url = f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_tls_boot_port}'
     tenant_templ.agent_base_url = f'{tenant_templ.cloudagent_ip}:{tenant_templ.cloudagent_port}'
     # Set up TLS
-    my_cert, my_priv_key = tenant_templ.get_tls_context()
-    tenant_templ.cert = (my_cert, my_priv_key)
+    my_tls_cert, my_tls_priv_key = tenant_templ.get_tls_context()
+    tenant_templ.cert = (my_tls_cert, my_tls_priv_key)
 
 
 # Destroy everything on teardown
