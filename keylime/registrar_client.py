@@ -39,7 +39,6 @@ def init_client_tls(section):
 
     my_cert = config.get(section, 'registrar_my_cert')
     my_priv_key = config.get(section, 'registrar_private_key')
-    my_key_pw = config.get(section, 'registrar_private_key_pw')
 
     if tls_dir == 'default':
         tls_dir = 'reg_ca'
@@ -54,13 +53,6 @@ def init_client_tls(section):
     # this is relative path, convert to absolute in WORK_DIR
     if tls_dir[0] != '/':
         tls_dir = os.path.abspath('%s/%s' % (config.WORK_DIR, tls_dir))
-
-    ca_cert = config.get(section, 'registrar_ca_cert')
-
-    if ca_cert == 'default':
-        ca_path = "%s/cacert.crt" % (tls_dir)
-    else:
-        ca_path = "%s/%s" % (tls_dir, ca_cert)
 
     if os.path.isabs(my_cert):
         tls_cert = my_cert

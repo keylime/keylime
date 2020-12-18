@@ -44,7 +44,7 @@ def __guess_tpm_version():
             return 1
 
         return 2
-    except Exception as e:
+    except Exception:
         # Assume tpm2 tools work if tpm1 tools failed
         return 2
 

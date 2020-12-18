@@ -43,7 +43,7 @@ def execute(json_revocation):
         oldcrl = f.read()
 
     updated = False
-    for i in range(10):
+    for _ in range(10):
         logger.debug("Getting updated CRL from %s" % dist_path)
         response = tornado_requests.request("GET", dist_path, None, None, None)
         if response.status_code != 200:

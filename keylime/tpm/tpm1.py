@@ -211,7 +211,6 @@ class tpm1(tpm_abstract.AbstractTPM):
 
             code = retDict['code']
             retout = retDict['retout']
-            fileouts = retDict['fileouts']
 
             # keep trying to communicate with TPM if there was an I/O error
             if code == tpm_abstract.AbstractTPM.TPM_IO_ERR:
@@ -340,7 +339,6 @@ class tpm1(tpm_abstract.AbstractTPM):
             with tempfile.NamedTemporaryFile() as tmppath:
                 retDict = self.__run("identity -la aik -ok %s -pwdo %s -pwdk %s %s" % (tmppath.name, owner_pw, aik_pw, extra), outputpaths=tmppath.name)
                 retout = config.list_convert(retDict['retout'])
-                code = retDict['code']
                 fileout = retDict['fileouts'][tmppath.name]
                 inPem = False
                 pem = ""
@@ -479,8 +477,6 @@ class tpm1(tpm_abstract.AbstractTPM):
             command = "activateidentity -hk %s -pwdo %s -pwdk %s -if %s -ok %s" % \
                       (keyhandle, owner_pw, self.get_tpm_metadata('aik_pw'), keyblobFile.name, secpath)
             retDict = self.__run(command, outputpaths=secpath)
-            retout = retDict['retout']
-            code = retDict['code']
             fileout = retDict['fileouts'][secpath]
             logger.info("AIK activated.")
 
@@ -625,8 +621,6 @@ class tpm1(tpm_abstract.AbstractTPM):
                 command = "deepquote -vk %s -hm %s -vm %s -nonce %s -pwdo %s -pwdk %s -oq %s" % (keyhandle, pcrmask, vpcrmask, nonce, owner_pw, aik_pw, quotepath.name)
                 # print("Executing %s"%(command))
                 retDict = self.__run(command, lock=False, outputpaths=quotepath.name)
-                retout = retDict['retout']
-                code = retDict['code']
                 quoteraw = retDict['fileouts'][quotepath.name]
                 quote = base64.b64encode(zlib.compress(quoteraw))
 
@@ -650,8 +644,6 @@ class tpm1(tpm_abstract.AbstractTPM):
 
                 command = "tpmquote -hk %s -pwdk %s -bm %s -nonce %s -noverify -oq %s" % (keyhandle, aik_pw, pcrmask, nonce, quotepath.name)
                 retDict = self.__run(command, lock=False, outputpaths=quotepath.name)
-                retout = retDict['retout']
-                code = retDict['code']
                 quoteraw = retDict['fileouts'][quotepath.name]
                 quote = base64.b64encode(zlib.compress(quoteraw))
 
@@ -858,8 +850,6 @@ class tpm1(tpm_abstract.AbstractTPM):
             try:
                 command = "getrandom -size %d -out %s" % (size, randpath.name)
                 retDict = self.__run(command, outputpaths=randpath.name)
-                retout = retDict['retout']
-                code = retDict['code']
                 rand = retDict['fileouts'][randpath.name]
             except Exception as e:
                 if not self.tpmrand_warned:

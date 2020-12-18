@@ -147,7 +147,7 @@ def setUpModule():
                 print("Found dbus service:", str(service))
                 try:
                     print("Restarting tpm2-abrmd.service.")
-                    job = manager.RestartUnit('tpm2-abrmd.service', 'fail')
+                    manager.RestartUnit('tpm2-abrmd.service', 'fail')
                 except dbus.exceptions.DBusException as e:
                     print(e)
     except Exception as e:
@@ -374,7 +374,7 @@ class TestRestful(unittest.TestCase):
         # Change CWD for TPM-related operations
         cwd = os.getcwd()
         config.ch_dir(config.WORK_DIR, None)
-        secdir = secure_mount.mount()
+        _ = secure_mount.mount()
 
         # Initialize the TPM with AIK
         (ek, ekcert, aik, ek_tpm, aik_name) = tpm.tpm_init(self_activate=False,
@@ -826,7 +826,6 @@ class TestRestful(unittest.TestCase):
         self.assertIn("hash_alg", json_response["results"], "Malformed response body!")
 
         quote = json_response["results"]["quote"]
-        tpm_version = json_response["results"]["tpm_version"]
         hash_alg = json_response["results"]["hash_alg"]
 
         validQuote = tpm.check_quote(tenant_templ.agent_uuid,

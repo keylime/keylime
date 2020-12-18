@@ -119,7 +119,6 @@ def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
     t1 = cmd_ret['timing']['t1']
     code = cmd_ret['code']
     retout = cmd_ret['retout']
-    reterr = cmd_ret['reterr']
     fileouts = cmd_ret['fileouts']
 
     pad = ""
@@ -274,8 +273,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             sys.exit()
 
     def __get_tpm_algorithms(self):
-        vendorStr = None
-
         if self.tools_version == "3.2":
             retDict = self.__run(["tpm2_getcap", "-c", "algorithms"])
         elif self.tools_version in ["4.0", "4.2"]:
@@ -357,7 +354,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             code = retDict['code']
             retout = retDict['retout']
             reterr = retDict['reterr']
-            fileouts = retDict['fileouts']
 
             # keep trying to get quote if a PCR race condition occurred in deluxe quote
             if fprt == "tpm2_quote" and "Error validating calculated PCR composite with quote" in reterr:
@@ -386,7 +382,6 @@ class tpm2(tpm_abstract.AbstractTPM):
     # tpm_initialize
     def __startup_tpm(self):
         retDict = self.__run(['tpm2_startup', '-c'])
-        output = config.list_convert(retDict['retout'])
         errout = config.list_convert(retDict['reterr'])
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -489,7 +484,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                        "-o", tmppath.name, "-f", "tss"]
                 retDict = self.__run(cmd, raiseOnError=False, outputpaths=tmppath.name)
 
-            output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             ek_tpm = retDict['fileouts'][tmppath.name]
@@ -518,7 +512,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             retDict = self.__run(["tpm2_changeauth", "-c", "e", owner_pw],
                                  raiseOnError=False)
 
-        output = retDict['retout']
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             # if we fail, see if already owned with this pw
@@ -532,7 +525,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                 retDict = self.__run(["tpm2_changeauth", "-c", "e", "-p", owner_pw, owner_pw],
                                      raiseOnError=False)
 
-            output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -556,7 +548,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                 cmd = ["tpm2_readpublic", "-c", hex(handle), "-o", tmppath.name, "-f", "pem"]
                 retDict = self.__run(cmd, raiseOnError=False, outputpaths=tmppath.name)
 
-            output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             ek = retDict['fileouts'][tmppath.name]
@@ -587,7 +578,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             # generates pubak.pem
             retDict = self.__run(["tpm2_readpublic", "-H", hex(handle), "-o", akpubfile.name, "-f", "pem"],
                                  raiseOnError=False, outputpaths=akpubfile.name)
-            output = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
             pem = retDict['fileouts'][akpubfile.name]
@@ -672,7 +662,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             if self.tools_version in ["4.0", "4.2"]:
                 # ok lets write out the key now
                 secdir = secure_mount.mount()  # confirm that storage is still securely mounted
-                secfd, secpath = tempfile.mkstemp(dir=secdir)
+                _, secpath = tempfile.mkstemp(dir=secdir)
 
             if self.tools_version == "3.2":
                 command = ["tpm2_getpubak", "-E", hex(ek_handle), "-k", "0x81010008",
@@ -753,7 +743,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                                raiseOnError=False)
 
     def encryptAIK(self, uuid, pubaik, pubek, ek_tpm, aik_name):
-        pubaikFile = None
         pubekFile = None
         challengeFile = None
         keyblob = None
@@ -832,7 +821,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             secdir = secure_mount.mount()  # confirm that storage is still securely mounted
 
             secfd, secpath = tempfile.mkstemp(dir=secdir)
-            sessfd, sesspath = tempfile.mkstemp(dir=secdir)
+            _, sesspath = tempfile.mkstemp(dir=secdir)
 
             apw = self.get_tpm_metadata('aik_pw')
             if self.tools_version == "3.2":
@@ -849,8 +838,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                 retDict = self.__run(command, outputpaths=secpath)
                 self.__run(["tpm2_flushcontext", sesspath])
 
-            retout = retDict['retout']
-            code = retDict['code']
             fileout = retDict['fileouts'][secpath]
             logger.info("AIK activated.")
 
@@ -1005,8 +992,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                 else:
                     command = ["tpm2_quote", "-c", keyhandle, "-l", "%s:%s" % (hash_alg, pcrlist), "-q", nonce, "-m", quotepath.name, "-s", sigpath.name, "-o", pcrpath.name, "-g", hash_alg, "-p", aik_pw]
                 retDict = self.__run(command, lock=False, outputpaths=[quotepath.name, sigpath.name, pcrpath.name])
-                retout = retDict['retout']
-                code = retDict['code']
                 quoteraw = retDict['fileouts'][quotepath.name]
                 quote_b64encode = base64.b64encode(zlib.compress(quoteraw))
                 sigraw = retDict['fileouts'][sigpath.name]
@@ -1174,8 +1159,6 @@ class tpm2(tpm_abstract.AbstractTPM):
             try:
                 command = ["tpm2_getrandom", "-o", randpath.name, str(size)]
                 retDict = self.__run(command, outputpaths=randpath.name)
-                retout = retDict['retout']
-                code = retDict['code']
                 rand = retDict['fileouts'][randpath.name]
             except Exception as e:
                 if not self.tpmrand_warned:
