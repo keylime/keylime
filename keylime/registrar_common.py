@@ -478,7 +478,7 @@ def start(host, tlsport, port):
     for thread in threads:
         thread.start()
 
-    def signal_handler(signal, frame):
+    def signal_handler(signum, frame):
         do_shutdown(servers)
         sys.exit(0)
 
