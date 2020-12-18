@@ -367,7 +367,7 @@ class AgentsHandler(BaseHandler):
                 # do stuff for terminate
                 logger.debug("Stopping polling on %s" % agent_id)
                 try:
-                    session.query(VerfierMain).filter(agent_id == agent_id).update(
+                    session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update(
                         {'operational_state': states.TENANT_FAILED})
                     session.commit()
                 except SQLAlchemyError as e:
