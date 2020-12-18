@@ -34,9 +34,7 @@ def main(argv=sys.argv):
                 content = [x.strip() for x in input_file.readlines()]
                 index = 0
                 for each_value in content:
-                    last_value = len(content) - 1
-
-                    decimal_part, integer_part = math.modf(float(each_value))
+                    _, integer_part = math.modf(float(each_value))
                     the_list = None
                     if integer_part not in list(number_map.keys()):
                         the_list = []
@@ -49,8 +47,7 @@ def main(argv=sys.argv):
     with open(outfile, "w") as output_file:
 
         index = 0
-        last_index = len(number_map) - 1
-        for float_key, each_list in number_map.items():
+        for _, each_list in number_map.items():
 
             output_file.write(str(len(each_list)) + "\n")
 
