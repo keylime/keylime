@@ -75,7 +75,7 @@ class TestVerfierDB(unittest.TestCase):
         self.assertEqual(agent, 1)
 
     def test_set_operation_state(self):
-        self.session.query(VerfierMain).filter(agent_id == agent_id).update(
+        self.session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update(
             {'operational_state': TENANT_FAILED})
         self.session.commit()
         agent = self.session.query(VerfierMain).filter_by(

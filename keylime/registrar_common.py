@@ -335,7 +335,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
                 if config.STUB_TPM:
                     try:
-                        session.query(RegistrarMain).filter(agent_id == agent_id).update(
+                        session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                             {'active': True})
                         session.commit()
                     except SQLAlchemyError as e:
@@ -348,7 +348,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     ex_mac = crypto.do_hmac(agent.key, agent_id)
                     if ex_mac == auth_tag:
                         try:
-                            session.query(RegistrarMain).filter(agent_id == agent_id).update(
+                            session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                                 {'active': True})
                             session.commit()
                         except SQLAlchemyError as e:
@@ -390,12 +390,12 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                                             provider_keys['aik']):
                     raise Exception("Deep quote invalid")
                 try:
-                    session.query(RegistrarMain).filter(agent_id == agent_id).update(
+                    session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                         {'active': True})
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
                 try:
-                    session.query(RegistrarMain).filter(agent_id == agent_id).update(
+                    session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                         {'provider_keys': provider_keys})
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
