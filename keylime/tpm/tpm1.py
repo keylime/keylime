@@ -853,7 +853,7 @@ class tpm1(tpm_abstract.AbstractTPM):
                 rand = retDict['fileouts'][randpath.name]
             except Exception as e:
                 if not self.tpmrand_warned:
-                    logger.warn("TPM randomness not available: %s" % e)
+                    logger.warning("TPM randomness not available: %s" % e)
                     self.tpmrand_warned = True
                 return []
         return rand
@@ -881,7 +881,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             ekcert = retDict['fileouts'][nvpath.name]
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS and len(output) > 0 and output[0].startswith("Error Illegal index from NV_ReadValue"):
-                logger.warn("No EK certificate found in TPM NVRAM")
+                logger.warning("No EK certificate found in TPM NVRAM")
                 return None
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception("nv_readvalue for ekcert failed with code " + str(code) + ": " + str(output))

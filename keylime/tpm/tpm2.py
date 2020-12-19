@@ -1162,7 +1162,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 rand = retDict['fileouts'][randpath.name]
             except Exception as e:
                 if not self.tpmrand_warned:
-                    logger.warn("TPM randomness not available: %s" % e)
+                    logger.warning("TPM randomness not available: %s" % e)
                     self.tpmrand_warned = True
                 return None
         return rand
@@ -1207,7 +1207,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             outjson = config.yaml_to_dict(output)
 
             if outjson is None or 0x1c00002 not in outjson or "size" not in outjson[0x1c00002]:
-                logger.warn("No EK certificate found in TPM NVRAM")
+                logger.warning("No EK certificate found in TPM NVRAM")
                 return None
 
             ekcert_size = outjson[0x1c00002]["size"]

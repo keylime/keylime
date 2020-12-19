@@ -206,6 +206,6 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
     if response.status_code == 200:
         logger.debug("Registrar deleted.")
     else:
-        logger.warn("Status command response: " +
-                    str(response.status_code) + " Unexpected response from registrar.")
+        logger.warning("Status command response: " +
+                       str(response.status_code) + " Unexpected response from registrar.")
         keylime_logging.log_http_response(logger, logging.WARNING, response_body)
