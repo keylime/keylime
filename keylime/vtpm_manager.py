@@ -391,7 +391,7 @@ def get_group_info(num):
     return {'aikpem': aikpem, 'uuid': uuid}
 
 
-def get_group_symkey(groupnum, aikpem, pubekpem, keyblob):
+def get_group_symkey(groupnum, keyblob):
     logger.info('Keyblob: %r', open(keyblob, 'rb').read())
     return do_group_activate(groupnum, keyblob)
 
@@ -420,7 +420,7 @@ def do_register_test_helper(groupnum=1,
         aikpem, pubekpem, keyblob, goalkey), shell=True)
 
     # Obtain the symkey via group activate
-    symkey_raw = get_group_symkey(groupnum, aikpem, pubekpem, keyblob)
+    symkey_raw = get_group_symkey(groupnum, keyblob)
     with open(symkey, 'wb') as f:
         f.write(symkey_raw)
     logger.info('Wrote %s', symkey)

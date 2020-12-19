@@ -658,7 +658,7 @@ def get_tls_context():
     return context
 
 
-def main(argv=sys.argv):
+def main():
     """Main method of the Tenant Webapp Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 

@@ -73,7 +73,7 @@ def ml_extend(ml, position, searchHash=None):
     return position
 
 
-def main(argv=sys.argv):
+def main():
     if not tpm.is_emulator():
         raise Exception("This stub should only be used with a TPM emulator")
 

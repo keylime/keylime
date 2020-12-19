@@ -124,6 +124,7 @@ def mk_cacert():
 
 
 def mk_signed_cert(cacert, ca_pk, name, serialnum):
+    del cacert, serialnum
     csr = {"request": {
         "CN": name,
         "hosts": [

@@ -615,7 +615,7 @@ def start_tornado(tornado_server, port):
     print("Tornado finished")
 
 
-def main(argv=sys.argv):
+def main():
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
