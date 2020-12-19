@@ -33,7 +33,7 @@ def rsa_export_privkey(privkey):
 
 
 def rsa_generate(size):
-    return RSA.generate(2048)
+    return RSA.generate(size)
 
 
 def rsa_sign(key, message):

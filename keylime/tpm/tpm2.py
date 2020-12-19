@@ -590,7 +590,7 @@ class tpm2(tpm_abstract.AbstractTPM):
 
         self._set_tpm_metadata('aik', pem)
 
-    def __create_aik(self, activate, asym_alg=None, hash_alg=None, sign_alg=None):
+    def __create_aik(self, asym_alg=None, hash_alg=None, sign_alg=None):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
         if asym_alg is None:
@@ -941,7 +941,7 @@ class tpm2(tpm_abstract.AbstractTPM):
         self._set_tpm_metadata('ekcert', ekcert)
 
         # if no AIK created, then create one
-        self.__create_aik(self_activate)
+        self.__create_aik()
 
         return self.get_tpm_metadata('ek'), self.get_tpm_metadata('ekcert'), self.get_tpm_metadata('aik'), self.get_tpm_metadata('ek_tpm'), self.get_tpm_metadata('aik_name')
 

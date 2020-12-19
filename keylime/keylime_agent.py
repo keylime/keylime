@@ -199,10 +199,10 @@ class Handler(BaseHTTPRequestHandler):
             self.server.add_U(decrypted_key)
             self.server.auth_tag = json_body['auth_tag']
             self.server.payload = json_body.get('payload', None)
-            have_derived_key = self.server.attempt_decryption(self)
+            have_derived_key = self.server.attempt_decryption()
         elif rest_params["keys"] == "vkey":
             self.server.add_V(decrypted_key)
-            have_derived_key = self.server.attempt_decryption(self)
+            have_derived_key = self.server.attempt_decryption()
         else:
             logger.warning(
                 'POST returning  response. uri not supported: ' + self.path)
@@ -399,7 +399,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
                 logger.debug(F"Adding V: {base64.b64encode(v)}")
             self.v_set.add(v)
 
-    def attempt_decryption(self, handler):
+    def attempt_decryption(self):
         """On reception of a U or V value, this method is called to attempt the decryption of the Cloud Init script
 
         At least one U and V value must be received in order to attempt encryption. Multiple U and V values are stored
@@ -461,7 +461,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         return False
 
 
-def main(argv=sys.argv):
+def main():
     if os.getuid() != 0 and config.REQUIRE_ROOT:
         logger.critical("This process must be run as root.")
         return

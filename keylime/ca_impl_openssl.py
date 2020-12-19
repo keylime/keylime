@@ -111,6 +111,7 @@ def mk_signed_cert(cacert, ca_pk, name, serialnum):
 
 
 def gencrl(_, a, b):
+    del a, b
     logger = keylime_logging.init_logging('ca_impl_openssl')
     logger.warning("CRL creation with openssl is not supported")
     return ""
