@@ -329,7 +329,7 @@ class Tenant():
                                     zf.writestr(
                                         os.path.basename(f.name), f.read())
                         else:
-                            logger.warn(
+                            logger.warning(
                                 f'Specified include directory {args["incl_dir"]} does not exist.  Skipping...')
 
             cert_pkg = sf.getvalue()
@@ -418,10 +418,10 @@ class Tenant():
             return False
 
         if reg_keys['regcount'] > 1:
-            logger.warn("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured.  Run 'regdelete' for this agent and restart")
+            logger.warning("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured.  Run 'regdelete' for this agent and restart")
 
         if not config.STUB_TPM and (not config.getboolean('tenant', 'require_ek_cert') and config.get('tenant', 'ek_check_script') == ""):
-            logger.warn(
+            logger.warning(
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
         # check EK cert and make sure it matches EK

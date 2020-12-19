@@ -232,7 +232,7 @@ def cmd_certpkg(workingdir, name, insecure=False):
         pkg = sf.getvalue()
 
         if insecure:
-            logger.warn(
+            logger.warning(
                 "Unprotected private keys in cert package being written to disk")
             with open('%s-pkg.zip' % name, 'w') as f:
                 f.write(pkg)

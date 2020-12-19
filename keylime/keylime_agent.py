@@ -148,7 +148,7 @@ class Handler(BaseHTTPRequestHandler):
             # return a measurement list if available
             if TPM_Utilities.check_mask(imaMask, config.IMA_PCR):
                 if not os.path.exists(config.IMA_ML):
-                    logger.warn(
+                    logger.warning(
                         "IMA measurement list not available: %s" % (config.IMA_ML))
                 else:
                     with open(config.IMA_ML, 'r') as f:
@@ -609,7 +609,7 @@ def main(argv=sys.argv):
                     execute = getattr(module, 'execute')
                     asyncio.get_event_loop().run_until_complete(execute(revocation))
                 except Exception as e:
-                    logger.warn(
+                    logger.warning(
                         "Exception during execution of revocation action %s: %s" % (action, e))
         try:
             while True:
@@ -618,7 +618,7 @@ def main(argv=sys.argv):
                         perform_actions, revocation_cert_path=cert_path)
                 except Exception as e:
                     logger.exception(e)
-                    logger.warn(
+                    logger.warning(
                         "No connection to revocation server, retrying in 10s...")
                     time.sleep(10)
         except KeyboardInterrupt:

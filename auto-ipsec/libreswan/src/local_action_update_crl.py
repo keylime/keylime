@@ -49,12 +49,12 @@ async def execute(json_revocation):
         res = tornado_requests.request("GET", dist_path, None, None, None)
         response = await res
         if response.status_code != 200:
-            logger.warn("Unable to get updated CRL from %s.  Code %d" %
-                        (dist_path, response.status_code))
+            logger.warning("Unable to get updated CRL from %s.  Code %d" %
+                           (dist_path, response.status_code))
             time.sleep(1)
             continue
         if response.body == oldcrl:
-            logger.warn("CRL not yet updated, trying again in 1 second...")
+            logger.warning("CRL not yet updated, trying again in 1 second...")
             time.sleep(1)
             continue
 
