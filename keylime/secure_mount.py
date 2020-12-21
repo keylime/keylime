@@ -13,7 +13,7 @@ logger = keylime_logging.init_logging('secure_mount')
 
 
 def check_mounted(secdir):
-    whatsmounted = cmd_exec.run("mount", lock=False)['retout']
+    whatsmounted = cmd_exec.run("mount")['retout']
     whatsmounted_converted = config.list_convert(whatsmounted)
     for line in whatsmounted_converted:
         tokens = line.split()
@@ -54,6 +54,6 @@ def mount():
         logger.info("mounting secure storage location %s on tmpfs" % secdir)
         cmd = ('mount', '-t', 'tmpfs', '-o', 'size=%s,mode=0700' % size,
                'tmpfs', secdir)
-        cmd_exec.run(cmd, lock=False)
+        cmd_exec.run(cmd)
 
     return secdir

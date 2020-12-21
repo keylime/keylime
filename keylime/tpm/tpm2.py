@@ -345,11 +345,11 @@ class tpm2(tpm_abstract.AbstractTPM):
             if lock:
                 with self.tpmutilLock:
                     retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode,
-                                           raiseOnError=False, lock=lock,
+                                           raiseOnError=False,
                                            outputpaths=outputpaths, env=env)
             else:
                 retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode,
-                                       raiseOnError=False, lock=lock,
+                                       raiseOnError=False,
                                        outputpaths=outputpaths, env=env)
             code = retDict['code']
             retout = retDict['retout']
