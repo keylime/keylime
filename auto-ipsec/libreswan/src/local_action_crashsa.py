@@ -34,11 +34,11 @@ async def execute(revocation):
         "loading updated CRL from %s/unzipped/cacrl.der into NSS" % secdir)
     cmd = ('crlutil', '-I', '-i', '%s/unzipped/cacrl.der' % secdir,
            '-d', 'sql:/etc/ipsec.d')
-    cmd_exec.run(cmd, lock=False)
+    cmd_exec.run(cmd)
 
     # need to find any sa's that were established with that cert subject name
     cmd = ('ipsec', 'whack', '--trafficstatus')
-    output = cmd_exec.run(cmd, lock=False, raiseOnError=True)['retout']
+    output = cmd_exec.run(cmd, raiseOnError=True)['retout']
     deletelist = set()
     id = ""
     for line in output:
@@ -75,4 +75,4 @@ async def execute(revocation):
     for todelete in deletelist:
         logger.info("deleting IPsec sa with %s" % todelete)
         cmd = ('ipsec', 'whack', '--crash', todelete)
-        cmd_exec.run(cmd, raiseOnError=False, lock=False)
+        cmd_exec.run(cmd, raiseOnError=False)

@@ -261,7 +261,7 @@ def convert_crl_to_pem(derfile, pemfile):
     else:
         cmd = ('openssl', 'crl', '-in', derfile, '-inform', 'der',
                '-out', pemfile)
-        cmd_exec.run(cmd, lock=False)
+        cmd_exec.run(cmd)
 
 
 def get_crl_distpoint(cert_path):
@@ -378,7 +378,7 @@ def cmd_listen(workingdir, cert_path):
                             os.stat('cacrl.der').st_size):
                         cmd = ('openssl', 'crl', '-inform', 'der', '-in',
                                'cacrl.der', '-text', '-noout')
-                        retout = cmd_exec.run(cmd, lock=False)['retout']
+                        retout = cmd_exec.run(cmd)['retout']
                         for line in retout:
                             line = line.strip()
                             if line.startswith(b"Next Update:"):
