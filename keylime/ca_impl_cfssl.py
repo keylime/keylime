@@ -8,16 +8,16 @@ import os
 import subprocess
 import socket
 import time
-import requests
 import shutil
 import sys
 
+import requests
 import simplejson as json
+from M2Crypto import EVP, X509
 
 from keylime import config
 from keylime import keylime_logging
 from keylime import secure_mount
-from M2Crypto import EVP, X509
 
 logger = keylime_logging.init_logging('ca_impl_cfssl')
 
