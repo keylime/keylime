@@ -4,10 +4,11 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 
-from keylime import ca_impl_openssl
 import unittest
 import sys
 from pathlib import Path
+
+from keylime import ca_impl_openssl
 
 # Useful constants for the test
 PACKAGE_ROOT = Path(__file__).parents[1]

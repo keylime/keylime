@@ -4,9 +4,11 @@ Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
 '''
 
 import unittest
+
+from sqlalchemy import create_engine
+
 from keylime.db.verifier_db import VerfierMain
 from keylime.db.keylime_db import SessionManager
-from sqlalchemy import create_engine
 
 # BEGIN TEST DATA
 

@@ -5,10 +5,10 @@ Revises: None
 Create Date: 2020-10-08 20:29:54.883816
 
 """
+import sys
+
 from alembic import op
 import sqlalchemy as sa
-
-import sys
 
 import keylime
 sys.path.append("..")

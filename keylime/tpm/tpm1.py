@@ -6,21 +6,22 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import base64
 import hashlib
-import M2Crypto
 import os
 import re
 import sys
 import tempfile
 import threading
 import time
-import yaml
 import zlib
 import codecs
+
+import yaml
 try:
     from yaml import CSafeDumper as SafeDumper
 except ImportError:
     from yaml import SafeDumper
 
+import M2Crypto
 from M2Crypto import m2
 from keylime import crypto
 from keylime import cmd_exec

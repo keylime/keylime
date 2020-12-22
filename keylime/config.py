@@ -8,9 +8,10 @@ import configparser
 import sys
 import urllib.parse
 import re
-import tornado.web
 from http.server import BaseHTTPRequestHandler
 import http.client
+
+import tornado.web
 import yaml
 try:
     from yaml import CSafeLoader as SafeLoader

@@ -5,8 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2020 Michael Peters (mpeters@redhat.com), Red Hat, Inc.
 '''
 
-import alembic.config
 import os
+
+import alembic.config
+
 from keylime import keylime_logging
 
 
