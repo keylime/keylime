@@ -3,8 +3,9 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+import os
+
 import logging.config
-import os.path
 
 from keylime import config
 
@@ -57,19 +58,9 @@ def init_logging(loggername):
     basic_formatter = logging.Formatter(
         '%(asctime)s %(name)s %(levelname)s %(message)s')
     if loggername in LOG_TO_FILE:
-        if not config.REQUIRE_ROOT:
-            logfilename = "./keylime-all.log"
-        else:
-            logfilename = "%s/%s.log" % (LOGDIR, loggername)
-            if os.getuid() != 0:
-                logger.warning(
-                    "Unable to log to %s, please run as root." % logfilename)
-                return logger
-            if not os.path.exists(LOGDIR):
-                os.makedirs(LOGDIR, 0o750)
-            config.chownroot(LOGDIR, logger)
-            os.chmod(LOGDIR, 0o750)
-
+        logfilename = "%s/%s.log" % (LOGDIR, loggername)
+        if not os.path.exists(LOGDIR):
+            os.makedirs(LOGDIR, 0o750)
         fh = logging.FileHandler(logfilename)
         fh.setLevel(logger.getEffectiveLevel())
         fh.setFormatter(basic_formatter)

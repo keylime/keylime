@@ -25,7 +25,7 @@ from keylime import crypto
 from keylime.tpm import tpm_obj
 from keylime import keylime_logging
 
-logger = keylime_logging.init_logging('registrar-common')
+logger = keylime_logging.init_logging('registrar')
 
 
 try:
