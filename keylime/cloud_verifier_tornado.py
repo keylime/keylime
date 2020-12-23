@@ -620,6 +620,17 @@ async def process_agent(agent, new_operational_state):
         logger.exception(e)
 
 
+async def activate_agents():
+    session = get_session()
+    try:
+        agents = session.query(VerfierMain).all()
+        for agent in agents:
+            if agent.operational_state == states.START:
+                asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
+    except SQLAlchemyError as e:
+        logger.error(f'SQLAlchemy Error: {e}')
+
+
 def main():
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
@@ -636,14 +647,13 @@ def main():
     session = get_session()
     try:
         query_all = session.query(VerfierMain).all()
-    except SQLAlchemyError as e:
-        logger.error(f'SQLAlchemy Error: {e}')
-    for row in query_all:
-        row.operational_state = states.SAVED
-    try:
+        for row in query_all:
+            if row.operational_state == states.GET_QUOTE:
+                row.operational_state = states.START
         session.commit()
     except SQLAlchemyError as e:
         logger.error(f'SQLAlchemy Error: {e}')
+
     num = session.query(VerfierMain.agent_id).count()
     if num > 0:
         agent_ids = session.query(VerfierMain.agent_id).all()
@@ -667,9 +677,13 @@ def main():
 
     sockets = tornado.netutil.bind_sockets(
         int(cloudverifier_port), address=cloudverifier_host)
-    tornado.process.fork_processes(config.getint(
+    task_id = tornado.process.fork_processes(config.getint(
         'cloud_verifier', 'multiprocessing_pool_num_workers'))
     asyncio.set_event_loop(asyncio.new_event_loop())
+    # Auto reactivate agent
+    if task_id == 0:
+        asyncio.ensure_future(activate_agents())
+
     server = tornado.httpserver.HTTPServer(app, ssl_options=context, max_buffer_size=max_upload_size)
     server.add_sockets(sockets)
 
