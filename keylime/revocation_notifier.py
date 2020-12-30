@@ -10,9 +10,9 @@ import time
 import os
 import sys
 import signal
-import zmq
 
 import simplejson as json
+import zmq
 
 from keylime import config
 from keylime import crypto
