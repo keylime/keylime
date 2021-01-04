@@ -4,9 +4,11 @@ Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
 '''
 
 import unittest
+
+from sqlalchemy import create_engine
+
 from keylime.db.verifier_db import VerfierMain
 from keylime.db.keylime_db import SessionManager
-from sqlalchemy import create_engine
 
 # BEGIN TEST DATA
 
@@ -75,7 +77,7 @@ class TestVerfierDB(unittest.TestCase):
         self.assertEqual(agent, 1)
 
     def test_set_operation_state(self):
-        self.session.query(VerfierMain).filter(agent_id == agent_id).update(
+        self.session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update(
             {'operational_state': TENANT_FAILED})
         self.session.commit()
         agent = self.session.query(VerfierMain).filter_by(

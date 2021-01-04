@@ -28,7 +28,6 @@ class myHandler(BaseHTTPRequestHandler):
         else:
             myUUID = provider_vtpm_add.add_vtpm("current_group.tpm")
         self.request.sendall(json.dumps({'uuid': myUUID}))
-        return
 
 
 try:

@@ -660,7 +660,7 @@ class Test(unittest.TestCase):
             self.fail("Test " + self._testMethodName + ":" + test_functions["function_name"] + " expected " + str(
                 test_functions["http_result_status_expected"]) + " but received " + str(test_functions["http_result_status_actual"]))  # reset the file marker for reading
         # validate response headers
-        if test_functions.get("http_result_header_expected") is not None and not (all(item in list(response.headers.items()) for item in list(test_functions["http_result_header_expected"].items()))):
+        if test_functions.get("http_result_header_expected") is not None and not all(item in list(response.headers.items()) for item in list(test_functions["http_result_header_expected"].items())):
             self.fail("Test " + self._testMethodName + ":" +
                       test_functions["function_name"] + ", didn't receive expected headers.")
         # validate (shallow) response body

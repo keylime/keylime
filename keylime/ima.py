@@ -5,7 +5,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import ast
 import codecs
-import sys
 import hashlib
 import struct
 import os
@@ -74,8 +73,9 @@ supported_fields = {
 }
 
 
-def read_measurement_list_bin(path, allowlist):
+def read_measurement_list_bin(path):
     raise Exception("not implementated fully yet")
+    # pylint: disable=W0101
     f = open(path, 'rb')
 
     while True:
@@ -84,7 +84,7 @@ def read_measurement_list_bin(path, allowlist):
          template['name_len']) = read_unpack(f, "<I20sI")
 
         if template['name_len'] > TCG_EVENT_NAME_LEN_MAX:
-            raise Exception("Error event name too long %d",
+            raise Exception("Error event name too long: %d" %
                             template['name_len'])
 
         name = read_unpack(f, "<%ds" % template['name_len'])[0]
@@ -351,8 +351,8 @@ def read_excllist(exclude_path=None):
     return excl_list
 
 
-def main(argv=sys.argv):
-    # read_measurement_list_bin("/sys/kernel/security/ima/binary_runtime_measurements", None)
+def main():
+    # read_measurement_list_bin("/sys/kernel/security/ima/binary_runtime_measurements")
 
     allowlist_path = 'allowlist.txt'
     print("reading allowlist from %s" % allowlist_path)

@@ -8,7 +8,8 @@ import sys
 import select
 import time
 import itertools
-from keylime.tpm.tpm_abstract import *
+
+from keylime.tpm.tpm_abstract import config, hashlib
 from keylime.tpm import tpm_obj
 from keylime.common import algorithms
 
@@ -72,7 +73,7 @@ def ml_extend(ml, position, searchHash=None):
     return position
 
 
-def main(argv=sys.argv):
+def main():
     if not tpm.is_emulator():
         raise Exception("This stub should only be used with a TPM emulator")
 

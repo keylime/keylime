@@ -1,6 +1,7 @@
 /cloudinit_script_encrypted.txt
 # Backup files
 *.~
+*~
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

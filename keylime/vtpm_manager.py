@@ -19,7 +19,7 @@ import simplejson as json
 try:
     from yaml import CSafeDumper as SafeDumper
 except ImportError:
-    from yaml import SafeDumper as SafeDumper
+    from yaml import SafeDumper
 
 from keylime import config
 from keylime import keylime_logging
@@ -391,7 +391,7 @@ def get_group_info(num):
     return {'aikpem': aikpem, 'uuid': uuid}
 
 
-def get_group_symkey(groupnum, aikpem, pubekpem, keyblob):
+def get_group_symkey(groupnum, keyblob):
     logger.info('Keyblob: %r', open(keyblob, 'rb').read())
     return do_group_activate(groupnum, keyblob)
 
@@ -420,7 +420,7 @@ def do_register_test_helper(groupnum=1,
         aikpem, pubekpem, keyblob, goalkey), shell=True)
 
     # Obtain the symkey via group activate
-    symkey_raw = get_group_symkey(groupnum, aikpem, pubekpem, keyblob)
+    symkey_raw = get_group_symkey(groupnum, keyblob)
     with open(symkey, 'wb') as f:
         f.write(symkey_raw)
     logger.info('Wrote %s', symkey)
@@ -490,9 +490,9 @@ def add_vtpm_group(rsa_mod=None):
                 fprt, thisTiming))
             time.sleep(thisTiming)
             return tuple(thisRetout)
-        else:
-            # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!" % (fprt))
+
+        # Our command hasn't been canned!
+        raise Exception("Command %s not found in canned JSON!" % (fprt))
 
     logger.debug('Adding group')
 
@@ -546,9 +546,9 @@ def activate_group(uuid, keyblob):
                 fprt, thisTiming))
             time.sleep(thisTiming)
             return base64.b64decode(thisRetout)
-        else:
-            # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!" % (fprt))
+
+        # Our command hasn't been canned!
+        raise Exception("Command %s not found in canned JSON!" % (fprt))
 
     t0 = time.time()
     group_id = get_group_num(uuid)
@@ -594,9 +594,9 @@ def add_vtpm_to_group(uuid):
                 fprt, thisTiming))
             time.sleep(thisTiming)
             return thisRetout
-        else:
-            # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned JSON!" % (fprt))
+
+        # Our command hasn't been canned!
+        raise Exception("Command %s not found in canned JSON!" % (fprt))
 
     t0 = time.time()
     num = get_group_num(uuid)

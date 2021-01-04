@@ -31,7 +31,7 @@ try:
     engine = DBEngineManager().make_engine('registrar')
 except SQLAlchemyError as e:
     logger.error(f'Error creating SQL engine: {e}')
-    exit(1)
+    sys.exit(1)
 
 
 class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
@@ -39,12 +39,10 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
     def do_HEAD(self):
         """HEAD not supported"""
         config.echo_json_response(self, 405, "HEAD not supported")
-        return
 
     def do_PATCH(self):
         """PATCH not supported"""
         config.echo_json_response(self, 405, "PATCH not supported")
-        return
 
     def do_GET(self):
         """This method handles the GET requests to retrieve status on agents from the Registrar Server.
@@ -113,13 +111,11 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         """POST not supported"""
         config.echo_json_response(
             self, 405, "POST not supported via TLS interface")
-        return
 
     def do_PUT(self):
         """PUT not supported"""
         config.echo_json_response(
             self, 405, "PUT not supported via TLS interface")
-        return
 
     def do_DELETE(self):
         """This method handles the DELETE requests to remove agents from the Registrar Server.
@@ -151,15 +147,15 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                     logger.error(f'SQLAlchemy Error: {e}')
                 config.echo_json_response(self, 200, "Success")
                 return
-            else:
-                # send response
-                config.echo_json_response(self, 404)
-                return
-        else:
+
+            # send response
             config.echo_json_response(self, 404)
             return
 
-    def log_message(self, logformat, *args):
+        config.echo_json_response(self, 404)
+
+    # pylint: disable=W0622
+    def log_message(self, format, *args):
         return
 
 
@@ -168,17 +164,14 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
     def do_HEAD(self):
         """HEAD not supported"""
         config.echo_json_response(self, 405, "HEAD not supported")
-        return
 
     def do_PATCH(self):
         """PATCH not supported"""
         config.echo_json_response(self, 405, "PATCH not supported")
-        return
 
     def do_GET(self):
         """GET not supported"""
         config.echo_json_response(self, 405, "GET not supported")
-        return
 
     def do_POST(self):
         """This method handles the POST requests to add agents to the Registrar Server.
@@ -280,12 +273,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             config.echo_json_response(self, 200, "Success", response)
 
             logger.info('POST returning key blob for agent_id: ' + agent_id)
-            return
         except Exception as e:
             config.echo_json_response(self, 400, "Error: %s" % e)
             logger.warning("POST for " + agent_id + " returning 400 response. Error: %s" % e)
             logger.exception(e)
-            return
 
     def do_PUT(self):
         """This method handles the PUT requests to add agents to the Registrar Server.
@@ -344,7 +335,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
                 if config.STUB_TPM:
                     try:
-                        session.query(RegistrarMain).filter(agent_id == agent_id).update(
+                        session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                             {'active': True})
                         session.commit()
                     except SQLAlchemyError as e:
@@ -357,7 +348,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     ex_mac = crypto.do_hmac(agent.key, agent_id)
                     if ex_mac == auth_tag:
                         try:
-                            session.query(RegistrarMain).filter(agent_id == agent_id).update(
+                            session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                                 {'active': True})
                             session.commit()
                         except SQLAlchemyError as e:
@@ -399,12 +390,12 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                                             provider_keys['aik']):
                     raise Exception("Deep quote invalid")
                 try:
-                    session.query(RegistrarMain).filter(agent_id == agent_id).update(
+                    session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                         {'active': True})
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
                 try:
-                    session.query(RegistrarMain).filter(agent_id == agent_id).update(
+                    session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                         {'provider_keys': provider_keys})
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
@@ -422,9 +413,9 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
     def do_DELETE(self):
         """DELETE not supported"""
         config.echo_json_response(self, 405, "DELETE not supported")
-        return
 
-    def log_message(self, logformat, *args):
+    # pylint: disable=W0622
+    def log_message(self, format, *args):
         return
 
 # consider using PooledProcessMixIn
@@ -487,7 +478,8 @@ def start(host, tlsport, port):
     for thread in threads:
         thread.start()
 
-    def signal_handler(signal, frame):
+    def signal_handler(signum, frame):
+        del signum, frame
         do_shutdown(servers)
         sys.exit(0)
 

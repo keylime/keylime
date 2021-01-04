@@ -19,6 +19,7 @@ import zipfile
 import simplejson as json
 
 from keylime.requests_client import RequestsClient
+from keylime.common import states
 from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_client
@@ -28,7 +29,6 @@ from keylime import ima
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import ca_util
-from keylime import cloud_verifier_common
 from keylime.common import algorithms
 
 # setup logging
@@ -186,12 +186,12 @@ class Tenant():
             self.tpm_policy['mask'] = "0x%X" % (
                 int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
 
-            if type(args["allowlist"]) in [str, str]:
+            if isinstance(args["allowlist"], str):
                 if args["allowlist"] == "default":
                     args["allowlist"] = config.get(
                         'tenant', 'allowlist')
                 al_data = ima.read_allowlist(args["allowlist"])
-            elif type(args["allowlist"]) is list:
+            elif isinstance(args["allowlist"], list):
                 al_data = args["allowlist"]
             else:
                 raise UserError("Invalid allowlist provided")
@@ -199,12 +199,12 @@ class Tenant():
         # Read command-line path string IMA exclude list
         excl_data = None
         if "ima_exclude" in args and args["ima_exclude"] is not None:
-            if type(args["ima_exclude"]) in [str, str]:
+            if isinstance(args["ima_exclude"], str):
                 if args["ima_exclude"] == "default":
                     args["ima_exclude"] = config.get(
                         'tenant', 'ima_excludelist')
                 excl_data = ima.read_excllist(args["ima_exclude"])
-            elif type(args["ima_exclude"]) is list:
+            elif isinstance(args["ima_exclude"], list):
                 excl_data = args["ima_exclude"]
             else:
                 raise UserError("Invalid exclude list provided")
@@ -227,8 +227,8 @@ class Tenant():
                     "You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent")
 
             # read the keys in
-            if type(args["keyfile"]) is dict and "data" in args["keyfile"]:
-                if type(args["keyfile"]["data"]) is list and len(args["keyfile"]["data"]) == 1:
+            if isinstance(args["keyfile"], dict) and "data" in args["keyfile"]:
+                if isinstance(args["keyfile"]["data"], list) and len(args["keyfile"]["data"]) == 1:
                     keyfile = args["keyfile"]["data"][0]
                     if keyfile is None:
                         raise UserError("Invalid key file contents")
@@ -243,8 +243,8 @@ class Tenant():
             f.close()
 
             # read the payload in (opt.)
-            if type(args["payload"]) is dict and "data" in args["payload"]:
-                if type(args["payload"]["data"]) is list and len(args["payload"]["data"]) > 0:
+            if isinstance(args["payload"], dict) and "data" in args["payload"]:
+                if isinstance(args["payload"]["data"], list) and len(args["payload"]["data"]) > 0:
                     self.payload = args["payload"]["data"][0]
             else:
                 if args["payload"] is not None:
@@ -257,8 +257,8 @@ class Tenant():
                 raise UserError(
                     "You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent")
 
-            if type(args["file"]) is dict and "data" in args["file"]:
-                if type(args["file"]["data"]) is list and len(args["file"]["data"]) > 0:
+            if isinstance(args["file"], dict) and "data" in args["file"]:
+                if isinstance(args["file"]["data"], list) and len(args["file"]["data"]) > 0:
                     contents = args["file"]["data"][0]
                     if contents is None:
                         raise UserError("Invalid file payload contents")
@@ -314,8 +314,8 @@ class Tenant():
 
                 # add additional files to zip
                 if args["incl_dir"] is not None:
-                    if type(args["incl_dir"]) is dict and "data" in args["incl_dir"] and "name" in args["incl_dir"]:
-                        if type(args["incl_dir"]["data"]) is list and type(args["incl_dir"]["name"]) is list:
+                    if isinstance(args["incl_dir"], dict) and "data" in args["incl_dir"] and "name" in args["incl_dir"]:
+                        if isinstance(args["incl_dir"]["data"], list) and isinstance(args["incl_dir"]["name"], list):
                             if len(args["incl_dir"]["data"]) != len(args["incl_dir"]["name"]):
                                 raise UserError("Invalid incl_dir provided")
                             for i in range(len(args["incl_dir"]["data"])):
@@ -329,7 +329,7 @@ class Tenant():
                                     zf.writestr(
                                         os.path.basename(f.name), f.read())
                         else:
-                            logger.warn(
+                            logger.warning(
                                 f'Specified include directory {args["incl_dir"]} does not exist.  Skipping...')
 
             cert_pkg = sf.getvalue()
@@ -414,14 +414,14 @@ class Tenant():
         if not tpm.check_quote(self.agent_uuid, self.nonce, public_key, quote, reg_keys['aik'], hash_alg=hash_alg):
             if reg_keys['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious host is present.  Run 'regdelete' for this agent and restart")
-                exit()
+                sys.exit()
             return False
 
         if reg_keys['regcount'] > 1:
-            logger.warn("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured.  Run 'regdelete' for this agent and restart")
+            logger.warning("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured.  Run 'regdelete' for this agent and restart")
 
         if not config.STUB_TPM and (not config.getboolean('tenant', 'require_ek_cert') and config.get('tenant', 'ek_check_script') == ""):
-            logger.warn(
+            logger.warning(
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
         # check EK cert and make sure it matches EK
@@ -496,23 +496,23 @@ class Tenant():
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
-            exit()
+            sys.exit()
         elif response.status_code == 504:
             logger.error(
                 f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            exit()
+            sys.exit()
 
         if response.status_code == 409:
             # this is a conflict, need to update or delete it
             logger.error(
                 f"Agent {self.agent_uuid} already existed at CV.  Please use delete or update.")
-            exit()
+            sys.exit()
         elif response.status_code != 200:
             keylime_logging.log_http_response(
                 logger, logging.ERROR, response.json())
             logger.error(
                 f"POST command response: {response.status} Unexpected response from Cloud Verifier: {response.read()}")
-            exit()
+            sys.exit()
 
     def do_cvstatus(self, listing=False):
         """ Perform opertional state look up for agent
@@ -520,7 +520,6 @@ class Tenant():
         Keyword Arguments:
             listing {bool} -- If True, list all agent statues (default: {False})
         """
-        states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
         agent_uuid = ""
         if not listing:
             agent_uuid = self.agent_uuid
@@ -535,26 +534,26 @@ class Tenant():
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
-            exit()
+            sys.exit()
         elif response == 504:
             logger.error(
                 f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            exit()
+            sys.exit()
 
         if response.status_code == 404:
             logger.error(
                 f"Agent {agent_uuid} does not exist on the verifier. Please try to add or update agent")
-            exit()
+            sys.exit()
 
         if response.status_code != 200:
             logger.error(
                 f"Status command response: {response.status}. Unexpected response from Cloud Verifier.")
-            exit()
+            sys.exit()
         else:
             response_json = response.json()
             if not listing:
                 operational_state = response_json["results"]["operational_state"]
-                logger.info(f'Agent Status: "{states[operational_state]}"')
+                logger.info(f'Agent Status: "{states.state_to_str(operational_state)}"')
             else:
                 agent_array = response_json["results"]["uuids"]
                 logger.info(f'Agents: "{agent_array}"')
@@ -572,11 +571,11 @@ class Tenant():
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
-            exit()
+            sys.exit()
         elif response.status_code == 504:
             logger.error(
                 f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            exit()
+            sys.exit()
 
         if response.status_code == 202:
             deleted = False
@@ -599,7 +598,7 @@ class Tenant():
             else:
                 logger.error(
                     f"Timed out waiting for delete of agent {self.agent_uuid} to complete at CV")
-                exit()
+                sys.exit()
         elif response.status_code == 200:
             logger.info(f"Agent {self.agent_uuid} deleted from the CV")
         else:
@@ -629,11 +628,11 @@ class Tenant():
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
-            exit()
+            sys.exit()
         elif response.status_code == 504:
             logger.error(
                 f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            exit()
+            sys.exit()
 
         response_body = response.json()
 
@@ -660,11 +659,11 @@ class Tenant():
         if response.status_code == 503:
             logger.error(
                 f"Cannot connect to Verifier at {self.verifier_ip} with Port {self.verifier_port}. Connection refused.")
-            exit()
+            sys.exit()
         elif response.status_code == 504:
             logger.error(
                 f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-            exit()
+            sys.exit()
 
         response_body = response.json()
         if response.status_code != 200:
@@ -702,14 +701,14 @@ class Tenant():
                     if numtries >= maxr:
                         logger.error(
                             f"tenant cannot establish connection to agent on {self.agent_ip} with port {self.agent_port}")
-                        exit()
+                        sys.exit()
                     retry = config.getfloat('tenant', 'retry_interval')
                     logger.info(
                         f"tenant connection to agent at {self.agent_ip} refused {numtries}/{maxr} times, trying again in {retry} seconds...")
                     time.sleep(retry)
                     continue
-                else:
-                    raise(e)
+
+                raise e
             break
 
         try:
@@ -791,11 +790,11 @@ class Tenant():
             if response.status_code == 503:
                 logger.error(
                     f"Cannot connect to Agent at {self.agent_ip} with Port {self.agent_port}. Connection refused.")
-                exit()
+                sys.exit()
             elif response.status_code == 504:
                 logger.error(
                     f"Verifier at {self.verifier_ip} with Port {self.verifier_port} timed out.")
-                exit()
+                sys.exit()
 
             if response.status_code != 200:
                 keylime_logging.log_http_response(
@@ -830,14 +829,14 @@ class Tenant():
                     if numtries >= maxr:
                         logger.error(
                             f"Cannot establish connection to agent on {self.agent_ip} with port {self.agent_port}")
-                        exit()
+                        sys.exit()
                     retry = config.getfloat('tenant', 'retry_interval')
                     logger.info(
                         f"Verifier connection to agent at {self.agent_ip} refused {numtries}/{maxr} times, trying again in {retry} seconds...")
                     time.sleep(retry)
                     continue
-                else:
-                    raise(e)
+
+                raise e
             response_body = response.json()
             if response.status_code == 200:
                 if "results" not in response_body or 'hmac' not in response_body['results']:

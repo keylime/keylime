@@ -13,10 +13,7 @@ import keylime.config as common
 import keylime.keylime_logging as keylime_logging
 import keylime.cmd_exec as cmd_exec
 
-try:
-    import simplejson as json
-except ImportError:
-    raise("Simplejson is mandatory, please install")
+import simplejson as json
 
 # read the config file
 config = common.get_config()

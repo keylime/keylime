@@ -2,9 +2,32 @@
 '''
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
+
+NOTE:
+This unittest is being used as a procedural test.
+The tests must be run in-order and CANNOT be parallelized!
+
+Tests all but two RESTful interfaces:
+    * agent's POST /v2/keys/vkey
+        - Done by CV after the CV's POST /v2/agents/{UUID} command is performed
+    * CV's PUT /v2/agents/{UUID}
+        - POST already bootstraps agent, so PUT is redundant in this test
+
+The registrar's PUT vactivate interface is only tested if a vTPM is present!
+
+
+USAGE:
+Should be run in test directory under root privileges with either command:
+    * python -m unittest -v test_restful
+    * green -vv
+        (with `pip install green`)
+
+To run without root privileges, be sure to export KEYLIME_TEST=True
+
+For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
+    * coverage run --parallel-mode test_restful.py
 '''
 
-import dbus
 import sys
 import signal
 import unittest
@@ -18,6 +41,7 @@ import errno
 import hashlib
 from pathlib import Path
 
+import dbus
 import simplejson as json
 
 from keylime import config
@@ -30,31 +54,6 @@ from keylime import secure_mount
 from keylime.tpm import tpm_obj, tpm_abstract
 
 
-""" NOTE:
-This unittest is being used as a procedural test.
-The tests must be run in-order and CANNOT be parallelized!
-
-Tests all but two RESTful interfaces:
-    * agent's POST /v2/keys/vkey
-        - Done by CV after the CV's POST /v2/agents/{UUID} command is performed
-    * CV's PUT /v2/agents/{UUID}
-        - POST already bootstraps agent, so PUT is redundant in this test
-
-The registrar's PUT vactivate interface is only tested if a vTPM is present!
-"""
-
-
-""" USAGE:
-Should be run in test directory under root privileges with either command:
-    * python -m unittest -v test_restful
-    * green -vv
-        (with `pip install green`)
-
-To run without root privileges, be sure to export KEYLIME_TEST=True
-
-For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
-    * coverage run --parallel-mode test_restful.py
-"""
 
 # Coverage support
 if "COVERAGE_FILE" in os.environ:
@@ -85,7 +84,7 @@ def cmp(a, b):
 
 # Ensure this is run as root
 if os.geteuid() != 0 and config.REQUIRE_ROOT:
-    exit("Tests need to be run with root privileges, or set env KEYLIME_TEST=True!")
+    sys.exit("Tests need to be run with root privileges, or set env KEYLIME_TEST=True!")
 
 # Force sorting tests alphabetically
 unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(x, y)
@@ -148,7 +147,7 @@ def setUpModule():
                 print("Found dbus service:", str(service))
                 try:
                     print("Restarting tpm2-abrmd.service.")
-                    job = manager.RestartUnit('tpm2-abrmd.service', 'fail')
+                    manager.RestartUnit('tpm2-abrmd.service', 'fail')
                 except dbus.exceptions.DBusException as e:
                     print(e)
     except Exception as e:
@@ -192,8 +191,8 @@ def setUpModule():
     tenant_templ.registrar_base_tls_url = f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_tls_boot_port}'
     tenant_templ.agent_base_url = f'{tenant_templ.cloudagent_ip}:{tenant_templ.cloudagent_port}'
     # Set up TLS
-    my_cert, my_priv_key = tenant_templ.get_tls_context()
-    tenant_templ.cert = (my_cert, my_priv_key)
+    my_tls_cert, my_tls_priv_key = tenant_templ.get_tls_context()
+    tenant_templ.cert = (my_tls_cert, my_tls_priv_key)
 
 
 # Destroy everything on teardown
@@ -335,6 +334,8 @@ class TestRestful(unittest.TestCase):
     U = None
     V = None
     api_version = config.API_VERSION
+    cloudagent_ip = None
+    cloudagent_port = None
 
     @classmethod
     def setUpClass(cls):
@@ -347,27 +348,27 @@ class TestRestful(unittest.TestCase):
         cls.V = ret['v']
         cls.payload = ret['ciphertext']
 
-        """Set up to register an agent"""
+        # Set up to register an agent
         cls.auth_tag = crypto.do_hmac(cls.K, tenant_templ.agent_uuid)
 
-        """Prepare policies for agent"""
+        # Prepare policies for agent
         cls.tpm_policy = config.get('tenant', 'tpm_policy')
         cls.vtpm_policy = config.get('tenant', 'vtpm_policy')
         cls.tpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.tpm_policy)
         cls.vtpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.vtpm_policy)
 
-        """Allow targeting a specific API version (default latest)"""
+        # Allow targeting a specific API version (default latest)
         cls.api_version = config.API_VERSION
 
     def setUp(self):
         """Nothing to set up before each test"""
-        pass
+        return
 
-    """Ensure everyone is running before doing tests"""
     def test_000_services(self):
+        """Ensure everyone is running before doing tests"""
         self.assertTrue(services_running(), "Not all services started successfully!")
 
-    """Registrar Testset"""
+    # Registrar Testset
     def test_010_reg_agent_post(self):
         """Test registrar's POST /v2/agents/{UUID} Interface"""
         global keyblob, aik, vtpm, ek
@@ -375,7 +376,7 @@ class TestRestful(unittest.TestCase):
         # Change CWD for TPM-related operations
         cwd = os.getcwd()
         config.ch_dir(config.WORK_DIR, None)
-        secdir = secure_mount.mount()
+        _ = secure_mount.mount()
 
         # Initialize the TPM with AIK
         (ek, ekcert, aik, ek_tpm, aik_name) = tpm.tpm_init(self_activate=False,
@@ -537,7 +538,7 @@ class TestRestful(unittest.TestCase):
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
 
-    """Agent Setup Testset"""
+    # Agent Setup Testset
 
     def test_020_agent_keys_pubkey_get(self):
         """Test agent's GET /v2/keys/pubkey Interface"""
@@ -664,7 +665,7 @@ class TestRestful(unittest.TestCase):
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
 
-    """Cloud Verifier Testset"""
+    # Cloud Verifier Testset
 
     def test_030_cv_agent_post(self):
         """Test CV's POST /v2/agents/{UUID} Interface"""
@@ -792,7 +793,7 @@ class TestRestful(unittest.TestCase):
         json_response = response.json()
         self.assertIn("results", json_response, "Malformed response body!")
 
-    """Agent Poll Testset"""
+    # Agent Poll Testset
 
     def test_040_agent_quotes_integrity_get(self):
         """Test agent's GET /v2/quotes/integrity Interface"""
@@ -827,7 +828,6 @@ class TestRestful(unittest.TestCase):
         self.assertIn("hash_alg", json_response["results"], "Malformed response body!")
 
         quote = json_response["results"]["quote"]
-        tpm_version = json_response["results"]["tpm_version"]
         hash_alg = json_response["results"]["hash_alg"]
 
         validQuote = tpm.check_quote(tenant_templ.agent_uuid,
@@ -862,7 +862,7 @@ class TestRestful(unittest.TestCase):
         # ex_mac = crypto.do_hmac(self.K, challenge)
         self.assertEqual(mac, ex_mac, "Agent failed to validate challenge code!")
 
-    """CV Cleanup Testset"""
+    # CV Cleanup Testset
 
     def test_050_cv_agent_delete(self):
         """Test CV's DELETE /v2/agents/{UUID} Interface"""
@@ -882,12 +882,12 @@ class TestRestful(unittest.TestCase):
 
     def tearDown(self):
         """Nothing to bring down after each test"""
-        pass
+        return
 
     @classmethod
     def tearDownClass(cls):
         """Nothing to bring down"""
-        pass
+        return
 
 
 if __name__ == '__main__':

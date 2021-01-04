@@ -5,6 +5,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import glob
 import os
+import sys
 
 from keylime import config
 from keylime import keylime_logging
@@ -17,7 +18,7 @@ tpm_cert_store = config.get('tenant', 'tpm_cert_store')
 def check_tpm_cert_store():
     if not os.path.isdir(tpm_cert_store):
         logger.error(f"The directory {tpm_cert_store} does not exist.")
-        exit()
+        sys.exit()
     else:
         for fname in os.listdir(tpm_cert_store):
             if fname.endswith('.pem'):
@@ -25,16 +26,16 @@ def check_tpm_cert_store():
         else:
             logger.error(
                 f"The directory {tpm_cert_store} does not contain any .pem files.")
-            exit()
+            sys.exit()
 
 
 def cert_loader():
     file_list = glob.glob(os.path.join(os.getcwd(), tpm_cert_store + "*.pem"))
-    trusted_certs = []
+    my_trusted_certs = []
     for file_path in file_list:
         with open(file_path) as f_input:
-            trusted_certs.append(f_input.read())
-    return trusted_certs
+            my_trusted_certs.append(f_input.read())
+    return my_trusted_certs
 
 
 atmel_trusted_keys = {"ATM1": {"key": "E5AFB8C97B6E6D49C624FCFB6558D6B291A17B94EBF4186B590F5039F0E85659268BEB60D86A9CF6A03D477F5686288498AB90DFEE1722F3BE5C516B542BFEF18B849C1208BB8E85117D4B046ECB9D425B920015D29CC73163A084B84320670683FEA43BD7C7FBB29CC1FC0D6A1F992E47DB7E2B37726D3D465386F114AAF0BC8AF19734ED01F633B2FFF0F1674514393270205BBBEE93C87F33AD934F2FB20D5B9697F8E7877BEB2A054CA0EC8BFE233711D147215FABFE524E23F1D1025922782446889D64248E2D42951788BFAD2B6881D720319EA712433596C6536EBBAB00515DAD23EA8C54CDA8E9E4F57FF30CEFE6F89E6CAE06B74E20EE5DBD37A4EF",

@@ -8,15 +8,15 @@ import configparser
 import sys
 import urllib.parse
 import re
-import time
-import tornado.web
 from http.server import BaseHTTPRequestHandler
 import http.client
+
+import tornado.web
 import yaml
 try:
     from yaml import CSafeLoader as SafeLoader
 except ImportError:
-    from yaml import SafeLoader as SafeLoader
+    from yaml import SafeLoader
 
 import simplejson as json
 
@@ -110,9 +110,6 @@ except ImportError:
 
 TPM_LIBS_PATH = '/usr/local/lib/'
 TPM_TOOLS_PATH = '/usr/local/bin/'
-if getattr(sys, 'frozen', False):
-    # we are running in a pyinstaller bundle, redirect tpm tools to bundle
-    TPM_TOOLS_PATH = sys._MEIPASS  # pylint: disable=W0212
 
 
 CONFIG_FILE = os.getenv('KEYLIME_CONFIG', '/etc/keylime.conf')
@@ -190,26 +187,6 @@ def list_convert(data):
     return data
 
 
-def timerfunc(func):
-    """
-    A timer decorator for debugging function return times.
-    To use, decorate a function with @common.timerfunc
-    """
-    def function_timer(*args, **kwargs):
-        """
-        A nested function for timing other functions
-        """
-        start = time.time()
-        value = func(*args, **kwargs)
-        end = time.time()
-        runtime = end - start
-        msg = "The runtime for {func} took {time} seconds to complete"
-        print(msg.format(func=func.__name__,
-                         time=runtime))
-        return value
-    return function_timer
-
-
 def chownroot(path, logger):
     if os.geteuid() == 0:
         os.chown(path, 0, 0)
@@ -245,21 +222,21 @@ def echo_json_response(handler, code, status=None, results=None):
         handler.end_headers()
         handler.wfile.write(json_response)
         return True
-    elif isinstance(handler, tornado.web.RequestHandler):
+    if isinstance(handler, tornado.web.RequestHandler):
         handler.set_status(code)
         handler.set_header('Content-Type', 'application/json')
         handler.write(json_response)
         handler.finish()
         return True
-    else:
-        return False
+
+    return False
 
 
 def list_to_dict(alist):
     """Convert list into dictionary via grouping [k0,v0,k1,v1,...]"""
     params = {}
     i = 0
-    while (i < len(alist)):
+    while i < len(alist):
         params[alist[i]] = alist[i + 1] if (i + 1) < len(alist) else None
         i = i + 2
     return params
@@ -310,24 +287,6 @@ def valid_regex(regex):
 
     return True, compiled_regex, None
 
-
-# this doesn't currently work
-# if LOAD_TEST:
-#     config = ConfigParser.RawConfigParser()
-#     config.read(CONFIG_FILE)
-#     TEST_CREATE_DEEP_QUOTE_DELAY = config.getfloat('general', 'test_deep_quote_delay')
-#     TEST_CREATE_QUOTE_DELAY = config.getfloat('general','test_quote_delay')
-
-
-# NOTE These are still used by platform init in dev in eclipse mode
-TEST_PUB_EK = '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1xWZh1aVwKIXT1B9n519\nLE6Oe3QIkeKqUUNURN8wFMd9Acs+vInh5NWgKAHtG4b5KBZqVytvIOJ4NctjinFY\nTCJKM3SJtPA2XYcXaUc6EAQda5TMgfqCeitHjivTtgb3hTMNrIgfOCV40peUU3Im\nSnd84q4Rrq9CfGIdmBCLCzAFfoble6ivMxRVzJ9Ob3xtlaS8ROXKqF+vq0dZZ41Q\nIp6IgpDlSf1TL8w+GHdMQQIUM1XEIRt9Owv8JQvnM4iX06EpnCP/BZshLUN+CivX\n4VRWxjua8NkwMv/wc3xI64E58EYFWnGca3UBi3JBD0QuuzkYM1vkfkvi2QNiWA7I\nFQIDAQAB\n-----END PUBLIC KEY-----\n'
-TEST_EK_CERT = 'MIIDiTCCAnGgAwIBAgIFLgbvovcwDQYJKoZIhvcNAQEFBQAwUjFQMBwGA1UEAxMVTlRDIFRQTSBFSyBSb290IENBIDAyMCUGA1UEChMeTnV2b3RvbiBUZWNobm9sb2d5IENvcnBvcmF0aW9uMAkGA1UEBhMCVFcwHhcNMTMxMDA2MDkxNTM4WhcNMzMxMDA2MDkxNTM4WjAAMIIBXzBKBgkqhkiG9w0BAQcwPaALMAkGBSsOAwIaBQChGDAWBgkqhkiG9w0BAQgwCQYFKw4DAhoFAKIUMBIGCSqGSIb3DQEBCQQFVENQQQADggEPADCCAQoCggEBANcVmYdWlcCiF09QfZ+dfSxOjnt0CJHiqlFDVETfMBTHfQHLPryJ4eTVoCgB7RuG+SgWalcrbyDieDXLY4pxWEwiSjN0ibTwNl2HF2lHOhAEHWuUzIH6gnorR44r07YG94UzDayIHzgleNKXlFNyJkp3fOKuEa6vQnxiHZgQiwswBX6G5XuorzMUVcyfTm98bZWkvETlyqhfr6tHWWeNUCKeiIKQ5Un9Uy/MPhh3TEECFDNVxCEbfTsL/CUL5zOIl9OhKZwj/wWbIS1Dfgor1+FUVsY7mvDZMDL/8HN8SOuBOfBGBVpxnGt1AYtyQQ9ELrs5GDNb5H5L4tkDYlgOyBUCAwEAAaN7MHkwVAYDVR0RAQH/BEowSKRGMEQxQjAUBgVngQUCARMLaWQ6NTc0NTQzMDAwGAYFZ4EFAgITD05QQ1Q0MngvTlBDVDUweDAQBgVngQUCAxMHaWQ6MDM5MTAMBgNVHRMBAf8EAjAAMBMGA1UdJQEB/wQJMAcGBWeBBQgBMA0GCSqGSIb3DQEBBQUAA4IBAQALYCcNLxnWs2rvt/gPGjCfZKuURHmgcICu97IaAM5iJPsyLR14rgOpOXpH1yUbcNvJbljOOfHsCczHOW5rvc+lIOrWHwhPKaRAAVnx7o7Zdj6ndDIqwjMi3royPvM8qad69vVRXTAx/zJkOtWO6eFX0UmPlfpRwVjLbjrbih7rJ58etNH6Umk23iCUriYTXy9HSyuhqQY3f/gxuvQB5v0DIvH6m3ne4mNcvtAv4LMIvKS6PUAjamMHRtebhY3xvGzZUlyHzXuId9Rw9bOS1fRwA6k4cC0qqWDO3d12ojN5B9Tr1IPV65weu7sCQT0PzkUKI0KeCoAGcPy0+ibk4VxL'
-
-HEADERS = {'User-Agent': 'foo', 'Content-Type': 'text/xml'}
-BS = 16
-
-# how many quotes are we allowed to verify before asking the registrar if the key is valid
-MAX_STALE_REGISTRAR_CACHE = 200
 
 if STUB_IMA:
     IMA_ML = '../scripts/ima/ascii_runtime_measurements'

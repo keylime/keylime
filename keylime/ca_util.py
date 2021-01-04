@@ -3,15 +3,29 @@
 '''
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
+
+Tools for creating a CA cert and signed server certs.
+Divined from http://svn.osafoundation.org/m2crypto/trunk/tests/test_x509.py
+The mk_temporary_xxx calls return a NamedTemporaryFile with certs.
+Usage ;
+   # Create a temporary CA cert and it's private key
+   cacert, cakey = mk_temporary_cacert()
+   # Create a temporary server cert+key, signed by the CA
+   server_cert = mk_temporary_cert(cacert.name, cakey.name, '*.server.co.uk')
+
+protips
+# openssl verify -CAfile cacert.crt cacert.crt cert.crt
+# openssl x509 -in cert.crt -noout -text
+# openssl x509 -in cacert.crt -noout -text
 '''
 
-from M2Crypto import X509, EVP, BIO
 import sys
 import os
 import base64
 import argparse
 import datetime
 import getpass
+import glob
 import zipfile
 import io
 import socket
@@ -23,9 +37,10 @@ import yaml
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
 except ImportError:
-    from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
+    from yaml import SafeLoader, SafeDumper
 
 import simplejson as json
+from M2Crypto import X509, EVP, BIO
 
 from keylime import cmd_exec
 from keylime import config
@@ -44,27 +59,13 @@ else:
     raise Exception("Unknown CA implementation: %s" % config.CA_IMPL)
 
 
-"""
-Tools for creating a CA cert and signed server certs.
-Divined from http://svn.osafoundation.org/m2crypto/trunk/tests/test_x509.py
-The mk_temporary_xxx calls return a NamedTemporaryFile with certs.
-Usage ;
-   # Create a temporary CA cert and it's private key
-   cacert, cakey = mk_temporary_cacert()
-   # Create a temporary server cert+key, signed by the CA
-   server_cert = mk_temporary_cert(cacert.name, cakey.name, '*.server.co.uk')
-"""
-# protips
-# openssl verify -CAfile cacert.crt cacert.crt cert.crt
-# openssl x509 -in cert.crt -noout -text
-# openssl x509 -in cacert.crt -noout -text
 
 global_password = None
 
 
-def globalcb(*args):
-    global global_password
-    return global_password.encode()
+# def globalcb(*args):
+#    global global_password
+#    return global_password.encode()
 
 
 def setpassword(pw):
@@ -231,7 +232,7 @@ def cmd_certpkg(workingdir, name, insecure=False):
         pkg = sf.getvalue()
 
         if insecure:
-            logger.warn(
+            logger.warning(
                 "Unprotected private keys in cert package being written to disk")
             with open('%s-pkg.zip' % name, 'w') as f:
                 f.write(pkg)
@@ -450,7 +451,6 @@ class CRLHandler(BaseHTTPRequestHandler):
 
 
 def rmfiles(path):
-    import glob
     files = glob.glob(path)
     for f in files:
         os.remove(f)
@@ -482,18 +482,18 @@ def read_private(warn=False):
         key = crypto.kdf(global_password, toread['salt'])
         try:
             plain = crypto.decrypt(toread['priv'], key)
-        except ValueError:
-            raise Exception("Invalid password for keystore")
+        except ValueError as e:
+            raise Exception("Invalid password for keystore") from e
 
         return yaml.load(plain, Loader=SafeLoader), toread['salt']
-    else:
-        if warn:
-            # file doesn't exist, just invent a salt
-            logger.warning("Private certificate data %s does not exist yet." %
-                           os.path.abspath("private.yml"))
-            logger.warning(
-                "Keylime will attempt to load private certificate data again when it is needed.")
-        return {'revoked_keys': []}, base64.b64encode(crypto.generate_random_key()).decode()
+
+    if warn:
+        # file doesn't exist, just invent a salt
+        logger.warning("Private certificate data %s does not exist yet." %
+                       os.path.abspath("private.yml"))
+        logger.warning(
+            "Keylime will attempt to load private certificate data again when it is needed.")
+    return {'revoked_keys': []}, base64.b64encode(crypto.generate_random_key()).decode()
 
 
 def main(argv=sys.argv):

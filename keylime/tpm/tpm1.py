@@ -6,21 +6,22 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import base64
 import hashlib
-import M2Crypto
 import os
 import re
 import sys
 import tempfile
 import threading
 import time
-import yaml
 import zlib
 import codecs
+
+import yaml
 try:
     from yaml import CSafeDumper as SafeDumper
 except ImportError:
-    from yaml import SafeDumper as SafeDumper
+    from yaml import SafeDumper
 
+import M2Crypto
 from M2Crypto import m2
 from keylime import crypto
 from keylime import cmd_exec
@@ -69,12 +70,11 @@ def _stub_command(fprt, lock, outputpaths):
             'timing': thisTiming,
         }
         return returnDict
-    elif not lock:
+    if not lock:
         # non-lock calls don't go to the TPM (just let it pass through)
         return None
-    else:
-        # Our command hasn't been canned!
-        raise Exception("Command %s not found in canned YAML!" % (fprt))
+    # Our command hasn't been canned!
+    raise Exception("Command %s not found in canned YAML!" % (fprt))
 
 
 def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
@@ -212,21 +212,20 @@ class tpm1(tpm_abstract.AbstractTPM):
 
             code = retDict['code']
             retout = retDict['retout']
-            fileouts = retDict['fileouts']
 
             # keep trying to communicate with TPM if there was an I/O error
             if code == tpm_abstract.AbstractTPM.TPM_IO_ERR:
                 numtries += 1
-                maxr = self.config.getint('cloud_agent', 'max_retries')
+                maxr = config.getint('cloud_agent', 'max_retries')
                 if numtries >= maxr:
                     logger.error("TPM appears to be in use by another application.  Keylime is incompatible with other TPM TSS applications like trousers/tpm-tools. Please uninstall or disable.")
                     break
-                retry = self.config.getfloat('cloud_agent', 'retry_interval')
+                retry = config.getfloat('cloud_agent', 'retry_interval')
                 logger.info("Failed to call TPM %d/%d times, trying again in %f seconds..." % (numtries, maxr, retry))
                 time.sleep(retry)
                 continue
-            else:
-                break
+
+            break
 
         # Don't bother continuing if TPM call failed and we're raising on error
         if code != expectedcode and raiseOnError:
@@ -251,7 +250,6 @@ class tpm1(tpm_abstract.AbstractTPM):
                 logger.debug("createek failed.  TPM locked, will attempt unlock during while taking ownership.  To manually repair run resetlockvalue -pwdo [owner_password]")
             else:
                 raise Exception("createek failed with code " + str(code) + ": " + str(output))
-        return
 
     def __test_ownerpw(self, owner_pw, reentry=False):
         # make a temp file for the output
@@ -262,7 +260,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 if len(output) > 0 and output[0].startswith("Error Authentication failed (Incorrect Password) from TPM_OwnerReadPubek"):
                     return False
-                elif len(output) > 0 and output[0].startswith("Error Defend lock running from TPM_OwnerReadPubek"):
+                if len(output) > 0 and output[0].startswith("Error Defend lock running from TPM_OwnerReadPubek"):
                     if reentry:
                         logger.error("Unable to unlock TPM")
                         return False
@@ -272,8 +270,7 @@ class tpm1(tpm_abstract.AbstractTPM):
                     self.__run("resetlockvalue -pwdo %s" % owner_pw, raiseOnError=False)
                     self.__run("resetlockvalue -pwdo %s" % owner_pw, raiseOnError=False)
                     return self.__test_ownerpw(owner_pw, True)
-                else:
-                    raise Exception("test ownerpw, getpubek failed with code " + str(code) + ": " + str(output))
+                raise Exception("test ownerpw, getpubek failed with code " + str(code) + ": " + str(output))
         return True
 
     def __take_ownership(self, config_pw):
@@ -311,8 +308,8 @@ class tpm1(tpm_abstract.AbstractTPM):
 
         if not ownerpw_known:
             raise Exception("Owner password unknown, TPM reset required")
-        else:
-            logger.info("TPM Owner password confirmed: %s" % owner_pw)
+
+        logger.info("TPM Owner password confirmed: %s" % owner_pw)
 
     def __get_pub_ek(self):  # assumes that owner_pw is correct at this point
         owner_pw = self.get_tpm_metadata('owner_pw')
@@ -343,7 +340,6 @@ class tpm1(tpm_abstract.AbstractTPM):
             with tempfile.NamedTemporaryFile() as tmppath:
                 retDict = self.__run("identity -la aik -ok %s -pwdo %s -pwdk %s %s" % (tmppath.name, owner_pw, aik_pw, extra), outputpaths=tmppath.name)
                 retout = config.list_convert(retDict['retout'])
-                code = retDict['code']
                 fileout = retDict['fileouts'][tmppath.name]
                 inPem = False
                 pem = ""
@@ -458,7 +454,6 @@ class tpm1(tpm_abstract.AbstractTPM):
                 os.remove(blobpath)
             if keypath is not None:
                 os.remove(keypath)
-            pass
         return (keyblob, key)
 
     def activate_identity(self, keyblob):
@@ -483,8 +478,6 @@ class tpm1(tpm_abstract.AbstractTPM):
             command = "activateidentity -hk %s -pwdo %s -pwdk %s -if %s -ok %s" % \
                       (keyhandle, owner_pw, self.get_tpm_metadata('aik_pw'), keyblobFile.name, secpath)
             retDict = self.__run(command, outputpaths=secpath)
-            retout = retDict['retout']
-            code = retDict['code']
             fileout = retDict['fileouts'][secpath]
             logger.info("AIK activated.")
 
@@ -575,8 +568,7 @@ class tpm1(tpm_abstract.AbstractTPM):
     def is_vtpm(self):
         if config.STUB_VTPM:
             return True
-        else:
-            return self.get_tpm_manufacturer() == 'ETHZ'
+        return self.get_tpm_manufacturer() == 'ETHZ'
 
     def __is_tpm_owned(self):
         retDict = self.__run("getcapability -cap 5 -scap 111")
@@ -630,8 +622,6 @@ class tpm1(tpm_abstract.AbstractTPM):
                 command = "deepquote -vk %s -hm %s -vm %s -nonce %s -pwdo %s -pwdk %s -oq %s" % (keyhandle, pcrmask, vpcrmask, nonce, owner_pw, aik_pw, quotepath.name)
                 # print("Executing %s"%(command))
                 retDict = self.__run(command, lock=False, outputpaths=quotepath.name)
-                retout = retDict['retout']
-                code = retDict['code']
                 quoteraw = retDict['fileouts'][quotepath.name]
                 quote = base64.b64encode(zlib.compress(quoteraw))
 
@@ -655,8 +645,6 @@ class tpm1(tpm_abstract.AbstractTPM):
 
                 command = "tpmquote -hk %s -pwdk %s -bm %s -nonce %s -noverify -oq %s" % (keyhandle, aik_pw, pcrmask, nonce, quotepath.name)
                 retDict = self.__run(command, lock=False, outputpaths=quotepath.name)
-                retout = retDict['retout']
-                code = retDict['code']
                 quoteraw = retDict['fileouts'][quotepath.name]
                 quote = base64.b64encode(zlib.compress(quoteraw))
 
@@ -723,7 +711,6 @@ class tpm1(tpm_abstract.AbstractTPM):
                 os.remove(hAIKFile.name)
             if quoteFile is not None:
                 os.remove(quoteFile.name)
-            pass
 
         if len(retout) < 1:
             return False
@@ -768,14 +755,15 @@ class tpm1(tpm_abstract.AbstractTPM):
 
         # print('Executing "%s"' % ("checkquote -aik %s -quote %s -nonce %s"%(aikFile, quoteFile, extData),))
         if config.USE_CLIME:
+            # pylint: disable=C0415
             import _cLime
             retout = _cLime.checkquote('-aik', aikFile, '-quote', quoteFile, '-nonce', extData)
             retout = [line + '\n' for line in retout.split('\n')]
             # Try and be transparent to tpm_quote.py
             return retout
-        else:
-            retDict = self.__run("checkquote -aik %s -quote %s -nonce %s" % (aikFile, quoteFile, extData), lock=False)
-            return retDict['retout']
+
+        retDict = self.__run("checkquote -aik %s -quote %s -nonce %s" % (aikFile, quoteFile, extData), lock=False)
+        return retDict['retout']
 
     def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None):
         quoteFile = None
@@ -810,7 +798,6 @@ class tpm1(tpm_abstract.AbstractTPM):
                 os.remove(aikFile.name)
             if quoteFile is not None:
                 os.remove(quoteFile.name)
-            pass
 
         if len(retout) < 1:
             return False
@@ -864,12 +851,10 @@ class tpm1(tpm_abstract.AbstractTPM):
             try:
                 command = "getrandom -size %d -out %s" % (size, randpath.name)
                 retDict = self.__run(command, outputpaths=randpath.name)
-                retout = retDict['retout']
-                code = retDict['code']
                 rand = retDict['fileouts'][randpath.name]
             except Exception as e:
                 if not self.tpmrand_warned:
-                    logger.warn("TPM randomness not available: %s" % e)
+                    logger.warning("TPM randomness not available: %s" % e)
                     self.tpmrand_warned = True
                 return []
         return rand
@@ -885,7 +870,6 @@ class tpm1(tpm_abstract.AbstractTPM):
 
             self.__run("nv_definespace -pwdo %s -in 1 -sz %d -pwdd %s -per 40004" % (owner_pw, config.BOOTSTRAP_KEY_SIZE, owner_pw), raiseOnError=False)
             self.__run("nv_writevalue -pwdd %s -in 1 -if %s" % (owner_pw, keyFile.name), raiseOnError=False)
-        return
 
     def read_ekcert_nvram(self):
         # make a temp file for the quote
@@ -898,9 +882,9 @@ class tpm1(tpm_abstract.AbstractTPM):
             ekcert = retDict['fileouts'][nvpath.name]
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS and len(output) > 0 and output[0].startswith("Error Illegal index from NV_ReadValue"):
-                logger.warn("No EK certificate found in TPM NVRAM")
+                logger.warning("No EK certificate found in TPM NVRAM")
                 return None
-            elif code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+            if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception("nv_readvalue for ekcert failed with code " + str(code) + ": " + str(output))
 
         return base64.b64encode(ekcert)
@@ -918,7 +902,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS and len(output) > 0 and (output[0].startswith("Error Illegal index from NV_ReadValue") or output[0].startswith("Error Authentication failed")):
                 logger.debug("No stored U in TPM NVRAM")
                 return None
-            elif code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+            if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                 raise Exception("nv_readvalue failed with code " + str(code) + ": " + str(output))
 
         if len(key) != config.BOOTSTRAP_KEY_SIZE:

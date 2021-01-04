@@ -5,6 +5,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import os
 import logging
+import sys
 
 import simplejson as json
 
@@ -29,16 +30,15 @@ def init_client_tls(section):
     if not config.getboolean('general', "enable_tls"):
         logger.warning("TLS is currently disabled, AIKs may not be authentic.")
         return
-    else:
-        logger.warning("TLS is enabled.")
-        tls_enabled = True
+
+    logger.warning("TLS is enabled.")
+    tls_enabled = True
 
     logger.info("Setting up client TLS...")
     tls_dir = config.get(section, 'registrar_tls_dir')
 
     my_cert = config.get(section, 'registrar_my_cert')
     my_priv_key = config.get(section, 'registrar_private_key')
-    my_key_pw = config.get(section, 'registrar_private_key_pw')
 
     if tls_dir == 'default':
         tls_dir = 'reg_ca'
@@ -54,15 +54,15 @@ def init_client_tls(section):
     if tls_dir[0] != '/':
         tls_dir = os.path.abspath('%s/%s' % (config.WORK_DIR, tls_dir))
 
-    ca_cert = config.get(section, 'registrar_ca_cert')
-
-    if ca_cert == 'default':
-        ca_path = "%s/cacert.crt" % (tls_dir)
+    if os.path.isabs(my_cert):
+        tls_cert = my_cert
     else:
-        ca_path = "%s/%s" % (tls_dir, ca_cert)
+        tls_cert = "%s/%s" % (tls_dir, my_cert)
+    if os.path.isabs(my_priv_key):
+        tls_priv_key = my_priv_key
+    else:
+        tls_priv_key = "%s/%s" % (tls_dir, my_priv_key)
 
-    tls_cert = "%s/%s" % (tls_dir, my_cert)
-    tls_priv_key = "%s/%s" % (tls_dir, my_priv_key)
     tls_cert_info = (tls_cert, tls_priv_key)
 
 
@@ -70,8 +70,8 @@ def getAIK(registrar_ip, registrar_port, agent_id):
     retval = getKeys(registrar_ip, registrar_port, agent_id)
     if retval is None:
         return retval
-    else:
-        return retval['aik']
+
+    return retval['aik']
 
 
 def getKeys(registrar_ip, registrar_port, agent_id):
@@ -156,7 +156,7 @@ def doRegisterAgent(registrar_ip, registrar_port, agent_id, tpm_version, pub_ek,
         if response and response.status_code == 503:
             logger.error(
                 f"Agent cannot establish connection to registrar at {registrar_ip}:{registrar_port}")
-            exit()
+            sys.exit()
         else:
             logger.exception(e)
 
@@ -174,11 +174,11 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
     if response.status_code == 200:
         logger.info("Registration activated for agent %s." % agent_id)
         return True
-    else:
-        logger.error(
-            "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
-        keylime_logging.log_http_response(logger, logging.ERROR, response_body)
-        return False
+
+    logger.error(
+        "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
+    keylime_logging.log_http_response(logger, logging.ERROR, response_body)
+    return False
 
 
 def doActivateVirtualAgent(registrar_ip, registrar_port, agent_id, deepquote):
@@ -191,11 +191,11 @@ def doActivateVirtualAgent(registrar_ip, registrar_port, agent_id, deepquote):
     if response.status_code == 200:
         logger.info("Registration activated for agent %s." % agent_id)
         return True
-    else:
-        logger.error(
-            "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
-        keylime_logging.log_http_response(logger, logging.ERROR, response_body)
-        return False
+
+    logger.error(
+        "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
+    keylime_logging.log_http_response(logger, logging.ERROR, response_body)
+    return False
 
 
 def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
@@ -206,6 +206,6 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
     if response.status_code == 200:
         logger.debug("Registrar deleted.")
     else:
-        logger.warn("Status command response: " +
-                    str(response.status_code) + " Unexpected response from registrar.")
+        logger.warning("Status command response: " +
+                       str(response.status_code) + " Unexpected response from registrar.")
         keylime_logging.log_http_response(logger, logging.WARNING, response_body)

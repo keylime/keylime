@@ -17,7 +17,7 @@ import tornado.ioloop
 import tornado.web
 
 from keylime.requests_client import RequestsClient
-from keylime import cloud_verifier_common
+from keylime.common import states
 from keylime import config
 from keylime import keylime_logging
 from keylime import tenant
@@ -328,11 +328,9 @@ class AgentsHandler(BaseHandler):
 
         # Agent not added to CV (but still registered)
         if response.status_code == 404:
-            return {"operational_state": cloud_verifier_common.CloudAgent_Operational_State.REGISTERED}
-        else:
-            return inst_response_body["results"]
+            return {"operational_state": states.REGISTERED}
 
-        return None
+        return inst_response_body["results"]
 
     async def get(self):
         """This method handles the GET requests to retrieve status on agents from the WebApp.
@@ -357,7 +355,7 @@ class AgentsHandler(BaseHandler):
                 config.echo_json_response(self, 200, "Success", {
                                           'log': logValue[offset:]})
             return
-        elif "agents" not in rest_params:
+        if "agents" not in rest_params:
             # otherwise they must be looking for agent info
             config.echo_json_response(self, 400, "uri not supported")
             logger.warning(
@@ -413,8 +411,7 @@ class AgentsHandler(BaseHandler):
 
         # Pre-create sorted agents list
         sorted_by_state = {}
-        states = cloud_verifier_common.CloudAgent_Operational_State.STR_MAPPINGS
-        for state in states:
+        for state in states.VALID_STATES:
             sorted_by_state[state] = {}
 
         # Build sorted agents list
@@ -422,7 +419,10 @@ class AgentsHandler(BaseHandler):
             state = agents[agent_id]["operational_state"]
             sorted_by_state[state][agent_id] = agents[agent_id]
 
-        print_order = [10, 9, 7, 3, 4, 5, 6, 2, 1, 8, 0]
+        print_order = [states.TENANT_FAILED, states.INVALID_QUOTE,
+                       states.FAILED, states.GET_QUOTE, states.GET_QUOTE_RETRY,
+                       states.PROVIDE_V, states.PROVIDE_V_RETRY, states.SAVED,
+                       states.START, states.TERMINATED, states.REGISTERED]
         sorted_agents = []
         for state in print_order:
             for agent_id in sorted_by_state[state]:
@@ -615,7 +615,7 @@ def parse_data_uri(data_uri):
 
         try:
             data.append(base64.b64decode(uri[fpos:]).decode('utf-8'))
-        except Exception as e:
+        except Exception:
             # skip bad data
             continue
 
@@ -631,15 +631,11 @@ def start_tornado(tornado_server, port):
 
 def get_tls_context():
     ca_cert = config.get('tenant', 'ca_cert')
-    my_cert = config.get('tenant', 'my_cert')
-    my_priv_key = config.get('tenant', 'private_key')
 
     tls_dir = config.get('tenant', 'tls_dir')
 
     if tls_dir == 'default':
         ca_cert = 'cacert.crt'
-        my_cert = 'client-cert.crt'
-        my_priv_key = 'client-private.pem'
         tls_dir = 'cv_ca'
 
     # this is relative path, convert to absolute in WORK_DIR
@@ -649,20 +645,20 @@ def get_tls_context():
     logger.info(f"Setting up client TLS in {tls_dir}")
 
     ca_path = "%s/%s" % (tls_dir, ca_cert)
-    my_cert = "%s/%s" % (tls_dir, my_cert)
-    my_priv_key = "%s/%s" % (tls_dir, my_priv_key)
+    my_tls_cert = "%s/%s" % (tls_dir, my_cert)
+    my_tls_priv_key = "%s/%s" % (tls_dir, my_priv_key)
 
     context = ssl.create_default_context()
     context.load_verify_locations(cafile=ca_path)
     context.load_cert_chain(
-        certfile=my_cert, keyfile=my_priv_key)
+        certfile=my_tls_cert, keyfile=my_tls_priv_key)
     context.verify_mode = ssl.CERT_REQUIRED
     context.check_hostname = config.getboolean(
         'general', 'tls_check_hostnames')
     return context
 
 
-def main(argv=sys.argv):
+def main():
     """Main method of the Tenant Webapp Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
@@ -670,7 +666,7 @@ def main(argv=sys.argv):
 
     if not config.REQUIRE_ROOT and webapp_port < 1024:
         webapp_port += 2000
-        logger.warn("Running without root, changing port to %d" % webapp_port)
+        logger.warning("Running without root, changing port to %d" % webapp_port)
 
     logger.info(
         'Starting Tenant WebApp (tornado) on port %d use <Ctrl-C> to stop' % webapp_port)

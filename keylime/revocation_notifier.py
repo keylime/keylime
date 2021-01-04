@@ -10,13 +10,15 @@ import time
 import os
 import sys
 import signal
-import zmq
 
 import simplejson as json
+import zmq
 
 from keylime import config
 from keylime import crypto
 from keylime import keylime_logging
+from keylime import secure_mount
+
 
 logger = keylime_logging.init_logging('revocation_notifier')
 broker_proc = None
@@ -119,8 +121,6 @@ def await_notifications(callback, revocation_cert_path):
 
 def main():
     start_broker()
-
-    from keylime import secure_mount
 
     def worker():
         def print_notification(revocation):

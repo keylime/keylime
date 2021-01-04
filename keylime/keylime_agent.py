@@ -10,7 +10,6 @@ import http.server
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 import threading
-from urllib.parse import urlparse
 import base64
 import configparser
 import uuid
@@ -23,6 +22,7 @@ import zipfile
 import io
 import importlib
 import shutil
+import subprocess
 
 import simplejson as json
 
@@ -148,7 +148,7 @@ class Handler(BaseHTTPRequestHandler):
             # return a measurement list if available
             if TPM_Utilities.check_mask(imaMask, config.IMA_PCR):
                 if not os.path.exists(config.IMA_ML):
-                    logger.warn(
+                    logger.warning(
                         "IMA measurement list not available: %s" % (config.IMA_ML))
                 else:
                     with open(config.IMA_ML, 'r') as f:
@@ -199,10 +199,10 @@ class Handler(BaseHTTPRequestHandler):
             self.server.add_U(decrypted_key)
             self.server.auth_tag = json_body['auth_tag']
             self.server.payload = json_body.get('payload', None)
-            have_derived_key = self.server.attempt_decryption(self)
+            have_derived_key = self.server.attempt_decryption()
         elif rest_params["keys"] == "vkey":
             self.server.add_V(decrypted_key)
-            have_derived_key = self.server.attempt_decryption(self)
+            have_derived_key = self.server.attempt_decryption()
         else:
             logger.warning(
                 'POST returning  response. uri not supported: ' + self.path)
@@ -282,7 +282,6 @@ class Handler(BaseHTTPRequestHandler):
                 initscript = config.get('cloud_agent', 'payload_script')
                 if initscript != "":
                     def initthread():
-                        import subprocess
                         env = os.environ.copy()
                         env['AGENT_UUID'] = self.server.agent_uuid
                         proc = subprocess.Popen(["/bin/bash", initscript], env=env, shell=False, cwd='%s/unzipped' % secdir,
@@ -311,7 +310,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # now extend a measurement of the payload and key if there was one
         pcr = config.getint('cloud_agent', 'measure_payload_pcr')
-        if pcr > 0 and pcr < 24:
+        if 0 < pcr < 24:
             logger.info("extending measurement of payload into PCR %s" % pcr)
             measured = tpm.hashdigest(tomeasure)
             tpm.extendPCR(pcr, measured)
@@ -321,24 +320,8 @@ class Handler(BaseHTTPRequestHandler):
 
         return
 
-    def get_query_tag_value(self, path, query_tag):
-        """This is a utility method to query for specific the http parameters in the uri.
-
-        Returns the value of the parameter, or None if not found."""
-        data = {}
-        parsed_path = urlparse(self.path)
-        query_tokens = parsed_path.query.split('&')
-        # find the 'ids' query, there can only be one
-        for tok in query_tokens:
-            query_tok = tok.split('=')
-            query_key = query_tok[0]
-            if query_key is not None and query_key == query_tag:
-                # ids tag contains a comma delimited list of ids
-                data[query_tag] = query_tok[1]
-                break
-        return data.get(query_tag, None)
-
-    def log_message(self, logformat, *args):
+    # pylint: disable=W0622
+    def log_message(self, format, *args):
         return
 
 # consider using PooledProcessMixIn
@@ -348,7 +331,7 @@ class Handler(BaseHTTPRequestHandler):
 class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     """Http Server which will handle each request in a separate thread."""
 
-    ''' Do not modify directly unless you acquire uvLock. Set chosen for uniqueness of contained values'''
+    # Do not modify directly unless you acquire uvLock. Set chosen for uniqueness of contained values
     u_set = set([])
     v_set = set([])
 
@@ -416,7 +399,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
                 logger.debug(F"Adding V: {base64.b64encode(v)}")
             self.v_set.add(v)
 
-    def attempt_decryption(self, handler):
+    def attempt_decryption(self):
         """On reception of a U or V value, this method is called to attempt the decryption of the Cloud Init script
 
         At least one U and V value must be received in order to attempt encryption. Multiple U and V values are stored
@@ -472,13 +455,13 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             self.final_U = decrypted_U
             self.K = candidate_key
             return True
-        else:
-            logger.error("Failed to derive K for UUID %s", self.agent_uuid)
+
+        logger.error("Failed to derive K for UUID %s", self.agent_uuid)
 
         return False
 
 
-def main(argv=sys.argv):
+def main():
     if os.getuid() != 0 and config.REQUIRE_ROOT:
         logger.critical("This process must be run as root.")
         return
@@ -626,7 +609,7 @@ def main(argv=sys.argv):
                     execute = getattr(module, 'execute')
                     asyncio.get_event_loop().run_until_complete(execute(revocation))
                 except Exception as e:
-                    logger.warn(
+                    logger.warning(
                         "Exception during execution of revocation action %s: %s" % (action, e))
         try:
             while True:
@@ -635,7 +618,7 @@ def main(argv=sys.argv):
                         perform_actions, revocation_cert_path=cert_path)
                 except Exception as e:
                     logger.exception(e)
-                    logger.warn(
+                    logger.warning(
                         "No connection to revocation server, retrying in 10s...")
                     time.sleep(10)
         except KeyboardInterrupt:

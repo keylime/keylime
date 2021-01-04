@@ -5,17 +5,14 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
-import sys
-
 from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_common
 
 logger = keylime_logging.init_logging('provider-registrar')
-config = config.get_config()
 
 
-def main(argv=sys.argv):
+def main():
     registrar_common.start(
         config.get('registrar', 'provider_registrar_ip'),
         config.getint('registrar', 'provider_registrar_tls_port'),

@@ -8,16 +8,16 @@ import os
 import subprocess
 import socket
 import time
-import requests
 import shutil
 import sys
 
+import requests
 import simplejson as json
+from M2Crypto import EVP, X509
 
 from keylime import config
 from keylime import keylime_logging
 from keylime import secure_mount
-from M2Crypto import EVP, X509
 
 logger = keylime_logging.init_logging('ca_impl_cfssl')
 
@@ -119,11 +119,12 @@ def mk_cacert():
         pkey = cert.get_pubkey()
 
         return pk_str, cert, pk, pkey
-    else:
-        raise Exception("Unable to create CA")
+
+    raise Exception("Unable to create CA")
 
 
 def mk_signed_cert(cacert, ca_pk, name, serialnum):
+    del cacert, serialnum
     csr = {"request": {
         "CN": name,
         "hosts": [
@@ -185,8 +186,8 @@ def mk_signed_cert(cacert, ca_pk, name, serialnum):
         cert = X509.load_cert_string(
             body['result']['certificate'].encode("utf-8"))
         return cert, pk
-    else:
-        raise Exception("Unable to create cert for %s" % name)
+
+    raise Exception("Unable to create cert for %s" % name)
 
 
 def gencrl(serials, cert, ca_pk):

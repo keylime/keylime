@@ -16,7 +16,7 @@ import yaml
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
 except ImportError:
-    from yaml import SafeLoader as SafeLoader, SafeDumper as SafeDumper
+    from yaml import SafeLoader, SafeDumper
 
 from keylime import config
 from keylime import keylime_logging
@@ -81,7 +81,6 @@ class AbstractTPM(metaclass=ABCMeta):
     # constructor
     def __init__(self, need_hw_tpm=True):
         # read the config file
-        self.config = config.get_config()
         self.need_hw_tpm = need_hw_tpm
         self.global_tpmdata = None
         self.tpmrand_warned = False
@@ -169,10 +168,9 @@ class AbstractTPM(metaclass=ABCMeta):
     def is_deep_quote(self, quote):
         if quote[0] == 'd':
             return True
-        elif quote[0] == 'r':
+        if quote[0] == 'r':
             return False
-        else:
-            raise Exception("Invalid quote type %s" % quote[0])
+        raise Exception("Invalid quote type %s" % quote[0])
 
     @abstractmethod
     def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):
@@ -215,6 +213,10 @@ class AbstractTPM(metaclass=ABCMeta):
 
     @abstractmethod
     def readPCR(self, pcrval, hash_alg=None):
+        pass
+
+    @abstractmethod
+    def _get_tpm_rand_block(self, size=4096):
         pass
 
     def __check_ima(self, agent_id, pcrval, ima_measurement_list, allowlist):
@@ -273,18 +275,18 @@ class AbstractTPM(metaclass=ABCMeta):
                 if self.__check_ima(agent_id, pcrval, ima_measurement_list, allowlist):
                     pcrsInQuote.add(pcrnum)
                     continue
-                else:
-                    return False
+
+                return False
 
             if pcrnum not in list(pcr_allowlist.keys()):
                 if not config.STUB_TPM and len(list(tpm_policy.keys())) > 0:
-                    logger.warn("%sPCR #%s in quote not found in %stpm_policy, skipping." % (("", "v")[virtual], pcrnum, ("", "v")[virtual]))
+                    logger.warning("%sPCR #%s in quote not found in %stpm_policy, skipping." % (("", "v")[virtual], pcrnum, ("", "v")[virtual]))
                 continue
-            elif pcrval not in pcr_allowlist[pcrnum] and not config.STUB_TPM:
+            if pcrval not in pcr_allowlist[pcrnum] and not config.STUB_TPM:
                 logger.error("%sPCR #%s: %s from quote does not match expected value %s" % (("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum]))
                 return False
-            else:
-                pcrsInQuote.add(pcrnum)
+
+            pcrsInQuote.add(pcrnum)
 
         if config.STUB_TPM:
             return True
