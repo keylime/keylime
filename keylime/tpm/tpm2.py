@@ -1210,7 +1210,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 logger.warning("No EK certificate found in TPM NVRAM")
                 return None
 
-            ekcert_size = outjson[0x1c00002]["size"]
+            ekcert_size = str(outjson[0x1c00002]["size"])
 
             # Read the RSA EK cert from NVRAM (DER format)
             if self.tools_version == "3.2":
