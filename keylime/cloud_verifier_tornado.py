@@ -88,6 +88,9 @@ class BaseHandler(tornado.web.RequestHandler, SessionManager):
                 'results': {},
             }))
 
+    def data_received(self, chunk):
+        raise NotImplementedError()
+
 
 class MainHandler(tornado.web.RequestHandler):
 
@@ -110,6 +113,9 @@ class MainHandler(tornado.web.RequestHandler):
     def put(self):
         config.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
+
+    def data_received(self, chunk):
+        raise NotImplementedError()
 
 
 class AgentsHandler(BaseHandler):
@@ -606,6 +612,9 @@ class AgentsHandler(BaseHandler):
         except Exception as e:
             logger.error("Polling thread error: %s" % e)
             logger.exception(e)
+
+    def data_received(self, chunk):
+        raise NotImplementedError()
 
 
 def start_tornado(tornado_server, port):

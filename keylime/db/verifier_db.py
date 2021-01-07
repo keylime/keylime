@@ -12,7 +12,7 @@ from sqlalchemy import Column, String, Integer, PickleType, Text
 Base = declarative_base()
 
 
-class JSONPickleType(PickleType):
+class JSONPickleType(PickleType):  # pylint: disable=abstract-method
     impl = Text
 
 
