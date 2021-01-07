@@ -910,7 +910,7 @@ def main(argv=sys.argv):
     args = parser.parse_args(argv[1:])
     mytenant = Tenant()
 
-    if args.command not in ['list', 'regdelete', 'delete'] and args.agent_ip is None:
+    if args.command not in ['list', 'regdelete', 'delete', 'status'] and args.agent_ip is None:
         raise UserError(
             f"-t/--targethost is required for command {args.command}")
 
