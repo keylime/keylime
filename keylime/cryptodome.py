@@ -72,7 +72,7 @@ def strbitxor(a, b):
     a = bytearray(a)
     b = bytearray(b)
     retval = bytearray(len(b))
-    for i in range(len(a)):
+    for i, _ in enumerate(a):
         retval[i] = a[i] ^ b[i]
     return retval
 
