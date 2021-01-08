@@ -57,8 +57,8 @@ def notify(tosend):
         mysock.connect("ipc:///tmp/keylime.verifier.ipc")
         # wait 100ms for connect to happen
         time.sleep(0.2)
-        # now send it out vi 0mq
-        logger.info("Sending revocation event to listening nodes..")
+        # now send it out via 0mq
+        logger.info("Sending revocation event to listening nodes...")
         for i in range(config.getint('cloud_verifier', 'max_retries')):
             try:
                 mysock.send_string(json.dumps(tosend))
