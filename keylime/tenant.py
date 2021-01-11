@@ -79,17 +79,16 @@ class Tenant():
     def __init__(self):
         """ Set up required values and TLS
         """
-        self.agent_ip = None
         self.nonce = None
+        self.agent_ip = None
+        self.agent_port = config.get('cloud_agent', 'cloudagent_port')
         self.verifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
         self.verifier_port = config.get('cloud_verifier', 'cloudverifier_port')
-        self.agent_port = config.get('cloud_agent', 'cloudagent_port')
+        self.registrar_ip = config.get('registrar', 'registrar_ip')
         self.registrar_port = config.get('registrar', 'registrar_tls_port')
         self.webapp_port = config.getint('webapp', 'webapp_port')
         if not config.REQUIRE_ROOT and self.webapp_port < 1024:
             self.webapp_port += 2000
-        self.registrar_ip = config.get('registrar', 'registrar_ip')
-        self.verifier_base_url = f'{self.verifier_ip}:{self.verifier_port}'
         self.webapp_ip = config.get('webapp', 'webapp_ip')
 
         self.my_cert, self.my_priv_key = self.get_tls_context()
@@ -101,6 +100,10 @@ class Tenant():
             self.cert = ""
             logger.warning(
                 "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
+
+    @property
+    def verifier_base_url(self):
+        return f'{self.verifier_ip}:{self.verifier_port}'
 
     def get_tls_context(self):
         """Generate certifcate naming and path
@@ -910,7 +913,7 @@ def main(argv=sys.argv):
     args = parser.parse_args(argv[1:])
     mytenant = Tenant()
 
-    if args.command not in ['list', 'regdelete', 'delete'] and args.agent_ip is None:
+    if args.command not in ['list', 'regdelete', 'delete', 'status'] and args.agent_ip is None:
         raise UserError(
             f"-t/--targethost is required for command {args.command}")
 
@@ -936,7 +939,7 @@ def main(argv=sys.argv):
                             ("add_vtpm_to_group"))
 
     if args.verifier_ip is not None:
-        mytenant.cloudverifier_ip = args.verifier_ip
+        mytenant.verifier_ip = args.verifier_ip
 
     if args.command == 'add':
         mytenant.init_add(vars(args))

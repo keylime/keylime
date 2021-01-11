@@ -181,12 +181,11 @@ def setUpModule():
     tenant_templ.agent_uuid = config.get('cloud_agent', 'agent_uuid')
     tenant_templ.cloudagent_ip = "localhost"
     tenant_templ.cloudagent_port = config.get('cloud_agent', 'cloudagent_port')
-    tenant_templ.cloudverifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
-    tenant_templ.cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
+    tenant_templ.verifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
+    tenant_templ.verifier_port = config.get('cloud_verifier', 'cloudverifier_port')
     tenant_templ.registrar_ip = config.get('registrar', 'registrar_ip')
     tenant_templ.registrar_boot_port = config.get('registrar', 'registrar_port')
     tenant_templ.registrar_tls_boot_port = config.get('registrar', 'registrar_tls_port')
-    tenant_templ.verifier_base_url = f'{tenant_templ.cloudverifier_ip}:{tenant_templ.cloudverifier_port}'
     tenant_templ.registrar_base_url = f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_boot_port}'
     tenant_templ.registrar_base_tls_url = f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_tls_boot_port}'
     tenant_templ.agent_base_url = f'{tenant_templ.cloudagent_ip}:{tenant_templ.cloudagent_port}'

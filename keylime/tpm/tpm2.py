@@ -499,7 +499,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             logger.info("Generating random TPM owner password")
             owner_pw = tpm_abstract.TPM_Utilities.random_password(20)
         else:
-            logger.info("Taking ownership with config provided TPM owner password: %s" % config_pw)
+            logger.info("Taking ownership with config provided TPM owner password")
             owner_pw = config_pw
 
         if self.tools_version == "3.2":
@@ -1210,7 +1210,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 logger.warning("No EK certificate found in TPM NVRAM")
                 return None
 
-            ekcert_size = outjson[0x1c00002]["size"]
+            ekcert_size = str(outjson[0x1c00002]["size"])
 
             # Read the RSA EK cert from NVRAM (DER format)
             if self.tools_version == "3.2":
