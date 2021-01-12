@@ -28,7 +28,7 @@ def init_client_tls(section):
         return
 
     if not config.getboolean('general', "enable_tls"):
-        logger.warning("TLS is currently disabled, AIKs may not be authentic.")
+        logger.warning("Warning: TLS is currently disabled, AIKs may not be authentic.")
         return
 
     logger.warning("TLS is enabled.")
@@ -79,7 +79,7 @@ def getKeys(registrar_ip, registrar_port, agent_id):
     # make absolutely sure you don't ask for AIKs unauthenticated
     if not tls_enabled:
         raise Exception(
-            "It is unsafe to use this interface to query AIKs with out server authenticated TLS")
+            "It is unsafe to use this interface to query AIKs without server-authenticated TLS.")
 
     response = None
     try:
@@ -100,7 +100,7 @@ def getKeys(registrar_ip, registrar_port, agent_id):
 
         if "aik" not in response_body["results"]:
             logger.critical(
-                "Error: did not receive aik from Registrar Server: %s" % str(response.status_code))
+                "Error: did not receive AIK from Registrar Server: %s" % str(response.status_code))
             return None
 
         return response_body["results"]

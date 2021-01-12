@@ -99,7 +99,7 @@ class Tenant():
             self.tls_enabled = False
             self.cert = ""
             logger.warning(
-                "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
+                "Warning: TLS is currently disabled, keys will be sent in the clear! This should only be used for testing.")
 
     @property
     def verifier_base_url(self):
