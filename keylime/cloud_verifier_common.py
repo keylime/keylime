@@ -29,7 +29,7 @@ logger = keylime_logging.init_logging('cloudverifier_common')
 def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
     if not config.getboolean('general', "enable_tls"):
         logger.warning(
-            "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing.")
+            "Warning: TLS is currently disabled, keys will be sent in the clear! This should only be used for testing.")
         return None
 
     logger.info("Setting up TLS...")

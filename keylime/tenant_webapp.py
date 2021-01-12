@@ -33,7 +33,7 @@ else:
     tls_enabled = False
     cert = ""
     logger.warning(
-        "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
+        "Warning: TLS is currently disabled, keys will be sent in the clear! This should only be used for testing.")
 
 verifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
 verifier_port = config.get('cloud_verifier', 'cloudverifier_port')

@@ -51,9 +51,7 @@ logging.config.fileConfig(config.CONFIG_FILE)
 
 
 def init_logging(loggername):
-    non_root_loggers = ['cloudverifier', 'registrar_common', 'registrar']
     logger = logging.getLogger("keylime.%s" % (loggername))
-    print("I am handling a logger named:", loggername)
     logging.getLogger("requests").setLevel(logging.WARNING)
     mainlogger = logging.getLogger("keylime")
     basic_formatter = logging.Formatter(
@@ -63,9 +61,9 @@ def init_logging(loggername):
             logfilename = "./keylime-all.log"
         else:
             logfilename = "%s/%s.log" % (LOGDIR, loggername)
-            if os.getuid() != 0 or loggername not in non_root_loggers:
+            if os.getuid() != 0:
                 logger.warning(
-                    "Unable to log to %s for %s. Please run as root." % (logfilename, loggername))
+                    "Unable to log to %s, please run as root." % logfilename)
                 return logger
             if not os.path.exists(LOGDIR):
                 os.makedirs(LOGDIR, 0o750)
