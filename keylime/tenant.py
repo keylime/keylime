@@ -180,10 +180,20 @@ class Tenant():
             vtpm_policy = args["vtpm_policy"]
         self.vtpm_policy = TPM_Utilities.readPolicy(vtpm_policy)
         logger.info(f"TPM PCR Mask from policy is {self.vtpm_policy['mask']}")
+        al_data = None
 
         # Read command-line path string allowlist
-        al_data = None
         if "allowlist" in args and args["allowlist"] is not None:
+
+            _policy_pcrs = list(self.tpm_policy.keys())
+            _policy_pcrs.remove('mask')
+
+            _protected_pcrs = [ config.IMA_PCR ]
+
+            for _pcr in _policy_pcrs :
+                if int(_pcr) in _protected_pcrs :
+                    logger.error(f"WARNING: PCR {_pcr} is specified in \"tpm_policy\", but will in fact be used by IMA. Please remove it from policy")
+                    exit()
 
             # Auto-enable IMA (or-bit mask)
             self.tpm_policy['mask'] = "0x%X" % (
@@ -218,6 +228,34 @@ class Tenant():
 
             # Process allowlists
             self.allowlist = ima.process_allowlists(al_data, excl_data)
+
+        # Read command-line path string TPM2 event log template
+        if "mb_refstate" in args and args["mb_refstate"] is not None:
+            _policy_pcrs = list(self.tpm_policy.keys())
+            _policy_pcrs.remove('mask')
+            _protected_pcrs = config.MEASUREDBOOT_PCRS
+
+            for _pcr in _policy_pcrs :
+                if int(_pcr) in _protected_pcrs :
+                    logger.error(f"WARNING: PCR {_pcr} is specified in \"tpm_policy\", but will in fact be used by TPM2 measured boot. Please remove it from policy")
+                    exit()
+                        
+            # Auto-enable TPM2 event log (or-bit mask)
+            for _pcr in config.MEASUREDBOOT_PCRS :
+                self.tpm_policy['mask'] = "0x%X" % (
+                    int(self.tpm_policy['mask'], 0) | (1 << _pcr))
+
+            logger.info(f"TPM PCR Mask automatically modified is {self.tpm_policy['mask']} to include IMA/Event log PCRs")
+            
+            if isinstance(args["mb_refstate"], str):
+                if args["mb_refstate"] == "default":
+                    args["mb_refstate"] = config.get('tenant', 'mb_refstate')
+                al_data = 'test'
+#                al_data = ima.read_allowlist(args["allowlist"]) <------ read the actual intended state
+            elif isinstance(args["mb_refstate"], list):
+                al_data = args["mb_refstate"]
+            else:
+                raise UserError("Invalid measured boot reference state (intended state) provided")
 
         # if none
         if (args["file"] is None and args["keyfile"] is None and args["ca_dir"] is None):
@@ -901,6 +939,8 @@ def main(argv=sys.argv):
                         help="Include additional files in provided directory in certificate zip file.  Must be specified with --cert")
     parser.add_argument('--allowlist', action='store', dest='allowlist',
                         default=None, help="Specify the location of an allowlist")
+    parser.add_argument('--mb_refstate', action='store', dest='mb_refstate',
+                        default=None, help="Specify the location of a measure boot reference state (intended state)")
     parser.add_argument('--exclude', action='store', dest='ima_exclude',
                         default=None, help="Specify the location of an IMA exclude list")
     parser.add_argument('--tpm_policy', action='store', dest='tpm_policy', default=None,

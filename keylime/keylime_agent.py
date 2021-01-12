@@ -155,6 +155,19 @@ class Handler(BaseHTTPRequestHandler):
                         ml = f.read()
                     response['ima_measurement_list'] = ml
 
+            # similar to how IMA log retrievals are triggered by IMA_PCR, we trigger boot logs with MEASUREDBOOT_PCRs
+            # other possibilities would include adding additional data to rest_params to trigger boot log retrievals
+            # generally speaking, retrieving the 15Kbytes of a boot log does not seem significant compared to the
+            # potential Mbytes of an IMA measurement list.
+            if TPM_Utilities.check_mask(imaMask, config.MEASUREDBOOT_PCRS[0]):
+                if not os.path.exists(config.MEASUREDBOOT_ML):
+                    logger.warning(
+                        "TPM2 event log not available: %s" % (config.MEASUREDBOOT_ML))
+                else:
+                    with open(config.MEASUREDBOOT_ML, 'rb') as f:
+                        el = base64.b64encode(f.read())
+                    response['mb_measurement_list'] = el
+
             config.echo_json_response(self, 200, "Success", response)
             logger.info('GET %s quote returning 200 response.' %
                         (rest_params["quotes"]))

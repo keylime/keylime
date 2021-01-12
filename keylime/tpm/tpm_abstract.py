@@ -173,11 +173,11 @@ class AbstractTPM(metaclass=ABCMeta):
         raise Exception("Invalid quote type %s" % quote[0])
 
     @abstractmethod
-    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):
+    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}, mb_measurement_list=None, mb_intended_state={}):
         pass
 
     @abstractmethod
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, mb_measurement_list=None, mb_intended_state={}, hash_alg=None):
         pass
 
     def START_HASH(self, algorithm=None):
@@ -230,7 +230,7 @@ class AbstractTPM(metaclass=ABCMeta):
         logger.debug(f"IMA measurement list of agent {agent_id} validated")
         return True
 
-    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist):
+    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, mb_measurement_list, mb_intended_state):
         try:
             tpm_policy_ = ast.literal_eval(tpm_policy)
         except ValueError:
@@ -277,6 +277,11 @@ class AbstractTPM(metaclass=ABCMeta):
                     continue
 
                 return False
+
+            # check whether this is a MB PCR -- do *not* compare measured boot PCRs against a reference state, if one exists
+            if pcrnum in config.MEASUREDBOOT_PCRS and len(mb_intended_state) :
+                pcrsInQuote.add(pcrnum)
+                continue
 
             if pcrnum not in list(pcr_allowlist.keys()):
                 if not config.STUB_TPM and len(list(tpm_policy.keys())) > 0:
