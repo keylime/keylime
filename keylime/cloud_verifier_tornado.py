@@ -11,12 +11,14 @@ import asyncio
 
 import simplejson as json
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm.exc import NoResultFound
 import tornado.ioloop
 import tornado.web
 
 from keylime import config
 from keylime.common import states
 from keylime.db.verifier_db import VerfierMain
+from keylime.db.verifier_db import VerifierAllowlist
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import keylime_logging
 from keylime import cloud_verifier_common
@@ -397,6 +399,165 @@ class AgentsHandler(BaseHandler):
         raise NotImplementedError()
 
 
+class AllowlistHandler(BaseHandler):
+    def head(self):
+        config.echo_json_response(
+            self, 400, "Allowlist handler: HEAD Not Implemented")
+
+    def get(self):
+        """Get an allowlist
+
+        GET /(?:v[0-9]/)?allowlists/{name}
+        """
+
+        rest_params = config.get_restful_params(self.request.uri)
+        if rest_params is None or 'allowlists' not in rest_params:
+            config.echo_json_response(self, 400, "Invalid URL")
+            return
+
+        allowlist_name = rest_params['allowlists']
+        if allowlist_name is None:
+            config.echo_json_response(self, 400, "Invalid URL")
+            logger.warning(
+                'GET returning 400 response: ' + self.request.path)
+            return
+
+        session = get_session()
+        try:
+            allowlist = session.query(VerifierAllowlist).filter_by(
+                name=allowlist_name).one()
+        except NoResultFound:
+            config.echo_json_response(self, 404, "Allowlist %s not found" % allowlist_name)
+            return
+        except SQLAlchemyError as e:
+            logger.error(f'SQLAlchemy Error: {e}')
+            config.echo_json_response(self, 500, "Failed to get allowlist")
+            raise
+
+        response = {}
+        for field in ('name', 'tpm_policy', 'vtpm_policy', 'ima_policy'):
+            response[field] = getattr(allowlist, field, None)
+        config.echo_json_response(self, 200, 'Success', response)
+
+    def delete(self):
+        """Delete an allowlist
+
+        DELETE /(?:v[0-9]/)?allowlists/{name}
+        """
+
+        rest_params = config.get_restful_params(self.request.uri)
+        if rest_params is None or 'allowlists' not in rest_params:
+            config.echo_json_response(self, 400, "Invalid URL")
+            return
+
+        allowlist_name = rest_params['allowlists']
+        if allowlist_name is None:
+            config.echo_json_response(self, 400, "Invalid URL")
+            logger.warning(
+                'DELETE returning 400 response: ' + self.request.path)
+            return
+
+        session = get_session()
+        try:
+            session.query(VerifierAllowlist).filter_by(
+                name=allowlist_name).one()
+        except NoResultFound:
+            config.echo_json_response(self, 404, "Allowlist %s not found" % allowlist_name)
+            return
+        except SQLAlchemyError as e:
+            logger.error(f'SQLAlchemy Error: {e}')
+            config.echo_json_response(self, 500, "Failed to get allowlist")
+            raise
+
+        try:
+            session.query(VerifierAllowlist).filter_by(
+                name=allowlist_name).delete()
+            session.commit()
+        except SQLAlchemyError as e:
+            logger.error(f'SQLAlchemy Error: {e}')
+            config.echo_json_response(self, 500, "Failed to get allowlist")
+            raise
+
+        # NOTE(kaifeng) 204 Can not have response body, but current helper
+        # doesn't support this case.
+        self.set_status(204)
+        self.set_header('Content-Type', 'application/json')
+        self.finish()
+        logger.info(
+            'DELETE returning 204 response for allowlist: ' + allowlist_name)
+
+    def post(self):
+        """Create an allowlist
+
+        POST /(?:v[0-9]/)?allowlists/{name}
+        body: {"tpm_policy": {..}, "vtpm_policy": {..}
+        """
+
+        rest_params = config.get_restful_params(self.request.uri)
+        if rest_params is None or 'allowlists' not in rest_params:
+            config.echo_json_response(self, 400, "Invalid URL")
+            return
+
+        allowlist_name = rest_params['allowlists']
+        if allowlist_name is None:
+            config.echo_json_response(self, 400, "Invalid URL")
+            return
+
+        content_length = len(self.request.body)
+        if content_length == 0:
+            config.echo_json_response(
+                self, 400, "Expected non zero content length")
+            logger.warning(
+                'POST returning 400 response. Expected non zero content length.')
+            return
+
+        allowlist = {}
+        json_body = json.loads(self.request.body)
+        allowlist['name'] = allowlist_name
+        tpm_policy = json_body.get('tpm_policy')
+        if tpm_policy:
+            allowlist['tpm_policy'] = tpm_policy
+        vtpm_policy = json_body.get('vtpm_policy')
+        if vtpm_policy:
+            allowlist['vtpm_policy'] = vtpm_policy
+        ima_policy = json_body.get('ima_policy')
+        if ima_policy:
+            allowlist['ima_policy'] = ima_policy
+
+        session = get_session()
+        # don't allow overwritting
+        try:
+            al_count = session.query(
+                VerifierAllowlist).filter_by(name=allowlist_name).count()
+            if al_count > 0:
+                config.echo_json_response(
+                    self, 409, "Allowlist with name %s already exists" % allowlist_name)
+                logger.warning(
+                    "Allowlist with name %s already exists" % allowlist_name)
+                return
+        except SQLAlchemyError as e:
+            logger.error(f'SQLAlchemy Error: {e}')
+            raise
+
+        try:
+            # Add the agent and data
+            session.add(VerifierAllowlist(**allowlist))
+            session.commit()
+        except SQLAlchemyError as e:
+            logger.error(f'SQLAlchemy Error: {e}')
+            raise
+
+        config.echo_json_response(self, 201)
+        logger.info('POST returning 201')
+
+    def put(self):
+        config.echo_json_response(
+            self, 400, "Allowlist handler: PUT Not Implemented")
+
+    def data_received(self, chunk):
+        raise NotImplementedError()
+
+
 async def invoke_get_quote(agent, need_pubkey):
     if agent is None:
         raise Exception("agent deleted while being processed")
@@ -614,6 +775,13 @@ async def activate_agents():
         logger.error('SQLAlchemy Error: %s', e)
 
 
+def start_tornado(tornado_server, port):
+    tornado_server.listen(port)
+    print("Starting Torando on port " + str(port))
+    tornado.ioloop.IOLoop.instance().start()
+    print("Tornado finished")
+
+
 def main():
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
@@ -646,6 +814,7 @@ def main():
 
     app = tornado.web.Application([
         (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
+        (r"/(?:v[0-9]/)?allowlists/.*", AllowlistHandler),
         (r".*", MainHandler),
     ])
 
