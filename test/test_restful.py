@@ -623,6 +623,60 @@ class TestRestful(unittest.TestCase):
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
 
+    def test_025_cv_allowlist_post(self):
+        """Test CV's POST /v2/allowlist/{name} Interface"""
+        data = {
+            'name': 'test-allowlist',
+            'tpm_policy': json.dumps(self.tpm_policy),
+            'vtpm_policy': json.dumps(self.vtpm_policy),
+            'ima_policy': json.dumps(self.allowlist),
+        }
+
+        cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        response = cv_client.post(
+            '/allowlists/test-allowlist',
+            data=json.dumps(data),
+            cert=tenant_templ.cert,
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 201, "Non-successful CV allowlist Post return code!")
+        json_response = response.json()
+
+        # Ensure response is well-formed
+        self.assertIn("results", json_response, "Malformed response body!")
+
+    def test_026_cv_allowlist_get(self):
+        """Test CV's GET /v2/allowlists/{name} Interface"""
+        cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        response = cv_client.get(
+            '/allowlists/test-allowlist',
+            cert=tenant_templ.cert,
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful CV allowlist Post return code!")
+        json_response = response.json()
+
+        # Ensure response is well-formed
+        self.assertIn("results", json_response, "Malformed response body!")
+        results = json_response['results']
+        self.assertEqual(results['name'], 'test-allowlist')
+        self.assertEqual(results['tpm_policy'], json.dumps(self.tpm_policy))
+        self.assertEqual(results['vtpm_policy'], json.dumps(self.vtpm_policy))
+        self.assertEqual(results['ima_policy'], json.dumps(self.allowlist))
+
+    def test_027_cv_allowlist_delete(self):
+        """Test CV's DELETE /v2/allowlists/{name} Interface"""
+        cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        response = cv_client.delete(
+            '/allowlists/test-allowlist',
+            cert=tenant_templ.cert,
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 204, "Non-successful CV allowlist Delete return code!")
+
     # Cloud Verifier Testset
 
     def test_030_cv_agent_post(self):
