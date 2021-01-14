@@ -328,9 +328,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 try:
                     agent = session.query(RegistrarMain).filter_by(
                         agent_id=agent_id).first()
-                except NoResultFound:
-                    raise Exception("attempting to activate agent before "
-                                    "requesting registrar for %s" % agent_id)
+                except NoResultFound as e:
+                    raise Exception(
+                        "attempting to activate agent before requesting "
+                        "registrar for %s" % agent_id) from e
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
                     raise
@@ -372,9 +373,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 try:
                     agent = session.query(RegistrarMain).filter_by(
                         agent_id=agent_id).first()
-                except NoResultFound:
-                    raise Exception("attempting to activate agent before "
-                                    "requesting registrar for %s" % agent_id)
+                except NoResultFound as e:
+                    raise Exception(
+                        "attempting to activate agent before requesting "
+                        "registrar for %s" % agent_id) from e
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
                     raise
