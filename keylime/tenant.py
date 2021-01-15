@@ -514,7 +514,7 @@ class Tenant():
             keylime_logging.log_http_response(
                 logger, logging.ERROR, response.json())
             logger.error(
-                f"POST command response: {response.status} Unexpected response from Cloud Verifier: {response.read()}")
+                f"POST command response: {response.status_code} Unexpected response from Cloud Verifier: {response.text}")
             sys.exit()
 
     def do_cvstatus(self, listing=False):
@@ -550,7 +550,7 @@ class Tenant():
 
         if response.status_code != 200:
             logger.error(
-                f"Status command response: {response.status}. Unexpected response from Cloud Verifier.")
+                f"Status command response: {response.status_code}. Unexpected response from Cloud Verifier.")
             sys.exit()
         else:
             response_json = response.json()
@@ -844,7 +844,7 @@ class Tenant():
             if response.status_code == 200:
                 if "results" not in response_body or 'hmac' not in response_body['results']:
                     logger.critical(
-                        f"Error: unexpected http response body from Cloud Agent: {response.status}")
+                        f"Error: unexpected http response body from Cloud Agent: {response.status_code}")
                     break
                 mac = response_body['results']['hmac']
 
