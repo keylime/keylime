@@ -609,6 +609,14 @@ class Tenant():
             keylime_logging.log_http_response(
                 logger, logging.ERROR, response_body)
 
+    def do_reglist(self):
+        """List agents from Registrar
+        """
+        registrar_client.init_client_tls('tenant')
+        response = registrar_client.doRegistrarList(
+            self.registrar_ip, self.registrar_port)
+        print(response)
+
     def do_regdelete(self):
         """ Delete agent from Registrar
         """
@@ -913,7 +921,7 @@ def main(argv=sys.argv):
     args = parser.parse_args(argv[1:])
     mytenant = Tenant()
 
-    if args.command not in ['list', 'regdelete', 'delete', 'status'] and args.agent_ip is None:
+    if args.command not in ['list', 'regdelete', 'reglist', 'delete', 'status'] and args.agent_ip is None:
         raise UserError(
             f"-t/--targethost is required for command {args.command}")
 
@@ -964,6 +972,8 @@ def main(argv=sys.argv):
         mytenant.do_cvstatus(listing=True)
     elif args.command == 'reactivate':
         mytenant.do_cvreactivate()
+    elif args.command == 'reglist':
+        mytenant.do_reglist()
     elif args.command == 'regdelete':
         mytenant.do_regdelete()
     else:
