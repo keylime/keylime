@@ -209,3 +209,17 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
         logger.warning("Status command response: " +
                        str(response.status_code) + " Unexpected response from registrar.")
         keylime_logging.log_http_response(logger, logging.WARNING, response_body)
+
+
+def doRegistrarList(registrar_ip, registrar_port):
+    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
+    response = client.get('/agents/', cert=tls_cert_info, verify=False)
+    response_body = response.json()
+
+    if response.status_code != 200:
+        logger.warning("Registrar returned: " +
+                       str(response.status_code) + " Unexpected response from registrar.")
+        keylime_logging.log_http_response(logger, logging.WARNING, response_body)
+        return None
+
+    return response_body
