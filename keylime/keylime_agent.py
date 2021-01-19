@@ -477,8 +477,8 @@ def main():
                                'but it\'s is not found on the system.')
 
     # get params for initialization
-    registrar_ip = config.get('registrar', 'registrar_ip')
-    registrar_port = config.get('registrar', 'registrar_port')
+    registrar_ip = config.get('cloud_agent', 'registrar_ip')
+    registrar_port = config.get('cloud_agent', 'registrar_port')
 
     # initialize the tmpfs partition to store keys if it isn't already available
     secdir = secure_mount.mount()

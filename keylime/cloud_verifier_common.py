@@ -21,6 +21,7 @@ from keylime import revocation_notifier
 from keylime.tpm import tpm_obj
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime.common import algorithms
+from keylime import ima_file_signatures
 
 # setup logging
 logger = keylime_logging.init_logging('cloudverifier_common')
@@ -29,7 +30,7 @@ logger = keylime_logging.init_logging('cloudverifier_common')
 def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
     if not config.getboolean('general', "enable_tls"):
         logger.warning(
-            "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing.")
+            "Warning: TLS is currently disabled, keys will be sent in the clear! This should only be used for testing.")
         return None
 
     logger.info("Setting up TLS...")
@@ -152,8 +153,8 @@ def process_quote_response(agent, json_response):
 
     if agent.get('registrar_keys', "") == "":
         registrar_client.init_client_tls('cloud_verifier')
-        registrar_keys = registrar_client.getKeys(config.get("registrar", "registrar_ip"), config.get(
-            "registrar", "registrar_tls_port"), agent['agent_id'])
+        registrar_keys = registrar_client.getKeys(config.get("cloud_verifier", "registrar_ip"), config.get(
+            "cloud_verifier", "registrar_port"), agent['agent_id'])
         if registrar_keys is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
@@ -198,6 +199,7 @@ def process_quote_response(agent, json_response):
                                           ima_measurement_list,
                                           agent['allowlist'])
     else:
+        ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
         validQuote = tpm.check_quote(agent['agent_id'],
                                      agent['nonce'],
                                      received_public_key,
@@ -206,7 +208,8 @@ def process_quote_response(agent, json_response):
                                      agent['tpm_policy'],
                                      ima_measurement_list,
                                      agent['allowlist'],
-                                     hash_alg)
+                                     hash_alg,
+                                     ima_keyring)
     if not validQuote:
         return False
 

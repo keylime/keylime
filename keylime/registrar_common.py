@@ -12,6 +12,7 @@ import http.server
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm.exc import NoResultFound
 
 import simplejson as json
 
@@ -24,7 +25,7 @@ from keylime import crypto
 from keylime.tpm import tpm_obj
 from keylime import keylime_logging
 
-logger = keylime_logging.init_logging('registrar-common')
+logger = keylime_logging.init_logging('registrar')
 
 
 try:
@@ -228,8 +229,11 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             try:
                 agent = session.query(RegistrarMain).filter_by(
                     agent_id=agent_id).first()
+            except NoResultFound:
+                agent = None
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')
+                raise
 
             if agent is not None:
 
@@ -248,6 +252,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     session.commit()
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
+                    raise
 
             # Add values to database
             d = {}
@@ -266,6 +271,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 session.commit()
             except SQLAlchemyError as e:
                 logger.error(f'SQLAlchemy Error: {e}')
+                raise
 
             response = {
                 'blob': blob,
@@ -322,12 +328,13 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 try:
                     agent = session.query(RegistrarMain).filter_by(
                         agent_id=agent_id).first()
+                except NoResultFound as e:
+                    raise Exception(
+                        "attempting to activate agent before requesting "
+                        "registrar for %s" % agent_id) from e
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
-
-                if agent is None:
-                    raise Exception(
-                        "attempting to activate agent before requesting registrar for %s" % agent_id)
+                    raise
 
                 if agent.virtual:
                     raise Exception(
@@ -340,6 +347,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                         session.commit()
                     except SQLAlchemyError as e:
                         logger.error(f'SQLAlchemy Error: {e}')
+                        raise
                 else:
                     # TODO(kaifeng) Special handling should be removed
                     if engine.dialect.name == "mysql":
@@ -353,6 +361,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                             session.commit()
                         except SQLAlchemyError as e:
                             logger.error(f'SQLAlchemy Error: {e}')
+                            raise
                     else:
                         raise Exception(
                             "Auth tag %s does not match expected value %s" % (auth_tag, ex_mac))
@@ -364,11 +373,13 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 try:
                     agent = session.query(RegistrarMain).filter_by(
                         agent_id=agent_id).first()
+                except NoResultFound as e:
+                    raise Exception(
+                        "attempting to activate agent before requesting "
+                        "registrar for %s" % agent_id) from e
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
-                if agent is None:
-                    raise Exception(
-                        "attempting to activate agent before requesting registrar for %s" % agent_id)
+                    raise
 
                 if not agent['virtual']:
                     raise Exception(
@@ -394,16 +405,16 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                         {'active': True})
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
+                    raise
                 try:
                     session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                         {'provider_keys': provider_keys})
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
+                    raise
 
                 config.echo_json_response(self, 200, "Success")
                 logger.info('PUT activated: ' + agent_id)
-            else:
-                pass
         except Exception as e:
             config.echo_json_response(self, 400, "Error: %s" % e)
             logger.warning("PUT for " + agent_id + " returning 400 response. Error: %s" % e)

@@ -47,6 +47,9 @@ def start_broker():
 def stop_broker():
     global broker_proc
     if broker_proc is not None:
+        # Remove the socket file before  we kill the process
+        if os.path.exists("/tmp/keylime.verifier.ipc"):
+            os.remove("/tmp/keylime.verifier.ipc")
         os.kill(broker_proc.pid, signal.SIGKILL)
 
 
@@ -57,8 +60,8 @@ def notify(tosend):
         mysock.connect("ipc:///tmp/keylime.verifier.ipc")
         # wait 100ms for connect to happen
         time.sleep(0.2)
-        # now send it out vi 0mq
-        logger.info("Sending revocation event to listening nodes..")
+        # now send it out via 0mq
+        logger.info("Sending revocation event to listening nodes...")
         for i in range(config.getint('cloud_verifier', 'max_retries')):
             try:
                 mysock.send_string(json.dumps(tosend))
@@ -143,6 +146,7 @@ def main():
         'vtpm_policy': '{"ab":"1"}',
         'metadata': '{"cert_serial":"1"}',
         'allowlist': '{}',
+        'ima_sign_verification_keys': '{}',
         'revocation_key': '',
         'revocation': '{"cert_serial":"1"}',
     }

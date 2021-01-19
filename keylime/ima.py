@@ -177,7 +177,47 @@ def _extract_from_ima_ng(tokens, template_hash):
     return filedata_hash, path, error
 
 
-def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
+def _extract_from_ima_sig(tokens, template_hash):
+    """ Extract filedata_hash & path form 'ima-sig' entry; return 1 in case error occurred """
+    filedata = tokens[3]
+    ftokens = filedata.split(":")
+    filedata_hash = codecs.decode(ftokens[1], 'hex')
+    path = str(tokens[4])
+
+    # this is some IMA weirdness
+    if template_hash == START_HASH:
+        return filedata_hash, path, None, None, 0
+
+    filedata_algo = str(ftokens[0])
+    # verify template hash. yep this is terrible
+    fmt = "<I%dsBB%dsI%dsB" % (len(filedata_algo), len(filedata_hash), len(path))
+    # +2 for the : and the null terminator, and +1 on path for null terminator
+    tohash = struct.pack(fmt,
+                         len(filedata_hash) + len(filedata_algo) + 2,
+                         filedata_algo.encode('utf-8'), ord(':'), ord('\0'),
+                         filedata_hash,
+                         len(path) + 1,
+                         path.encode("utf-8"),
+                         ord('\0'))
+    signature = b''
+    if len(tokens) == 6:
+        signature = codecs.decode(tokens[5], 'hex')
+    tohash += struct.pack("<I%ds" % len(signature), len(signature), signature)
+    expected_template_hash = hashlib.sha1(tohash).digest()
+
+    if expected_template_hash != template_hash:
+        error = 1
+        logger.warning("template hash for file %s does not match %s != %s" %
+                       (path,
+                        codecs.encode(expected_template_hash, 'hex').decode('utf-8'),
+                        codecs.encode(template_hash, 'hex').decode('utf-8')))
+    else:
+        error = 0
+
+    return filedata_hash, path, signature, filedata_algo, error
+
+
+def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyring=None):
     errs = [0, 0, 0, 0]
     runninghash = START_HASH
     found_pcr = (pcrval is None)
@@ -202,8 +242,8 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
         if line == '':
             continue
 
-        tokens = line.split(None, 4)
-        if len(tokens) != 5:
+        tokens = line.split(None, 5)
+        if len(tokens) < 5 or len(tokens) > 6:
             logger.error("invalid measurement list file line: -%s-" % (line))
             return None
 
@@ -211,10 +251,15 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
         # pcr = tokens[0]
         template_hash = codecs.decode(tokens[1], 'hex')
         mode = tokens[2]
+        signature = None
+        filedata_algo = None
 
         if mode == "ima-ng":
             filedata_hash, path, error = _extract_from_ima_ng(tokens,
                                                               template_hash)
+        elif mode == "ima-sig":
+            filedata_hash, path, signature, filedata_algo, error = \
+                _extract_from_ima_sig(tokens, template_hash)
         elif mode == 'ima':
             filedata_hash, path, error = _extract_from_ima(tokens,
                                                            template_hash)
@@ -238,8 +283,23 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
                       (codecs.encode(filedata_hash, 'hex').decode('utf-8'),
                        path))
 
-        if allowlist is not None:
+        evaluated = False
 
+        if signature and ima_keyring:
+            evaluated = True
+            # determine if path matches any exclusion list items
+            if compiled_regex is not None and compiled_regex.match(path):
+                logger.debug("IMA: ignoring excluded path %s" % path)
+                continue
+
+            if not ima_keyring.integrity_digsig_verify(signature, filedata_hash, filedata_algo):
+                logger.warning("signature for file %s is not valid" % (path))
+                errs[0] += 1
+            else:
+                logger.info("signature for file %s is good" % path)
+
+        if allowlist is not None:
+            evaluated = True
             # just skip if it is a weird overwritten path
             if template_hash == FF_HASH:
                 # print "excluding ffhash %s"%path
@@ -265,6 +325,10 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None):
                                 accept_list))
                 errs[2] += 1
                 continue
+
+        if ima_keyring and not evaluated:
+            logger.warning("File %s not evaluated with signature or allowlist" % path)
+            errs[1] += 1
 
         errs[3] += 1
 
@@ -322,6 +386,10 @@ def read_allowlist(al_path=None):
         al_path = config.get('tenant', 'ima_allowlist')
         if config.STUB_IMA:
             al_path = '../scripts/ima/allowlist.txt'
+
+    # If user only wants signatures then an allowlist is not required
+    if al_path is None or al_path == '':
+        return []
 
     # Purposefully die if path doesn't exist
     with open(al_path, 'r') as f:

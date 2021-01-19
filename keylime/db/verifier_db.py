@@ -12,7 +12,7 @@ from sqlalchemy import Column, String, Integer, PickleType, Text
 Base = declarative_base()
 
 
-class JSONPickleType(PickleType):
+class JSONPickleType(PickleType):  # pylint: disable=abstract-method
     impl = Text
 
 
@@ -29,6 +29,7 @@ class VerfierMain(Base):
     vtpm_policy = Column(String(1000))
     meta_data = Column(String(200))
     allowlist = Column(Text(429400000))
+    ima_sign_verification_keys = Column(String(1048576))
     revocation_key = Column(String(2800))
     tpm_version = Column(Integer)
     accept_tpm_hash_algs = Column(JSONPickleType(pickler=json))

@@ -1,0 +1,40 @@
+"""Add ima_sign_verification_keys column
+
+Revision ID: a09a40352c32
+Revises: eeb702f77d7d
+Create Date: 2020-11-18 10:37:58.244212
+
+"""
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision = 'a09a40352c32'
+down_revision = 'eeb702f77d7d'
+branch_labels = None
+depends_on = None
+
+
+def upgrade(engine_name):
+    globals()["upgrade_%s" % engine_name]()
+
+
+def downgrade(engine_name):
+    globals()["downgrade_%s" % engine_name]()
+
+
+def upgrade_registrar():
+    pass
+
+
+def downgrade_registrar():
+    pass
+
+
+def upgrade_cloud_verifier():
+    op.add_column('verifiermain', sa.Column('ima_sign_verification_keys', sa.String))
+
+
+def downgrade_cloud_verifier():
+    op.drop_column('verifiermain', 'ima_sign_verification_keys')

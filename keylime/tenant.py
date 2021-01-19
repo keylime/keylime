@@ -30,6 +30,7 @@ from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import ca_util
 from keylime.common import algorithms
+from keylime import ima_file_signatures
 
 # setup logging
 logger = keylime_logging.init_logging('tenant')
@@ -69,6 +70,7 @@ class Tenant():
     vtpm_policy = {}
     metadata = {}
     allowlist = {}
+    ima_sign_verification_keys = []
     revocation_key = ""
     accept_tpm_hash_algs = []
     accept_tpm_encryption_algs = []
@@ -82,10 +84,10 @@ class Tenant():
         self.nonce = None
         self.agent_ip = None
         self.agent_port = config.get('cloud_agent', 'cloudagent_port')
-        self.verifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
-        self.verifier_port = config.get('cloud_verifier', 'cloudverifier_port')
-        self.registrar_ip = config.get('registrar', 'registrar_ip')
-        self.registrar_port = config.get('registrar', 'registrar_tls_port')
+        self.verifier_ip = config.get('tenant', 'cloudverifier_ip')
+        self.verifier_port = config.get('tenant', 'cloudverifier_port')
+        self.registrar_ip = config.get('tenant', 'registrar_ip')
+        self.registrar_port = config.get('tenant', 'registrar_port')
         self.webapp_port = config.getint('webapp', 'webapp_port')
         if not config.REQUIRE_ROOT and self.webapp_port < 1024:
             self.webapp_port += 2000
@@ -99,7 +101,7 @@ class Tenant():
             self.tls_enabled = False
             self.cert = ""
             logger.warning(
-                "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
+                "Warning: TLS is currently disabled, keys will be sent in the clear! This should only be used for testing.")
 
     @property
     def verifier_base_url(self):
@@ -180,6 +182,20 @@ class Tenant():
             vtpm_policy = args["vtpm_policy"]
         self.vtpm_policy = TPM_Utilities.readPolicy(vtpm_policy)
         logger.info(f"TPM PCR Mask from policy is {self.vtpm_policy['mask']}")
+
+        if args.get("ima_sign_verification_keys") is not None:
+            # Auto-enable IMA (or-bit mask)
+            self.tpm_policy['mask'] = "0x%X" % (
+                int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
+
+            # Add all IMA file signing verification keys to a keyring
+            ima_keyring = ima_file_signatures.ImaKeyring()
+            for filename in args["ima_sign_verification_keys"]:
+                pubkey = ima_file_signatures.get_pubkey_from_file(filename)
+                if not pubkey:
+                    raise UserError("File '%s' is not a file with a key" % filename)
+                ima_keyring.add_pubkey(pubkey)
+            self.ima_sign_verification_keys = ima_keyring.to_string()
 
         # Read command-line path string allowlist
         al_data = None
@@ -481,6 +497,7 @@ class Tenant():
             'tpm_policy': json.dumps(self.tpm_policy),
             'vtpm_policy': json.dumps(self.vtpm_policy),
             'allowlist': json.dumps(self.allowlist),
+            'ima_sign_verification_keys': json.dumps(self.ima_sign_verification_keys),
             'metadata': json.dumps(self.metadata),
             'revocation_key': self.revocation_key,
             'accept_tpm_hash_algs': self.accept_tpm_hash_algs,
@@ -514,7 +531,7 @@ class Tenant():
             keylime_logging.log_http_response(
                 logger, logging.ERROR, response.json())
             logger.error(
-                f"POST command response: {response.status} Unexpected response from Cloud Verifier: {response.read()}")
+                f"POST command response: {response.status_code} Unexpected response from Cloud Verifier: {response.text}")
             sys.exit()
 
     def do_cvstatus(self, listing=False):
@@ -550,7 +567,7 @@ class Tenant():
 
         if response.status_code != 200:
             logger.error(
-                f"Status command response: {response.status}. Unexpected response from Cloud Verifier.")
+                f"Status command response: {response.status_code}. Unexpected response from Cloud Verifier.")
             sys.exit()
         else:
             response_json = response.json()
@@ -608,6 +625,14 @@ class Tenant():
             response_body = response.json()
             keylime_logging.log_http_response(
                 logger, logging.ERROR, response_body)
+
+    def do_reglist(self):
+        """List agents from Registrar
+        """
+        registrar_client.init_client_tls('tenant')
+        response = registrar_client.doRegistrarList(
+            self.registrar_ip, self.registrar_port)
+        print(response)
 
     def do_regdelete(self):
         """ Delete agent from Registrar
@@ -844,7 +869,7 @@ class Tenant():
             if response.status_code == 200:
                 if "results" not in response_body or 'hmac' not in response_body['results']:
                     logger.critical(
-                        f"Error: unexpected http response body from Cloud Agent: {response.status}")
+                        f"Error: unexpected http response body from Cloud Agent: {response.status_code}")
                     break
                 mac = response_body['results']['hmac']
 
@@ -901,6 +926,8 @@ def main(argv=sys.argv):
                         help="Include additional files in provided directory in certificate zip file.  Must be specified with --cert")
     parser.add_argument('--allowlist', action='store', dest='allowlist',
                         default=None, help="Specify the location of an allowlist")
+    parser.add_argument('--sign_verification_key', action='append', dest='ima_sign_verification_keys',
+                        default=None, help="Specify an IMA file signature verification key")
     parser.add_argument('--exclude', action='store', dest='ima_exclude',
                         default=None, help="Specify the location of an IMA exclude list")
     parser.add_argument('--tpm_policy', action='store', dest='tpm_policy', default=None,
@@ -913,7 +940,7 @@ def main(argv=sys.argv):
     args = parser.parse_args(argv[1:])
     mytenant = Tenant()
 
-    if args.command not in ['list', 'regdelete', 'delete', 'status'] and args.agent_ip is None:
+    if args.command not in ['list', 'regdelete', 'reglist', 'delete', 'status'] and args.agent_ip is None:
         raise UserError(
             f"-t/--targethost is required for command {args.command}")
 
@@ -964,6 +991,8 @@ def main(argv=sys.argv):
         mytenant.do_cvstatus(listing=True)
     elif args.command == 'reactivate':
         mytenant.do_cvreactivate()
+    elif args.command == 'reglist':
+        mytenant.do_reglist()
     elif args.command == 'regdelete':
         mytenant.do_regdelete()
     else:

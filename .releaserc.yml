@@ -1,0 +1,2 @@
+branches: master
+plugins: ['@semantic-release/github']

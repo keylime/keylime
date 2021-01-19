@@ -33,7 +33,7 @@ else:
     tls_enabled = False
     cert = ""
     logger.warning(
-        "TLS is currently disabled, keys will be sent in the clear! Should only be used for testing")
+        "Warning: TLS is currently disabled, keys will be sent in the clear! This should only be used for testing.")
 
 verifier_ip = config.get('cloud_verifier', 'cloudverifier_ip')
 verifier_port = config.get('cloud_verifier', 'cloudverifier_port')
@@ -63,6 +63,9 @@ class BaseHandler(tornado.web.RequestHandler):
         else:
             config.echo_json_response(self, status_code, self._reason)
 
+    def data_received(self, chunk):
+        raise NotImplementedError()
+
 
 class MainHandler(tornado.web.RequestHandler):
     def head(self):
@@ -84,6 +87,9 @@ class MainHandler(tornado.web.RequestHandler):
     def delete(self):
         config.echo_json_response(
             self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
+
+    def data_received(self, chunk):
+        raise NotImplementedError()
 
 
 class WebAppHandler(BaseHandler):
@@ -287,6 +293,9 @@ class WebAppHandler(BaseHandler):
             </html>
             """
         )
+
+    def data_received(self, chunk):
+        raise NotImplementedError()
 
 
 class AgentsHandler(BaseHandler):
@@ -599,6 +608,9 @@ class AgentsHandler(BaseHandler):
         mytenant.do_cvreactivate()
 
         config.echo_json_response(self, 200, "Success")
+
+    def data_received(self, chunk):
+        raise NotImplementedError()
 
 
 def parse_data_uri(data_uri):
