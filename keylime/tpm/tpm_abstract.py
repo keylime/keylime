@@ -173,11 +173,11 @@ class AbstractTPM(metaclass=ABCMeta):
         raise Exception("Invalid quote type %s" % quote[0])
 
     @abstractmethod
-    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}, mb_measurement_list=None, mb_intended_state={}):
+    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):
         pass
 
     @abstractmethod
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, mb_measurement_list=None, mb_intended_state={}, hash_alg=None):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_intended_state={}):
         pass
 
     def START_HASH(self, algorithm=None):
@@ -230,12 +230,15 @@ class AbstractTPM(metaclass=ABCMeta):
         logger.debug(f"IMA measurement list of agent {agent_id} validated")
         return True
 
-    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, mb_measurement_list, mb_intended_state):
+    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_intended_state):
         try:
             tpm_policy_ = ast.literal_eval(tpm_policy)
         except ValueError:
             tpm_policy_ = {}
         pcr_allowlist = tpm_policy_.copy()
+
+        if mb_measurement_list or mb_intended_state :
+            logger.info("Measured boot information received, but for now it will not be processed")
 
         if 'mask' in pcr_allowlist:
             del pcr_allowlist['mask']
@@ -279,7 +282,7 @@ class AbstractTPM(metaclass=ABCMeta):
                 return False
 
             # check whether this is a MB PCR -- do *not* compare measured boot PCRs against a reference state, if one exists
-            if pcrnum in config.MEASUREDBOOT_PCRS and len(mb_intended_state) :
+            if pcrnum in config.MEASUREDBOOT_PCRS and mb_intended_state :
                 pcrsInQuote.add(pcrnum)
                 continue
 

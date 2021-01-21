@@ -296,7 +296,7 @@ else:
 IMA_PCR = 10
 
 # measured boot addons
-MEASUREDBOOT_PCRS = [ 0,1,2,3,4,5,6,7,8,9,14 ]
+MEASUREDBOOT_PCRS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 14]
 MEASUREDBOOT_ML = '/sys/kernel/security/tpm0/binary_bios_measurements'
 
 # this is where data will be bound to a quote, MUST BE RESETABLE!

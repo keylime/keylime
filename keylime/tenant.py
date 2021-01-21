@@ -182,7 +182,6 @@ class Tenant():
             vtpm_policy = args["vtpm_policy"]
         self.vtpm_policy = TPM_Utilities.readPolicy(vtpm_policy)
         logger.info(f"TPM PCR Mask from policy is {self.vtpm_policy['mask']}")
-        al_data = None
 
         if args.get("ima_sign_verification_keys") is not None:
             # Auto-enable IMA (or-bit mask)
@@ -199,6 +198,7 @@ class Tenant():
             self.ima_sign_verification_keys = ima_keyring.to_string()
 
         # Read command-line path string allowlist
+        al_data = None
         if "allowlist" in args and args["allowlist"] is not None:
 
             _policy_pcrs = list(self.tpm_policy.keys())
@@ -209,7 +209,7 @@ class Tenant():
             for _pcr in _policy_pcrs :
                 if int(_pcr) in _protected_pcrs :
                     logger.error(f"WARNING: PCR {_pcr} is specified in \"tpm_policy\", but will in fact be used by IMA. Please remove it from policy")
-                    exit()
+                    sys.exit()
 
             # Auto-enable IMA (or-bit mask)
             self.tpm_policy['mask'] = "0x%X" % (
@@ -254,7 +254,7 @@ class Tenant():
             for _pcr in _policy_pcrs :
                 if int(_pcr) in _protected_pcrs :
                     logger.error(f"WARNING: PCR {_pcr} is specified in \"tpm_policy\", but will in fact be used by TPM2 measured boot. Please remove it from policy")
-                    exit()
+                    sys.exit()
                         
             # Auto-enable TPM2 event log (or-bit mask)
             for _pcr in config.MEASUREDBOOT_PCRS :
@@ -267,7 +267,7 @@ class Tenant():
                 if args["mb_refstate"] == "default":
                     args["mb_refstate"] = config.get('tenant', 'mb_refstate')
                 al_data = 'test'
-#                al_data = ima.read_allowlist(args["allowlist"]) <------ read the actual intended state
+#                al_data = mb.read_allowlist(args["allowlist"]) <------ read the actual intended state
             elif isinstance(args["mb_refstate"], list):
                 al_data = args["mb_refstate"]
             else:

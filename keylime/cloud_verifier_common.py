@@ -211,12 +211,11 @@ def process_quote_response(agent, json_response):
                                      agent['tpm_policy'],
                                      ima_measurement_list,
                                      agent['allowlist'],
+                                     hash_alg,
+                                     ima_keyring,
                                      mb_measurement_list,
                                      #agent['mb_intended_state'],
-                                     {},
-                                     hash_alg,
-                                     ima_keyring)
-
+                                     {})
     if not validQuote:
         return False
 
