@@ -133,12 +133,15 @@ def process_quote_response(agent, json_response):
         quote = json_response["quote"]
 
         ima_measurement_list = json_response.get("ima_measurement_list", None)
+        mb_measurement_list = json_response.get("mb_measurement_list", None)
 
         logger.debug("received quote:      %s" % quote)
         logger.debug("for nonce:           %s" % agent['nonce'])
         logger.debug("received public key: %s" % received_public_key)
         logger.debug("received ima_measurement_list    %s" %
                      (ima_measurement_list is not None))
+        logger.debug("received boot log    %s" %
+                     (mb_measurement_list is not None))
     except Exception:
         return None
 
@@ -209,7 +212,10 @@ def process_quote_response(agent, json_response):
                                      ima_measurement_list,
                                      agent['allowlist'],
                                      hash_alg,
-                                     ima_keyring)
+                                     ima_keyring,
+                                     mb_measurement_list,
+                                     #agent['mb_intended_state'],
+                                     {})
     if not validQuote:
         return False
 
