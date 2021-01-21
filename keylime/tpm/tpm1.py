@@ -739,8 +739,8 @@ class tpm1(tpm_abstract.AbstractTPM):
                 pcrs.append(line)
 
         # don't pass in data to check pcrs for physical quote
-        return self.check_pcrs(agent_id, tpm_policy, pcrs, None, False, None, None, None) and \
-            self.check_pcrs(agent_id, vtpm_policy, vpcrs, data, True, ima_measurement_list, allowlist, None)
+        return self.check_pcrs(agent_id, tpm_policy, pcrs, None, False, None, None, None, None, {}) and \
+            self.check_pcrs(agent_id, vtpm_policy, vpcrs, data, True, ima_measurement_list, allowlist, None, None, {})
 
     def __check_quote_c(self, aikFile, quoteFile, extData):
         os.putenv('TPM_SERVER_PORT', '9999')
@@ -767,9 +767,12 @@ class tpm1(tpm_abstract.AbstractTPM):
         retDict = self.__run(["checkquote", "-aik", aikFile, "-quote", quoteFile, "-nonce", extData], lock=False)
         return retDict['retout']
 
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_intended_state={}):
         quoteFile = None
         aikFile = None
+
+        if mb_measurement_list or mb_intended_state :
+            logger.info("Measured boot processing is not supported by TPM1. Will ignore")
 
         if quote[0] != 'r':
             raise Exception("Invalid quote type %s" % quote[0])
@@ -818,7 +821,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             if pcrs is not None:
                 pcrs.append(line.decode('utf-8'))
 
-        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist, ima_keyring)
+        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_intended_state)
 
     def sim_extend(self, hashval_1, hashval_0=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure
