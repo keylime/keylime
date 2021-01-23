@@ -414,7 +414,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             outjson = config.yaml_to_dict(output)
             if outjson is not None and current_handle in outjson:
                 if self.tools_version == "3.2":
-                    cmd = ["tpm2_evictcontrol", "-A", "o", "-c",
+                    cmd = ["tpm2_evictcontrol", "-A", "o", "-H",
                            hex(current_handle), "-P", owner_pw]
                     retDict = self.__run(cmd, raiseOnError=False)
                 else:
@@ -627,7 +627,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             outjson = config.yaml_to_dict(output)
             if outjson is not None and aik_handle in outjson:
                 if self.tools_version == "3.2":
-                    cmd = ["tpm2_evictcontrol", "-A", "o", "-c", hex(aik_handle), "-P", owner_pw]
+                    cmd = ["tpm2_evictcontrol", "-A", "o", "-H", hex(aik_handle), "-P", owner_pw]
                     retDict = self.__run(cmd, raiseOnError=False)
                 else:
                     cmd = ["tpm2_evictcontrol", "-C", "o", "-c", hex(aik_handle), "-P", owner_pw]
@@ -736,7 +736,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             if str(hex(key)) != self.defaults['ek_handle']:
                 logger.debug("Flushing key handle %s" % hex(key))
                 if self.tools_version == "3.2":
-                    self.__run(["tpm2_evictcontrol", "-A", "o", "-c", hex(key), "-P", owner_pw],
+                    self.__run(["tpm2_evictcontrol", "-A", "o", "-H", hex(key), "-P", owner_pw],
                                raiseOnError=False)
                 else:
                     self.__run(["tpm2_evictcontrol", "-C", "o", "-c", hex(key), "-P", owner_pw],
