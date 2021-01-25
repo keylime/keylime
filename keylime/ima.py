@@ -299,7 +299,6 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
                 logger.debug("signature for file %s is good" % path)
 
         if allowlist is not None:
-            evaluated = True
             # just skip if it is a weird overwritten path
             if template_hash == FF_HASH:
                 # print "excluding ffhash %s"%path
@@ -312,8 +311,12 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
 
             accept_list = allowlist.get(path, None)
             if accept_list is None:
-                logger.warning("File not found in allowlist: %s" % (path))
-                errs[1] += 1
+                # if it's NOT already evaluated by a file signature then a
+                # missing file entry is an error -- this enforces that every
+                # entry is 'covered' by signature or allowlist
+                if not evaluated:
+                    logger.warning("File not found in allowlist: %s" % (path))
+                    errs[1] += 1
                 continue
 
             # print('codecs.encode', codecs.encode(filedata_hash, 'hex').decode('utf-8'))
@@ -325,6 +328,8 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
                                 accept_list))
                 errs[2] += 1
                 continue
+
+            evaluated = True
 
         if ima_keyring and not evaluated:
             logger.warning("File %s not evaluated with signature or allowlist" % path)
