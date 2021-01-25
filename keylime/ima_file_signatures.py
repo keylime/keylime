@@ -223,7 +223,7 @@ class ImaKeyring:
         fmt = '>BBBIH'
         hdrlen = struct.calcsize(fmt)
         if len(signature) < hdrlen:
-            logger.error("Signature header is too short")
+            logger.warning("Signature header is too short")
             return False
         _, _, hash_algo, keyidv2, sig_size = struct.unpack(fmt, signature[:hdrlen])
 
@@ -235,12 +235,12 @@ class ImaKeyring:
 
         hashfunc = HASH_FUNCS.get(hash_algo)
         if not hashfunc:
-            logger.error("Unsupported hash algo with id '%d'" % hash_algo)
+            logger.warning("Unsupported hash algo with id '%d'" % hash_algo)
             return False
 
         if filehash_type != hashfunc().name:
-            logger.error("Mismatching filehash type %s and ima signature hash used %s" %
-                         (filehash_type, hashfunc().name))
+            logger.warning("Mismatching filehash type %s and ima signature hash used %s" %
+                           (filehash_type, hashfunc().name))
             return False
 
         pubkey = self.get_pubkey_by_keyidv2(keyidv2)
@@ -250,8 +250,7 @@ class ImaKeyring:
 
         try:
             ImaKeyring._verify(pubkey, signature[hdrlen:], filehash, hashfunc())
-        except InvalidSignature as ex:
-            logger.warning("Invalid signature: %s" % str(ex))
+        except InvalidSignature:
             return False
         return True
 
