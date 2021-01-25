@@ -218,7 +218,7 @@ def _extract_from_ima_sig(tokens, template_hash):
 
 
 def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyring=None):
-    errs = [0, 0, 0, 0]
+    errs = [0, 0, 0, 0, 0]
     runninghash = START_HASH
     found_pcr = (pcrval is None)
 
@@ -294,7 +294,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
 
             if not ima_keyring.integrity_digsig_verify(signature, filedata_hash, filedata_algo):
                 logger.warning("signature for file %s is not valid" % (path))
-                errs[0] += 1
+                errs[3] += 1
             else:
                 logger.debug("signature for file %s is good" % path)
 
@@ -335,7 +335,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
             logger.warning("File %s not evaluated with signature or allowlist" % path)
             errs[1] += 1
 
-        errs[3] += 1
+        errs[4] += 1
 
     # check PCR value has been found
     if not found_pcr:
@@ -343,9 +343,9 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
         return None
 
     # clobber the retval if there were IMA file errors
-    if sum(errs[:3]) > 0:
+    if sum(errs[:4]) > 0:
         logger.error(
-            "IMA ERRORS: template-hash %d fnf %d hash %d good %d" % tuple(errs))
+            "IMA ERRORS: template-hash %d fnf %d hash %d bad-sig %d good %d" % tuple(errs))
         return None
 
     return codecs.encode(runninghash, 'hex').decode('utf-8')
