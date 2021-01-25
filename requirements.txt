@@ -1,3 +1,8 @@
+# Changes to this file first require that an enhancement be raised to ensure new packages are maintained and available in the major distributions
+# we support (currently Fedora and Debian). The enhancement should specifically outline the package name and rationale for adding the depedency.
+# Once an enhancement has been merged, the package needs to be added to the installer.sh, the CI Docker images and issues should be raised on
+# keylime/keylime-rpm keylime/keylime-deb and the keylime ansible installer
+
 cryptography>=2.9 # BSD/Apache-2.0
 tornado>=5.0.2 # Apache-2.0
 m2crypto>=0.21.1 # MIT
