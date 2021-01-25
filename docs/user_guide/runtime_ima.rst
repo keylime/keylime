@@ -142,3 +142,132 @@ the agent status change to failed::
   keylime.ima - WARNING - File not found in allowlist: /root/evil_script.sh
   keylime.ima - ERROR - IMA ERRORS: template-hash 0 fnf 1 hash 0 good 781
   keylime.cloudverifier - WARNING - agent D432FBB3-D2F1-4A97-9EF7-75BD81C00000 failed, stopping polling
+
+
+IMA File Signature Verification
+-------------------------------
+
+Keylime supports the verification of IMA file signatures, which also helps to
+detect modifications on immutable files and can be used to complement or even
+replace the allowlist of hashes if all relevant executables and libraries are
+signed. However, the set up of a system that has *all* files signed is beyond
+the scope of this documentation.
+
+In the following we will show how files can be signed and how a system with
+signed files must be registered. We assume that the system has already been
+set up for runtime-integrity monitoring following the above steps and that the
+system would not show any errors on the Keylime Verifier side. It should not
+be registered with the keylime verifier at this point. If it is, we now
+deregister it::
+
+   keylime_tenant -c delete -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000
+
+Our first step is to enable IMA Appraisal in Linux. Recent Fedora kernels for
+example have IMA Appraisal support built-in but not activated. To enable it,
+we need to add the following Linux kernel parameters to the Linux boot command
+line::
+
+  ima_appraise=fix ima_template=ima-sig ima_policy=tcb
+
+For this we edit `/etc/default/grub` and append the above parameters to
+the `GRUB_CMDLINE_LINUX` line and then recreate the system's grub configuration
+file with the following command::
+
+  sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+
+IMA will be in IMA Appraisal fix-mode when the system is started up the next
+time. Fix-mode, unlike enforcement mode, does not require that all files be
+signed but will give us the benefit that the verifier receives all
+file signatures of signed executables.
+
+For IMA Appraisal to append the file signatures to the IMA log, we need to
+append the following line to the above IMA policy::
+
+  appraise func=BPRM_CHECK fowner=0 appraise_type=imasig
+
+We now create our IMA file signing key using the following commands::
+
+  openssl genrsa -out ima-filesigning.pem 2048
+  openssl rsa -in ima-filesigning.pem -pubout -out ima-pub.pem
+
+Next, we determine the hash (sha1 or sha256) that IMA is using for file
+measurements by looking at the IMA measurement log and then use evmctl to sign
+a demo executable that we derive from the echo tool::
+
+  sudo dnf -y install ima-evm-utils
+  cp /bin/echo ./myecho
+  sudo evmctl ima_sign --key ima-filesigning.pem -a <hash> myecho
+
+.. note::
+  It is important that we use the same hash for signing the file
+  that IMA also uses for file measurements. In the case we use 'sha1'
+  since the IMA measurement log further above shows sha1 filedata-hashes
+  in the 4th column. On more recent systems we would likely use 'sha256'.
+
+.. note::
+  If the IMA measurement log contains invalid signatures, the system
+  will have to be rebooted to start over with a clean log that the
+  Keylime Verifier can successfully verify.
+
+  Invalid signatures may for example be in the log if executables were
+  accidentally signed with the wrong hash, such as sha1 instead of sha256.
+  In this case they all need to be re-signed to match the hash that IMA is
+  using for file signatures.
+
+  Another reason for an invalid signature may be that a file was
+  modified after it was signed. Any file modification will invalidate
+  the signature. Similarly, a malformatted or altered *security.ima*
+  extended attribute will lead to a signature verification failure.
+
+  Yet another reason may be that an unknown key was used for signing
+  files. In this case the system should be re-registered with that
+  additional key using the Keylime tenant tool.
+
+To verify that the file has been properly signed, we can use the
+following command, which will show the security.ima extended attribute's
+value::
+
+  getfattr -m ^security.ima --dump myecho
+
+We now reboot the machine::
+
+  reboot
+
+After the reboot the IMA measurement log should not have any measurement of the
+`myecho` tool. The following command should not return anything::
+
+   grep myecho /sys/kernel/security/ima/ascii_runtime_measurements
+
+We now register the system and pass along the file signing key::
+
+  keylime_tenant -v 127.0.0.1 -t neptune -f /root/excludes.txt \
+    --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --allowlist default --exclude default \
+    --sign_verification_key ima-pub.pem
+
+We can now execute the myecho tool as root::
+
+   sudo ./myecho
+
+At this point we should not see any errors on the verifier side and
+there should be one entry of 'myecho' in the IMA measurement log that contains
+a column after the file path containing the file signature::
+
+   grep myecho /sys/kernel/security/ima/ascii_runtime_measurements
+
+To test that signature verification works, we can now invalidate the
+signature by *appending* a byte to the file and executing it again::
+
+   echo >> ./myecho
+   sudo ./myecho
+
+We should now see two entries in the IMA measurement log. Each one should have
+a different measurement::
+
+  grep myecho /sys/kernel/security/ima/ascii_runtime_measurements
+
+The verifier log should now indicating a bad file signature::
+
+  keylime.tpm - INFO - Checking IMA measurement list on agent: D432FBB3-D2F1-4A97-9EF7-75BD81C00000
+  keylime.ima - WARNING - signature for file /home/test/myecho is not valid
+  keylime.ima - ERROR - IMA ERRORS: template-hash 0 fnf 0 hash 0 bad-sig 1 good 3042
+  keylime.cloudverifier - WARNING - agent D432FBB3-D2F1-4A97-9EF7-75BD81C00000 failed, stopping polling
