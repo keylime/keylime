@@ -21,7 +21,7 @@ from keylime import revocation_notifier
 from keylime.tpm import tpm_obj
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime.common import algorithms
-from keylime import ima_file_signatures
+
 
 # setup logging
 logger = keylime_logging.init_logging('cloudverifier_common')
@@ -187,18 +187,9 @@ def process_quote_response(agent, json_response):
         raise Exception(
             "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 
-    if tpm.is_deep_quote(quote):
-        validQuote = tpm.check_deep_quote(agent['agent_id'],
-                                          agent['nonce'],
-                                          received_public_key,
-                                          quote,
-                                          agent['registrar_keys']['aik'],
-                                          agent['registrar_keys']['provider_keys']['aik'],
-                                          agent['vtpm_policy'],
-                                          agent['tpm_policy'],
-                                          ima_measurement_list,
-                                          agent['allowlist'])
-    else:
+    # luke 
+    if config.getboolean('general', "ima_file_sig"):
+        from keylime import ima_file_signatures
         ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
         validQuote = tpm.check_quote(agent['agent_id'],
                                      agent['nonce'],
@@ -210,6 +201,17 @@ def process_quote_response(agent, json_response):
                                      agent['allowlist'],
                                      hash_alg,
                                      ima_keyring)
+    else:
+        validQuote = tpm.check_quote(agent['agent_id'],
+                                     agent['nonce'],
+                                     received_public_key,
+                                     quote,
+                                     agent['registrar_keys']['aik'],
+                                     agent['tpm_policy'],
+                                     ima_measurement_list,
+                                     agent['allowlist'],
+                                     hash_alg)
+
     if not validQuote:
         return False
 
