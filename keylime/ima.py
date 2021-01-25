@@ -296,7 +296,7 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
                 logger.warning("signature for file %s is not valid" % (path))
                 errs[0] += 1
             else:
-                logger.info("signature for file %s is good" % path)
+                logger.debug("signature for file %s is good" % path)
 
         if allowlist is not None:
             evaluated = True
