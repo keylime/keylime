@@ -187,7 +187,6 @@ def process_quote_response(agent, json_response):
         raise Exception(
             "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 
-    # luke 
     if config.getboolean('general', "ima_file_sig"):
         from keylime import ima_file_signatures
         ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
