@@ -649,7 +649,7 @@ def main():
     try:
         query_all = session.query(VerfierMain).all()
         for row in query_all:
-            if row.operational_state == states.GET_QUOTE:
+            if row.operational_state in states.APPROVED_REACTIVATE_STATES:
                 row.operational_state = states.START
         session.commit()
     except SQLAlchemyError as e:
