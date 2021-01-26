@@ -16,13 +16,10 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.asymmetric.dsa import DSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
 from cryptography.exceptions import InvalidSignature
-
-import asn1
 
 from keylime import keylime_logging
 
@@ -127,13 +124,6 @@ class ImaKeyring:
             fmt = serialization.PublicFormat.UncompressedPoint
             pubbytes = pubkey.public_bytes(encoding=serialization.Encoding.X962,
                                            format=fmt)
-        elif isinstance(pubkey, DSAPublicKey):
-            # pubbytes is the public modulus written as an ASN.1 INTEGER
-            y = pubkey.public_numbers().y
-            encoder = asn1.Encoder()
-            encoder.start()
-            encoder.write(y)
-            pubbytes = encoder.output()
         else:
             raise UnsupportedAlgorithm("Unsupported public key type %s" %
                                        type(pubkey))
@@ -218,9 +208,6 @@ class ImaKeyring:
         elif isinstance(pubkey, EllipticCurvePublicKey):
             pubkey.verify(sig, filehash,
                           ec.ECDSA(Prehashed(hashfunc)))
-        elif isinstance(pubkey, DSAPublicKey):
-            pubkey.verify(sig, filehash,
-                          Prehashed(hashfunc))
 
     def _asymmetric_verify(self, signature, filehash, filehash_type):
         """ Do an IMA signature verification given the signature data from
