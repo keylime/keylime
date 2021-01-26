@@ -502,7 +502,7 @@ def start(host, tlsport, port):
 
     # keep the main thread active, so it can process the signals and gracefully shutdown
     while True:
-        if not any([thread.isAlive() for thread in threads]):
+        if not any([thread.is_alive() for thread in threads]):
             # All threads have stopped
             break
         # Some threads are still going
