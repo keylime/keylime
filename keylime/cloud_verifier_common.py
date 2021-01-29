@@ -214,7 +214,6 @@ def process_quote_response(agent, json_response):
                                      hash_alg,
                                      ima_keyring,
                                      mb_measurement_list,
-                                     #agent['mb_intended_state'],
                                      {})
     if not validQuote:
         return False
