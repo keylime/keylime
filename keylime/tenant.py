@@ -199,17 +199,10 @@ class Tenant():
 
         # Read command-line path string allowlist
         al_data = None
+
         if "allowlist" in args and args["allowlist"] is not None:
 
-            _policy_pcrs = list(self.tpm_policy.keys())
-            _policy_pcrs.remove('mask')
-
-            _protected_pcrs = [ config.IMA_PCR ]
-
-            for _pcr in _policy_pcrs :
-                if int(_pcr) in _protected_pcrs :
-                    logger.error(f"WARNING: PCR {_pcr} is specified in \"tpm_policy\", but will in fact be used by IMA. Please remove it from policy")
-                    sys.exit()
+            self.enforce_pcrs(list(self.tpm_policy.keys()), [ config.IMA_PCR ], "IMA")
 
             # Auto-enable IMA (or-bit mask)
             self.tpm_policy['mask'] = "0x%X" % (
@@ -247,14 +240,8 @@ class Tenant():
 
         # Read command-line path string TPM2 event log template
         if "mb_refstate" in args and args["mb_refstate"] is not None:
-            _policy_pcrs = list(self.tpm_policy.keys())
-            _policy_pcrs.remove('mask')
-            _protected_pcrs = config.MEASUREDBOOT_PCRS
 
-            for _pcr in _policy_pcrs :
-                if int(_pcr) in _protected_pcrs :
-                    logger.error(f"WARNING: PCR {_pcr} is specified in \"tpm_policy\", but will in fact be used by TPM2 measured boot. Please remove it from policy")
-                    sys.exit()
+            self.enforce_pcrs(list(self.tpm_policy.keys()), config.MEASUREDBOOT_PCRS, "measured boot")
 
             # Auto-enable TPM2 event log (or-bit mask)
             for _pcr in config.MEASUREDBOOT_PCRS :
@@ -267,7 +254,6 @@ class Tenant():
                 if args["mb_refstate"] == "default":
                     args["mb_refstate"] = config.get('tenant', 'mb_refstate')
                 al_data = 'test'
-#                al_data = mb.read_allowlist(args["allowlist"]) <------ read the actual intended state
             elif isinstance(args["mb_refstate"], list):
                 al_data = args["mb_refstate"]
             else:
@@ -405,6 +391,15 @@ class Tenant():
         if self.payload is not None and len(self.payload) > config.getint('tenant', 'max_payload_size'):
             raise UserError("Payload size %s exceeds max size %d" % (
                 len(self.payload), config.getint('tenant', 'max_payload_size')))
+
+    def enforce_pcrs(self, policy_pcrs, protected_pcrs, pcr_use) :
+        policy_pcrs = list(self.tpm_policy.keys())
+        policy_pcrs.remove('mask')
+
+        for _pcr in policy_pcrs :
+            if int(_pcr) in protected_pcrs :
+                logger.error(f"WARNING: PCR {_pcr} is specified in \"tpm_policy\", but will in fact be used by {pcr_use}. Please remove it from policy")
+                sys.exit()
 
     def preloop(self):
         """ encrypt the agent UUID as a check for delivering the correct key
