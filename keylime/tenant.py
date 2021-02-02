@@ -399,7 +399,7 @@ class Tenant():
         for _pcr in policy_pcrs :
             if int(_pcr) in protected_pcrs :
                 logger.error(f"WARNING: PCR {_pcr} is specified in \"tpm_policy\", but will in fact be used by {pcr_use}. Please remove it from policy")
-                sys.exit()
+                sys.exit(1)
 
     def preloop(self):
         """ encrypt the agent UUID as a check for delivering the correct key

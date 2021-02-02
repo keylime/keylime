@@ -238,7 +238,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pcr_allowlist = tpm_policy_.copy()
 
         if mb_measurement_list or mb_intended_state :
-            logger.info("Measured boot information received, but for now it will not be processed")
+            logger.info("Measured boot information received, but for now it will not be processed. A future update will enable the full processing of it.")
 
         if 'mask' in pcr_allowlist:
             del pcr_allowlist['mask']
