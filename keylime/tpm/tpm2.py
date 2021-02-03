@@ -413,7 +413,7 @@ class tpm2(tpm_abstract.AbstractTPM):
                 raise Exception("tpm2_getcap failed with code " + str(code) + ": " + str(reterr))
 
             outjson = config.yaml_to_dict(output)
-            if outjson is not None and current_handle in outjson:
+            if outjson is not None and hex(current_handle) in outjson:
                 if self.tools_version == "3.2":
                     cmd = ["tpm2_evictcontrol", "-A", "o", "-H",
                            hex(current_handle), "-P", owner_pw]
