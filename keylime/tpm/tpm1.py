@@ -138,6 +138,8 @@ class tpm1(tpm_abstract.AbstractTPM):
 
     VERSION = 1
 
+    parse_bootlog = None
+
     def __init__(self, need_hw_tpm=False):
         tpm_abstract.AbstractTPM.__init__(self, need_hw_tpm)
 
@@ -767,11 +769,11 @@ class tpm1(tpm_abstract.AbstractTPM):
         retDict = self.__run(["checkquote", "-aik", aikFile, "-quote", quoteFile, "-nonce", extData], lock=False)
         return retDict['retout']
 
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_intended_state={}):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate={}):
         quoteFile = None
         aikFile = None
 
-        if mb_measurement_list or mb_intended_state :
+        if mb_measurement_list or mb_refstate :
             logger.info("Measured boot processing is not supported by TPM1. Will ignore")
 
         if quote[0] != 'r':
@@ -821,7 +823,7 @@ class tpm1(tpm_abstract.AbstractTPM):
             if pcrs is not None:
                 pcrs.append(line.decode('utf-8'))
 
-        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_intended_state)
+        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate)
 
     def sim_extend(self, hashval_1, hashval_0=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure

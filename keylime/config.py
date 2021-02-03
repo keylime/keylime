@@ -242,9 +242,10 @@ def list_to_dict(alist):
     return params
 
 
-def yaml_to_dict(arry):
+def yaml_to_dict(arry, add_newlines=True):
     arry = convert(arry)
-    return yaml.load("\n".join(arry), Loader=SafeLoader)
+    sep = "\n" if add_newlines else ""
+    return yaml.load(sep.join(arry), Loader=SafeLoader)
 
 
 def get_restful_params(urlstring):

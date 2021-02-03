@@ -177,7 +177,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_intended_state={}):
+    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate={}):
         pass
 
     def START_HASH(self, algorithm=None):
@@ -230,20 +230,36 @@ class AbstractTPM(metaclass=ABCMeta):
         logger.debug(f"IMA measurement list of agent {agent_id} validated")
         return True
 
-    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_intended_state):
+    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate):
         try:
             tpm_policy_ = ast.literal_eval(tpm_policy)
         except ValueError:
             tpm_policy_ = {}
         pcr_allowlist = tpm_policy_.copy()
 
-        if mb_measurement_list or mb_intended_state :
+        if mb_measurement_list or mb_refstate :
             logger.info("Measured boot information received, but for now it will not be processed. A future update will enable the full processing of it.")
 
         if 'mask' in pcr_allowlist:
             del pcr_allowlist['mask']
         # convert all pcr num keys to integers
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
+
+        if mb_refstate not in (False, None) and mb_measurement_list not in (False, None) :
+            mb_measurement_data = self.parse_bootlog(mb_measurement_list)
+            if not isinstance(mb_measurement_data, dict):
+                logger.error(f'Parse of measured boot event log produced unexpected data: {mb_measurement_data!r}')
+                return False
+            log_pcrs = mb_measurement_data.get('pcrs')
+            if not isinstance(log_pcrs, dict):
+                logger.error(f'Parse of measured boot event log has unexpected value for .pcrs:{log_pcrs!r}')
+                return False
+            pcrs_sha256 = log_pcrs.get('sha256')
+            if (not isinstance(pcrs_sha256, dict)) or not pcrs_sha256:
+                logger.error(f'Parse of measured boot event log has unexpected value for .pcrs.sha256: {pcrs_sha256!r}')
+                return False
+        else:
+            pcrs_sha256 = {}
 
         pcrsInQuote = set()
         validatedBindPCR = False
@@ -281,8 +297,26 @@ class AbstractTPM(metaclass=ABCMeta):
 
                 return False
 
-            # check whether this is a MB PCR -- do *not* compare measured boot PCRs against a reference state, if one exists
-            if pcrnum in config.MEASUREDBOOT_PCRS and mb_intended_state :
+            # PCRs set by measured boot get their own special handling
+
+            if pcrnum in config.MEASUREDBOOT_PCRS :
+
+                if mb_refstate not in (False, None):
+
+                    if mb_measurement_list in (False, None) :
+                        logger.error(f'Measured Boot PCR ({pcrnum}) in policy, but no measurement list provided')
+                        return False
+
+                    val_from_log_int = pcrs_sha256.get(str(pcrnum))
+                    if val_from_log_int:
+                        val_from_log_hex = hex(val_from_log_int)[2:]
+                        val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
+                        pcrval_stripped = pcrval.lstrip('0')
+                        if val_from_log_hex_stripped != pcrval_stripped:
+                            logger.error(f'For PCR {pcrnum} and hash SHA256 the boot event log has value {val_from_log_hex} but the agent returned {pcrval}')
+                            return False
+                    else:
+                        logger.warning(f'PCR {pcrnum} was not updated in boot event log provided by the agent: will skip comparison with the SHA256 from the PCRs')
                 pcrsInQuote.add(pcrnum)
                 continue
 
@@ -290,6 +324,7 @@ class AbstractTPM(metaclass=ABCMeta):
                 if not config.STUB_TPM and len(list(tpm_policy.keys())) > 0:
                     logger.warning("%sPCR #%s in quote not found in %stpm_policy, skipping." % (("", "v")[virtual], pcrnum, ("", "v")[virtual]))
                 continue
+
             if pcrval not in pcr_allowlist[pcrnum] and not config.STUB_TPM:
                 logger.error("%sPCR #%s: %s from quote does not match expected value %s" % (("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum]))
                 return False
@@ -307,6 +342,13 @@ class AbstractTPM(metaclass=ABCMeta):
         if len(missing) > 0:
             logger.error("%sPCRs specified in policy not in quote: %s" % (("", "v")[virtual], missing))
             return False
+
+        if mb_refstate not in (False, None) and mb_measurement_list not in (False, None):
+            missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
+            if len(missing) > 0:
+                logger.error("%sPCRs specified for measured boot not in quote: %s" % (("", "v")[virtual], missing))
+                return False
+
         return True
 
     # tpm_random
@@ -330,3 +372,7 @@ class AbstractTPM(metaclass=ABCMeta):
     @abstractmethod
     def read_key_nvram(self):
         pass
+
+    @abstractmethod
+    def parse_bootlog(self, log_b64:str) -> dict:
+        raise NotImplementedError
