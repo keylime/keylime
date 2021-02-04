@@ -1,4 +1,14 @@
 /cloudinit_script_encrypted.txt
+
+# For Python virtual environments
+.venv
+
+# Created automatically by a popular IDE
+.vscode
+
+# Suggested by a popular IDE when it tells me I should save my workspace
+workspace.code-workspace
+
 # Backup files
 *.~
 *~
