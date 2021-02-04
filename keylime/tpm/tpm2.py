@@ -1035,9 +1035,6 @@ class tpm2(tpm_abstract.AbstractTPM):
         sigFile = None
         pcrFile = None
 
-        if mb_measurement_list or mb_refstate :
-            logger.info("Measured boot information received, but for now it will not be processed")
-
         if quote[0] != 'r':
             raise Exception("Invalid quote type %s" % quote[0])
         quote = quote[1:]
