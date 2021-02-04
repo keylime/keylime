@@ -237,26 +237,23 @@ class AbstractTPM(metaclass=ABCMeta):
             tpm_policy_ = {}
         pcr_allowlist = tpm_policy_.copy()
 
-        if mb_measurement_list or mb_refstate :
-            logger.info("Measured boot information received, but for now it will not be processed. A future update will enable the full processing of it.")
-
         if 'mask' in pcr_allowlist:
             del pcr_allowlist['mask']
         # convert all pcr num keys to integers
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
-        if mb_refstate not in (False, None) and mb_measurement_list not in (False, None) :
+        if mb_refstate and mb_measurement_list :
             mb_measurement_data = self.parse_bootlog(mb_measurement_list)
             if not isinstance(mb_measurement_data, dict):
-                logger.error(f'Parse of measured boot event log produced unexpected data: {mb_measurement_data!r}')
+                logger.error("Parse of measured boot event log produced unexpected data: %r", mb_measurement_data)
                 return False
             log_pcrs = mb_measurement_data.get('pcrs')
             if not isinstance(log_pcrs, dict):
-                logger.error(f'Parse of measured boot event log has unexpected value for .pcrs:{log_pcrs!r}')
+                logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)
                 return False
             pcrs_sha256 = log_pcrs.get('sha256')
             if (not isinstance(pcrs_sha256, dict)) or not pcrs_sha256:
-                logger.error(f'Parse of measured boot event log has unexpected value for .pcrs.sha256: {pcrs_sha256!r}')
+                logger.error("Parse of measured boot event log has unexpected value for .pcrs.sha256: %r", pcrs_sha256)
                 return False
         else:
             pcrs_sha256 = {}
@@ -301,22 +298,19 @@ class AbstractTPM(metaclass=ABCMeta):
 
             if pcrnum in config.MEASUREDBOOT_PCRS :
 
-                if mb_refstate not in (False, None):
+                if mb_refstate :
 
-                    if mb_measurement_list in (False, None) :
-                        logger.error(f'Measured Boot PCR ({pcrnum}) in policy, but no measurement list provided')
+                    if mb_measurement_list :
+                        logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcrnum)
                         return False
 
-                    val_from_log_int = pcrs_sha256.get(str(pcrnum))
-                    if val_from_log_int:
-                        val_from_log_hex = hex(val_from_log_int)[2:]
-                        val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
-                        pcrval_stripped = pcrval.lstrip('0')
-                        if val_from_log_hex_stripped != pcrval_stripped:
-                            logger.error(f'For PCR {pcrnum} and hash SHA256 the boot event log has value {val_from_log_hex} but the agent returned {pcrval}')
-                            return False
-                    else:
-                        logger.warning(f'PCR {pcrnum} was not updated in boot event log provided by the agent: will skip comparison with the SHA256 from the PCRs')
+                    val_from_log_int = pcrs_sha256.get(str(pcrnum), 0)
+                    val_from_log_hex = hex(val_from_log_int)[2:]
+                    val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
+                    pcrval_stripped = pcrval.lstrip('0')
+                    if val_from_log_hex_stripped != pcrval_stripped:
+                        logger.error("For PCR %d and hash SHA256 the boot event log has value %r but the agent returned %r", pcrnum, val_from_log_hex, pcrval)
+                        return False
                 pcrsInQuote.add(pcrnum)
                 continue
 
@@ -343,10 +337,10 @@ class AbstractTPM(metaclass=ABCMeta):
             logger.error("%sPCRs specified in policy not in quote: %s" % (("", "v")[virtual], missing))
             return False
 
-        if mb_refstate not in (False, None) and mb_measurement_list not in (False, None):
+        if mb_refstate and mb_measurement_list :
             missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
             if len(missing) > 0:
-                logger.error("%sPCRs specified for measured boot not in quote: %s" % (("", "v")[virtual], missing))
+                logger.error("%sPCRs specified for measured boot not in quote: %s", ("", "v")[virtual], missing)
                 return False
 
         return True

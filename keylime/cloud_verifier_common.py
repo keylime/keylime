@@ -214,7 +214,7 @@ def process_quote_response(agent, json_response):
                                      hash_alg,
                                      ima_keyring,
                                      mb_measurement_list,
-                                     {})
+                                     None)
     if not validQuote:
         return False
 

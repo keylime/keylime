@@ -20,7 +20,7 @@ import simplejson as json
 
 from keylime import cmd_exec
 from keylime import config
-from keylime import enrich
+from keylime import tpm_bootlog_enrich
 from keylime import keylime_logging
 from keylime import secure_mount
 from keylime.tpm import tpm_abstract
@@ -1298,7 +1298,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             retDict = self.__run(['tpm2_eventlog', log_bin_filename])
         log_parsed_strs = retDict['retout']
         log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False)
-        enrich.enrich(log_parsed_data)
+        tpm_bootlog_enrich.enrich(log_parsed_data)
         tpm2.stringify_pcrs(log_parsed_data)
         return log_parsed_data
 

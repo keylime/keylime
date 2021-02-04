@@ -4,6 +4,11 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+# important notice: this file was temporarly added to keylime in order to cover the gap
+# left by some additiomal features still not available on Intel's tpm2-tools. There is
+# an ongoing effort to add the aforementioned features to their toolkit and when this
+# process is complete this file will become redundant and ready for removal.
+
 import argparse
 import json
 import sys
@@ -32,15 +37,7 @@ class hexint(int):
 def representer(_, data):
     return yaml.ScalarNode('tag:yaml.org,2002:int', hex(data))
 
-
 yaml.add_representer(hexint, representer)
-
-##################################################################################
-#
-# Binary data from TSS will be in Little Endian according to the TPM spec, so
-# we need to convert them to host byte order before hand
-#
-##################################################################################
 
 ##################################################################################
 #
@@ -100,7 +97,7 @@ def getGUID(b):
 ##################################################################################
 
 ##################################################################################
-# Print out EFI_SIGNATURE_DATA
+# Parse EFI_SIGNATURE_DATA
 ##################################################################################
 
 
@@ -132,7 +129,7 @@ def getKey(b, start, size):
 ##################################################################################
 
 ##################################################################################
-# Print additional information about variables BootOrder and Boot####
+# Parse additional information about variables BootOrder and Boot####
 ##################################################################################
 
 
