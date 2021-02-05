@@ -297,7 +297,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
                 if mb_refstate :
 
-                    if mb_measurement_list :
+                    if not mb_measurement_list :
                         logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcrnum)
                         return False
 
