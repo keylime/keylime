@@ -10,6 +10,9 @@ alias python='/usr/bin/python3'
 # Find Keylime directory. It's one directory above the location of this script
 KEYLIME_DIR=$(realpath "$(dirname "$(readlink -f "$0")")/../")
 
+# Run separate unit tests
+python3 keylime/tpm/tpm2_objects.py
+
 # Get list of tests in the test directory
 TEST_LIST=`ls | grep "^test_.*\.py$"`
 
