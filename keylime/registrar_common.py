@@ -22,8 +22,8 @@ from keylime import registrar_client
 from keylime import cloud_verifier_common
 from keylime import config
 from keylime import crypto
-from keylime.tpm import tpm_obj
 from keylime import keylime_logging
+from keylime.tpm.tpm_main import tpm
 
 logger = keylime_logging.init_logging('registrar')
 
@@ -219,11 +219,14 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             ekcert = json_body['ekcert']
             aik = json_body['aik']
             aik_name = json_body['aik_name']
-            tpm_version = int(json_body['tpm_version'])
+
+            print('aik_name', aik_name)
+
+            initialize_tpm = tpm()
 
             # try to encrypt the AIK
-            tpm = tpm_obj.getTPM(need_hw_tpm=False, tpm_version=tpm_version)
-            (blob, key) = tpm.encryptAIK(agent_id, aik, ek, ek_tpm, aik_name)
+            (blob, key) = initialize_tpm.encryptAIK(agent_id, aik, ek, ek_tpm, aik_name)
+
             # special behavior if we've registered this uuid before
             regcount = 1
             try:
@@ -323,24 +326,33 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             post_body = self.rfile.read(content_length)
             json_body = json.loads(post_body)
 
-            if "activate" in rest_params:
-                auth_tag = json_body['auth_tag']
+            auth_tag = json_body['auth_tag']
+            try:
+                agent = session.query(RegistrarMain).filter_by(
+                    agent_id=agent_id).first()
+            except NoResultFound as e:
+                raise Exception(
+                    "attempting to activate agent before requesting "
+                    "registrar for %s" % agent_id) from e
+            except SQLAlchemyError as e:
+                logger.error(f'SQLAlchemy Error: {e}')
+                raise
+
+            if config.STUB_TPM:
                 try:
-                    agent = session.query(RegistrarMain).filter_by(
-                        agent_id=agent_id).first()
-                except NoResultFound as e:
-                    raise Exception(
-                        "attempting to activate agent before requesting "
-                        "registrar for %s" % agent_id) from e
+                    session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
+                        {'active': True})
+                    session.commit()
                 except SQLAlchemyError as e:
                     logger.error(f'SQLAlchemy Error: {e}')
                     raise
+            else:
+                # TODO(kaifeng) Special handling should be removed
+                if engine.dialect.name == "mysql":
+                    agent.key = agent.key.encode('utf-8')
 
-                if agent.virtual:
-                    raise Exception(
-                        "attempting to activate virtual AIK using physical interface for %s" % agent_id)
-
-                if config.STUB_TPM:
+                ex_mac = crypto.do_hmac(agent.key, agent_id)
+                if ex_mac == auth_tag:
                     try:
                         session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                             {'active': True})
@@ -349,72 +361,11 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                         logger.error(f'SQLAlchemy Error: {e}')
                         raise
                 else:
-                    # TODO(kaifeng) Special handling should be removed
-                    if engine.dialect.name == "mysql":
-                        agent.key = agent.key.encode('utf-8')
-
-                    ex_mac = crypto.do_hmac(agent.key, agent_id)
-                    if ex_mac == auth_tag:
-                        try:
-                            session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
-                                {'active': True})
-                            session.commit()
-                        except SQLAlchemyError as e:
-                            logger.error(f'SQLAlchemy Error: {e}')
-                            raise
-                    else:
-                        raise Exception(
-                            "Auth tag %s does not match expected value %s" % (auth_tag, ex_mac))
-
-                config.echo_json_response(self, 200, "Success")
-                logger.info('PUT activated: ' + agent_id)
-            elif "vactivate" in rest_params:
-                deepquote = json_body.get('deepquote', None)
-                try:
-                    agent = session.query(RegistrarMain).filter_by(
-                        agent_id=agent_id).first()
-                except NoResultFound as e:
                     raise Exception(
-                        "attempting to activate agent before requesting "
-                        "registrar for %s" % agent_id) from e
-                except SQLAlchemyError as e:
-                    logger.error(f'SQLAlchemy Error: {e}')
-                    raise
+                        "Auth tag %s does not match expected value %s" % (auth_tag, ex_mac))
 
-                if not agent['virtual']:
-                    raise Exception(
-                        "attempting to activate physical AIK using virtual interface for %s" % agent_id)
-
-                # get an physical AIK for this host
-                registrar_client.init_client_tls('registrar')
-                provider_keys = registrar_client.getKeys(config.get('registrar', 'provider_registrar_ip'), config.get(
-                    'registrar', 'provider_registrar_tls_port'), agent_id)
-                # we already have the vaik
-                tpm = tpm_obj.getTPM(
-                    need_hw_tpm=False, tpm_version=agent['tpm_version'])
-                if not tpm.check_deep_quote(agent_id,
-                                            hashlib.sha1(
-                                                agent['key']).hexdigest(),
-                                            agent_id + agent['aik'] + agent['ek'],
-                                            deepquote,
-                                            agent['aik'],
-                                            provider_keys['aik']):
-                    raise Exception("Deep quote invalid")
-                try:
-                    session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
-                        {'active': True})
-                except SQLAlchemyError as e:
-                    logger.error(f'SQLAlchemy Error: {e}')
-                    raise
-                try:
-                    session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
-                        {'provider_keys': provider_keys})
-                except SQLAlchemyError as e:
-                    logger.error(f'SQLAlchemy Error: {e}')
-                    raise
-
-                config.echo_json_response(self, 200, "Success")
-                logger.info('PUT activated: ' + agent_id)
+            config.echo_json_response(self, 200, "Success")
+            logger.info('PUT activated: ' + agent_id)
         except Exception as e:
             config.echo_json_response(self, 400, "Error: %s" % e)
             logger.warning("PUT for " + agent_id + " returning 400 response. Error: %s" % e)

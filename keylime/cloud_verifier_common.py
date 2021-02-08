@@ -18,7 +18,7 @@ from keylime import registrar_client
 from keylime import crypto
 from keylime import ca_util
 from keylime import revocation_notifier
-from keylime.tpm import tpm_obj
+from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime.common import algorithms
 from keylime import ima_file_signatures
@@ -126,7 +126,7 @@ def process_quote_response(agent, json_response):
     """
     received_public_key = None
     quote = None
-
+    instance_tpm = tpm()
     # in case of failure in response content do not continue
     try:
         received_public_key = json_response.get("pubkey", None)
@@ -163,14 +163,11 @@ def process_quote_response(agent, json_response):
             return False
         agent['registrar_keys'] = registrar_keys
 
-    tpm_version = json_response.get('tpm_version')
-    tpm = tpm_obj.getTPM(need_hw_tpm=False, tpm_version=tpm_version)
     hash_alg = json_response.get('hash_alg')
     enc_alg = json_response.get('enc_alg')
     sign_alg = json_response.get('sign_alg')
 
     # Update chosen tpm and algorithms
-    agent['tpm_version'] = tpm_version
     agent['hash_alg'] = hash_alg
     agent['enc_alg'] = enc_alg
     agent['sign_alg'] = sign_alg
@@ -190,31 +187,19 @@ def process_quote_response(agent, json_response):
         raise Exception(
             "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 
-    if tpm.is_deep_quote(quote):
-        validQuote = tpm.check_deep_quote(agent['agent_id'],
-                                          agent['nonce'],
-                                          received_public_key,
-                                          quote,
-                                          agent['registrar_keys']['aik'],
-                                          agent['registrar_keys']['provider_keys']['aik'],
-                                          agent['vtpm_policy'],
-                                          agent['tpm_policy'],
-                                          ima_measurement_list,
-                                          agent['allowlist'])
-    else:
-        ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
-        validQuote = tpm.check_quote(agent['agent_id'],
-                                     agent['nonce'],
-                                     received_public_key,
-                                     quote,
-                                     agent['registrar_keys']['aik'],
-                                     agent['tpm_policy'],
-                                     ima_measurement_list,
-                                     agent['allowlist'],
-                                     hash_alg,
-                                     ima_keyring,
-                                     mb_measurement_list,
-                                     {})
+    ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
+    validQuote = instance_tpm.check_quote(agent['agent_id'],
+                                    agent['nonce'],
+                                    received_public_key,
+                                    quote,
+                                    agent['registrar_keys']['aik'],
+                                    agent['tpm_policy'],
+                                    ima_measurement_list,
+                                    agent['allowlist'],
+                                    hash_alg,
+                                    ima_keyring,
+                                    mb_measurement_list,
+                                    {})
     if not validQuote:
         return False
 
@@ -286,7 +271,6 @@ def process_get_status(agent):
                 'vtpm_policy': agent.vtpm_policy,
                 'meta_data': agent.meta_data,
                 'allowlist_len': al_len,
-                'tpm_version': agent.tpm_version,
                 'accept_tpm_hash_algs': agent.accept_tpm_hash_algs,
                 'accept_tpm_encryption_algs': agent.accept_tpm_encryption_algs,
                 'accept_tpm_signing_algs': agent.accept_tpm_signing_algs,

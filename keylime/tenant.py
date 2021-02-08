@@ -23,7 +23,7 @@ from keylime.common import states
 from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_client
-from keylime.tpm import tpm_obj
+from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime import ima
 from keylime import crypto
@@ -77,6 +77,8 @@ class Tenant():
     accept_tpm_signing_algs = []
 
     payload = None
+
+    tpm_instance = tpm()
 
     def __init__(self):
         """ Set up required values and TLS
@@ -434,19 +436,18 @@ class Tenant():
                 logger.warning(
                     "No EK cert provided, require_ek_cert option in config set to True")
                 return False
-            elif not tpm.verify_ek(base64.b64decode(ekcert), ek):
+            elif not self.tpm_instance.verify_ek(base64.b64decode(ekcert), ek):
                 logger.warning("Invalid EK certificate")
                 return False
 
         return True
 
-    def validate_tpm_quote(self, public_key, quote, tpm_version, hash_alg):
+    def validate_tpm_quote(self, public_key, quote, hash_alg):
         """ Validate TPM Quote received from the Agent
 
         Arguments:
             public_key {[type]} -- [description]
             quote {[type]} -- [description]
-            tpm_version {[type]} -- [description]
             hash_alg {bool} -- [description]
 
         Raises:
@@ -462,8 +463,7 @@ class Tenant():
             logger.warning("AIK not found in registrar, quote not validated")
             return False
 
-        tpm = tpm_obj.getTPM(need_hw_tpm=False, tpm_version=tpm_version)
-        if not tpm.check_quote(self.agent_uuid, self.nonce, public_key, quote, reg_keys['aik'], hash_alg=hash_alg):
+        if not self.tpm_instance.check_quote(self.agent_uuid, self.nonce, public_key, quote, reg_keys['aik'], hash_alg=hash_alg):
             if reg_keys['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious host is present.  Run 'regdelete' for this agent and restart")
                 sys.exit()
@@ -787,11 +787,6 @@ class Tenant():
             public_key = response_body["results"]["pubkey"]
             logger.debug(f"agent_quote received public key: {public_key}")
 
-            # Get tpm_version, hash_alg
-            tpm_version = response_body["results"]["tpm_version"]
-            logger.debug(
-                f"agent_quote received tpm version: {str(tpm_version)}")
-
             # Ensure hash_alg is in accept_tpm_hash_algs list
             hash_alg = response_body["results"]["hash_alg"]
             logger.debug(f"agent_quote received hash algorithm: {hash_alg}")
@@ -814,7 +809,7 @@ class Tenant():
                 raise UserError(
                     "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 
-            if not self.validate_tpm_quote(public_key, quote, tpm_version, hash_alg):
+            if not self.validate_tpm_quote(public_key, quote, hash_alg):
                 raise UserError(
                     "TPM Quote from cloud agent is invalid for nonce: %s" % self.nonce)
 

@@ -10,11 +10,7 @@ import time
 import itertools
 
 from keylime.tpm.tpm_abstract import config, hashlib
-from keylime.tpm import tpm_obj
 from keylime.common import algorithms
-
-# get the tpm object
-tpm = tpm_obj.getTPM(need_hw_tpm=True)
 
 start_hash = ('0000000000000000000000000000000000000000')
 ff_hash = ('ffffffffffffffffffffffffffffffffffffffff')

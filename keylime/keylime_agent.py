@@ -34,15 +34,11 @@ from keylime import openstack
 from keylime import revocation_notifier
 from keylime import registrar_client
 from keylime import secure_mount
-from keylime.tpm import tpm_obj
+from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
 
 # Configure logger
 logger = keylime_logging.init_logging('cloudagent')
-
-# get the tpm object
-tpm = tpm_obj.getTPM(need_hw_tpm=True)
-tpm_version = tpm.VERSION
 
 # lock required for multithreaded operation
 uvLock = threading.Lock()
@@ -63,7 +59,7 @@ class Handler(BaseHTTPRequestHandler):
         """
 
         logger.info('GET invoked from ' + str(self.client_address) + ' with uri:' + self.path)
-
+        tpm_instance = tpm()
         rest_params = config.get_restful_params(self.path)
         if rest_params is None:
             config.echo_json_response(
@@ -114,23 +110,17 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             # identity quotes are always shallow
-            hash_alg = tpm.defaults['hash']
-            if not tpm.is_vtpm() or rest_params["quotes"] == 'identity':
-                quote = tpm.create_quote(
-                    nonce, self.server.rsapublickey_exportable, pcrmask, hash_alg)
-                imaMask = pcrmask
-            else:
-                quote = tpm.create_deep_quote(
-                    nonce, self.server.rsapublickey_exportable, vpcrmask, pcrmask)
-                imaMask = vpcrmask
+            hash_alg = tpm_instance.defaults['hash']
+            quote = tpm_instance.create_quote(
+                nonce, self.server.rsapublickey_exportable, pcrmask, hash_alg)
+            imaMask = pcrmask
 
             # Allow for a partial quote response (without pubkey)
-            enc_alg = tpm.defaults['encrypt']
-            sign_alg = tpm.defaults['sign']
+            enc_alg = tpm_instance.defaults['encrypt']
+            sign_alg = tpm_instance.defaults['sign']
             if "partial" in rest_params and (rest_params["partial"] is None or int(rest_params["partial"], 0) == 1):
                 response = {
                     'quote': quote,
-                    'tpm_version': tpm_version,
                     'hash_alg': hash_alg,
                     'enc_alg': enc_alg,
                     'sign_alg': sign_alg,
@@ -138,7 +128,6 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 response = {
                     'quote': quote,
-                    'tpm_version': tpm_version,
                     'hash_alg': hash_alg,
                     'enc_alg': enc_alg,
                     'sign_alg': sign_alg,
@@ -185,6 +174,7 @@ class Handler(BaseHTTPRequestHandler):
         Only tenant and cloudverifier uri's are supported. Both requests require a nonce parameter.
         The Cloud verifier requires an additional mask parameter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
+        tpm_instance = tpm()
         rest_params = config.get_restful_params(self.path)
 
         if rest_params is None:
@@ -243,7 +233,7 @@ class Handler(BaseHTTPRequestHandler):
         f.close()
 
         # stow the U value for later
-        tpm.write_key_nvram(self.server.final_U)
+        tpm_instance.write_key_nvram(self.server.final_U)
 
         # optionally extend a hash of they key and payload into specified PCR
         tomeasure = self.server.K
@@ -325,8 +315,8 @@ class Handler(BaseHTTPRequestHandler):
         pcr = config.getint('cloud_agent', 'measure_payload_pcr')
         if 0 < pcr < 24:
             logger.info("extending measurement of payload into PCR %s" % pcr)
-            measured = tpm.hashdigest(tomeasure)
-            tpm.extendPCR(pcr, measured)
+            measured = tpm_instance.hashdigest(tomeasure)
+            tpm_instance.extendPCR(pcr, measured)
 
         if payload_thread is not None:
             payload_thread.start()
@@ -363,7 +353,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
         secdir = secure_mount.mount()
         keyname = "%s/%s" % (secdir, config.get('cloud_agent', 'rsa_keyname'))
-
+        tpm_instance = tpm()
         # read or generate the key depending on configuration
         if os.path.isfile(keyname):
             # read in private key
@@ -381,7 +371,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             self.rsaprivatekey)
 
         # attempt to get a U value from the TPM NVRAM
-        nvram_u = tpm.read_key_nvram()
+        nvram_u = tpm_instance.read_key_nvram()
         if nvram_u is not None:
             logger.info("Existing U loaded from TPM NVRAM")
             self.add_U(nvram_u)
@@ -500,18 +490,15 @@ def main():
     config.ch_dir(config.WORK_DIR, logger)
 
     # initialize tpm
-    (ek, ekcert, aik, ek_tpm, aik_name) = tpm.tpm_init(self_activate=False, config_pw=config.get(
+    initialize_tpm = tpm()
+    (ek, ekcert, aik, ek_tpm, aik_name) = initialize_tpm.tpm_init(self_activate=False, config_pw=config.get(
         'cloud_agent', 'tpm_ownerpassword'))  # this tells initialize not to self activate the AIK
-    virtual_agent = tpm.is_vtpm()
 
     # try to get some TPM randomness into the system entropy pool
-    tpm.init_system_rand()
+    initialize_tpm.init_system_rand()
 
     if ekcert is None:
-        if virtual_agent:
-            ekcert = 'virtual'
-        elif tpm.is_emulator():
-            ekcert = 'emulator'
+        ekcert = 'emulator'
 
     # now we need the UUID
     try:
@@ -546,27 +533,21 @@ def main():
 
     # register it and get back a blob
     keyblob = registrar_client.doRegisterAgent(
-        registrar_ip, registrar_port, agent_uuid, tpm_version, ek, ekcert, aik, ek_tpm, aik_name)
+        registrar_ip, registrar_port, agent_uuid, ek, ekcert, aik, ek_tpm, aik_name)
 
     if keyblob is None:
         raise Exception("Registration failed")
 
     # get the ephemeral registrar key
-    key = tpm.activate_identity(keyblob)
+    key = initialize_tpm.activate_identity(keyblob)
 
     if key is None:
         raise Exception("Activation failed")
 
     # tell the registrar server we know the key
     retval = False
-    if virtual_agent:
-        deepquote = tpm.create_deep_quote(
-            hashlib.sha1(key).hexdigest(), agent_uuid + aik + ek)
-        retval = registrar_client.doActivateVirtualAgent(
-            registrar_ip, registrar_port, agent_uuid, deepquote)
-    else:
-        retval = registrar_client.doActivateAgent(
-            registrar_ip, registrar_port, agent_uuid, key)
+    retval = registrar_client.doActivateAgent(
+        registrar_ip, registrar_port, agent_uuid, key)
 
     if not retval:
         raise Exception("Registration failed on activate")
