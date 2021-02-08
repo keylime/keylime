@@ -588,7 +588,7 @@ class TestRestful(unittest.TestCase):
             if response.status_code == 200:
                 break
             numretries -= 1
-            time.sleep(config.getint('tenant', 'max_retries'))
+            time.sleep(config.getint('tenant', 'retry_interval'))
         self.assertEqual(response.status_code, 200, "Non-successful Agent identity return code!")
         json_response = response.json()
 
