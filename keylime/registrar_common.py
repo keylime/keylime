@@ -182,6 +182,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         block sent in the body with 2 entries: ek and aik.
         """
         session = SessionManager().make_session(engine)
+        instance_tpm = tpm()
         rest_params = config.get_restful_params(self.path)
         if rest_params is None:
             config.echo_json_response(
@@ -220,12 +221,8 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             aik = json_body['aik']
             aik_name = json_body['aik_name']
 
-            print('aik_name', aik_name)
-
-            initialize_tpm = tpm()
-
             # try to encrypt the AIK
-            (blob, key) = initialize_tpm.encryptAIK(agent_id, aik, ek, ek_tpm, aik_name)
+            (blob, key) = instance_tpm.encryptAIK(agent_id, aik, ek, ek_tpm, aik_name)
 
             # special behavior if we've registered this uuid before
             regcount = 1

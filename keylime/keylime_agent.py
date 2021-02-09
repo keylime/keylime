@@ -479,6 +479,9 @@ def main():
             raise RuntimeError('agent_uuid is configured to use dmidecode, '
                                'but it\'s is not found on the system.')
 
+    # Instanitate TPM class
+
+    instance_tpm = tpm()
     # get params for initialization
     registrar_ip = config.get('cloud_agent', 'registrar_ip')
     registrar_port = config.get('cloud_agent', 'registrar_port')
@@ -490,12 +493,11 @@ def main():
     config.ch_dir(config.WORK_DIR, logger)
 
     # initialize tpm
-    initialize_tpm = tpm()
-    (ek, ekcert, aik, ek_tpm, aik_name) = initialize_tpm.tpm_init(self_activate=False, config_pw=config.get(
+    (ek, ekcert, aik, ek_tpm, aik_name) = instance_tpm.tpm_init(self_activate=False, config_pw=config.get(
         'cloud_agent', 'tpm_ownerpassword'))  # this tells initialize not to self activate the AIK
 
     # try to get some TPM randomness into the system entropy pool
-    initialize_tpm.init_system_rand()
+    instance_tpm.init_system_rand()
 
     if ekcert is None:
         ekcert = 'emulator'
@@ -539,7 +541,7 @@ def main():
         raise Exception("Registration failed")
 
     # get the ephemeral registrar key
-    key = initialize_tpm.activate_identity(keyblob)
+    key = instance_tpm.activate_identity(keyblob)
 
     if key is None:
         raise Exception("Activation failed")
@@ -617,7 +619,7 @@ def main():
                     time.sleep(10)
         except KeyboardInterrupt:
             logger.info("TERM Signal received, shutting down...")
-            tpm.flush_keys()
+            instance_tpm.flush_keys()
             server.shutdown()
     else:
         try:
@@ -625,5 +627,5 @@ def main():
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("TERM Signal received, shutting down...")
-            tpm.flush_keys()
+            instance_tpm.flush_keys()
             server.shutdown()
