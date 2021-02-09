@@ -115,6 +115,10 @@ class AbstractTPM(metaclass=ABCMeta):
     def is_emulator(self):
         pass
 
+    @abstractmethod
+    def is_vtpm(self):
+        pass
+
     def warn_emulator(self):
         if self.is_emulator():
             logger.warning("INSECURE: Keylime is using a software TPM emulator rather than a real hardware TPM.")

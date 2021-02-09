@@ -428,8 +428,6 @@ class Tenant():
         if config.getboolean('tenant', 'require_ek_cert'):
             if config.STUB_TPM:
                 logger.debug("not checking ekcert due to STUB_TPM mode")
-            elif ekcert == 'virtual':
-                logger.debug("not checking ekcert of VTPM")
             elif ekcert == 'emulator' and config.DISABLE_EK_CERT_CHECK_EMULATOR:
                 logger.debug("not checking ekcert of TPM emulator")
             elif ekcert is None:

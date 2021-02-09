@@ -111,13 +111,15 @@ class Handler(BaseHTTPRequestHandler):
 
             # identity quotes are always shallow
             hash_alg = tpm_instance.defaults['hash']
-            quote = tpm_instance.create_quote(
-                nonce, self.server.rsapublickey_exportable, pcrmask, hash_alg)
-            imaMask = pcrmask
+            if not tpm_instance.is_vtpm() or rest_params["quotes"] == 'identity':
+                quote = tpm_instance.create_quote(
+                    nonce, self.server.rsapublickey_exportable, pcrmask, hash_alg)
+                imaMask = pcrmask
 
             # Allow for a partial quote response (without pubkey)
             enc_alg = tpm_instance.defaults['encrypt']
             sign_alg = tpm_instance.defaults['sign']
+
             if "partial" in rest_params and (rest_params["partial"] is None or int(rest_params["partial"], 0) == 1):
                 response = {
                     'quote': quote,
@@ -495,12 +497,15 @@ def main():
     # initialize tpm
     (ek, ekcert, aik, ek_tpm, aik_name) = instance_tpm.tpm_init(self_activate=False, config_pw=config.get(
         'cloud_agent', 'tpm_ownerpassword'))  # this tells initialize not to self activate the AIK
-
+    virtual_agent = instance_tpm.is_vtpm()
     # try to get some TPM randomness into the system entropy pool
     instance_tpm.init_system_rand()
 
     if ekcert is None:
-        ekcert = 'emulator'
+        if virtual_agent:
+            ekcert = 'virtual'
+        elif tpm.is_emulator():
+            ekcert = 'emulator'
 
     # now we need the UUID
     try:
