@@ -92,7 +92,7 @@ do
         break
     fi
 
-    find -type f -exec sha1sum "./{}" \; | sed "s| \./\./| /|" >> $OUTPUT
+    find -type f -exec $ALGO "./{}" \; | sed "s| \./\./| /|" >> $OUTPUT
 done
 
 # Clean up
