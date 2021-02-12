@@ -183,9 +183,10 @@ def has_option(section, option):
 
 
 if not REQUIRE_ROOT:
-    WORK_DIR = os.path.abspath(".")
+    DEFAULT_WORK_DIR = os.path.abspath(".")
 else:
-    WORK_DIR = os.getenv('KEYLIME_DIR', '/var/lib/keylime')
+    DEFAULT_WORK_DIR = '/var/lib/keylime'
+WORK_DIR = os.getenv('KEYLIME_DIR', DEFAULT_WORK_DIR)
 
 CA_WORK_DIR = '%s/ca/' % WORK_DIR
 
