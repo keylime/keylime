@@ -26,6 +26,13 @@ from keylime import ima_file_signatures
 # setup logging
 logger = keylime_logging.init_logging('cloudverifier_common')
 
+GLOBAL_TPM_INSTANCE = None
+def get_tpm_instance():
+    global GLOBAL_TPM_INSTANCE
+    if GLOBAL_TPM_INSTANCE is None:
+        GLOBAL_TPM_INSTANCE = tpm()
+    return GLOBAL_TPM_INSTANCE
+
 
 def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
     if not config.getboolean('general', "enable_tls"):
@@ -126,7 +133,6 @@ def process_quote_response(agent, json_response):
     """
     received_public_key = None
     quote = None
-    instance_tpm = tpm()
     # in case of failure in response content do not continue
     try:
         received_public_key = json_response.get("pubkey", None)
@@ -188,18 +194,19 @@ def process_quote_response(agent, json_response):
             "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 
     ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
-    validQuote = instance_tpm.check_quote(agent['agent_id'],
-                                    agent['nonce'],
-                                    received_public_key,
-                                    quote,
-                                    agent['registrar_keys']['aik'],
-                                    agent['tpm_policy'],
-                                    ima_measurement_list,
-                                    agent['allowlist'],
-                                    hash_alg,
-                                    ima_keyring,
-                                    mb_measurement_list,
-                                    {})
+    validQuote = get_tpm_instance().check_quote(
+        agent['agent_id'],
+        agent['nonce'],
+        received_public_key,
+        quote,
+        agent['registrar_keys']['aik'],
+        agent['tpm_policy'],
+        ima_measurement_list,
+        agent['allowlist'],
+        hash_alg,
+        ima_keyring,
+        mb_measurement_list,
+        {})
     if not validQuote:
         return False
 
