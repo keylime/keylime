@@ -3,6 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+import os
 import os.path
 import configparser
 import sys
@@ -33,6 +34,20 @@ def convert(data):
     return data
 
 
+def environ_bool(env_name, default):
+    val = os.getenv(env_name, 'default').lower()
+    if val in ["on", "true", "1"]:
+        return True
+    if val in ["off", "false", "0"]:
+        return False
+    if val == "default":
+        return default
+    raise ValueError(
+        "Environment variable %s set to invalid value "
+        "%s (use either on/true/1 or off/false/0)" %
+        (env_name, val))
+
+
 # Current Keylime API version
 API_VERSION = '2'
 
@@ -56,7 +71,7 @@ TPM_BENCHMARK_PATH = None
 # set to False to enable keylime to run from the CWD and not require
 # root access.  for testing purposes only
 # all processes will log to the CWD in keylime-all.log
-REQUIRE_ROOT = True
+REQUIRE_ROOT = environ_bool('KEYLIME_REQUIRE_ROOT', True)
 
 # enable printing of keys and other info for debug purposes
 INSECURE_DEBUG = False
