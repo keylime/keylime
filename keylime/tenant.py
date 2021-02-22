@@ -414,7 +414,7 @@ class Tenant():
             logger.debug(F"U: {base64.b64encode(self.U)}")
             logger.debug(F"Auth Tag: {self.auth_tag}")
 
-    def check_ek(self, ek, ekcert, tpm):
+    def check_ek(self, ek, ekcert):
         """ Check the Entity Key
 
         Arguments:

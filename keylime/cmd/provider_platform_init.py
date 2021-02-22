@@ -65,6 +65,8 @@ def main(argv=sys.argv):
     # get the ephemeral registrar key by activating in the hardware tpm
     key = base64.b64encode(vtpm_manager.activate_group(group_uuid, keyblob))
 
+    # create a new group
+    (group_uuid, group_aik, group_num, _) = vtpm_manager.add_vtpm_group()
     # tell the registrar server we know the key
     registrar_client.doActivateAgent(
         provider_reg_ip, provider_reg_port, group_uuid, key)

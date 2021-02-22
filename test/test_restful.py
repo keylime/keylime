@@ -38,7 +38,6 @@ import base64
 import threading
 import shutil
 import errno
-import hashlib
 from pathlib import Path
 
 import dbus
