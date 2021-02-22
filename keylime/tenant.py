@@ -16,6 +16,7 @@ import sys
 import time
 import zipfile
 
+from cryptography.hazmat.primitives import serialization as crypto_serialization
 import simplejson as json
 
 from keylime.requests_client import RequestsClient
@@ -23,6 +24,7 @@ from keylime.common import states
 from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_client
+from keylime.tpm import tpm2_objects
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime import ima
@@ -414,13 +416,11 @@ class Tenant():
             logger.debug(F"U: {base64.b64encode(self.U)}")
             logger.debug(F"Auth Tag: {self.auth_tag}")
 
-    def check_ek(self, ek, ekcert):
+    def check_ek(self, ekcert):
         """ Check the Entity Key
 
         Arguments:
-            ek {[type]} -- [description]
-            ekcert {[type]} -- [description]
-            tpm {[type]} -- [description]
+            ekcert {str} -- The endorsement key, either None, "emulator", or base64 encoded der cert
 
         Returns:
             [type] -- [description]
@@ -429,12 +429,12 @@ class Tenant():
             if config.STUB_TPM:
                 logger.debug("not checking ekcert due to STUB_TPM mode")
             elif ekcert == 'emulator' and config.DISABLE_EK_CERT_CHECK_EMULATOR:
-                logger.debug("not checking ekcert of TPM emulator")
+                logger.info("not checking ekcert of TPM emulator")
             elif ekcert is None:
                 logger.warning(
                     "No EK cert provided, require_ek_cert option in config set to True")
                 return False
-            elif not self.tpm_instance.verify_ek(base64.b64decode(ekcert), ek):
+            elif not self.tpm_instance.verify_ek(base64.b64decode(ekcert)):
                 logger.warning("Invalid EK certificate")
                 return False
 
@@ -461,7 +461,7 @@ class Tenant():
             logger.warning("AIK not found in registrar, quote not validated")
             return False
 
-        if not self.tpm_instance.check_quote(self.agent_uuid, self.nonce, public_key, quote, reg_keys['aik'], hash_alg=hash_alg):
+        if not self.tpm_instance.check_quote(self.agent_uuid, self.nonce, public_key, quote, reg_keys['aik_tpm'], hash_alg=hash_alg):
             if reg_keys['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it!  This might indicate that your system is misconfigured or a malicious host is present.  Run 'regdelete' for this agent and restart")
                 sys.exit()
@@ -475,11 +475,11 @@ class Tenant():
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
         # check EK cert and make sure it matches EK
-        if not self.check_ek(reg_keys['ek'], reg_keys['ekcert']):
+        if not self.check_ek(reg_keys['ekcert']):
             return False
         # if agent is virtual, check phyisical EK cert and make sure it matches phyiscal EK
         if 'provider_keys' in reg_keys:
-            if not self.check_ek(reg_keys['provider_keys']['ek'], reg_keys['provider_keys']['ekcert']):
+            if not self.check_ek(reg_keys['provider_keys']['ekcert']):
                 return False
 
         # check all EKs with optional script:
@@ -494,7 +494,13 @@ class Tenant():
         # now we need to exec the script with the ek and ek cert in vars
         env = os.environ.copy()
         env['AGENT_UUID'] = self.agent_uuid
-        env['EK'] = reg_keys['ek']
+        env['EK'] = tpm2_objects.pubkey_from_tpm2b_public(
+            reg_keys['ek_tpm'],
+            ).public_bytes(
+                crypto_serialization.Encoding.PEM,
+                crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+        env['EK_TPM'] = reg_keys['ek_tpm']
         if reg_keys['ekcert'] is not None:
             env['EK_CERT'] = reg_keys['ekcert']
         else:

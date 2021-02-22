@@ -74,7 +74,7 @@ sys.path.append(KEYLIME_DIR)
 # sys.path.insert(0, CODE_ROOT)
 
 # Will be used to communicate with the TPM
-tpm = None
+tpm_instance = None
 
 
 # cmp depreciated in Python 3, so lets recreate it.
@@ -101,8 +101,8 @@ tenant_templ = None
 # Class-level components that are not static (so can't be added to test class)
 public_key = None
 keyblob = None
-ek = None
-aik = None
+ek_tpm = None
+aik_tpm = None
 vtpm = False
 
 # Set up mTLS
@@ -362,8 +362,8 @@ class TestRestful(unittest.TestCase):
     # Registrar Testset
     def test_010_reg_agent_post(self):
         """Test registrar's POST /v2/agents/{UUID} Interface"""
+        global keyblob, vtpm, tpm_instance, ek_tpm, aik_tpm
         tpm_instance = tpm_main.tpm()
-        global keyblob, aik, vtpm, ek
 
         # Change CWD for TPM-related operations
         cwd = os.getcwd()
@@ -371,7 +371,7 @@ class TestRestful(unittest.TestCase):
         _ = secure_mount.mount()
 
         # Initialize the TPM with AIK
-        (ek, ekcert, aik, ek_tpm, aik_name) = tpm_instance.tpm_init(self_activate=False,
+        (ekcert, ek_tpm, aik_tpm) = tpm_instance.tpm_init(self_activate=False,
                                                            config_pw=config.get('cloud_agent', 'tpm_ownerpassword'))
         vtpm = tpm_instance.is_vtpm()
 
@@ -390,12 +390,11 @@ class TestRestful(unittest.TestCase):
         config.ch_dir(cwd, None)
 
         data = {
-            'ek': ek,
             'ekcert': ekcert,
-            'aik': aik,
-            'aik_name': aik_name,
-            'ek_tpm': ek_tpm,
+            'aik_tpm': aik_tpm,
         }
+        if ekcert is None or ekcert == 'emulator':
+            data['ek_tpm'] = ek_tpm
 
         test_010_reg_agent_post = RequestsClient(tenant_templ.registrar_base_url, tls_enabled=False)
         response = test_010_reg_agent_post.post(
@@ -418,11 +417,9 @@ class TestRestful(unittest.TestCase):
     @unittest.skipIf(vtpm, "Registrar's PUT /v2/agents/{UUID}/activate only for non-vTPMs!")
     def test_011_reg_agent_activate_put(self):
         """Test registrar's PUT /v2/agents/{UUID}/activate Interface"""
-        tpm_instance = tpm_main.tpm()
-        global keyblob, aik
+        global keyblob
 
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
-        self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
 
         key = tpm_instance.activate_identity(keyblob)
         data = {
@@ -464,7 +461,6 @@ class TestRestful(unittest.TestCase):
 
     def test_014_reg_agent_get(self):
         """Test registrar's GET /v2/agents/{UUID} Interface"""
-        global aik
         test_014_reg_agent_get = RequestsClient(tenant_templ.registrar_base_tls_url, tls_enabled=True)
         response = test_014_reg_agent_get.get(
             f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}',
@@ -477,12 +473,12 @@ class TestRestful(unittest.TestCase):
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
-        self.assertIn("aik", json_response["results"], "Malformed response body!")
-        self.assertIn("ek", json_response["results"], "Malformed response body!")
+        self.assertIn("ek_tpm", json_response["results"], "Malformed response body!")
+        self.assertIn("aik_tpm", json_response["results"], "Malformed response body!")
         self.assertIn("ekcert", json_response["results"], "Malformed response body!")
 
-        aik = json_response["results"]["aik"]
-        # TODO: results->provider_keys is only for virtual mode
+        global aik_tpm
+        aik_tpm = json_response["results"]["aik_tpm"]
 
     def test_015_reg_agent_delete(self):
 
@@ -532,10 +528,7 @@ class TestRestful(unittest.TestCase):
 
     def test_022_agent_quotes_identity_get(self):
         """Test agent's GET /v2/quotes/identity Interface"""
-        tpm_instance = tpm_main.tpm()
-        global aik
-
-        self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
+        self.assertIsNotNone(aik_tpm, "Required value not set.  Previous step may have failed?")
 
         nonce = tpm_abstract.TPM_Utilities.random_password(20)
 
@@ -566,7 +559,8 @@ class TestRestful(unittest.TestCase):
                                         nonce,
                                         json_response["results"]["pubkey"],
                                         json_response["results"]["quote"],
-                                        aik),
+                                        aik_tpm,
+                                        hash_alg=json_response["results"]["hash_alg"]),
                         "Invalid quote!")
 
     @unittest.skip("Testing of agent's POST /v2/keys/vkey disabled!  (spawned CV should do this already)")
@@ -762,10 +756,9 @@ class TestRestful(unittest.TestCase):
 
     def test_040_agent_quotes_integrity_get(self):
         """Test agent's GET /v2/quotes/integrity Interface"""
-        tpm_instance = tpm_main.tpm()
-        global public_key, aik
+        global public_key
 
-        self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
+        self.assertIsNotNone(aik_tpm, "Required value not set.  Previous step may have failed?")
 
         nonce = tpm_abstract.TPM_Utilities.random_password(20)
         mask = self.tpm_policy["mask"]
@@ -799,7 +792,7 @@ class TestRestful(unittest.TestCase):
                                      nonce,
                                      public_key,
                                      quote,
-                                     aik,
+                                     aik_tpm,
                                      self.tpm_policy,
                                      hash_alg=hash_alg)
         self.assertTrue(validQuote)

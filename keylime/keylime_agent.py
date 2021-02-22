@@ -495,7 +495,7 @@ def main():
     config.ch_dir(config.WORK_DIR, logger)
 
     # initialize tpm
-    (ek, ekcert, aik, ek_tpm, aik_name) = instance_tpm.tpm_init(self_activate=False, config_pw=config.get(
+    (ekcert, ek_tpm, aik_tpm) = instance_tpm.tpm_init(self_activate=False, config_pw=config.get(
         'cloud_agent', 'tpm_ownerpassword'))  # this tells initialize not to self activate the AIK
     virtual_agent = instance_tpm.is_vtpm()
     # try to get some TPM randomness into the system entropy pool
@@ -504,7 +504,7 @@ def main():
     if ekcert is None:
         if virtual_agent:
             ekcert = 'virtual'
-        elif tpm.is_emulator():
+        elif instance_tpm.is_emulator():
             ekcert = 'emulator'
 
     # now we need the UUID
@@ -515,7 +515,7 @@ def main():
     if agent_uuid == 'openstack':
         agent_uuid = openstack.get_openstack_uuid()
     elif agent_uuid == 'hash_ek':
-        agent_uuid = hashlib.sha256(ek).hexdigest()
+        agent_uuid = hashlib.sha256(ek_tpm).hexdigest()
     elif agent_uuid == 'generate' or agent_uuid is None:
         agent_uuid = str(uuid.uuid4())
     elif agent_uuid == 'dmidecode':
@@ -540,7 +540,7 @@ def main():
 
     # register it and get back a blob
     keyblob = registrar_client.doRegisterAgent(
-        registrar_ip, registrar_port, agent_uuid, ek, ekcert, aik, ek_tpm, aik_name)
+        registrar_ip, registrar_port, agent_uuid, ek_tpm, ekcert, aik_tpm)
 
     if keyblob is None:
         raise Exception("Registration failed")

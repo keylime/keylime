@@ -96,7 +96,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def encryptAIK(self, uuid, pubaik, pubek, ek_tpm, aik_name):
+    def encryptAIK(self, uuid, ek_tpm: bytes, aik_tpm: bytes):
         pass
 
     @abstractmethod
@@ -104,7 +104,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def verify_ek(self, ekcert, ekpem):
+    def verify_ek(self, ekcert):
         pass
 
     @abstractmethod

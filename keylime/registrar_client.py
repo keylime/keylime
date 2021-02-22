@@ -98,7 +98,7 @@ def getKeys(registrar_ip, registrar_port, agent_id):
                 "Error: unexpected http response body from Registrar Server: %s" % str(response.status_code))
             return None
 
-        if "aik" not in response_body["results"]:
+        if "aik_tpm" not in response_body["results"]:
             logger.critical(
                 "Error: did not receive AIK from Registrar Server: %s" % str(response.status_code))
             return None
@@ -118,14 +118,13 @@ def getKeys(registrar_ip, registrar_port, agent_id):
     return None
 
 
-def doRegisterAgent(registrar_ip, registrar_port, agent_id, pub_ek, ekcert, pub_aik, pub_ek_tpm=None, aik_name=None):
+def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_tpm):
     data = {
-        'ek': pub_ek,
         'ekcert': ekcert,
-        'aik': pub_aik,
-        'aik_name': aik_name,
-        'ek_tpm': pub_ek_tpm,
+        'aik_tpm': aik_tpm,
     }
+    if ekcert is None or ekcert == 'emulator':
+        data['ek_tpm'] = ek_tpm
     response = None
     try:
         client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
