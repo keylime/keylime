@@ -118,14 +118,13 @@ def getKeys(registrar_ip, registrar_port, agent_id):
     return None
 
 
-def doRegisterAgent(registrar_ip, registrar_port, agent_id, tpm_version, pub_ek, ekcert, pub_aik, pub_ek_tpm=None, aik_name=None):
+def doRegisterAgent(registrar_ip, registrar_port, agent_id, pub_ek, ekcert, pub_aik, pub_ek_tpm=None, aik_name=None):
     data = {
         'ek': pub_ek,
         'ekcert': ekcert,
         'aik': pub_aik,
         'aik_name': aik_name,
         'ek_tpm': pub_ek_tpm,
-        'tpm_version': tpm_version,
     }
     response = None
     try:
@@ -169,23 +168,6 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
     }
     client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
     response = client.put(f'/agents/{agent_id}/activate', cert=tls_cert_info, data=json.dumps(data), verify=False)
-    response_body = response.json()
-
-    if response.status_code == 200:
-        logger.info("Registration activated for agent %s." % agent_id)
-        return True
-
-    logger.error(
-        "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
-    keylime_logging.log_http_response(logger, logging.ERROR, response_body)
-    return False
-
-
-def doActivateVirtualAgent(registrar_ip, registrar_port, agent_id, deepquote):
-    data = {'deepquote': deepquote}
-
-    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-    response = client.put(f'/agents/{agent_id}/vactivate', cert=tls_cert_info, data=json.dumps(data), verify=False)
     response_body = response.json()
 
     if response.status_code == 200:

@@ -37,7 +37,6 @@ CREATE TABLE public.verifiermain (
     allowlist character varying,
     ima_sign_verification_keys character varying,
     revocation_key character varying,
-    tpm_version integer,
     accept_tpm_hash_algs text,
     accept_tpm_encryption_algs text,
     accept_tpm_signing_algs text,

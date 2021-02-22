@@ -26,7 +26,7 @@ from keylime.tpm import tpm_abstract
 from keylime import tpm_ek_ca
 from keylime.common import algorithms
 
-logger = keylime_logging.init_logging('tpm2')
+logger = keylime_logging.init_logging('tpm')
 
 
 def _get_cmd_env():
@@ -196,8 +196,7 @@ def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
             can.write("\"%s\": %s,\n" % (fprt, json.dumps(jsonObj, indent=4, sort_keys=True)))
 
 
-class tpm2(tpm_abstract.AbstractTPM):
-
+class tpm(tpm_abstract.AbstractTPM):
     VERSION = 2
     tools_version = ""
 
@@ -334,7 +333,7 @@ class tpm2(tpm_abstract.AbstractTPM):
             outputpaths = [outputpaths]
 
         # Handle stubbing the TPM out
-        fprt = tpm2.__fingerprint(cmd)
+        fprt = tpm.__fingerprint(cmd)
         if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:
             stub = _stub_command(fprt, lock, cmd, outputpaths)
             if stub:
@@ -958,9 +957,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                     pcr_list.append(str(pcr))
         return ",".join(pcr_list) + ima_appended
 
-    def create_deep_quote(self, nonce, data=None, vpcrmask=tpm_abstract.AbstractTPM.EMPTYMASK, pcrmask=tpm_abstract.AbstractTPM.EMPTYMASK):
-        raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
-
     def create_quote(self, nonce, data=None, pcrmask=tpm_abstract.AbstractTPM.EMPTYMASK, hash_alg=None):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
@@ -1001,12 +997,6 @@ class tpm2(tpm_abstract.AbstractTPM):
                 quote = quote_b64encode.decode('utf-8') + ":" + sigraw_b64encode.decode('utf-8') + ":" + pcrraw_b64encode.decode('utf-8')
 
         return 'r' + quote
-
-    def __checkdeepquote_c(self, hAIK, vAIK, deepquoteFile, nonce):
-        raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
-
-    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):
-        raise Exception("vTPM support and deep quotes not yet implemented with TPM 2.0!")
 
     def __check_quote_c(self, pubaik, nonce, quoteFile, sigFile, pcrFile, hash_alg):
         if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:

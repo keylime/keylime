@@ -31,7 +31,6 @@ class VerfierMain(Base):
     allowlist = Column(Text(429400000))
     ima_sign_verification_keys = Column(Text(429400000))
     revocation_key = Column(String(2800))
-    tpm_version = Column(Integer)
     accept_tpm_hash_algs = Column(JSONPickleType(pickler=json))
     accept_tpm_encryption_algs = Column(JSONPickleType(pickler=json))
     accept_tpm_signing_algs = Column(JSONPickleType(pickler=json))

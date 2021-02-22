@@ -23,10 +23,9 @@ except ImportError:
 
 from keylime import config
 from keylime import keylime_logging
-from keylime.tpm import tpm_obj
+from keylime.tpm.tpm_main import tpm
 
 # get the tpm object
-tpm = tpm_obj.getTPM(need_hw_tpm=True)
 
 sys.path.append(os.path.dirname(__file__))
 
@@ -437,6 +436,7 @@ def do_register_test():
 def tpmconv(inmod):
     """ convert a raw modulus file into a pem file """
     tmppath = None
+    tpm_instance = tpm()
     try:
         # make a temp file for the output
         tmpfd, tmppath = tempfile.mkstemp()
@@ -449,7 +449,7 @@ def tpmconv(inmod):
         os.close(infd)
 
         command = ('tpmconv', '-ik', 'inFile.name', '-ok', tmppath)
-        tpm.run(command)
+        tpm_instance.run(command)
 
         # read in the pem
         f = open(tmppath, "rb")
