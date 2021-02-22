@@ -14,7 +14,7 @@ from keylime.db.keylime_db import SessionManager
 
 test_data = {
     'agent_id': 'D432FBB3-D2F1-4A97-9EF7-75BD81C00000',
-    'ek': """-----BEGIN PUBLIC KEY-----
+    'ek_tpm': """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0dLxdAABVJO6qxamjCMh
 yhWZgiFHZHnPEe0tMFyK3fNVr/w8lX9r+QOLxLmkT0IdgsEYtGZGefbD+qQl4O1s
 k25823Xzu5tEF8966rTdkfsv8CRrNaBLwWlnt/n+qjIoU3xZJMmR+mFfqTc3a6zV
@@ -23,7 +23,7 @@ GyvFQYBZFRU6cIt33iaqTrRCICJp+YblMnw54YJGAH2vTVQf6/fLAnQt5L1UfmTy
 R/ZA6advx8soekSBOIAW7XmV8Xp9mSquIHZdSXMJlcn/B35PU3BdkUtIYm5JuGGt
 PQIDAQAB
 -----END PUBLIC KEY-----""",
-    'aik': """-----BEGIN PUBLIC KEY-----
+    'aik_tpm': """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0dLxdAABVJO6qxamjCMh
 yhWZgiFHZHnPEe0tMFyK3fNVr/w8lX9r+QOLxLmkT0IdgsEYtGZGefbD+qQl4O1s
 k25823Xzu5tEF8966rTdkfsv8CRrNaBLwWlnt/n+qjIoU3xZJMmR+mFfqTc3a6zV
@@ -86,7 +86,7 @@ class TestRegistrarDB(unittest.TestCase):
         agent = self.session.query(RegistrarMain).filter_by(
             agent_id=agent_id).first()
         self.assertEqual(
-            agent.ek, """-----BEGIN PUBLIC KEY-----
+            agent.ek_tpm, """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0dLxdAABVJO6qxamjCMh
 yhWZgiFHZHnPEe0tMFyK3fNVr/w8lX9r+QOLxLmkT0IdgsEYtGZGefbD+qQl4O1s
 k25823Xzu5tEF8966rTdkfsv8CRrNaBLwWlnt/n+qjIoU3xZJMmR+mFfqTc3a6zV
@@ -96,7 +96,7 @@ R/ZA6advx8soekSBOIAW7XmV8Xp9mSquIHZdSXMJlcn/B35PU3BdkUtIYm5JuGGt
 PQIDAQAB
 -----END PUBLIC KEY-----""")
         self.assertEqual(
-            agent.aik, """-----BEGIN PUBLIC KEY-----
+            agent.aik_tpm, """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0dLxdAABVJO6qxamjCMh
 yhWZgiFHZHnPEe0tMFyK3fNVr/w8lX9r+QOLxLmkT0IdgsEYtGZGefbD+qQl4O1s
 k25823Xzu5tEF8966rTdkfsv8CRrNaBLwWlnt/n+qjIoU3xZJMmR+mFfqTc3a6zV

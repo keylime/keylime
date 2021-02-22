@@ -3,6 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+import base64
 import threading
 import sys
 import signal
@@ -13,6 +14,8 @@ from socketserver import ThreadingMixIn
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
 
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509 import load_der_x509_certificate
 import simplejson as json
 
 from keylime.db.registrar_db import RegistrarMain
@@ -20,6 +23,7 @@ from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import cloud_verifier_common
 from keylime import config
 from keylime import crypto
+from keylime.tpm import tpm2_objects
 from keylime import keylime_logging
 from keylime.tpm.tpm_main import tpm
 
@@ -85,8 +89,8 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 return
 
             response = {
-                'aik': agent.aik,
-                'ek': agent.ek,
+                'aik_tpm': agent.aik_tpm,
+                'ek_tpm': agent.ek_tpm,
                 'ekcert': agent.ekcert,
                 'regcount': agent.regcount,
             }
@@ -180,7 +184,6 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         block sent in the body with 2 entries: ek and aik.
         """
         session = SessionManager().make_session(engine)
-        instance_tpm = tpm()
         rest_params = config.get_restful_params(self.path)
         if rest_params is None:
             config.echo_json_response(
@@ -213,14 +216,53 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             post_body = self.rfile.read(content_length)
             json_body = json.loads(post_body)
 
-            ek = json_body['ek']
-            ek_tpm = json_body['ek_tpm']
             ekcert = json_body['ekcert']
-            aik = json_body['aik']
-            aik_name = json_body['aik_name']
+            aik_tpm = json_body['aik_tpm']
+
+            initialize_tpm = tpm()
+
+            if ekcert is None or ekcert == 'emulator':
+                logger.warning('Agent %s did not submit an ekcert' % agent_id)
+                ek_tpm = json_body['ek_tpm']
+            else:
+                if 'ek_tpm' in json_body:
+                    # This would mean the agent submitted both a non-None ekcert, *and*
+                    #  an ek_tpm... We can deal with it by just ignoring the ek_tpm they sent
+                    logger.warning('Overriding ek_tpm for agent %s from ekcert' % agent_id)
+                # If there's an EKCert, we just overwrite their ek_tpm
+                # Note, we don't validate the EKCert here, other than the implicit
+                #  "is it a valid x509 cert" check. So it's still untrusted.
+                # This will be validated by the tenant.
+                ek509 = load_der_x509_certificate(
+                    base64.b64decode(ekcert),
+                    backend=default_backend(),
+                )
+                ek_tpm = base64.b64encode(
+                    tpm2_objects.ek_low_tpm2b_public_from_pubkey(
+                        ek509.public_key(),
+                    )
+                )
+
+            aik_attrs = tpm2_objects.get_tpm2b_public_object_attributes(
+                base64.b64decode(aik_tpm),
+            )
+            if aik_attrs != tpm2_objects.AK_EXPECTED_ATTRS:
+                config.echo_json_response(
+                    self, 400, "Invalid AK attributes")
+                logger.warning(
+                    "Agent %s submitted AIK with invalid attributes! %s (provided) != %s (expected)",
+                    agent_id,
+                    tpm2_objects.object_attributes_description(aik_attrs),
+                    tpm2_objects.object_attributes_description(tpm2_objects.AK_EXPECTED_ATTRS),
+                )
+                return
 
             # try to encrypt the AIK
-            (blob, key) = instance_tpm.encryptAIK(agent_id, aik, ek, ek_tpm, aik_name)
+            (blob, key) = initialize_tpm.encryptAIK(
+                agent_id,
+                base64.b64decode(ek_tpm),
+                base64.b64decode(aik_tpm),
+            )
 
             # special behavior if we've registered this uuid before
             regcount = 1
@@ -237,7 +279,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
                 # keep track of how many ek-ekcerts have registered on this uuid
                 regcount = agent.regcount
-                if agent.ek != ek or agent.ekcert != ekcert:
+                if agent.ek_tpm != ek_tpm or agent.ekcert != ekcert:
                     logger.warning(
                         'WARNING: Overwriting previous registration for this UUID with new ek-ekcert pair!')
                     regcount += 1
@@ -255,8 +297,8 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             # Add values to database
             d = {}
             d['agent_id'] = agent_id
-            d['ek'] = ek
-            d['aik'] = aik
+            d['ek_tpm'] = ek_tpm
+            d['aik_tpm'] = aik_tpm
             d['ekcert'] = ekcert
             d['virtual'] = int(ekcert == 'virtual')
             d['active'] = int(False)

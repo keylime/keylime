@@ -96,7 +96,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def encryptAIK(self, uuid, pubaik, pubek, ek_tpm, aik_name):
+    def encryptAIK(self, uuid, ek_tpm: bytes, aik_tpm: bytes):
         pass
 
     @abstractmethod
@@ -104,7 +104,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def verify_ek(self, ekcert, ekpem):
+    def verify_ek(self, ekcert):
         pass
 
     @abstractmethod
@@ -162,7 +162,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_intended_state={}):
+    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_intended_state={}):
         pass
 
     def START_HASH(self, algorithm=None):
