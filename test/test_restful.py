@@ -53,7 +53,7 @@ from keylime.cmd import user_data_encrypt
 from keylime import secure_mount
 
 from keylime.tpm.tpm_main import tpm
-from keylime.tpm.tpm_abstract import TPM_Utilities
+from keylime.tpm import tpm_abstract
 
 
 
@@ -397,7 +397,6 @@ class TestRestful(unittest.TestCase):
             'aik': aik,
             'aik_name': aik_name,
             'ek_tpm': ek_tpm,
-            'tpm_version': tpm.VERSION,
         }
 
         test_010_reg_agent_post = RequestsClient(tenant_templ.registrar_base_url, tls_enabled=False)
@@ -790,7 +789,6 @@ class TestRestful(unittest.TestCase):
         if public_key is None:
             self.assertIn("pubkey", json_response["results"], "Malformed response body!")
             public_key = json_response["results"]["pubkey"]
-        self.assertIn("tpm_version", json_response["results"], "Malformed response body!")
         self.assertIn("hash_alg", json_response["results"], "Malformed response body!")
 
         quote = json_response["results"]["quote"]
