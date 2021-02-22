@@ -348,6 +348,7 @@ class TestRestful(unittest.TestCase):
         cls.vtpm_policy = config.get('tenant', 'vtpm_policy')
         cls.tpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.tpm_policy)
         cls.vtpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.vtpm_policy)
+        cls.tpm_instance = tpm()
 
         # Allow targeting a specific API version (default latest)
         cls.api_version = config.API_VERSION
@@ -371,19 +372,19 @@ class TestRestful(unittest.TestCase):
         _ = secure_mount.mount()
 
         # Initialize the TPM with AIK
-        (ek, ekcert, aik, ek_tpm, aik_name) = tpm.tpm_init(self_activate=False,
+        (ek, ekcert, aik, ek_tpm, aik_name) = self.tpm_instance.tpm_init(self_activate=False,
                                                            config_pw=config.get('cloud_agent', 'tpm_ownerpassword'))
-        vtpm = tpm.is_vtpm()
+        vtpm = self.tpm_instance.is_vtpm()
 
         # Seed RNG (root only)
         if config.REQUIRE_ROOT:
-            tpm.init_system_rand()
+            self.tpm_instanceinit_system_rand()
 
         # Handle virtualized and emulated TPMs
         if ekcert is None:
             if vtpm:
                 ekcert = 'virtual'
-            elif tpm.is_emulator():
+            elif self.tpm_instance.is_emulator():
                 ekcert = 'emulator'
 
         # Get back to our original CWD
@@ -423,8 +424,7 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
 
-        key = tpm.activate_identity(keyblob)
-
+        key = self.tpm_instance.activate_identity(keyblob)
         data = {
             'auth_tag': crypto.do_hmac(key, tenant_templ.agent_uuid),
         }
@@ -451,8 +451,8 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(ek, "Required value not set.  Previous step may have failed?")
 
-        key = tpm.activate_identity(keyblob)
-        deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(),
+        key = self.tpm_instance.activate_identity(keyblob)
+        deepquote = self.tpm_instance.create_deep_quote(hashlib.sha1(key).hexdigest(),
                                           tenant_templ.agent_uuid + aik + ek)
         data = {
             'deepquote': deepquote,
@@ -590,7 +590,7 @@ class TestRestful(unittest.TestCase):
         self.assertIn("pubkey", json_response["results"], "Malformed response body!")
 
         # Check the quote identity
-        self.assertTrue(tpm.check_quote(tenant_templ.agent_uuid,
+        self.assertTrue(self.tpm_instance.check_quote(tenant_templ.agent_uuid,
                                         nonce,
                                         json_response["results"]["pubkey"],
                                         json_response["results"]["quote"],
@@ -822,7 +822,7 @@ class TestRestful(unittest.TestCase):
         quote = json_response["results"]["quote"]
         hash_alg = json_response["results"]["hash_alg"]
 
-        validQuote = tpm.check_quote(tenant_templ.agent_uuid,
+        validQuote = self.tpm_instance.check_quote(tenant_templ.agent_uuid,
                                      nonce,
                                      public_key,
                                      quote,
