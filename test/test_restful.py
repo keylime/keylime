@@ -38,7 +38,6 @@ import base64
 import threading
 import shutil
 import errno
-import hashlib
 from pathlib import Path
 
 import dbus
@@ -51,7 +50,8 @@ from keylime import tenant
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import secure_mount
-from keylime.tpm import tpm_obj, tpm_abstract
+from keylime.tpm import tpm_main
+from keylime.tpm import tpm_abstract
 
 
 
@@ -166,14 +166,6 @@ def setUpModule():
     launch_cloudverifier()
     launch_registrar()
     # launch_cloudagent()
-
-    # get the tpm object
-    global tpm
-
-    try:
-        tpm = tpm_obj.getTPM(need_hw_tpm=True)
-    except Exception as e:
-        print("Error: %s" % e)
 
     # Make the Tenant do a lot of set-up work for us
     global tenant_templ
@@ -370,6 +362,7 @@ class TestRestful(unittest.TestCase):
     # Registrar Testset
     def test_010_reg_agent_post(self):
         """Test registrar's POST /v2/agents/{UUID} Interface"""
+        tpm_instance = tpm_main.tpm()
         global keyblob, aik, vtpm, ek
 
         # Change CWD for TPM-related operations
@@ -378,19 +371,19 @@ class TestRestful(unittest.TestCase):
         _ = secure_mount.mount()
 
         # Initialize the TPM with AIK
-        (ek, ekcert, aik, ek_tpm, aik_name) = tpm.tpm_init(self_activate=False,
+        (ek, ekcert, aik, ek_tpm, aik_name) = tpm_instance.tpm_init(self_activate=False,
                                                            config_pw=config.get('cloud_agent', 'tpm_ownerpassword'))
-        vtpm = tpm.is_vtpm()
+        vtpm = tpm_instance.is_vtpm()
 
         # Seed RNG (root only)
         if config.REQUIRE_ROOT:
-            tpm.init_system_rand()
+            tpm_instance.init_system_rand()
 
         # Handle virtualized and emulated TPMs
         if ekcert is None:
             if vtpm:
                 ekcert = 'virtual'
-            elif tpm.is_emulator():
+            elif tpm_instance.is_emulator():
                 ekcert = 'emulator'
 
         # Get back to our original CWD
@@ -402,7 +395,6 @@ class TestRestful(unittest.TestCase):
             'aik': aik,
             'aik_name': aik_name,
             'ek_tpm': ek_tpm,
-            'tpm_version': tpm.VERSION,
         }
 
         test_010_reg_agent_post = RequestsClient(tenant_templ.registrar_base_url, tls_enabled=False)
@@ -426,13 +418,13 @@ class TestRestful(unittest.TestCase):
     @unittest.skipIf(vtpm, "Registrar's PUT /v2/agents/{UUID}/activate only for non-vTPMs!")
     def test_011_reg_agent_activate_put(self):
         """Test registrar's PUT /v2/agents/{UUID}/activate Interface"""
+        tpm_instance = tpm_main.tpm()
         global keyblob, aik
 
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
 
-        key = tpm.activate_identity(keyblob)
-
+        key = tpm_instance.activate_identity(keyblob)
         data = {
             'auth_tag': crypto.do_hmac(key, tenant_templ.agent_uuid),
         }
@@ -450,35 +442,6 @@ class TestRestful(unittest.TestCase):
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
 
-    @unittest.skipIf(not vtpm, "Registrar's PUT /v2/agents/{UUID}/vactivate only for vTPMs!")
-    def test_012_reg_agent_vactivate_put(self):
-        """Test registrar's PUT /v2/agents/{UUID}/vactivate Interface"""
-        global keyblob, aik, ek
-
-        self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
-        self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
-        self.assertIsNotNone(ek, "Required value not set.  Previous step may have failed?")
-
-        key = tpm.activate_identity(keyblob)
-        deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(),
-                                          tenant_templ.agent_uuid + aik + ek)
-        data = {
-            'deepquote': deepquote,
-        }
-
-        test_012_reg_agent_vactivate_put = RequestsClient(tenant_templ.registrar_base_url, tls_enabled=False)
-        response = test_012_reg_agent_vactivate_put.put(
-            f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}/vactivate',
-            data=json.dumps(data),
-            cert="",
-            verify=False
-        )
-
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent vActivate return code!")
-        json_response = response.json()
-
-        # Ensure response is well-formed
-        self.assertIn("results", json_response, "Malformed response body!")
 
     def test_013_reg_agents_get(self):
         """Test registrar's GET /v2/agents Interface"""
@@ -569,6 +532,7 @@ class TestRestful(unittest.TestCase):
 
     def test_022_agent_quotes_identity_get(self):
         """Test agent's GET /v2/quotes/identity Interface"""
+        tpm_instance = tpm_main.tpm()
         global aik
 
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
@@ -598,7 +562,7 @@ class TestRestful(unittest.TestCase):
         self.assertIn("pubkey", json_response["results"], "Malformed response body!")
 
         # Check the quote identity
-        self.assertTrue(tpm.check_quote(tenant_templ.agent_uuid,
+        self.assertTrue(tpm_instance.check_quote(tenant_templ.agent_uuid,
                                         nonce,
                                         json_response["results"]["pubkey"],
                                         json_response["results"]["quote"],
@@ -798,6 +762,7 @@ class TestRestful(unittest.TestCase):
 
     def test_040_agent_quotes_integrity_get(self):
         """Test agent's GET /v2/quotes/integrity Interface"""
+        tpm_instance = tpm_main.tpm()
         global public_key, aik
 
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
@@ -825,13 +790,12 @@ class TestRestful(unittest.TestCase):
         if public_key is None:
             self.assertIn("pubkey", json_response["results"], "Malformed response body!")
             public_key = json_response["results"]["pubkey"]
-        self.assertIn("tpm_version", json_response["results"], "Malformed response body!")
         self.assertIn("hash_alg", json_response["results"], "Malformed response body!")
 
         quote = json_response["results"]["quote"]
         hash_alg = json_response["results"]["hash_alg"]
 
-        validQuote = tpm.check_quote(tenant_templ.agent_uuid,
+        validQuote = tpm_instance.check_quote(tenant_templ.agent_uuid,
                                      nonce,
                                      public_key,
                                      quote,

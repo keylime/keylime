@@ -56,7 +56,6 @@ def _from_db_obj(agent_db_obj):
               'operational_state', 'public_key',
               'tpm_policy', 'vtpm_policy', 'meta_data',
               'allowlist', 'ima_sign_verification_keys', 'revocation_key',
-              'tpm_version',
               'accept_tpm_hash_algs',
               'accept_tpm_encryption_algs',
               'accept_tpm_signing_algs',
@@ -275,7 +274,6 @@ class AgentsHandler(BaseHandler):
                     agent_data['allowlist'] = json_body['allowlist']
                     agent_data['ima_sign_verification_keys'] = json_body['ima_sign_verification_keys']
                     agent_data['revocation_key'] = json_body['revocation_key']
-                    agent_data['tpm_version'] = 0
                     agent_data['accept_tpm_hash_algs'] = json_body['accept_tpm_hash_algs']
                     agent_data['accept_tpm_encryption_algs'] = json_body['accept_tpm_encryption_algs']
                     agent_data['accept_tpm_signing_algs'] = json_body['accept_tpm_signing_algs']

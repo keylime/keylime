@@ -158,22 +158,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
     # tpm_quote
     @abstractmethod
-    def create_deep_quote(self, nonce, data=None, vpcrmask=EMPTYMASK, pcrmask=EMPTYMASK):
-        pass
-
-    @abstractmethod
     def create_quote(self, nonce, data=None, pcrmask=EMPTYMASK, hash_alg=None):
-        pass
-
-    def is_deep_quote(self, quote):
-        if quote[0] == 'd':
-            return True
-        if quote[0] == 'r':
-            return False
-        raise Exception("Invalid quote type %s" % quote[0])
-
-    @abstractmethod
-    def check_deep_quote(self, agent_id, nonce, data, quote, vAIK, hAIK, vtpm_policy={}, tpm_policy={}, ima_measurement_list=None, allowlist={}):
         pass
 
     @abstractmethod
