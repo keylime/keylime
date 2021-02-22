@@ -38,6 +38,7 @@ import base64
 import threading
 import shutil
 import errno
+import hashlib
 from pathlib import Path
 
 import dbus
@@ -50,7 +51,6 @@ from keylime import tenant
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import secure_mount
-
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm import tpm_abstract
 
@@ -167,9 +167,6 @@ def setUpModule():
     launch_cloudverifier()
     launch_registrar()
     # launch_cloudagent()
-
-    # get the tpm object
-    global tpm
 
     # Make the Tenant do a lot of set-up work for us
     global tenant_templ
@@ -440,6 +437,36 @@ class TestRestful(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200, "Non-successful Registrar agent Activate return code!")
+        json_response = response.json()
+
+        # Ensure response is well-formed
+        self.assertIn("results", json_response, "Malformed response body!")
+
+    @unittest.skipIf(not vtpm, "Registrar's PUT /v2/agents/{UUID}/vactivate only for vTPMs!")
+    def test_012_reg_agent_vactivate_put(self):
+        """Test registrar's PUT /v2/agents/{UUID}/vactivate Interface"""
+        global keyblob, aik, ek
+
+        self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
+        self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
+        self.assertIsNotNone(ek, "Required value not set.  Previous step may have failed?")
+
+        key = tpm.activate_identity(keyblob)
+        deepquote = tpm.create_deep_quote(hashlib.sha1(key).hexdigest(),
+                                          tenant_templ.agent_uuid + aik + ek)
+        data = {
+            'deepquote': deepquote,
+        }
+
+        test_012_reg_agent_vactivate_put = RequestsClient(tenant_templ.registrar_base_url, tls_enabled=False)
+        response = test_012_reg_agent_vactivate_put.put(
+            f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}/vactivate',
+            data=json.dumps(data),
+            cert="",
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent vActivate return code!")
         json_response = response.json()
 
         # Ensure response is well-formed
