@@ -417,7 +417,7 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(keyblob, "Malformed response body!")
 
     @unittest.skipIf(vtpm, "Registrar's PUT /v2/agents/{UUID}/activate only for non-vTPMs!")
-    def test_011_reg_agent_activate_put(self):ß
+    def test_011_reg_agent_activate_put(self):
         """Test registrar's PUT /v2/agents/{UUID}/activate Interface"""
         tpm_instance = tpm.tpm()
         global keyblob, aik
