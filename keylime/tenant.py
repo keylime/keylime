@@ -410,7 +410,7 @@ class Tenant():
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
         if config.INSECURE_DEBUG:
             logger.debug(F"K: {base64.b64encode(self.K)}")
-            logger.debug(F"V: {base64.b64encode(self.V)}")ß
+            logger.debug(F"V: {base64.b64encode(self.V)}")
             logger.debug(F"U: {base64.b64encode(self.U)}")
             logger.debug(F"Auth Tag: {self.auth_tag}")
 
