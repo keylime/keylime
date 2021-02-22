@@ -180,22 +180,6 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
     return False
 
 
-def doActivateVirtualAgent(registrar_ip, registrar_port, agent_id):
-
-    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-    response = client.put(f'/agents/{agent_id}/vactivate', cert=tls_cert_info, data=json.dumps(data), verify=False)
-    response_body = response.json()
-
-    if response.status_code == 200:
-        logger.info("Registration activated for agent %s." % agent_id)
-        return True
-
-    logger.error(
-        "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
-    keylime_logging.log_http_response(logger, logging.ERROR, response_body)
-    return False
-
-
 def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
     client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
     response = client.delete(f'/agents/{agent_id}', cert=tls_cert_info, verify=False)

@@ -443,36 +443,36 @@ class TestRestful(unittest.TestCase):
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
 
-    @unittest.skipIf(not vtpm, "Registrar's PUT /v2/agents/{UUID}/vactivate only for vTPMs!")
-    def test_012_reg_agent_vactivate_put(self):
-        """Test registrar's PUT /v2/agents/{UUID}/vactivate Interface"""
-        tpm_instance = tpm_main.tpm()
-        global keyblob, aik, ek
+    # @unittest.skipIf(not vtpm, "Registrar's PUT /v2/agents/{UUID}/vactivate only for vTPMs!")
+    # def test_012_reg_agent_vactivate_put(self):
+    #     """Test registrar's PUT /v2/agents/{UUID}/vactivate Interface"""
+    #     tpm_instance = tpm_main.tpm()
+    #     global keyblob, aik, ek
 
-        self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
-        self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
-        self.assertIsNotNone(ek, "Required value not set.  Previous step may have failed?")
+    #     self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
+    #     self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
+    #     self.assertIsNotNone(ek, "Required value not set.  Previous step may have failed?")
 
-        key = tpm_instance.activate_identity(keyblob)
-        deepquote = tpm_instance.create_deep_quote(hashlib.sha1(key).hexdigest(),
-                                          tenant_templ.agent_uuid + aik + ek)
-        data = {
-            'deepquote': deepquote,
-        }
+    #     key = tpm_instance.activate_identity(keyblob)
+    #     deepquote = tpm_instance.create_deep_quote(hashlib.sha1(key).hexdigest(),
+    #                                       tenant_templ.agent_uuid + aik + ek)
+    #     data = {
+    #         'deepquote': deepquote,
+    #     }
 
-        test_012_reg_agent_vactivate_put = RequestsClient(tenant_templ.registrar_base_url, tls_enabled=False)
-        response = test_012_reg_agent_vactivate_put.put(
-            f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}/vactivate',
-            data=json.dumps(data),
-            cert="",
-            verify=False
-        )
+    #     test_012_reg_agent_vactivate_put = RequestsClient(tenant_templ.registrar_base_url, tls_enabled=False)
+    #     response = test_012_reg_agent_vactivate_put.put(
+    #         f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}/vactivate',
+    #         data=json.dumps(data),
+    #         cert="",
+    #         verify=False
+    #     )
 
-        self.assertEqual(response.status_code, 200, "Non-successful Registrar agent vActivate return code!")
-        json_response = response.json()
+    #     self.assertEqual(response.status_code, 200, "Non-successful Registrar agent vActivate return code!")
+    #     json_response = response.json()
 
-        # Ensure response is well-formed
-        self.assertIn("results", json_response, "Malformed response body!")
+    #     # Ensure response is well-formed
+    #     self.assertIn("results", json_response, "Malformed response body!")
 
     def test_013_reg_agents_get(self):
         """Test registrar's GET /v2/agents Interface"""

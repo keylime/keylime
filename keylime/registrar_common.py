@@ -7,7 +7,6 @@ import threading
 import sys
 import signal
 import time
-import hashlib
 import http.server
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
@@ -18,7 +17,6 @@ import simplejson as json
 
 from keylime.db.registrar_db import RegistrarMain
 from keylime.db.keylime_db import DBEngineManager, SessionManager
-from keylime import registrar_client
 from keylime import cloud_verifier_common
 from keylime import config
 from keylime import crypto
