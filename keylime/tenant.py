@@ -475,11 +475,11 @@ class Tenant():
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
         # check EK cert and make sure it matches EK
-        if not self.check_ek(reg_keys['ek'], reg_keys['ekcert'], tpm):
+        if not self.check_ek(reg_keys['ek'], reg_keys['ekcert'], self.tpm_instance):
             return False
         # if agent is virtual, check phyisical EK cert and make sure it matches phyiscal EK
         if 'provider_keys' in reg_keys:
-            if not self.check_ek(reg_keys['provider_keys']['ek'], reg_keys['provider_keys']['ekcert'], tpm):
+            if not self.check_ek(reg_keys['provider_keys']['ek'], reg_keys['provider_keys']['ekcert'], self.tpm_instance):
                 return False
 
         # check all EKs with optional script:
