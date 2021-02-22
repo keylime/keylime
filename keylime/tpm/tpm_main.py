@@ -869,8 +869,6 @@ class tpm(tpm_abstract.AbstractTPM):
             ekcertpem = ek509.get_pubkey().get_rsa().as_pem(cipher=None).decode('utf-8')
 
             # Make sure given ekcert is for their ek
-            print('ekpem: ', str(ekpem))
-            print('ekcertpem: ', str(ekcertpem))
             if str(ekpem) != str(ekcertpem):
                 logger.error("Public EK does not match EK certificate")
                 return False
