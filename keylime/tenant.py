@@ -410,11 +410,11 @@ class Tenant():
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
         if config.INSECURE_DEBUG:
             logger.debug(F"K: {base64.b64encode(self.K)}")
-            logger.debug(F"V: {base64.b64encode(self.V)}")
+            logger.debug(F"V: {base64.b64encode(self.V)}")ß
             logger.debug(F"U: {base64.b64encode(self.U)}")
             logger.debug(F"Auth Tag: {self.auth_tag}")
 
-    def check_ek(self, ek, ekcert, tpm):
+    def check_ek(self, ek, ekcert):
         """ Check the Entity Key
 
         Arguments:
@@ -475,11 +475,11 @@ class Tenant():
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
         # check EK cert and make sure it matches EK
-        if not self.check_ek(reg_keys['ek'], reg_keys['ekcert'], self.tpm_instance):
+        if not self.check_ek(reg_keys['ek'], reg_keys['ekcert']):
             return False
         # if agent is virtual, check phyisical EK cert and make sure it matches phyiscal EK
         if 'provider_keys' in reg_keys:
-            if not self.check_ek(reg_keys['provider_keys']['ek'], reg_keys['provider_keys']['ekcert'], self.tpm_instance):
+            if not self.check_ek(reg_keys['provider_keys']['ek'], reg_keys['provider_keys']['ekcert']):
                 return False
 
         # check all EKs with optional script:
