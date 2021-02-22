@@ -363,7 +363,7 @@ class TestRestful(unittest.TestCase):
     # Registrar Testset
     def test_010_reg_agent_post(self):
         """Test registrar's POST /v2/agents/{UUID} Interface"""
-        tpm_instance = tpm()
+        tpm_instance = tpm.tpm()
         global keyblob, aik, vtpm, ek
 
         # Change CWD for TPM-related operations
