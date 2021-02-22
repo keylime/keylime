@@ -38,7 +38,6 @@ import base64
 import threading
 import shutil
 import errno
-import hashlib
 from pathlib import Path
 
 import dbus
@@ -385,7 +384,9 @@ class TestRestful(unittest.TestCase):
 
         # Handle virtualized and emulated TPMs
         if ekcert is None:
-            if tpm.is_emulator():
+            if vtpm:
+                ekcert = 'virtual'
+            elif tpm.is_emulator():
                 ekcert = 'emulator'
 
         # Get back to our original CWD
