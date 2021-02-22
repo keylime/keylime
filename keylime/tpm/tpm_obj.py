@@ -7,7 +7,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 import distutils.spawn
 import os
 
-from keylime.tpm import tpm1, tpm2
+from keylime.tpm import tpm_main
 from keylime import config
 from keylime import keylime_logging
 
@@ -39,7 +39,7 @@ def __guess_tpm_version():
     # Both toolsets are installed!  See if tpm1 tools work:
     try:
         temp_tpm1 = tpm1.tpm1(True)
-        manufacturer = temp_tpm1.get_tpm_manufacturer()
+        manufacturer = tpm_main.get_tpm_manufacturer()
         if isinstance(manufacturer, str):
             return 1
 
