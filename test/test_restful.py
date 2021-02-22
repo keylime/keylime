@@ -363,7 +363,7 @@ class TestRestful(unittest.TestCase):
     # Registrar Testset
     def test_010_reg_agent_post(self):
         """Test registrar's POST /v2/agents/{UUID} Interface"""
-        tpm_instance = tpm.tpm()
+        tpm_instance = tpm()
         global keyblob, aik, vtpm, ek
 
         # Change CWD for TPM-related operations
@@ -419,7 +419,7 @@ class TestRestful(unittest.TestCase):
     @unittest.skipIf(vtpm, "Registrar's PUT /v2/agents/{UUID}/activate only for non-vTPMs!")
     def test_011_reg_agent_activate_put(self):
         """Test registrar's PUT /v2/agents/{UUID}/activate Interface"""
-        tpm_instance = tpm.tpm()
+        tpm_instance = tpm()
         global keyblob, aik
 
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
@@ -446,7 +446,7 @@ class TestRestful(unittest.TestCase):
     @unittest.skipIf(not vtpm, "Registrar's PUT /v2/agents/{UUID}/vactivate only for vTPMs!")
     def test_012_reg_agent_vactivate_put(self):
         """Test registrar's PUT /v2/agents/{UUID}/vactivate Interface"""
-        tpm_instance = tpm.tpm()
+        tpm_instance = tpm()
         global keyblob, aik, ek
 
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
@@ -563,7 +563,7 @@ class TestRestful(unittest.TestCase):
 
     def test_022_agent_quotes_identity_get(self):
         """Test agent's GET /v2/quotes/identity Interface"""
-        tpm_instance = tpm.tpm()
+        tpm_instance = tpm()
         global aik
 
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
@@ -793,7 +793,7 @@ class TestRestful(unittest.TestCase):
 
     def test_040_agent_quotes_integrity_get(self):
         """Test agent's GET /v2/quotes/integrity Interface"""
-        tpm_instance = tpm.tpm()
+        tpm_instance = tpm()
         global public_key, aik
 
         self.assertIsNotNone(aik, "Required value not set.  Previous step may have failed?")
