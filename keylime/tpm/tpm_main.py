@@ -977,7 +977,7 @@ class tpm(tpm_abstract.AbstractTPM):
         retDict = self.__run(command, lock=False)
         return retDict
 
-    def check_quote(self, agent_id, nonce, data, quote, aikFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate=None):
+    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate={}):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
@@ -992,9 +992,6 @@ class tpm(tpm_abstract.AbstractTPM):
                 crypto_serialization.Encoding.PEM,
                 crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
             )
-
-        if mb_measurement_list or mb_intended_state:
-            logger.info("Measured boot information received, but for now it will not be processed")
 
         if quote[0] != 'r':
             raise Exception("Invalid quote type %s" % quote[0])

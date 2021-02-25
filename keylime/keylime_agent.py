@@ -43,6 +43,9 @@ logger = keylime_logging.init_logging('cloudagent')
 # lock required for multithreaded operation
 uvLock = threading.Lock()
 
+# Instaniate tpm
+global tpm_instance
+tpm_instance = tpm(need_hw_tpm=True)
 
 class Handler(BaseHTTPRequestHandler):
     parsed_path = ''
@@ -59,7 +62,7 @@ class Handler(BaseHTTPRequestHandler):
         """
 
         logger.info('GET invoked from ' + str(self.client_address) + ' with uri:' + self.path)
-        tpm_instance = tpm()
+
         rest_params = config.get_restful_params(self.path)
         if rest_params is None:
             config.echo_json_response(
@@ -176,7 +179,7 @@ class Handler(BaseHTTPRequestHandler):
         Only tenant and cloudverifier uri's are supported. Both requests require a nonce parameter.
         The Cloud verifier requires an additional mask parameter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
-        tpm_instance = tpm()
+
         rest_params = config.get_restful_params(self.path)
 
         if rest_params is None:
