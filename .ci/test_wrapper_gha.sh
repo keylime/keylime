@@ -5,7 +5,7 @@ set -x
 mkdir /tmp/tpmdir
 swtpm_setup --tpm2 \
      --tpmstate /tmp/tpmdir \
-     --createek --allow-signing --decryption --create-ek-cert \
+     --createek --decryption --create-ek-cert \
      --create-platform-cert \
      --display
 swtpm socket --tpm2 \
