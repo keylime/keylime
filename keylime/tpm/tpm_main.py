@@ -21,6 +21,7 @@ import simplejson as json
 
 from keylime import cmd_exec
 from keylime import config
+from keylime import tpm_bootlog_enrich
 from keylime import keylime_logging
 from keylime import secure_mount
 from keylime import tpm_bootlog_enrich
