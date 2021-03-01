@@ -52,10 +52,9 @@ recommended ongoing agent within Keylime. Until then the Python agent is
 fully functioning and available to use as a remote monitoring system to interact
 with the keylime verifier and registrar.
 
-### TPM 1.2 & 2.0 support
+### TPM Support
 
-Keylime supports both TPM versions 1.2 and 2.0. Although going forwards
-new feature development will be more focused on the newer TPM 2.0 version.
+Keylime supports TPM version 2.0.
 
 Keylime can be used with a hardware TPM, or a software TPM emulator for
 development, testing, or demonstration purposes.  However, DO NOT USE keylime in
@@ -115,8 +114,8 @@ Note that CFSSL is required if you want to support revocation. As noted above, d
 | ------------- |:-------------:| -----:          |
 | CentOS        | 7 / 8         | Compiled        |
 | RHEL          | 7 / 8         | Compiled        |
-| Fedora        | 29 / 30 / 31  | Package Install |
-| Ubuntu        | 18 LTS / 19   | Compiled        |
+| Fedora        | 32 / 33 / 34  | Package Install |
+| Ubuntu        | 19 LTS / 20   | Compiled        |
 
 ### Ansible
 
@@ -143,7 +142,7 @@ which will automate the build and pull of keylime on TPM 1.2 or 2.0.
 
 ### Manual
 
-Keylime requires Python 3.6.
+Keylime requires Python 3.6 & above
 
 #### Python-based prerequisites
 
@@ -160,39 +159,15 @@ python3 -m pip install -r requirements.txt
 
 #### TPM utility prerequisites
 
-##### TPM 1.2 Support
-
-You also need a patched version of tpm4720 the IBM software TPM emulator and
-utilities.  This is available at https://github.com/keylime/tpm4720-keylime.
-Even if you are using keylime with a real TPM, you must install the IBM emulator
-because keylime uses the command line utilities that come with it.
-See README.md in that project for detailed instructions on how to build and install it.
-
-The brief synopsis of a quick build/install (after installing dependencies) is:
-
-```bash
-git clone https://github.com/keylime/tpm4720-keylime.git
-cd tpm4720-keylime/libtpm
-./comp-chardev.sh
-sudo make install
-```
-
-To build tpm4720 to use the TPM emulator replace `./comp-chardev.sh` with `./comp-sockets.sh`.
-
-To ensure that you have the patched version installed ensure that you have
-the `encaik` utility in your path.
-
-##### TPM 2.0 Support
-
 Keylime uses the Intel TPM2 software set to provide TPM 2.0 support.
 
 These can be installed using your package manager.
 
-On Fedora 30 (and greater):
+On Fedora 32 (and greater):
 
 `sudo dnf install tpm2-tss tpm2-tools tpm2-abrmd'
 
-On Ubuntu Ubuntu 18 LTS:
+On Ubuntu Ubuntu 20 LTS:
 
 `sudo apt-get install tpm2-tss tpm2-tools tpm2-abrmd'
 
