@@ -162,7 +162,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_intended_state={}):
+    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate={}):
         pass
 
     def START_HASH(self, algorithm=None):
@@ -215,20 +215,30 @@ class AbstractTPM(metaclass=ABCMeta):
         logger.debug(f"IMA measurement list of agent {agent_id} validated")
         return True
 
-    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_intended_state):
+    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate):
         try:
             tpm_policy_ = ast.literal_eval(tpm_policy)
         except ValueError:
             tpm_policy_ = {}
         pcr_allowlist = tpm_policy_.copy()
 
-        if mb_measurement_list or mb_intended_state :
-            logger.info("Measured boot information received, but for now it will not be processed. A future update will enable the full processing of it.")
-
         if 'mask' in pcr_allowlist:
             del pcr_allowlist['mask']
         # convert all pcr num keys to integers
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
+
+        if mb_refstate and mb_measurement_list :
+            mb_measurement_data = self.parse_bootlog(mb_measurement_list)
+            log_pcrs = mb_measurement_data.get('pcrs')
+            if not isinstance(log_pcrs, dict):
+                logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)
+                return False
+            pcrs_sha256 = log_pcrs.get('sha256')
+            if (not isinstance(pcrs_sha256, dict)) or not pcrs_sha256:
+                logger.error("Parse of measured boot event log has unexpected value for .pcrs.sha256: %r", pcrs_sha256)
+                return False
+        else:
+            pcrs_sha256 = {}
 
         pcrsInQuote = set()
         validatedBindPCR = False
@@ -266,8 +276,23 @@ class AbstractTPM(metaclass=ABCMeta):
 
                 return False
 
-            # check whether this is a MB PCR -- do *not* compare measured boot PCRs against a reference state, if one exists
-            if pcrnum in config.MEASUREDBOOT_PCRS and mb_intended_state :
+            # PCRs set by measured boot get their own special handling
+
+            if pcrnum in config.MEASUREDBOOT_PCRS :
+
+                if mb_refstate :
+
+                    if not mb_measurement_list :
+                        logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcrnum)
+                        return False
+
+                    val_from_log_int = pcrs_sha256.get(str(pcrnum), 0)
+                    val_from_log_hex = hex(val_from_log_int)[2:]
+                    val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
+                    pcrval_stripped = pcrval.lstrip('0')
+                    if val_from_log_hex_stripped != pcrval_stripped:
+                        logger.error("For PCR %d and hash SHA256 the boot event log has value %r but the agent returned %r", pcrnum, val_from_log_hex, pcrval)
+                        return False
                 pcrsInQuote.add(pcrnum)
                 continue
 
@@ -292,6 +317,13 @@ class AbstractTPM(metaclass=ABCMeta):
         if len(missing) > 0:
             logger.error("%sPCRs specified in policy not in quote: %s" % (("", "v")[virtual], missing))
             return False
+
+        if mb_refstate and mb_measurement_list :
+            missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
+            if len(missing) > 0:
+                logger.error("%sPCRs specified for measured boot not in quote: %s", ("", "v")[virtual], missing)
+                return False
+
         return True
 
     # tpm_random
