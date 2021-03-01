@@ -26,7 +26,6 @@ from keylime import keylime_logging
 from keylime.tpm.tpm_main import tpm
 
 # get the tpm object
-global tpm_instance
 tpm_instance = tpm(need_hw_tpm=True)
 
 sys.path.append(os.path.dirname(__file__))
