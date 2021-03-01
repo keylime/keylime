@@ -13,13 +13,16 @@ from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import config, hashlib
 from keylime.common import algorithms
 
+# Instaniate tpm
+global tpm_instance
+tpm_instance = tpm(need_hw_tpm=True)
+
 start_hash = ('0000000000000000000000000000000000000000')
 ff_hash = ('ffffffffffffffffffffffffffffffffffffffff')
 
 
 def ml_extend(ml, position, searchHash=None):
     global start_hash
-    tpm_instance = tpm()
     f = open(ml, 'r')
     lines = itertools.islice(f, position, None)
 
@@ -72,7 +75,6 @@ def ml_extend(ml, position, searchHash=None):
 
 
 def main():
-    tpm_instance = tpm()
     if not tpm_instance.is_emulator():
         raise Exception("This stub should only be used with a TPM emulator")
 
