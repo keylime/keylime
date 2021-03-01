@@ -258,9 +258,10 @@ def list_to_dict(alist):
     return params
 
 
-def yaml_to_dict(arry):
+def yaml_to_dict(arry, add_newlines=True):
     arry = convert(arry)
-    return yaml.load("\n".join(arry), Loader=SafeLoader)
+    sep = "\n" if add_newlines else ""
+    return yaml.load(sep.join(arry), Loader=SafeLoader)
 
 
 def get_restful_params(urlstring):
@@ -312,7 +313,7 @@ else:
 IMA_PCR = 10
 
 # measured boot addons
-MEASUREDBOOT_PCRS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 14]
+MEASUREDBOOT_PCRS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15]
 MEASUREDBOOT_ML = '/sys/kernel/security/tpm0/binary_bios_measurements'
 
 # this is where data will be bound to a quote, MUST BE RESETABLE!
