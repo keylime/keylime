@@ -347,3 +347,7 @@ class AbstractTPM(metaclass=ABCMeta):
     @abstractmethod
     def read_key_nvram(self):
         pass
+
+    @abstractmethod
+    def parse_bootlog(self, log_b64:str) -> dict:
+        raise NotImplementedError
