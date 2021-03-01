@@ -816,7 +816,7 @@ class tpm(tpm_abstract.AbstractTPM):
         except Exception as e:
             logger.error("Error decrypting AIK: " + str(e))
             logger.exception(e)
-            return False
+            return None
         finally:
             if keyblobFile is not None:
                 os.remove(keyblobFile.name)
