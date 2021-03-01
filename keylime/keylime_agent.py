@@ -44,7 +44,6 @@ logger = keylime_logging.init_logging('cloudagent')
 uvLock = threading.Lock()
 
 # Instaniate tpm
-global tpm_instance
 tpm_instance = tpm(need_hw_tpm=True)
 
 
@@ -61,7 +60,7 @@ class Handler(BaseHTTPRequestHandler):
         Only tenant and cloudverifier uri's are supported. Both requests require a nonce parameter.
         The Cloud verifier requires an additional mask paramter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
-
+        global tpm_instance
         logger.info('GET invoked from ' + str(self.client_address) + ' with uri:' + self.path)
         rest_params = config.get_restful_params(self.path)
         if rest_params is None:
@@ -179,6 +178,7 @@ class Handler(BaseHTTPRequestHandler):
         Only tenant and cloudverifier uri's are supported. Both requests require a nonce parameter.
         The Cloud verifier requires an additional mask parameter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
+        global tpm_instance
         rest_params = config.get_restful_params(self.path)
 
         if rest_params is None:
@@ -355,6 +355,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
 
     def __init__(self, server_address, RequestHandlerClass, agent_uuid):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
+        global tpm_instance
         secdir = secure_mount.mount()
         keyname = "%s/%s" % (secdir, config.get('cloud_agent', 'rsa_keyname'))
         # read or generate the key depending on configuration
@@ -483,8 +484,7 @@ def main():
                                'but it\'s is not found on the system.')
 
     # Instanitate TPM class
-
-    instance_tpm = tpm()
+    global tpm_instance
     # get params for initialization
     registrar_ip = config.get('cloud_agent', 'registrar_ip')
     registrar_port = config.get('cloud_agent', 'registrar_port')
@@ -496,7 +496,7 @@ def main():
     config.ch_dir(config.WORK_DIR, logger)
 
     # initialize tpm
-    (ekcert, ek_tpm, aik_tpm) = instance_tpm.tpm_init(self_activate=False, config_pw=config.get(
+    (ekcert, ek_tpm, aik_tpm) = tpm_instance.tpm_init(self_activate=False, config_pw=config.get(
         'cloud_agent', 'tpm_ownerpassword'))  # this tells initialize not to self activate the AIK
     virtual_agent = instance_tpm.is_vtpm()
     # try to get some TPM randomness into the system entropy pool
