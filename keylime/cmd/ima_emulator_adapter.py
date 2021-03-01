@@ -14,7 +14,6 @@ from keylime.tpm.tpm_abstract import config, hashlib
 from keylime.common import algorithms
 
 # Instaniate tpm
-global tpm_instance
 tpm_instance = tpm(need_hw_tpm=True)
 
 start_hash = ('0000000000000000000000000000000000000000')

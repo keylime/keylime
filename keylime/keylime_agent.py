@@ -44,7 +44,6 @@ logger = keylime_logging.init_logging('cloudagent')
 uvLock = threading.Lock()
 
 # Instaniate tpm
-global tpm_instance
 tpm_instance = tpm(need_hw_tpm=True)
 
 
