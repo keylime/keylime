@@ -26,6 +26,7 @@ from keylime import keylime_logging
 from keylime.tpm.tpm_main import tpm
 
 # get the tpm object
+tpm_instance = tpm(need_hw_tpm=True)
 
 sys.path.append(os.path.dirname(__file__))
 
@@ -436,7 +437,6 @@ def do_register_test():
 def tpmconv(inmod):
     """ convert a raw modulus file into a pem file """
     tmppath = None
-    tpm_instance = tpm()
     try:
         # make a temp file for the output
         tmpfd, tmppath = tempfile.mkstemp()
