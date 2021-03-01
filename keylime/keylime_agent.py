@@ -358,7 +358,6 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
         secdir = secure_mount.mount()
         keyname = "%s/%s" % (secdir, config.get('cloud_agent', 'rsa_keyname'))
-        tpm_instance = tpm()
         # read or generate the key depending on configuration
         if os.path.isfile(keyname):
             # read in private key
