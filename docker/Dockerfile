@@ -25,6 +25,7 @@ dbus \
 dbus-daemon \
 dbus-devel \
 dnf-plugins-core \
+efivar-devel \
 gcc \
 git \
 glib2-devel \
