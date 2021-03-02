@@ -19,6 +19,7 @@ protips
 # openssl x509 -in cacert.crt -noout -text
 '''
 
+import json
 import sys
 import os
 import base64
@@ -39,7 +40,6 @@ try:
 except ImportError:
     from yaml import SafeLoader, SafeDumper
 
-import simplejson as json
 from M2Crypto import X509, EVP, BIO
 
 from keylime import cmd_exec

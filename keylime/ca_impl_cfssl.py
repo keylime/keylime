@@ -4,6 +4,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import base64
+import json
 import os
 import subprocess
 import socket
@@ -12,7 +13,6 @@ import shutil
 import sys
 
 import requests
-import simplejson as json
 from M2Crypto import EVP, X509
 
 from keylime import config

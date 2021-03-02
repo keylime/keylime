@@ -12,7 +12,7 @@ import ssl
 import traceback
 import sys
 
-import simplejson as json
+import json
 import tornado.ioloop
 import tornado.web
 

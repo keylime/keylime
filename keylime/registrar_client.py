@@ -7,7 +7,7 @@ import os
 import logging
 import sys
 
-import simplejson as json
+import json
 
 from keylime import config
 from keylime import crypto

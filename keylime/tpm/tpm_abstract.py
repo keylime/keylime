@@ -11,7 +11,7 @@ import os
 import string
 import struct
 
-import simplejson as json
+import json
 import yaml
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper

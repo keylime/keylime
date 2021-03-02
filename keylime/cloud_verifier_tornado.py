@@ -9,7 +9,7 @@ import sys
 import functools
 import asyncio
 
-import simplejson as json
+import json
 from sqlalchemy.exc import SQLAlchemyError
 import tornado.ioloop
 import tornado.web

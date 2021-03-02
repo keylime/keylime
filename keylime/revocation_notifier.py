@@ -11,7 +11,7 @@ import os
 import sys
 import signal
 
-import simplejson as json
+import json
 import zmq
 
 from keylime import config

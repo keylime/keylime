@@ -28,6 +28,7 @@ For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
     * coverage run --parallel-mode test_restful.py
 '''
 
+import json
 import sys
 import signal
 import unittest
@@ -41,7 +42,6 @@ import errno
 from pathlib import Path
 
 import dbus
-import simplejson as json
 
 from keylime import config
 from keylime import tornado_requests

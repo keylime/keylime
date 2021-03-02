@@ -24,7 +24,7 @@ import importlib
 import shutil
 import subprocess
 
-import simplejson as json
+import json
 
 from keylime import config
 from keylime import keylime_logging

@@ -8,6 +8,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 import argparse
 import base64
 import hashlib
+import json
 import io
 import logging
 import os
@@ -17,7 +18,6 @@ import time
 import zipfile
 
 from cryptography.hazmat.primitives import serialization as crypto_serialization
-import simplejson as json
 
 from keylime.requests_client import RequestsClient
 from keylime.common import states

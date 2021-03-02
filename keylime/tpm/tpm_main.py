@@ -5,6 +5,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import base64
 import binascii
+import json
 import os
 import re
 import sys
@@ -17,7 +18,6 @@ from distutils.version import StrictVersion
 
 import M2Crypto
 from cryptography.hazmat.primitives import serialization as crypto_serialization
-import simplejson as json
 
 from keylime import cmd_exec
 from keylime import config

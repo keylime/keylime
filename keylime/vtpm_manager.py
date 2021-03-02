@@ -14,7 +14,7 @@ import time
 import tempfile
 from uuid import UUID
 
-import simplejson as json
+import json
 
 try:
     from yaml import CSafeDumper as SafeDumper

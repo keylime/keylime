@@ -28,7 +28,7 @@ sys.path.insert(0, '../../keylime/')
 
 logger = keylime_logging.init_logging('agent_monitor')
 
-import simplejson as json
+import json
 
 initscript = None
 

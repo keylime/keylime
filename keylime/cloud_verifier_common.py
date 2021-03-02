@@ -10,7 +10,7 @@ import ssl
 import socket
 import time
 
-import simplejson as json
+import json
 
 from keylime import config
 from keylime import keylime_logging
