@@ -18,7 +18,8 @@ class Hash:
     SHA256 = 'sha256'
     SHA384 = 'sha384'
     SHA512 = 'sha512'
-    supported_algorithms = (SHA1, SHA256, SHA384, SHA512)
+    SM3_256 = 'sm3_256'
+    supported_algorithms = (SHA1, SHA256, SHA384, SHA512, SM3_256)
 
     @staticmethod
     def is_recognized(algorithm):
