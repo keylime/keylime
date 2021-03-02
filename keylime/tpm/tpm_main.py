@@ -1218,7 +1218,7 @@ class tpm(tpm_abstract.AbstractTPM):
             return None
         return output
 
-    def stringify_pcrs(self, log: dict) -> None:
+    def __stringify_pcr_keys(self, log: dict) -> None:
         '''Ensure that the PCR indices are strings
 
         The YAML produced by `tpm2_eventlog`, when loaded by the yaml module,
@@ -1253,7 +1253,7 @@ class tpm(tpm_abstract.AbstractTPM):
         log_parsed_strs = retDict['retout']
         log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False)
         tpm_bootlog_enrich.enrich(log_parsed_data)
-        self.stringify_pcrs(log_parsed_data)
+        self.__stringify_pcr_keys(log_parsed_data)
         return log_parsed_data
 
     def parse_bootlog(self, log_b64:str) -> dict:
