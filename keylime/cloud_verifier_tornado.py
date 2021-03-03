@@ -52,14 +52,25 @@ exclude_db = {
 
 
 def _from_db_obj(agent_db_obj):
-    fields = ['agent_id', 'v', 'ip', 'port',
-              'operational_state', 'public_key',
-              'tpm_policy', 'vtpm_policy', 'meta_data',
-              'allowlist', 'ima_sign_verification_keys', 'revocation_key',
-              'accept_tpm_hash_algs',
-              'accept_tpm_encryption_algs',
-              'accept_tpm_signing_algs',
-              'hash_alg', 'enc_alg', 'sign_alg']
+    fields = [ 'agent_id', \
+                'v', \
+                'ip', \
+                'port', \
+                'operational_state', \
+                'public_key', \
+                'tpm_policy', \
+                'vtpm_policy', \
+                'meta_data', \
+                'mb_refstate', \
+                'allowlist', \
+                'ima_sign_verification_keys', \
+                'revocation_key', \
+                'accept_tpm_hash_algs', \
+                'accept_tpm_encryption_algs', \
+                'accept_tpm_signing_algs', \
+                'hash_alg', \
+                'enc_alg', \
+                'sign_alg']
     agent_dict = {}
     for field in fields:
         agent_dict[field] = getattr(agent_db_obj, field, None)
@@ -272,6 +283,7 @@ class AgentsHandler(BaseHandler):
                     agent_data['vtpm_policy'] = json_body['vtpm_policy']
                     agent_data['meta_data'] = json_body['metadata']
                     agent_data['allowlist'] = json_body['allowlist']
+                    agent_data['mb_refstate'] = json_body['mb_refstate']
                     agent_data['ima_sign_verification_keys'] = json_body['ima_sign_verification_keys']
                     agent_data['revocation_key'] = json_body['revocation_key']
                     agent_data['accept_tpm_hash_algs'] = json_body['accept_tpm_hash_algs']

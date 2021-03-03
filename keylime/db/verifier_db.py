@@ -30,6 +30,7 @@ class VerfierMain(Base):
     meta_data = Column(String(200))
     allowlist = Column(Text(429400000))
     ima_sign_verification_keys = Column(Text(429400000))
+    mb_refstate = Column(Text(429400000))
     revocation_key = Column(String(2800))
     accept_tpm_hash_algs = Column(JSONPickleType(pickler=json))
     accept_tpm_encryption_algs = Column(JSONPickleType(pickler=json))
