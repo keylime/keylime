@@ -23,6 +23,7 @@ from keylime import cmd_exec
 from keylime import config
 from keylime import keylime_logging
 from keylime import secure_mount
+from keylime import tpm_bootlog_enrich
 from keylime.tpm import tpm_abstract
 from keylime import tpm_ek_ca
 from keylime.common import algorithms
@@ -976,7 +977,7 @@ class tpm(tpm_abstract.AbstractTPM):
         retDict = self.__run(command, lock=False)
         return retDict
 
-    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_intended_state={}):
+    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate={}):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
@@ -991,9 +992,6 @@ class tpm(tpm_abstract.AbstractTPM):
                 crypto_serialization.Encoding.PEM,
                 crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
             )
-
-        if mb_measurement_list or mb_intended_state:
-            logger.info("Measured boot information received, but for now it will not be processed")
 
         if quote[0] != 'r':
             raise Exception("Invalid quote type %s" % quote[0])
@@ -1076,7 +1074,7 @@ class tpm(tpm_abstract.AbstractTPM):
         if len(pcrs) == 0:
             pcrs = None
 
-        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_intended_state)
+        return self.check_pcrs(agent_id, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate)
 
     def sim_extend(self, hashval_1, hashval_0=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure
@@ -1219,3 +1217,49 @@ class tpm(tpm_abstract.AbstractTPM):
             logger.debug("Invalid key length from NVRAM: %d" % (len(output)))
             return None
         return output
+
+    def __stringify_pcr_keys(self, log: dict) -> None:
+        '''Ensure that the PCR indices are strings
+
+        The YAML produced by `tpm2_eventlog`, when loaded by the yaml module,
+        uses integer keys in the dicts holding PCR contents.  That does not
+        correspond to any JSON data.  This method ensures those keys are
+        strings.
+        The log is untrusted because it ultimately comes from an untrusted
+        source and has been processed by software that has had bugs.'''
+        if (not isinstance(log, dict)) or 'pcrs' not in log:
+            return
+        old_pcrs = log['pcrs']
+        if not isinstance(old_pcrs, dict):
+            return
+        new_pcrs = dict()
+        for hash_alg, cells in old_pcrs.items():
+            if not isinstance(cells, dict):
+                new_pcrs[hash_alg] = cells
+                continue
+            new_pcrs[hash_alg] = {str(index): val for index, val in cells.items()}
+        log['pcrs'] = new_pcrs
+        return
+
+    def parse_binary_bootlog(self, log_bin:bytes) -> dict:
+        '''Parse and enrich a BIOS boot log
+
+        The input is the binary log.
+        The output is the result of parsing and applying other conveniences.'''
+        with tempfile.NamedTemporaryFile() as log_bin_file:
+            log_bin_file.write(log_bin)
+            log_bin_filename = log_bin_file.name
+            retDict = self.__run(['tpm2_eventlog', log_bin_filename])
+        log_parsed_strs = retDict['retout']
+        log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False)
+        tpm_bootlog_enrich.enrich(log_parsed_data)
+        self.__stringify_pcr_keys(log_parsed_data)
+        return log_parsed_data
+
+    def parse_bootlog(self, log_b64:str) -> dict:
+        '''Parse and enrich a BIOS boot log
+
+        The input is the base64 encoding of a binary log.
+        The output is the result of parsing and applying other conveniences.'''
+        log_bin = base64.b64decode(log_b64, validate=True)
+        return self.parse_binary_bootlog(log_bin)
