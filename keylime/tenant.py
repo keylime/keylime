@@ -33,6 +33,7 @@ from keylime.cmd import user_data_encrypt
 from keylime import ca_util
 from keylime.common import algorithms
 from keylime import ima_file_signatures
+from keylime import measured_boot
 
 # setup logging
 logger = keylime_logging.init_logging('tenant')
@@ -77,6 +78,7 @@ class Tenant():
     accept_tpm_hash_algs = []
     accept_tpm_encryption_algs = []
     accept_tpm_signing_algs = []
+    mb_refstate = None
 
     payload = None
 
@@ -242,12 +244,13 @@ class Tenant():
             # Process allowlists
             self.allowlist = ima.process_allowlists(al_data, excl_data)
 
-        # Read command-line path string TPM2 event log template
+        # Read command-line path string TPM event log (measured boot) reference state
+        mb_refstate_data = None
         if "mb_refstate" in args and args["mb_refstate"] is not None:
 
             self.enforce_pcrs(list(self.tpm_policy.keys()), config.MEASUREDBOOT_PCRS, "measured boot")
 
-            # Auto-enable TPM2 event log (or-bit mask)
+            # Auto-enable TPM event log mesured boot (or-bit mask)
             for _pcr in config.MEASUREDBOOT_PCRS :
                 self.tpm_policy['mask'] = "0x%X" % (
                     int(self.tpm_policy['mask'], 0) | (1 << _pcr))
@@ -257,11 +260,15 @@ class Tenant():
             if isinstance(args["mb_refstate"], str):
                 if args["mb_refstate"] == "default":
                     args["mb_refstate"] = config.get('tenant', 'mb_refstate')
-                al_data = 'test'
-            elif isinstance(args["mb_refstate"], list):
-                al_data = args["mb_refstate"]
+                mb_refstate_data = measured_boot.read_mb_refstate(args["mb_refstate"])
             else:
                 raise UserError("Invalid measured boot reference state (intended state) provided")
+
+        # Set up measured boot (TPM event log) reference state
+        if TPM_Utilities.check_mask(self.tpm_policy['mask'], config.MEASUREDBOOT_PCRS[2]) :
+
+            # Process measured boot reference state
+            self.mb_refstate = measured_boot.process_refstate(mb_refstate_data)
 
         # if none
         if (args["file"] is None and args["keyfile"] is None and args["ca_dir"] is None):
@@ -534,6 +541,7 @@ class Tenant():
             'tpm_policy': json.dumps(self.tpm_policy),
             'vtpm_policy': json.dumps(self.vtpm_policy),
             'allowlist': json.dumps(self.allowlist),
+            'mb_refstate': json.dumps(self.mb_refstate),
             'ima_sign_verification_keys': json.dumps(self.ima_sign_verification_keys),
             'metadata': json.dumps(self.metadata),
             'revocation_key': self.revocation_key,

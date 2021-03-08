@@ -206,7 +206,7 @@ def process_quote_response(agent, json_response):
         hash_alg,
         ima_keyring,
         mb_measurement_list,
-        {})
+        agent['mb_refstate'])
     if not validQuote:
         return False
 
@@ -270,6 +270,18 @@ def process_get_status(agent):
         al_len = len(allowlist['allowlist'])
     else:
         al_len = 0
+
+    try :
+        mb_refstate = ast.literal_eval(agent.mb_refstate)
+    except Exception as e:
+        logger.warning(f'Non-fatal problem ocurred while attempting to evaluate agent attribute "mb_refstate" ({e.args}). Will just consider the value of this attribute to be "None"')
+        mb_refstate = None
+        logger.debug(f'The contents of the agent attribute "mb_refstate" are {str(agent.mb_refstate)}')
+
+    if isinstance(mb_refstate, dict) and 'mb_refstate' in mb_refstate:
+        mb_refstate_len = len(mb_refstate['mb_refstate'])
+    else:
+        mb_refstate_len = 0
     response = {'operational_state': agent.operational_state,
                 'v': agent.v,
                 'ip': agent.ip,
@@ -278,6 +290,7 @@ def process_get_status(agent):
                 'vtpm_policy': agent.vtpm_policy,
                 'meta_data': agent.meta_data,
                 'allowlist_len': al_len,
+                'mb_refstate_len': mb_refstate_len,
                 'accept_tpm_hash_algs': agent.accept_tpm_hash_algs,
                 'accept_tpm_encryption_algs': agent.accept_tpm_encryption_algs,
                 'accept_tpm_signing_algs': agent.accept_tpm_signing_algs,

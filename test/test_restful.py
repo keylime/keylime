@@ -321,6 +321,7 @@ class TestRestful(unittest.TestCase):
     metadata = {}
     allowlist = {}
     revocation_key = ""
+    mb_refstate = None
     K = None
     U = None
     V = None
@@ -637,6 +638,7 @@ class TestRestful(unittest.TestCase):
             'vtpm_policy': json.dumps(self.vtpm_policy),
             'allowlist': json.dumps(self.allowlist),
             'ima_sign_verification_keys': '',
+            'mb_refstate': None,
             'metadata': json.dumps(self.metadata),
             'revocation_key': self.revocation_key,
             'accept_tpm_hash_algs': config.get('tenant', 'accept_tpm_hash_algs').split(','),

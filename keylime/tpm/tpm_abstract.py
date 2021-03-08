@@ -222,6 +222,9 @@ class AbstractTPM(metaclass=ABCMeta):
             tpm_policy_ = {}
         pcr_allowlist = tpm_policy_.copy()
 
+        if str(mb_refstate) == "null" :
+            mb_refstate = None
+
         if 'mask' in pcr_allowlist:
             del pcr_allowlist['mask']
         # convert all pcr num keys to integers
@@ -318,7 +321,7 @@ class AbstractTPM(metaclass=ABCMeta):
             logger.error("%sPCRs specified in policy not in quote: %s" % (("", "v")[virtual], missing))
             return False
 
-        if mb_refstate and mb_measurement_list :
+        if mb_refstate :
             missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
             if len(missing) > 0:
                 logger.error("%sPCRs specified for measured boot not in quote: %s", ("", "v")[virtual], missing)
