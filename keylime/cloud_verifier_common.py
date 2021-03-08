@@ -276,6 +276,7 @@ def process_get_status(agent):
     except Exception as e:
         logger.warning(f'Non-fatal problem ocurred while attempting to evaluate agent attribute "mb_refstate" ({e.args}). Will just consider the value of this attribute to be "None"')
         mb_refstate = None
+        logger.debug(f'The contents of the agent attribute "mb_refstate" are {str(agent.mb_refstate)}')
 
     if isinstance(mb_refstate, dict) and 'mb_refstate' in mb_refstate:
         mb_refstate_len = len(mb_refstate['mb_refstate'])
