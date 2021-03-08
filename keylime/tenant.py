@@ -495,7 +495,7 @@ class Tenant():
         env = os.environ.copy()
         env['AGENT_UUID'] = self.agent_uuid
         env['EK'] = tpm2_objects.pubkey_from_tpm2b_public(
-            reg_keys['ek_tpm'],
+            base64.b64decode(reg_keys['ek_tpm']),
             ).public_bytes(
                 crypto_serialization.Encoding.PEM,
                 crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
