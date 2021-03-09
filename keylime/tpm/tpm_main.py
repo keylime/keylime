@@ -977,7 +977,7 @@ class tpm(tpm_abstract.AbstractTPM):
         retDict = self.__run(command, lock=False)
         return retDict
 
-    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate={}):
+    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate=None):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
@@ -1249,7 +1249,7 @@ class tpm(tpm_abstract.AbstractTPM):
         with tempfile.NamedTemporaryFile() as log_bin_file:
             log_bin_file.write(log_bin)
             log_bin_filename = log_bin_file.name
-            retDict = self.__run(['tpm2_eventlog', log_bin_filename])
+            retDict = self.__run(['tpm2_eventlog', '--eventlog-version=2', log_bin_filename])
         log_parsed_strs = retDict['retout']
         log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False)
         tpm_bootlog_enrich.enrich(log_parsed_data)
