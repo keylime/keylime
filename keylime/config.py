@@ -315,6 +315,8 @@ IMA_PCR = 10
 # measured boot addons
 MEASUREDBOOT_PCRS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15]
 MEASUREDBOOT_ML = '/sys/kernel/security/tpm0/binary_bios_measurements'
+MEASUREDBOOT_IMPORTS = get_config().get('cloud_verifier', 'measured_boot_imports', fallback='').split(',')
+MEASUREDBOOT_POLICYNAME = get_config().get('cloud_verifier', 'measured_boot_policy_name', fallback='accept-all')
 
 # this is where data will be bound to a quote, MUST BE RESETABLE!
 TPM_DATA_PCR = 16
