@@ -29,5 +29,5 @@ with open('/tmp/parsed.json', 'wt') as log_data_file:
 why_not = policy.evaluate(refstate, log_data)
 if why_not:
     print(why_not, file=sys.stderr)
-    exit(1)
+    sys.exit(1)
 print('AOK')

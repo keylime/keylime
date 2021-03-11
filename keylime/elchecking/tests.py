@@ -549,7 +549,7 @@ class SupersetOfDicts(Test):
         expected_keys = set(field_names)
         if actual_keys != expected_keys:
             raise FieldsMismatchError(expected_keys, actual_keys)
-        return tuple([it.get(field_name) for field_name in field_names])
+        return tuple(it.get(field_name) for field_name in field_names)
 
     def __init__(self, reqs: typing.Iterable[dict], field_names: typing.Tuple[str]):
         list(map(type_test(dict), reqs))
