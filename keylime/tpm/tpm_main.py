@@ -23,11 +23,13 @@ from keylime import cmd_exec
 from keylime import config
 from keylime import keylime_logging
 from keylime import secure_mount
-from keylime import tpm_bootlog_enrich
 from keylime.tpm import tpm_abstract
 from keylime import tpm_ek_ca
 from keylime.common import algorithms
 from keylime.tpm import tpm2_objects
+
+if os.uname()[4] == 'x86_64' :
+    from keylime import tpm_bootlog_enrich
 
 logger = keylime_logging.init_logging('tpm')
 
@@ -1252,6 +1254,13 @@ class tpm(tpm_abstract.AbstractTPM):
             retDict = self.__run(['tpm2_eventlog', log_bin_filename])
         log_parsed_strs = retDict['retout']
         log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False)
+        #pylint: disable=import-outside-toplevel
+        try:
+            from keylime import tpm_bootlog_enrich
+        except Exception as e:
+            logger.error("Could not load tpm_bootlog_enrich (which depends on %s): %s" % (config.LIBEFIVAR,str(e)))
+            return None
+        #pylint: enable=import-outside-toplevel
         tpm_bootlog_enrich.enrich(log_parsed_data)
         self.__stringify_pcr_keys(log_parsed_data)
         return log_parsed_data
