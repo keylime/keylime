@@ -316,6 +316,8 @@ IMA_PCR = 10
 MEASUREDBOOT_PCRS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15]
 MEASUREDBOOT_ML = '/sys/kernel/security/tpm0/binary_bios_measurements'
 
+LIBEFIVAR="libefivar.so" # formerly "/usr/lib/x86_64-linux-gnu/libefivar.so"
+
 # this is where data will be bound to a quote, MUST BE RESETABLE!
 TPM_DATA_PCR = 16
 

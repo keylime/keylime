@@ -232,6 +232,9 @@ class AbstractTPM(metaclass=ABCMeta):
 
         if mb_refstate and mb_measurement_list :
             mb_measurement_data = self.parse_bootlog(mb_measurement_list)
+            if not mb_measurement_data :
+                logger.error("Unable to parse measured boot event log. Check previous messages for a reason for error.")
+                return False
             log_pcrs = mb_measurement_data.get('pcrs')
             if not isinstance(log_pcrs, dict):
                 logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)

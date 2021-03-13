@@ -22,6 +22,7 @@ try:
 except ImportError:
     from yaml import SafeLoader
 
+from keylime import config
 ##################################################################################
 #
 # yaml by default outputs numbers in decimal format, and this allows us to
@@ -37,6 +38,7 @@ class hexint(int):
 def representer(_, data):
     return yaml.ScalarNode('tag:yaml.org,2002:int', hex(data))
 
+
 yaml.add_representer(hexint, representer)
 
 ##################################################################################
@@ -45,10 +47,7 @@ yaml.add_representer(hexint, representer)
 #
 ##################################################################################
 
-efivarlib = "libefivar.so"  # formerly "/usr/lib/x86_64-linux-gnu/libefivar.so"
-
-efivarlib_functions = CDLL(efivarlib)
-
+efivarlib_functions = CDLL(config.LIBEFIVAR)
 
 def getDevicePath(b):
     ret = efivarlib_functions.efidp_format_device_path(0, 0, b, len(b))
