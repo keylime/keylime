@@ -244,18 +244,24 @@ class TupleTest(Test):
 
     The tests are run in series, stopping as soon as one fails"""
 
-    def __init__(self, *tests: Test):
+    def __init__(self, *member_tests: Test, pad: bool = False):
         super().__init__()
-        list(map(type_test(Test), tests))
-        self.tests = tests
+        list(map(type_test(Test), member_tests))
+        self.member_tests = member_tests
+        self.pad = pad
 
     def why_not(self, globs: Globals, subject: Data) -> str:
         if not isinstance(subject, list):
             return 'is not a list'
-        if len(subject) != len(self.tests):
-            return f' has length {len(subject)} instead of {len(self.tests)}'
-        for idx, test in enumerate(self.tests):
-            reason = test.why_not(globs, subject[idx])
+        subject_len = len(subject)
+        test_len = len(self.member_tests)
+        if subject_len > test_len:
+            return f' is longer ({subject_len}) than the applicable tests ({test_len})'
+        if (subject_len < test_len) and not self.pad:
+            return f' is shorter ({subject_len}) than the applicable tests ({test_len})'
+        for idx, test in enumerate(self.member_tests):
+            subject_elt = subject[idx] if idx < subject_len else None
+            reason = test.why_not(globs, subject_elt)
             if reason:
                 return f'[{idx}] ' + reason
         return ''
