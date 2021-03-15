@@ -33,7 +33,7 @@ logger = keylime_logging.init_logging('registrar')
 try:
     engine = DBEngineManager().make_engine('registrar')
 except SQLAlchemyError as e:
-    logger.error(f'Error creating SQL engine: {e}')
+    logger.error('Error creating SQL engine: %s', e)
     sys.exit(1)
 
 
@@ -63,8 +63,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         if "agents" not in rest_params:
             config.echo_json_response(self, 400, "uri not supported")
-            logger.warning(
-                'GET returning 400 response. uri not supported: ' + self.path)
+            logger.warning('GET returning 400 response. uri not supported: %s', self.path)
             return
 
         agent_id = rest_params["agents"]
@@ -74,18 +73,16 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 agent = session.query(RegistrarMain).filter_by(
                     agent_id=agent_id).first()
             except SQLAlchemyError as e:
-                logger.error(f'SQLAlchemy Error: {e}')
+                logger.error('SQLAlchemy Error: %s', e)
 
             if agent is None:
                 config.echo_json_response(self, 404, "agent_id not found")
-                logger.warning(
-                    'GET returning 404 response. agent_id ' + agent_id + ' not found.')
+                logger.warning('GET returning 404 response. agent_id %s not found.', agent_id)
                 return
 
             if not agent.active:
                 config.echo_json_response(self, 404, "agent_id not yet active")
-                logger.warning(
-                    'GET returning 404 response. agent_id ' + agent_id + ' not yet active.')
+                logger.warning('GET returning 404 response. agent_id %s not yet active.', agent_id)
                 return
 
             response = {
@@ -99,7 +96,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 response['provider_keys'] = agent.provider_keys
 
             config.echo_json_response(self, 200, "Success", response)
-            logger.info('GET returning 200 response for agent_id:' + agent_id)
+            logger.info('GET returning 200 response for agent_id: %s', agent_id)
         else:
             # return the available registered uuids from the DB
             json_response = session.query(RegistrarMain.agent_id).all()
@@ -135,8 +132,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         if "agents" not in rest_params:
             config.echo_json_response(self, 400, "uri not supported")
-            logger.warning(
-                'DELETE agent returning 400 response. uri not supported: ' + self.path)
+            logger.warning('DELETE agent returning 400 response. uri not supported: %s', self.path)
             return
 
         agent_id = rest_params["agents"]
@@ -147,7 +143,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 try:
                     session.commit()
                 except SQLAlchemyError as e:
-                    logger.error(f'SQLAlchemy Error: {e}')
+                    logger.error('SQLAlchemy Error: %s', e)
                 config.echo_json_response(self, 200, "Success")
                 return
 
@@ -192,16 +188,14 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         if "agents" not in rest_params:
             config.echo_json_response(self, 400, "uri not supported")
-            logger.warning(
-                'POST agent returning 400 response. uri not supported: ' + self.path)
+            logger.warning('POST agent returning 400 response. uri not supported: %s', self.path)
             return
 
         agent_id = rest_params["agents"]
 
         if agent_id is None:
             config.echo_json_response(self, 400, "agent id not found in uri")
-            logger.warning(
-                'POST agent returning 400 response. agent id not found in uri ' + self.path)
+            logger.warning('POST agent returning 400 response. agent id not found in uri %s', self.path)
             return
 
         try:
@@ -209,8 +203,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             if content_length == 0:
                 config.echo_json_response(
                     self, 400, "Expected non zero content length")
-                logger.warning(
-                    'POST for ' + agent_id + ' returning 400 response. Expected non zero content length.')
+                logger.warning('POST for %s returning 400 response. Expected non zero content length.', agent_id)
                 return
 
             post_body = self.rfile.read(content_length)
@@ -272,7 +265,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             except NoResultFound:
                 agent = None
             except SQLAlchemyError as e:
-                logger.error(f'SQLAlchemy Error: {e}')
+                logger.error('SQLAlchemy Error: %s', e)
                 raise
 
             if agent is not None:
@@ -280,8 +273,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 # keep track of how many ek-ekcerts have registered on this uuid
                 regcount = agent.regcount
                 if agent.ek_tpm != ek_tpm or agent.ekcert != ekcert:
-                    logger.warning(
-                        'WARNING: Overwriting previous registration for this UUID with new ek-ekcert pair!')
+                    logger.warning('WARNING: Overwriting previous registration for this UUID with new ek-ekcert pair!')
                     regcount += 1
 
                 # force overwrite
@@ -291,7 +283,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                         agent_id=agent_id).delete()
                     session.commit()
                 except SQLAlchemyError as e:
-                    logger.error(f'SQLAlchemy Error: {e}')
+                    logger.error('SQLAlchemy Error: %s', e)
                     raise
 
             # Add values to database
@@ -310,7 +302,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 session.add(RegistrarMain(**d))
                 session.commit()
             except SQLAlchemyError as e:
-                logger.error(f'SQLAlchemy Error: {e}')
+                logger.error('SQLAlchemy Error: %s', e)
                 raise
 
             response = {
@@ -318,10 +310,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             }
             config.echo_json_response(self, 200, "Success", response)
 
-            logger.info('POST returning key blob for agent_id: ' + agent_id)
+            logger.info('POST returning key blob for agent_id: %s', agent_id)
         except Exception as e:
             config.echo_json_response(self, 400, "Error: %s" % e)
-            logger.warning("POST for " + agent_id + " returning 400 response. Error: %s" % e)
+            logger.warning("POST for %s returning 400 response. Error: %s", agent_id, e)
             logger.exception(e)
 
     def do_PUT(self):
@@ -339,16 +331,14 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         if "agents" not in rest_params:
             config.echo_json_response(self, 400, "uri not supported")
-            logger.warning(
-                'PUT agent returning 400 response. uri not supported: ' + self.path)
+            logger.warning('PUT agent returning 400 response. uri not supported: %s', self.path)
             return
 
         agent_id = rest_params["agents"]
 
         if agent_id is None:
             config.echo_json_response(self, 400, "agent id not found in uri")
-            logger.warning(
-                'PUT agent returning 400 response. agent id not found in uri ' + self.path)
+            logger.warning('PUT agent returning 400 response. agent id not found in uri %s', self.path)
             return
 
         try:
@@ -356,8 +346,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             if content_length == 0:
                 config.echo_json_response(
                     self, 400, "Expected non zero content length")
-                logger.warning(
-                    'PUT for ' + agent_id + ' returning 400 response. Expected non zero content length.')
+                logger.warning('PUT for %s returning 400 response. Expected non zero content length.', agent_id)
                 return
 
             post_body = self.rfile.read(content_length)
@@ -372,7 +361,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     "attempting to activate agent before requesting "
                     "registrar for %s" % agent_id) from e
             except SQLAlchemyError as e:
-                logger.error(f'SQLAlchemy Error: {e}')
+                logger.error('SQLAlchemy Error: %s', e)
                 raise
 
             if config.STUB_TPM:
@@ -381,7 +370,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                         {'active': True})
                     session.commit()
                 except SQLAlchemyError as e:
-                    logger.error(f'SQLAlchemy Error: {e}')
+                    logger.error('SQLAlchemy Error: %s', e)
                     raise
             else:
                 # TODO(kaifeng) Special handling should be removed
@@ -395,17 +384,17 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                             {'active': True})
                         session.commit()
                     except SQLAlchemyError as e:
-                        logger.error(f'SQLAlchemy Error: {e}')
+                        logger.error('SQLAlchemy Error: %s', e)
                         raise
                 else:
                     raise Exception(
                         "Auth tag %s does not match expected value %s" % (auth_tag, ex_mac))
 
             config.echo_json_response(self, 200, "Success")
-            logger.info('PUT activated: ' + agent_id)
+            logger.info('PUT activated: %s', agent_id)
         except Exception as e:
             config.echo_json_response(self, 400, "Error: %s" % e)
-            logger.warning("PUT for " + agent_id + " returning 400 response. Error: %s" % e)
+            logger.warning("PUT for %s returning 400 response. Error: %s", agent_id, e)
             logger.exception(e)
             return
 
@@ -451,9 +440,9 @@ def start(host, tlsport, port):
     try:
         count = session.query(RegistrarMain.agent_id).count()
     except SQLAlchemyError as e:
-        logger.error(f'SQLAlchemy Error: {e}')
+        logger.error('SQLAlchemy Error: %s', e)
     if count > 0:
-        logger.info("Loaded %d public keys from database" % count)
+        logger.info("Loaded %d public keys from database", count)
 
     server = RegistrarServer(serveraddr, ProtectedHandler)
     context = cloud_verifier_common.init_mtls(section='registrar',
@@ -472,8 +461,7 @@ def start(host, tlsport, port):
     servers.append(server)
     servers.append(server2)
 
-    logger.info(
-        'Starting Cloud Registrar Server on ports %s and %s (TLS) use <Ctrl-C> to stop' % (port, tlsport))
+    logger.info('Starting Cloud Registrar Server on ports %s and %s (TLS) use <Ctrl-C> to stop', port, tlsport)
     for thread in threads:
         thread.start()
 

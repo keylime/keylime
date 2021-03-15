@@ -313,26 +313,24 @@ class AgentsHandler(BaseHandler):
             )
 
         except Exception as e:
-            logger.error("Status command response: %s:%s Unexpected response from Cloud Verifier." % (
-                tenant_templ.cloudverifier_ip, tenant_templ.cloudverifier_port))
+            logger.error("Status command response: %s:%s Unexpected response from Cloud Verifier.",
+                tenant_templ.cloudverifier_ip, tenant_templ.cloudverifier_port)
             logger.exception(e)
             config.echo_json_response(
                 self, 500, "Unexpected response from Cloud Verifier", str(e))
-            logger.error("Unexpected response from Cloud Verifier: %s" % str(e))
+            logger.error("Unexpected response from Cloud Verifier: %s", e)
             return
 
         inst_response_body = response.json()
 
         if response.status_code != 200 and response.status_code != 404:
-            logger.error(
-                "Status command response: %d Unexpected response from Cloud Verifier." % response.status_code)
+            logger.error("Status command response: %d Unexpected response from Cloud Verifier.", response.status_code)
             keylime_logging.log_http_response(
                 logger, logging.ERROR, inst_response_body)
             return None
 
         if "results" not in inst_response_body:
-            logger.critical("Error: unexpected http response body from Cloud Verifier: %s" % str(
-                response.status_code))
+            logger.critical("Error: unexpected http response body from Cloud Verifier: %s", response.status_code)
             return None
 
         # Agent not added to CV (but still registered)
@@ -367,8 +365,7 @@ class AgentsHandler(BaseHandler):
         if "agents" not in rest_params:
             # otherwise they must be looking for agent info
             config.echo_json_response(self, 400, "uri not supported")
-            logger.warning(
-                'GET returning 400 response. uri not supported: ' + self.request.path)
+            logger.warning('GET returning 400 response. uri not supported: %s', self.request.path)
             return
 
         agent_id = rest_params["agents"]
@@ -390,8 +387,8 @@ class AgentsHandler(BaseHandler):
             )
 
         except Exception as e:
-            logger.error("Status command response: %s:%s Unexpected response from Registrar." % (
-                tenant_templ.registrar_ip, tenant_templ.registrar_port))
+            logger.error("Status command response: %s:%s Unexpected response from Registrar.",
+                tenant_templ.registrar_ip, tenant_templ.registrar_port)
             logger.exception(e)
             config.echo_json_response(
                 self, 500, "Unexpected response from Registrar", str(e))
@@ -400,15 +397,13 @@ class AgentsHandler(BaseHandler):
         response_body = response.json()
 
         if response.status_code != 200:
-            logger.error(
-                "Status command response: %d Unexpected response from Registrar." % response.status_code)
+            logger.error("Status command response: %d Unexpected response from Registrar.", response.status_code)
             keylime_logging.log_http_response(
                 logger, logging.ERROR, response_body)
             return None
 
         if ("results" not in response_body) or ("uuids" not in response_body["results"]):
-            logger.critical("Error: unexpected http response body from Registrar: %s" % str(
-                response.status_code))
+            logger.critical("Error: unexpected http response body from Registrar: %s", response.status_code)
             return None
 
         agent_list = response_body["results"]["uuids"]
@@ -455,8 +450,7 @@ class AgentsHandler(BaseHandler):
 
         if "agents" not in rest_params:
             config.echo_json_response(self, 400, "uri not supported")
-            logger.warning(
-                'DELETE returning 400 response. uri not supported: ' + self.request.path)
+            logger.warning('DELETE returning 400 response. uri not supported: %s', self.request.path)
             return
 
         agent_id = rest_params["agents"]
@@ -483,8 +477,7 @@ class AgentsHandler(BaseHandler):
 
         if "agents" not in rest_params:
             config.echo_json_response(self, 400, "uri not supported")
-            logger.warning(
-                'POST returning 400 response. uri not supported: ' + self.request.path)
+            logger.warning('POST returning 400 response. uri not supported: %s', self.request.path)
             return
 
         agent_id = rest_params["agents"]
@@ -575,8 +568,7 @@ class AgentsHandler(BaseHandler):
             mytenant.do_quote()
         except Exception as e:
             logger.exception(e)
-            logger.warning(
-                'POST returning 500 response. Tenant error: %s' % str(e))
+            logger.warning('POST returning 500 response. Tenant error: %s', e)
             config.echo_json_response(self, 500, "Request failure", str(e))
             return
 
@@ -596,8 +588,7 @@ class AgentsHandler(BaseHandler):
 
         if "agents" not in rest_params:
             config.echo_json_response(self, 400, "uri not supported")
-            logger.warning(
-                'PUT returning 400 response. uri not supported: ' + self.request.path)
+            logger.warning('PUT returning 400 response. uri not supported: %s', self.request.path)
             return
 
         agent_id = rest_params["agents"]
@@ -636,7 +627,7 @@ def parse_data_uri(data_uri):
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
-    logger.info("Starting Torando on port " + str(port))
+    logger.info("Starting Torando on port %s", port)
     tornado.ioloop.IOLoop.instance().start()
     logger.info("Tornado finished")
 
@@ -654,7 +645,7 @@ def get_tls_context():
     if tls_dir[0] != '/':
         tls_dir = os.path.abspath('%s/%s' % (config.WORK_DIR, tls_dir))
 
-    logger.info(f"Setting up client TLS in {tls_dir}")
+    logger.info("Setting up client TLS in %s", tls_dir)
 
     ca_path = "%s/%s" % (tls_dir, ca_cert)
     my_tls_cert = "%s/%s" % (tls_dir, my_cert)
@@ -678,10 +669,9 @@ def main():
 
     if not config.REQUIRE_ROOT and webapp_port < 1024:
         webapp_port += 2000
-        logger.warning("Running without root, changing port to %d" % webapp_port)
+        logger.warning("Running without root, changing port to %d", webapp_port)
 
-    logger.info(
-        'Starting Tenant WebApp (tornado) on port %d use <Ctrl-C> to stop' % webapp_port)
+    logger.info('Starting Tenant WebApp (tornado) on port %d use <Ctrl-C> to stop', webapp_port)
 
     # Figure out where our static files are located
     if getattr(sys, 'frozen', False):

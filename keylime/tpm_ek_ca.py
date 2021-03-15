@@ -17,15 +17,14 @@ tpm_cert_store = config.get('tenant', 'tpm_cert_store')
 
 def check_tpm_cert_store():
     if not os.path.isdir(tpm_cert_store):
-        logger.error(f"The directory {tpm_cert_store} does not exist.")
+        logger.error("The directory %s does not exist.", tpm_cert_store)
         sys.exit()
     else:
         for fname in os.listdir(tpm_cert_store):
             if fname.endswith('.pem'):
                 break
         else:
-            logger.error(
-                f"The directory {tpm_cert_store} does not contain any .pem files.")
+            logger.error("The directory %s does not contain any .pem files.", tpm_cert_store)
             sys.exit()
 
 
