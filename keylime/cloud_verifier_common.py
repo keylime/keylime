@@ -58,17 +58,14 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
         tls_dir = generatedir
         ca_path = "%s/cacert.crt" % (tls_dir)
         if os.path.exists(ca_path):
-            logger.info(
-                "Existing CA certificate found in %s, not generating a new one" % (tls_dir))
+            logger.info("Existing CA certificate found in %s, not generating a new one", tls_dir)
         else:
-            logger.info(
-                "Generating a new CA in %s and a client certificate for connecting" % tls_dir)
-            logger.info("use keylime_ca -d %s to manage this CA" % tls_dir)
+            logger.info("Generating a new CA in %s and a client certificate for connecting", tls_dir)
+            logger.info("use keylime_ca -d %s to manage this CA", tls_dir)
             if not os.path.exists(tls_dir):
                 os.makedirs(tls_dir, 0o700)
             if my_key_pw == 'default':
-                logger.warning(
-                    "CAUTION: using default password for CA, please set private_key_pw to a strong password")
+                logger.warning("CAUTION: using default password for CA, please set private_key_pw to a strong password")
             ca_util.setpassword(my_key_pw)
             ca_util.cmd_init(tls_dir)
             ca_util.cmd_mkcert(tls_dir, socket.gethostname())
@@ -141,21 +138,18 @@ def process_quote_response(agent, json_response):
         ima_measurement_list = json_response.get("ima_measurement_list", None)
         mb_measurement_list = json_response.get("mb_measurement_list", None)
 
-        logger.debug("received quote:      %s" % quote)
-        logger.debug("for nonce:           %s" % agent['nonce'])
-        logger.debug("received public key: %s" % received_public_key)
-        logger.debug("received ima_measurement_list    %s" %
-                     (ima_measurement_list is not None))
-        logger.debug("received boot log    %s" %
-                     (mb_measurement_list is not None))
+        logger.debug("received quote:      %s", quote)
+        logger.debug("for nonce:           %s", agent['nonce'])
+        logger.debug("received public key: %s", received_public_key)
+        logger.debug("received ima_measurement_list    %s", (ima_measurement_list is not None))
+        logger.debug("received boot log    %s", (mb_measurement_list is not None))
     except Exception:
         return None
 
     # if no public key provided, then ensure we have cached it
     if received_public_key is None:
         if agent.get('public_key', "") == "" or agent.get('b64_encrypted_V', "") == "":
-            logger.error(
-                "agent did not provide public key and no key or encrypted_v was cached at CV")
+            logger.error("agent did not provide public key and no key or encrypted_v was cached at CV")
             return False
         agent['provide_V'] = False
         received_public_key = agent['public_key']
@@ -227,7 +221,7 @@ def process_quote_response(agent, json_response):
 def prepare_v(agent):
     # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
     if config.INSECURE_DEBUG:
-        logger.debug("b64_V (non encrypted): " + agent['v'])
+        logger.debug("b64_V (non encrypted): %s", agent['v'])
 
     if agent.get('b64_encrypted_V', "") != "":
         b64_encrypted_V = agent['b64_encrypted_V']
@@ -274,9 +268,9 @@ def process_get_status(agent):
     try :
         mb_refstate = ast.literal_eval(agent.mb_refstate)
     except Exception as e:
-        logger.warning(f'Non-fatal problem ocurred while attempting to evaluate agent attribute "mb_refstate" ({e.args}). Will just consider the value of this attribute to be "None"')
+        logger.warning('Non-fatal problem ocurred while attempting to evaluate agent attribute "mb_refstate" (%s). Will just consider the value of this attribute to be "None"', e.args)
         mb_refstate = None
-        logger.debug(f'The contents of the agent attribute "mb_refstate" are {str(agent.mb_refstate)}')
+        logger.debug('The contents of the agent attribute "mb_refstate" are %s', agent.mb_refstate)
 
     if isinstance(mb_refstate, dict) and 'mb_refstate' in mb_refstate:
         mb_refstate_len = len(mb_refstate['mb_refstate'])

@@ -61,7 +61,7 @@ class Handler(BaseHTTPRequestHandler):
         The Cloud verifier requires an additional mask paramter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
 
-        logger.info('GET invoked from ' + str(self.client_address) + ' with uri:' + self.path)
+        logger.info('GET invoked from %s with uri: %s', self.client_address, self.path)
         rest_params = config.get_restful_params(self.path)
         if rest_params is None:
             config.echo_json_response(
@@ -70,8 +70,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if "keys" in rest_params and rest_params['keys'] == 'verify':
             if self.server.K is None:
-                logger.info(
-                    'GET key challenge returning 400 response. bootstrap key not available')
+                logger.info('GET key challenge returning 400 response. bootstrap key not available')
                 config.echo_json_response(
                     self, 400, "Bootstrap key not yet available.")
                 return
@@ -97,16 +96,14 @@ class Handler(BaseHTTPRequestHandler):
 
             # if the query is not messed up
             if nonce is None:
-                logger.warning(
-                    'GET quote returning 400 response. nonce not provided as an HTTP parameter in request')
+                logger.warning('GET quote returning 400 response. nonce not provided as an HTTP parameter in request')
                 config.echo_json_response(
                     self, 400, "nonce not provided as an HTTP parameter in request")
                 return
 
             # Sanitization assurance (for tpm.run() tasks below)
             if not (nonce.isalnum() and (pcrmask is None or pcrmask.isalnum()) and (vpcrmask is None or vpcrmask.isalnum())):
-                logger.warning(
-                    'GET quote returning 400 response. parameters should be strictly alphanumeric')
+                logger.warning('GET quote returning 400 response. parameters should be strictly alphanumeric')
                 config.echo_json_response(
                     self, 400, "parameters should be strictly alphanumeric")
                 return
@@ -141,8 +138,7 @@ class Handler(BaseHTTPRequestHandler):
             # return a measurement list if available
             if TPM_Utilities.check_mask(imaMask, config.IMA_PCR):
                 if not os.path.exists(config.IMA_ML):
-                    logger.warning(
-                        "IMA measurement list not available: %s" % (config.IMA_ML))
+                    logger.warning("IMA measurement list not available: %s", config.IMA_ML)
                 else:
                     with open(config.IMA_ML, 'r') as f:
                         ml = f.read()
@@ -154,21 +150,18 @@ class Handler(BaseHTTPRequestHandler):
             # potential Mbytes of an IMA measurement list.
             if TPM_Utilities.check_mask(imaMask, config.MEASUREDBOOT_PCRS[0]):
                 if not os.path.exists(config.MEASUREDBOOT_ML):
-                    logger.warning(
-                        "TPM2 event log not available: %s" % (config.MEASUREDBOOT_ML))
+                    logger.warning("TPM2 event log not available: %s", config.MEASUREDBOOT_ML)
                 else:
                     with open(config.MEASUREDBOOT_ML, 'rb') as f:
                         el = base64.b64encode(f.read())
                     response['mb_measurement_list'] = el
 
             config.echo_json_response(self, 200, "Success", response)
-            logger.info('GET %s quote returning 200 response.' %
-                        (rest_params["quotes"]))
+            logger.info('GET %s quote returning 200 response.', rest_params["quotes"])
             return
 
         else:
-            logger.warning(
-                'GET returning 400 response. uri not supported: ' + self.path)
+            logger.warning('GET returning 400 response. uri not supported: %s', self.path)
             config.echo_json_response(self, 400, "uri not supported")
             return
 
@@ -187,8 +180,7 @@ class Handler(BaseHTTPRequestHandler):
 
         content_length = int(self.headers.get('Content-Length', 0))
         if content_length <= 0:
-            logger.warning(
-                'POST returning 400 response, expected content in message. url:  ' + self.path)
+            logger.warning('POST returning 400 response, expected content in message. url: %s', self.path)
             config.echo_json_response(self, 400, "expected content in message")
             return
 
@@ -210,12 +202,10 @@ class Handler(BaseHTTPRequestHandler):
             self.server.add_V(decrypted_key)
             have_derived_key = self.server.attempt_decryption()
         else:
-            logger.warning(
-                'POST returning  response. uri not supported: ' + self.path)
+            logger.warning('POST returning  response. uri not supported: %s', self.path)
             config.echo_json_response(self, 400, "uri not supported")
             return
-        logger.info('POST of %s key returning 200' %
-                    (('V', 'U')[rest_params["keys"] == "ukey"]))
+        logger.info('POST of %s key returning 200', ('V', 'U')[rest_params["keys"] == "ukey"])
         config.echo_json_response(self, 200, "Success")
 
         # no key yet, then we're done
@@ -259,11 +249,9 @@ class Handler(BaseHTTPRequestHandler):
                 enc_payload = f.read()
             try:
                 dec_payload = crypto.decrypt(enc_payload, self.server.K)
-                logger.info("Decrypted previous payload in %s to %s" %
-                            (enc_path, dec_path))
+                logger.info("Decrypted previous payload in %s to %s", enc_path, dec_path)
             except Exception as e:
-                logger.warning(
-                    "Unable to decrypt previous payload %s with derived key: %s" % (enc_path, e))
+                logger.warning("Unable to decrypt previous payload %s with derived key: %s", enc_path, e)
                 os.remove(enc_path)
                 enc_payload = None
 
@@ -279,8 +267,7 @@ class Handler(BaseHTTPRequestHandler):
             # see if payload is a zip
             zfio = io.BytesIO(dec_payload)
             if config.getboolean('cloud_agent', 'extract_payload_zip') and zipfile.is_zipfile(zfio):
-                logger.info(
-                    "Decrypting and unzipping payload to %s/unzipped" % secdir)
+                logger.info("Decrypting and unzipping payload to %s/unzipped", secdir)
                 with zipfile.ZipFile(zfio, 'r')as f:
                     f.extractall('%s/unzipped' % secdir)
 
@@ -297,19 +284,17 @@ class Handler(BaseHTTPRequestHandler):
                             if line == '' and proc.poll() is not None:
                                 break
                             if line:
-                                logger.debug("init-output: %s" % line.strip())
+                                logger.debug("init-output: %s", line.strip())
                         # should be a no-op as poll already told us it's done
                         proc.wait()
 
                     if not os.path.exists("%s/unzipped/%s" % (secdir, initscript)):
-                        logger.info(
-                            "No payload script %s found in %s/unzipped" % (initscript, secdir))
+                        logger.info("No payload script %s found in %s/unzipped", initscript, secdir)
                     else:
-                        logger.info(
-                            "Executing payload script: %s/unzipped/%s" % (secdir, initscript))
+                        logger.info("Executing payload script: %s/unzipped/%s", secdir, initscript)
                         payload_thread = threading.Thread(target=initthread)
             else:
-                logger.info("Decrypting payload to %s" % dec_path)
+                logger.info("Decrypting payload to %s", dec_path)
                 with open(dec_path, 'wb') as f:
                     f.write(dec_payload)
             zfio.close()
@@ -317,7 +302,7 @@ class Handler(BaseHTTPRequestHandler):
         # now extend a measurement of the payload and key if there was one
         pcr = config.getint('cloud_agent', 'measure_payload_pcr')
         if 0 < pcr < 24:
-            logger.info("extending measurement of payload into PCR %s" % pcr)
+            logger.info("extending measurement of payload into PCR %s", pcr)
             measured = tpm_instance.hashdigest(tomeasure)
             tpm_instance.extendPCR(pcr, measured)
 
@@ -359,7 +344,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         # read or generate the key depending on configuration
         if os.path.isfile(keyname):
             # read in private key
-            logger.debug("Using existing key in %s" % keyname)
+            logger.debug("Using existing key in %s", keyname)
             f = open(keyname, "rb")
             rsa_key = crypto.rsa_import_privkey(f.read())
         else:
@@ -390,8 +375,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         with uvLock:
             # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
             if config.INSECURE_DEBUG:
-                logger.debug("Adding U len %d data:%s" %
-                             (len(u), base64.b64encode(u)))
+                logger.debug("Adding U len %d data:%s", len(u), base64.b64encode(u))
             self.u_set.add(u)
 
     def add_V(self, v):
@@ -401,7 +385,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         with uvLock:
             # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
             if config.INSECURE_DEBUG:
-                logger.debug(F"Adding V: {base64.b64encode(v)}")
+                logger.debug("Adding V: %s", base64.b64encode(v))
             self.v_set.add(v)
 
     def attempt_decryption(self):
@@ -440,19 +424,18 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             return None
 
         if len(decrypted_U) != len(decrypted_V):
-            logger.warning("Invalid U len %d or V len %d. skipping..." %
-                           (len(decrypted_U), len(decrypted_V)))
+            logger.warning("Invalid U len %d or V len %d. skipping...", len(decrypted_U), len(decrypted_V))
             return None
 
         candidate_key = crypto.strbitxor(decrypted_U, decrypted_V)
 
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
         if config.INSECURE_DEBUG:
-            logger.debug(F"U: {base64.b64encode(decrypted_U)}")
-            logger.debug(F"V: {base64.b64encode(decrypted_V)}")
-            logger.debug(F"K: {base64.b64encode(candidate_key)}")
+            logger.debug("U: %s", base64.b64encode(decrypted_U))
+            logger.debug("V: %s", base64.b64encode(decrypted_V))
+            logger.debug("K: %s", base64.b64encode(candidate_key))
 
-        logger.debug("auth_tag: " + self.auth_tag)
+        logger.debug("auth_tag: %s", self.auth_tag)
         ex_mac = crypto.do_hmac(candidate_key, self.agent_uuid)
 
         if ex_mac == self.auth_tag:
@@ -536,7 +519,7 @@ def main():
             raise Exception("Command %s not found in canned json!" %
                             ("add_vtpm_to_group"))
 
-    logger.info("Agent UUID: %s" % agent_uuid)
+    logger.info("Agent UUID: %s", agent_uuid)
 
     # register it and get back a blob
     keyblob = registrar_client.doRegisterAgent(
@@ -564,8 +547,7 @@ def main():
     server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid)
     serverthread = threading.Thread(target=server.serve_forever)
 
-    logger.info(
-        f"Starting Cloud Agent on {serveraddr[0]}:{serveraddr[1]} use <Ctrl-C> to stop")
+    logger.info("Starting Cloud Agent on %s:%s use <Ctrl-C> to stop", serveraddr[0], serveraddr[1])
     serverthread.start()
 
     # want to listen for revocations?
@@ -594,8 +576,7 @@ def main():
                     localactions = actionlisttxt.strip().split(',')
                     for action in localactions:
                         if not action.startswith('local_action_'):
-                            logger.warning(
-                                "invalid local action: %s.  must start with local_action_" % action)
+                            logger.warning("Invalid local action: %s. Must start with local_action_", action)
                         else:
                             actionlist.append(action)
 
@@ -604,14 +585,13 @@ def main():
                         sys.path.append(uzpath)
 
             for action in actionlist:
-                logger.info("executing revocation action %s" % action)
+                logger.info("Executing revocation action %s", action)
                 try:
                     module = importlib.import_module(action)
                     execute = getattr(module, 'execute')
                     asyncio.get_event_loop().run_until_complete(execute(revocation))
                 except Exception as e:
-                    logger.warning(
-                        "Exception during execution of revocation action %s: %s" % (action, e))
+                    logger.warning("Exception during execution of revocation action %s: %s", action, e)
         try:
             while True:
                 try:
@@ -619,8 +599,7 @@ def main():
                         perform_actions, revocation_cert_path=cert_path)
                 except Exception as e:
                     logger.exception(e)
-                    logger.warning(
-                        "No connection to revocation server, retrying in 10s...")
+                    logger.warning("No connection to revocation server, retrying in 10s...")
                     time.sleep(10)
         except KeyboardInterrupt:
             logger.info("TERM Signal received, shutting down...")

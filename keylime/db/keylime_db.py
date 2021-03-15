@@ -79,5 +79,5 @@ class SessionManager:
             Session = scoped_session(sessionmaker())
             Session.configure(bind=self.engine)
         except SQLAlchemyError as e:
-            logger.error(f'Error creating SQL session manager {e}')
+            logger.error('Error creating SQL session manager %s', e)
         return Session()

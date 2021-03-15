@@ -88,27 +88,23 @@ def getKeys(registrar_ip, registrar_port, agent_id):
         response_body = response.json()
 
         if response.status_code != 200:
-            logger.critical(
-                "Error: unexpected http response code from Registrar Server: %s" % str(response.status_code))
+            logger.critical("Error: unexpected http response code from Registrar Server: %s", response.status_code)
             keylime_logging.log_http_response(logger, logging.CRITICAL, response_body)
             return None
 
         if "results" not in response_body:
-            logger.critical(
-                "Error: unexpected http response body from Registrar Server: %s" % str(response.status_code))
+            logger.critical("Error: unexpected http response body from Registrar Server: %s", response.status_code)
             return None
 
         if "aik_tpm" not in response_body["results"]:
-            logger.critical(
-                "Error: did not receive AIK from Registrar Server: %s" % str(response.status_code))
+            logger.critical("Error: did not receive AIK from Registrar Server: %s", response.status_code)
             return None
 
         return response_body["results"]
 
     except AttributeError as e:
         if response and response.status_code == 503:
-            logger.critical("Error: the registrar is not available at %s:%s" % (
-                registrar_ip, registrar_port))
+            logger.critical("Error: the registrar is not available at %s:%s", registrar_ip, registrar_port)
         else:
             logger.exception(e)
 
@@ -132,28 +128,24 @@ def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_
         response_body = response.json()
 
         if response.status_code != 200:
-            logger.error(
-                f"Error: unexpected http response code from Registrar Server: {response.status_code}")
+            logger.error("Error: unexpected http response code from Registrar Server: %s", response.status_code)
             keylime_logging.log_http_response(logger, logging.ERROR, response_body)
             return None
 
-        logger.info(f"Agent registration requested for {agent_id}")
+        logger.info("Agent registration requested for %s", agent_id)
 
         if "results" not in response_body:
-            logger.critical(
-                f"Error: unexpected http response body from Registrar Server: {response.status_code}")
+            logger.critical("Error: unexpected http response body from Registrar Server: %s", response.status_code)
             return None
 
         if "blob" not in response_body["results"]:
-            logger.critical(
-                f"Error: did not receive blob from Registrar Server: {response.status_code}")
+            logger.critical("Error: did not receive blob from Registrar Server: %s", response.status_code)
             return None
 
         return response_body["results"]["blob"]
     except Exception as e:
         if response and response.status_code == 503:
-            logger.error(
-                f"Agent cannot establish connection to registrar at {registrar_ip}:{registrar_port}")
+            logger.error("Agent cannot establish connection to registrar at %s:%s", registrar_ip, registrar_port)
             sys.exit()
         else:
             logger.exception(e)
@@ -170,7 +162,7 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
     response_body = response.json()
 
     if response.status_code == 200:
-        logger.info("Registration activated for agent %s." % agent_id)
+        logger.info("Registration activated for agent %s.", agent_id)
         return True
 
     logger.error(
@@ -187,8 +179,7 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
     if response.status_code == 200:
         logger.debug("Registrar deleted.")
     else:
-        logger.warning("Status command response: " +
-                       str(response.status_code) + " Unexpected response from registrar.")
+        logger.warning("Status command response: %s Unexpected response from registrar.", response.status_code)
         keylime_logging.log_http_response(logger, logging.WARNING, response_body)
 
 
@@ -198,8 +189,7 @@ def doRegistrarList(registrar_ip, registrar_port):
     response_body = response.json()
 
     if response.status_code != 200:
-        logger.warning("Registrar returned: " +
-                       str(response.status_code) + " Unexpected response from registrar.")
+        logger.warning("Registrar returned: %s Unexpected response from registrar.", response.status_code)
         keylime_logging.log_http_response(logger, logging.WARNING, response_body)
         return None
 

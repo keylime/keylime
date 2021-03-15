@@ -22,7 +22,7 @@ def read_mb_refstate(mb_path=None):
     with open(mb_path, 'r') as f:
         mb_data = json.load(f)
 
-    logger.debug(f"Loaded measured boot reference state from {mb_path}")
+    logger.debug("Loaded measured boot reference state from %s", mb_path)
 
     return mb_data
 

@@ -135,7 +135,7 @@ class AbstractTPM(metaclass=ABCMeta):
     def __write_tpm_data(self):
         os.umask(0o077)
         if os.geteuid() != 0 and config.REQUIRE_ROOT:
-            logger.warning("Creating tpm metadata file without root.  Sensitive trust roots may be at risk!")
+            logger.warning("Creating tpm metadata file without root. Sensitive trust roots may be at risk!")
         with open('tpmdata.yml', 'w') as f:
             yaml.dump(self.global_tpmdata, f, Dumper=SafeDumper)
 
@@ -205,14 +205,14 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     def __check_ima(self, agent_id, pcrval, ima_measurement_list, allowlist, ima_keyring):
-        logger.info(f"Checking IMA measurement list on agent: {agent_id}")
+        logger.info("Checking IMA measurement list on agent: %s", agent_id)
         if config.STUB_IMA:
             pcrval = None
         ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), allowlist, pcrval=pcrval, ima_keyring=ima_keyring)
         if ex_value is None:
             return False
 
-        logger.debug(f"IMA measurement list of agent {agent_id} validated")
+        logger.debug("IMA measurement list of agent %s validated", agent_id)
         return True
 
     def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate):
@@ -248,7 +248,7 @@ class AbstractTPM(metaclass=ABCMeta):
         for line in pcrs:
             tokens = line.split()
             if len(tokens) < 3:
-                logger.error("Invalid %sPCR in quote: %s" % (("", "v")[virtual], pcrs))
+                logger.error("Invalid %sPCR in quote: %s", ("", "v")[virtual], pcrs)
                 continue
 
             # always lower case
@@ -257,12 +257,12 @@ class AbstractTPM(metaclass=ABCMeta):
             try:
                 pcrnum = int(tokens[1])
             except Exception:
-                logger.error("Invalid PCR number %s" % tokens[1])
+                logger.error("Invalid PCR number %s", tokens[1])
 
             if pcrnum == config.TPM_DATA_PCR and data is not None:
                 expectedval = self.sim_extend(data)
                 if expectedval != pcrval and not config.STUB_TPM:
-                    logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s" % (("", "v")[virtual], pcrnum, pcrval, expectedval))
+                    logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s", ("", "v")[virtual], pcrnum, pcrval, expectedval)
                     return False
                 validatedBindPCR = True
                 continue
@@ -301,10 +301,10 @@ class AbstractTPM(metaclass=ABCMeta):
 
             if pcrnum not in list(pcr_allowlist.keys()):
                 if not config.STUB_TPM and len(list(tpm_policy.keys())) > 0:
-                    logger.warning("%sPCR #%s in quote not found in %stpm_policy, skipping." % (("", "v")[virtual], pcrnum, ("", "v")[virtual]))
+                    logger.warning("%sPCR #%s in quote not found in %stpm_policy, skipping.", ("", "v")[virtual], pcrnum, ("", "v")[virtual])
                 continue
             if pcrval not in pcr_allowlist[pcrnum] and not config.STUB_TPM:
-                logger.error("%sPCR #%s: %s from quote does not match expected value %s" % (("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum]))
+                logger.error("%sPCR #%s: %s from quote does not match expected value %s", ("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum])
                 return False
 
             pcrsInQuote.add(pcrnum)
@@ -313,12 +313,12 @@ class AbstractTPM(metaclass=ABCMeta):
             return True
 
         if not validatedBindPCR:
-            logger.error("Binding %sPCR #%s was not included in the quote, but is required" % (("", "v")[virtual], config.TPM_DATA_PCR))
+            logger.error("Binding %sPCR #%s was not included in the quote, but is required", ("", "v")[virtual], config.TPM_DATA_PCR)
             return False
 
         missing = list(set(list(pcr_allowlist.keys())).difference(pcrsInQuote))
         if len(missing) > 0:
-            logger.error("%sPCRs specified in policy not in quote: %s" % (("", "v")[virtual], missing))
+            logger.error("%sPCRs specified in policy not in quote: %s", ("", "v")[virtual], missing)
             return False
 
         if mb_refstate :
@@ -340,7 +340,7 @@ class AbstractTPM(metaclass=ABCMeta):
                     # as fp has a method fileno(), you can pass it to ioctl
                     fcntl.ioctl(fp, RNDADDENTROPY, t)
             except Exception as e:
-                logger.warning("TPM randomness not added to system entropy pool: %s" % e)
+                logger.warning("TPM randomness not added to system entropy pool: %s", e)
 
     # tpm_nvram
     @abstractmethod
