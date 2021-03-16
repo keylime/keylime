@@ -5,6 +5,8 @@ if [ -z "$(type -P pylint)" ]; then
 	exit 1
 fi
 
+pylint --version
+
 pylint \
   --jobs=0 \
   --ignored-modules=zmq,alembic.op,alembic.context,M2Crypto.m2,_cLime,Cryptodome,pylab,matplotlib,numpy \
