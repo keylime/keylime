@@ -28,9 +28,6 @@ from keylime import tpm_ek_ca
 from keylime.common import algorithms
 from keylime.tpm import tpm2_objects
 
-if os.uname()[4] == 'x86_64' :
-    from keylime import tpm_bootlog_enrich
-
 logger = keylime_logging.init_logging('tpm')
 
 
