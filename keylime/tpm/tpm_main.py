@@ -357,7 +357,7 @@ class tpm(tpm_abstract.AbstractTPM):
             reterr = retDict['reterr']
 
             # keep trying to get quote if a PCR race condition occurred in deluxe quote
-            if fprt == "tpm2_quote" and "Error validating calculated PCR composite with quote" in reterr:
+            if fprt == "tpm2_quote" and cmd_exec.list_contains_substring(reterr, "Error validating calculated PCR composite with quote"):
                 numtries += 1
                 maxr = config.getint('cloud_agent', 'max_retries')
                 if numtries >= maxr:
