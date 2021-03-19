@@ -57,3 +57,12 @@ def run(cmd, expectedcode=EXIT_SUCESS, raiseOnError=True, outputpaths=None,
         'timing': timing,
     }
     return returnDict
+
+
+# list_contains_substring checks whether a substring is contained in the given
+# list. The list may be the reterr from 'run' and contains bytes-like objects.
+def list_contains_substring(lst, substring):
+    for s in lst:
+        if substring in str(s):
+            return True
+    return False
