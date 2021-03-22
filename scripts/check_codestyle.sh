@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 
-if [ -z "$(type -P pylint)" ]; then
-	echo "pylint is required"
+for PYLINT in pylint pylint-3; do
+	if [ -n "$(type -P ${PYLINT})" ]; then
+		break
+	fi
+done
+
+if [ -z "$(type -P ${PYLINT})" ]; then
+	echo "pylint or pylint-3 is required"
 	exit 1
 fi
 
-pylint --version
+${PYLINT} --version
 
-pylint \
+${PYLINT} \
   --jobs=0 \
   --ignored-modules=zmq,alembic.op,alembic.context,M2Crypto.m2,_cLime,Cryptodome,pylab,matplotlib,numpy \
   --disable W1509 \
