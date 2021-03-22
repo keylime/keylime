@@ -23,6 +23,7 @@ from keylime import keylime_logging
 from keylime import crypto
 from keylime import ima
 from keylime.common import algorithms
+from keylime.elchecking import policies as eventlog_policies
 
 logger = keylime_logging.init_logging('tpm')
 
@@ -162,7 +163,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate={}):
+    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate=None):
         pass
 
     def START_HASH(self, algorithm=None):
@@ -215,22 +216,38 @@ class AbstractTPM(metaclass=ABCMeta):
         logger.debug("IMA measurement list of agent %s validated", agent_id)
         return True
 
-    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate):
+    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate_str):
         try:
             tpm_policy_ = ast.literal_eval(tpm_policy)
         except ValueError:
             tpm_policy_ = {}
         pcr_allowlist = tpm_policy_.copy()
 
-        if str(mb_refstate) == "null" :
-            mb_refstate = None
+        if mb_refstate_str:
+            mb_refstate_data = json.loads(mb_refstate_str)
+        else:
+            mb_refstate_data = None
 
         if 'mask' in pcr_allowlist:
             del pcr_allowlist['mask']
         # convert all pcr num keys to integers
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
-        if mb_refstate and mb_measurement_list :
+        if mb_refstate_data :
+            mb_policy_name = config.MEASUREDBOOT_POLICYNAME
+            mb_policy = eventlog_policies.get_policy(mb_policy_name)
+            if mb_policy is None:
+                logger.warning(
+                    "Invalid measured boot policy name %s -- using accept-all instead.", mb_policy_name)
+                mb_policy = eventlog_policies.AcceptAll()
+
+            mb_pcrs_config = frozenset(config.MEASUREDBOOT_PCRS)
+            mb_pcrs_policy = mb_policy.get_relevant_pcrs()
+            if not mb_pcrs_policy <= mb_pcrs_config:
+                logger.error("Measured boot policy considers PCRs %s, which are not among the configured set %s",
+                            set(mb_pcrs_policy - mb_pcrs_config), set(mb_pcrs_config))
+
+        if mb_refstate_data and mb_measurement_list :
             mb_measurement_data = self.parse_bootlog(mb_measurement_list)
             if not mb_measurement_data :
                 logger.error("Unable to parse measured boot event log. Check previous messages for a reason for error.")
@@ -286,7 +303,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
             if pcrnum in config.MEASUREDBOOT_PCRS :
 
-                if mb_refstate :
+                if mb_refstate_data :
 
                     if not mb_measurement_list :
                         logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcrnum)
@@ -324,10 +341,20 @@ class AbstractTPM(metaclass=ABCMeta):
             logger.error("%sPCRs specified in policy not in quote: %s", ("", "v")[virtual], missing)
             return False
 
-        if mb_refstate :
+        if mb_refstate_data :
             missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
             if len(missing) > 0:
                 logger.error("%sPCRs specified for measured boot not in quote: %s", ("", "v")[virtual], missing)
+                return False
+            try:
+                reason = mb_policy.evaluate(mb_refstate_data, mb_measurement_data)
+            except Exception as exn:
+                logger.error("Boot attestation for agent %s, configured policy %s, refstate=%s, raised Exception %s",
+                    agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), str(exn))
+                reason = ''
+            if reason:
+                logger.error("Boot attestation failed for agent %s, configured policy %s, refstate=%s, reason=%s",
+                    agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), reason)
                 return False
 
         return True

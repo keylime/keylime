@@ -186,45 +186,21 @@ def getVar(event, b):
 
 
 def enrich_device_path(d: dict) -> None:
-    if 'DevicePath' in d:
-        b = bytes.fromhex(d['DevicePath'])
+    if isinstance(d.get('DevicePath'), str):
+        try:
+            b = bytes.fromhex(d['DevicePath'])
+        except Exception:
+            return
         try:
             p = getDevicePath(b)
         # Deal with garbage devicePath
         except Exception:
-            p = f"{d['DevicePath']}"
+            return
         d['DevicePath'] = p
 
 
-def enrich_driver_config(d: dict) -> None:
-    if 'UnicodeName' in d:
-        if d['UnicodeName'] == 'SecureBoot':
-            if 'VariableData' in d:
-                b = bytes.fromhex(d['VariableData'])
-                if len(b) == 0:
-                    d['VariableData'] = {'Enabled': 'No'}
-                elif len(b) > 1:
-                    raise Exception(
-                        f'enrich: SecureBoot data length({len(b)}) > 1')
-                else:
-                    if b == b'\x00':
-                        d['VariableData'] = {
-                            'Enabled': 'No'}
-                    else:
-                        d['VariableData'] = {
-                            'Enabled': 'Yes'}
-
-
-def enrich_variable_authority(d: dict) -> None:
-    if 'VariableData' in d:
-        b = bytes.fromhex(d['VariableData'])
-        l = len(b)
-        k = getKey(b, 0, l)
-        d['VariableData'] = k
-
-
 def enrich_boot_variable(d: dict) -> None:
-    if 'VariableData' in d:
+    if isinstance(d.get('VariableData'), str):
         b = {}
         b = bytes.fromhex(d['VariableData'])
         k = getVar(d, b)
@@ -246,14 +222,6 @@ def enrich(log: dict) -> None:
                     if 'Event' in event:
                         d = event['Event']
                         enrich_device_path(d)
-                elif t == 'EV_EFI_VARIABLE_DRIVER_CONFIG':
-                    if 'Event' in event:
-                        d = event['Event']
-                        enrich_driver_config(d)
-                elif t == 'EV_EFI_VARIABLE_AUTHORITY':
-                    if 'Event' in event:
-                        d = event['Event']
-                        enrich_variable_authority(d)
                 elif t == 'EV_EFI_VARIABLE_BOOT':
                     if 'Event' in event:
                         d = event['Event']
