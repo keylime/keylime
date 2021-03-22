@@ -32,14 +32,13 @@ fi
 
 
 # Command line params
-TPM_VERSION=1
 while getopts ":hm" opt; do
     case $opt in
-        m) TPM_VERSION=2 ;;
+        m) ;;
         h)
             echo "Usage: $0 [option...]"
             echo "Options:"
-            echo $'-m \t\t\t\t Use modern TPM 2.0 libraries (vs. TPM 1.2)'
+            echo $'-m \t\t\t\t Use modern TPM 2.0 libraries; this is the default'
             echo $'-h \t\t\t\t This help info'
             exit
             ;;
@@ -67,11 +66,7 @@ echo
 echo "=================================================================================="
 echo $'\t\t\tBuilding Keylime installer'
 echo "=================================================================================="
-BUNDLE_FLAGS=""
-if [[ "$TPM_VERSION" -eq "2" ]] ; then
-    BUNDLE_FLAGS="-m"
-fi
-./make_agent_bundle.sh $BUNDLE_FLAGS
+./make_agent_bundle.sh ""
 
 
 # Get all dependencies for tarball
@@ -85,7 +80,7 @@ mkdir -p $TMPDIR/keylime
 echo -n "INFO: Using temp directory: "
 echo $TMPDIR
 
-cp dist/keylime_agent_tpm$TPM_VERSION $TMPDIR/keylime
+cp dist/keylime_agent_tpm2 $TMPDIR/keylime
 if [[ "$?" -ne "0" ]] ; then
     echo "ERROR: Cannot copy keylime_agent"
     exit 1
