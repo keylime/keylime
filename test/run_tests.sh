@@ -11,7 +11,13 @@ alias python='/usr/bin/python3'
 KEYLIME_DIR=$(realpath "$(dirname "$(readlink -f "$0")")/../")
 
 # Run separate unit tests
+pushd "${KEYLIME_DIR}"
 python3 keylime/tpm/tpm2_objects.py
+if [ $? -ne 0 ]; then
+	echo "Error: tpm2_objects.py unit tests failed."
+	exit 1
+fi
+popd
 
 # Get list of tests in the test directory
 TEST_LIST=`ls | grep "^test_.*\.py$"`
