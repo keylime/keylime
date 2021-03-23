@@ -1,21 +1,21 @@
 Installation
 ============
 
-There are three current methods for installing Keylime, the ansible role, the
-keylime installer or a manual installation.
+There are three current methods for installing Keylime: the Ansible role, the
+Keylime installer or a manual installation.
 
 Ansible Keylime Roles
 ---------------------
 
 An Ansible role to deploy `Keylime <https://github.com/keylime/keylime>`_
-, alongside the `Keylime rust cloud agent <https://github.com/keylime/rust-keylime>`_
+, alongside the `Keylime Rust cloud agent <https://github.com/keylime/rust-keylime>`_
 
 .. warning::
-    Please note that the rust cloud agent is still under early stages of Development.
-    Those wishing to test drive keylimes functionality should use the existing
-    python based cloud agent `keylime_agent` until later notice.
+    Please note that the Rust cloud agent is still under early stages of development.
+    Those wishing to test drive Keylimes functionality should use the existing
+    Python based cloud agent `keylime_agent` until later notice.
 
-This role deploys keylime for use with a Hardware TPM.
+This role deploys Keylime for use with a Hardware TPM.
 
 Should you wish to deploy Keylime with a software TPM emulator for development
 or getting your feet wet, use the `Ansible Keylime Soft TPM <https://github.com/keylime/ansible-keylime-soft-tpm>`_
@@ -124,7 +124,7 @@ the TPM emulator option `-s` in production systems.
 Docker (Development Only)
 -------------------------
 
-Python keylime and related emulators can also be deployed using Docker.
+Python Keylime and related emulators can also be deployed using Docker.
 Since this docker configuration currently uses a TPM emulator,
 it should only be used for development or testing and NOT in production.
 
@@ -132,7 +132,7 @@ Please see either the Dockerfiles
 `here <https://github.com/keylime/keylime/tree/master/docker>`_ or our
 local CI script
 `here <https://github.com/keylime/keylime/blob/master/.ci/run_local.sh>`_
-which will automate the build and pull of keylime on TPM 1.2 or 2.0.
+which will automate the build and pull of Keylime on TPM 1.2 or 2.0.
 
 Manual
 ------
@@ -148,9 +148,9 @@ Python-based prerequisites
     The following outlines installing Keylime under the Python 2 environment,
     work is underway to port Keylime to Python 3.
 
-The following python packages are required:
+The following Python packages are required:
 
-* pycryptodomex>=3.4.1
+* python-cryptography>=????
 * tornado>=4.3
 * m2crypto>=0.21.1
 * pyzmq>=14.4
@@ -159,7 +159,7 @@ The following python packages are required:
 * pyyaml
 
 The latter of these are usually available as distro packages. See `installer.sh <https://github.com/keylime/keylime/blob/master/installer.sh>`_
-for more information if you want to install them this way. You can also let keylime's `setup.py`
+for more information if you want to install them this way. You can also let Keylime's `setup.py`
 install them via PyPI.
 
 TPM 1.2 Support
@@ -167,8 +167,8 @@ TPM 1.2 Support
 
 You also need a patched version of tpm4720 the IBM software TPM emulator and
 utilities.  This is available `here <https://github.com/keylime/tpm4720-keylime>`_
-Even if you are using keylime with a real TPM, you must install the IBM emulator
-because keylime uses the command line utilities that come with it.
+Even if you are using Keylime with a real TPM, you must install the IBM emulator
+because Keylime uses the command line utilities that come with it.
 See README.md in that project for detailed instructions on how to build and install it.
 
 The brief synopsis of a quick build/install (after installing dependencies) is::
@@ -188,7 +188,7 @@ TPM 2.0 Support
 
 Keylime uses the Intel TPM2 software set to provide TPM 2.0 support.  You will
 need to install the tpm2-tss software stack (available `here <https://github.com/tpm2-software/tpm2-tss>`_) as well as a patched version of the
-tpm2-tools utilities available `here<https://github.com/keylime/tpm2-tools>`_.
+tpm2-tools utilities available `here <https://github.com/keylime/tpm2-tools>`_.
 See README.md in these projects for detailed instructions on how to build and install.
 
 The brief synopsis of a quick build/install (after installing dependencies) is::
@@ -217,11 +217,11 @@ TPM 2.0 Resource Manager
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Note that it is recommended that you use the tpm2-abrmd resource manager
-(available at https://github.com/tpm2-software/tpm2-abrmd) as well instead of
+(available `here <https://github.com/tpm2-software/tpm2-abrmd>`_) as well instead of
 communicating directly with the TPM.  See README.md at that project for
 detailed instructions on how to build and install.
 
-A brief, workable example for Ubuntu 18 LTS systems is::
+A brief, workable example for Debian-based systems, such as Ubuntu 18.4 LTS is::
 
     sudo useradd --system --user-group tss
     git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
@@ -258,7 +258,7 @@ To talk directly to a real TPM::
 Install Keylime
 ~~~~~~~~~~~~~~~
 
-You're finally ready to install keylime::
+You're finally ready to install Keylime::
 
     sudo python setup.py install
 
