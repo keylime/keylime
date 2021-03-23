@@ -3,7 +3,7 @@
 # Once an enhancement has been merged, the package needs to be added to the installer.sh, the CI Docker images and issues should be raised on
 # keylime/keylime-rpm keylime/keylime-deb and the keylime ansible installer
 
-cryptography>=2.9 # BSD/Apache-2.0
+cryptography>=3.3.2 # BSD/Apache-2.0
 tornado>=5.0.2 # Apache-2.0
 m2crypto>=0.21.1 # MIT
 pyzmq>=14.4 # LGPL+BSD
