@@ -937,6 +937,11 @@ class Tenant():
         print(f"Show allowlist command response: {response.status_code}.")
         print(response.json())
 
+def write_to_namedtempfile(data, delete_tmp_files):
+    temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)
+    temp.write(data)
+    temp.flush()
+    return temp.name
 
 def main(argv=sys.argv):
     """[summary]
@@ -1057,11 +1062,8 @@ def main(argv=sys.argv):
             logger.info("Downloading Allowlist from %s", args.allowlist_url)
             response = requests.get(args.allowlist_url, allow_redirects=False)
             if response.status_code == 200:
-                allowlist_temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)
-                allowlist_temp.write(response.content)
-                allowlist_temp.flush()
-                args.allowlist = allowlist_temp.name
-                logger.debug("Allowlist temporarily saved in %s" % (allowlist_temp.name))
+                args.allowlist = write_to_namedtempfile(response.content, delete_tmp_files)
+                logger.debug("Allowlist temporarily saved in %s" % args.allowlist)
             else:
                 raise Exception("Downloading allowlist (%s) failed with status code %s!" % (args.allowlist_url, response.status_code))
 
@@ -1069,11 +1071,8 @@ def main(argv=sys.argv):
             logger.info("Downloading Allowlist signature from %s", args.allowlist_sig_url)
             response = requests.get(args.allowlist_sig_url, allow_redirects=False)
             if response.status_code == 200:
-                sig_temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)
-                sig_temp.write(response.content)
-                sig_temp.flush()
-                args.allowlist_sig = sig_temp.name
-                logger.debug("Allowlist signature temporarily saved in %s", sig_temp.name)
+                args.allowlist_sig = write_to_namedtempfile(response.content, delete_tmp_files)
+                logger.debug("Allowlist signature temporarily saved in %s", args.allowlist_sig)
             else:
                 raise Exception("Downloading allowlist signature (%s) failed with status code %s!" % (args.allowlist_sig_url, response.status_code))
 
