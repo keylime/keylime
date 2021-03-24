@@ -454,19 +454,3 @@ function updateTerminal() {
         appendToTerminal(response["log"]);
     });
 }
-
-// Attach dragging capabilities for payload upload functionality
-window.onload = function(e) {
-    // Add agent drag-drop functionality
-    let droppable = document.getElementsByClassName("file_drop");
-    for (let i = 0; i < droppable.length; i++) {
-        droppable[i].addEventListener('dragover', dragoverCallback, false);
-        droppable[i].addEventListener('drop', fileUploadCallback, false);
-    }
-
-    // Populate agents on the page (and turn on auto-updates)
-    populateAgents();
-    setInterval(populateAgents, 2000);
-    setInterval(updateAgentsInfo, 750);
-    setInterval(updateTerminal, 1000);
-}

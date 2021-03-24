@@ -110,6 +110,14 @@ class WebAppHandler(BaseHandler):
         vtpm_policy = json.dumps(json.loads(
             config.get('tenant', 'vtpm_policy')), indent=2)
 
+        # Get default intervals for populating angents, updating agents and updating terminal
+        populate_agents_interval = json.dumps(json.loads(
+            config.get('webapp', 'populate_agents_interval')), indent=2)
+        update_agents_interval = json.dumps(json.loads(
+            config.get('webapp', 'update_agents_interval')), indent=2)
+        update_terminal_interval = json.dumps(json.loads(
+            config.get('webapp', 'update_terminal_interval')), indent=2)
+
         self.set_status(200)
         self.set_header('Content-Type', 'text/html')
         self.write(
@@ -120,12 +128,25 @@ class WebAppHandler(BaseHandler):
                     <meta charset='UTF-8'>
                     <title>Advanced Tenant Management System</title>
                     <script type='text/javascript' src='/static/js/webapp.js'></script>
+                    <script type='text/javascript'>
+                        window.onload = function(e) {{
+                            let droppable = document.getElementsByClassName("file_drop");
+                            for (let i = 0; i < droppable.length; i++) {{
+                                droppable[i].addEventListener('dragover', dragoverCallback, false);
+                                droppable[i].addEventListener('drop', fileUploadCallback, false);
+                            }}
+                            populateAgents();
+                            setInterval(populateAgents, {0});
+                            setInterval(updateAgentsInfo, {1});
+                            setInterval(updateTerminal, {2});
+                        }}
+                    </script>
                     <link href='/static/css/webapp.css' rel='stylesheet' type='text/css'/>
                 </head>
                 <body>
-                    <div id='modal_box' onclick="if (event.target == this) {toggleVisibility(this.id);resetAddAgentForm();return false;}">
+                    <div id='modal_box' onclick="if (event.target == this) {{toggleVisibility(this.id);resetAddAgentForm();return false;}}">
 
-            """
+            """.format(populate_agents_interval, update_agents_interval, update_terminal_interval)
         )
 
         self.write(
