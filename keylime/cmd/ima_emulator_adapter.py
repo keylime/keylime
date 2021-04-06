@@ -21,7 +21,6 @@ ff_hash = ('ffffffffffffffffffffffffffffffffffffffff')
 
 
 def ml_extend(ml, position, searchHash=None):
-    global start_hash
     f = open(ml, 'r')
     lines = itertools.islice(f, position, None)
 
