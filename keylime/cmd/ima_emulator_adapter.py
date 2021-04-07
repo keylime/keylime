@@ -16,8 +16,8 @@ from keylime.common import algorithms
 # Instaniate tpm
 tpm_instance = tpm(need_hw_tpm=True)
 
-START_HASH = ('0000000000000000000000000000000000000000')
-FF_HASH = ('ffffffffffffffffffffffffffffffffffffffff')
+START_HASH = '0000000000000000000000000000000000000000'
+FF_HASH = 'ffffffffffffffffffffffffffffffffffffffff'
 
 
 def ml_extend(ml, position, searchHash=None):
