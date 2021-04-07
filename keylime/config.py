@@ -116,13 +116,6 @@ if not REQUIRE_ROOT:
 if not REQUIRE_ROOT:
     print("WARNING: running without root access")
 
-# Try and import cLime, if it fails set USE_CLIME to False.
-try:
-    import _cLime  # pylint: disable=W0611
-    USE_CLIME = True
-except ImportError:
-    USE_CLIME = False
-
 TPM_LIBS_PATH = '/usr/local/lib/'
 TPM_TOOLS_PATH = '/usr/local/bin/'
 

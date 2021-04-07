@@ -2,26 +2,7 @@
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
-import sys
 import setuptools
-
-from setuptools import Extension
-
-
-extensions = []
-
-if '--with-clime' in sys.argv:
-    if 'linux' in sys.platform:
-        extensions.append(
-            Extension('_cLime', ['keylime/_cLime.c'],
-                      define_macros=[('MAJOR_VERSION', '1'),
-                                     ('MINOR_VERSION', '0')],
-                      include_dirs=['/usr/local/include'],
-                      libraries=['tpm', 'keylime'],
-                      library_dirs=['/usr/local/lib'],
-                      runtime_library_dirs=['/usr/local/lib']))
-    sys.argv.remove('--with-clime')
-
 
 with open('README.md', 'r') as fh:
     long_description = fh.read()
@@ -71,7 +52,6 @@ setuptools.setup(
             'keylime_migrations_apply=keylime.cmd.migrations_apply:main',
         ],
     },
-    ext_modules=extensions,
     data_files=[('/etc', ['keylime.conf'])],
     package_data={'keylime': ['migrations/alembic.ini']}
 )
