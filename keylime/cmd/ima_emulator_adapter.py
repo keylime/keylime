@@ -16,8 +16,8 @@ from keylime.common import algorithms
 # Instaniate tpm
 tpm_instance = tpm(need_hw_tpm=True)
 
-start_hash = ('0000000000000000000000000000000000000000')
-ff_hash = ('ffffffffffffffffffffffffffffffffffffffff')
+START_HASH = ('0000000000000000000000000000000000000000')
+FF_HASH = ('ffffffffffffffffffffffffffffffffffffffff')
 
 
 def ml_extend(ml, position, searchHash=None):
@@ -40,8 +40,8 @@ def ml_extend(ml, position, searchHash=None):
         template_hash = tokens[1]
 
         # this is some IMA weirdness
-        if template_hash == start_hash:
-            template_hash = ff_hash
+        if template_hash == START_HASH:
+            template_hash = FF_HASH
 
         if searchHash is None:
             print("extending hash %s for %s" % (template_hash, path))
@@ -50,7 +50,7 @@ def ml_extend(ml, position, searchHash=None):
         else:
             # Let's only encode if its not a byte
             try:
-                runninghash = start_hash.encode('utf-8')
+                runninghash = START_HASH.encode('utf-8')
             except AttributeError:
                 pass
             # Let's only encode if its not a byte
@@ -81,7 +81,7 @@ def main():
 
     # check if pcr is clean
     pcrval = tpm_instance.readPCR(config.IMA_PCR, algorithms.Hash.SHA1)
-    if pcrval != start_hash:
+    if pcrval != START_HASH:
         print("Warning: IMA PCR is not empty, trying to find the last updated file in the measurement list...")
         pos = ml_extend(config.IMA_ML, 0, pcrval)
 
