@@ -63,11 +63,6 @@ else:
 global_password = None
 
 
-# def globalcb(*args):
-#    global global_password
-#    return global_password.encode()
-
-
 def setpassword(pw):
     global global_password
     if len(pw) == 0:
