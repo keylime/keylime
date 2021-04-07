@@ -445,7 +445,9 @@ class VariableTest(Test):
         """variable_name and unicode_name are as in the parsed event; data_test applies to VariableData"""
         super().__init__()
         self.variable_name = variable_name
+        #pylint: disable=isinstance-second-argument-not-valid-type
         if not isinstance(unicode_name, (str, typing.Pattern)):
+        #pylint: enable=isinstance-second-argument-not-valid-type
             raise Exception(
                 f'unicode_name={unicode_name!r} is neither a str nor an re.Pattern')
         self.unicode_name = unicode_name

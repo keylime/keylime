@@ -23,7 +23,6 @@ from keylime import keylime_logging
 from keylime import crypto
 from keylime import ima
 from keylime.common import algorithms
-from keylime.elchecking import policies as eventlog_policies
 
 logger = keylime_logging.init_logging('tpm')
 
@@ -235,6 +234,9 @@ class AbstractTPM(metaclass=ABCMeta):
 
         if mb_refstate_data :
             mb_policy_name = config.MEASUREDBOOT_POLICYNAME
+            #pylint: disable=import-outside-toplevel
+            from keylime.elchecking import policies as eventlog_policies
+            #pylint: enable=import-outside-toplevel
             mb_policy = eventlog_policies.get_policy(mb_policy_name)
             if mb_policy is None:
                 logger.warning(
