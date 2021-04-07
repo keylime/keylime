@@ -450,10 +450,6 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 def main():
-    if os.getuid() != 0 and config.REQUIRE_ROOT:
-        logger.critical("This process must be run as root.")
-        return
-
     if config.get('cloud_agent', 'agent_uuid') == 'dmidecode':
         if os.getuid() != 0:
             raise RuntimeError('agent_uuid is configured to use dmidecode, '
