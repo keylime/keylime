@@ -68,7 +68,7 @@ case "$ID" in
         if [ "$(uname -m)" = "x86_64" ]; then
             PYTHON_DEPS+="libefivar-dev"
         fi
-        BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev uuid-dev"
+        BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev uuid-dev libjson-c-dev"
         NEED_BUILD_TOOLS=1
         $PACKAGE_MGR update
     ;;
@@ -84,7 +84,7 @@ case "$ID" in
                 if [ "$(uname -m)" = "x86_64" ]; then
                     PYTHON_DEPS+="efivar-libs"
                 fi
-                BUILD_TOOLS="openssl-devel file libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel"
+                BUILD_TOOLS="openssl-devel file libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
                 NEED_BUILD_TOOLS=1
                 CENTOS7_TSS_FLAGS="--enable-esapi=no --disable-doxygen-doc"
             ;;
@@ -97,7 +97,7 @@ case "$ID" in
                 if [ "$(uname -m)" = "x86_64" ]; then
                     PYTHON_DEPS+="efivar-libs"
                 fi
-                BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel libuuid-devel"
+                BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel libuuid-devel json-c-devel"
                 #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools tpm2-abrmd" TODO: still on 3.1.1 tpm2_tools
                 NEED_BUILD_TOOLS=1
                 NEED_PYTHON_DIR=1
@@ -117,7 +117,7 @@ case "$ID" in
         if [ "$(uname -m)" = "x86_64" ]; then
             PYTHON_DEPS+="efivar-devel"
         fi
-        BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel"
+        BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
         GOPKG="golang"
         if [[ ${VERSION_ID} -ge 30 ]] ; then
         # if fedora 30 or greater, then using TPM2 tool packages
