@@ -59,7 +59,7 @@ class TPM_Utilities:
             if int(key) == config.IMA_PCR:
                 raise Exception("Invalid allowlist PCR number %s, this PCR is used for IMA." % key)
 
-            mask = mask + (1 << int(key))
+            mask = mask | (1 << int(key))
 
             # wrap it in a list if it is a singleton
             if isinstance(policy[key], str):

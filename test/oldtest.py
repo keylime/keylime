@@ -357,7 +357,7 @@ class Test(unittest.TestCase):
                     mask = 0
                     for key in list(tmpp_policy.keys()):
                         if key.isdigit():
-                            mask = mask + (1 << int(key))
+                            mask = mask | (1 << int(key))
 
                     mask_str = "0x%X" % (mask)
                     tmpp_policy['mask'] = mask_str

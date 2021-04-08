@@ -379,7 +379,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             self.u_set.add(u)
 
     def add_V(self, v):
-        """Threadsafe method for adding a U value received from the Cloud Verifier
+        """Threadsafe method for adding a V value received from the Cloud Verifier
         Do not modify u_set of v_set directly.
         """
         with uvLock:

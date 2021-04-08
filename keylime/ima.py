@@ -80,45 +80,6 @@ supported_fields = {
 }
 
 
-def read_measurement_list_bin(path):
-    raise Exception("not implementated fully yet")
-    # pylint: disable=W0101
-    f = open(path, 'rb')
-
-    while True:
-        template = {}
-        (template['pcr'], template['digest'],
-         template['name_len']) = read_unpack(f, "<I20sI")
-
-        if template['name_len'] > TCG_EVENT_NAME_LEN_MAX:
-            raise Exception("Error event name too long: %d" %
-                            template['name_len'])
-
-        name = read_unpack(f, "<%ds" % template['name_len'])[0]
-
-        is_ima_template = name == 'ima'
-        if not is_ima_template:
-            template['data_len'] = read_unpack(f, "<I")[0]
-            print("reading ima len %d" % template['data_len'])
-        else:
-            template['data_len'] = SHA_DIGEST_LEN + TCG_EVENT_NAME_LEN_MAX + 1
-
-        template['data'] = read_unpack(f, "<%ds" % template['data_len'])[0]
-
-        if is_ima_template:
-            field_len = read_unpack(f, "<I")[0]
-            extra_data = read_unpack(f, "<%ds" % field_len)[0]
-            template['data'] += extra_data
-
-        print("record %s" % template)
-
-        if template['name'] not in list(defined_templates.keys()):
-            template['name'] = 'ima'
-        template['desc-fmt'] = defined_templates[template['name']]
-
-        # tokens = template['desc-fmt'].split('|')
-
-
 def _extract_from_ima(tokens, template_hash):
     """ Extract filedata_hash & path form 'ima' entry; return 1 in case error occurred """
     filedata_hash = codecs.decode(tokens[3], "hex")
@@ -502,8 +463,6 @@ def read_excllist(exclude_path=None):
 
 
 def main():
-    # read_measurement_list_bin("/sys/kernel/security/ima/binary_runtime_measurements")
-
     allowlist_path = 'allowlist.txt'
     print("reading allowlist from %s" % allowlist_path)
 
