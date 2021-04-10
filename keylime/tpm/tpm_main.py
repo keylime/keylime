@@ -773,6 +773,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
         keyblobFile = None
         secpath = None
+        secfd = -1
         sesspath = None
         try:
             # write out key blob
@@ -809,8 +810,6 @@ class tpm(tpm_abstract.AbstractTPM):
             logger.info("AIK activated.")
 
             key = base64.b64encode(fileout)
-            os.close(secfd)
-            os.remove(secpath)
 
         except Exception as e:
             logger.error("Error decrypting AIK: " + str(e))
@@ -819,6 +818,8 @@ class tpm(tpm_abstract.AbstractTPM):
         finally:
             if keyblobFile is not None:
                 os.remove(keyblobFile.name)
+            if secfd >= 0:
+                os.close(secfd)
             if secpath is not None and os.path.exists(secpath):
                 os.remove(secpath)
             if sesspath is not None and os.path.exists(sesspath):
