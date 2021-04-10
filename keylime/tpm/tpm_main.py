@@ -594,13 +594,18 @@ class tpm(tpm_abstract.AbstractTPM):
                 output = [output]
 
             outjson = config.yaml_to_dict(output)
-            if outjson is not None and aik_handle in outjson:
+            if self.tools_version == "3.2":
+                evict_it = outjson is not None and aik_handle in outjson
+            elif self.tools_version in ["4.0", "4.2"]:
+                evict_it = os.path.exists(aik_handle)
+            if evict_it:
                 if self.tools_version == "3.2":
                     cmd = ["tpm2_evictcontrol", "-A", "o", "-H", hex(aik_handle), "-P", owner_pw]
                     retDict = self.__run(cmd, raiseOnError=False)
                 elif self.tools_version in ["4.0", "4.2"]:
-                    cmd = ["tpm2_evictcontrol", "-C", "o", "-c", hex(aik_handle), "-P", owner_pw]
+                    cmd = ["tpm2_evictcontrol", "-C", "o", "-c", aik_handle, "-P", owner_pw]
                     retDict = self.__run(cmd, raiseOnError=False)
+                    os.remove(aik_handle)
 
                 output = retDict['retout']
                 reterr = retDict['reterr']
