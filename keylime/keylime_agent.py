@@ -34,6 +34,7 @@ from keylime import openstack
 from keylime import revocation_notifier
 from keylime import registrar_client
 from keylime import secure_mount
+from keylime import user_utils
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
 
@@ -534,6 +535,25 @@ def main():
         logger.warning("TPM2 event log not available: %s", config.MEASUREDBOOT_ML)
     else:
         tpm_log_fd = os.open(config.MEASUREDBOOT_ML, os.O_RDONLY)
+
+    if os.getuid() == 0:
+        # Now that root-owned files are opened, adjust file permissions
+        # for our work dir and then drop privileges
+        # If 'run_as' is not available we keep running with high privileges
+        run_as = config.get('cloud_agent', 'run_as', fallback='')
+        if run_as != '':
+            err = user_utils.chown_recursive(config.WORK_DIR, run_as)
+            if err:
+                logger.error("Recursively changing ownership on %s failed: %s", config.WORK_DIR, err)
+                sys.exit(1)
+            err = user_utils.change_uidgid(run_as)
+            if err:
+                logger.error("Dropping privileges failed: %s", err)
+                sys.exit(1)
+            logger.info("Dropped privileges to %s", run_as)
+        else:
+            user_utils.chown_recursive(config.WORK_DIR, '0:0')
+            logger.warning("Cannot drop privileges since 'run_as' is empty or missing in keylime.conf agent section.")
 
     # register it and get back a blob
     keyblob = registrar_client.doRegisterAgent(
