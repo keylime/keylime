@@ -933,8 +933,9 @@ class tpm(tpm_abstract.AbstractTPM):
             if pcrmask is None:
                 pcrmask = tpm_abstract.AbstractTPM.EMPTYMASK
 
-            # add PCR 16 to pcrmask
-            pcrmask = "0x%X" % (int(pcrmask, 0) + (1 << config.TPM_DATA_PCR))
+            if data is not None:
+                # add PCR 16 to pcrmask
+                pcrmask = "0x%X" % (int(pcrmask, 0) + (1 << config.TPM_DATA_PCR))
 
             pcrlist = self.__pcr_mask_to_list(pcrmask, hash_alg)
 
