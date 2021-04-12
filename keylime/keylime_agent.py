@@ -192,12 +192,10 @@ class Handler(BaseHTTPRequestHandler):
             # generally speaking, retrieving the 15Kbytes of a boot log does not seem significant compared to the
             # potential Mbytes of an IMA measurement list.
             if TPM_Utilities.check_mask(imaMask, config.MEASUREDBOOT_PCRS[0]):
-                if not os.path.exists(config.MEASUREDBOOT_ML):
-                    logger.warning("TPM2 event log not available: %s", config.MEASUREDBOOT_ML)
+                if not self.server.tpm_log_file_data:
+                    logger.warning(f"TPM2 event log not available: {config.MEASUREDBOOT_ML}")
                 else:
-                    with open(config.MEASUREDBOOT_ML, 'rb') as f:
-                        el = base64.b64encode(f.read())
-                    response['mb_measurement_list'] = el
+                    response['mb_measurement_list'] = self.server.tpm_log_file_data
 
             web_util.echo_json_response(self, 200, "Success", response)
             logger.info('GET %s quote returning 200 response.', rest_params["quotes"])
@@ -398,7 +396,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     next_ima_ml_entry = 0 # The next IMA log offset the verifier may ask for.
     boottime = int(psutil.boot_time())
 
-    def __init__(self, server_address, RequestHandlerClass, agent_uuid, contact_ip, ima_log_file):
+    def __init__(self, server_address, RequestHandlerClass, agent_uuid, contact_ip, ima_log_file, tpm_log_file_data):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
         # Find the locations for the U/V transport and mTLS key and certificate.
         # They are either relative to secdir (/var/lib/keylime/secure) or absolute paths.
@@ -455,6 +453,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         self.enc_keyname = config.get('cloud_agent', 'enc_keyname')
         self.agent_uuid = agent_uuid
         self.ima_log_file = ima_log_file
+        self.tpm_log_file_data = tpm_log_file_data
 
     def add_U(self, u):
         """Threadsafe method for adding a U value received from the Tenant
@@ -622,6 +621,11 @@ def main():
     if os.path.exists(config.IMA_ML):
         ima_log_file = open(config.IMA_ML, 'r', encoding="utf-8")
 
+    tpm_log_file_data = None
+    if os.path.exists(config.MEASUREDBOOT_ML):
+        with open(config.MEASUREDBOOT_ML, 'rb') as tpm_log_file:
+            tpm_log_file_data = base64.b64encode(tpm_log_file.read())
+
     if config.get('cloud_agent', 'agent_uuid') == 'dmidecode':
         if os.getuid() != 0:
             raise RuntimeError('agent_uuid is configured to use dmidecode, '
@@ -728,7 +732,7 @@ def main():
     if keylime_ca == "default":
         keylime_ca = os.path.join(config.WORK_DIR, 'cv_ca', 'cacert.crt')
 
-    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, contact_ip, ima_log_file)
+    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, contact_ip, ima_log_file, tpm_log_file_data)
     context = web_util.generate_mtls_context(server.mtls_cert_path, server.rsakey_path, keylime_ca, logger=logger)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     serverthread = threading.Thread(target=server.serve_forever, daemon=True)
