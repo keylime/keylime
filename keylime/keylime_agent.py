@@ -43,6 +43,7 @@ from keylime import json
 from keylime import revocation_notifier
 from keylime import registrar_client
 from keylime import secure_mount
+from keylime import user_utils
 from keylime import web_util
 from keylime import api_version as keylime_api_version
 from keylime.common import algorithms, validators
@@ -637,7 +638,18 @@ def main():
                                'but it\'s is not found on the system.')
 
     # initialize the tmpfs partition to store keys if it isn't already available
-    secure_mount.mount()
+    secdir = secure_mount.mount()
+
+    # Now that operations requiring root privileges are done, drop privileges
+    # if 'run_as' is available in the configuration.
+    if os.getuid() == 0:
+        run_as = config.get('cloud_agent', 'run_as', fallback='')
+        if run_as != '':
+            user_utils.chown(secdir, run_as)
+            user_utils.change_uidgid(run_as)
+            logger.info(f"Dropped privileges to {run_as}")
+        else:
+            logger.warning("Cannot drop privileges since 'run_as' is empty or missing in keylime.conf agent section.")
 
     # Instanitate TPM class
 
