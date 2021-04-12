@@ -136,13 +136,9 @@ class Handler(BaseHTTPRequestHandler):
                 }
 
             # return a measurement list if available
-            if TPM_Utilities.check_mask(imaMask, config.IMA_PCR):
-                if not os.path.exists(config.IMA_ML):
-                    logger.warning("IMA measurement list not available: %s", config.IMA_ML)
-                else:
-                    with open(config.IMA_ML, 'r') as f:
-                        ml = f.read()
-                    response['ima_measurement_list'] = ml
+            if TPM_Utilities.check_mask(imaMask, config.IMA_PCR) and self.server.ima_log_fd >= 0:
+                os.lseek(self.server.ima_log_fd, 0, os.SEEK_SET)
+                response['ima_measurement_list'] = self.server.ima_log_file.read()
 
             # similar to how IMA log retrievals are triggered by IMA_PCR, we trigger boot logs with MEASUREDBOOT_PCRs
             # other possibilities would include adding additional data to rest_params to trigger boot log retrievals
@@ -337,7 +333,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     final_U = None
     agent_uuid = None
 
-    def __init__(self, server_address, RequestHandlerClass, agent_uuid):
+    def __init__(self, server_address, RequestHandlerClass, agent_uuid, ima_log_fd):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
         secdir = secure_mount.mount()
         keyname = "%s/%s" % (secdir, config.get('cloud_agent', 'rsa_keyname'))
@@ -366,6 +362,11 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             self, server_address, RequestHandlerClass)
         self.enc_keyname = config.get('cloud_agent', 'enc_keyname')
         self.agent_uuid = agent_uuid
+        # we'll use ima_log_fd to seek() and ima_log_file to read()
+        self.ima_log_fd = ima_log_fd
+        self.ima_log_file = None
+        if ima_log_fd >= 0:
+            self.ima_log_file = os.fdopen(self.ima_log_fd)
 
     def add_U(self, u):
         """Threadsafe method for adding a U value received from the Tenant
@@ -521,6 +522,12 @@ def main():
 
     logger.info("Agent UUID: %s", agent_uuid)
 
+    ima_log_fd = -1
+    if not os.path.exists(config.IMA_ML):
+        logger.warning("IMA measurement list not available: %s", config.IMA_ML)
+    else:
+        ima_log_fd = os.open(config.IMA_ML, os.O_RDONLY)
+
     # register it and get back a blob
     keyblob = registrar_client.doRegisterAgent(
         registrar_ip, registrar_port, agent_uuid, ek_tpm, ekcert, aik_tpm)
@@ -544,7 +551,7 @@ def main():
 
     serveraddr = (config.get('cloud_agent', 'cloudagent_ip'),
                   config.getint('cloud_agent', 'cloudagent_port'))
-    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid)
+    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, ima_log_fd)
     serverthread = threading.Thread(target=server.serve_forever)
 
     logger.info("Starting Cloud Agent on %s:%s use <Ctrl-C> to stop", serveraddr[0], serveraddr[1])
