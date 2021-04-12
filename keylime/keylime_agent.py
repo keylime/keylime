@@ -144,13 +144,9 @@ class Handler(BaseHTTPRequestHandler):
             # other possibilities would include adding additional data to rest_params to trigger boot log retrievals
             # generally speaking, retrieving the 15Kbytes of a boot log does not seem significant compared to the
             # potential Mbytes of an IMA measurement list.
-            if TPM_Utilities.check_mask(imaMask, config.MEASUREDBOOT_PCRS[0]):
-                if not os.path.exists(config.MEASUREDBOOT_ML):
-                    logger.warning("TPM2 event log not available: %s", config.MEASUREDBOOT_ML)
-                else:
-                    with open(config.MEASUREDBOOT_ML, 'rb') as f:
-                        el = base64.b64encode(f.read())
-                    response['mb_measurement_list'] = el
+            if TPM_Utilities.check_mask(imaMask, config.MEASUREDBOOT_PCRS[0]) and self.server.tpm_log_fd >= 0:
+                os.lseek(self.server.tpm_log_fd, 0, os.SEEK_SET)
+                response['mb_measurement_list'] = base64.b64encode(self.server.tpm_log_file.read())
 
             config.echo_json_response(self, 200, "Success", response)
             logger.info('GET %s quote returning 200 response.', rest_params["quotes"])
@@ -333,7 +329,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     final_U = None
     agent_uuid = None
 
-    def __init__(self, server_address, RequestHandlerClass, agent_uuid, ima_log_fd):
+    def __init__(self, server_address, RequestHandlerClass, agent_uuid, ima_log_fd, tpm_log_fd):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
         secdir = secure_mount.mount()
         keyname = "%s/%s" % (secdir, config.get('cloud_agent', 'rsa_keyname'))
@@ -367,6 +363,11 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         self.ima_log_file = None
         if ima_log_fd >= 0:
             self.ima_log_file = os.fdopen(self.ima_log_fd)
+        # we'll use tpm_log_fd to seek() and tpm_log_file to read()
+        self.tpm_log_fd = tpm_log_fd
+        self.tpm_log_file = None
+        if self.tpm_log_fd >= 0:
+            self.tpm_log_file = os.fdopen(self.tpm_log_fd)
 
     def add_U(self, u):
         """Threadsafe method for adding a U value received from the Tenant
@@ -528,6 +529,12 @@ def main():
     else:
         ima_log_fd = os.open(config.IMA_ML, os.O_RDONLY)
 
+    tpm_log_fd = -1
+    if not os.path.exists(config.MEASUREDBOOT_ML):
+        logger.warning("TPM2 event log not available: %s", config.MEASUREDBOOT_ML)
+    else:
+        tpm_log_fd = os.open(config.MEASUREDBOOT_ML, os.O_RDONLY)
+
     # register it and get back a blob
     keyblob = registrar_client.doRegisterAgent(
         registrar_ip, registrar_port, agent_uuid, ek_tpm, ekcert, aik_tpm)
@@ -551,7 +558,7 @@ def main():
 
     serveraddr = (config.get('cloud_agent', 'cloudagent_ip'),
                   config.getint('cloud_agent', 'cloudagent_port'))
-    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, ima_log_fd)
+    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, ima_log_fd, tpm_log_fd)
     serverthread = threading.Thread(target=server.serve_forever)
 
     logger.info("Starting Cloud Agent on %s:%s use <Ctrl-C> to stop", serveraddr[0], serveraddr[1])
