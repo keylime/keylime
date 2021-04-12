@@ -66,7 +66,7 @@ case "$ID" in
         PYTHON_PREIN="git patch"
         PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-cryptography python3-simplejson python3-requests gcc g++ libssl-dev swig python3-yaml python3-gnupg wget"
         if [ "$(uname -m)" = "x86_64" ]; then
-            PYTHON_DEPS+="libefivar-dev"
+            PYTHON_DEPS+=" libefivar-dev"
         fi
         BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev uuid-dev libjson-c-dev"
         NEED_BUILD_TOOLS=1
@@ -82,7 +82,7 @@ case "$ID" in
                 PYTHON_PREIN="python36 python36-devel python36-setuptools python36-pip git wget patch openssl"
                 PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python36-simplejson python36-cryptography python36-requests python36-zmq yaml-cpp-devel"
                 if [ "$(uname -m)" = "x86_64" ]; then
-                    PYTHON_DEPS+="efivar-libs"
+                    PYTHON_DEPS+=" efivar-libs"
                 fi
                 BUILD_TOOLS="openssl-devel file libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
                 NEED_BUILD_TOOLS=1
@@ -95,7 +95,7 @@ case "$ID" in
                 PYTHON_PREIN="python3 python3-devel python3-setuptools python3-pip"
                 PYTHON_DEPS="gcc gcc-c++ openssl-devel python3-yaml python3-requests swig python3-cryptography wget git python3-tornado python3-zmq python3-simplejson python3-gnupg"
                 if [ "$(uname -m)" = "x86_64" ]; then
-                    PYTHON_DEPS+="efivar-libs"
+                    PYTHON_DEPS+=" efivar-libs"
                 fi
                 BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel libuuid-devel json-c-devel"
                 #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools tpm2-abrmd" TODO: still on 3.1.1 tpm2_tools
@@ -115,7 +115,7 @@ case "$ID" in
         PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
         PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto  python3-zmq python3-cryptography python3-tornado python3-simplejson python3-requests python3-gnupg yaml-cpp-devel procps-ng"
         if [ "$(uname -m)" = "x86_64" ]; then
-            PYTHON_DEPS+="efivar-devel"
+            PYTHON_DEPS+=" efivar-devel"
         fi
         BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
         GOPKG="golang"
