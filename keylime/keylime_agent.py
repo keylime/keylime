@@ -181,12 +181,7 @@ class Handler(BaseHTTPRequestHandler):
                 ima_ml_entry = int(ima_ml_entry)
                 if ima_ml_entry > self.server.next_ima_ml_entry:
                     ima_ml_entry = 0
-                ima_log_file = None
-                if os.path.exists(config.IMA_ML):
-                    ima_log_file = open(config.IMA_ML, 'r', encoding="utf-8")
-                ml, nth_entry, num_entries = ima.read_measurement_list(ima_log_file, ima_ml_entry)
-                if ima_log_file:
-                    ima_log_file.close()
+                ml, nth_entry, num_entries = ima.read_measurement_list(self.server.ima_log_file, ima_ml_entry)
                 if num_entries > 0:
                     response['ima_measurement_list'] = ml
                     response['ima_measurement_list_entry'] = nth_entry
@@ -403,7 +398,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     next_ima_ml_entry = 0 # The next IMA log offset the verifier may ask for.
     boottime = int(psutil.boot_time())
 
-    def __init__(self, server_address, RequestHandlerClass, agent_uuid, contact_ip):
+    def __init__(self, server_address, RequestHandlerClass, agent_uuid, contact_ip, ima_log_file):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
         # Find the locations for the U/V transport and mTLS key and certificate.
         # They are either relative to secdir (/var/lib/keylime/secure) or absolute paths.
@@ -459,6 +454,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             self, server_address, RequestHandlerClass)
         self.enc_keyname = config.get('cloud_agent', 'enc_keyname')
         self.agent_uuid = agent_uuid
+        self.ima_log_file = ima_log_file
 
     def add_U(self, u):
         """Threadsafe method for adding a U value received from the Tenant
@@ -622,6 +618,10 @@ def main():
         if not os.access(ML, os.F_OK):
             logger.warning("Measurement list path %s not accessible by agent. Any attempt to instruct it to access this path - via \"keylime_tenant\" CLI - will result in agent process dying", ML)
 
+    ima_log_file = None
+    if os.path.exists(config.IMA_ML):
+        ima_log_file = open(config.IMA_ML, 'r', encoding="utf-8")
+
     if config.get('cloud_agent', 'agent_uuid') == 'dmidecode':
         if os.getuid() != 0:
             raise RuntimeError('agent_uuid is configured to use dmidecode, '
@@ -728,7 +728,7 @@ def main():
     if keylime_ca == "default":
         keylime_ca = os.path.join(config.WORK_DIR, 'cv_ca', 'cacert.crt')
 
-    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, contact_ip)
+    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, contact_ip, ima_log_file)
     context = web_util.generate_mtls_context(server.mtls_cert_path, server.rsakey_path, keylime_ca, logger=logger)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     serverthread = threading.Thread(target=server.serve_forever, daemon=True)
