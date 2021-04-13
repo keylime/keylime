@@ -155,7 +155,9 @@ def get_config():
     return _CURRENT_CONFIG
 
 
-def get(section, option):
+def get(section, option, fallback=None):
+    if fallback is not None:
+        return get_config().get(section, option, fallback=fallback)
     return get_config().get(section, option)
 
 
