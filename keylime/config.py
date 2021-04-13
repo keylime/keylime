@@ -155,19 +155,27 @@ def get_config():
     return _CURRENT_CONFIG
 
 
-def get(section, option):
+def get(section, option, fallback=None):
+    if fallback is not None:
+        return get_config().get(section, option, fallback=fallback)
     return get_config().get(section, option)
 
 
-def getint(section, option):
+def getint(section, option, fallback=None):
+    if fallback is not None:
+        return get_config().get(section, option, fallback=fallback)
     return get_config().getint(section, option)
 
 
-def getboolean(section, option):
+def getboolean(section, option, fallback=None):
+    if fallback is not None:
+        return get_config().get(section, option, fallback=fallback)
     return get_config().getboolean(section, option)
 
 
-def getfloat(section, option):
+def getfloat(section, option, fallback=None):
+    if fallback is not None:
+        return get_config().get(section, option, fallback=fallback)
     return get_config().getfloat(section, option)
 
 
