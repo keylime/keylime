@@ -450,7 +450,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 def main():
-    for ML in [ config.MEASUREDBOOT_ML, config.IMA_ML ] : 
+    for ML in [ config.MEASUREDBOOT_ML, config.IMA_ML ] :
         if not os.access(ML, os.F_OK) :
             logger.warning("Measurement list path %s not accessible by agent. Any attempt to instruct it to access this path - via \"keylime_tenant\" CLI - will result in agent process dying", ML)
 
