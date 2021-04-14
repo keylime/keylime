@@ -450,9 +450,9 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 def main():
-    if os.getuid() != 0 and config.REQUIRE_ROOT:
-        logger.critical("This process must be run as root.")
-        return
+    for ML in [ config.MEASUREDBOOT_ML, config.IMA_ML ] :
+        if not os.access(ML, os.F_OK) :
+            logger.warning("Measurement list path %s not accessible by agent. Any attempt to instruct it to access this path - via \"keylime_tenant\" CLI - will result in agent process dying", ML)
 
     if config.get('cloud_agent', 'agent_uuid') == 'dmidecode':
         if os.getuid() != 0:
