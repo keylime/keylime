@@ -1,7 +1,7 @@
-#!/bin/bash
+#!/bin/sh
 
-KEYLIME_GROUP=tss
-KEYLIME_USER=keylime
+KEYLIME_GROUP=${KEYLIME_GROUP:-tss}
+KEYLIME_USER=${KEYLIME_USER:-keylime}
 
 # creating group if it isn't already there
 if ! getent group $KEYLIME_GROUP >/dev/null; then
@@ -10,10 +10,10 @@ fi
 
 # creating keylime user if he isn't already there
 if ! getent passwd keylime >/dev/null; then
-    adduser --system --ingroup tss --shell /bin/false \
+    adduser --system --ingroup $KEYLIME_GROUP --shell /bin/false \
     --home /var/lib/keylime --no-create-home \
     --gecos "Keylime remote attestation" \
-    keylime
+    $KEYLIME_USER
 fi
 
 # Create keylime operational directory
