@@ -1020,7 +1020,7 @@ def main(argv=sys.argv):
 
     mytenant = Tenant()
 
-    if args.command not in ['list', 'regdelete', 'delete', 'status',
+    if args.command not in ['list', 'regdelete', 'reglist', 'delete', 'status',
                             'addallowlist', 'deleteallowlist',
                             'showallowlist'] and args.agent_ip is None:
         raise UserError(
