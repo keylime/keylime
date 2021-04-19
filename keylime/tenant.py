@@ -393,7 +393,7 @@ class Tenant():
             cert_pkg = sf.getvalue()
 
             # put the private key into the data to be send to the CV
-            self.revocation_key = privkey
+            self.revocation_key = privkey.decode('utf-8')
 
             # encrypt up the cert package
             ret = user_data_encrypt.encrypt(cert_pkg)
@@ -817,12 +817,12 @@ class Tenant():
             b64_encrypted_u = base64.b64encode(encrypted_U)
             logger.debug("b64_encrypted_u: %s", b64_encrypted_u.decode('utf-8'))
             data = {
-                'encrypted_key': b64_encrypted_u,
+                'encrypted_key': b64_encrypted_u.decode('utf-8'),
                 'auth_tag': self.auth_tag
             }
 
             if self.payload is not None:
-                data['payload'] = self.payload
+                data['payload'] = self.payload.decode('utf-8')
 
             u_json_message = json.dumps(data)
 
