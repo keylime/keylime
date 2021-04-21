@@ -429,32 +429,8 @@ class AgentsHandler(BaseHandler):
 
         agent_list = response_body["results"]["uuids"]
 
-        # Loop through each agent and ask for status
-        agents = {}
-        for agent in agent_list:
-            agents[agent] = await self.get_agent_state(agent_id)
-
-        # Pre-create sorted agents list
-        sorted_by_state = {}
-        for state in states.VALID_STATES:
-            sorted_by_state[state] = {}
-
-        # Build sorted agents list
-        for agent_id in agents:
-            state = agents[agent_id]["operational_state"]
-            sorted_by_state[state][agent_id] = agents[agent_id]
-
-        print_order = [states.TENANT_FAILED, states.INVALID_QUOTE,
-                       states.FAILED, states.GET_QUOTE, states.GET_QUOTE_RETRY,
-                       states.PROVIDE_V, states.PROVIDE_V_RETRY, states.SAVED,
-                       states.START, states.TERMINATED, states.REGISTERED]
-        sorted_agents = []
-        for state in print_order:
-            for agent_id in sorted_by_state[state]:
-                sorted_agents.append(agent_id)
-
         config.echo_json_response(self, 200, "Success", {
-                                  'uuids': sorted_agents})
+                                  'uuids': agent_list})
 
     def delete(self):
         """This method handles the DELETE requests to remove agents from the Cloud Verifier.
