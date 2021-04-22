@@ -60,3 +60,22 @@ html, body {margin:0px;padding:0px;height:100%;width:100%;font-family:verdana,sa
 .tbl_det_processed {background-color:#88FF99;}
 .tbl_det_failed {background-color:#FF6666;}
 .tbl_det_invalid {background-color:#FF6666;}
+
+.chart {
+  margin-top: 25px;
+  margin-left: 25px;
+}
+
+.agent_body_container {
+  display: flex;
+  height: 550px;
+}
+.agent_body_item {
+  flex: 1 1 0;
+  width: 0;
+  padding: 15px;
+}
+
+#page_ctl {
+  margin-left: 40px;
+}

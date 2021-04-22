@@ -9,6 +9,13 @@ let MAX_TERM_LEN=100;
 let DEBUG=false;
 let gTerminalOffset=0;
 
+// global variables
+let page = 0;
+let selectedAgents = [];
+let agentIdx = 0;
+let statusArray = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+google.charts.load("current", {packages:["corechart"]});
 
 // Report that error occurred
 function reportIssue(issueStr) {
@@ -266,144 +273,6 @@ let STR_MAPPINGS = {
     9 : "Invalid Quote",
     10: "Tenant Quote Failed"
 }
-function updateAgentsInfo() {
-    let childAgentsObj = document.getElementsByClassName('agent');
-    for (let i = 0; i < childAgentsObj.length; i++) {
-        if (typeof childAgentsObj[i].id == 'undefined' || childAgentsObj[i].id == '') {
-            continue;
-        }
-
-        asyncRequest("GET", "agents", childAgentsObj[i].id, undefined, function(responseText){
-            let json = JSON.parse(responseText);
-
-            // Ensure response packet isn't malformed
-            if (!("results" in json)) {
-                reportIssue("ERROR updateAgentsInfo: Malformed response for agent refresh callback!");
-                return;
-            }
-            let response = json["results"];
-
-            // Figure out which agent id we refer to
-            if (!("id" in response)) {
-                reportIssue("ERROR updateAgentInfo: Cannot determine agent id from callback!");
-                return;
-            }
-            let agentId = response["id"];
-
-            // Format address to display
-            let fulladdr = "<i>N/A</i>";
-            if ("ip" in response && "port" in response) {
-                let ipaddr = response["ip"];
-                let port = response["port"];
-                fulladdr = ipaddr + ":" + port;
-            }
-
-            // Format status to display
-            let state = response["operational_state"];
-            let statStr = "<i>N/A</i>";
-            if ("operational_state" in response) {
-                statStr = response["operational_state"];
-                let readable = STR_MAPPINGS[statStr];
-                statStr = statStr + " (" + readable + ")";
-            }
-
-            let agentIdShort = agentId.substr(0,8);
-            let classSuffix = style_mappings[state]["class"];
-            let action = style_mappings[state]["action"];
-
-            let agentOverviewInsert = ""
-                    + "<div onmousedown=\"asyncRequest('" + action + "','agents','" + agentId + "')\" class='tbl_ctrl_" + classSuffix + "'>&nbsp;</div>"
-                    + "<div onmousedown=\"toggleVisibility('" + agentId + "-det')\" style='display:block;float:left;'>"
-                    + "<div class='tbl_col_" + classSuffix + "' title='" + agentId + "'>" + agentIdShort + "&hellip;</div>"
-                    + "<div class='tbl_col_" + classSuffix + "'>" + fulladdr + "</div>"
-                    + "<div class='tbl_col_" + classSuffix + "'>" + statStr + "</div>"
-                    + "<br style='clear:both;'>"
-                    + "</div>"
-                    + "<br style='clear:both;'>"
-
-            let agentDetailsInsert = "<div class='tbl_det_" + classSuffix + "'><b><i>Details:</i></b><br><pre>";
-
-            // Parse out detailed specs for agent
-            for (let stat in response) {
-                statStr = response[stat];
-
-                // Make operational state code more human-readable
-                if (stat == "operational_state") {
-                    let readable = STR_MAPPINGS[statStr];
-                    statStr = statStr + " (" + readable + ")";
-                }
-                else if (typeof(statStr) === "object") {
-                    statStr = JSON.stringify(statStr, null, 2);
-                }
-
-                agentDetailsInsert += stat + ": " + statStr + "<br>";
-            }
-            agentDetailsInsert += "</pre></div>";
-
-            // Update agent on GUI
-            document.getElementById(agentId+"-over").innerHTML = agentOverviewInsert;
-            document.getElementById(agentId+"-det").innerHTML = agentDetailsInsert;
-        });
-    }
-}
-
-// Populate agents on page (does not handle ordering!)
-function populateAgents() {
-    asyncRequest("GET", "agents", "", undefined, function(responseText){
-        let json = JSON.parse(responseText);
-
-        // Ensure response packet isn't malformed
-        if (!("results" in json)) {
-            reportIssue("ERROR populateAgents: Malformed response for agent list refresh callback!");
-            return;
-        }
-        let response = json["results"];
-
-        // Figure out which agent id we refer to
-        if (!("uuids" in response)) {
-            reportIssue("ERROR populateAgents: Cannot get uuid list from callback!");
-            return;
-        }
-
-        // Get list of agent ids from server
-        let agentIds = response["uuids"];
-        //console.log(agentIds);
-
-        // Get all existing agent ids
-        let childAgentsObj = document.getElementsByClassName('agent');
-        let existingAgentIds = [];
-        for (let i = 0; i < childAgentsObj.length; i++) {
-            if (typeof childAgentsObj[i].id != 'undefined' && childAgentsObj[i].id != '') {
-                existingAgentIds.push(childAgentsObj[i].id);
-            }
-        }
-        //console.log(existingAgentIds);
-
-        // Find new agents (in new, not in old)
-        let newAgents = arrayDiff(agentIds, existingAgentIds);
-        //console.log(newAgents);
-        // Find removed agents (in old, not in new)
-        let removedAgents = arrayDiff(existingAgentIds, agentIds);
-        //console.log(removedAgentss);
-
-        // Add agent
-        for (let i = 0; i < newAgents.length; i++) {
-            let ele = document.getElementById('agent_template').firstElementChild.cloneNode(true);
-            ele.style.display = "block";
-            ele.id = newAgents[i];
-            ele.firstElementChild.id = newAgents[i] + "-over";
-            ele.lastElementChild.id = newAgents[i] + "-det";
-            document.getElementById('agent_container').appendChild(ele);
-        }
-
-        // Remove agents
-        for (let i = 0; i < removedAgents.length; i++) {
-            let ele = document.getElementById(removedAgents[i]);
-            //console.log(ele);
-            ele.parentNode.removeChild(ele);
-        }
-    });
-}
 
 // Tenant log "terminal" window functions: append-to and update (periodic)
 function appendToTerminal(logLines) {
@@ -453,4 +322,212 @@ function updateTerminal() {
         // update terminal display to user
         appendToTerminal(response["log"]);
     });
+}
+
+async function renderCharts(chart, agentIdToState) {
+    let response = await fetch(`/v${API_VERSION}/agents/`);
+    let json = await response.json();
+    if (!("results" in json)) {
+        reportIssue("ERROR populateAgents: Malformed response for agent list refresh callback!");
+        return;
+    }
+    response = json["results"];
+
+    // Figure out which agent id we refer to
+    if (!("uuids" in response)) {
+        reportIssue("ERROR populateAgents: Cannot get uuid list from callback!");
+        return;
+    }
+
+    // Get list of agent ids from server
+    let agentIds = response["uuids"];
+    
+    for (const uuid of agentIdToState.keys()) {
+        if (agentIds.indexOf(uuid) === -1) {
+            // if uuid is not in the response, remove it from the map
+            agentIdToState.delete(uuid);
+        }
+    }
+
+    // collect visualization data for pie chart
+    if (agentIdx == agentIds.length) {
+        agentIdx = 0;
+    }
+
+    let urls = [];
+    let batchStart = agentIdx;
+    for (; agentIdx < Math.min(agentIds.length, batchStart + BATCH_SIZE); agentIdx++) {
+        urls.push(`/v${API_VERSION}/agents/${agentIds[agentIdx]}`);
+    }
+    let requests = urls.map((url) => fetch(url));
+    Promise.all(requests)
+        .then((responses) => Promise.all(responses.map((res) => res.json())))
+        .then((dataItems) => {
+            dataItems.forEach((resJson) => {
+                let ss = resJson['results']['operational_state'];
+                let uuid = resJson['results']['id'];
+                
+                if (agentIdToState.has(uuid)) {
+                    let oldState = agentIdToState.get(uuid).operational_state;
+                    statusArray[oldState]--;
+                }
+                
+                statusArray[ss]++;
+                agentIdToState.set(uuid, resJson['results']);
+            });
+        })
+        .then(() => {
+            drawChart(chart, statusArray);
+        });
+}
+
+function drawChart(chart, statusArray) {
+    let data = google.visualization.arrayToDataTable([
+        ['Status', 'status'],
+        ['Registered', statusArray[0]],
+        ['Start', statusArray[1]],
+        ['Saved', statusArray[2]],
+        ['Get Quote', statusArray[3]],
+        ['Get Quote (retry)', statusArray[4]],
+        ['Provide V', statusArray[5]],
+        ['Provide V (retry)', statusArray[6]],
+        ['Failed', statusArray[7]],
+        ['Terminated', statusArray[8]],
+        ['Invalid Quote', statusArray[9]],
+        ['Tenant Quote Failed', statusArray[10]]
+    ]);
+
+    let options = {
+            title: 'Agents Status Pie Chart',
+            pieHole: 0.4,
+            titleTextStyle: {
+            fontSize: 25
+        },
+        colors:['#BEBEBE', '#FFFF00', '#BEBEBE', '#88FF99', '#FFFF00', '#88FF99', '#FFFF00', '#FF6666', '#BEBEBE', '#FF6666', '#FF6666'],
+        pieSliceTextStyle: {fontSize: 18},
+        legend: {
+            textStyle: {
+                fontSize: 20
+            }
+        }
+    };
+
+    chart.draw(data, options);
+}
+
+function selectHandler(chart, agentIdToState) {
+    let selectedItem = chart.getSelection()[0];
+    if (selectedItem) {
+        selectedAgents = [];
+        page = 0;
+        for (const agentDetail of agentIdToState.values()) {
+            if (agentDetail.operational_state === selectedItem.row) {
+                selectedAgents.push(agentDetail);
+            }
+        }
+        renderAgentList();
+    }
+}
+
+function nextPageHandler() {
+    if ((page + 1) * PAGE_SIZE < selectedAgents.length) {
+        page += 1;
+        renderAgentList(page);
+    }
+}
+
+function prevPageHandler() {
+    if ((page - 1) >= 0) {
+        page -= 1;
+        renderAgentList(page);
+    }
+}
+
+function insertAgent(agent) {
+    let ele = document.getElementById('agent_template').firstElementChild.cloneNode(true);
+    ele.style.display = "block";
+    ele.id = agent.id;
+    ele.firstElementChild.id = agent.id + "-over";
+    ele.lastElementChild.id = agent.id + "-det";
+
+    // Format address to display
+    let fulladdr = "<i>N/A</i>";
+    if ("ip" in agent && "port" in agent) {
+        let ipaddr = agent.ip;
+        let port = agent.port;
+        fulladdr = ipaddr + ":" + port;
+    }
+
+    // Format status to display
+    let state = agent.operational_state;
+    let statStr = "<i>N/A</i>";
+    if ("operational_state" in agent) {
+        statStr = agent.operational_state;
+        let readable = STR_MAPPINGS[statStr];
+        statStr = statStr + " (" + readable + ")";
+    }
+
+    let agentIdShort = agent.id.substr(0,8);
+    let classSuffix = style_mappings[state]["class"];
+    let action = style_mappings[state]["action"];
+
+    let agentOverviewInsert = ""
+            + "<div onmousedown=\"asyncRequest('" + action + "','agents','" + agent.id + "')\" class='tbl_ctrl_" + classSuffix + "'>&nbsp;</div>"
+            + "<div onmousedown=\"toggleVisibility('" + agent.id + "-det')\" style='display:block;float:left;'>"
+            + "<div class='tbl_col_" + classSuffix + "' title='" + agent.id + "'>" + agentIdShort + "&hellip;</div>"
+            + "<div class='tbl_col_" + classSuffix + "'>" + fulladdr + "</div>"
+            + "<div class='tbl_col_" + classSuffix + "'>" + statStr + "</div>"
+            + "<br style='clear:both;'>"
+            + "</div>"
+            + "<br style='clear:both;'>"
+
+    let agentDetailsInsert = "<div class='tbl_det_" + classSuffix + "'><b><i>Details:</i></b><br><pre>";
+
+    // Parse out detailed specs for agent
+    for (let stat in agent) {
+        statStr = agent[stat];
+
+        // Make operational state code more human-readable
+        if (stat == "operational_state") {
+            let readable = STR_MAPPINGS[statStr];
+            statStr = statStr + " (" + readable + ")";
+        }
+        else if (typeof(statStr) === "object") {
+            statStr = JSON.stringify(statStr, null, 2);
+        }
+
+        agentDetailsInsert += stat + ": " + statStr + "<br>";
+    }
+    agentDetailsInsert += "</pre></div>";
+
+    // Update agent on GUI
+    ele.firstElementChild.innerHTML = agentOverviewInsert;
+    ele.lastElementChild.innerHTML = agentDetailsInsert;
+
+    document.getElementById("agent_container").appendChild(ele);
+}
+
+function clearAgentList() {
+    // remove existing agents in the list
+    let agentContainer = document.getElementById("agent_container");
+
+    while (agentContainer.firstChild) {
+        agentContainer.removeChild(agentContainer.firstChild);
+    }
+
+    document.getElementById("prev_page").disabled = true;
+    document.getElementById("next_page").disabled = true;
+    document.getElementById("page_number").innerHTML = ""; 
+}
+
+function renderAgentList(page_num=0) {
+    clearAgentList();
+    // add agents
+    for (const agent of selectedAgents.slice(page_num * PAGE_SIZE, (page_num + 1) * PAGE_SIZE)) {
+        insertAgent(agent);
+    }
+
+    document.getElementById("prev_page").disabled = false;
+    document.getElementById("next_page").disabled = false;
+    document.getElementById("page_number").innerHTML = `page: ${page + 1}/${Math.ceil(selectedAgents.length / PAGE_SIZE)}`;
 }

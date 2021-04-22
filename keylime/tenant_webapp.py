@@ -111,10 +111,12 @@ class WebAppHandler(BaseHandler):
             config.get('tenant', 'vtpm_policy')), indent=2)
 
         # Get default intervals for populating angents, updating agents and updating terminal
-        populate_agents_interval = json.dumps(json.loads(
-            config.get('webapp', 'populate_agents_interval')), indent=2)
-        update_agents_interval = json.dumps(json.loads(
-            config.get('webapp', 'update_agents_interval')), indent=2)
+        page_size = json.dumps(json.loads(
+            config.get('webapp', 'page_size')), indent=2)
+        batch_size = json.dumps(json.loads(
+            config.get('webapp', 'batch_size')), indent=2)
+        render_chart_interval = json.dumps(json.loads(
+            config.get('webapp', 'render_chart_interval')), indent=2)
         update_terminal_interval = json.dumps(json.loads(
             config.get('webapp', 'update_terminal_interval')), indent=2)
 
@@ -127,18 +129,33 @@ class WebAppHandler(BaseHandler):
                 <head>
                     <meta charset='UTF-8'>
                     <title>Advanced Tenant Management System</title>
+                    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
                     <script type='text/javascript' src='/static/js/webapp.js'></script>
                     <script type='text/javascript'>
+                        let PAGE_SIZE = {0};
+                        let BATCH_SIZE = {1};
                         window.onload = function(e) {{
                             let droppable = document.getElementsByClassName("file_drop");
                             for (let i = 0; i < droppable.length; i++) {{
                                 droppable[i].addEventListener('dragover', dragoverCallback, false);
                                 droppable[i].addEventListener('drop', fileUploadCallback, false);
                             }}
-                            populateAgents();
-                            setInterval(populateAgents, {0});
-                            setInterval(updateAgentsInfo, {1});
-                            setInterval(updateTerminal, {2});
+                            
+                            let agentIdToState = new Map();
+                            let chart = new google.visualization.PieChart(document.getElementById('donutchart'));
+                            google.visualization.events.addListener(chart, 'select', () => {{ selectHandler(chart, agentIdToState); }});
+                            google.charts.setOnLoadCallback(() => {{ drawChart(chart, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]); }});
+
+                            document.getElementById("clear_page").addEventListener("click", clearAgentList);
+                            document.getElementById("next_page").addEventListener("click", nextPageHandler);
+                            document.getElementById("prev_page").addEventListener("click", prevPageHandler);
+
+                            renderCharts(chart, agentIdToState);
+                            setInterval(() => {{
+                                renderCharts(chart, agentIdToState);
+                            }}, {2});    
+
+                            setInterval(updateTerminal, {3});
                         }}
                     </script>
                     <link href='/static/css/webapp.css' rel='stylesheet' type='text/css'/>
@@ -146,7 +163,7 @@ class WebAppHandler(BaseHandler):
                 <body>
                     <div id='modal_box' onclick="if (event.target == this) {{toggleVisibility(this.id);resetAddAgentForm();return false;}}">
 
-            """.format(populate_agents_interval, update_agents_interval, update_terminal_interval)
+            """.format(page_size, batch_size, render_chart_interval, update_terminal_interval)
         )
 
         self.write(
@@ -286,29 +303,36 @@ class WebAppHandler(BaseHandler):
                        <br style="clear:both;">
                     </div>
 
-                    <div id="agent_body">
-                        <h2>Agents</h2>
-                        <div class='table_header'>
-                            <div class='table_control'>&nbsp;</div>
-                            <div class='table_col'>UUID</div>
-                            <div class='table_col'>address</div>
-                            <div class='table_col'>status</div>
-                            <br style='clear:both;' />
+                    <div class="agent_body_container">
+                        <div class="chart agent_body_item" id="donutchart"></div>
+                        <div class="agent_body_item">
+                            <h2>Agents</h2>
+                            <div class='table_header'>
+                                <div class='table_control'>&nbsp;</div>
+                                <div class='table_col'>UUID</div>
+                                <div class='table_col'>address</div>
+                                <div class='table_col'>status</div>
+                                <br style='clear:both;' />
+                            </div>
+                                <div id='agent_template' style='display:none;'>
+                                <li class='agent'>
+                                    <div style='display:block;cursor:help;width:800px;'></div>
+                                    <div style='display:none;'></div>
+                                </li>
+                            </div>
+                            <ol id='agent_container'></ol>
+                            <div id="page_ctl">
+                                <button id='prev_page' disabled=true>Prev</button>
+                                <button id='next_page' disabled=true>Next</button>
+                                <button id='clear_page'>Clear</button>
+                                <span id="page_number"></span>
+                            </div>
                         </div>
-                        <div id='agent_template' style='display:none;'>
-                            <li class='agent'>
-                                <div style='display:block;cursor:help;width:800px;'></div>
-                                <div style='display:none;'></div>
-                            </li>
-                        </div>
-                        <ol id='agent_container'></ol>
-                        <div style="color:#888;margin-left:15px;padding:10px;">
-                            <i>End of results</i>
-                        </div>
-                        <div id="terminal-frame">
+                    </div>
+
+                    <div id="terminal-frame">
                             <div id="terminal-header" onmousedown="toggleVisibility('terminal')">Tenant Logs</div>
                             <div id="terminal"></div>
-                        </div>
                     </div>
                 </body>
             </html>
