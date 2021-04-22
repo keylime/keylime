@@ -969,7 +969,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
         return 'r' + quote
 
-    def __check_quote_c(self, pubaik, nonce, quoteFile, sigFile, pcrFile, hash_alg):
+    def __tpm2_checkquote(self, pubaik, nonce, quoteFile, sigFile, pcrFile, hash_alg):
         if config.STUB_TPM and config.TPM_CANNED_VALUES is not None:
             jsonIn = config.TPM_CANNED_VALUES
             if 'tpm2_deluxequote' in jsonIn and 'nonce' in jsonIn['tpm2_deluxequote']:
@@ -1044,7 +1044,7 @@ class tpm(tpm_abstract.AbstractTPM):
             aikFile.write(aikFromRegistrar)
             aikFile.close()
 
-            retDict = self.__check_quote_c(aikFile.name, nonce, quoteFile.name, sigFile.name, pcrFile.name, hash_alg)
+            retDict = self.__tpm2_checkquote(aikFile.name, nonce, quoteFile.name, sigFile.name, pcrFile.name, hash_alg)
             retout = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
