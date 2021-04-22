@@ -1056,14 +1056,9 @@ class tpm(tpm_abstract.AbstractTPM):
             for fd in [qfd, sfd, pfd, afd]:
                 if fd >= 0:
                     os.close(fd)
-            if aikFile is not None:
-                os.remove(aikFile.name)
-            if quoteFile is not None:
-                os.remove(quoteFile.name)
-            if sigFile is not None:
-                os.remove(sigFile.name)
-            if pcrFile is not None:
-                os.remove(pcrFile.name)
+            for fi in [aikFile, quoteFile, sigFile, pcrFile]:
+                if fi is not None:
+                    os.remove(fi.name)
 
         if len(retout) < 1 or code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             logger.error("Failed to validate signature, output: %s" % reterr)
