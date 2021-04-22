@@ -50,17 +50,17 @@ def main(argv=sys.argv):
 
     print("Writing keys to content_keys.txt")
     f = open('content_keys.txt', 'w')
-    f.write(base64.b64encode(ret['k']))
+    f.write(base64.b64encode(ret['k'].decode('utf-8')))
     f.write('\n')
-    f.write(base64.b64encode(ret['v']))
+    f.write(base64.b64encode(ret['v'].decode('utf-8')))
     f.write('\n')
-    f.write(base64.b64encode(ret['u']))
+    f.write(base64.b64encode(ret['u'].decode('utf-8')))
     f.write('\n')
     f.close()
 
     print("Writing encrypted data to content_payload.txt")
     f = open('content_payload.txt', 'w')
-    f.write(ret['ciphertext'])
+    f.write(ret['ciphertext'].decode('utf-8'))
     f.close()
 
 
