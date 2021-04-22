@@ -22,6 +22,7 @@ from keylime import config
 from keylime import keylime_logging
 from keylime import crypto
 from keylime import ima
+from keylime import measured_boot
 from keylime.common import algorithms
 
 logger = keylime_logging.init_logging('tpm')
@@ -215,6 +216,31 @@ class AbstractTPM(metaclass=ABCMeta):
         logger.debug("IMA measurement list of agent %s validated", agent_id)
         return True
 
+
+    def parse_mb_bootlog(self, mb_measurement_list):
+        """ Parse the measured boot log and return its object and the state of the SHA256 PCRs
+        :param mb_measurement_list: The measured boot measurement list
+        :returns: Returns a map of the state of the SHA256 PCRs, measured boot data object and True for success
+                  and False in case an error occurred
+        """
+        if mb_measurement_list:
+            mb_measurement_data = self.parse_bootlog(mb_measurement_list)
+            if not mb_measurement_data:
+                logger.error("Unable to parse measured boot event log. Check previous messages for a reason for error.")
+                return {}, {}, False
+            log_pcrs = mb_measurement_data.get('pcrs')
+            if not isinstance(log_pcrs, dict):
+                logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)
+                return {}, {}, False
+            pcrs_sha256 = log_pcrs.get('sha256')
+            if (not isinstance(pcrs_sha256, dict)) or not pcrs_sha256:
+                logger.error("Parse of measured boot event log has unexpected value for .pcrs.sha256: %r", pcrs_sha256)
+                return {}, {}, False
+
+            return pcrs_sha256, mb_measurement_data, True
+
+        return {}, {}, True
+
     def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate_str):
         try:
             tpm_policy_ = ast.literal_eval(tpm_policy)
@@ -222,48 +248,15 @@ class AbstractTPM(metaclass=ABCMeta):
             tpm_policy_ = {}
         pcr_allowlist = tpm_policy_.copy()
 
-        if mb_refstate_str:
-            mb_refstate_data = json.loads(mb_refstate_str)
-        else:
-            mb_refstate_data = None
-
         if 'mask' in pcr_allowlist:
             del pcr_allowlist['mask']
         # convert all pcr num keys to integers
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
-        if mb_refstate_data :
-            mb_policy_name = config.MEASUREDBOOT_POLICYNAME
-            #pylint: disable=import-outside-toplevel
-            from keylime.elchecking import policies as eventlog_policies
-            #pylint: enable=import-outside-toplevel
-            mb_policy = eventlog_policies.get_policy(mb_policy_name)
-            if mb_policy is None:
-                logger.warning(
-                    "Invalid measured boot policy name %s -- using accept-all instead.", mb_policy_name)
-                mb_policy = eventlog_policies.AcceptAll()
-
-            mb_pcrs_config = frozenset(config.MEASUREDBOOT_PCRS)
-            mb_pcrs_policy = mb_policy.get_relevant_pcrs()
-            if not mb_pcrs_policy <= mb_pcrs_config:
-                logger.error("Measured boot policy considers PCRs %s, which are not among the configured set %s",
-                            set(mb_pcrs_policy - mb_pcrs_config), set(mb_pcrs_config))
-
-        if mb_refstate_data and mb_measurement_list :
-            mb_measurement_data = self.parse_bootlog(mb_measurement_list)
-            if not mb_measurement_data :
-                logger.error("Unable to parse measured boot event log. Check previous messages for a reason for error.")
-                return False
-            log_pcrs = mb_measurement_data.get('pcrs')
-            if not isinstance(log_pcrs, dict):
-                logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)
-                return False
-            pcrs_sha256 = log_pcrs.get('sha256')
-            if (not isinstance(pcrs_sha256, dict)) or not pcrs_sha256:
-                logger.error("Parse of measured boot event log has unexpected value for .pcrs.sha256: %r", pcrs_sha256)
-                return False
-        else:
-            pcrs_sha256 = {}
+        mb_policy, mb_refstate_data = measured_boot.get_policy(mb_refstate_str)
+        mb_pcrs_sha256, mb_measurement_data, success = self.parse_mb_bootlog(mb_measurement_list)
+        if not success:
+            return False
 
         pcrsInQuote = set()
         validatedBindPCR = False
@@ -311,7 +304,7 @@ class AbstractTPM(metaclass=ABCMeta):
                         logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcrnum)
                         return False
 
-                    val_from_log_int = pcrs_sha256.get(str(pcrnum), 0)
+                    val_from_log_int = mb_pcrs_sha256.get(str(pcrnum), 0)
                     val_from_log_hex = hex(val_from_log_int)[2:]
                     val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
                     pcrval_stripped = pcrval.lstrip('0')
