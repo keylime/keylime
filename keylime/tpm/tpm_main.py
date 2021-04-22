@@ -990,11 +990,6 @@ class tpm(tpm_abstract.AbstractTPM):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
-        quoteFile = None
-        aikFile = None
-        sigFile = None
-        pcrFile = None
-
         aikFromRegistrar = tpm2_objects.pubkey_from_tpm2b_public(
             base64.b64decode(aikTpmFromRegistrar),
             ).public_bytes(
@@ -1015,33 +1010,35 @@ class tpm(tpm_abstract.AbstractTPM):
         sigblob = zlib.decompress(base64.b64decode(quote_tokens[1]))
         pcrblob = zlib.decompress(base64.b64decode(quote_tokens[2]))
 
+        qfd = sfd = pfd = afd = -1
+        quoteFile = None
+        aikFile = None
+        sigFile = None
+        pcrFile = None
+
         try:
             # write out quote
             qfd, qtemp = tempfile.mkstemp()
             quoteFile = open(qtemp, "wb")
             quoteFile.write(quoteblob)
             quoteFile.close()
-            os.close(qfd)
 
             # write out sig
             sfd, stemp = tempfile.mkstemp()
             sigFile = open(stemp, "wb")
             sigFile.write(sigblob)
             sigFile.close()
-            os.close(sfd)
 
             # write out pcr
             pfd, ptemp = tempfile.mkstemp()
             pcrFile = open(ptemp, "wb")
             pcrFile.write(pcrblob)
             pcrFile.close()
-            os.close(pfd)
 
             afd, atemp = tempfile.mkstemp()
             aikFile = open(atemp, "wb")
             aikFile.write(aikFromRegistrar)
             aikFile.close()
-            os.close(afd)
 
             retDict = self.__check_quote_c(aikFile.name, nonce, quoteFile.name, sigFile.name, pcrFile.name, hash_alg)
             retout = retDict['retout']
@@ -1052,6 +1049,9 @@ class tpm(tpm_abstract.AbstractTPM):
             logger.exception(e)
             return False
         finally:
+            for fd in [qfd, sfd, pfd, afd]:
+                if fd >= 0:
+                    os.close(fd)
             if aikFile is not None:
                 os.remove(aikFile.name)
             if quoteFile is not None:
