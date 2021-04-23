@@ -64,6 +64,23 @@ def get_policy(mb_refstate_str):
 
     return mb_refstate_data, mb_policy
 
+def evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data, pcrsInQuote, pcrPrefix, agent_id):
+    missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
+    if len(missing) > 0:
+        logger.error("%sPCRs specified for measured boot not in quote: %s", pcrPrefix, missing)
+        return False
+    try:
+        reason = mb_policy.evaluate(mb_refstate_data, mb_measurement_data)
+    except Exception as exn:
+        logger.error("Boot attestation for agent %s, configured policy %s, refstate=%s, raised Exception %s",
+            agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), str(exn))
+        reason = ''
+    if reason:
+        logger.error("Boot attestation failed for agent %s, configured policy %s, refstate=%s, reason=%s",
+            agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), reason)
+        return False
+    return True
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('infile', default="mbtest.txt")
