@@ -1272,10 +1272,34 @@ class tpm(tpm_abstract.AbstractTPM):
         self.__stringify_pcr_keys(log_parsed_data)
         return log_parsed_data
 
-    def parse_bootlog(self, log_b64:str) -> dict:
+    def _parse_mb_bootlog(self, log_b64:str) -> dict:
         '''Parse and enrich a BIOS boot log
 
         The input is the base64 encoding of a binary log.
         The output is the result of parsing and applying other conveniences.'''
         log_bin = base64.b64decode(log_b64, validate=True)
         return self.parse_binary_bootlog(log_bin)
+
+    def parse_mb_bootlog(self, mb_measurement_list:str) -> dict:
+        """ Parse the measured boot log and return its object and the state of the SHA256 PCRs
+        :param mb_measurement_list: The measured boot measurement list
+        :returns: Returns a map of the state of the SHA256 PCRs, measured boot data object and True for success
+                  and False in case an error occurred
+        """
+        if mb_measurement_list:
+            mb_measurement_data = self._parse_mb_bootlog(mb_measurement_list)
+            if not mb_measurement_data:
+                logger.error("Unable to parse measured boot event log. Check previous messages for a reason for error.")
+                return {}, {}, False
+            log_pcrs = mb_measurement_data.get('pcrs')
+            if not isinstance(log_pcrs, dict):
+                logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)
+                return {}, {}, False
+            pcrs_sha256 = log_pcrs.get('sha256')
+            if (not isinstance(pcrs_sha256, dict)) or not pcrs_sha256:
+                logger.error("Parse of measured boot event log has unexpected value for .pcrs.sha256: %r", pcrs_sha256)
+                return {}, {}, False
+
+            return pcrs_sha256, mb_measurement_data, True
+
+        return {}, {}, True
