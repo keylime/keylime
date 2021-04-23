@@ -271,11 +271,10 @@ class AbstractTPM(metaclass=ABCMeta):
 
             # PCRs set by measured boot get their own special handling
 
-            if pcrnum in config.MEASUREDBOOT_PCRS :
+            if pcrnum in config.MEASUREDBOOT_PCRS:
 
-                if mb_refstate_data :
-
-                    if not mb_measurement_list :
+                if mb_refstate_data:
+                    if not mb_measurement_list:
                         logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcrnum)
                         return False
 
