@@ -760,7 +760,7 @@ class tpm(tpm_abstract.AbstractTPM):
         except Exception as e:
             logger.error("Error encrypting AIK: " + str(e))
             logger.exception(e)
-            return None
+            raise
         finally:
             for fd in [efd, keyfd, blobfd]:
                 if fd >= 0:
