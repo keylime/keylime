@@ -17,16 +17,18 @@ if ! getent passwd keylime >/dev/null; then
 fi
 
 # Create keylime operational directory
-if [ ! -d /var/lib/keylime ]; then mkdir -p /var/lib/keylime/secure
+if [ ! -d /var/lib/keylime ]; then
+    mkdir -p /var/lib/keylime/secure
 fi
 
 # Only root can mount tmpfs with `-o`
-if ! grep -qs '/var/lib/keylime/secure ' /proc/mounts ; then mount -t tmpfs -o size=1m,mode=0700 tmpfs /var/lib/keylime/secure
+if ! grep -qs '/var/lib/keylime/secure ' /proc/mounts ; then
+    mount -t tmpfs -o size=1m,mode=0700 tmpfs /var/lib/keylime/secure
 fi
 
 # Setting ownership for keylime operational directory
 if [ -d /var/lib/keylime ] && getent passwd $KEYLIME_USER >/dev/null; then
-chown -R $KEYLIME_USER:$KEYLIME_GROUP /var/lib/keylime
+    chown -R $KEYLIME_USER:$KEYLIME_GROUP /var/lib/keylime
 fi
 
 # Setting ownership for /sys/kernel/security/<x>, giving keylime agent access to it
