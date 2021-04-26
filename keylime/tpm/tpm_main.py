@@ -713,10 +713,6 @@ class tpm(tpm_abstract.AbstractTPM):
                                raiseOnError=False)
 
     def encryptAIK(self, uuid, ek_tpm: bytes, aik_tpm: bytes):
-        ekFile = None
-        challengeFile = None
-        keyblob = None
-        blobpath = None
 
         if ek_tpm is None or aik_tpm is None:
             logger.error("Missing parameters for encryptAIK")
@@ -724,13 +720,18 @@ class tpm(tpm_abstract.AbstractTPM):
 
         aik_name = tpm2_objects.get_tpm2b_public_name(aik_tpm)
 
+        efd = keyfd = blobfd = -1
+        ekFile = None
+        challengeFile = None
+        keyblob = None
+        blobpath = None
+
         try:
             # write out the public EK
             efd, etemp = tempfile.mkstemp()
             ekFile = open(etemp, "wb")
             ekFile.write(ek_tpm)
             ekFile.close()
-            os.close(efd)
 
             # write out the challenge
             challenge = tpm_abstract.TPM_Utilities.random_password(32)
@@ -739,7 +740,6 @@ class tpm(tpm_abstract.AbstractTPM):
             challengeFile = open(keypath, "wb")
             challengeFile.write(challenge)
             challengeFile.close()
-            os.close(keyfd)
 
             # create temp file for the blob
             blobfd, blobpath = tempfile.mkstemp()
@@ -753,7 +753,6 @@ class tpm(tpm_abstract.AbstractTPM):
             f = open(blobpath, "rb")
             keyblob = base64.b64encode(f.read())
             f.close()
-            os.close(blobfd)
 
             # read in the aes key
             key = base64.b64encode(challenge)
@@ -763,12 +762,15 @@ class tpm(tpm_abstract.AbstractTPM):
             logger.exception(e)
             return None
         finally:
-            if ekFile is not None:
-                os.remove(ekFile.name)
-            if challengeFile is not None:
-                os.remove(challengeFile.name)
+            for fd in [efd, keyfd, blobfd]:
+                if fd >= 0:
+                    os.close(fd)
+            for fi in [ekFile, challengeFile]:
+                if fi is not None:
+                    os.remove(fi.name)
             if blobpath is not None:
                 os.remove(blobpath)
+
         return (keyblob, key)
 
     def activate_identity(self, keyblob):
