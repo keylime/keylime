@@ -363,12 +363,12 @@ class AbstractTPM(metaclass=ABCMeta):
 
     # tpm_random
     def init_system_rand(self):
-        RNDADDENTROPY = 0x40085203
         rand_data = self._get_tpm_rand_block()
         if config.REQUIRE_ROOT and rand_data is not None:
             try:
-                t = struct.pack("ii%ds" % len(rand_data), 8, len(rand_data), rand_data)
+                t = struct.pack("ii%ds" % len(rand_data), 8 * len(rand_data), len(rand_data), rand_data)
                 with open("/dev/random", mode='wb') as fp:
+                    RNDADDENTROPY = 0x80085203
                     # as fp has a method fileno(), you can pass it to ioctl
                     fcntl.ioctl(fp, RNDADDENTROPY, t)
             except Exception as e:
