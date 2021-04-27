@@ -67,15 +67,15 @@ class TestIMAVerification(unittest.TestCase):
 
         # add key for 1st entry; 1st entry must be verifiable
         rsakeyfile = os.path.join(keydir, "rsa2048pub.pem")
-        pubkey = ima_file_signatures.get_pubkey_from_file(rsakeyfile)
-        keyring.add_pubkey(pubkey)
+        pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(rsakeyfile)
+        keyring.add_pubkey(pubkey, keyidv2)
         self.assertTrue(ima.process_measurement_list(lines[0:1], ima_keyring=keyring) is not None)
         self.assertTrue(ima.process_measurement_list(lines[1:2], ima_keyring=keyring) is None)
 
         # add key for 2nd entry; 1st & 2nd entries must be verifiable
         eckeyfile = os.path.join(keydir, "secp256k1.pem")
-        pubkey = ima_file_signatures.get_pubkey_from_file(eckeyfile)
-        keyring.add_pubkey(pubkey)
+        pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(eckeyfile)
+        keyring.add_pubkey(pubkey, keyidv2)
         self.assertTrue(ima.process_measurement_list(lines[0:2], ima_keyring=keyring) is not None)
 
     def test_mixed_verfication(self):
@@ -91,12 +91,12 @@ class TestIMAVerification(unittest.TestCase):
         keyring = ima_file_signatures.ImaKeyring()
 
         rsakeyfile = os.path.join(keydir, "rsa2048pub.pem")
-        pubkey = ima_file_signatures.get_pubkey_from_file(rsakeyfile)
-        keyring.add_pubkey(pubkey)
+        pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(rsakeyfile)
+        keyring.add_pubkey(pubkey, keyidv2)
 
         eckeyfile = os.path.join(keydir, "secp256k1.pem")
-        pubkey = ima_file_signatures.get_pubkey_from_file(eckeyfile)
-        keyring.add_pubkey(pubkey)
+        pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(eckeyfile)
+        keyring.add_pubkey(pubkey, keyidv2)
 
         # entries are not covered by a exclude list -> this should fail
         self.assertTrue(ima.process_measurement_list(COMBINED.splitlines(), ima_keyring=keyring) is None)
