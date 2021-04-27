@@ -134,9 +134,13 @@ class ImaKeyring:
         keydigest = digest.finalize()
         return int.from_bytes(keydigest[16:], 'big')
 
-    def add_pubkey(self, pubkey):
-        """ Add a public key object to the keyring. """
-        keyidv2 = ImaKeyring._get_keyidv2(pubkey)
+    def add_pubkey(self, pubkey, keyidv2):
+        """ Add a public key object to the keyring; a keyidv2 may be passed in
+            and if it is 'None' it will be determined using the commonly used
+            sha1 hash function for calculating the Subject Key Identifier.
+        """
+        if not keyidv2:
+            keyidv2 = ImaKeyring._get_keyidv2(pubkey)
         # it's unlikely that two different public keys have the same 32 bit keyidv2
         self.ringv2[keyidv2] = pubkey
         logger.debug("Added key with keyid: 0x%08x" % keyidv2)
@@ -160,6 +164,7 @@ class ImaKeyring:
             lst.append(pubbytes)
 
         obj['pubkeys'] = [base64.b64encode(pubkey).decode('ascii') for pubkey in lst]
+        obj['keyids'] = list(self.ringv2.keys())
         return obj
 
     def to_string(self):
@@ -167,13 +172,15 @@ class ImaKeyring:
         return json.dumps(self.to_json())
 
     @staticmethod
-    def _base64_to_der_keylist(base64_keylist):
+    def _base64_to_der_keylist(base64_keylist, keyidv2_list):
         """ Convert a base64-encoded list of public keys to a list of DER-encoded
-            public keys
+            public keys; a keyidv2_list may also be given that contains
+            the keyidv2 of each key
         """
         res = []
-        for entry in base64_keylist:
-            res.append(base64.b64decode(entry))
+        for idx, entry in enumerate(base64_keylist):
+            keyidv2 = keyidv2_list[idx] if idx < len(keyidv2_list) else None
+            res.append((base64.b64decode(entry), keyidv2))
         return res
 
     @staticmethod
@@ -194,10 +201,12 @@ class ImaKeyring:
         if not isinstance(obj, dict):
             return None
 
-        for der_key in ImaKeyring._base64_to_der_keylist(obj['pubkeys']):
+        keyids = obj.get('keyids', [])
+
+        for (der_key, keyidv2) in ImaKeyring._base64_to_der_keylist(obj['pubkeys'], keyids):
             try:
                 pubkey = serialization.load_der_public_key(der_key, backend=default_be)
-                ima_keyring.add_pubkey(pubkey)
+                ima_keyring.add_pubkey(pubkey, keyidv2)
             except Exception as ex:
                 logger.error("Could not load a base64-decoded DER key: %s" % str(ex))
         return ima_keyring
@@ -283,17 +292,17 @@ class ImaKeyring:
 def _get_pubkey_from_der_public_key(filedata, backend):
     """ Load the filedata as a DER public key """
     try:
-        return serialization.load_der_public_key(filedata, backend=backend)
+        return serialization.load_der_public_key(filedata, backend=backend), None
     except Exception:
-        return None
+        return None, None
 
 
 def _get_pubkey_from_pem_public_key(filedata, backend):
     """ Load the filedata as a PEM public key """
     try:
-        return serialization.load_pem_public_key(filedata, backend=backend)
+        return serialization.load_pem_public_key(filedata, backend=backend), None
     except Exception:
-        return None
+        return None, None
 
 
 def _get_pubkey_from_der_private_key(filedata, backend):
@@ -301,9 +310,9 @@ def _get_pubkey_from_der_private_key(filedata, backend):
     try:
         privkey = serialization.load_der_private_key(filedata, None,
                                                      backend=backend)
-        return privkey.public_key()
+        return privkey.public_key(), None
     except Exception:
-        return None
+        return None, None
 
 
 def _get_pubkey_from_pem_private_key(filedata, backend):
@@ -311,48 +320,63 @@ def _get_pubkey_from_pem_private_key(filedata, backend):
     try:
         privkey = serialization.load_pem_private_key(filedata, None,
                                                      backend=backend)
-        return privkey.public_key()
+        return privkey.public_key(), None
     except Exception:
+        return None, None
+
+
+def _get_keyidv2_from_cert(cert):
+    """ Get the keyidv2 from the cert's Subject Key Identifier """
+    if not cert.extensions:
         return None
+
+    skid = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_KEY_IDENTIFIER)
+    if skid and skid.value and len(skid.value.digest) >= 4:
+        keyidv2 = int.from_bytes(skid.value.digest[-4:], 'big')
+        logger.debug("Extracted keyidv2 from cert: 0x%08x", keyidv2)
+        return keyidv2
+    return None
 
 
 def _get_pubkey_from_der_x509_certificate(filedata, backend):
     """ Load the filedata as a DER x509 certificate """
     try:
         cert = x509.load_der_x509_certificate(filedata, backend=backend)
-        return cert.public_key()
+        return cert.public_key(), _get_keyidv2_from_cert(cert)
     except Exception:
-        return None
+        return None, None
 
 
 def _get_pubkey_from_pem_x509_certificate(filedata, backend):
     """ Load the filedata as a PEM x509 certificate """
     try:
         cert = x509.load_pem_x509_certificate(filedata, backend=backend)
-        return cert.public_key()
+        return cert.public_key(), _get_keyidv2_from_cert(cert)
     except Exception:
-        return None
+        return None, None
 
 
 def get_pubkey(filedata):
-    """ Get the public key from the filedata.
+    """ Get the public key from the filedata; if an x509 certificate is
+        given, also determine the keyidv2 from the Subject Key Identifier,
+        otherwise return None
         To make it easy for the user, we try to parse the filedata as
         PEM- or DER-encoded public key, x509 certificate, or even private key.
         This function then returns the public key object or None if the file
         contents could not be interpreted as a key.
     """
     default_be = backends.default_backend()
-    for func in [_get_pubkey_from_der_public_key,
-                 _get_pubkey_from_pem_public_key,
-                 _get_pubkey_from_der_x509_certificate,
+    for func in [_get_pubkey_from_der_x509_certificate,
                  _get_pubkey_from_pem_x509_certificate,
+                 _get_pubkey_from_der_public_key,
+                 _get_pubkey_from_pem_public_key,
                  _get_pubkey_from_der_private_key,
                  _get_pubkey_from_pem_private_key]:
-        pubkey = func(filedata, default_be)
+        pubkey, keyidv2 = func(filedata, default_be)
         if pubkey:
-            return pubkey
+            return pubkey, keyidv2
 
-    return None
+    return None, None
 
 
 def get_pubkey_from_file(filename):
@@ -360,10 +384,10 @@ def get_pubkey_from_file(filename):
     try:
         with open(filename, "rb") as fobj:
             filedata = fobj.read()
-            pubkey = get_pubkey(filedata)
+            pubkey, keyidv2 = get_pubkey(filedata)
             if pubkey:
-                return pubkey
+                return pubkey, keyidv2
     except Exception:
         pass
 
-    return None
+    return None, None
