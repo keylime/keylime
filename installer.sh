@@ -14,7 +14,7 @@ TPM2SIM_SRC=http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/do
 KEYLIME_VER="master"
 TPM4720_VER="master"
 GOLANG_VER="1.13.1"
-TPM2TSS_VER="2.0.x"
+TPM2TSS_VER="2.4.x"
 TPM2TOOLS_VER="3.X"
 
 # Minimum version requirements
@@ -469,7 +469,7 @@ elif [[ "$TPM_VERSION" -eq "2" ]] ; then
         if [[ -n $CENTOS7_TSS_FLAGS ]] ; then
             export PKG_CONFIG_PATH=/usr/lib/pkgconfig/
         fi
-        ./configure --prefix=/usr $CENTOS7_TSS_FLAGS
+        ./configure --disable-doxygen-doc --prefix=/usr $CENTOS7_TSS_FLAGS
         make
         make install
         ldconfig
