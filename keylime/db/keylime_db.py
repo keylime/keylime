@@ -14,7 +14,6 @@ from keylime import keylime_logging
 
 logger = keylime_logging.init_logging('keylime_db')
 
-
 class DBEngineManager:
 
     def __init__(self):
@@ -26,45 +25,51 @@ class DBEngineManager:
         """
         self.service = service
 
-        database_url = config.get(service, 'database_url')
-        if database_url:
-            engine = create_engine(database_url)
-            return engine
+        p_sz, m_ovfl = config.get(service, 'database_pool_sz_ovfl').split(',')
+        engine_args = {}
 
-        # TODO(kaifeng) Remove following code as well as related configuration
-        # options when the deprecation period is reached.
-        logger.warning('database_url is not set, using deprecated database '
-                       'configuration options')
-        drivername = config.get(service, 'drivername')
-        if drivername == 'sqlite':
-            database = "%s/%s" % (config.WORK_DIR,
-                                  config.get(service, 'database'))
-            # Create the path to where the sqlite database will be store with a perm umask of 077
-            os.umask(0o077)
-            kl_dir = os.path.dirname(os.path.abspath(database))
-            if not os.path.exists(kl_dir):
-                os.makedirs(kl_dir, 0o700)
+        url = config.get(service, 'database_url')
+        if url:
+            logger.info('database_url is set, using it for establishing database connection')
+            engine_args['pool_size'] = int(p_sz)
+            engine_args['max_overflow'] = int(m_ovfl)
 
-            url = URL(
-                drivername=drivername,
-                username=None,
-                password=None,
-                host=None,
-                database=(database)
-            )
-            engine = create_engine(url, connect_args={'check_same_thread': False},)
-        else:
-            url = URL(
-                drivername=drivername,
-                username=config.get(service, 'username'),
-                password=config.get(service, 'password'),
-                host=config.get(service, 'host'),
-                database=config.get(service, 'database')
-            )
-            engine = create_engine(url)
+        else :
+            logger.info('database_url is not set, using multi-parameter database configuration options')
 
+            drivername = config.get(service, 'database_drivername')
+            if drivername == 'sqlite':
+                database = "%s/%s" % (config.WORK_DIR,
+                                    config.get(service, 'database_name'))
+                # Create the path to where the sqlite database will be store with a perm umask of 077
+                os.umask(0o077)
+                kl_dir = os.path.dirname(os.path.abspath(database))
+                if not os.path.exists(kl_dir):
+                    os.makedirs(kl_dir, 0o700)
+
+                url = URL(
+                    drivername=drivername,
+                    username=None,
+                    password=None,
+                    host=None,
+                    database=(database)
+                )
+                engine_args['connect_args'] = {'check_same_thread': False}
+
+            else:
+                url = URL(
+                    drivername=drivername,
+                    username=config.get(service, 'database_username'),
+                    password=config.get(service, 'database_password'),
+                    host=config.get(service, 'database_host'),
+                    database=config.get(service, 'database_name')
+                )
+                engine_args['pool_size'] = int(p_sz)
+                engine_args['max_overflow'] = int(m_ovfl)
+
+        engine = create_engine(url, **engine_args)
+        
         return engine
-
 
 class SessionManager:
     def __init__(self):
