@@ -320,12 +320,20 @@ class AbstractTPM(metaclass=ABCMeta):
 
     # tpm_random
     def init_system_rand(self):
+        """ Add entropy from the TPM to /dev/random """
+        machine = os.uname().machine
+        if machine in ['x86_64']:
+            RNDADDENTROPY = 0x40085203
+        elif machine in ['ppc64le']:
+            RNDADDENTROPY = 0x80085203
+        else:
+            return
+
         rand_data = self._get_tpm_rand_block()
         if config.REQUIRE_ROOT and rand_data is not None:
             try:
                 t = struct.pack("ii%ds" % len(rand_data), 8 * len(rand_data), len(rand_data), rand_data)
                 with open("/dev/random", mode='wb') as fp:
-                    RNDADDENTROPY = 0x80085203
                     # as fp has a method fileno(), you can pass it to ioctl
                     fcntl.ioctl(fp, RNDADDENTROPY, t)
             except Exception as e:
