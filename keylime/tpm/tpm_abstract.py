@@ -22,6 +22,7 @@ from keylime import config
 from keylime import keylime_logging
 from keylime import crypto
 from keylime import ima
+from keylime import measured_boot
 from keylime.common import algorithms
 
 logger = keylime_logging.init_logging('tpm')
@@ -222,48 +223,15 @@ class AbstractTPM(metaclass=ABCMeta):
             tpm_policy_ = {}
         pcr_allowlist = tpm_policy_.copy()
 
-        if mb_refstate_str:
-            mb_refstate_data = json.loads(mb_refstate_str)
-        else:
-            mb_refstate_data = None
-
         if 'mask' in pcr_allowlist:
             del pcr_allowlist['mask']
         # convert all pcr num keys to integers
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
-        if mb_refstate_data :
-            mb_policy_name = config.MEASUREDBOOT_POLICYNAME
-            #pylint: disable=import-outside-toplevel
-            from keylime.elchecking import policies as eventlog_policies
-            #pylint: enable=import-outside-toplevel
-            mb_policy = eventlog_policies.get_policy(mb_policy_name)
-            if mb_policy is None:
-                logger.warning(
-                    "Invalid measured boot policy name %s -- using accept-all instead.", mb_policy_name)
-                mb_policy = eventlog_policies.AcceptAll()
-
-            mb_pcrs_config = frozenset(config.MEASUREDBOOT_PCRS)
-            mb_pcrs_policy = mb_policy.get_relevant_pcrs()
-            if not mb_pcrs_policy <= mb_pcrs_config:
-                logger.error("Measured boot policy considers PCRs %s, which are not among the configured set %s",
-                            set(mb_pcrs_policy - mb_pcrs_config), set(mb_pcrs_config))
-
-        if mb_refstate_data and mb_measurement_list :
-            mb_measurement_data = self.parse_bootlog(mb_measurement_list)
-            if not mb_measurement_data :
-                logger.error("Unable to parse measured boot event log. Check previous messages for a reason for error.")
-                return False
-            log_pcrs = mb_measurement_data.get('pcrs')
-            if not isinstance(log_pcrs, dict):
-                logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)
-                return False
-            pcrs_sha256 = log_pcrs.get('sha256')
-            if (not isinstance(pcrs_sha256, dict)) or not pcrs_sha256:
-                logger.error("Parse of measured boot event log has unexpected value for .pcrs.sha256: %r", pcrs_sha256)
-                return False
-        else:
-            pcrs_sha256 = {}
+        mb_policy, mb_refstate_data = measured_boot.get_policy(mb_refstate_str)
+        mb_pcrs_sha256, mb_measurement_data, success = self.parse_mb_bootlog(mb_measurement_list)
+        if not success:
+            return False
 
         pcrsInQuote = set()
         validatedBindPCR = False
@@ -303,15 +271,14 @@ class AbstractTPM(metaclass=ABCMeta):
 
             # PCRs set by measured boot get their own special handling
 
-            if pcrnum in config.MEASUREDBOOT_PCRS :
+            if pcrnum in config.MEASUREDBOOT_PCRS:
 
-                if mb_refstate_data :
-
-                    if not mb_measurement_list :
+                if mb_refstate_data:
+                    if not mb_measurement_list:
                         logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcrnum)
                         return False
 
-                    val_from_log_int = pcrs_sha256.get(str(pcrnum), 0)
+                    val_from_log_int = mb_pcrs_sha256.get(str(pcrnum), 0)
                     val_from_log_hex = hex(val_from_log_int)[2:]
                     val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
                     pcrval_stripped = pcrval.lstrip('0')
@@ -343,20 +310,10 @@ class AbstractTPM(metaclass=ABCMeta):
             logger.error("%sPCRs specified in policy not in quote: %s", ("", "v")[virtual], missing)
             return False
 
-        if mb_refstate_data :
-            missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
-            if len(missing) > 0:
-                logger.error("%sPCRs specified for measured boot not in quote: %s", ("", "v")[virtual], missing)
-                return False
-            try:
-                reason = mb_policy.evaluate(mb_refstate_data, mb_measurement_data)
-            except Exception as exn:
-                logger.error("Boot attestation for agent %s, configured policy %s, refstate=%s, raised Exception %s",
-                    agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), str(exn))
-                reason = ''
-            if reason:
-                logger.error("Boot attestation failed for agent %s, configured policy %s, refstate=%s, reason=%s",
-                    agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), reason)
+        if mb_refstate_data:
+            success = measured_boot.evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data,
+                                                    pcrsInQuote, ("", "v")[virtual], agent_id)
+            if not success:
                 return False
 
         return True
@@ -384,5 +341,5 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def parse_bootlog(self, log_b64:str) -> dict:
+    def parse_mb_bootlog(self, mb_measurement_list:str) -> dict:
         raise NotImplementedError

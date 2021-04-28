@@ -31,6 +31,56 @@ def process_refstate(mb_refstate_data=None) :
         return mb_refstate_data
     return mb_refstate_data
 
+def get_policy(mb_refstate_str):
+    """ Convert the mb_refstate_str to JSON and get the measured boot policy.
+    :param mb_refstate_str: String representation of measured boot reference state
+    :returns: Returns the JSON object of the measured boot reference state and the measured boot policy;
+              both can be None if mb_refstate_str was empty
+    """
+
+    if mb_refstate_str:
+        mb_refstate_data = json.loads(mb_refstate_str)
+    else:
+        mb_refstate_data = None
+
+    if mb_refstate_data:
+        mb_policy_name = config.MEASUREDBOOT_POLICYNAME
+        #pylint: disable=import-outside-toplevel
+        from keylime.elchecking import policies as eventlog_policies
+        #pylint: enable=import-outside-toplevel
+        mb_policy = eventlog_policies.get_policy(mb_policy_name)
+        if mb_policy is None:
+            logger.warning(
+                "Invalid measured boot policy name %s -- using accept-all instead.", mb_policy_name)
+            mb_policy = eventlog_policies.AcceptAll()
+
+        mb_pcrs_config = frozenset(config.MEASUREDBOOT_PCRS)
+        mb_pcrs_policy = mb_policy.get_relevant_pcrs()
+        if not mb_pcrs_policy <= mb_pcrs_config:
+            logger.error("Measured boot policy considers PCRs %s, which are not among the configured set %s",
+                        set(mb_pcrs_policy - mb_pcrs_config), set(mb_pcrs_config))
+    else:
+        mb_policy = None
+
+    return mb_refstate_data, mb_policy
+
+def evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data, pcrsInQuote, pcrPrefix, agent_id):
+    missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
+    if len(missing) > 0:
+        logger.error("%sPCRs specified for measured boot not in quote: %s", pcrPrefix, missing)
+        return False
+    try:
+        reason = mb_policy.evaluate(mb_refstate_data, mb_measurement_data)
+    except Exception as exn:
+        logger.error("Boot attestation for agent %s, configured policy %s, refstate=%s, raised Exception %s",
+            agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), str(exn))
+        reason = ''
+    if reason:
+        logger.error("Boot attestation failed for agent %s, configured policy %s, refstate=%s, reason=%s",
+            agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), reason)
+        return False
+    return True
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('infile', default="mbtest.txt")
