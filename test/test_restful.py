@@ -376,10 +376,6 @@ class TestRestful(unittest.TestCase):
                                                            config_pw=config.get('cloud_agent', 'tpm_ownerpassword'))
         vtpm = tpm_instance.is_vtpm()
 
-        # Seed RNG (root only)
-        if config.REQUIRE_ROOT:
-            tpm_instance.init_system_rand()
-
         # Handle virtualized and emulated TPMs
         if ekcert is None:
             if vtpm:
