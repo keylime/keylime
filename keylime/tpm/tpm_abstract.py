@@ -5,11 +5,9 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 from abc import ABCMeta, abstractmethod
 import ast
-import fcntl
 import hashlib
 import os
 import string
-import struct
 
 import simplejson as json
 import yaml
@@ -317,19 +315,6 @@ class AbstractTPM(metaclass=ABCMeta):
                 return False
 
         return True
-
-    # tpm_random
-    def init_system_rand(self):
-        rand_data = self._get_tpm_rand_block()
-        if config.REQUIRE_ROOT and rand_data is not None:
-            try:
-                t = struct.pack("ii%ds" % len(rand_data), 8 * len(rand_data), len(rand_data), rand_data)
-                with open("/dev/random", mode='wb') as fp:
-                    RNDADDENTROPY = 0x80085203
-                    # as fp has a method fileno(), you can pass it to ioctl
-                    fcntl.ioctl(fp, RNDADDENTROPY, t)
-            except Exception as e:
-                logger.warning("TPM randomness not added to system entropy pool: %s", e)
 
     # tpm_nvram
     @abstractmethod
