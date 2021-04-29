@@ -68,7 +68,7 @@ class DBEngineManager:
                 engine_args['max_overflow'] = int(m_ovfl)
 
         engine = create_engine(url, **engine_args)
-        
+
         return engine
 
 class SessionManager:
