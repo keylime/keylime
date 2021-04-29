@@ -162,7 +162,7 @@ class AgentsHandler(BaseHandler):
 
         agent_id = rest_params["agents"]
 
-        if agent_id is not None:
+        if (agent_id is not None) and (agent_id != ''):
             try:
                 agent = session.query(VerfierMain).filter_by(
                     agent_id=agent_id).one_or_none()
@@ -175,7 +175,13 @@ class AgentsHandler(BaseHandler):
             else:
                 config.echo_json_response(self, 404, "agent id not found")
         else:
-            json_response = session.query(VerfierMain.agent_id).all()
+            json_response = None
+            if "verifier" in rest_params.keys():
+                json_response = session.query(VerfierMain.agent_id).filter_by(
+                    verifier_id=rest_params["verifier"]).all()
+            else:
+                json_response = session.query(VerfierMain.agent_id).all()
+
             config.echo_json_response(self, 200, "Success", {
                 'uuids': json_response})
             logger.info('GET returning 200 response for agent_id list')
@@ -213,6 +219,12 @@ class AgentsHandler(BaseHandler):
         if agent is None:
             config.echo_json_response(self, 404, "agent id not found")
             logger.info('DELETE returning 404 response. agent id: %s not found.', agent_id)
+            return
+
+        verifier_id = config.get('cloud_verifier', 'cloudverifier_id')
+        if verifier_id != agent.verifier_id:
+            config.echo_json_response(self, 404, "agent id associated to this verifier")
+            logger.info('DELETE returning 404 response. agent id: %s not associated to this verifer.', agent_id)
             return
 
         op_state = agent.operational_state
@@ -289,6 +301,9 @@ class AgentsHandler(BaseHandler):
                     agent_data['enc_alg'] = ""
                     agent_data['sign_alg'] = ""
                     agent_data['agent_id'] = agent_id
+                    agent_data['verifier_id'] = config.get('cloud_verifier', 'cloudverifier_id')
+                    agent_data['verifier_ip'] = config.get('cloud_verifier', 'cloudverifier_ip')
+                    agent_data['verifier_port'] = config.get('cloud_verifier', 'cloudverifier_port')
 
                     is_valid, err_msg = cloud_verifier_common.validate_agent_data(agent_data)
                     if not is_valid:
@@ -357,8 +372,9 @@ class AgentsHandler(BaseHandler):
                 config.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
             try:
+                verifier_id = config.get('cloud_verifier', 'cloudverifier_id')
                 agent = session.query(VerfierMain).filter_by(
-                    agent_id=agent_id).one()
+                    agent_id=agent_id, verifier_id=verifier_id).one()
             except SQLAlchemyError as e:
                 logger.error('SQLAlchemy Error: %s', e)
 
@@ -764,13 +780,17 @@ async def process_agent(agent, new_operational_state):
         logger.exception(e)
 
 
-async def activate_agents():
+async def activate_agents(verifier_id, verifier_ip, verifier_port):
     session = get_session()
     try:
-        agents = session.query(VerfierMain).all()
+        agents = session.query(VerfierMain).filter_by(
+            verifier_id=verifier_id).all()
         for agent in agents:
+            agent.verifier_ip = verifier_ip
+            agent.verifier_host = verifier_port
             if agent.operational_state == states.START:
                 asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
+        session.commit()
     except SQLAlchemyError as e:
         logger.error('SQLAlchemy Error: %s', e)
 
@@ -788,6 +808,7 @@ def main():
 
     cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
     cloudverifier_host = config.get('cloud_verifier', 'cloudverifier_ip')
+    cloudverifier_id = config.get('cloud_verifier', 'cloudverifier_id')
 
     # allow tornado's max upload size to be configurable
     max_upload_size = None
@@ -832,7 +853,7 @@ def main():
     asyncio.set_event_loop(asyncio.new_event_loop())
     # Auto reactivate agent
     if task_id == 0:
-        asyncio.ensure_future(activate_agents())
+        asyncio.ensure_future(activate_agents(cloudverifier_id, cloudverifier_host, cloudverifier_port))
 
     server = tornado.httpserver.HTTPServer(app, ssl_options=context, max_buffer_size=max_upload_size)
     server.add_sockets(sockets)
