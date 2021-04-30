@@ -4,6 +4,8 @@ Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
 '''
 
 import os
+from configparser import NoOptionError
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.exc import SQLAlchemyError
@@ -25,7 +27,13 @@ class DBEngineManager:
         """
         self.service = service
 
-        p_sz, m_ovfl = config.get(service, 'database_pool_sz_ovfl').split(',')
+        try :
+            p_sz_m_ovfl = config.get(service, 'database_pool_sz_ovfl')
+            p_sz, m_ovfl = p_sz_m_ovfl.split(',')
+        except NoOptionError :
+            p_sz = 5
+            m_ovfl = 10
+
         engine_args = {}
 
         url = config.get(service, 'database_url')
@@ -37,10 +45,18 @@ class DBEngineManager:
         else :
             logger.info('database_url is not set, using multi-parameter database configuration options')
 
-            drivername = config.get(service, 'database_drivername')
+            # This code shall be removed once we fully deprecate the old format
+            try :
+                drivername = config.get(service, "drivername")
+                logger.warning('Deprecation reminder: please add the suffix "database_" to all database-related parameters on your keylime.conf.')
+                p_n_prefix = ''
+            except NoOptionError :
+                drivername = config.get(service, 'database_drivername')
+                p_n_prefix = "database_"
+
             if drivername == 'sqlite':
                 database = "%s/%s" % (config.WORK_DIR,
-                                    config.get(service, 'database_name'))
+                                    config.get(service, p_n_prefix + 'name'))
                 # Create the path to where the sqlite database will be store with a perm umask of 077
                 os.umask(0o077)
                 kl_dir = os.path.dirname(os.path.abspath(database))
@@ -59,10 +75,10 @@ class DBEngineManager:
             else:
                 url = URL(
                     drivername=drivername,
-                    username=config.get(service, 'database_username'),
-                    password=config.get(service, 'database_password'),
-                    host=config.get(service, 'database_host'),
-                    database=config.get(service, 'database_name')
+                    username=config.get(service, p_n_prefix + 'username'),
+                    password=config.get(service, p_n_prefix + 'password'),
+                    host=config.get(service, p_n_prefix + 'host'),
+                    database=config.get(service, p_n_prefix + 'name')
                 )
                 engine_args['pool_size'] = int(p_sz)
                 engine_args['max_overflow'] = int(m_ovfl)
