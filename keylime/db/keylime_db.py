@@ -47,16 +47,17 @@ class DBEngineManager:
 
             # This code shall be removed once we fully deprecate the old format
             try :
-                drivername = config.get(service, "drivername")
+                drivername = config.get(service, 'drivername')
+                database = config.get(service, 'database')
                 logger.warning('Deprecation reminder: please add the suffix "database_" to all database-related parameters on your keylime.conf.')
                 p_n_prefix = ''
             except NoOptionError :
                 drivername = config.get(service, 'database_drivername')
                 p_n_prefix = "database_"
+                database = config.get(service, p_n_prefix + 'name')
 
             if drivername == 'sqlite':
-                database = "%s/%s" % (config.WORK_DIR,
-                                    config.get(service, p_n_prefix + 'name'))
+                database = "%s/%s" % (config.WORK_DIR, database)
                 # Create the path to where the sqlite database will be store with a perm umask of 077
                 os.umask(0o077)
                 kl_dir = os.path.dirname(os.path.abspath(database))
@@ -78,7 +79,7 @@ class DBEngineManager:
                     username=config.get(service, p_n_prefix + 'username'),
                     password=config.get(service, p_n_prefix + 'password'),
                     host=config.get(service, p_n_prefix + 'host'),
-                    database=config.get(service, p_n_prefix + 'name')
+                    database=database
                 )
                 engine_args['pool_size'] = int(p_sz)
                 engine_args['max_overflow'] = int(m_ovfl)
