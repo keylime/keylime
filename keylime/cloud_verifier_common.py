@@ -139,15 +139,20 @@ def process_quote_response(agent, json_response):
         quote = json_response["quote"]
 
         ima_measurement_list = json_response.get("ima_measurement_list", None)
+        ima_measurement_list_entry = json_response.get("ima_measurement_list_entry", 0)
         mb_measurement_list = json_response.get("mb_measurement_list", None)
 
         logger.debug("received quote:      %s", quote)
         logger.debug("for nonce:           %s", agent['nonce'])
         logger.debug("received public key: %s", received_public_key)
         logger.debug("received ima_measurement_list    %s", (ima_measurement_list is not None))
+        logger.debug("received ima_measurement_list_entry: %d", ima_measurement_list_entry)
         logger.debug("received boot log    %s", (mb_measurement_list is not None))
     except Exception:
         return None
+
+    if not isinstance(ima_measurement_list_entry, int):
+        raise Exception("ima_measurement_list_entry parameter must be an integer")
 
     # if no public key provided, then ensure we have cached it
     if received_public_key is None:
@@ -257,6 +262,7 @@ def prepare_get_quote(agent):
         'nonce': agent['nonce'],
         'mask': tpm_policy['mask'],
         'vmask': vtpm_policy['mask'],
+        'ima_ml_entry': 0,
     }
     return params
 

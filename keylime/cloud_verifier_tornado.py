@@ -667,8 +667,8 @@ async def invoke_get_quote(agent, need_pubkey):
 
     version = keylime_api_version.current_version()
     res = tornado_requests.request("GET",
-                                   "http://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s" %
-                                   (agent['ip'], agent['port'], version, params["nonce"], params["mask"], params['vmask'], partial_req), context=None)
+                                   "http://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
+                                   (agent['ip'], agent['port'], version, params["nonce"], params["mask"], params['vmask'], partial_req, params['ima_ml_entry']), context=None)
     response = await res
 
     if response.status_code != 200:
