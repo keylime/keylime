@@ -26,6 +26,50 @@ logger = keylime_logging.init_logging('ima')
 ALLOWLIST_CURRENT_VERSION = 1
 
 
+def get_from_nth_entry(filedata, nth_entry):
+    """ Get the measurement list starting at the n-th entry, starting with 0.
+        Also count the total number of entries by counting the newlines.
+    """
+    num_entries = 0
+    offset = 0
+    result = None
+    while True:
+        try:
+            if num_entries == nth_entry:
+                result = filedata[offset:]
+            o = filedata.index('\n', offset)
+            offset = o + 1
+            num_entries += 1
+        except ValueError:
+            break
+    return result, num_entries
+
+
+def read_measurement_list(filename, nth_entry):
+    """ Read the IMA measurement list starting from a given entry.
+        The entry may be of any value 0 <= entry <= entries_in_log where
+        entries_in_log + 1 indicates that the client wants to read the next entry
+        once available. If the entry is outside this range, the function will
+        automatically read from the 0-th entry.
+        This function returns the measurement list and the entry from where it
+        was read and the current number of entries in the file.
+    """
+    ml = None
+    num_entries = 0
+
+    if not os.path.exists(filename):
+        logger.warning("IMA measurement list not available: %s", filename)
+    else:
+        with open(filename, 'r') as f:
+            filedata = f.read()
+        ml, num_entries = get_from_nth_entry(filedata, nth_entry)
+        if nth_entry > num_entries:
+            nth_entry = 0
+            ml = filedata
+
+    return ml, nth_entry, num_entries
+
+
 def read_unpack(fd, fmt):
     return struct.unpack(fmt, fd.read(struct.calcsize(fmt)))
 

@@ -30,6 +30,7 @@ from keylime import config
 from keylime import keylime_logging
 from keylime import cmd_exec
 from keylime import crypto
+from keylime import ima
 from keylime import openstack
 from keylime import revocation_notifier
 from keylime import registrar_client
@@ -142,11 +143,8 @@ class Handler(BaseHTTPRequestHandler):
 
             # return a measurement list if available
             if TPM_Utilities.check_mask(imaMask, config.IMA_PCR):
-                if not os.path.exists(config.IMA_ML):
-                    logger.warning("IMA measurement list not available: %s", config.IMA_ML)
-                else:
-                    with open(config.IMA_ML, 'r') as f:
-                        ml = f.read()
+                ml, _, filesize = ima.read_measurement_list(config.IMA_ML, 0)
+                if filesize > 0:
                     response['ima_measurement_list'] = ml
 
             # similar to how IMA log retrievals are triggered by IMA_PCR, we trigger boot logs with MEASUREDBOOT_PCRs
