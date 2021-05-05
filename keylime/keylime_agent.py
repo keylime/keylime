@@ -97,8 +97,9 @@ class Handler(BaseHTTPRequestHandler):
 
         elif "quotes" in rest_params:
             nonce = rest_params['nonce']
-            pcrmask = rest_params['mask'] if 'mask' in rest_params else None
-            vpcrmask = rest_params['vmask'] if 'vmask' in rest_params else None
+            pcrmask = rest_params.get('mask', None)
+            vpcrmask = rest_params.get('vmask', None)
+            ima_ml_entry = rest_params.get('ima_ml_entry', '0')
 
             # if the query is not messed up
             if nonce is None:
@@ -108,7 +109,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             # Sanitization assurance (for tpm.run() tasks below)
-            if not (nonce.isalnum() and (pcrmask is None or pcrmask.isalnum()) and (vpcrmask is None or vpcrmask.isalnum())):
+            if not (nonce.isalnum() and
+                    (pcrmask is None or pcrmask.isalnum()) and
+                    (vpcrmask is None or vpcrmask.isalnum() and
+                    ima_ml_entry.isalnum())):
                 logger.warning('GET quote returning 400 response. parameters should be strictly alphanumeric')
                 config.echo_json_response(
                     self, 400, "parameters should be strictly alphanumeric")
@@ -143,9 +147,14 @@ class Handler(BaseHTTPRequestHandler):
 
             # return a measurement list if available
             if TPM_Utilities.check_mask(imaMask, config.IMA_PCR):
-                ml, _, filesize = ima.read_measurement_list(config.IMA_ML, 0)
-                if filesize > 0:
+                ima_ml_entry = int(ima_ml_entry)
+                if ima_ml_entry > self.server.next_ima_ml_entry:
+                    ima_ml_entry = 0
+                ml, nth_entry, num_entries = ima.read_measurement_list(config.IMA_ML, ima_ml_entry)
+                if num_entries > 0:
                     response['ima_measurement_list'] = ml
+                    response['ima_measurement_list_entry'] = nth_entry
+                    self.server.next_ima_ml_entry = num_entries
 
             # similar to how IMA log retrievals are triggered by IMA_PCR, we trigger boot logs with MEASUREDBOOT_PCRs
             # other possibilities would include adding additional data to rest_params to trigger boot log retrievals
@@ -343,6 +352,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     K = None
     final_U = None
     agent_uuid = None
+    next_ima_ml_entry = 0 # The next IMA log offset the verifier may ask for.
 
     def __init__(self, server_address, RequestHandlerClass, agent_uuid):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
