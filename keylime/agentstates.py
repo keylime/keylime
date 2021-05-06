@@ -6,12 +6,38 @@ Copyright 2021 IBM Corporation
 
 import threading
 
+from keylime.ima_ast import START_HASH, FF_HASH
+
+class TPMState():
+    """ TPMState models the state of the TPM's PCRs """
+    def __init__(self):
+        """ constructor """
+        self.pcrs = {}
+        for pcr_num in range(0, 24):
+            self.reset_pcr(pcr_num)
+
+    def reset_pcr(self, pcr_num):
+        """ Reset a specific PCR """
+        if 17 <= pcr_num <= 23:
+            self.pcrs[pcr_num] = FF_HASH
+        else:
+            self.pcrs[pcr_num] = START_HASH
+
+    def get_pcr(self, pcr_num):
+        """ Get the state of a PCR """
+        return self.pcrs[pcr_num]
+
+
 class AgentAttestState():
     """ AgentAttestState is used to support incremental attestation """
     def __init__(self, agent_id):
         """ constructor """
+
         self.agent_id = agent_id
         self.next_ima_ml_entry = 0
+
+        self.tpm_state = TPMState()
+        self.ima_pcrs = set()
 
         self.reset_ima_attestation()
 
@@ -22,10 +48,16 @@ class AgentAttestState():
     def reset_ima_attestation(self):
         """ Reset the IMA attestation state to start over with 1st entry """
         self.next_ima_ml_entry = 0
+        for pcr_num in self.ima_pcrs:
+            self.tpm_state.reset_pcr(pcr_num)
 
     def get_next_ima_ml_entry(self):
         """ Return the next IMA measurement list entry we want to request from agent """
         return self.next_ima_ml_entry
+
+    def get_pcr_state(self, pcr_num):
+        """ Return the PCR state of the given PCR """
+        return self.tpm_state.get_pcr(pcr_num)
 
 
 class AgentAttestStates():

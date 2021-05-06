@@ -17,6 +17,7 @@ from keylime import config
 from keylime import gpg
 from keylime import keylime_logging
 from keylime import ima_ast
+from keylime.agentstates import AgentAttestState
 
 
 logger = keylime_logging.init_logging('ima')
@@ -126,8 +127,8 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
     return valid_signature
 
 
-def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
-    running_hash = ima_ast.START_HASH
+def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
+    running_hash = agentAttestState.get_pcr_state(config.IMA_PCR)
     found_pcr = (pcrval is None)
     errors = {}
     pcrval_bytes = b''
@@ -353,7 +354,7 @@ def main():
     lines = f.readlines()
 
     m2a = open('measure2allow.txt', "w")
-    digest = process_measurement_list(lines, lists, m2a)
+    digest = process_measurement_list(AgentAttestState('1'), lines, lists, m2a)
     print("final digest is %s" % digest)
     f.close()
     m2a.close()
@@ -363,7 +364,7 @@ def main():
     al_data = read_allowlist('measure2allow.txt')
     excl_data = read_excllist(exclude_path)
     lists2 = process_allowlists(al_data, excl_data)
-    process_measurement_list(lines, lists2)
+    process_measurement_list(AgentAttestState('2'), lines, lists2)
 
     print("done")
 
