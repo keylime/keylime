@@ -208,7 +208,7 @@ class AbstractTPM(metaclass=ABCMeta):
         logger.info("Checking IMA measurement list on agent: %s", agentAttestState.get_agent_id())
         if config.STUB_IMA:
             pcrval = None
-        ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), allowlist, pcrval=pcrval, ima_keyring=ima_keyring, boot_aggregates=boot_aggregates)
+        ex_value = ima.process_measurement_list(agentAttestState, ima_measurement_list.split('\n'), allowlist, pcrval=pcrval, ima_keyring=ima_keyring, boot_aggregates=boot_aggregates)
         if ex_value is None:
             return False
 
