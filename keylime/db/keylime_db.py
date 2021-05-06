@@ -38,7 +38,7 @@ class DBEngineManager:
 
         url = config.get(service, 'database_url')
         if url:
-            logger.info('database_url is set, using it for establishing database connection')
+            logger.info('database_url is set, using it to establish database connection')
             engine_args['pool_size'] = int(p_sz)
             engine_args['max_overflow'] = int(m_ovfl)
 
@@ -49,7 +49,7 @@ class DBEngineManager:
             try :
                 drivername = config.get(service, 'drivername')
                 database = config.get(service, 'database')
-                logger.warning('Deprecation reminder: please add the suffix "database_" to all database-related parameters on your keylime.conf.')
+                logger.warning('Deprecation reminder: please add the suffix "database_" to all database-related parameters in your keylime.conf.')
                 p_n_prefix = ''
             except NoOptionError :
                 drivername = config.get(service, 'database_drivername')
@@ -57,7 +57,7 @@ class DBEngineManager:
                 database = config.get(service, p_n_prefix + 'name')
 
             if drivername == 'sqlite':
-                database = "%s/%s" % (config.WORK_DIR, database)
+                database_file = "%s/%s" % (config.WORK_DIR, database)
                 # Create the path to where the sqlite database will be store with a perm umask of 077
                 os.umask(0o077)
                 kl_dir = os.path.dirname(os.path.abspath(database))
@@ -69,7 +69,7 @@ class DBEngineManager:
                     username=None,
                     password=None,
                     host=None,
-                    database=(database)
+                    database=(database_file)
                 )
                 engine_args['connect_args'] = {'check_same_thread': False}
 
