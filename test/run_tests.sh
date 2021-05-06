@@ -12,9 +12,9 @@ KEYLIME_DIR=$(realpath "$(dirname "$(readlink -f "$0")")/../")
 
 # Run separate unit tests
 pushd "${KEYLIME_DIR}"
-python3 keylime/tpm/tpm2_objects.py
+python3 -m unittest discover -s keylime -p '*_test.py' -v
 if [ $? -ne 0 ]; then
-	echo "Error: tpm2_objects.py unit tests failed."
+	echo "Error: One or more unit tests failed."
 	exit 1
 fi
 popd
