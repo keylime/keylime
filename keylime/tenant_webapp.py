@@ -648,9 +648,9 @@ def get_tls_context():
 
     logger.info("Setting up client TLS in %s", tls_dir)
 
-    ca_path = "%s/%s" % (tls_dir, ca_cert)
-    my_tls_cert = "%s/%s" % (tls_dir, my_tenant_cert)
-    my_tls_priv_key = "%s/%s" % (tls_dir, my_tenant_priv_key)
+    ca_path = os.path.join(tls_dir, ca_cert)
+    my_tls_cert = os.path.join(tls_dir, my_cert)
+    my_tls_priv_key = os.path.join(tls_dir, my_priv_key)
 
     context = ssl.create_default_context()
     context.load_verify_locations(cafile=ca_path)
