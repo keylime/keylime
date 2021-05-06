@@ -36,6 +36,7 @@ from keylime import ca_util
 from keylime.common import algorithms
 from keylime import ima_file_signatures
 from keylime import measured_boot
+from keylime import gpg
 
 # setup logging
 logger = keylime_logging.init_logging('tenant')
@@ -937,6 +938,11 @@ class Tenant():
         print(f"Show allowlist command response: {response.status_code}.")
         print(response.json())
 
+def write_to_namedtempfile(data, delete_tmp_files):
+    temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)
+    temp.write(data)
+    temp.flush()
+    return temp.name
 
 def main(argv=sys.argv):
     """[summary]
@@ -974,8 +980,20 @@ def main(argv=sys.argv):
                         help="Include additional files in provided directory in certificate zip file.  Must be specified with --cert")
     parser.add_argument('--allowlist', action='store', dest='allowlist',
                         default=None, help="Specify the file path of an allowlist")
-    parser.add_argument('--sign_verification_key', action='append', dest='ima_sign_verification_keys',
-                        default=None, help="Specify an IMA file signature verification key")
+    parser.add_argument('--signature-verification-key', '--sign_verification_key', action='append', dest='ima_sign_verification_keys',
+                        default=[], help="Specify an IMA file signature verification key")
+    parser.add_argument('--signature-verification-key-sig', action='append', dest='ima_sign_verification_key_sigs',
+                        default=[], help="Specify the GPG signature file for an IMA file signature verification key; pair this option with --signature-verification-key")
+    parser.add_argument('--signature-verification-key-sig-key', action='append', dest='ima_sign_verification_key_sig_keys',
+                        default=[], help="Specify the GPG public key file use to validate the --signature-verification-key-sig; pair this option with --signature-verification-key")
+    parser.add_argument('--signature-verification-key-url', action='append', dest='ima_sign_verification_key_urls',
+                        default=[], help="Specify the URL for a remote IMA file signature verification key")
+    parser.add_argument('--signature-verification-key-sig-url', action='append',
+                        dest='ima_sign_verification_key_sig_urls',
+                        default=[], help="Specify the URL for the remote GPG signature of a remote IMA file signature verification key; pair this option with --signature-verification-key-url")
+    parser.add_argument('--signature-verification-key-sig-url-key', action='append',
+                        dest='ima_sign_verification_key_sig_url_keys',
+                        default=[], help="Specify the GPG public key file used to validate the --signature-verification-key-sig-url; pair this option with --signature-verification-key-url")
     parser.add_argument('--mb_refstate', action='store', dest='mb_refstate',
                         default=None, help="Specify the location of a measure boot reference state (intended state)")
     parser.add_argument('--allowlist-checksum', action='store', dest='allowlist_checksum',
@@ -1057,11 +1075,8 @@ def main(argv=sys.argv):
             logger.info("Downloading Allowlist from %s", args.allowlist_url)
             response = requests.get(args.allowlist_url, allow_redirects=False)
             if response.status_code == 200:
-                allowlist_temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)
-                allowlist_temp.write(response.content)
-                allowlist_temp.flush()
-                args.allowlist = allowlist_temp.name
-                logger.debug("Allowlist temporarily saved in %s" % (allowlist_temp.name))
+                args.allowlist = write_to_namedtempfile(response.content, delete_tmp_files)
+                logger.debug("Allowlist temporarily saved in %s" % args.allowlist)
             else:
                 raise Exception("Downloading allowlist (%s) failed with status code %s!" % (args.allowlist_url, response.status_code))
 
@@ -1069,13 +1084,56 @@ def main(argv=sys.argv):
             logger.info("Downloading Allowlist signature from %s", args.allowlist_sig_url)
             response = requests.get(args.allowlist_sig_url, allow_redirects=False)
             if response.status_code == 200:
-                sig_temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)
-                sig_temp.write(response.content)
-                sig_temp.flush()
-                args.allowlist_sig = sig_temp.name
-                logger.debug("Allowlist signature temporarily saved in %s", sig_temp.name)
+                args.allowlist_sig = write_to_namedtempfile(response.content, delete_tmp_files)
+                logger.debug("Allowlist signature temporarily saved in %s", args.allowlist_sig)
             else:
                 raise Exception("Downloading allowlist signature (%s) failed with status code %s!" % (args.allowlist_sig_url, response.status_code))
+
+        # verify all the local keys for which we have a signature file and a key to verify
+        for i, key_file in enumerate(args.ima_sign_verification_keys):
+            if len(args.ima_sign_verification_key_sigs) <= i:
+                break
+            keysig_file = args.ima_sign_verification_key_sigs[i]
+            if len(args.ima_sign_verification_key_sig_keys) == 0:
+                raise UserError("A gpg key is missing for key signature file '%s'" % keysig_file)
+
+            gpg_key_file = args.ima_sign_verification_key_sig_keys[i]
+            gpg.gpg_verify_filesignature(gpg_key_file, key_file, keysig_file, "IMA file signing key")
+
+            logger.info("Signature verification on %s was successful" % key_file)
+
+        # verify all the remote keys for which we have a signature URL and key to to verify
+        # Append the downloaded key files to args.ima_sign_verification_keys
+        for i, key_url in enumerate(args.ima_sign_verification_key_urls):
+
+            logger.info("Downloading key from %s", key_url)
+            response = requests.get(key_url, allow_redirects=False)
+            if response.status_code == 200:
+                key_file = write_to_namedtempfile(response.content, delete_tmp_files)
+                args.ima_sign_verification_keys.append(key_file)
+                logger.debug("Key temporarily saved in %s" % key_file)
+            else:
+                raise Exception("Downloading key (%s) failed with status code %s!" % (key_url, response.status_code))
+
+            if len(args.ima_sign_verification_key_sig_urls) <= i:
+                continue
+
+            keysig_url = args.ima_sign_verification_key_sig_urls[i]
+
+            if len(args.ima_sign_verification_key_sig_url_keys) == 0:
+                raise UserError("A gpg key is missing for key signature URL '%s'" % keysig_url)
+
+            logger.info("Downloading key signature from %s" % keysig_url)
+            response = requests.get(keysig_url, allow_redirects=False)
+            if response.status_code == 200:
+                keysig_file = write_to_namedtempfile(response.content, delete_tmp_files)
+                logger.debug("Key signature temporarily saved in %s" % keysig_file)
+            else:
+                raise Exception("Downloading key signature (%s) failed with status code %s!" % (key_url, response.status_code))
+
+            gpg_key_file = args.ima_sign_verification_key_sig_url_keys[i]
+            gpg.gpg_verify_filesignature(gpg_key_file, key_file, keysig_file, "IMA file signing key")
+            logger.info("Signature verification on %s was successful" % key_url)
 
     if args.command == 'add':
         mytenant.init_add(vars(args))

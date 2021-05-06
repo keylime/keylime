@@ -11,9 +11,9 @@ import os
 import re
 import json
 import datetime
-import gnupg
 
 from keylime import config
+from keylime import gpg
 from keylime import keylime_logging
 
 logger = keylime_logging.init_logging('ima')
@@ -360,22 +360,7 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
 
     # verify GPG signature if needed
     if gpg_sig_file and gpg_key_file:
-        gpg = gnupg.GPG()
-        with open(gpg_key_file, 'r') as key_f:
-            logger.debug("Importing GPG key %s", gpg_key_file)
-            gpg_imported = gpg.import_keys(key_f.read())
-            if gpg_imported.count == 1: # pylint: disable=E1101
-                logger.debug("GPG key successfully imported")
-            else:
-                raise Exception(f"Unable to import GPG key: {gpg_key_file}")
-
-        with open(gpg_sig_file, 'rb') as sig_f:
-            logger.debug("Comparing allowlist (%s) against GPG signature (%s)", al_path, gpg_sig_file)
-            verified = gpg.verify_file(sig_f, al_path)
-            if verified:
-                logger.debug("Allowlist passed GPG signature verification")
-            else:
-                raise Exception("Allowlist GPG signature verification failed comparing allowlist (al_path against gpg_sig_file", al_path, gpg_sig_file)
+        gpg.gpg_verify_filesignature(gpg_key_file, al_path, gpg_sig_file, "allowlist")
 
     # Purposefully die if path doesn't exist
     with open(al_path, 'rb') as f:
