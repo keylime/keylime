@@ -162,7 +162,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def check_quote(self, agent_id, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate=None):
+    def check_quote(self, agentAttestState, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None, mb_measurement_list=None, mb_refstate=None):
         pass
 
     def START_HASH(self, algorithm=None):
@@ -204,15 +204,15 @@ class AbstractTPM(metaclass=ABCMeta):
     def _get_tpm_rand_block(self, size=4096):
         pass
 
-    def __check_ima(self, agent_id, pcrval, ima_measurement_list, allowlist, ima_keyring, boot_aggregates):
-        logger.info("Checking IMA measurement list on agent: %s", agent_id)
+    def __check_ima(self, agentAttestState, pcrval, ima_measurement_list, allowlist, ima_keyring, boot_aggregates):
+        logger.info("Checking IMA measurement list on agent: %s", agentAttestState.get_agent_id())
         if config.STUB_IMA:
             pcrval = None
         ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), allowlist, pcrval=pcrval, ima_keyring=ima_keyring, boot_aggregates=boot_aggregates)
         if ex_value is None:
             return False
 
-        logger.debug("IMA measurement list of agent %s validated", agent_id)
+        logger.debug("IMA measurement list of agent %s validated", agentAttestState.get_agent_id())
         return True
 
     def __parse_pcrs(self, pcrs, virtual) -> typing.Dict[int, str]:
@@ -232,7 +232,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
         return output
 
-    def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate_str):
+    def check_pcrs(self, agentAttestState, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate_str):
         try:
             tpm_policy_ = ast.literal_eval(tpm_policy)
         except ValueError:
@@ -278,7 +278,7 @@ class AbstractTPM(metaclass=ABCMeta):
                 logger.error("IMA PCR in policy, but no measurement list provided")
                 return False
 
-            if not self.__check_ima(agent_id, pcrs[config.IMA_PCR], ima_measurement_list, allowlist, ima_keyring,
+            if not self.__check_ima(agentAttestState, pcrs[config.IMA_PCR], ima_measurement_list, allowlist, ima_keyring,
                                     boot_aggregates):
                 return False
 
@@ -328,7 +328,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
         if mb_refstate_data:
             success = measured_boot.evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data,
-                                                    pcrs_in_quote, ("", "v")[virtual], agent_id)
+                                                    pcrs_in_quote, ("", "v")[virtual], agentAttestState.get_agent_id())
             if not success:
                 return False
 

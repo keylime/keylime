@@ -18,6 +18,7 @@ from keylime import registrar_client
 from keylime import crypto
 from keylime import ca_util
 from keylime import revocation_notifier
+from keylime.agentstates import AgentAttestStates
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime.common import algorithms
@@ -35,6 +36,10 @@ def get_tpm_instance():
     if GLOBAL_TPM_INSTANCE is None:
         GLOBAL_TPM_INSTANCE = tpm()
     return GLOBAL_TPM_INSTANCE
+
+
+def get_AgentAttestStates():
+    return AgentAttestStates.get_instance()
 
 
 def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
@@ -126,7 +131,7 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
     return context
 
 
-def process_quote_response(agent, json_response):
+def process_quote_response(agent, json_response, agentAttestState):
     """Validates the response from the Cloud agent.
 
     This method invokes an Registrar Server call to register, and then check the quote.
@@ -197,7 +202,7 @@ def process_quote_response(agent, json_response):
 
     ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
     validQuote = get_tpm_instance().check_quote(
-        agent['agent_id'],
+        agentAttestState,
         agent['nonce'],
         received_public_key,
         quote,
@@ -253,6 +258,7 @@ def prepare_get_quote(agent):
 
     This method is part of the polling loop of the thread launched on Tenant POST.
     """
+    agentAttestState = get_AgentAttestStates().get_by_agent_id(agent['agent_id'])
     agent['nonce'] = TPM_Utilities.random_password(20)
 
     tpm_policy = ast.literal_eval(agent['tpm_policy'])
@@ -262,7 +268,7 @@ def prepare_get_quote(agent):
         'nonce': agent['nonce'],
         'mask': tpm_policy['mask'],
         'vmask': vtpm_policy['mask'],
-        'ima_ml_entry': 0,
+        'ima_ml_entry': agentAttestState.get_next_ima_ml_entry(),
     }
     return params
 

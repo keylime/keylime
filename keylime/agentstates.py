@@ -1,0 +1,55 @@
+#!/usr/bin/python3
+'''
+SPDX-License-Identifier: Apache-2.0
+Copyright 2021 IBM Corporation
+'''
+
+import threading
+
+class AgentAttestState():
+    """ AgentAttestState is used to support incremental attestation """
+    def __init__(self, agent_id):
+        """ constructor """
+        self.agent_id = agent_id
+
+    def get_agent_id(self):
+        """ Get the agent_id """
+        return self.agent_id
+
+
+class AgentAttestStates():
+    """ AgentAttestStates administers a map of AgentAttestState's indexed by agent_id """
+    instance = None
+    @staticmethod
+    def get_instance():
+        """ Create and return a singleton AgentAttestState """
+        if not AgentAttestStates.instance:
+            AgentAttestStates.instance = AgentAttestStates()
+        return AgentAttestStates.instance
+
+    def __init__(self):
+        """ constructor """
+        self.map_lock = threading.Lock()
+        self.map = {}
+
+    def get_by_agent_id(self, agent_id):
+        """ Get an agent's state given its id """
+
+        self.map_lock.acquire()
+        agentAttestState = self.map.get(agent_id)
+        if not agentAttestState:
+            agentAttestState = AgentAttestState(agent_id)
+            self.map[agent_id] = agentAttestState
+        self.map_lock.release()
+
+        return agentAttestState
+
+    def delete_by_agent_id(self, agent_id):
+        """ Delete an agent's state given its id """
+
+        self.map_lock.acquire()
+        try:
+            del self.map[agent_id]
+        except KeyError:
+            pass
+        self.map_lock.release()

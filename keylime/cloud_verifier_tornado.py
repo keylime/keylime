@@ -16,6 +16,7 @@ import tornado.ioloop
 import tornado.web
 
 from keylime import config
+from keylime.agentstates import AgentAttestStates
 from keylime.common import states
 from keylime.db.verifier_db import VerfierMain
 from keylime.db.verifier_db import VerifierAllowlist
@@ -38,6 +39,10 @@ except SQLAlchemyError as err:
 
 def get_session():
     return SessionManager().make_session(engine)
+
+
+def get_AgentAttestStates():
+    return AgentAttestStates.get_instance()
 
 
 # The "exclude_db" dict values are removed from the response before adding the dict to the DB
@@ -687,7 +692,8 @@ async def invoke_get_quote(agent, need_pubkey):
             # validate the cloud agent response
             if 'provide_V' not in agent :
                 agent['provide_V'] = True
-            if cloud_verifier_common.process_quote_response(agent, json_response['results']):
+            agentAttestState = get_AgentAttestStates().get_by_agent_id(agent['agent_id'])
+            if cloud_verifier_common.process_quote_response(agent, json_response['results'], agentAttestState):
                 if agent['provide_V']:
                     asyncio.ensure_future(process_agent(agent, states.PROVIDE_V))
                 else:
