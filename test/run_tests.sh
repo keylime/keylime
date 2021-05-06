@@ -10,15 +10,6 @@ alias python='/usr/bin/python3'
 # Find Keylime directory. It's one directory above the location of this script
 KEYLIME_DIR=$(realpath "$(dirname "$(readlink -f "$0")")/../")
 
-# Run separate unit tests
-pushd "${KEYLIME_DIR}"
-python3 -m unittest discover -s keylime -p '*_test.py' -v
-if [ $? -ne 0 ]; then
-	echo "Error: One or more unit tests failed."
-	exit 1
-fi
-popd
-
 # Get list of tests in the test directory
 TEST_LIST=`ls | grep "^test_.*\.py$"`
 
@@ -180,6 +171,16 @@ echo $'\t\t\tInstalling Keylime'
 echo "=================================================================================="
 cd $KEYLIME_DIR
 python3 -m pip install . -r requirements.txt
+
+echo "=================================================================================="
+echo $'\t\t\tRunning Unit Tests'
+echo "=================================================================================="
+# Run separate unit tests
+python3 -m unittest discover -s keylime -p '*_test.py' -v
+if [ $? -ne 0 ]; then
+	echo "Error: Unit tests failed"
+	exit 1
+fi
 
 # Run the tests as necessary
 if [[ "$COVERAGE" -eq "1" ]] ; then
