@@ -11,10 +11,21 @@ class AgentAttestState():
     def __init__(self, agent_id):
         """ constructor """
         self.agent_id = agent_id
+        self.next_ima_ml_entry = 0
+
+        self.reset_ima_attestation()
 
     def get_agent_id(self):
         """ Get the agent_id """
         return self.agent_id
+
+    def reset_ima_attestation(self):
+        """ Reset the IMA attestation state to start over with 1st entry """
+        self.next_ima_ml_entry = 0
+
+    def get_next_ima_ml_entry(self):
+        """ Return the next IMA measurement list entry we want to request from agent """
+        return self.next_ima_ml_entry
 
 
 class AgentAttestStates():

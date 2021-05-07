@@ -200,6 +200,16 @@ def process_quote_response(agent, json_response, agentAttestState):
         raise Exception(
             "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 
+    if ima_measurement_list_entry == 0:
+        agentAttestState.reset_ima_attestation()
+    elif ima_measurement_list_entry != agentAttestState.get_next_ima_ml_entry():
+        # If we requested a particular entry number then the agent must return either
+        # starting at 0 (handled above) or with the requested number.
+        raise Exception(
+            "Agent did not respond with requested next IMA measurement list entry %d but started at %d" %
+            (agentAttestState.get_next_ima_ml_entry(), ima_measurement_list_entry))
+
+
     ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
     validQuote = get_tpm_instance().check_quote(
         agentAttestState,
