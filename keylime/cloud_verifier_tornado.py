@@ -84,6 +84,13 @@ def _from_db_obj(agent_db_obj):
     return agent_dict
 
 
+def verifier_db_delete_agent(session, agent_id):
+    get_AgentAttestStates().delete_by_agent_id(agent_id)
+    session.query(VerfierMain).filter_by(
+                  agent_id=agent_id).delete()
+    session.commit()
+
+
 class BaseHandler(tornado.web.RequestHandler):
     def prepare(self):  # pylint: disable=W0235
         super().prepare()
@@ -298,9 +305,7 @@ class AgentsHandler(BaseHandler):
         if op_state in (states.SAVED, states.FAILED, states.TERMINATED,
                         states.TENANT_FAILED, states.INVALID_QUOTE):
             try:
-                session.query(VerfierMain).filter_by(
-                    agent_id=agent_id).delete()
-                session.commit()
+                verifier_db_delete_agent(session, agent_id)
             except SQLAlchemyError as e:
                 logger.error('SQLAlchemy Error: %s', e)
             config.echo_json_response(self, 200, "Success")
@@ -751,9 +756,7 @@ async def process_agent(agent, new_operational_state):
             if agent['pending_event'] is not None:
                 tornado.ioloop.IOLoop.current().remove_timeout(
                     agent['pending_event'])
-            session.query(VerfierMain).filter_by(
-                agent_id=agent['agent_id']).delete()
-            session.commit()
+            verifier_db_delete_agent(session, agent['agent_id'])
             return
 
         # if the user tells us to stop polling because the tenant quote check failed
