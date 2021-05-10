@@ -185,6 +185,9 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
                 found_pcr = (running_hash == pcrval_bytes)
                 if found_pcr:
                     logger.debug('Found match at linenum %s' % (linenum + 1))
+                    # We always want to have the very last line for the attestation, so
+                    # we keep the previous runninghash, which is not the last one!
+                    agentAttestState.update_ima_attestation(int(entry.pcr), running_hash, linenum + 1)
 
             # Keep old functionality for writing the parsed files with hashes into a file
             if m2w is not None and (type(entry.mode) in [ima_ast.Ima, ima_ast.ImaNg, ima_ast.ImaSig]):
@@ -193,6 +196,11 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
                 m2w.write(f"{hash_value} {path}\n")
         except ima_ast.ParserError:
             logger.error(f"Line was not parsable into a valid IMA entry: {line}")
+
+    # iterative attestation may send us no log; compare last know PCR 10 state
+    # against current PCR state
+    if not found_pcr:
+        found_pcr = (running_hash == pcrval_bytes)
 
     # check PCR value has been found
     if not found_pcr:
