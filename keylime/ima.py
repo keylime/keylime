@@ -127,7 +127,7 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
     return valid_signature
 
 
-def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
+def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
     running_hash = agentAttestState.get_pcr_state(config.IMA_PCR)
     found_pcr = (pcrval is None)
     errors = {}
@@ -207,6 +207,19 @@ def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrv
         return None
 
     return codecs.encode(running_hash, 'hex').decode('utf-8')
+
+
+def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
+    result = None
+    try:
+        result = _process_measurement_list(agentAttestState, lines, lists=lists, m2w=m2w, pcrval=pcrval, ima_keyring=ima_keyring, boot_aggregates=boot_aggregates)
+    except:  # pylint: disable=try-except-raise
+        raise
+    finally:
+        if not result:
+            agentAttestState.reset_ima_attestation()
+
+    return result
 
 
 def process_allowlists(allowlist, exclude):
