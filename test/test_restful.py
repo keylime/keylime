@@ -777,6 +777,7 @@ class TestRestful(unittest.TestCase):
         allowlist = {'exclude': ['*']}
         data = {
             'v': b64_v,
+            'mb_refstate': None,
             'cloudagent_ip': tenant_templ.cloudagent_ip,
             'cloudagent_port': tenant_templ.cloudagent_port,
             'tpm_policy': json.dumps(self.tpm_policy),

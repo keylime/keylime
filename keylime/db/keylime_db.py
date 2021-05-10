@@ -60,7 +60,7 @@ class DBEngineManager:
                 database_file = "%s/%s" % (config.WORK_DIR, database)
                 # Create the path to where the sqlite database will be store with a perm umask of 077
                 os.umask(0o077)
-                kl_dir = os.path.dirname(os.path.abspath(database))
+                kl_dir = os.path.dirname(os.path.abspath(database_file))
                 if not os.path.exists(kl_dir):
                     os.makedirs(kl_dir, 0o700)
 
