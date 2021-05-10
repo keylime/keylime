@@ -13,7 +13,7 @@ from keylime import crypto
 
 
 def usage():
-    print("please pass in a file input file to encrypt")
+    print("Please pass in a file input file to encrypt")
     sys.exit(-1)
 
 
@@ -50,11 +50,11 @@ def main(argv=sys.argv):
 
     print("Writing keys to content_keys.txt")
     f = open('content_keys.txt', 'w')
-    f.write(base64.b64encode(ret['k'].decode('utf-8')))
+    f.write(base64.b64encode(ret['k']).decode('utf-8'))
     f.write('\n')
-    f.write(base64.b64encode(ret['v'].decode('utf-8')))
+    f.write(base64.b64encode(ret['v']).decode('utf-8'))
     f.write('\n')
-    f.write(base64.b64encode(ret['u'].decode('utf-8')))
+    f.write(base64.b64encode(ret['u']).decode('utf-8'))
     f.write('\n')
     f.close()
 
