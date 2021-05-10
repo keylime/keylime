@@ -166,7 +166,7 @@ def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrv
          }
     )
 
-    for line in lines:
+    for linenum, line in enumerate(lines):
         line = line.strip()
         if line == '':
             continue
@@ -183,6 +183,8 @@ def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrv
             if not found_pcr:
                 # End of list should equal pcr value
                 found_pcr = (running_hash == pcrval_bytes)
+                if found_pcr:
+                    logger.debug('Found match at linenum %s' % (linenum + 1))
 
             # Keep old functionality for writing the parsed files with hashes into a file
             if m2w is not None and (type(entry.mode) in [ima_ast.Ima, ima_ast.ImaNg, ima_ast.ImaSig]):
