@@ -27,6 +27,10 @@ class TPMState():
         """ Get the state of a PCR """
         return self.pcrs[pcr_num]
 
+    def set_pcr(self, pcr_num, pcr_value):
+        """ Set the value of a PCR """
+        self.pcrs[pcr_num] = pcr_value
+
 
 class AgentAttestState():
     """ AgentAttestState is used to support incremental attestation """
@@ -50,6 +54,13 @@ class AgentAttestState():
         self.next_ima_ml_entry = 0
         for pcr_num in self.ima_pcrs:
             self.tpm_state.reset_pcr(pcr_num)
+
+    def update_ima_attestation(self, pcr_num, pcr_value, num_ml_entries):
+        """ Update the attestation by remembering the new PCR value and the
+            number of lines that were successfully processed. """
+        self.ima_pcrs.add(pcr_num)
+        self.tpm_state.set_pcr(pcr_num, pcr_value)
+        self.next_ima_ml_entry += num_ml_entries
 
     def get_next_ima_ml_entry(self):
         """ Return the next IMA measurement list entry we want to request from agent """
