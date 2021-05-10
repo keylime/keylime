@@ -179,6 +179,9 @@ class ImaKeyring:
     @staticmethod
     def from_string(stringrepr):
         """ Convert a string-encoded ImaKeyring to an ImaKeyring object """
+        if not stringrepr:
+            return None
+
         ima_keyring = ImaKeyring()
 
         default_be = backends.default_backend()
