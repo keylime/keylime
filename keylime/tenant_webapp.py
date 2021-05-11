@@ -631,15 +631,11 @@ def start_tornado(tornado_server, port):
 
 def get_tls_context():
     ca_cert = config.get('tenant', 'ca_cert')
-    my_tenant_cert = config.get('tenant', 'my_cert')
-    my_tenant_priv_key = config.get('tenant', 'private_key')
 
     tls_dir = config.get('tenant', 'tls_dir')
 
     if tls_dir == 'default':
         ca_cert = 'cacert.crt'
-        my_tenant_cert = 'client-cert.crt'
-        my_tenant_priv_key = 'client-private.pem'
         tls_dir = 'cv_ca'
 
     # this is relative path, convert to absolute in WORK_DIR
