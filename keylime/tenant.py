@@ -591,7 +591,7 @@ class Tenant():
 
         response = None
         do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled)
-        if listing and (self.verifier_id != None):
+        if listing and (self.verifier_id is not None):
             verifier_id = self.verifier_id
             response = do_cvstatus.get(
                 (f'/agents/?verifier={verifier_id}'),
@@ -629,7 +629,9 @@ class Tenant():
                     agent_array = response_json["results"]["uuids"]
                     logger.info('Agents: "%s"', agent_array)
             else:
-              return response_json["results"]
+                return response_json["results"]
+
+        return None
 
     def do_cvdelete(self, smartdelete=False):
         """Delete agent from Verifier
