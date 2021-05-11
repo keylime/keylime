@@ -41,4 +41,3 @@ def upgrade_cloud_verifier():
 
 def downgrade_cloud_verifier():
     op.drop_column('verifiermain', 'verifier_id')
-
