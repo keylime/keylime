@@ -37,7 +37,11 @@ def downgrade_registrar():
 
 def upgrade_cloud_verifier():
     op.add_column('verifiermain', sa.Column('verifier_id', sa.String))
+    op.add_column('verifiermain', sa.Column('verifier_ip', sa.String))
+    op.add_column('verifiermain', sa.Column('verifier_port', sa.Integer))
 
 
 def downgrade_cloud_verifier():
     op.drop_column('verifiermain', 'verifier_id')
+    op.drop_column('verifiermain', 'verifier_ip')
+    op.drop_column('verifiermain', 'verifier_port')
