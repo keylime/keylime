@@ -502,8 +502,12 @@ def main():
     elif agent_uuid == 'dmidecode':
         cmd = ['dmidecode', '-s', 'system-uuid']
         ret = cmd_exec.run(cmd)
-        sys_uuid = ret['retout'].decode('utf-8')
+        sys_uuid = ret['retout'][0].decode('utf-8')
         agent_uuid = sys_uuid.strip()
+        try:
+            uuid.UUID(agent_uuid)
+        except ValueError as e:
+            raise RuntimeError("The UUID returned from dmidecode is invalid: %s" % e)  # pylint: disable=raise-missing-from
     elif agent_uuid == 'hostname':
         agent_uuid = socket.getfqdn()
     if config.STUB_VTPM and config.TPM_CANNED_VALUES is not None:
