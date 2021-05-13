@@ -576,7 +576,7 @@ echo "==========================================================================
 if [ ! -d "/var/lib/keylime/tpm_cert_store" ]; then
   echo "Creating new tpm_cert_store"
   mkdir -p /var/lib/keylime
-  cp $KEYLIME_DIR/tpm_cert_store /var/lib/keylime/tpm_cert_store
+  cp -r $KEYLIME_DIR/tpm_cert_store /var/lib/keylime/tpm_cert_store
 else
   echo "Updating existing cert store"
   cp -n $KEYLIME_DIR/tpm_cert_store/* /var/lib/keylime/tpm_cert_store/
