@@ -86,9 +86,9 @@ A hardware TPM should always be used when real secrets and trust is required.
 
 ### Installer script
 
-Keylime installer requires Python version(>=3.6).
+Keylimes installer requires Python 3.6 or greater.
 
- The following command line options are available using `installer.sh` script:
+The following command line options are available using `installer.sh` script:
 
 ```
 Usage: ./installer.sh [option...]
@@ -141,7 +141,7 @@ which will automate the build and pull of keylime on TPM 1.2 or 2.0.
 
 ### Manual
 
-Keylime requires Python version (>=3.6).
+Keylimes installer requires Python 3.6 or greater.
 
 #### Python-based prerequisites
 
@@ -172,9 +172,9 @@ These can be installed using your package manager.
 
 `sudo apt-get install tpm2-tss tpm2-tools tpm2-abrmd`
 
-You can also build the tpm2-tss software stack (available at [tpm2-tss](https://github.com/tpm2-software/tpm2-tss))
-as well as the tpm2-tools utilities available at [tpm2-tools](https://github.com/tpm2-software/tpm2-tools). 
-See [README for tpm2-tss](https://github.com/tpm2-software/tpm2-tss/blob/master/README.md) and [tpm2-tools](https://github.com/tpm2-software/tpm2-tools/blob/master/README.md) for detailed instructions on how to build and install.
+You can also build the [tpm2-tss](https://github.com/tpm2-software/tpm2-tss) software stack as well as
+[tpm2-tools](https://github.com/tpm2-software/tpm2-tools) instead . See the
+README.md in these projects for detailed instructions on how to build and install.
 
 The brief synopsis of a quick build/install (after installing dependencies) is:
 
@@ -200,10 +200,8 @@ the `tpm2_checkquote` utility in your path.
 
 ###### TPM 2.0 Resource Manager
 
-Note that it is recommended that you use the tpm2-abrmd resource manager
-(available at [tpm2-abrmd](https://github.com/tpm2-software/tpm2-abrmd)) as well instead of
-communicating directly with the TPM.  
-See [README.md](https://github.com/tpm2-software/tpm2-abrmd/blob/master/README.md) for detailed instructions on how to build and install.
+Note that it is recommended that you use the [tpm2-abrmd](https://github.com/tpm2-software/tpm2-abrmd) resource manager as well instead of communicating directly with the TPM. 
+See README.md for detailed instructions on how to build and install.
 
 A brief, workable example for Ubuntu 18 LTS systems is:
 
@@ -290,7 +288,8 @@ sudo -E python setup.py install build_ext --openssl=/usr/local/opt/openssl/
 #### Optional Requirements
 
 If you want to support revocation, you also need to have cfssl installed and in your
-path on the tenant agent.  It can be obtained from [cloudfare/cfssl](https://github.com/cloudflare/cfssl). You will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc/keylime.conf`.
+path on the tenant agent. It can be obtained from https://github.com/cloudflare/cfssl. 
+You will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc/keylime.conf`.
 
 ## Making sure your TPM is ready for keylime
 
@@ -388,7 +387,7 @@ running `keylime_webapp`.  Next, simply navigate to the WebApp in
 your web browser (https://localhost/webapp/ by default, as specified in `/etc/keylime.conf`).
 
 Note that the webapp must be run on the same machine as the tenant, since it
-uses its keys for TLS authentication (in `/var/lib/keylime/`).
+uses its keys for TLS authentication in `/var/lib/keylime/`.
 
 ### Using keylime CA
 
