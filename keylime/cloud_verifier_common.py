@@ -27,6 +27,9 @@ from keylime import ima_file_signatures
 logger = keylime_logging.init_logging('cloudverifier_common')
 
 GLOBAL_TPM_INSTANCE = None
+DEFAULT_VERIFIER_ID = "default"
+
+
 def get_tpm_instance():
     global GLOBAL_TPM_INSTANCE
     if GLOBAL_TPM_INSTANCE is None:

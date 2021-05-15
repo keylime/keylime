@@ -221,7 +221,7 @@ class AgentsHandler(BaseHandler):
             logger.info('DELETE returning 404 response. agent id: %s not found.', agent_id)
             return
 
-        verifier_id = config.get('cloud_verifier', 'cloudverifier_id')
+        verifier_id = config.get('cloud_verifier', 'cloudverifier_id', cloud_verifier_common.DEFAULT_VERIFIER_ID)
         if verifier_id != agent.verifier_id:
             config.echo_json_response(self, 404, "agent id associated to this verifier")
             logger.info('DELETE returning 404 response. agent id: %s not associated to this verifer.', agent_id)
@@ -301,7 +301,7 @@ class AgentsHandler(BaseHandler):
                     agent_data['enc_alg'] = ""
                     agent_data['sign_alg'] = ""
                     agent_data['agent_id'] = agent_id
-                    agent_data['verifier_id'] = config.get('cloud_verifier', 'cloudverifier_id')
+                    agent_data['verifier_id'] = config.get('cloud_verifier', 'cloudverifier_id', cloud_verifier_common.DEFAULT_VERIFIER_ID)
                     agent_data['verifier_ip'] = config.get('cloud_verifier', 'cloudverifier_ip')
                     agent_data['verifier_port'] = config.get('cloud_verifier', 'cloudverifier_port')
 
@@ -372,7 +372,7 @@ class AgentsHandler(BaseHandler):
                 config.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
             try:
-                verifier_id = config.get('cloud_verifier', 'cloudverifier_id')
+                verifier_id = config.get('cloud_verifier', 'cloudverifier_id', cloud_verifier_common.DEFAULT_VERIFIER_ID)
                 agent = session.query(VerfierMain).filter_by(
                     agent_id=agent_id, verifier_id=verifier_id).one()
             except SQLAlchemyError as e:
@@ -808,7 +808,7 @@ def main():
 
     cloudverifier_port = config.get('cloud_verifier', 'cloudverifier_port')
     cloudverifier_host = config.get('cloud_verifier', 'cloudverifier_ip')
-    cloudverifier_id = config.get('cloud_verifier', 'cloudverifier_id')
+    cloudverifier_id = config.get('cloud_verifier', 'cloudverifier_id', cloud_verifier_common.DEFAULT_VERIFIER_ID)
 
     # allow tornado's max upload size to be configurable
     max_upload_size = None
