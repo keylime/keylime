@@ -633,10 +633,10 @@ class Tenant():
 
         return None
 
-    def do_cvdelete(self, smartdelete=False):
+    def do_cvdelete(self, verifier_check):
         """Delete agent from Verifier
         """
-        if smartdelete:
+        if verifier_check:
             agent_json = self.do_cvstatus(listing=False, returnresponse=True)
             self.verifier_ip = agent_json["verifier_ip"]
             self.verifier_port = agent_json["verifier_port"]
@@ -697,10 +697,10 @@ class Tenant():
         registrar_client.doRegistrarDelete(
             self.registrar_ip, self.registrar_port, self.agent_uuid)
 
-    def do_cvreactivate(self, smartreactivate=True):
+    def do_cvreactivate(self, verifier_check):
         """ Reactive Agent
         """
-        if smartreactivate:
+        if verifier_check:
             agent_json = self.do_cvstatus(listing=False, returnresponse=True)
             self.verifier_ip = agent_json['verifier_ip']
             self.verifier_port = agent_json['verifier_port']
@@ -982,7 +982,7 @@ def main(argv=sys.argv):
     """
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument('-c', '--command', action='store', dest='command', default='add',
-                        help="valid commands are add,delete,smartdelete,update,status,list,reactivate,smartreactivate,regdelete. defaults to add")
+                        help="valid commands are add,delete,update,status,list,reactivate,regdelete. defaults to add")
     parser.add_argument('-t', '--targethost', action='store',
                         dest='agent_ip', help="the IP address of the host to provision")
     parser.add_argument('-tp', '--targetport', action='store',
@@ -995,6 +995,8 @@ def main(argv=sys.argv):
                         help="the port of the cloud verifier")
     parser.add_argument('-vi', '--cvid', action='store', dest='verifier_id',
                         help="the unique identifier of a cloud verifier")
+    parser.add_argument('-nvc', '--no-verifier-check', action='store_false', dest='verifier_check', default=True,
+                        help='Disable the check to confirm if the agent is being processed by the specified verifier. Use only with -c/--command delete or reactivate')
     parser.add_argument('-u', '--uuid', action='store',
                         dest='agent_uuid', help="UUID for the agent to provision")
     parser.add_argument('-f', '--file', action='store', default=None,
@@ -1067,8 +1069,8 @@ def main(argv=sys.argv):
 
     mytenant = Tenant()
 
-    if args.command not in ['list', 'regdelete', 'reglist', 'delete', 'smartdelete', 'status',
-                            'addallowlist', 'deleteallowlist', 'reactivate', 'smartreactivate',
+    if args.command not in ['list', 'regdelete', 'reglist', 'delete', 'status',
+                            'addallowlist', 'deleteallowlist', 'reactivate',
                             'showallowlist'] and args.agent_ip is None:
         raise UserError(
             f"-t/--targethost is required for command {args.command}")
@@ -1177,24 +1179,20 @@ def main(argv=sys.argv):
             mytenant.do_verify()
     elif args.command == 'update':
         mytenant.init_add(vars(args))
-        mytenant.do_cvdelete()
+        mytenant.do_cvdelete(args.verifier_check)
         mytenant.preloop()
         mytenant.do_cv()
         mytenant.do_quote()
         if args.verify:
             mytenant.do_verify()
     elif args.command == 'delete':
-        mytenant.do_cvdelete()
-    elif args.command == 'smartdelete':
-        mytenant.do_cvdelete(smartdelete=True)
+        mytenant.do_cvdelete(args.verifier_check)
     elif args.command == 'status':
         mytenant.do_cvstatus()
     elif args.command == 'list':
         mytenant.do_cvstatus(listing=True)
     elif args.command == 'reactivate':
-        mytenant.do_cvreactivate()
-    elif args.command == 'smartreactivate':
-        mytenant.do_cvreactivate(smartreactivate=True)
+        mytenant.do_cvreactivate(args.verifier_check)
     elif args.command == 'reglist':
         mytenant.do_reglist()
     elif args.command == 'regdelete':
