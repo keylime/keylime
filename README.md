@@ -5,10 +5,10 @@ Status](https://travis-ci.org/keylime/keylime.svg?branch=master)](https://travis
 
 ![keylime](doc/keylime.png?raw=true "Title")
 
-Keylime is an open source scalable trust system harnessing TPM Technology.
+Keylime is an open-source scalable trust system harnessing TPM Technology.
 
 Keylime provides an end-to-end solution for bootstrapping hardware rooted
-cryptographic trust for remote machines, the provisioning of encrypted payloads
+cryptographic trust for remote machines, the provisioning of encrypted payloads, 
 and run-time system integrity monitoring. It also provides a flexible
 framework for the remote attestation of any given `PCR` (Platform Configuration
 Register). Users can create their own customized actions that will trigger when
@@ -18,10 +18,10 @@ Keylime's mission is to make TPM Technology easily accessible to developers and
 users alike, without the need for a deep understanding of the lower levels of a
 TPM's operations. Amongst many scenarios, it well suited to tenants who need to
 remotely attest machines not under their own full control (such as a consumer of
-hybrid cloud or a remote Edge / IoT device in a insecure physical tamper prone
+hybrid cloud or a remote Edge / IoT device in an insecure physical tamper prone
 location.)
 
-Keylime can be driven with a CLI application, web front end and a set of
+Keylime can be driven with a CLI application, web front end, and a set of
 RESTful APIs.
 
 Keylime consists of three main components; The Verifier, Registrar and the
@@ -33,12 +33,12 @@ the agent is running on.
 * The Registrar is a database of all agents registered
 with Keylime and hosts the public keys of the TPM vendors.
 
-* The Agent is deployed to the remote machine that is to be measured or provisoned
+* The Agent is deployed to the remote machine that is to be measured or provisioned
 with secrets stored within an encrypted payload released once trust is established.
 
 ### Rust based Keylime Agent
 
-The verifier, registrar and agent are all developed in Python and situated
+The verifier, registrar, and agent are all developed in Python and situated
 in this repository `keylime`. The agent is currently undergoing a port to the
 [Rust programming language](https://www.rust-lang.org), with this work taking
 place in the [rust-keylime repository](https://github.com/keylime/rust-keylime).
@@ -54,7 +54,7 @@ with the keylime verifier and registrar.
 
 ### TPM Support
 
-Keylime supports TPM version 2.0.
+Keylime supports TPM version *2.0*.
 
 Keylime can be used with a hardware TPM, or a software TPM emulator for
 development, testing, or demonstration purposes.  However, DO NOT USE keylime in
@@ -88,7 +88,7 @@ A hardware TPM should always be used when real secrets and trust is required.
 
 Keylimes installer requires Python 3.6 or greater.
 
- The following command line options are available using `installer.sh` script:
+The following command line options are available using `installer.sh` script:
 
 ```
 Usage: ./installer.sh [option...]
@@ -103,7 +103,7 @@ Options:
 ```
 
 Should you not have the Keylime repository on your local machine, you can
-use the `-k` flag which will download the software. In this case all you need
+use the `-k` flag which will download the software. In this case, all you need
 is the `installer.sh` script locally.
 
 Note that CFSSL is required if you want to support revocation. As noted above, do not use the TPM emulator option `-s` in production systems.
@@ -119,10 +119,10 @@ Note that CFSSL is required if you want to support revocation. As noted above, d
 
 ### Ansible
 
-Ansible roles are available to deploy keylime for use with a hardware TPM or a software TPM emulator. Please proceed to the [Keylime Ansible
+Ansible roles are available to deploy keylime for use with a hardware TPM or a software TPM emulator. 
+Please proceed to the [Keylime Ansible
 Repository](https://github.com/keylime/ansible-keylime).
-
-Or alternatively the [Keylime Ansible TPM Emulator
+Or, alternatively the [Keylime Ansible TPM Emulator
 Repository](https://github.com/keylime/ansible-keylime-tpm-emulator).
 
 | WARNING: The "Keylime Ansible TPM Emulator" role uses a software TPM, which is considered cryptographically insecure. It should only be used for development or testing and **NOT** in production!|
@@ -134,25 +134,26 @@ keylime and related emulators can also be deployed using Docker.
 Since this docker configuration currently uses a TPM emulator,
 it should only be used for development or testing and NOT in production.
 
-Please see either the Dockerfiles
-[here](https://github.com/keylime/keylime/tree/master/docker) or our
-local CI script
-[here](https://github.com/keylime/keylime/blob/master/.ci/run_local.sh)
+Please see either the 
+[Dockerfiles](https://github.com/keylime/keylime/tree/master/docker) or our
+[local CI script](https://github.com/keylime/keylime/blob/master/.ci/run_local.sh)
 which will automate the build and pull of keylime on TPM 1.2 or 2.0.
 
 ### Manual
 
-Keylime requires Python 3.6 & above
+Keylimes installer requires Python 3.6 or greater.
 
 #### Python-based prerequisites
 
 The list of Python packages needed to install keylime can be found in
- [requirements.txt](https://github.com/keylime/keylime/tree/master/requirements.txt)
+ [requirements.txt](https://github.com/keylime/keylime/tree/master/requirements.txt).
 
 Some of them are usually available as distro packages.
 See [installer.sh](https://github.com/keylime/keylime/blob/master/installer.sh)
- for more information if you want to install them this way.
+ for more information, if you want to install them this way.
+
 You can also install them using pip:
+
 ```bash
 python3 -m pip install -r requirements.txt
 ```
@@ -163,17 +164,16 @@ Keylime uses the Intel TPM2 software set to provide TPM 2.0 support.
 
 These can be installed using your package manager.
 
-On Fedora 32 (and greater):
+* On Fedora 32 (and greater):
 
-`sudo dnf install tpm2-tss tpm2-tools tpm2-abrmd'
+`sudo dnf install tpm2-tss tpm2-tools tpm2-abrmd`
 
-On Ubuntu Ubuntu 20 LTS:
+* On Ubuntu 20 LTS:
 
-`sudo apt-get install tpm2-tss tpm2-tools tpm2-abrmd'
+`sudo apt-get install tpm2-tss tpm2-tools tpm2-abrmd`
 
-You can also build the tpm2-tss software stack (available at
-https://github.com/tpm2-software/tpm2-tss) as well as the
-tpm2-tools utilities available at https://github.com/tpm2-software/tpm2-tools. See
+You can also build the [tpm2-tss](https://github.com/tpm2-software/tpm2-tss) software stack as well as
+[tpm2-tools](https://github.com/tpm2-software/tpm2-tools) instead . See the
 README.md in these projects for detailed instructions on how to build and install.
 
 The brief synopsis of a quick build/install (after installing dependencies) is:
@@ -200,14 +200,12 @@ the `tpm2_checkquote` utility in your path.
 
 ###### TPM 2.0 Resource Manager
 
-Note that it is recommended that you use the tpm2-abrmd resource manager
-(available at https://github.com/tpm2-software/tpm2-abrmd) as well instead of
-communicating directly with the TPM.  See README.md at that project for
-detailed instructions on how to build and install.
+Note that it is recommended that you use the [tpm2-abrmd](https://github.com/tpm2-software/tpm2-abrmd) resource manager as well instead of communicating directly with the TPM. 
+See README.md for detailed instructions on how to build and install.
 
 A brief, workable example for Ubuntu 18 LTS systems is:
 
-```bash
+```
 sudo useradd --system --user-group tss
 git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
 pushd tpm2-abrmd
@@ -230,7 +228,7 @@ sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
 
 A brief, workable example for Fedora is:
 
-```bash
+```
 git clone https://github.com/tpm2-software/tpm2-abrmd.git ${TPM2_ABRMD}
 pushd tpm2-abrmd
 ./bootstrap
@@ -243,14 +241,16 @@ systemctl enable tpm2-abrmd
 systemctl start tpm2-abrmd
 ```
 
-Note: if you use an emulator, you will need to add the `--tcti=mssim` argument to `ExecStart` within the systemd file: `/usr/lib/systemd/system/tpm2-abrmd.service`:
+Note: if you use an emulator, you will need to add the `--tcti=mssim` argument to `ExecStart` within the systemd file (`/usr/lib/systemd/system/tpm2-abrmd.service`):
 
 `ExecStart=/usr/sbin/tpm2-abrmd --tcti=mssim`
 
-After this reload systemd to pick up the above changes
+After this, reload systemd to pick up the above changes.
 
+```
 systemctl daemon-reload
 systemctl restart tpm2-abrmd
+```
 
 ###### TPM 2.0 Direct Access (without tpm2-abrmd)
 
@@ -258,20 +258,25 @@ Alternatively, it is also possible, though not recommended, to communicate
 directly with the TPM (and not use a resource manager).  This can be done by
 setting the environment var `TPM2TOOLS_TCTI` to the appropriate value:
 
-To talk directly to the swtpm2 emulator: `export TPM2TOOLS_TCTI="mssim:port=2321"`
+To talk directly to the swtpm2 emulator: 
 
-To talk directly to a real TPM: `export TPM2TOOLS_TCTI="device:/dev/tpm0"`
+`export TPM2TOOLS_TCTI="mssim:port=2321"`
+
+To talk directly to a real TPM: 
+
+`export TPM2TOOLS_TCTI="device:/dev/tpm0"`
 
 #### Install Keylime
 
 You're finally ready to install keylime!
+
 ```bash
 sudo python3 -m pip install . -r requirements.txt
 ```
 
 #### To run on OSX 10.11+
 
-You need to build m2crypto from source with
+You need to build m2crypto from source with following steps:
 
 ```bash
 brew install openssl
@@ -283,20 +288,20 @@ sudo -E python setup.py install build_ext --openssl=/usr/local/opt/openssl/
 #### Optional Requirements
 
 If you want to support revocation, you also need to have cfssl installed and in your
-path on the tenant agent.  It can be obtained from https://github.com/cloudflare/cfssl.  You
-will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc/keylime.conf`.
+path on the tenant agent. It can be obtained from https://github.com/cloudflare/cfssl. 
+You will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc/keylime.conf`.
 
 ## Making sure your TPM is ready for keylime
 
 The above instructions for installing the TPM libraries will be configured
-to talk to /dev/tpm0.  If this device is not on your system, then you may need
-to build/install TPM support for your kernel.  You can use:
+to talk to `/dev/tpm0`.  If this device is not on your system, then you may need
+to build/install TPM support for your kernel.  You can use following command
+to see if the kernel is initializing the TPM driver during boot:
 
 `dmesg | grep -i tpm`
 
-to see if the kernel is initializing the TPM driver during boot.  If you have
-the /dev/tpm0 device, you next need to get it into the right state.  The kernel
-driver reports status on the TPM in /sys.  You can locate the folder with relevant
+If you have the `/dev/tpm0` device, you next need to get it into the right state. The kernel
+driver reports status on the TPM in `/sys`.  You can locate the folder with relevant
 info from the driver using:
 
 `sudo find /sys -name tpm0`
@@ -382,7 +387,7 @@ running `keylime_webapp`.  Next, simply navigate to the WebApp in
 your web browser (https://localhost/webapp/ by default, as specified in `/etc/keylime.conf`).
 
 Note that the webapp must be run on the same machine as the tenant, since it
-uses its keys for TLS authentication (in `/var/lib/keylime/`).
+uses its keys for TLS authentication in `/var/lib/keylime/`.
 
 ### Using keylime CA
 
