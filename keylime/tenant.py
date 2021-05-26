@@ -92,6 +92,7 @@ class Tenant():
         """
         self.nonce = None
         self.agent_ip = None
+        self.verifier_id = None
         self.agent_port = config.get('cloud_agent', 'cloudagent_port')
         self.verifier_ip = config.get('tenant', 'cloudverifier_ip')
         self.verifier_port = config.get('tenant', 'cloudverifier_port')
@@ -578,7 +579,7 @@ class Tenant():
             logger.error("POST command response: %s Unexpected response from Cloud Verifier: %s", response.status_code, response.text)
             sys.exit()
 
-    def do_cvstatus(self, listing=False):
+    def do_cvstatus(self, listing=False, returnresponse=False):
         """ Perform opertional state look up for agent
 
         Keyword Arguments:
@@ -588,12 +589,21 @@ class Tenant():
         if not listing:
             agent_uuid = self.agent_uuid
 
+        response = None
         do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled)
-        response = do_cvstatus.get(
-            (f'/agents/{agent_uuid}'),
-            cert=self.cert,
-            verify=False
-        )
+        if listing and (self.verifier_id is not None):
+            verifier_id = self.verifier_id
+            response = do_cvstatus.get(
+                (f'/agents/?verifier={verifier_id}'),
+                cert=self.cert,
+                verify=False
+            )
+        else:
+            response = do_cvstatus.get(
+                (f'/agents/{agent_uuid}'),
+                cert=self.cert,
+                verify=False
+            )
 
         if response.status_code == 503:
             logger.error("Cannot connect to Verifier at %s with Port %s. Connection refused.", self.verifier_ip, self.verifier_port)
@@ -611,16 +621,26 @@ class Tenant():
             sys.exit()
         else:
             response_json = response.json()
-            if not listing:
-                operational_state = response_json["results"]["operational_state"]
-                logger.info('Agent Status: "%s"', states.state_to_str(operational_state))
+            if not returnresponse:
+                if not listing:
+                    operational_state = response_json["results"]["operational_state"]
+                    logger.info('Agent Status: "%s"', states.state_to_str(operational_state))
+                else:
+                    agent_array = response_json["results"]["uuids"]
+                    logger.info('Agents: "%s"', agent_array)
             else:
-                agent_array = response_json["results"]["uuids"]
-                logger.info('Agents: "%s"', agent_array)
+                return response_json["results"]
 
-    def do_cvdelete(self):
+        return None
+
+    def do_cvdelete(self, verifier_check):
         """Delete agent from Verifier
         """
+        if verifier_check:
+            agent_json = self.do_cvstatus(listing=False, returnresponse=True)
+            self.verifier_ip = agent_json["verifier_ip"]
+            self.verifier_port = agent_json["verifier_port"]
+
         do_cvdelete = RequestsClient(self.verifier_base_url, self.tls_enabled)
         response = do_cvdelete.delete(
             (f'/agents/{self.agent_uuid}'),
@@ -677,9 +697,14 @@ class Tenant():
         registrar_client.doRegistrarDelete(
             self.registrar_ip, self.registrar_port, self.agent_uuid)
 
-    def do_cvreactivate(self):
+    def do_cvreactivate(self, verifier_check):
         """ Reactive Agent
         """
+        if verifier_check:
+            agent_json = self.do_cvstatus(listing=False, returnresponse=True)
+            self.verifier_ip = agent_json['verifier_ip']
+            self.verifier_port = agent_json['verifier_port']
+
         do_cvreactivate = RequestsClient(
             self.verifier_base_url, self.tls_enabled)
         response = do_cvreactivate.put(
@@ -966,6 +991,12 @@ def main(argv=sys.argv):
                         help='the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost')
     parser.add_argument('-v', '--cv', action='store', dest='verifier_ip',
                         help="the IP address of the cloud verifier")
+    parser.add_argument('-vp', '--cvport', action='store', dest='verifier_port',
+                        help="the port of the cloud verifier")
+    parser.add_argument('-vi', '--cvid', action='store', dest='verifier_id',
+                        help="the unique identifier of a cloud verifier")
+    parser.add_argument('-nvc', '--no-verifier-check', action='store_false', dest='verifier_check', default=True,
+                        help='Disable the check to confirm if the agent is being processed by the specified verifier. Use only with -c/--command delete or reactivate')
     parser.add_argument('-u', '--uuid', action='store',
                         dest='agent_uuid', help="UUID for the agent to provision")
     parser.add_argument('-f', '--file', action='store', default=None,
@@ -1039,7 +1070,7 @@ def main(argv=sys.argv):
     mytenant = Tenant()
 
     if args.command not in ['list', 'regdelete', 'reglist', 'delete', 'status',
-                            'addallowlist', 'deleteallowlist',
+                            'addallowlist', 'deleteallowlist', 'reactivate',
                             'showallowlist'] and args.agent_ip is None:
         raise UserError(
             f"-t/--targethost is required for command {args.command}")
@@ -1064,8 +1095,12 @@ def main(argv=sys.argv):
             raise UserError("Command %s not found in canned JSON!" %
                             ("add_vtpm_to_group"))
 
+    if args.verifier_id is not None:
+        mytenant.verifier_id = args.verifier_id
     if args.verifier_ip is not None:
         mytenant.verifier_ip = args.verifier_ip
+    if args.verifier_port is not None:
+        mytenant.verifier_port = args.verifier_port
 
     # we only need to fetch remote files if we are adding or updateing
     if args.command in ['add', 'update']:
@@ -1144,20 +1179,20 @@ def main(argv=sys.argv):
             mytenant.do_verify()
     elif args.command == 'update':
         mytenant.init_add(vars(args))
-        mytenant.do_cvdelete()
+        mytenant.do_cvdelete(args.verifier_check)
         mytenant.preloop()
         mytenant.do_cv()
         mytenant.do_quote()
         if args.verify:
             mytenant.do_verify()
     elif args.command == 'delete':
-        mytenant.do_cvdelete()
+        mytenant.do_cvdelete(args.verifier_check)
     elif args.command == 'status':
         mytenant.do_cvstatus()
     elif args.command == 'list':
         mytenant.do_cvstatus(listing=True)
     elif args.command == 'reactivate':
-        mytenant.do_cvreactivate()
+        mytenant.do_cvreactivate(args.verifier_check)
     elif args.command == 'reglist':
         mytenant.do_reglist()
     elif args.command == 'regdelete':

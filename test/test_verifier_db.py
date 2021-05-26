@@ -34,7 +34,10 @@ test_data = {
     'hash_alg': '',
     'enc_alg': '',
     'sign_alg': '',
-    'agent_id': 'D432FBB3-D2F1-4A97-9EF7-75BD81C00000'
+    'agent_id': 'D432FBB3-D2F1-4A97-9EF7-75BD81C00000',
+    'verifier_id' : 'default',
+    'verifier_ip' : '127.0.0.1',
+    'verifier_port' : 8881
 }
 
 test_allowlist_data = {
@@ -93,6 +96,12 @@ class TestVerfierDB(unittest.TestCase):
                          'sha384',
                          'sha256',
                          'sha1'])
+        self.assertEqual(
+            agent.verifier_id, 'default')
+        self.assertEqual(
+            agent.verifier_ip, '127.0.0.1')
+        self.assertEqual(
+            agent.verifier_port, 8881)
 
     def test_count_agents(self):
         agent = self.session.query(
@@ -106,6 +115,17 @@ class TestVerfierDB(unittest.TestCase):
         agent = self.session.query(VerfierMain).filter_by(
             agent_id=agent_id).first()
         self.assertEqual(agent.operational_state, 10)
+
+    def test_set_verifier_ip_port(self):
+        self.session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update(
+            {'verifier_ip': '127.0.0.2'})
+        self.session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update(
+            {'verifier_port': 8882})
+        self.session.commit()
+        agent = self.session.query(VerfierMain).filter_by(
+            agent_id=agent_id).first()
+        self.assertEqual(agent.verifier_ip, '127.0.0.2')
+        self.assertEqual(agent.verifier_port, 8882)
 
     def test_delete_agent(self):
         agent = self.session.query(VerfierMain).filter_by(
