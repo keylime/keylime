@@ -176,14 +176,29 @@ class AgentsHandler(BaseHandler):
                 config.echo_json_response(self, 404, "agent id not found")
         else:
             json_response = None
-            if "verifier" in rest_params.keys():
-                json_response = session.query(VerfierMain.agent_id).filter_by(
-                    verifier_id=rest_params["verifier"]).all()
-            else:
-                json_response = session.query(VerfierMain.agent_id).all()
+            if "bulk" in rest_params.keys():
+                agent_list = None
 
-            config.echo_json_response(self, 200, "Success", {
-                'uuids': json_response})
+                if ("verifier" in rest_params.keys()) and (rest_params["verifier"] != ''):
+                    agent_list = session.query(VerfierMain).filter_by(verifier_id=rest_params["verifier"]).all()
+                else:
+                    agent_list = session.query(VerfierMain).all()
+
+                json_response = {}
+                for agent in agent_list:
+                    json_response[agent.agent_id] = cloud_verifier_common.process_get_status(agent)
+
+                config.echo_json_response(self, 200, "Success", json_response)
+            else:
+                if ("verifier" in rest_params.keys()) and (rest_params["verifier"] != ''):
+                    json_response = session.query(VerfierMain.agent_id).filter_by(
+                        verifier_id=rest_params["verifier"]).all()
+                else:
+                    json_response = session.query(VerfierMain.agent_id).all()
+
+                config.echo_json_response(self, 200, "Success", {
+                    'uuids': json_response})
+
             logger.info('GET returning 200 response for agent_id list')
 
     def delete(self):
