@@ -66,14 +66,6 @@ def init_client_tls(section):
     tls_cert_info = (tls_cert, tls_priv_key)
 
 
-def getAIK(registrar_ip, registrar_port, agent_id):
-    retval = getKeys(registrar_ip, registrar_port, agent_id)
-    if retval is None:
-        return retval
-
-    return retval['aik']
-
-
 def getKeys(registrar_ip, registrar_port, agent_id):
 
     # make absolutely sure you don't ask for AIKs unauthenticated
