@@ -49,6 +49,9 @@ class TestIMAVerification(unittest.TestCase):
         lines = MEASUREMENTS.splitlines()
         lists_map = ima.process_allowlists(ALLOWLIST, '')
 
+        self.assertTrue(ima.process_measurement_list(lines) is not None,
+                        "Validation should always work when no allowlist and no keyring is specified")
+
         self.assertTrue(ima.process_measurement_list(lines, lists_map) is not None)
         # test with list as a string
         self.assertTrue(ima.process_measurement_list(lines, str(lists_map)) is not None)
