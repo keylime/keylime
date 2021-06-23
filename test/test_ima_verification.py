@@ -3,6 +3,8 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2020 IBM Corporation
 '''
 
+import codecs
+import hashlib
 import os
 import unittest
 
@@ -111,6 +113,26 @@ class TestIMAVerification(unittest.TestCase):
         pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(eckeyfile)
         keyring.add_pubkey(pubkey, keyidv2)
         self.assertTrue(ima.process_measurement_list(AgentAttestState('1'), lines[0:2], ima_keyring=keyring) is not None)
+
+
+    def test_iterative_attestation(self):
+        """ Test that the resulting pcr value is as expected by subsequently feeding a measurement list.
+            The AgentAtestState() will maintain the state of PCR 10.
+        """
+
+        lines = MEASUREMENTS.splitlines()
+        agentAttestState = AgentAttestState('1')
+        running_hash = agentAttestState.get_pcr_state(10)
+        for line in lines:
+            parts = line.split(' ')
+            template_hash = codecs.decode(parts[1].encode("utf-8"), "hex")
+            running_hash = hashlib.sha1(running_hash + template_hash).digest()
+            pcrval = codecs.encode(running_hash, "hex").decode("utf-8")
+            self.assertTrue(ima.process_measurement_list(agentAttestState, [line], pcrval=pcrval) == pcrval)
+
+        # Feed empty iterative measurement list simulating 'no new measurement list entries' on attested system
+        self.assertTrue(ima.process_measurement_list(agentAttestState, [''], pcrval=pcrval) == pcrval)
+
 
     def test_mixed_verfication(self):
         """ Test verification using allowlist and keys """
