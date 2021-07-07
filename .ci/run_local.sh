@@ -17,7 +17,8 @@ function tpm2 {
     container_id=$(mktemp)
     docker run --detach --privileged \
         -v $REPO:/root/keylime \
-        -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+        -v /sys/fs/cgroup:/sys/fs/cgroup \
+        --cgroupns=host \
         -it ${tpm20image}:${tpm20tag} >> ${container_id}
     docker exec -u 0 -it --tty "$(cat ${container_id})" \
         /bin/bash /root/keylime/.ci/test_wrapper.sh
