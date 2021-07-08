@@ -100,6 +100,14 @@ def getData(registrar_ip, registrar_port, agent_id):
             logger.critical("Error: did not receive EK from Registrar Server.")
             return None
 
+        if "ip" not in response_body["results"]:
+            logger.critical("Error: did not receive IP from Registrar Server.")
+            return None
+
+        if "port" not in response_body["results"]:
+            logger.critical("Error: did not receive port from Registrar Server.")
+            return None
+
         return response_body["results"]
 
     except AttributeError as e:
@@ -114,7 +122,7 @@ def getData(registrar_ip, registrar_port, agent_id):
     return None
 
 
-def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_tpm):
+def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_tpm, contact_ip = None, contact_port = None):
     data = {
         'ekcert': ekcert,
         'aik_tpm': aik_tpm,
@@ -122,6 +130,10 @@ def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_
     if ekcert is None or ekcert == 'emulator':
         data['ek_tpm'] = ek_tpm
     response = None
+    if contact_ip is not None:
+        data['ip'] = contact_ip
+    if contact_port is not None:
+        data['port'] = contact_port
     try:
         client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
         response = client.post(f'/agents/{agent_id}', cert=tls_cert_info, data=json.dumps(data), verify=False)
