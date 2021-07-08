@@ -283,6 +283,9 @@ class AbstractTPM(metaclass=ABCMeta):
                     if val_from_log_hex_stripped != pcrval_stripped:
                         logger.error("For PCR %d and hash SHA256 the boot event log has value %r but the agent returned %r", pcrnum, val_from_log_hex, pcrval)
                         return False
+                elif pcrnum in pcr_allowlist and pcrval not in pcr_allowlist[pcrnum] and not config.STUB_TPM:
+                    logger.error("%sPCR #%s: %s from quote does not match expected value %s", ("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum])
+                    return False
                 pcrsInQuote.add(pcrnum)
                 continue
 
