@@ -364,6 +364,8 @@ class TestRestful(unittest.TestCase):
     def test_010_reg_agent_post(self):
         """Test registrar's POST /v2/agents/{UUID} Interface"""
         global keyblob, vtpm, tpm_instance, ek_tpm, aik_tpm
+        contact_ip = "127.0.0.1"
+        contact_port = 9002
         tpm_instance = tpm_main.tpm()
 
         # Change CWD for TPM-related operations
@@ -389,6 +391,8 @@ class TestRestful(unittest.TestCase):
         data = {
             'ekcert': ekcert,
             'aik_tpm': aik_tpm,
+            'ip': contact_ip,
+            'port': contact_port
         }
         if ekcert is None or ekcert == 'emulator':
             data['ek_tpm'] = ek_tpm
@@ -473,6 +477,8 @@ class TestRestful(unittest.TestCase):
         self.assertIn("ek_tpm", json_response["results"], "Malformed response body!")
         self.assertIn("aik_tpm", json_response["results"], "Malformed response body!")
         self.assertIn("ekcert", json_response["results"], "Malformed response body!")
+        self.assertIn("ip", json_response["results"], "Malformed response body!")
+        self.assertIn("port", json_response["results"], "Malformed response body!")
 
         global aik_tpm
         aik_tpm = json_response["results"]["aik_tpm"]
