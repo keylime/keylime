@@ -42,7 +42,7 @@ def get_session():
 # The "exclude_db" dict values are removed from the response before adding the dict to the DB
 # This is because we want these values to remain ephemeral and not stored in the database.
 exclude_db = {
-    'registrar_keys': '',
+    'registrar_data': '',
     'nonce': '',
     'b64_encrypted_V': '',
     'provide_V': True,

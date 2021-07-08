@@ -467,19 +467,19 @@ class Tenant():
             [type] -- [description]
         """
         registrar_client.init_client_tls('tenant')
-        reg_keys = registrar_client.getKeys(
+        reg_data = registrar_client.getData(
             self.registrar_ip, self.registrar_port, self.agent_uuid)
-        if reg_keys is None:
+        if reg_data is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
 
-        if not self.tpm_instance.check_quote(self.agent_uuid, self.nonce, public_key, quote, reg_keys['aik_tpm'], hash_alg=hash_alg):
-            if reg_keys['regcount'] > 1:
+        if not self.tpm_instance.check_quote(self.agent_uuid, self.nonce, public_key, quote, reg_data['aik_tpm'], hash_alg=hash_alg):
+            if reg_data['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured or a malicious host is present. Run 'regdelete' for this agent and restart")
                 sys.exit()
             return False
 
-        if reg_keys['regcount'] > 1:
+        if reg_data['regcount'] > 1:
             logger.warning("WARNING: This UUID had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured. Run 'regdelete' for this agent and restart")
 
         if not config.STUB_TPM and (not config.getboolean('tenant', 'require_ek_cert') and config.get('tenant', 'ek_check_script') == ""):
@@ -487,11 +487,11 @@ class Tenant():
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
         # check EK cert and make sure it matches EK
-        if not self.check_ek(reg_keys['ekcert']):
+        if not self.check_ek(reg_data['ekcert']):
             return False
         # if agent is virtual, check phyisical EK cert and make sure it matches phyiscal EK
-        if 'provider_keys' in reg_keys:
-            if not self.check_ek(reg_keys['provider_keys']['ekcert']):
+        if 'provider_keys' in reg_data:
+            if not self.check_ek(reg_data['provider_keys']['ekcert']):
                 return False
 
         # check all EKs with optional script:
@@ -507,18 +507,18 @@ class Tenant():
         env = os.environ.copy()
         env['AGENT_UUID'] = self.agent_uuid
         env['EK'] = tpm2_objects.pubkey_from_tpm2b_public(
-            base64.b64decode(reg_keys['ek_tpm']),
+            base64.b64decode(reg_data['ek_tpm']),
             ).public_bytes(
                 crypto_serialization.Encoding.PEM,
                 crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
             )
-        env['EK_TPM'] = reg_keys['ek_tpm']
-        if reg_keys['ekcert'] is not None:
-            env['EK_CERT'] = reg_keys['ekcert']
+        env['EK_TPM'] = reg_data['ek_tpm']
+        if reg_data['ekcert'] is not None:
+            env['EK_CERT'] = reg_data['ekcert']
         else:
             env['EK_CERT'] = ""
 
-        env['PROVKEYS'] = json.dumps(reg_keys.get('provider_keys', {}))
+        env['PROVKEYS'] = json.dumps(reg_data.get('provider_keys', {}))
         proc = subprocess.Popen(script, env=env, shell=True,
                                 cwd=config.WORK_DIR, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT)

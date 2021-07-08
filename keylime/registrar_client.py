@@ -66,9 +66,8 @@ def init_client_tls(section):
     tls_cert_info = (tls_cert, tls_priv_key)
 
 
-def getKeys(registrar_ip, registrar_port, agent_id):
-
-    # make absolutely sure you don't ask for AIKs unauthenticated
+def getData(registrar_ip, registrar_port, agent_id):
+    # make absolutely sure you don't ask for data that contains AIK keys unauthenticated
     if not tls_enabled:
         raise Exception(
             "It is unsafe to use this interface to query AIKs without server-authenticated TLS.")
@@ -84,12 +83,21 @@ def getKeys(registrar_ip, registrar_port, agent_id):
             keylime_logging.log_http_response(logger, logging.CRITICAL, response_body)
             return None
 
+        # Check for all values that are consumed by other parts of Keylime
         if "results" not in response_body:
             logger.critical("Error: unexpected http response body from Registrar Server: %s", response.status_code)
             return None
 
         if "aik_tpm" not in response_body["results"]:
-            logger.critical("Error: did not receive AIK from Registrar Server: %s", response.status_code)
+            logger.critical("Error: did not receive AIK from Registrar Server.")
+            return None
+
+        if "regcount" not in response_body["results"]:
+            logger.critical("Error: did not receive regcount from Registrar Server.")
+            return None
+
+        if "ek_tpm" not in response_body["results"]:
+            logger.critical("Error: did not receive EK from Registrar Server.")
             return None
 
         return response_body["results"]
