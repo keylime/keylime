@@ -93,7 +93,7 @@ class Tenant():
         self.nonce = None
         self.agent_ip = None
         self.verifier_id = None
-        self.agent_port = config.get('cloud_agent', 'cloudagent_port')
+        self.agent_port = None
         self.verifier_ip = config.get('tenant', 'cloudverifier_ip')
         self.verifier_port = config.get('tenant', 'cloudverifier_port')
         self.registrar_ip = config.get('tenant', 'registrar_ip')
@@ -232,7 +232,6 @@ class Tenant():
 
         # Set up measured boot (TPM event log) reference state
         if TPM_Utilities.check_mask(self.tpm_policy['mask'], config.MEASUREDBOOT_PCRS[2]) :
-
             # Process measured boot reference state
             self.mb_refstate = measured_boot.process_refstate(mb_refstate_data)
 
@@ -248,6 +247,32 @@ class Tenant():
         if 'agent_port' in args and args['agent_port'] is not None:
             self.agent_port = args['agent_port']
 
+        # try to get the port or ip from the registrar if it is missing
+        if self.agent_ip is None or self.agent_port is None:
+            registrar_client.init_client_tls("tenant")
+            data = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid)
+            if data is not None:
+                if self.agent_ip is None:
+                    if data['ip'] is not None:
+                        self.agent_ip = data['ip']
+                    else:
+                        raise UserError("No Ip was specified or found in the Registrar")
+
+                if self.agent_port is None and data['port'] is not None:
+                    self.agent_port = data["port"]
+
+        # If no agent port was found try to use the default from the config file
+        if self.agent_port is None:
+            self.agent_port = config.get('cloud_agent', 'cloudagent_port')
+
+        # Check if a contact ip and port for the agent was found
+        if self.agent_ip is None:
+            raise UserError("The contact ip address for the agent was not specified.")
+
+        if self.agent_port is None:
+            raise UserError("The contact port for the agent was not specified.")
+
+        # Now set the cv_agent_ip
         if 'cv_agent_ip' in args and args['cv_agent_ip'] is not None:
             self.cv_cloudagent_ip = args['cv_agent_ip']
         else:
@@ -1082,12 +1107,6 @@ def main(argv=sys.argv):
         parser.error("--allowlist-sig-key must have either --allowlist-sig or --allowlist-sig-url")
 
     mytenant = Tenant()
-
-    if args.command not in ['list', 'regdelete', 'reglist', 'delete', 'status', 'bulkinfo',
-                            'addallowlist', 'deleteallowlist', 'reactivate',
-                            'showallowlist'] and args.agent_ip is None:
-        raise UserError(
-            f"-t/--targethost is required for command {args.command}")
 
     if args.agent_uuid is not None:
         mytenant.agent_uuid = args.agent_uuid
