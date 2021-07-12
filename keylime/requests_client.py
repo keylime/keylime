@@ -13,11 +13,11 @@ class RequestsClient:
         else:
             self.base_url = f'http://{base_url}'
         self.session = requests.Session()
-        for arg in kwargs:
-            if isinstance(kwargs[arg], dict):
-                kwargs[arg] = self.__deep_merge(
-                    getattr(self.session, arg), kwargs[arg])
-            setattr(self.session, arg, kwargs[arg])
+        for arg, value in kwargs.items():
+            if isinstance(value, dict):
+                value = self.__deep_merge(
+                    getattr(self.session, arg), value)
+            setattr(self.session, arg, value)
 
     def request(self, method, url, **kwargs):
         return self.session.request(method, self.base_url + url, **kwargs)
