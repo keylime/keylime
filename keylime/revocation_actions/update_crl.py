@@ -8,11 +8,11 @@ Copyright 2017 Massachusetts Institute of Technology.
 import time
 import os
 
-import keylime.tornado_requests as tornado_requests
-import keylime.ca_util as ca_util
-import keylime.secure_mount as secure_mount
-import keylime.config as common
-import keylime.keylime_logging as keylime_logging
+from keylime import ca_util
+from keylime import config as common
+from keylime import keylime_logging
+from keylime import secure_mount
+from keylime import tornado_requests
 
 # read the config file
 config = common.get_config()

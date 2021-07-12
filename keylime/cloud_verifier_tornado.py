@@ -23,8 +23,7 @@ from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
-import keylime.tornado_requests as tornado_requests
-
+from keylime import tornado_requests
 
 logger = keylime_logging.init_logging('cloudverifier')
 

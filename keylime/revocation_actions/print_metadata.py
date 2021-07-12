@@ -7,7 +7,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import simplejson as json
 
-import keylime.keylime_logging as keylime_logging
+from keylime import keylime_logging
 
 
 logger = keylime_logging.init_logging('print_metadata')
