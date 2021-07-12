@@ -70,7 +70,7 @@ def getGUID(b):
     ret = efivarlib_functions.efi_guid_to_str(b, byref(s))
     if ret < 0:
         raise Exception(f'getGUID: efi_guid_to_str({b}) returned {ret}')
-    return s.value.decode("utf-8")
+    return s.value.decode("utf-8")  # pylint: disable=E1101
 
 ##################################################################################
 #

@@ -23,16 +23,15 @@ from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
-import keylime.tornado_requests as tornado_requests
-
+from keylime import tornado_requests
 
 logger = keylime_logging.init_logging('cloudverifier')
 
 
 try:
     engine = DBEngineManager().make_engine('cloud_verifier')
-except SQLAlchemyError as e:
-    logger.error('Error creating SQL engine or session: %s', e)
+except SQLAlchemyError as err:
+    logger.error('Error creating SQL engine or session: %s', err)
     sys.exit(1)
 
 

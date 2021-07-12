@@ -25,12 +25,12 @@ logger = keylime_logging.init_logging('provider_platform_init')
 def symlink_force(target, link_name):
     try:
         os.symlink(target, link_name)
-    except OSError as e:
-        if e.errno == errno.EEXIST:
+    except OSError as err:
+        if err.errno == errno.EEXIST:
             os.remove(link_name)
             os.symlink(target, link_name)
         else:
-            raise e
+            raise err
 
 
 def main(argv=sys.argv):
