@@ -31,8 +31,8 @@ logger = keylime_logging.init_logging('cloudverifier')
 
 try:
     engine = DBEngineManager().make_engine('cloud_verifier')
-except SQLAlchemyError as e:
-    logger.error('Error creating SQL engine or session: %s', e)
+except SQLAlchemyError as err:
+    logger.error('Error creating SQL engine or session: %s', err)
     sys.exit(1)
 
 
