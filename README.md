@@ -365,16 +365,16 @@ done either with the keylime tenant or webapp.
 The `keylime_tenant` utility can be used to provision your agent.
 
 As an example, the following command tells keylime to provision a new agent
-at 127.0.0.1 with UUID D432FBB3-D2F1-4A97-9EF7-75BD81C00000 and talk to a
+at 127.0.0.1 with UUID d432fbb3-d2f1-4a97-9ef7-75bd81c00000 and talk to a
 verifier at 127.0.0.1.  Finally it will encrypt a file called `filetosend`
 and send it to the agent allowing it to decrypt it only if the configured TPM
 policy (in `/etc/keylime.conf`) is satisfied:
 
-`keylime_tenant -c add -t 127.0.0.1 -v 127.0.0.1 -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000 -f filetosend`
+`keylime_tenant -c add -t 127.0.0.1 -v 127.0.0.1 -u D432fbb3-d2f1-4a97-9ef7-75bd81c00000 -f filetosend`
 
 To stop keylime from requesting attestations:
 
-`keylime_tenant -c delete -t 127.0.0.1 -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000`
+`keylime_tenant -c delete -t 127.0.0.1 -u d432fbb3-d2f1-4a97-9ef7-75bd81c00000`
 
 For additional advanced options for the tenant utility run:
 
@@ -426,7 +426,7 @@ You may wonder why this is in keylime at all?  Well, you can tell `keylime_tenan
 automatically create a key and then provision an agent with it.  Use the --cert
 option in `keylime_tenant` to do this.  This takes in the directory of the CA:
 
-`keylime_tenant -c add -t 127.0.0.1 -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --cert /var/lib/keylime/ca`
+`keylime_tenant -c add -t 127.0.0.1 -u d432fbb3-d2f1-4a97-9ef7-75bd81c00000 --cert /var/lib/keylime/ca`
 
 If you also have the option extract_payload_zip in `/etc/keylime.conf` set to `True` on
 the keylime agent, then it will automatically extract the zip containing an unprotected

@@ -13,7 +13,7 @@ from keylime.db.keylime_db import SessionManager
 # BEGIN TEST DATA
 
 test_data = {
-    'agent_id': 'D432FBB3-D2F1-4A97-9EF7-75BD81C00000',
+    'agent_id': '4d32fbb3-d2f1-4a97-9ef7-75bd81c00000',
     'ek_tpm': """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0dLxdAABVJO6qxamjCMh
 yhWZgiFHZHnPEe0tMFyK3fNVr/w8lX9r+QOLxLmkT0IdgsEYtGZGefbD+qQl4O1s
@@ -66,7 +66,7 @@ DueRMS6lblvRKiZgmGAg7YaKOkOaEmVDMQ+fTo2Po7hI5wc=
     'regcount': 1
 }
 
-agent_id = 'D432FBB3-D2F1-4A97-9EF7-75BD81C00000'
+agent_id = 'd432fbb3-d2f1-4a97-9ef7-75bd81c00000'
 
 # END TEST DATA
 

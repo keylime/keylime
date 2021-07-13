@@ -384,11 +384,11 @@ log message like the following means that it worked:
 
 Copy this uuid.  Shutdown the keylime vm and its vtpm.  Put this UUID into the cfg file for the vtpm:
 
-`vtpm=["backend=vtpmmgr,uuid=33C6AD2C-F20D-40B0-B3F6-BC0FB0627637"]`
+`vtpm=["backend=vtpmmgr,uuid=33c6ad2c-f20d-40b0-b3f6-bc0fb0627637"]`
     
 Boot the vtpm back up.  then boot up the linux machine.  Now you must put this UUID into the keylime vm /etc/keylime.conf.
 
-`agent_uuid=33C6AD2C-F20D-40B0-B3F6-BC0FB0627637`
+`agent_uuid=33c6ad2c-f20d-40b0-b3f6-bc0fb0627637`
 
 Ok, now it is time to start up the agent process.  (this is where it all comes together, so if this works, the rest likely will too)
 
@@ -404,7 +404,7 @@ Now lets actualy run through the entire process:
 
 back on dom0 xen machine we want to run the tenant:
 
-`keylime_tenant -u 33C6AD2C-F20D-40B0-B3F6-BC0FB0627637 -t 10.0.0.4 --verify -f SOMEFILE.txt`
+`keylime_tenant -u 33c6ad2c-f20d-40b0-b3f6-bc0fb0627637 -t 10.0.0.4 --verify -f SOMEFILE.txt`
 
 where SOMEFILE.txt is any old file that you want delivered securely to the agent.  The --verify option will poll the agent to make sure everything worked
 
