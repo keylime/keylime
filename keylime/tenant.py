@@ -234,7 +234,7 @@ class Tenant():
         if TPM_Utilities.check_mask(self.tpm_policy['mask'], config.MEASUREDBOOT_PCRS[2]) :
 
             # Process measured boot reference state
-            self.mb_refstate = measured_boot.process_refstate(mb_refstate_data)
+            self.mb_refstate = mb_refstate_data
 
     def init_add(self, args):
         """ Set up required values. Command line options can overwrite these config values
