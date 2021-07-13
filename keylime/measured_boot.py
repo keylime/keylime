@@ -26,11 +26,6 @@ def read_mb_refstate(mb_path=None):
 
     return mb_data
 
-def process_refstate(mb_refstate_data=None) :
-    if isinstance(mb_refstate_data, dict) :
-        return mb_refstate_data
-    return mb_refstate_data
-
 def get_policy(mb_refstate_str):
     """ Convert the mb_refstate_str to JSON and get the measured boot policy.
     :param mb_refstate_str: String representation of measured boot reference state
