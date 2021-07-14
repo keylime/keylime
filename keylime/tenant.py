@@ -37,6 +37,7 @@ from keylime.common import algorithms
 from keylime import ima_file_signatures
 from keylime import measured_boot
 from keylime import gpg
+from keylime import api_version as keylime_api_version
 
 # setup logging
 logger = keylime_logging.init_logging('tenant')
@@ -63,6 +64,8 @@ class Tenant():
 
     webapp_ip = None
     webapp_port = None
+
+    api_version = None
 
     uuid_service_generate_locally = None
     agent_uuid = None
@@ -102,6 +105,8 @@ class Tenant():
         if not config.REQUIRE_ROOT and self.webapp_port < 1024:
             self.webapp_port += 2000
         self.webapp_ip = config.get('webapp', 'webapp_ip')
+
+        self.api_version = keylime_api_version.current_version()
 
         self.my_cert, self.my_priv_key = self.get_tls_context()
         self.cert = (self.my_cert, self.my_priv_key)
@@ -581,7 +586,7 @@ class Tenant():
         json_message = json.dumps(data)
         do_cv = RequestsClient(self.verifier_base_url, self.tls_enabled)
         response = do_cv.post(
-            (f'/agents/{self.agent_uuid}'),
+            (f'/v{self.api_version}/agents/{self.agent_uuid}'),
             data=json_message,
             cert=self.cert,
             verify=False
@@ -619,7 +624,7 @@ class Tenant():
         if listing and (self.verifier_id is not None):
             verifier_id = self.verifier_id
             response = do_cvstatus.get(
-                (f'/agents/?verifier={verifier_id}'),
+                (f'/v{self.api_version}/agents/?verifier={verifier_id}'),
                 cert=self.cert,
                 verify=False
             )
@@ -628,13 +633,13 @@ class Tenant():
             if self.verifier_id is not None:
                 verifier_id = self.verifier_id
             response = do_cvstatus.get(
-                (f'/agents/?bulk={bulk}&verifier={verifier_id}'),
+                (f'/v{self.api_version}/agents/?bulk={bulk}&verifier={verifier_id}'),
                 cert=self.cert,
                 verify=False
             )
         else:
             response = do_cvstatus.get(
-                (f'/agents/{agent_uuid}'),
+                (f'/v{self.api_version}/agents/{agent_uuid}'),
                 cert=self.cert,
                 verify=False
             )
@@ -682,7 +687,7 @@ class Tenant():
 
         do_cvdelete = RequestsClient(self.verifier_base_url, self.tls_enabled)
         response = do_cvdelete.delete(
-            (f'/agents/{self.agent_uuid}'),
+            (f'/v{self.api_version}/agents/{self.agent_uuid}'),
             cert=self.cert,
             verify=False
         )
@@ -700,7 +705,7 @@ class Tenant():
                 get_cvdelete = RequestsClient(
                     self.verifier_base_url, self.tls_enabled)
                 response = get_cvdelete.get(
-                    (f'/agents/{self.agent_uuid}'),
+                    (f'/v{self.api_version}/agents/{self.agent_uuid}'),
                     cert=self.cert,
                     verify=False
                 )
@@ -747,7 +752,7 @@ class Tenant():
         do_cvreactivate = RequestsClient(
             self.verifier_base_url, self.tls_enabled)
         response = do_cvreactivate.put(
-            (f'/agents/{self.agent_uuid}/reactivate'),
+            (f'/v{self.api_version}/agents/{self.agent_uuid}/reactivate'),
             data=b'',
             cert=self.cert,
             verify=False
@@ -772,7 +777,7 @@ class Tenant():
     def do_cvstop(self):
         """ Stop declared active agent
         """
-        params = f'/agents/{self.agent_uuid}/stop'
+        params = f'/v{self.api_version}/agents/{self.agent_uuid}/stop'
         do_cvstop = RequestsClient(self.verifier_base_url, self.tls_enabled)
         response = do_cvstop.put(
             params,
@@ -808,7 +813,7 @@ class Tenant():
         # Note: We need a specific retry handler (perhaps in common), no point having localised unless we have too.
         while True:
             try:
-                params = '/quotes/identity?nonce=%s' % (self.nonce)
+                params = f'/v{self.api_version}/quotes/identity?nonce=%s' % (self.nonce)
                 cloudagent_base_url = f'{self.agent_ip}:{self.agent_port}'
                 do_quote = RequestsClient(cloudagent_base_url, tls_enabled=False)
                 response = do_quote.get(
@@ -892,7 +897,7 @@ class Tenant():
             u_json_message = json.dumps(data)
 
             # post encrypted U back to CloudAgent
-            params = '/keys/ukey'
+            params = f'/v{self.api_version}/keys/ukey'
             cloudagent_base_url = (
                 f'{self.agent_ip}:{self.agent_port}'
             )
@@ -932,7 +937,7 @@ class Tenant():
                 do_verify = RequestsClient(
                     cloudagent_base_url, tls_enabled=False)
                 response = do_verify.get(
-                    (f'/keys/verify?challenge={challenge}'),
+                    (f'/v{self.api_version}/keys/verify?challenge={challenge}'),
                     cert=self.cert,
                     verify=False
                 )
@@ -985,19 +990,19 @@ class Tenant():
         }
         body = json.dumps(data)
         cv_client = RequestsClient(self.verifier_base_url, self.tls_enabled)
-        response = cv_client.post(f'/allowlists/{allowlist_name}', data=body,
+        response = cv_client.post(f'/v{self.api_version}/allowlists/{allowlist_name}', data=body,
                                   cert=self.cert, verify=False)
         print(response.json())
 
     def do_delete_allowlist(self, name):
         cv_client = RequestsClient(self.verifier_base_url, self.tls_enabled)
-        response = cv_client.delete(f'/allowlists/{name}',
+        response = cv_client.delete(f'/v{self.api_version}/allowlists/{name}',
                                     cert=self.cert, verify=False)
         print(response.json())
 
     def do_show_allowlist(self, name):
         cv_client = RequestsClient(self.verifier_base_url, self.tls_enabled)
-        response = cv_client.get(f'/allowlists/{name}',
+        response = cv_client.get(f'/v{self.api_version}/allowlists/{name}',
                                  cert=self.cert, verify=False)
         print(f"Show allowlist command response: {response.status_code}.")
         print(response.json())

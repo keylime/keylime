@@ -13,10 +13,12 @@ from keylime import config
 from keylime import crypto
 from keylime import keylime_logging
 from keylime.requests_client import RequestsClient
+from keylime import api_version as keylime_api_version
 
 logger = keylime_logging.init_logging('registrar_client')
 tls_cert_info = ()
 tls_enabled = False
+api_version = keylime_api_version.current_version()
 
 
 def init_client_tls(section):
@@ -75,7 +77,7 @@ def getData(registrar_ip, registrar_port, agent_id):
     response = None
     try:
         client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-        response = client.get(f'/agents/{agent_id}', cert=tls_cert_info, verify=False)
+        response = client.get(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, verify=False)
         response_body = response.json()
 
         if response.status_code != 200:
@@ -136,7 +138,7 @@ def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_
         data['port'] = contact_port
     try:
         client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-        response = client.post(f'/agents/{agent_id}', cert=tls_cert_info, data=json.dumps(data), verify=False)
+        response = client.post(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, data=json.dumps(data), verify=False)
         response_body = response.json()
 
         if response.status_code != 200:
@@ -170,7 +172,7 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
         'auth_tag': crypto.do_hmac(key, agent_id),
     }
     client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-    response = client.put(f'/agents/{agent_id}/activate', cert=tls_cert_info, data=json.dumps(data), verify=False)
+    response = client.put(f'/v{api_version}/agents/{agent_id}/activate', cert=tls_cert_info, data=json.dumps(data), verify=False)
     response_body = response.json()
 
     if response.status_code == 200:
@@ -185,7 +187,7 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
 
 def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
     client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-    response = client.delete(f'/agents/{agent_id}', cert=tls_cert_info, verify=False)
+    response = client.delete(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, verify=False)
     response_body = response.json()
 
     if response.status_code == 200:
@@ -197,7 +199,7 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
 
 def doRegistrarList(registrar_ip, registrar_port):
     client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-    response = client.get('/agents/', cert=tls_cert_info, verify=False)
+    response = client.get(f'/v{api_version}/agents/', cert=tls_cert_info, verify=False)
     response_body = response.json()
 
     if response.status_code != 200:
