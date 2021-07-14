@@ -24,6 +24,7 @@ from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
 from keylime import tornado_requests
+from keylime import api_version as keylime_api_version
 
 logger = keylime_logging.init_logging('cloudverifier')
 
@@ -132,6 +133,45 @@ class MainHandler(tornado.web.RequestHandler):
     def data_received(self, chunk):
         raise NotImplementedError()
 
+class VersionHandler(BaseHandler):
+
+    def head(self):
+        config.echo_json_response(
+            self, 405, "Not Implemented: Use GET interface instead")
+
+    def get(self):
+        rest_params = config.get_restful_params(self.request.uri)
+        if rest_params is None:
+            config.echo_json_response(self, 405, "Not Implemented")
+            return
+
+        if "version" not in rest_params:
+            config.echo_json_response(self, 400, "URI not supported")
+            logger.warning('GET returning 400 response. URI not supported: %s', self.request.path)
+            return
+
+        version_info = {
+            "current_version": keylime_api_version.current_version(),
+            "supported_versions": keylime_api_version.all_versions(),
+        }
+
+        config.echo_json_response(self, 200, "Success", version_info)
+
+    def delete(self):
+        config.echo_json_response(
+            self, 405, "Not Implemented: Use GET interface instead")
+
+    def post(self):
+        config.echo_json_response(
+            self, 405, "Not Implemented: Use GET interface instead")
+
+    def put(self):
+        config.echo_json_response(
+            self, 405, "Not Implemented: Use GET interface instead")
+
+    def data_received(self, chunk):
+        raise NotImplementedError()
+
 
 class AgentsHandler(BaseHandler):
     def head(self):
@@ -152,6 +192,10 @@ class AgentsHandler(BaseHandler):
         if rest_params is None:
             config.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
+            return
+
+        if not rest_params["api_version"]:
+            config.echo_json_response(self, 400, "API Version not supported")
             return
 
         if "agents" not in rest_params:
@@ -211,6 +255,10 @@ class AgentsHandler(BaseHandler):
         if rest_params is None:
             config.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
+            return
+
+        if not rest_params["api_version"]:
+            config.echo_json_response(self, 400, "API Version not supported")
             return
 
         if "agents" not in rest_params:
@@ -278,6 +326,10 @@ class AgentsHandler(BaseHandler):
             if rest_params is None:
                 config.echo_json_response(
                     self, 405, "Not Implemented: Use /agents/ interface")
+                return
+
+            if not rest_params["api_version"]:
+                config.echo_json_response(self, 400, "API Version not supported")
                 return
 
             if "agents" not in rest_params:
@@ -375,6 +427,10 @@ class AgentsHandler(BaseHandler):
                     self, 405, "Not Implemented: Use /agents/ interface")
                 return
 
+            if not rest_params["api_version"]:
+                config.echo_json_response(self, 400, "API Version not supported")
+                return
+
             if "agents" not in rest_params:
                 config.echo_json_response(self, 400, "uri not supported")
                 logger.warning('PUT returning 400 response. uri not supported: %s', self.request.path)
@@ -437,12 +493,16 @@ class AllowlistHandler(BaseHandler):
     def get(self):
         """Get an allowlist
 
-        GET /(?:v[0-9]/)?allowlists/{name}
+        GET /allowlists/{name}
         """
 
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None or 'allowlists' not in rest_params:
             config.echo_json_response(self, 400, "Invalid URL")
+            return
+
+        if not rest_params["api_version"]:
+            config.echo_json_response(self, 400, "API Version not supported")
             return
 
         allowlist_name = rest_params['allowlists']
@@ -472,12 +532,16 @@ class AllowlistHandler(BaseHandler):
     def delete(self):
         """Delete an allowlist
 
-        DELETE /(?:v[0-9]/)?allowlists/{name}
+        DELETE /allowlists/{name}
         """
 
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None or 'allowlists' not in rest_params:
             config.echo_json_response(self, 400, "Invalid URL")
+            return
+
+        if not rest_params["api_version"]:
+            config.echo_json_response(self, 400, "API Version not supported")
             return
 
         allowlist_name = rest_params['allowlists']
@@ -519,13 +583,17 @@ class AllowlistHandler(BaseHandler):
     def post(self):
         """Create an allowlist
 
-        POST /(?:v[0-9]/)?allowlists/{name}
+        POST /allowlists/{name}
         body: {"tpm_policy": {..}, "vtpm_policy": {..}
         """
 
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None or 'allowlists' not in rest_params:
             config.echo_json_response(self, 400, "Invalid URL")
+            return
+
+        if not rest_params["api_version"]:
+            config.echo_json_response(self, 400, "API Version not supported")
             return
 
         allowlist_name = rest_params['allowlists']
@@ -597,9 +665,10 @@ async def invoke_get_quote(agent, need_pubkey):
     if need_pubkey:
         partial_req = "0"
 
+    version = keylime_api_version.current_version()
     res = tornado_requests.request("GET",
-                                   "http://%s:%d/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s" %
-                                   (agent['ip'], agent['port'], params["nonce"], params["mask"], params['vmask'], partial_req), context=None)
+                                   "http://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s" %
+                                   (agent['ip'], agent['port'], version, params["nonce"], params["mask"], params['vmask'], partial_req), context=None)
     response = await res
 
     if response.status_code != 200:
@@ -639,8 +708,9 @@ async def invoke_provide_v(agent):
     except KeyError:
         pass
     v_json_message = cloud_verifier_common.prepare_v(agent)
+    version = keylime_api_version.current_version()
     res = tornado_requests.request(
-        "POST", "http://%s:%d//keys/vkey" % (agent['ip'], agent['port']), data=v_json_message)
+        "POST", "http://%s:%d/%s/keys/vkey" % (agent['ip'], agent['port'], version), data=v_json_message)
     response = await res
 
     if response.status_code != 200:
@@ -847,9 +917,13 @@ def main():
 
     logger.info('Starting Cloud Verifier (tornado) on port %s, use <Ctrl-C> to stop', cloudverifier_port)
 
+    # print out API versions we support
+    keylime_api_version.log_api_versions(logger)
+
     app = tornado.web.Application([
-        (r"/(?:v[0-9]/)?agents/.*", AgentsHandler),
-        (r"/(?:v[0-9]/)?allowlists/.*", AllowlistHandler),
+        (r"/v?[0-9]+(?:\.[0-9]+)?/agents/.*", AgentsHandler),
+        (r"/v?[0-9]+(?:\.[0-9]+)?/allowlists/.*", AllowlistHandler),
+        (r"/versions?", VersionHandler),
         (r".*", MainHandler),
     ])
 

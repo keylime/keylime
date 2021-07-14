@@ -21,6 +21,7 @@ from keylime.common import states
 from keylime import config
 from keylime import keylime_logging
 from keylime import tenant
+from keylime import api_version as keylime_api_version
 
 
 logger = keylime_logging.init_logging('tenant_webapp')
@@ -42,6 +43,8 @@ verifier_base_url = f'{verifier_ip}:{verifier_port}'
 registrar_ip = config.get('registrar', 'registrar_ip')
 registrar_tls_port = config.get('registrar', 'registrar_tls_port')
 registrar_base_tls_url = f'{registrar_ip}:{registrar_tls_port}'
+
+api_version = keylime_api_version.current_version()
 
 
 class Agent_Init_Types:
@@ -328,7 +331,7 @@ class AgentsHandler(BaseHandler):
         try:
             get_agent_state = RequestsClient(verifier_base_url, tls_enabled)
             response = get_agent_state.get(
-                (f'/agents/{agent_id}'),
+                (f'/v{api_version}/agents/{agent_id}'),
                 cert=cert,
                 verify=False
             )
@@ -402,7 +405,7 @@ class AgentsHandler(BaseHandler):
         try:
             get_agents = RequestsClient(registrar_base_tls_url, tls_enabled)
             response = get_agents.get(
-                ('/agents/'),
+                (f'/v{api_version}/agents/'),
                 cert=cert,
                 verify=False
             )

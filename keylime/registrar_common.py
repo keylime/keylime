@@ -27,6 +27,7 @@ from keylime import crypto
 from keylime.tpm import tpm2_objects
 from keylime import keylime_logging
 from keylime.tpm.tpm_main import tpm
+from keylime import api_version as keylime_api_version
 
 logger = keylime_logging.init_logging('registrar')
 
@@ -60,6 +61,10 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         if rest_params is None:
             config.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
+            return
+
+        if not rest_params["api_version"]:
+            config.echo_json_response(self, 400, "API Version not supported")
             return
 
         if "agents" not in rest_params:
@@ -133,8 +138,12 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
+        if not rest_params["api_version"]:
+            config.echo_json_response(self, 400, "API Version not supported")
+            return
+
         if "agents" not in rest_params:
-            config.echo_json_response(self, 400, "uri not supported")
+            config.echo_json_response(self, 400, "URI not supported")
             logger.warning('DELETE agent returning 400 response. uri not supported: %s', self.path)
             return
 
@@ -172,8 +181,27 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         config.echo_json_response(self, 405, "PATCH not supported")
 
     def do_GET(self):
-        """GET not supported"""
-        config.echo_json_response(self, 405, "GET not supported")
+        """This method handles the GET requests to the unprotected side of the Registrar Server
+
+        Currently the only supported path is /versions which shows the supported API versions
+        """
+        rest_params = config.get_restful_params(self.path)
+        if rest_params is None:
+            config.echo_json_response(
+                self, 405, "Not Implemented: Use /version/ interface")
+            return
+
+        if "version" not in rest_params:
+            config.echo_json_response(self, 400, "URI not supported")
+            logger.warning('GET agent returning 400 response. URI not supported: %s', self.path)
+            return
+
+        version_info = {
+            "current_version": keylime_api_version.current_version(),
+            "supported_versions": keylime_api_version.all_versions(),
+        }
+
+        config.echo_json_response(self, 200, "Success", version_info)
 
     def do_POST(self):
         """This method handles the POST requests to add agents to the Registrar Server.
@@ -187,6 +215,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         if rest_params is None:
             config.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
+            return
+
+        if not rest_params["api_version"]:
+            config.echo_json_response(self, 400, "API Version not supported")
             return
 
         if "agents" not in rest_params:
@@ -356,6 +388,10 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
+        if not rest_params["api_version"]:
+            config.echo_json_response(self, 400, "API Version not supported")
+            return
+
         if "agents" not in rest_params:
             config.echo_json_response(self, 400, "uri not supported")
             logger.warning('PUT agent returning 400 response. uri not supported: %s', self.path)
@@ -489,6 +525,7 @@ def start(host, tlsport, port):
     servers.append(server2)
 
     logger.info('Starting Cloud Registrar Server on ports %s and %s (TLS) use <Ctrl-C> to stop', port, tlsport)
+    keylime_api_version.log_api_versions(logger)
     for thread in threads:
         thread.start()
 

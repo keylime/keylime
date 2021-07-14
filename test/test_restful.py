@@ -8,9 +8,9 @@ This unittest is being used as a procedural test.
 The tests must be run in-order and CANNOT be parallelized!
 
 Tests all but two RESTful interfaces:
-    * agent's POST /v2/keys/vkey
-        - Done by CV after the CV's POST /v2/agents/{UUID} command is performed
-    * CV's PUT /v2/agents/{UUID}
+    * agent's POST /keys/vkey
+        - Done by CV after the CV's POST /agents/{UUID} command is performed
+    * CV's PUT /agents/{UUID}
         - POST already bootstraps agent, so PUT is redundant in this test
 
 The registrar's PUT vactivate interface is only tested if a vTPM is present!
@@ -52,7 +52,7 @@ from keylime.cmd import user_data_encrypt
 from keylime import secure_mount
 from keylime.tpm import tpm_main
 from keylime.tpm import tpm_abstract
-
+from keylime import api_version
 
 
 # Coverage support
@@ -325,7 +325,6 @@ class TestRestful(unittest.TestCase):
     K = None
     U = None
     V = None
-    api_version = config.API_VERSION
     cloudagent_ip = None
     cloudagent_port = None
 
@@ -350,7 +349,7 @@ class TestRestful(unittest.TestCase):
         cls.vtpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.vtpm_policy)
 
         # Allow targeting a specific API version (default latest)
-        cls.api_version = config.API_VERSION
+        cls.api_version = '1.0'
 
     def setUp(self):
         """Nothing to set up before each test"""
@@ -362,7 +361,7 @@ class TestRestful(unittest.TestCase):
 
     # Registrar Testset
     def test_010_reg_agent_post(self):
-        """Test registrar's POST /v2/agents/{UUID} Interface"""
+        """Test registrar's POST /agents/{UUID} Interface"""
         global keyblob, vtpm, tpm_instance, ek_tpm, aik_tpm
         contact_ip = "127.0.0.1"
         contact_port = 9002
@@ -415,9 +414,9 @@ class TestRestful(unittest.TestCase):
         keyblob = json_response["results"]["blob"]
         self.assertIsNotNone(keyblob, "Malformed response body!")
 
-    @unittest.skipIf(vtpm, "Registrar's PUT /v2/agents/{UUID}/activate only for non-vTPMs!")
+    @unittest.skipIf(vtpm, "Registrar's PUT /agents/{UUID}/activate only for non-vTPMs!")
     def test_011_reg_agent_activate_put(self):
-        """Test registrar's PUT /v2/agents/{UUID}/activate Interface"""
+        """Test registrar's PUT /agents/{UUID}/activate Interface"""
         global keyblob
 
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
@@ -442,7 +441,7 @@ class TestRestful(unittest.TestCase):
 
 
     def test_013_reg_agents_get(self):
-        """Test registrar's GET /v2/agents Interface"""
+        """Test registrar's GET /agents Interface"""
         test_013_reg_agents_get = RequestsClient(tenant_templ.registrar_base_tls_url, tls_enabled=True)
         response = test_013_reg_agents_get.get(
             f'/v{self.api_version}/agents/',
@@ -461,7 +460,7 @@ class TestRestful(unittest.TestCase):
         self.assertEqual(1, len(json_response["results"]["uuids"]), "Incorrect system state!")
 
     def test_014_reg_agent_get(self):
-        """Test registrar's GET /v2/agents/{UUID} Interface"""
+        """Test registrar's GET /agents/{UUID} Interface"""
         test_014_reg_agent_get = RequestsClient(tenant_templ.registrar_base_tls_url, tls_enabled=True)
         response = test_014_reg_agent_get.get(
             f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}',
@@ -485,7 +484,7 @@ class TestRestful(unittest.TestCase):
 
     def test_015_reg_agent_delete(self):
 
-        """Test registrar's DELETE /v2/agents/{UUID} Interface"""
+        """Test registrar's DELETE /agents/{UUID} Interface"""
         test_015_reg_agent_delete = RequestsClient(tenant_templ.registrar_base_tls_url, tls_enabled=True)
         response = test_015_reg_agent_delete.delete(
             f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}',
@@ -502,7 +501,7 @@ class TestRestful(unittest.TestCase):
     # Agent Setup Testset
 
     def test_020_agent_keys_pubkey_get(self):
-        """Test agent's GET /v2/keys/pubkey Interface"""
+        """Test agent's GET /keys/pubkey Interface"""
 
         # We want a real cloud agent to communicate with!
         launch_cloudagent()
@@ -530,7 +529,7 @@ class TestRestful(unittest.TestCase):
         self.test_014_reg_agent_get()
 
     def test_022_agent_quotes_identity_get(self):
-        """Test agent's GET /v2/quotes/identity Interface"""
+        """Test agent's GET /quotes/identity Interface"""
         self.assertIsNotNone(aik_tpm, "Required value not set.  Previous step may have failed?")
 
         nonce = tpm_abstract.TPM_Utilities.random_password(20)
@@ -566,9 +565,9 @@ class TestRestful(unittest.TestCase):
                                         hash_alg=json_response["results"]["hash_alg"]),
                         "Invalid quote!")
 
-    @unittest.skip("Testing of agent's POST /v2/keys/vkey disabled!  (spawned CV should do this already)")
+    @unittest.skip("Testing of agent's POST /keys/vkey disabled!  (spawned CV should do this already)")
     def test_023_agent_keys_vkey_post(self):
-        """Test agent's POST /v2/keys/vkey Interface"""
+        """Test agent's POST /keys/vkey Interface"""
         # CV should do this (during CV POST/PUT test)
         # Running this test might hide problems with the CV sending the V key
         global public_key
@@ -595,7 +594,7 @@ class TestRestful(unittest.TestCase):
         self.assertIn("results", json_response, "Malformed response body!")
 
     def test_024_agent_keys_ukey_post(self):
-        """Test agents's POST /v2/keys/ukey Interface"""
+        """Test agents's POST /keys/ukey Interface"""
         global public_key
 
         self.assertIsNotNone(public_key, "Required value not set.  Previous step may have failed?")
@@ -626,7 +625,7 @@ class TestRestful(unittest.TestCase):
         self.assertIn("results", json_response, "Malformed response body!")
 
     def test_025_cv_allowlist_post(self):
-        """Test CV's POST /v2/allowlist/{name} Interface"""
+        """Test CV's POST /allowlist/{name} Interface"""
         data = {
             'name': 'test-allowlist',
             'tpm_policy': json.dumps(self.tpm_policy),
@@ -636,7 +635,7 @@ class TestRestful(unittest.TestCase):
 
         cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
         response = cv_client.post(
-            '/allowlists/test-allowlist',
+            f'/v{self.api_version}/allowlists/test-allowlist',
             data=json.dumps(data),
             cert=tenant_templ.cert,
             verify=False
@@ -649,10 +648,10 @@ class TestRestful(unittest.TestCase):
         self.assertIn("results", json_response, "Malformed response body!")
 
     def test_026_cv_allowlist_get(self):
-        """Test CV's GET /v2/allowlists/{name} Interface"""
+        """Test CV's GET /allowlists/{name} Interface"""
         cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
         response = cv_client.get(
-            '/allowlists/test-allowlist',
+            f'/v{self.api_version}/allowlists/test-allowlist',
             cert=tenant_templ.cert,
             verify=False
         )
@@ -669,10 +668,10 @@ class TestRestful(unittest.TestCase):
         self.assertEqual(results['ima_policy'], json.dumps(self.allowlist))
 
     def test_027_cv_allowlist_delete(self):
-        """Test CV's DELETE /v2/allowlists/{name} Interface"""
+        """Test CV's DELETE /allowlists/{name} Interface"""
         cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
         response = cv_client.delete(
-            '/allowlists/test-allowlist',
+            f'/v{self.api_version}/allowlists/test-allowlist',
             cert=tenant_templ.cert,
             verify=False
         )
@@ -682,7 +681,7 @@ class TestRestful(unittest.TestCase):
     # Cloud Verifier Testset
 
     def test_030_cv_agent_post(self):
-        """Test CV's POST /v2/agents/{UUID} Interface"""
+        """Test CV's POST /agents/{UUID} Interface"""
         self.assertIsNotNone(self.V, "Required value not set.  Previous step may have failed?")
 
         b64_v = base64.b64encode(self.V)
@@ -704,7 +703,7 @@ class TestRestful(unittest.TestCase):
 
         test_030_cv_agent_post = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
         response = test_030_cv_agent_post.post(
-            f'/agents/{tenant_templ.agent_uuid}',
+            f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}',
             data=json.dumps(data),
             cert=tenant_templ.cert,
             verify=False
@@ -718,9 +717,9 @@ class TestRestful(unittest.TestCase):
 
         time.sleep(10)
 
-    @unittest.skip("Testing of CV's PUT /v2/agents/{UUID} disabled!")
+    @unittest.skip("Testing of CV's PUT /agents/{UUID} disabled!")
     def test_031_cv_agent_put(self):
-        """Test CV's PUT /v2/agents/{UUID} Interface"""
+        """Test CV's PUT /agents/{UUID} Interface"""
         # TODO: this should actually test PUT functionality (e.g., make agent fail and then PUT back up)
         test_031_cv_agent_put = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
         response = test_031_cv_agent_put.put(
@@ -736,7 +735,7 @@ class TestRestful(unittest.TestCase):
         self.assertIn("results", json_response, "Malformed response body!")
 
     def test_032_cv_agents_get(self):
-        """Test CV's GET /v2/agents Interface"""
+        """Test CV's GET /agents Interface"""
         test_032_cv_agents_get = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
         response = test_032_cv_agents_get.get(
             f'/v{self.api_version}/agents/',
@@ -755,7 +754,7 @@ class TestRestful(unittest.TestCase):
         self.assertEqual(1, len(json_response["results"]["uuids"]))
 
     def test_033_cv_agent_get(self):
-        """Test CV's GET /v2/agents/{UUID} Interface"""
+        """Test CV's GET /agents/{UUID} Interface"""
         test_033_cv_agent_get = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
         response = test_033_cv_agent_get.get(
             f'/v{self.api_version}/agents/{tenant_templ.agent_uuid}',
@@ -775,7 +774,7 @@ class TestRestful(unittest.TestCase):
         self.assertIn("port", json_response["results"], "Malformed response body!")
 
     def test_034_cv_agent_post_invalid_exclude_list(self):
-        """Test CV's POST /v2/agents/{UUID} Interface"""
+        """Test CV's POST /agents/{UUID} Interface"""
         self.assertIsNotNone(self.V, "Required value not set.  Previous step may have failed?")
 
         b64_v = base64.b64encode(self.V)
@@ -814,7 +813,7 @@ class TestRestful(unittest.TestCase):
     # Agent Poll Testset
 
     def test_040_agent_quotes_integrity_get(self):
-        """Test agent's GET /v2/quotes/integrity Interface"""
+        """Test agent's GET /quotes/integrity Interface"""
         global public_key
 
         self.assertIsNotNone(aik_tpm, "Required value not set.  Previous step may have failed?")
@@ -857,7 +856,7 @@ class TestRestful(unittest.TestCase):
         self.assertTrue(validQuote)
 
     async def test_041_agent_keys_verify_get(self):
-        """Test agent's GET /v2/keys/verify Interface
+        """Test agent's GET /keys/verify Interface
         We use async here to allow function await while key processes"""
         self.assertIsNotNone(self.K, "Required value not set.  Previous step may have failed?")
         challenge = tpm_abstract.TPM_Utilities.random_password(20)
@@ -882,7 +881,7 @@ class TestRestful(unittest.TestCase):
     # CV Cleanup Testset
 
     def test_050_cv_agent_delete(self):
-        """Test CV's DELETE /v2/agents/{UUID} Interface"""
+        """Test CV's DELETE /agents/{UUID} Interface"""
         time.sleep(5)
         test_050_cv_agent_delete = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
         response = test_050_cv_agent_delete.delete(
@@ -896,6 +895,24 @@ class TestRestful(unittest.TestCase):
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
+
+    def test_060_cv_version_get(self):
+        """Test CV's GET /version Interface"""
+        cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        response = cv_client.get(
+            '/version',
+            cert=tenant_templ.cert,
+            verify=False
+        )
+
+        self.assertEqual(response.status_code, 200, "Non-successful CV allowlist Post return code!")
+        json_response = response.json()
+
+        # Ensure response is well-formed
+        self.assertIn("results", json_response, "Malformed response body!")
+        results = json_response['results']
+        self.assertEqual(results['current_version'], api_version.current_version())
+        self.assertEqual(results['supported_versions'], api_version.all_versions())
 
     def tearDown(self):
         """Nothing to bring down after each test"""
