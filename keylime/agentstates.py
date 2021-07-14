@@ -39,6 +39,7 @@ class AgentAttestState():
 
         self.agent_id = agent_id
         self.next_ima_ml_entry = 0
+        self.set_boottime(0)
 
         self.tpm_state = TPMState()
         self.ima_pcrs = set()
@@ -54,6 +55,7 @@ class AgentAttestState():
         self.next_ima_ml_entry = 0
         for pcr_num in self.ima_pcrs:
             self.tpm_state.reset_pcr(pcr_num)
+        self.set_boottime(0)
 
     def update_ima_attestation(self, pcr_num, pcr_value, num_ml_entries):
         """ Update the attestation by remembering the new PCR value and the
@@ -70,6 +72,17 @@ class AgentAttestState():
         """ Return the PCR state of the given PCR """
         return self.tpm_state.get_pcr(pcr_num)
 
+    def get_boottime(self):
+        """ Return the boottime of the system """
+        return self.boottime
+
+    def set_boottime(self, boottime):
+        """ Set the boottime of the system """
+        self.boottime = boottime
+
+    def is_expected_boottime(self, boottime):
+        """ Check whether the given boottime is the expected boottime """
+        return self.boottime == boottime
 
 class AgentAttestStates():
     """ AgentAttestStates administers a map of AgentAttestState's indexed by agent_id """

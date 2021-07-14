@@ -146,18 +146,23 @@ def process_quote_response(agent, json_response, agentAttestState):
         ima_measurement_list = json_response.get("ima_measurement_list", None)
         ima_measurement_list_entry = json_response.get("ima_measurement_list_entry", 0)
         mb_measurement_list = json_response.get("mb_measurement_list", None)
+        boottime = json_response.get("boottime", 0)
 
         logger.debug("received quote:      %s", quote)
         logger.debug("for nonce:           %s", agent['nonce'])
         logger.debug("received public key: %s", received_public_key)
         logger.debug("received ima_measurement_list    %s", (ima_measurement_list is not None))
         logger.debug("received ima_measurement_list_entry: %d", ima_measurement_list_entry)
+        logger.debug("received boottime: %s", boottime)
         logger.debug("received boot log    %s", (mb_measurement_list is not None))
     except Exception:
         return None
 
     if not isinstance(ima_measurement_list_entry, int):
         raise Exception("ima_measurement_list_entry parameter must be an integer")
+
+    if not isinstance(boottime, int):
+        raise Exception("boottime parameter must be an integer")
 
     # if no public key provided, then ensure we have cached it
     if received_public_key is None:
@@ -208,7 +213,14 @@ def process_quote_response(agent, json_response, agentAttestState):
         raise Exception(
             "Agent did not respond with requested next IMA measurement list entry %d but started at %d" %
             (agentAttestState.get_next_ima_ml_entry(), ima_measurement_list_entry))
+    elif not agentAttestState.is_expected_boottime(boottime):
+        # agent sent a list not starting at 0 and provided a boottime that doesn't
+        # match the expected boottime, so it must have been rebooted; we would fail
+        # attestation this time so we retry with a full attestation next time.
+        agentAttestState.reset_ima_attestation()
+        return True
 
+    agentAttestState.set_boottime(boottime)
 
     ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
     validQuote = get_tpm_instance().check_quote(
