@@ -23,6 +23,7 @@ import io
 import importlib
 import shutil
 import subprocess
+import psutil
 
 import simplejson as json
 
@@ -144,6 +145,8 @@ class Handler(BaseHTTPRequestHandler):
                     'sign_alg': sign_alg,
                     'pubkey': self.server.rsapublickey_exportable,
                 }
+
+            response['boottime'] = self.server.boottime
 
             # return a measurement list if available
             if TPM_Utilities.check_mask(imaMask, config.IMA_PCR):
@@ -353,6 +356,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     final_U = None
     agent_uuid = None
     next_ima_ml_entry = 0 # The next IMA log offset the verifier may ask for.
+    boottime = int(psutil.boot_time())
 
     def __init__(self, server_address, RequestHandlerClass, agent_uuid):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
