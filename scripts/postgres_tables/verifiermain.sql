@@ -42,7 +42,11 @@ CREATE TABLE public.verifiermain (
     accept_tpm_signing_algs text,
     hash_alg character varying,
     enc_alg character varying,
-    sign_alg character varying
+    sign_alg character varying,
+    boottime integer,
+    ima_pcrs character varying,
+    pcr10 bytea,
+    next_ima_ml_entry integer,
 );
 
 

@@ -26,6 +26,7 @@ from keylime import cloud_verifier_common
 from keylime import revocation_notifier
 from keylime import tornado_requests
 from keylime import api_version as keylime_api_version
+from keylime.ima_ast import START_HASH
 
 logger = keylime_logging.init_logging('cloudverifier')
 
@@ -77,7 +78,11 @@ def _from_db_obj(agent_db_obj):
                 'accept_tpm_signing_algs', \
                 'hash_alg', \
                 'enc_alg', \
-                'sign_alg']
+                'sign_alg', \
+                'boottime', \
+                'ima_pcrs', \
+                'pcr10', \
+                'next_ima_ml_entry']
     agent_dict = {}
     for field in fields:
         agent_dict[field] = getattr(agent_db_obj, field, None)
@@ -377,6 +382,10 @@ class AgentsHandler(BaseHandler):
                     agent_data['enc_alg'] = ""
                     agent_data['sign_alg'] = ""
                     agent_data['agent_id'] = agent_id
+                    agent_data['boottime'] = 0
+                    agent_data['ima_pcrs'] = []
+                    agent_data['pcr10'] = START_HASH
+                    agent_data['next_ima_ml_entry'] = 0
                     agent_data['verifier_id'] = config.get('cloud_verifier', 'cloudverifier_id', cloud_verifier_common.DEFAULT_VERIFIER_ID)
                     agent_data['verifier_ip'] = config.get('cloud_verifier', 'cloudverifier_ip')
                     agent_data['verifier_port'] = config.get('cloud_verifier', 'cloudverifier_port')
