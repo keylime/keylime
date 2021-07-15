@@ -56,6 +56,11 @@ exclude_db = {
     'num_retries': 0,
     'pending_event': None,
     'first_verified': False,
+    # the following 3 items are updated to VerifierDB only when the AgentState is stored
+    'boottime': '',
+    'ima_pcrs': [],
+    'pcr10': '',
+    'next_ima_ml_entry': 0
 }
 
 
@@ -908,6 +913,7 @@ async def process_agent(agent, new_operational_state):
 
 async def activate_agents(verifier_id, verifier_ip, verifier_port):
     session = get_session()
+    aas = get_AgentAttestStates()
     try:
         agents = session.query(VerfierMain).filter_by(
             verifier_id=verifier_id).all()
@@ -916,6 +922,11 @@ async def activate_agents(verifier_id, verifier_ip, verifier_port):
             agent.verifier_host = verifier_port
             if agent.operational_state == states.START:
                 asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
+            if agent.boottime:
+                ima_pcrs_dict = {}
+                for pcr_num in agent.ima_pcrs:
+                    ima_pcrs_dict[pcr_num] = getattr(agent, 'pcr%d' % pcr_num)
+                aas.add(agent.agent_id, agent.boottime, ima_pcrs_dict, agent.next_ima_ml_entry)
         session.commit()
     except SQLAlchemyError as e:
         logger.error('SQLAlchemy Error: %s', e)
