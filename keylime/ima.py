@@ -67,9 +67,11 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
         valid_signature = True
         logger.debug("signature for file %s is good" % path)
 
-    # If there is also a allowlist verify the file against that.
-    # This happens in the case that no signature or keyring this given or the signature is valid.
-    if allowlist is not None:
+    # If there is also an allowlist verify the file against that but only do this if:
+    # - we did not evaluate the signature (valid_siganture = False)
+    # - the signature is valid and the file is also in the allowlist
+    if allowlist is not None and \
+        ((allowlist.get(path.name, None) is not None and valid_signature) or not valid_signature):
         # We use the normal ima_ng validator to validate hash
         return _validate_ima_ng(exclude_regex, allowlist, digest, path)
 
