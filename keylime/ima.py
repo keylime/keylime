@@ -56,7 +56,7 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
     valid_signature = False
     if ima_keyring and signature:
 
-        if exclude_regex is not None and exclude_regex.match(path):
+        if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug(f"IMA: ignoring excluded path {path.name}")
             return True
 
