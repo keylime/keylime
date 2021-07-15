@@ -96,6 +96,27 @@ def verifier_db_delete_agent(session, agent_id):
     session.commit()
 
 
+def store_attestation_state(agentAttestState):
+    # Only store if IMA log was evaluated
+    if len(agentAttestState.get_ima_pcrs()):
+        session = get_session()
+        try:
+            update_agent = session.query(VerfierMain).get(agentAttestState.get_agent_id())
+            update_agent.boottime = agentAttestState.get_boottime()
+            update_agent.next_ima_ml_entry = agentAttestState.get_next_ima_ml_entry()
+            ima_pcrs_dict = agentAttestState.get_ima_pcrs()
+            update_agent.ima_pcrs = list(ima_pcrs_dict.keys())
+            for pcr_num, value in ima_pcrs_dict.items():
+                setattr(update_agent, 'pcr%d' % pcr_num, value)
+            try:
+                session.add(update_agent)
+            except SQLAlchemyError as e:
+                logger.error('SQLAlchemy Error on storing attestation state: %s', e)
+            session.commit()
+        except SQLAlchemyError as e:
+            logger.error('SQLAlchemy Error on storing attestation state: %s', e)
+
+
 class BaseHandler(tornado.web.RequestHandler):
     def prepare(self):  # pylint: disable=W0235
         super().prepare()
@@ -714,6 +735,9 @@ async def invoke_get_quote(agent, need_pubkey):
                     asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
             else:
                 asyncio.ensure_future(process_agent(agent, states.INVALID_QUOTE))
+
+            # store the attestation state
+            store_attestation_state(agentAttestState)
 
         except Exception as e:
             logger.exception(e)

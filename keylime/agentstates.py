@@ -64,6 +64,13 @@ class AgentAttestState():
         self.tpm_state.set_pcr(pcr_num, pcr_value)
         self.next_ima_ml_entry += num_ml_entries
 
+    def get_ima_pcrs(self):
+        """ Return a dict with the IMA pcrs """
+        ima_pcrs_dict = {}
+        for pcr_num in self.ima_pcrs:
+            ima_pcrs_dict[pcr_num] = self.tpm_state.get_pcr(pcr_num)
+        return ima_pcrs_dict
+
     def get_next_ima_ml_entry(self):
         """ Return the next IMA measurement list entry we want to request from agent """
         return self.next_ima_ml_entry
