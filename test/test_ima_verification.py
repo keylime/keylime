@@ -25,6 +25,33 @@ ALLOWLIST = {
     }
 }
 
+ALLOWLIST_EMPTY = {
+    "meta": {
+        "version": 1,
+    },
+    "hashes": {}
+}
+
+# Allowlist with different hashes
+ALLOWLIST_WRONG = {
+    "meta": {
+        "version": 1,
+    },
+    "hashes": {
+        '/usr/bin/dd': ['1350320e5f7f51553bac8aa403489a1b135bc102'],
+        '/usr/bin/zmore': ['1cb84b12db45d7da8de58ba6744187db84082f01']
+    }
+}
+
+EXCLUDELIST = [
+    "boot_aggregate",
+    "/lib/modules/5.4.48-openpower1/kernel/drivers/usb/common/usb-common.ko",
+    "/lib/modules/5.4.48-openpower1/kernel/drivers/gpu/drm/drm_panel_orientation_quirks.ko",
+    "/usr/bin/dd",
+    "/usr/bin/zmore",
+    "/usr/bin/zless"
+]
+
 MEASUREMENTS = \
     '10 0c8a706a75a5689c1e168f0a573a3cbec33061b5 ima-sig sha256:e4cb9f5709c88376b5fc3743cd88e76b9aae8f3d992d845678de5215edb31216 boot_aggregate\n'\
     '10 5426cf3031a43f5bfca183d79950698a95a728f6 ima-sig sha256:f1125b940480d20ad841d26d5ea253edc0704b5ec1548c891edf212cb1a9365e /lib/modules/5.4.48-openpower1/kernel/drivers/usb/common/usb-common.ko\n'\
@@ -48,6 +75,7 @@ class TestIMAVerification(unittest.TestCase):
         """ Test IMA measurement list verification """
         lines = MEASUREMENTS.splitlines()
         lists_map = ima.process_allowlists(ALLOWLIST, '')
+        lists_map_empty = ima.process_allowlists(ALLOWLIST_EMPTY, '')
 
         self.assertTrue(ima.process_measurement_list(lines) is not None,
                         "Validation should always work when no allowlist and no keyring is specified")
@@ -56,6 +84,8 @@ class TestIMAVerification(unittest.TestCase):
         # test with list as a string
         self.assertTrue(ima.process_measurement_list(lines, str(lists_map)) is not None)
 
+        # No files are in the allowlist -> this should fail
+        self.assertTrue(ima.process_measurement_list(lines, lists_map_empty) is None)
 
     def test_signature_verification(self):
         """ Test the signature verification """
@@ -85,6 +115,11 @@ class TestIMAVerification(unittest.TestCase):
         """ Test verification using allowlist and keys """
 
         lists_map = ima.process_allowlists(ALLOWLIST, '')
+        lists_map_wrong = ima.process_allowlists(ALLOWLIST_WRONG, '')
+        lists_map_empty = ima.process_allowlists(ALLOWLIST_EMPTY, '')
+        lists_map_exclude = ima.process_allowlists(ALLOWLIST, EXCLUDELIST)
+        lists_map_exclude_wrong = ima.process_allowlists(ALLOWLIST_WRONG, EXCLUDELIST)
+        empty_keyring = ima_file_signatures.ImaKeyring()
 
         # every entry is covered by the allowlist and there's no keyring -> this should pass
         self.assertTrue(ima.process_measurement_list(COMBINED.splitlines(), str(lists_map)) is not None)
@@ -104,8 +139,29 @@ class TestIMAVerification(unittest.TestCase):
         # entries are not covered by a exclude list -> this should fail
         self.assertTrue(ima.process_measurement_list(COMBINED.splitlines(), ima_keyring=keyring) is None)
 
-        # all entries are either covered by exclude list or by signature verification -> this should pass
+        # all entries are either covered by allow list or by signature verification -> this should pass
         self.assertTrue(ima.process_measurement_list(COMBINED.splitlines(), str(lists_map), ima_keyring=keyring) is not None)
+
+        # the signature is valid but the hash in the allowlist is wrong -> this should fail
+        self.assertTrue(ima.process_measurement_list(SIGNATURES.splitlines(), str(lists_map_wrong), ima_keyring=keyring) is None)
+
+        # the signature is valid and the file is not in the allowlist -> this should pass
+        self.assertTrue(ima.process_measurement_list(SIGNATURES.splitlines(), str(lists_map_empty), ima_keyring=keyring) is not None)
+
+        # the signature is invalid but the correct hash is in the allowlist -> this should fail
+        self.assertTrue(ima.process_measurement_list(SIGNATURES.splitlines(), str(lists_map), ima_keyring=empty_keyring) is None)
+
+        # the file has no signature but the hash is correct -> this should pass
+        self.assertTrue(ima.process_measurement_list(MEASUREMENTS.splitlines(), str(lists_map)))
+
+        # All files are in the exclude list but hashes are invalid -> this should pass
+        self.assertTrue(ima.process_measurement_list(MEASUREMENTS.splitlines(), str(lists_map_exclude_wrong)) is not None)
+
+        # All files are in the exclude list and their signatures are invalid -> this should pass
+        self.assertTrue(ima.process_measurement_list(SIGNATURES.splitlines(), str(lists_map_exclude), ima_keyring=empty_keyring) is not None)
+
+        # All files are in the exclude list but hashes or signatures are invalid -> this should pass
+        self.assertTrue(ima.process_measurement_list(MEASUREMENTS.splitlines(), str(lists_map_exclude_wrong), ima_keyring=empty_keyring) is not None)
 
     def test_read_allowlist(self):
         """ Test reading and processing of the IMA allow-list """
