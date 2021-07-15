@@ -71,9 +71,19 @@ class AgentAttestState():
             ima_pcrs_dict[pcr_num] = self.tpm_state.get_pcr(pcr_num)
         return ima_pcrs_dict
 
+    def set_ima_pcrs(self, ima_pcrs_dict):
+        """ Set the values of the given ima_pcrs dict in the tpm_state """
+        for pcr_num, pcr_value in ima_pcrs_dict.items():
+            self.tpm_state.set_pcr(pcr_num, pcr_value)
+        self.ima_pcrs = set(ima_pcrs_dict.keys())
+
     def get_next_ima_ml_entry(self):
         """ Return the next IMA measurement list entry we want to request from agent """
         return self.next_ima_ml_entry
+
+    def set_next_ima_ml_entry(self, next_ima_ml_entry):
+        """ Set the value of the next_ima_ml_entry field """
+        self.next_ima_ml_entry = next_ima_ml_entry
 
     def get_pcr_state(self, pcr_num):
         """ Return the PCR state of the given PCR """
@@ -127,3 +137,10 @@ class AgentAttestStates():
         except KeyError:
             pass
         self.map_lock.release()
+
+    def add(self, agent_id, boottime, ima_pcrs_dict, next_ima_ml_entry):
+        """ Add or replace an existing AgentAttestState initialized with the given values """
+        agentAttestState = self.get_by_agent_id(agent_id)
+        agentAttestState.set_boottime(boottime)
+        agentAttestState.set_ima_pcrs(ima_pcrs_dict)
+        agentAttestState.set_next_ima_ml_entry(next_ima_ml_entry)
