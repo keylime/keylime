@@ -471,6 +471,14 @@ def main():
     registrar_ip = config.get('cloud_agent', 'registrar_ip')
     registrar_port = config.get('cloud_agent', 'registrar_port')
 
+    # get params for the verifier to contact the agent
+    contact_ip = os.getenv("KEYLIME_AGENT_CONTACT_IP", None)
+    if contact_ip is None and config.has_option('cloud_agent', 'agent_contact_ip'):
+        contact_ip = config.get('cloud_agent', 'agent_contact_ip')
+    contact_port = os.getenv("KEYLIME_AGENT_CONTACT_PORT", None)
+    if contact_port is None and config.has_option('cloud_agent', 'agent_contact_port'):
+        contact_port = config.get('cloud_agent', 'agent_contact_port', fallback="invalid")
+
     # initialize the tmpfs partition to store keys if it isn't already available
     secdir = secure_mount.mount()
 
@@ -525,7 +533,7 @@ def main():
 
     # register it and get back a blob
     keyblob = registrar_client.doRegisterAgent(
-        registrar_ip, registrar_port, agent_uuid, ek_tpm, ekcert, aik_tpm)
+        registrar_ip, registrar_port, agent_uuid, ek_tpm, ekcert, aik_tpm, contact_ip, contact_port)
 
     if keyblob is None:
         instance_tpm.flush_keys()

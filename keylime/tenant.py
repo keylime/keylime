@@ -93,7 +93,7 @@ class Tenant():
         self.nonce = None
         self.agent_ip = None
         self.verifier_id = None
-        self.agent_port = config.get('cloud_agent', 'cloudagent_port')
+        self.agent_port = None
         self.verifier_ip = config.get('tenant', 'cloudverifier_ip')
         self.verifier_port = config.get('tenant', 'cloudverifier_port')
         self.registrar_ip = config.get('tenant', 'registrar_ip')
@@ -232,7 +232,6 @@ class Tenant():
 
         # Set up measured boot (TPM event log) reference state
         if TPM_Utilities.check_mask(self.tpm_policy['mask'], config.MEASUREDBOOT_PCRS[2]) :
-
             # Process measured boot reference state
             self.mb_refstate = mb_refstate_data
 
@@ -248,6 +247,32 @@ class Tenant():
         if 'agent_port' in args and args['agent_port'] is not None:
             self.agent_port = args['agent_port']
 
+        # try to get the port or ip from the registrar if it is missing
+        if self.agent_ip is None or self.agent_port is None:
+            registrar_client.init_client_tls("tenant")
+            data = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid)
+            if data is not None:
+                if self.agent_ip is None:
+                    if data['ip'] is not None:
+                        self.agent_ip = data['ip']
+                    else:
+                        raise UserError("No Ip was specified or found in the Registrar")
+
+                if self.agent_port is None and data['port'] is not None:
+                    self.agent_port = data["port"]
+
+        # If no agent port was found try to use the default from the config file
+        if self.agent_port is None:
+            self.agent_port = config.get('cloud_agent', 'cloudagent_port')
+
+        # Check if a contact ip and port for the agent was found
+        if self.agent_ip is None:
+            raise UserError("The contact ip address for the agent was not specified.")
+
+        if self.agent_port is None:
+            raise UserError("The contact port for the agent was not specified.")
+
+        # Now set the cv_agent_ip
         if 'cv_agent_ip' in args and args['cv_agent_ip'] is not None:
             self.cv_cloudagent_ip = args['cv_agent_ip']
         else:
@@ -467,19 +492,19 @@ class Tenant():
             [type] -- [description]
         """
         registrar_client.init_client_tls('tenant')
-        reg_keys = registrar_client.getKeys(
+        reg_data = registrar_client.getData(
             self.registrar_ip, self.registrar_port, self.agent_uuid)
-        if reg_keys is None:
+        if reg_data is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
 
-        if not self.tpm_instance.check_quote(self.agent_uuid, self.nonce, public_key, quote, reg_keys['aik_tpm'], hash_alg=hash_alg):
-            if reg_keys['regcount'] > 1:
+        if not self.tpm_instance.check_quote(self.agent_uuid, self.nonce, public_key, quote, reg_data['aik_tpm'], hash_alg=hash_alg):
+            if reg_data['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured or a malicious host is present. Run 'regdelete' for this agent and restart")
                 sys.exit()
             return False
 
-        if reg_keys['regcount'] > 1:
+        if reg_data['regcount'] > 1:
             logger.warning("WARNING: This UUID had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured. Run 'regdelete' for this agent and restart")
 
         if not config.STUB_TPM and (not config.getboolean('tenant', 'require_ek_cert') and config.get('tenant', 'ek_check_script') == ""):
@@ -487,11 +512,11 @@ class Tenant():
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
         # check EK cert and make sure it matches EK
-        if not self.check_ek(reg_keys['ekcert']):
+        if not self.check_ek(reg_data['ekcert']):
             return False
         # if agent is virtual, check phyisical EK cert and make sure it matches phyiscal EK
-        if 'provider_keys' in reg_keys:
-            if not self.check_ek(reg_keys['provider_keys']['ekcert']):
+        if 'provider_keys' in reg_data:
+            if not self.check_ek(reg_data['provider_keys']['ekcert']):
                 return False
 
         # check all EKs with optional script:
@@ -507,18 +532,18 @@ class Tenant():
         env = os.environ.copy()
         env['AGENT_UUID'] = self.agent_uuid
         env['EK'] = tpm2_objects.pubkey_from_tpm2b_public(
-            base64.b64decode(reg_keys['ek_tpm']),
+            base64.b64decode(reg_data['ek_tpm']),
             ).public_bytes(
                 crypto_serialization.Encoding.PEM,
                 crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
             )
-        env['EK_TPM'] = reg_keys['ek_tpm']
-        if reg_keys['ekcert'] is not None:
-            env['EK_CERT'] = reg_keys['ekcert']
+        env['EK_TPM'] = reg_data['ek_tpm']
+        if reg_data['ekcert'] is not None:
+            env['EK_CERT'] = reg_data['ekcert']
         else:
             env['EK_CERT'] = ""
 
-        env['PROVKEYS'] = json.dumps(reg_keys.get('provider_keys', {}))
+        env['PROVKEYS'] = json.dumps(reg_data.get('provider_keys', {}))
         proc = subprocess.Popen(script, env=env, shell=True,
                                 cwd=config.WORK_DIR, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT)
@@ -1086,12 +1111,6 @@ def main(argv=sys.argv):
         parser.error("--allowlist-sig-key must have either --allowlist-sig or --allowlist-sig-url")
 
     mytenant = Tenant()
-
-    if args.command not in ['list', 'regdelete', 'reglist', 'delete', 'status', 'bulkinfo',
-                            'addallowlist', 'deleteallowlist', 'reactivate',
-                            'showallowlist'] and args.agent_ip is None:
-        raise UserError(
-            f"-t/--targethost is required for command {args.command}")
 
     if args.agent_uuid is not None:
         mytenant.agent_uuid = args.agent_uuid

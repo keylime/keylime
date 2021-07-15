@@ -4,6 +4,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import base64
+import ipaddress
 import threading
 import sys
 import signal
@@ -89,6 +90,8 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 'aik_tpm': agent.aik_tpm,
                 'ek_tpm': agent.ek_tpm,
                 'ekcert': agent.ekcert,
+                'ip': agent.ip,
+                'port': agent.port,
                 'regcount': agent.regcount,
             }
 
@@ -285,6 +288,27 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 except SQLAlchemyError as e:
                     logger.error('SQLAlchemy Error: %s', e)
                     raise
+            # Check for ip and port
+            contact_ip = json_body.get('ip', None)
+            contact_port = json_body.get('port', None)
+
+            # Validate ip and port
+            if contact_ip is not None:
+                try:
+                    # Use parser from the standard library instead of implementing our own
+                    ipaddress.ip_address(contact_ip)
+                except ValueError:
+                    logger.warning(f"Contact ip for agent {agent_id} is not a valid ip got: {contact_ip}.")
+                    contact_ip = None
+            if contact_port is not None:
+                try:
+                    contact_port = int(contact_port)
+                    if contact_port < 1 or contact_port > 65535:
+                        logger.warning(f"Contact port for agent {agent_id} is not a number between 1 and got: {contact_port}.")
+                        contact_port = None
+                except ValueError:
+                    logger.warning(f"Contact port for agent {agent_id} is not a valid number got: {contact_port}.")
+                    contact_port = None
 
             # Add values to database
             d = {}
@@ -292,11 +316,14 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             d['ek_tpm'] = ek_tpm
             d['aik_tpm'] = aik_tpm
             d['ekcert'] = ekcert
+            d['ip'] = contact_ip
+            d['port'] = contact_port
             d['virtual'] = int(ekcert == 'virtual')
             d['active'] = int(False)
             d['key'] = key
             d['provider_keys'] = {}
             d['regcount'] = regcount
+
 
             try:
                 session.add(RegistrarMain(**d))

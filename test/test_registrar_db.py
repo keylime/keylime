@@ -63,7 +63,9 @@ DueRMS6lblvRKiZgmGAg7YaKOkOaEmVDMQ+fTo2Po7hI5wc=
     'active': int(False),
     'key': 'R0xKMU5maWVEaHVxQ0poZUZhWm9yRVkyRHZZUkVIMFA=',
     'provider_keys': {},
-    'regcount': 1
+    'regcount': 1,
+    'ip': "127.0.0.1",
+    'port': 9002
 }
 
 agent_id = 'D432FBB3-D2F1-4A97-9EF7-75BD81C00000'
@@ -143,6 +145,11 @@ DueRMS6lblvRKiZgmGAg7YaKOkOaEmVDMQ+fTo2Po7hI5wc=
             agent.provider_keys, {})
         self.assertEqual(
             agent.regcount, 1)
+        self.assertEqual(
+            agent.ip, "127.0.0.1")
+        self.assertEqual(
+            agent.port, 9002
+        )
 
     def test_delete_agent(self):
         agent = self.session.query(RegistrarMain).filter_by(
