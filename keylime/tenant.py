@@ -1001,6 +1001,10 @@ def main(argv=sys.argv):
                         dest='agent_ip', help="the IP address of the host to provision")
     parser.add_argument('-tp', '--targetport', action='store',
                         dest='agent_port', help="the Port of the host to provision")
+    parser.add_argument('-r', '--registrarhost', action='store',
+                        dest='registrar_ip', help="the IP address of the registrar where to retrieve the agents data from.")
+    parser.add_argument('-rp', '--registrarport', action="store",
+                        dest='registrar_port', help="the port of the registrar.")
     parser.add_argument('--cv_targethost', action='store', default=None, dest='cv_agent_ip',
                         help='the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost')
     parser.add_argument('-v', '--cv', action='store', dest='verifier_ip',
@@ -1115,6 +1119,11 @@ def main(argv=sys.argv):
         mytenant.verifier_ip = args.verifier_ip
     if args.verifier_port is not None:
         mytenant.verifier_port = args.verifier_port
+
+    if args.registrar_ip is not None:
+        mytenant.registrar_ip = args.registrar_ip
+    if args.registrar_port is not None:
+        mytenant.registrar_port = args.registrar_port
 
     # we only need to fetch remote files if we are adding or updateing
     if args.command in ['add', 'update']:
