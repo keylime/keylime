@@ -6,7 +6,7 @@ Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
 import simplejson as json
 
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, String, Integer, PickleType, Text
+from sqlalchemy import Column, String, Integer, PickleType, Text, LargeBinary
 from sqlalchemy import schema
 
 
@@ -42,6 +42,10 @@ class VerfierMain(Base):
     hash_alg = Column(String(10))
     enc_alg = Column(String(10))
     sign_alg = Column(String(10))
+    boottime = Column(Integer)
+    ima_pcrs = Column(JSONPickleType(pickler=json))
+    pcr10 = Column(LargeBinary)
+    next_ima_ml_entry = Column(Integer)
 
 
 class VerifierAllowlist(Base):
