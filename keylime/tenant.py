@@ -663,7 +663,7 @@ class Tenant():
                     else:
                         for agent in response_json["results"].keys():
                             response_json["results"][agent]["operational_state"] = states.state_to_str(response_json["results"][agent]["operational_state"])
-                        logger.info("Bulk Agent Info:\n%s" % str(response_json["results"]))
+                        logger.info("Bulk Agent Info:\n%s" % json.dumps(response_json["results"]))
                 else:
                     agent_array = response_json["results"]["uuids"]
                     logger.info('Agents: "%s"', agent_array)
