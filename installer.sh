@@ -121,7 +121,7 @@ case "$ID" in
         GOPKG="golang"
         if [[ ${VERSION_ID} -ge 30 ]] ; then
         # if fedora 30 or greater, then using TPM2 tool packages
-            TPM2_TOOLS_PKGS="tpm2-tools tpm2-tss tpm2-abrmd"
+            TPM2_TOOLS_PKGS="tpm2-tools tpm2-tss tpm2-abrmd tss2"
             NEED_BUILD_TOOLS=0
             HAS_GO_PKG=1
         else

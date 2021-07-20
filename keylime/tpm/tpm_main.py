@@ -1264,16 +1264,42 @@ class tpm(tpm_abstract.AbstractTPM):
         log['pcrs'] = new_pcrs
         return
 
+    def __add_boot_aggregate(self, tssevent_output: list, log: dict) -> None :
+        '''
+        Parses the output of `tsseventextend` and add it to log fed by the output
+        `tpm2_eventlog`
+        '''
+        _hash_alg = None
+        _boot_agg = None
+        log['boot_aggregates'] = {}
+        for _entry in tssevent_output :
+            for _line in _entry['retout'] :
+                _line = _line.decode('utf-8')
+                if _line.count("algorithmId") :
+                    _hash_alg = _line.split('_')[-1].replace('\n','').lower()
+                if _hash_alg and _hash_alg not in log['boot_aggregates'] :
+                    log['boot_aggregates'][_hash_alg] = []
+                if _line.count("boot aggregate") :
+                    _boot_agg = _line.split(':')[-1].replace('\n','').replace(' ', '')
+                if _boot_agg and _boot_agg not in log['boot_aggregates'][_hash_alg] :
+                    log['boot_aggregates'][_hash_alg].append(_boot_agg)
+                    _boot_agg = None
+
     def parse_binary_bootlog(self, log_bin:bytes) -> dict:
         '''Parse and enrich a BIOS boot log
 
         The input is the binary log.
         The output is the result of parsing and applying other conveniences.'''
+        retDict_tss = []
         with tempfile.NamedTemporaryFile() as log_bin_file:
             log_bin_file.write(log_bin)
             log_bin_filename = log_bin_file.name
-            retDict = self.__run(['tpm2_eventlog', '--eventlog-version=2', log_bin_filename])
-        log_parsed_strs = retDict['retout']
+            retDict_tpm2 = self.__run(['tpm2_eventlog', '--eventlog-version=2', log_bin_filename])
+            # Unfortunately, in order to acommodate older kernels and older versions of grub (mixed)
+            # we are required to calculate boot aggregates taking into account PCRs 0-7 and 0-9
+            for pcrno in [ "7", "9" ] :
+                retDict_tss.append(self.__run(['tsseventextend', '-sim', '-if',  log_bin_filename, '-pcrmax', pcrno]))
+        log_parsed_strs = retDict_tpm2['retout']
         log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False)
         #pylint: disable=import-outside-toplevel
         try:
@@ -1284,6 +1310,7 @@ class tpm(tpm_abstract.AbstractTPM):
         #pylint: enable=import-outside-toplevel
         tpm_bootlog_enrich.enrich(log_parsed_data)
         self.__stringify_pcr_keys(log_parsed_data)
+        self.__add_boot_aggregate(retDict_tss, log_parsed_data)
         return log_parsed_data
 
     def _parse_mb_bootlog(self, log_b64:str) -> dict:
@@ -1304,16 +1331,20 @@ class tpm(tpm_abstract.AbstractTPM):
             mb_measurement_data = self._parse_mb_bootlog(mb_measurement_list)
             if not mb_measurement_data:
                 logger.error("Unable to parse measured boot event log. Check previous messages for a reason for error.")
-                return {}, {}, False
+                return {}, None, {}, False
             log_pcrs = mb_measurement_data.get('pcrs')
             if not isinstance(log_pcrs, dict):
                 logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)
-                return {}, {}, False
+                return {}, None, {}, False
             pcrs_sha256 = log_pcrs.get('sha256')
             if (not isinstance(pcrs_sha256, dict)) or not pcrs_sha256:
                 logger.error("Parse of measured boot event log has unexpected value for .pcrs.sha256: %r", pcrs_sha256)
-                return {}, {}, False
+                return {}, None, {}, False
+            boot_aggregates = mb_measurement_data.get('boot_aggregates')
+            if (not isinstance(boot_aggregates, dict)) or not boot_aggregates:
+                logger.error("Parse of measured boot event log has unexpected value for .boot_aggragtes: %r", boot_aggregates)
+                return {}, None, {}, False
 
-            return pcrs_sha256, mb_measurement_data, True
+            return pcrs_sha256, boot_aggregates, mb_measurement_data, True
 
-        return {}, {}, True
+        return {}, None, {}, True
