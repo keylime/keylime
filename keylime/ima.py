@@ -82,7 +82,7 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
     return valid_signature
 
 
-def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyring=None):
+def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
     running_hash = ima_ast.START_HASH
     found_pcr = (pcrval is None)
     errors = {}
@@ -98,6 +98,14 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
     else:
         allow_list = None
         exclude_list = None
+
+    if boot_aggregates :
+        if "boot_aggregate" not in allow_list :
+            allow_list["boot_aggregate"] = []
+        for alg in boot_aggregates.keys() :
+            for val in boot_aggregates[alg] :
+                if val not in allow_list["boot_aggregate"] :
+                    allow_list["boot_aggregate"].append(val)
 
     is_valid, compiled_regex, err_msg = config.valid_exclude_list(exclude_list)
     if not is_valid:
