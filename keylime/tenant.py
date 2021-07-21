@@ -705,7 +705,7 @@ class Tenant():
                     verify=False
                 )
 
-                if response.status_code in (200, 404):
+                if response.status_code == 404:
                     deleted = True
                     break
                 time.sleep(.4)
