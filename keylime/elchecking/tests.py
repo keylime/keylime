@@ -255,9 +255,9 @@ class TupleTest(Test):
         subject_len = len(subject)
         test_len = len(self.member_tests)
         if subject_len > test_len:
-            return f' is longer ({subject_len}) than the applicable tests ({test_len})'
+            return f'is longer ({subject_len}) than the applicable tests ({test_len})'
         if (subject_len < test_len) and not self.pad:
-            return f' is shorter ({subject_len}) than the applicable tests ({test_len})'
+            return f'is shorter ({subject_len}) than the applicable tests ({test_len})'
         for idx, test in enumerate(self.member_tests):
             subject_elt = subject[idx] if idx < subject_len else None
             reason = test.why_not(globs, subject_elt)
@@ -319,7 +319,7 @@ class DelayToFields(Test):
         return DelayInitializer(self)
 
     def get(self, field_name: str) -> DelayedField:
-        """Return a Test that adds the subject to the list stashed for later evaulation"""
+        """Return a Test that adds the subject to the list stashed for later evaluation"""
         if field_name not in self.field_names:
             raise Exception(f'{field_name} not in {self.field_names}')
         return DelayedField(self, field_name)
@@ -342,7 +342,7 @@ class IntEqual(Test):
 
     def why_not(self, _: Globals, subject: Data) -> str:
         if not isinstance(subject, int):
-            return 'is not a int'
+            return 'is not an int'
         if subject == self.expected:
             return ''
         return f'is not {self.expected}'
