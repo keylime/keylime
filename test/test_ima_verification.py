@@ -134,8 +134,9 @@ class TestIMAVerification(unittest.TestCase):
     def test_ima_buf_verification(self):
         """ The verification of ima-buf entries supporting keys loaded onto keyrings """
         list_map = ima.process_allowlists(ALLOWLIST, '')
+        ima_keyrings = ima_file_signatures.ImaKeyrings()
 
-        self.assertTrue(ima.process_measurement_list(AgentAttestState('1'), KEYRINGS.splitlines(), str(list_map)) is not None)
+        self.assertTrue(ima.process_measurement_list(AgentAttestState('1'), KEYRINGS.splitlines(), str(list_map), ima_keyrings=ima_keyrings) is not None)
 
     def test_iterative_attestation(self):
         """ Test that the resulting pcr value is as expected by subsequently feeding a measurement list.

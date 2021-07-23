@@ -142,14 +142,18 @@ def _validate_ima_sig(exclude_regex, ima_keyrings, allowlist, digest: ima_ast.Di
     return failure
 
 
-def _validate_ima_buf(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, data: ima_ast.Buffer):
+def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: ima_file_signatures.ImaKeyrings, digest: ima_ast.Digest, path: ima_ast.Name, data: ima_ast.Buffer):
+    failure = Failure(Component.IMA)
     # Is data.data a key?
-    pubkey, _ = ima_file_signatures.get_pubkey(data.data)
+    pubkey, keyidv2 = ima_file_signatures.get_pubkey(data.data)
     if pubkey:
-        return _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='keyrings')
+        failure = _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='keyrings')
+        if not failure:
+            # Add the key only now that it's validated (ret == True)
+            ima_keyrings.add_pubkey_to_keyring(pubkey, path.name, keyidv2=keyidv2)
 
     # Anything else evaluates to true for now
-    return Failure(Component.IMA)
+    return failure
 
 
 def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyrings=None, boot_aggregates=None):
@@ -189,7 +193,7 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
         {ima_ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyrings, allow_list),
          ima_ast.ImaNg: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
          ima_ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
-         ima_ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list),
+         ima_ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list, ima_keyrings),
          }
     )
 
