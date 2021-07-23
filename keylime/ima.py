@@ -82,6 +82,12 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
     return valid_signature
 
 
+def _validate_ima_buf(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, data: ima_ast.Buffer):
+    # disregard data for now
+    del data
+    return _validate_ima_ng(exclude_regex, allowlist, digest, path)
+
+
 def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyring=None):
     running_hash = ima_ast.START_HASH
     found_pcr = (pcrval is None)
@@ -109,7 +115,8 @@ def process_measurement_list(lines, lists=None, m2w=None, pcrval=None, ima_keyri
     ima_validator = ima_ast.Validator(
         {ima_ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyring, allow_list),
          ima_ast.ImaNg: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
-         ima_ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list)
+         ima_ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
+         ima_ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list),
          }
     )
 
