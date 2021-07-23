@@ -19,6 +19,7 @@ from keylime import gpg
 from keylime import keylime_logging
 from keylime import ima_ast
 from keylime.agentstates import AgentAttestState
+from keylime import ima_file_signatures
 
 
 logger = keylime_logging.init_logging('ima')
@@ -76,15 +77,15 @@ def read_unpack(fd, fmt):
     return struct.unpack(fmt, fd.read(struct.calcsize(fmt)))
 
 
-def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name):
-    if allowlist is not None and allowlist.get('hashes') is not None:
+def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, hash_types='hashes'):
+    if allowlist is not None and allowlist.get(hash_types) is not None:
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug("IMA: ignoring excluded path %s" % path)
             return True
 
-        accept_list = allowlist['hashes'].get(path.name, None)
+        accept_list = allowlist[hash_types].get(path.name, None)
         if accept_list is None:
-            logger.warning("File not found in allowlist: %s" % (path.name))
+            logger.warning("Entry not found in allowlist: %s" % (path.name))
             return False
 
         if codecs.encode(digest.hash, 'hex').decode('utf-8') not in accept_list:
@@ -128,6 +129,16 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
     return valid_signature
 
 
+def _validate_ima_buf(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, data: ima_ast.Buffer):
+    # Is data.data a key?
+    pubkey, _ = ima_file_signatures.get_pubkey(data.data)
+    if pubkey:
+        return _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='keyrings')
+
+    # Anything else evaluates to true for now
+    return True
+
+
 def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
     running_hash = agentAttestState.get_pcr_state(config.IMA_PCR)
     found_pcr = (pcrval is None)
@@ -163,7 +174,8 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
     ima_validator = ima_ast.Validator(
         {ima_ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyring, allow_list),
          ima_ast.ImaNg: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
-         ima_ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list)
+         ima_ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
+         ima_ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list),
          }
     )
 
