@@ -1119,8 +1119,8 @@ def main(argv=sys.argv):
             mytenant.agent_uuid = hashlib.sha256(
                 mytenant.agent_uuid).hexdigest()
     else:
-        logger.warning("Using default UUID D432FBB3-D2F1-4A97-9EF7-75BD81C00000")
-        mytenant.agent_uuid = "D432FBB3-D2F1-4A97-9EF7-75BD81C00000"
+        logger.warning("Using default UUID d432fbb3-d2f1-4a97-9ef7-75bd81c00000")
+        mytenant.agent_uuid = "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"
 
     if config.STUB_VTPM and config.TPM_CANNED_VALUES is not None:
         # Use canned values for agent UUID

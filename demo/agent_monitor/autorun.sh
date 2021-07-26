@@ -7,7 +7,7 @@
 
 if [ "$AGENT_UUID" = "" ]
 then
-   AGENT_UUID=D432FBB3-D2F1-4A97-9EF7-75BD81C00000
+   AGENT_UUID=d432fbb3-d2f1-4a97-9ef7-75bd81c00000
 fi
 
 wget --ca-certificate=cacert.crt --post-data '{}' \
