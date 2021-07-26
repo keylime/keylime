@@ -107,17 +107,17 @@ def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima
     return failure
 
 
-def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Digest, path: ima_ast.Name,
+def _validate_ima_sig(exclude_regex, ima_keyrings, allowlist, digest: ima_ast.Digest, path: ima_ast.Name,
                       signature: ima_ast.Signature) -> Failure:
     failure = Failure(Component.IMA, ["validator", "ima-sig"])
     valid_signature = False
-    if ima_keyring and signature:
+    if ima_keyrings and signature:
 
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug(f"IMA: ignoring excluded path {path.name}")
             return failure
 
-        if not ima_keyring.integrity_digsig_verify(signature.data, digest.hash, digest.algorithm):
+        if not ima_keyrings.integrity_digsig_verify(signature.data, digest.hash, digest.algorithm):
             logger.warning(f"signature for file {path.name} is not valid")
             failure.add_event("invalid_signature", f"signature for file {path.name} is not valid", True)
             return failure
@@ -134,7 +134,7 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
         return _validate_ima_ng(exclude_regex, allowlist, digest, path)
 
     # If we don't have a allowlist and don't have a keyring we just ignore the validation.
-    if ima_keyring is None:
+    if ima_keyrings is None:
         return failure
 
     if not valid_signature:
@@ -152,7 +152,7 @@ def _validate_ima_buf(exclude_regex, allowlist, digest: ima_ast.Digest, path: im
     return Failure(Component.IMA)
 
 
-def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
+def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyrings=None, boot_aggregates=None):
     failure = Failure(Component.IMA)
     running_hash = agentAttestState.get_pcr_state(config.IMA_PCR)
     found_pcr = (pcrval is None)
@@ -186,7 +186,7 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
         logger.error(err_msg)
 
     ima_validator = ima_ast.Validator(
-        {ima_ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyring, allow_list),
+        {ima_ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyrings, allow_list),
          ima_ast.ImaNg: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
          ima_ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
          ima_ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list),
@@ -249,10 +249,10 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
     return codecs.encode(running_hash, 'hex').decode('utf-8'), failure
 
 
-def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
+def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyrings=None, boot_aggregates=None):
     failure = Failure(Component.IMA)
     try:
-        running_hash, failure = _process_measurement_list(agentAttestState, lines, lists=lists, m2w=m2w, pcrval=pcrval, ima_keyring=ima_keyring, boot_aggregates=boot_aggregates)
+        running_hash, failure = _process_measurement_list(agentAttestState, lines, lists=lists, m2w=m2w, pcrval=pcrval, ima_keyrings=ima_keyrings, boot_aggregates=boot_aggregates)
     except:  # pylint: disable=try-except-raise
         raise
     finally:

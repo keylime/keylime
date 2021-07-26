@@ -167,14 +167,14 @@ class Tenant():
                     int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
 
             # Add all IMA file signing verification keys to a keyring
-            ima_keyring = ima_file_signatures.ImaKeyring()
+            tenant_keyring = ima_file_signatures.ImaKeyring()
             for filename in args["ima_sign_verification_keys"]:
                 pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(filename)
                 if not pubkey:
                     raise UserError(
                         "File '%s' is not a file with a key" % filename)
-                ima_keyring.add_pubkey(pubkey, keyidv2)
-            self.ima_sign_verification_keys = ima_keyring.to_string()
+                tenant_keyring.add_pubkey(pubkey, keyidv2)
+            self.ima_sign_verification_keys = tenant_keyring.to_string()
 
         # Read command-line path string allowlist
         al_data = None
