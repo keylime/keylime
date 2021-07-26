@@ -8,6 +8,7 @@ import ast
 import hashlib
 import os
 import string
+import typing
 
 import simplejson as json
 import yaml
@@ -214,6 +215,23 @@ class AbstractTPM(metaclass=ABCMeta):
         logger.debug("IMA measurement list of agent %s validated", agent_id)
         return True
 
+    def __parse_pcrs(self, pcrs, virtual) -> typing.Dict[int, str]:
+        """Parses and validates the format of a list of PCR data"""
+        output = {}
+        for line in pcrs:
+            tokens = line.split()
+            if len(tokens) != 3:
+                logger.error("Invalid %sPCR in quote: %s", ("", "v")[virtual], pcrs)
+                continue
+            try:
+                pcr_num = int(tokens[1])
+            except ValueError:
+                logger.error("Invalid PCR number %s", tokens[1])
+                continue
+            output[pcr_num] = tokens[2].lower()
+
+        return output
+
     def check_pcrs(self, agent_id, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate_str):
         try:
             tpm_policy_ = ast.literal_eval(tpm_policy)
@@ -231,89 +249,85 @@ class AbstractTPM(metaclass=ABCMeta):
         if not success:
             return False
 
-        pcrsInQuote = set()
-        validatedBindPCR = False
-        for line in pcrs:
-            tokens = line.split()
-            if len(tokens) < 3:
-                logger.error("Invalid %sPCR in quote: %s", ("", "v")[virtual], pcrs)
-                continue
+        pcrs_in_quote = set()  # PCRs in quote that were already used for some kind of validation
 
-            # always lower case
-            pcrval = tokens[2].lower()
-            # convert pcr num to number
-            try:
-                pcrnum = int(tokens[1])
-            except Exception:
-                logger.error("Invalid PCR number %s", tokens[1])
+        pcrs = self.__parse_pcrs(pcrs, virtual)
+        pcr_nums = set(pcrs.keys())
 
-            if pcrnum == config.TPM_DATA_PCR and data is not None:
-                expectedval = self.sim_extend(data)
-                if expectedval != pcrval and not config.STUB_TPM:
-                    logger.error("%sPCR #%s: invalid bind data %s from quote does not match expected value %s", ("", "v")[virtual], pcrnum, pcrval, expectedval)
-                    return False
-                validatedBindPCR = True
-                continue
+        # Validate data PCR
+        if config.TPM_DATA_PCR in pcr_nums and data is not None:
+            expectedval = self.sim_extend(data)
+            if expectedval != pcrs[config.TPM_DATA_PCR] and not config.STUB_TPM:
+                logger.error(
+                    "%sPCR #%s: invalid bind data %s from quote does not match expected value %s",
+                    ("", "v")[virtual], config.TPM_DATA_PCR, pcrs[config.TPM_DATA_PCR], expectedval)
+                return False
+            pcrs_in_quote.add(config.TPM_DATA_PCR)
+        elif not config.STUB_TPM:
+            logger.error("Binding %sPCR #%s was not included in the quote, but is required", ("", "v")[virtual],
+                         config.TPM_DATA_PCR)
+            return False
 
-            # check for ima PCR
-            if pcrnum == config.IMA_PCR and not config.STUB_TPM:
-                if ima_measurement_list is None:
-                    logger.error("IMA PCR in policy, but no measurement list provided")
-                    return False
-
-                if self.__check_ima(agent_id, pcrval, ima_measurement_list, allowlist, ima_keyring, boot_aggregates):
-                    pcrsInQuote.add(pcrnum)
-                    continue
-
+        # Check for ima PCR
+        if config.IMA_PCR in pcr_nums and not config.STUB_TPM:
+            if ima_measurement_list is None:
+                logger.error("IMA PCR in policy, but no measurement list provided")
                 return False
 
-            # PCRs set by measured boot get their own special handling
+            if not self.__check_ima(agent_id, pcrs[config.IMA_PCR], ima_measurement_list, allowlist, ima_keyring,
+                                    boot_aggregates):
+                return False
 
-            if pcrnum in config.MEASUREDBOOT_PCRS:
+            pcrs_in_quote.add(config.IMA_PCR)
 
-                if mb_refstate_data:
-                    if not mb_measurement_list:
-                        logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcrnum)
-                        return False
-
-                    val_from_log_int = mb_pcrs_sha256.get(str(pcrnum), 0)
-                    val_from_log_hex = hex(val_from_log_int)[2:]
-                    val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
-                    pcrval_stripped = pcrval.lstrip('0')
-                    if val_from_log_hex_stripped != pcrval_stripped:
-                        logger.error("For PCR %d and hash SHA256 the boot event log has value %r but the agent returned %r", pcrnum, val_from_log_hex, pcrval)
-                        return False
-                elif pcrnum in pcr_allowlist and pcrval not in pcr_allowlist[pcrnum] and not config.STUB_TPM:
-                    logger.error("%sPCR #%s: %s from quote does not match expected value %s", ("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum])
+        # Handle measured boot PCRs
+        for pcr_num in set(config.MEASUREDBOOT_PCRS) & pcr_nums:
+            if mb_refstate_data:
+                if not mb_measurement_list:
+                    logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcr_num)
                     return False
-                pcrsInQuote.add(pcrnum)
-                continue
 
-            if pcrnum not in list(pcr_allowlist.keys()):
+                val_from_log_int = mb_pcrs_sha256.get(str(pcr_num), 0)
+                val_from_log_hex = hex(val_from_log_int)[2:]
+                val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
+                pcrval_stripped = pcrs[pcr_num].lstrip('0')
+                if val_from_log_hex_stripped != pcrval_stripped:
+                    logger.error(
+                        "For PCR %d and hash SHA256 the boot event log has value %r but the agent returned %r",
+                        pcr_num, val_from_log_hex, pcrs[pcr_num])
+                    return False
+                if pcr_num in pcr_allowlist and pcrs[pcr_num] not in pcr_allowlist[pcr_num] and not config.STUB_TPM:
+                    logger.error(
+                        "%sPCR #%s: %s from quote does not match expected value %s",
+                        ("", "v")[virtual], pcr_num, pcrs[pcr_num], pcr_allowlist[pcr_num])
+                    return False
+                pcrs_in_quote.add(pcr_num)
+
+        # Check the remaining non validated PCRs
+        for pcr_num in pcr_nums - pcrs_in_quote:
+            if pcr_num not in list(pcr_allowlist.keys()):
                 if not config.STUB_TPM and len(list(tpm_policy.keys())) > 0:
-                    logger.warning("%sPCR #%s in quote not found in %stpm_policy, skipping.", ("", "v")[virtual], pcrnum, ("", "v")[virtual])
+                    logger.warning("%sPCR #%s in quote not found in %stpm_policy, skipping.",
+                                   ("", "v")[virtual], pcr_num, ("", "v")[virtual])
                 continue
-            if pcrval not in pcr_allowlist[pcrnum] and not config.STUB_TPM:
-                logger.error("%sPCR #%s: %s from quote does not match expected value %s", ("", "v")[virtual], pcrnum, pcrval, pcr_allowlist[pcrnum])
+            if pcrs[pcr_num] not in pcr_allowlist[pcr_num] and not config.STUB_TPM:
+                logger.error("%sPCR #%s: %s from quote does not match expected value %s",
+                             ("", "v")[virtual], pcr_num, pcrs[pcr_num], pcr_allowlist[pcr_num])
                 return False
 
-            pcrsInQuote.add(pcrnum)
+            pcrs_in_quote.add(pcr_num)
 
         if config.STUB_TPM:
             return True
 
-        if not validatedBindPCR:
-            logger.error("Binding %sPCR #%s was not included in the quote, but is required", ("", "v")[virtual], config.TPM_DATA_PCR)
-            return False
-
-        missing = list(set(list(pcr_allowlist.keys())).difference(pcrsInQuote))
+        missing = set(pcr_allowlist.keys()) - pcrs_in_quote
         if len(missing) > 0:
             logger.error("%sPCRs specified in policy not in quote: %s", ("", "v")[virtual], missing)
             return False
 
         if mb_refstate_data:
             success = measured_boot.evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data,
-                                                    pcrsInQuote, ("", "v")[virtual], agent_id)
+                                                    pcrs_in_quote, ("", "v")[virtual], agent_id)
             if not success:
                 return False
 
