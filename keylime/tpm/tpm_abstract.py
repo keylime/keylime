@@ -254,22 +254,26 @@ class AbstractTPM(metaclass=ABCMeta):
         pcrs = self.__parse_pcrs(pcrs, virtual)
         pcr_nums = set(pcrs.keys())
 
+        # Skip validation if TPM is stubbed.
+        if config.STUB_TPM:
+            return True
+
         # Validate data PCR
         if config.TPM_DATA_PCR in pcr_nums and data is not None:
             expectedval = self.sim_extend(data)
-            if expectedval != pcrs[config.TPM_DATA_PCR] and not config.STUB_TPM:
+            if expectedval != pcrs[config.TPM_DATA_PCR]:
                 logger.error(
                     "%sPCR #%s: invalid bind data %s from quote does not match expected value %s",
                     ("", "v")[virtual], config.TPM_DATA_PCR, pcrs[config.TPM_DATA_PCR], expectedval)
                 return False
             pcrs_in_quote.add(config.TPM_DATA_PCR)
-        elif not config.STUB_TPM:
+        else:
             logger.error("Binding %sPCR #%s was not included in the quote, but is required", ("", "v")[virtual],
                          config.TPM_DATA_PCR)
             return False
 
         # Check for ima PCR
-        if config.IMA_PCR in pcr_nums and not config.STUB_TPM:
+        if config.IMA_PCR in pcr_nums:
             if ima_measurement_list is None:
                 logger.error("IMA PCR in policy, but no measurement list provided")
                 return False
@@ -296,7 +300,7 @@ class AbstractTPM(metaclass=ABCMeta):
                         "For PCR %d and hash SHA256 the boot event log has value %r but the agent returned %r",
                         pcr_num, val_from_log_hex, pcrs[pcr_num])
                     return False
-                if pcr_num in pcr_allowlist and pcrs[pcr_num] not in pcr_allowlist[pcr_num] and not config.STUB_TPM:
+                if pcr_num in pcr_allowlist and pcrs[pcr_num] not in pcr_allowlist[pcr_num]:
                     logger.error(
                         "%sPCR #%s: %s from quote does not match expected value %s",
                         ("", "v")[virtual], pcr_num, pcrs[pcr_num], pcr_allowlist[pcr_num])
@@ -306,19 +310,16 @@ class AbstractTPM(metaclass=ABCMeta):
         # Check the remaining non validated PCRs
         for pcr_num in pcr_nums - pcrs_in_quote:
             if pcr_num not in list(pcr_allowlist.keys()):
-                if not config.STUB_TPM and len(list(tpm_policy.keys())) > 0:
+                if len(list(tpm_policy.keys())) > 0:
                     logger.warning("%sPCR #%s in quote not found in %stpm_policy, skipping.",
                                    ("", "v")[virtual], pcr_num, ("", "v")[virtual])
                 continue
-            if pcrs[pcr_num] not in pcr_allowlist[pcr_num] and not config.STUB_TPM:
+            if pcrs[pcr_num] not in pcr_allowlist[pcr_num]:
                 logger.error("%sPCR #%s: %s from quote does not match expected value %s",
                              ("", "v")[virtual], pcr_num, pcrs[pcr_num], pcr_allowlist[pcr_num])
                 return False
 
             pcrs_in_quote.add(pcr_num)
-
-        if config.STUB_TPM:
-            return True
 
         missing = set(pcr_allowlist.keys()) - pcrs_in_quote
         if len(missing) > 0:
