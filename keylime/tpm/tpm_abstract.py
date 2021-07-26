@@ -203,11 +203,11 @@ class AbstractTPM(metaclass=ABCMeta):
     def _get_tpm_rand_block(self, size=4096):
         pass
 
-    def __check_ima(self, agent_id, pcrval, ima_measurement_list, allowlist, ima_keyring):
+    def __check_ima(self, agent_id, pcrval, ima_measurement_list, allowlist, ima_keyring, boot_aggregates):
         logger.info("Checking IMA measurement list on agent: %s", agent_id)
         if config.STUB_IMA:
             pcrval = None
-        ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), allowlist, pcrval=pcrval, ima_keyring=ima_keyring)
+        ex_value = ima.process_measurement_list(ima_measurement_list.split('\n'), allowlist, pcrval=pcrval, ima_keyring=ima_keyring, boot_aggregates=boot_aggregates)
         if ex_value is None:
             return False
 
@@ -227,7 +227,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
         mb_policy, mb_refstate_data = measured_boot.get_policy(mb_refstate_str)
-        mb_pcrs_sha256, mb_measurement_data, success = self.parse_mb_bootlog(mb_measurement_list)
+        mb_pcrs_sha256, boot_aggregates, mb_measurement_data, success = self.parse_mb_bootlog(mb_measurement_list)
         if not success:
             return False
 
@@ -261,7 +261,7 @@ class AbstractTPM(metaclass=ABCMeta):
                     logger.error("IMA PCR in policy, but no measurement list provided")
                     return False
 
-                if self.__check_ima(agent_id, pcrval, ima_measurement_list, allowlist, ima_keyring):
+                if self.__check_ima(agent_id, pcrval, ima_measurement_list, allowlist, ima_keyring, boot_aggregates):
                     pcrsInQuote.add(pcrnum)
                     continue
 
