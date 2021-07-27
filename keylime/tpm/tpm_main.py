@@ -250,8 +250,8 @@ class tpm(tpm_abstract.AbstractTPM):
         retDict = self.__run(["tpm2_startup", "--version"])
 
         code = retDict['code']
-        output = ''.join(config.list_convert(retDict['retout']))
-        errout = ''.join(config.list_convert(retDict['reterr']))
+        output = ''.join(config.convert(retDict['retout']))
+        errout = ''.join(config.convert(retDict['reterr']))
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             raise Exception("Error establishing tpm2-tools version using TPM2_Startup: %s" + str(code) + ": " + str(errout))
 
@@ -279,8 +279,8 @@ class tpm(tpm_abstract.AbstractTPM):
         elif self.tools_version in ["4.0", "4.2"]:
             retDict = self.__run(["tpm2_getcap", "algorithms"])
 
-        output = config.list_convert(retDict['retout'])
-        errout = config.list_convert(retDict['reterr'])
+        output = config.convert(retDict['retout'])
+        errout = config.convert(retDict['reterr'])
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -383,7 +383,7 @@ class tpm(tpm_abstract.AbstractTPM):
     # tpm_initialize
     def __startup_tpm(self):
         retDict = self.__run(['tpm2_startup', '-c'])
-        errout = config.list_convert(retDict['reterr'])
+        errout = config.convert(retDict['reterr'])
         code = retDict['code']
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             raise Exception("Error initializing emulated TPM with TPM2_Startup: %s" + str(code) + ": " + str(errout))
@@ -583,8 +583,8 @@ class tpm(tpm_abstract.AbstractTPM):
                 logger.info("Flushing old ak handle: %s" % aik_handle)
                 retDict = self.__run(["tpm2_getcap", "handles-persistent"],
                                      raiseOnError=False)
-            output = config.list_convert(retDict['retout'])
-            errout = config.list_convert(retDict['reterr'])
+            output = config.convert(retDict['retout'])
+            errout = config.convert(retDict['reterr'])
             code = retDict['code']
 
             if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -690,8 +690,8 @@ class tpm(tpm_abstract.AbstractTPM):
         elif self.tools_version in ["4.0", "4.2"]:
             retDict = self.__run(["tpm2_getcap", "handles-persistent"])
         # retout = retDict['retout']
-        retout = config.list_convert(retDict['retout'])
-        errout = config.list_convert(retDict['reterr'])
+        retout = config.convert(retDict['retout'])
+        errout = config.convert(retDict['reterr'])
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
@@ -1120,9 +1120,9 @@ class tpm(tpm_abstract.AbstractTPM):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
         if self.tools_version == "3.2":
-            output = config.list_convert(self.__run("tpm2_pcrlist")['retout'])
+            output = config.convert(self.__run("tpm2_pcrlist")['retout'])
         elif self.tools_version in ["4.0", "4.2"]:
-            output = config.list_convert(self.__run("tpm2_pcrread")['retout'])
+            output = config.convert(self.__run("tpm2_pcrread")['retout'])
 
         jsonout = config.yaml_to_dict(output)
 
@@ -1202,8 +1202,8 @@ class tpm(tpm_abstract.AbstractTPM):
             elif self.tools_version in ["4.0", "4.2"]:
                 retDict = self.__run(["tpm2_nvread", '0x1c00002', "-s", ekcert_size, "-o", nvpath.name],
                                      raiseOnError=False, outputpaths=nvpath.name)
-            output = config.list_convert(retDict['retout'])
-            errout = config.list_convert(retDict['reterr'])
+            output = config.convert(retDict['retout'])
+            errout = config.convert(retDict['reterr'])
             code = retDict['code']
             ekcert = retDict['fileouts'][nvpath.name]
 
@@ -1220,7 +1220,7 @@ class tpm(tpm_abstract.AbstractTPM):
             retDict = self.__run(["tpm2_nvread", "0x1500018", "-C", "0x40000001", "-s", str(config.BOOTSTRAP_KEY_SIZE), "-P", owner_pw], raiseOnError=False)
 
         output = retDict['retout']
-        errout = config.list_convert(retDict['reterr'])
+        errout = config.convert(retDict['reterr'])
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:

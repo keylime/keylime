@@ -14,7 +14,7 @@ logger = keylime_logging.init_logging('secure_mount')
 
 def check_mounted(secdir):
     whatsmounted = cmd_exec.run("mount")['retout']
-    whatsmounted_converted = config.list_convert(whatsmounted)
+    whatsmounted_converted = config.convert(whatsmounted)
     for line in whatsmounted_converted:
         tokens = line.split()
         tmpfs = False
