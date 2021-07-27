@@ -192,18 +192,6 @@ WORK_DIR = os.getenv('KEYLIME_DIR', DEFAULT_WORK_DIR)
 CA_WORK_DIR = '%s/ca/' % WORK_DIR
 
 
-def list_convert(data):
-    if isinstance(data, bytes):
-        return data.decode()
-    if isinstance(data, dict):
-        return dict(map(convert, data.items()))
-    if isinstance(data, tuple):
-        return tuple(map(convert, data))
-    if isinstance(data, list):
-        return list(map(convert, data))
-    return data
-
-
 def chownroot(path, logger):
     if os.geteuid() == 0:
         os.chown(path, 0, 0)
