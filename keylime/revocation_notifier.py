@@ -34,8 +34,10 @@ def start_broker():
 
         # Socket facing services
         backend = context.socket(zmq.PUB)
-        backend.bind("tcp://%s:%s" % (config.get('cloud_verifier', 'revocation_notifier_ip'),
-                                      config.getint('cloud_verifier', 'revocation_notifier_port')))
+        backend.bind(
+            f"tcp://{config.get('cloud_verifier', 'revocation_notifier_ip')}:"
+            f"{config.getint('cloud_verifier', 'revocation_notifier_port')}"
+        )
 
         zmq.device(zmq.FORWARDER, frontend, backend)
 
@@ -89,8 +91,10 @@ def await_notifications(callback, revocation_cert_path):
     context = zmq.Context()
     mysock = context.socket(zmq.SUB)
     mysock.setsockopt(zmq.SUBSCRIBE, b'')
-    mysock.connect("tcp://%s:%s" % (config.get('general', 'receive_revocation_ip'),
-                                    config.getint('general', 'receive_revocation_port')))
+    mysock.connect(
+        f"tcp://{config.get('general', 'receive_revocation_ip')}:"
+        f"{config.getint('general', 'receive_revocation_port')}"
+    )
 
     logger.info('Waiting for revocation messages on 0mq %s:%s' %
                 (config.get('general', 'receive_revocation_ip'), config.getint('general', 'receive_revocation_port')))
@@ -104,7 +108,7 @@ def await_notifications(callback, revocation_cert_path):
             if revocation_cert_path is not None and os.path.exists(revocation_cert_path):
                 logger.info(
                     "Lazy loading the revocation certificate from %s" % revocation_cert_path)
-                with open(revocation_cert_path, 'r') as f:
+                with open(revocation_cert_path) as f:
                     certpem = f.read()
                 cert_key = crypto.x509_import_pubkey(certpem)
 

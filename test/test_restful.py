@@ -863,7 +863,7 @@ class TestRestful(unittest.TestCase):
         encoded = base64.b64encode(self.K).decode('utf-8')
 
         response = tornado_requests.request("GET",
-                                            "http://%s:%s/keys/verify?challenge=%s" % (self.cloudagent_ip, self.cloudagent_port, challenge))
+                                            f"http://{self.cloudagent_ip}:{self.cloudagent_port}/keys/verify?challenge={challenge}")
         response = await response
         self.assertEqual(response.status, 200, "Non-successful Agent verify return code!")
         json_response = json.loads(response.read().decode())

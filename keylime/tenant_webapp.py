@@ -198,13 +198,13 @@ class WebAppHandler(BaseHandler):
                                 <div id="policy_block">
                                     <div class="form_block">
                                         <label for='tpm_policy'>TPM Policy: </label><br>
-                                        <textarea class='json_input' id='tpm_policy' name='tpm_policy'>{0}</textarea>
+                                        <textarea class='json_input' id='tpm_policy' name='tpm_policy'>{}</textarea>
                                         <br>
                                     </div>
 
                                     <div class="form_block">
                                         <label for='vtpm_policy'>vTPM Policy: </label><br>
-                                        <textarea class='json_input' id='vtpm_policy' name='vtpm_policy'>{1}</textarea>
+                                        <textarea class='json_input' id='vtpm_policy' name='vtpm_policy'>{}</textarea>
                                         <br>
                                     </div>
                                 </div>
@@ -217,9 +217,9 @@ class WebAppHandler(BaseHandler):
                                 <div id="payload_block">
                                     <div class="form_block">
                                         <label for='ptype'>Payload type: </label>
-                                        <label><input type='radio' name='ptype' value='{0}' checked="checked" onclick='toggleTabs(this.value)'> File </label>&nbsp;
-                                        <label><input type='radio' name='ptype' value='{1}' onclick='toggleTabs(this.value)'> Keyfile </label>&nbsp;
-                                        <label><input type='radio' name='ptype' value='{2}' onclick='toggleTabs(this.value)'> CA Dir </label>&nbsp;
+                                        <label><input type='radio' name='ptype' value='{}' checked="checked" onclick='toggleTabs(this.value)'> File </label>&nbsp;
+                                        <label><input type='radio' name='ptype' value='{}' onclick='toggleTabs(this.value)'> Keyfile </label>&nbsp;
+                                        <label><input type='radio' name='ptype' value='{}' onclick='toggleTabs(this.value)'> CA Dir </label>&nbsp;
                                         <br>
                                     </div>
             """.format(Agent_Init_Types.FILE, Agent_Init_Types.KEYFILE, Agent_Init_Types.CA_DIR)
@@ -381,7 +381,7 @@ class AgentsHandler(BaseHandler):
             if "pos" in rest_params and rest_params["pos"] is not None and rest_params["pos"].isdigit():
                 offset = int(rest_params["pos"])
             # intercept requests for logs
-            with open(keylime_logging.LOGSTREAM, 'r') as f:
+            with open(keylime_logging.LOGSTREAM) as f:
                 logValue = f.readlines()
                 config.echo_json_response(self, 200, "Success", {
                                           'log': logValue[offset:]})
@@ -643,7 +643,7 @@ def get_tls_context():
 
     # this is relative path, convert to absolute in WORK_DIR
     if tls_dir[0] != '/':
-        tls_dir = os.path.abspath('%s/%s' % (config.WORK_DIR, tls_dir))
+        tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
 
     logger.info("Setting up client TLS in %s", tls_dir)
 

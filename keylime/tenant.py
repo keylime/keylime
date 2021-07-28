@@ -139,11 +139,11 @@ class Tenant():
             tls_dir = 'cv_ca'
 
         if tls_dir[0] != '/':
-            tls_dir = os.path.abspath('%s/%s' % (config.WORK_DIR, tls_dir))
+            tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
 
         logger.info("Setting up client TLS in %s", tls_dir)
-        my_cert = "%s/%s" % (tls_dir, my_cert)
-        my_priv_key = "%s/%s" % (tls_dir, my_priv_key)
+        my_cert = os.path.join(tls_dir, my_cert)
+        my_priv_key = os.path.join(tls_dir, my_priv_key)
 
         return my_cert, my_priv_key
 
@@ -328,7 +328,7 @@ class Tenant():
                 else:
                     raise UserError("Invalid key file provided")
             else:
-                f = open(args["keyfile"], 'r')
+                f = open(args["keyfile"])
             self.K = base64.b64decode(f.readline())
             self.U = base64.b64decode(f.readline())
             self.V = base64.b64decode(f.readline())
@@ -340,7 +340,7 @@ class Tenant():
                     self.payload = args["payload"]["data"][0]
             else:
                 if args["payload"] is not None:
-                    f = open(args["payload"], 'r')
+                    f = open(args["payload"])
                     self.payload = f.read()
                     f.close()
 
@@ -357,7 +357,7 @@ class Tenant():
                 else:
                     raise UserError("Invalid file payload provided")
             else:
-                with open(args["file"], 'r') as f:
+                with open(args["file"]) as f:
                     contents = f.read()
             ret = user_data_encrypt.encrypt(contents)
             self.K = ret['k']
@@ -381,7 +381,9 @@ class Tenant():
             if not os.path.exists(args["ca_dir"]) or not os.path.exists("%s/cacert.crt" % args["ca_dir"]):
                 logger.warning("CA directory does not exist. Creating...")
                 ca_util.cmd_init(args["ca_dir"])
-            if not os.path.exists("%s/%s-private.pem" % (args["ca_dir"], self.agent_uuid)):
+            if not os.path.exists(
+                    os.path.join(args["ca_dir"],
+                                 f"{self.agent_uuid}-private.pem")):
                 ca_util.cmd_mkcert(args["ca_dir"], self.agent_uuid)
 
             cert_pkg, serial, subject = ca_util.cmd_certpkg(
@@ -417,7 +419,8 @@ class Tenant():
                         if os.path.exists(args["incl_dir"]):
                             files = next(os.walk(args["incl_dir"]))[2]
                             for filename in files:
-                                with open("%s/%s" % (args["incl_dir"], filename), 'rb') as f:
+                                with open(os.path.join(args["incl_dir"],
+                                                       filename), 'rb') as f:
                                     zf.writestr(
                                         os.path.basename(f.name), f.read())
                         else:
@@ -531,7 +534,7 @@ class Tenant():
             return True
 
         if script[0] != '/':
-            script = "%s/%s" % (config.WORK_DIR, script)
+            script = os.path.join(config.WORK_DIR, script)
 
         logger.info("Checking EK with script %s", script)
         # now we need to exec the script with the ek and ek cert in vars
@@ -1159,7 +1162,7 @@ def main(argv=sys.argv):
                 args.allowlist = write_to_namedtempfile(response.content, delete_tmp_files)
                 logger.debug("Allowlist temporarily saved in %s" % args.allowlist)
             else:
-                raise Exception("Downloading allowlist (%s) failed with status code %s!" % (args.allowlist_url, response.status_code))
+                raise Exception(f"Downloading allowlist ({args.allowlist_url}) failed with status code {response.status_code}!")
 
         if args.allowlist_sig_url:
             logger.info("Downloading Allowlist signature from %s", args.allowlist_sig_url)
@@ -1168,7 +1171,7 @@ def main(argv=sys.argv):
                 args.allowlist_sig = write_to_namedtempfile(response.content, delete_tmp_files)
                 logger.debug("Allowlist signature temporarily saved in %s", args.allowlist_sig)
             else:
-                raise Exception("Downloading allowlist signature (%s) failed with status code %s!" % (args.allowlist_sig_url, response.status_code))
+                raise Exception(f"Downloading allowlist signature ({args.allowlist_sig_url}) failed with status code {response.status_code}!")
 
         # verify all the local keys for which we have a signature file and a key to verify
         for i, key_file in enumerate(args.ima_sign_verification_keys):
@@ -1194,7 +1197,7 @@ def main(argv=sys.argv):
                 args.ima_sign_verification_keys.append(key_file)
                 logger.debug("Key temporarily saved in %s" % key_file)
             else:
-                raise Exception("Downloading key (%s) failed with status code %s!" % (key_url, response.status_code))
+                raise Exception(f"Downloading key ({key_url}) failed with status code {response.status_code}!")
 
             if len(args.ima_sign_verification_key_sig_urls) <= i:
                 continue
@@ -1210,7 +1213,7 @@ def main(argv=sys.argv):
                 keysig_file = write_to_namedtempfile(response.content, delete_tmp_files)
                 logger.debug("Key signature temporarily saved in %s" % keysig_file)
             else:
-                raise Exception("Downloading key signature (%s) failed with status code %s!" % (key_url, response.status_code))
+                raise Exception(f"Downloading key signature ({key_url}) failed with status code {response.status_code}!")
 
             gpg_key_file = args.ima_sign_verification_key_sig_url_keys[i]
             gpg.gpg_verify_filesignature(gpg_key_file, key_file, keysig_file, "IMA file signing key")

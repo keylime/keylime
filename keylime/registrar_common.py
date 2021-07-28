@@ -451,7 +451,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                         raise
                 else:
                     raise Exception(
-                        "Auth tag %s does not match expected value %s" % (auth_tag, ex_mac))
+                        f"Auth tag {auth_tag} does not match expected value {ex_mac}")
 
             config.echo_json_response(self, 200, "Success")
             logger.info('PUT activated: %s', agent_id)

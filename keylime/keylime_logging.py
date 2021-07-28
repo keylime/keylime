@@ -58,7 +58,7 @@ def init_logging(loggername):
     basic_formatter = logging.Formatter(
         '%(asctime)s %(name)s %(levelname)s %(message)s')
     if loggername in LOG_TO_FILE:
-        logfilename = "%s/%s.log" % (LOGDIR, loggername)
+        logfilename = os.path.join(LOGDIR, f"{loggername}.log")
         if not os.path.exists(LOGDIR):
             os.makedirs(LOGDIR, 0o750)
         fh = logging.FileHandler(logfilename)

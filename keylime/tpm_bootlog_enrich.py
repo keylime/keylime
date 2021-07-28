@@ -55,7 +55,7 @@ def getDevicePath(b):
         raise Exception(
             f'getDevicePath: efidp_format_device_path({b}) returned {ret}')
 
-    s = create_string_buffer((ret+1))
+    s = create_string_buffer(ret+1)
 
     ret = efivarlib_functions.efidp_format_device_path(s, ret+1, b, len(b))
     if ret < 0:
