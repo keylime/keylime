@@ -25,7 +25,7 @@ logger = keylime_logging.init_logging('ima')
 
 
 # The version of the allowlist format that is supported by this keylime release
-ALLOWLIST_CURRENT_VERSION = 1
+ALLOWLIST_CURRENT_VERSION = 2
 
 
 def get_from_nth_entry(filedata, nth_entry):
@@ -257,7 +257,8 @@ empty_allowlist = {
         "version": ALLOWLIST_CURRENT_VERSION,
         },
     "release": 0,
-    "hashes": {}
+    "hashes": {},
+    "keyrings": {}
 }
 
 def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None):
@@ -303,7 +304,7 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
         # verify it's the current version
         if "meta" in alist and "version" in alist["meta"]:
             version = alist["meta"]["version"]
-            if int(version) == ALLOWLIST_CURRENT_VERSION:
+            if int(version) <= ALLOWLIST_CURRENT_VERSION:
                 logger.debug("Allowlist has compatible version %s", version)
             else:
                 # in the future we will support multiple versions and convert between them,
@@ -311,6 +312,10 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
                 raise Exception("Allowlist has unsupported version {version}")
         else:
             logger.debug("Allowlist does not specify a version. Assuming current version %s", ALLOWLIST_CURRENT_VERSION)
+
+        # version 2 added 'keyrings'
+        if "keyrings" not in alist:
+            alist["keyrings"] = {}
     else:
         # convert legacy format into new structured format
         logger.debug("Converting legacy allowlist format to JSON")
@@ -332,10 +337,17 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
                 continue
 
             (checksum_hash, path) = pieces
-            if path in alist["hashes"]:
-                alist["hashes"][path].append(checksum_hash)
+
+            if path.startswith("%keyring:"):
+                entrytype = "keyrings"
+                path = path[len("%keyring:"):]  # remove leading '%keyring:' from path to get keyring name
             else:
-                alist["hashes"][path] = [checksum_hash]
+                entrytype = "hashes"
+
+            if path in alist[entrytype]:
+                alist[entrytype][path].append(checksum_hash)
+            else:
+                alist[entrytype][path] = [checksum_hash]
 
     return alist
 
