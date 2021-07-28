@@ -1,6 +1,12 @@
 name: test
 
-on: [pull_request, workflow_dispatch]
+on:
+  pull_request:
+    paths:
+      - 'keylime/**'
+      - 'test/**'
+      - 'test-data/**'
+  workflow_dispatch:
 
 jobs:
   tpm-tests:
