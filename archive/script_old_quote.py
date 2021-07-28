@@ -50,7 +50,7 @@ pcrmask = "0x800"
 ######## real artisanal code
 # open generated (private) trusted cloud init key
 # and export the public version
-f = open(tcikey, 'r')
+f = open(tcikey)
 a = rsa_import_key(f.read())
 quote_key = a.publickey().exportKey()
 
@@ -62,9 +62,9 @@ q = timeit('create_quote(nonce,quote_key,pcrmask)', number=qruns, setup=qsetup)
 print("create_quote: %d runs, total time %f, avg %f per run" % (qruns,q,q/qruns))
 
 # take generated quote and AIK pubkey and read 'em
-binquotefile = open(quotefile, 'r')
+binquotefile = open(quotefile)
 binquote = b64encode(binquotefile.read().encode("zlib"))
-binaikfile = open(aikfile, 'r')
+binaikfile = open(aikfile)
 binaik = b64encode(binaikfile.read())
 
 # initialize functions so that timeit will work

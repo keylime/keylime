@@ -71,7 +71,7 @@ def readKUV():
     global K, U, V
 
     # read the keys in
-    f = open('content_keys.txt', 'r')
+    f = open('content_keys.txt')
     K = base64.b64decode(f.readline())
     U = base64.b64decode(f.readline())
     V = base64.b64decode(f.readline())
@@ -445,7 +445,7 @@ class Test(unittest.TestCase):
         for test_functions in test_record[state_change_or_validation]:
             if test_functions.get("function_name") == test_function_name:
                 try:
-                    with open(cv_persistence_filename, "r") as persistance_file:
+                    with open(cv_persistence_filename) as persistance_file:
                         file_contents = persistance_file.read()
 
                         json_content = json.loads(file_contents)
@@ -455,7 +455,7 @@ class Test(unittest.TestCase):
                     self.fail(
                         "Problem reading persistence file after POST.  Error: %s" % e)
                 try:
-                    with open(cv_persistence_filename + ".bak", "r") as backup_persistance_file:
+                    with open(cv_persistence_filename + ".bak") as backup_persistance_file:
                         backup_file_contents = backup_persistance_file.read()
 
                         json_backup_content = json.loads(backup_file_contents)
@@ -528,7 +528,7 @@ class Test(unittest.TestCase):
 
                         # post encrypted U back to Cloud Agent
                         response = tornado_requests.request(
-                            "POST", "http://%s:%s/v1/quotes/tenant" % (cloudagent_ip, cloudagent_port), data=u_json_message)
+                            "POST", f"http://{cloudagent_ip}:{cloudagent_port}/v1/quotes/tenant", data=u_json_message)
 
                         if response.status_code != 200:
                             self.fail(
@@ -880,8 +880,8 @@ class Test(unittest.TestCase):
                     'agent_id': contrived_uuid,
                 }
                 try:
-                    print(("Sending #" + str(cn) +
-                           " DELETE request to CV for uuid: " + contrived_uuid))
+                    print("Sending #" + str(cn) +
+                           " DELETE request to CV for uuid: " + contrived_uuid)
                     response = tornado_requests.request("DELETE",
                                                         "http://" + cloudverifier_ip + ":" + cloudverifier_port + "/v1/instances",
                                                         params=params)
@@ -901,7 +901,7 @@ class Test(unittest.TestCase):
                 shutil.rmtree(new_dir)
 
         for the_pid in cn_process_list:
-            print(("killing pid" + str(the_pid)))
+            print("killing pid" + str(the_pid))
             os.killpg(the_pid, signal.SIGTERM)
 
     def kill_cloudverifier(self, argument):

@@ -134,9 +134,10 @@ if not os.path.exists(CONFIG_FILE):
         WARN = True
 
 if not os.path.exists(CONFIG_FILE):
-    raise Exception('%s does not exist. Please set environment variable KEYLIME_CONFIG or see %s for more details' % (
-        CONFIG_FILE, __file__))
-print(("Using config file %s" % (CONFIG_FILE,)))
+    raise Exception(f"{CONFIG_FILE} does not exist. Please set environment"
+                    f"variable KEYLIME_CONFIG or see {__file__} for more"
+                    f"details")
+print(f"Using config file {CONFIG_FILE}")
 if WARN:
     print("WARNING: Keylime is using the config file from its installation location. \n\tWe recommend you copy keylime.conf to /etc/ to customize it.")
 

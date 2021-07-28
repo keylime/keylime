@@ -54,16 +54,16 @@ def init_client_tls(section):
 
     # this is relative path, convert to absolute in WORK_DIR
     if tls_dir[0] != '/':
-        tls_dir = os.path.abspath('%s/%s' % (config.WORK_DIR, tls_dir))
+        tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
 
     if os.path.isabs(my_cert):
         tls_cert = my_cert
     else:
-        tls_cert = "%s/%s" % (tls_dir, my_cert)
+        tls_cert = os.path.join(tls_dir, my_cert)
     if os.path.isabs(my_priv_key):
         tls_priv_key = my_priv_key
     else:
-        tls_priv_key = "%s/%s" % (tls_dir, my_priv_key)
+        tls_priv_key = os.path.join(tls_dir, my_priv_key)
 
     tls_cert_info = (tls_cert, tls_priv_key)
 

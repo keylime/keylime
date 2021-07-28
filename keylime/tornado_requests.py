@@ -21,7 +21,7 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
     if params is not None and len(list(params.keys())) > 0:
         url += '?'
         for key in list(params.keys()):
-            url += "%s=%s&" % (key, params[key])
+            url += f"{key}={params[key]}&"
         url = url[:-1]
 
     if context is not None:

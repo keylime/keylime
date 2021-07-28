@@ -106,7 +106,7 @@ def cmd_mkcert(workingdir, name):
 
         if cc.verify(cacert.get_pubkey()):
             logger.info(
-                "Created certificate for name %s successfully in %s" % (name, workingdir))
+                f"Created certificate for name {name} successfully in {workingdir}")
         else:
             logger.error("ERROR: Cert does not validate against CA")
     finally:
@@ -182,19 +182,19 @@ def cmd_certpkg(workingdir, name, insecure=False):
         config.ch_dir(workingdir, logger)
         # zip up the crt, private key, and public key
 
-        with open('cacert.crt', 'r') as f:
+        with open('cacert.crt') as f:
             cacert = f.read()
 
-        with open("%s-public.pem" % name, 'r') as f:
+        with open(f"{name}-public.pem") as f:
             pub = f.read()
 
-        with open("%s-cert.crt" % name, 'r') as f:
+        with open(f"{name}-cert.crt") as f:
             cert = f.read()
 
         with open('cacrl.der', 'rb') as f:
             crl = f.read()
 
-        with open('cacrl.pem', 'r') as f:
+        with open('cacrl.pem') as f:
             crlpem = f.read()
 
         cert_obj = X509.load_cert_string(cert)
@@ -204,15 +204,15 @@ def cmd_certpkg(workingdir, name, insecure=False):
         priv = read_private()
         private = priv[0][name]
 
-        with open("%s-private.pem" % name, 'r') as f:
+        with open(f"{name}-private.pem") as f:
             prot_priv = f.read()
 
         # no compression to avoid extraction errors in tmpfs
         sf = io.BytesIO()
         with zipfile.ZipFile(sf, 'w', compression=zipfile.ZIP_STORED) as f:
-            f.writestr('%s-public.pem' % name, pub)
-            f.writestr('%s-cert.crt' % name, cert)
-            f.writestr('%s-private.pem' % name, private)
+            f.writestr(f"{name}-public.pem", pub)
+            f.writestr(f"{name}-cert.crt", cert)
+            f.writestr(f"{name}-private.pem", private)
             f.writestr('cacert.crt', cacert)
             f.writestr('cacrl.der', crl)
             f.writestr('cacrl.pem', crlpem)
@@ -226,9 +226,9 @@ def cmd_certpkg(workingdir, name, insecure=False):
         else:
             # actually output the package to disk with a protected private key
             with zipfile.ZipFile('%s-pkg.zip' % name, 'w', compression=zipfile.ZIP_STORED) as f:
-                f.writestr('%s-public.pem' % name, pub)
-                f.writestr('%s-cert.crt' % name, cert)
-                f.writestr('%s-private.pem' % name, prot_priv)
+                f.writestr(f"{name}-public.pem", pub)
+                f.writestr(f"{name}-cert.crt", cert)
+                f.writestr(f"{name}-private.pem", prot_priv)
                 f.writestr('cacert.crt', cacert)
                 f.writestr('cacrl.der', crl)
                 f.writestr('cacrl.pem', crlpem)
@@ -289,7 +289,7 @@ def cmd_revoke(workingdir, name=None, serial=None):
         serial = str(serial)
 
         # get the ca key cert and keys as strings
-        with open('cacert.crt', 'r') as f:
+        with open('cacert.crt') as f:
             cacert = f.read()
         ca_pk = priv[0]['ca'].decode('utf-8')
 
@@ -320,7 +320,7 @@ def cmd_regencrl(workingdir):
         priv = read_private()
 
         # get the ca key cert and keys as strings
-        with open('cacert.crt', 'r') as f:
+        with open('cacert.crt') as f:
             cacert = f.read()
         ca_pk = str(priv[0]['ca'])
 
@@ -464,7 +464,7 @@ def read_private(warn=False):
             "Please enter the password to decrypt your keystore: "))
 
     if os.path.exists('private.yml'):
-        with open('private.yml', 'r') as f:
+        with open('private.yml') as f:
             toread = yaml.load(f, Loader=SafeLoader)
         key = crypto.kdf(global_password, toread['salt'])
         try:

@@ -19,7 +19,7 @@ def read_mb_refstate(mb_path=None):
 
     mb_data = None
     # Purposefully die if path doesn't exist
-    with open(mb_path, 'r') as f:
+    with open(mb_path) as f:
         mb_data = json.load(f)
 
     logger.debug("Loaded measured boot reference state from %s", mb_path)

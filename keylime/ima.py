@@ -271,7 +271,7 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
         return copy.deepcopy(empty_allowlist)
 
     # Purposefully die if path doesn't exist
-    with open(al_path, 'r') as f:
+    with open(al_path) as f:
         pass
 
     # verify GPG signature if needed
@@ -348,7 +348,7 @@ def read_excllist(exclude_path=None):
 
     excl_list = []
     if os.path.exists(exclude_path):
-        with open(exclude_path, 'r') as f:
+        with open(exclude_path) as f:
             excl_list = f.read()
         excl_list = excl_list.splitlines()
 
@@ -374,7 +374,7 @@ def main():
     # measure_path='../scripts/ima/ascii_runtime_measurements_ima'
     # measure_path = '../scripts/gerardo/ascii_runtime_measurements'
     print("reading measurement list from %s" % measure_path)
-    f = open(measure_path, 'r')
+    f = open(measure_path)
     lines = f.readlines()
 
     m2a = open('measure2allow.txt', "w")

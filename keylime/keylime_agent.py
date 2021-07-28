@@ -251,9 +251,9 @@ class Handler(BaseHTTPRequestHandler):
         tomeasure = self.server.K
 
         # if we have a good key, now attempt to write out the encrypted payload
-        dec_path = "%s/%s" % (secdir,
-                              config.get('cloud_agent', "dec_payload_file"))
-        enc_path = "%s/encrypted_payload" % config.WORK_DIR
+        dec_path = os.path.join(secdir,
+                                config.get('cloud_agent', "dec_payload_file"))
+        enc_path = os.path.join(config.WORK_DIR, "encrypted_payload")
 
         dec_payload = None
         enc_payload = None
@@ -307,7 +307,8 @@ class Handler(BaseHTTPRequestHandler):
                         # should be a no-op as poll already told us it's done
                         proc.wait()
 
-                    if not os.path.exists("%s/unzipped/%s" % (secdir, initscript)):
+                    if not os.path.exists(
+                            os.path.join(secdir, "unzipped", initscript)):
                         logger.info("No payload script %s found in %s/unzipped", initscript, secdir)
                     else:
                         logger.info("Executing payload script: %s/unzipped/%s", secdir, initscript)
@@ -342,8 +343,8 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     """Http Server which will handle each request in a separate thread."""
 
     # Do not modify directly unless you acquire uvLock. Set chosen for uniqueness of contained values
-    u_set = set([])
-    v_set = set([])
+    u_set = set()
+    v_set = set()
 
     rsaprivatekey = None
     rsapublickey = None
@@ -361,7 +362,8 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     def __init__(self, server_address, RequestHandlerClass, agent_uuid):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
         secdir = secure_mount.mount()
-        keyname = "%s/%s" % (secdir, config.get('cloud_agent', 'rsa_keyname'))
+        keyname = os.path.join(secdir,
+                               config.get('cloud_agent', 'rsa_keyname'))
         # read or generate the key depending on configuration
         if os.path.isfile(keyname):
             # read in private key
@@ -424,8 +426,8 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
                     return_value = self.decrypt_check(u, v)
                     if return_value:
                         # reset u and v sets
-                        self.u_set = set([])
-                        self.v_set = set([])
+                        self.u_set = set()
+                        self.v_set = set()
                         return return_value
             # TODO check on whether this happens or not.  NVRAM causes trouble
             if both_u_and_v_present:
@@ -588,10 +590,12 @@ def main():
     if config.getboolean('cloud_agent', 'listen_notfications'):
         cert_path = config.get('cloud_agent', 'revocation_cert')
         if cert_path == "default":
-            cert_path = '%s/unzipped/RevocationNotifier-cert.crt' % (secdir)
+            cert_path = os.path.join(secdir,
+                                      "unzipped/RevocationNotifier-cert.crt")
         elif cert_path[0] != '/':
             # if it is a relative, convert to absolute in work_dir
-            cert_path = os.path.abspath('%s/%s' % (config.WORK_DIR, cert_path))
+            cert_path = os.path.abspath(
+                os.path.join(config.WORK_DIR, cert_path))
 
         def perform_actions(revocation):
             actionlist = []
@@ -603,8 +607,9 @@ def main():
                 actionlist = ["revocation_actions.%s" % i for i in actionlist]
 
             # load actions from unzipped
-            if os.path.exists("%s/unzipped/action_list" % secdir):
-                with open("%s/unzipped/action_list" % secdir, 'r') as f:
+            action_list_path = os.path.join(secdir, "unzipped/action_list")
+            if os.path.exists(action_list_path):
+                with open(action_list_path) as f:
                     actionlisttxt = f.read()
                 if actionlisttxt.strip() != "":
                     localactions = actionlisttxt.strip().split(',')
