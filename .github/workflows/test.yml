@@ -31,10 +31,9 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
+    - name: Install build dependencies
+      run: sudo dnf -y install swig
     - name: Install Python dependencies
-      run: >
-        python3 -m pip install pylint --upgrade &&
-        python3 -m pip install tornado-requests &&
-        python3 -m pip install -r requirements.txt
+      run: python3 -m pip install tox
     - name: Run lints
-      run: make check
+      run: tox -vv -epylint

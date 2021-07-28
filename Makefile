@@ -1,4 +1,6 @@
-
-.PHONY: check
+.PHONY: check check-rebuild
 check:
-	scripts/check_codestyle.sh
+	tox -vv -epylint
+
+check-rebuild:
+	tox -r -vv -epylint
