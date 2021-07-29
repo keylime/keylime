@@ -77,12 +77,12 @@ def read_unpack(fd, fmt):
 
 
 def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name):
-    if allowlist is not None:
+    if allowlist is not None and allowlist.get('hashes') is not None:
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug("IMA: ignoring excluded path %s" % path)
             return True
 
-        accept_list = allowlist.get(path.name, None)
+        accept_list = allowlist['hashes'].get(path.name, None)
         if accept_list is None:
             logger.warning("File not found in allowlist: %s" % (path.name))
             return False
@@ -116,8 +116,8 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
     # If there is also an allowlist verify the file against that but only do this if:
     # - we did not evaluate the signature (valid_siganture = False)
     # - the signature is valid and the file is also in the allowlist
-    if allowlist is not None and \
-        ((allowlist.get(path.name, None) is not None and valid_signature) or not valid_signature):
+    if allowlist is not None and allowlist.get('hashes') is not None and \
+        ((allowlist['hashes'].get(path.name, None) is not None and valid_signature) or not valid_signature):
         # We use the normal ima_ng validator to validate hash
         return _validate_ima_ng(exclude_regex, allowlist, digest, path)
 
@@ -146,12 +146,12 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
         exclude_list = None
 
     if boot_aggregates and allow_list:
-        if "boot_aggregate" not in allow_list :
-            allow_list["boot_aggregate"] = []
+        if 'boot_aggregate' not in allow_list['hashes'] :
+            allow_list['hashes']['boot_aggregate'] = []
         for alg in boot_aggregates.keys() :
             for val in boot_aggregates[alg] :
-                if val not in allow_list["boot_aggregate"] :
-                    allow_list["boot_aggregate"].append(val)
+                if val not in allow_list['hashes']['boot_aggregate'] :
+                    allow_list['hashes']['boot_aggregate'].append(val)
 
     is_valid, compiled_regex, err_msg = config.valid_exclude_list(exclude_list)
     if not is_valid:
@@ -250,7 +250,7 @@ def process_allowlists(allowlist, exclude):
         if excl == "":
             exclude.remove(excl)
 
-    return{'allowlist': allowlist['hashes'], 'exclude': exclude}
+    return{'allowlist': allowlist, 'exclude': exclude}
 
 empty_allowlist = {
     "meta": {
