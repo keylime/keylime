@@ -145,7 +145,7 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
         allow_list = None
         exclude_list = None
 
-    if boot_aggregates :
+    if boot_aggregates and allow_list:
         if "boot_aggregate" not in allow_list :
             allow_list["boot_aggregate"] = []
         for alg in boot_aggregates.keys() :
