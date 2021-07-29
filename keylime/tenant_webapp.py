@@ -627,7 +627,7 @@ def parse_data_uri(data_uri):
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
-    logger.info("Starting Torando on port %s", port)
+    logger.info("Starting Tornado on port %s", port)
     tornado.ioloop.IOLoop.instance().start()
     logger.info("Tornado finished")
 
