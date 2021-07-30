@@ -307,7 +307,7 @@ class AbstractTPM(metaclass=ABCMeta):
                     return False
                 pcrs_in_quote.add(pcr_num)
 
-        tpm_policy=ast.literal_eval(tpm_policy)
+        tpm_policy = ast.literal_eval(tpm_policy)
 
         # Check the remaining non validated PCRs
         for pcr_num in pcr_nums - pcrs_in_quote:
