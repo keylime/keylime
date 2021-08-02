@@ -4,7 +4,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 from abc import ABCMeta, abstractmethod
-import ast
 import hashlib
 import os
 import string
@@ -233,11 +232,8 @@ class AbstractTPM(metaclass=ABCMeta):
         return output
 
     def check_pcrs(self, agentAttestState, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate_str):
-        try:
-            tpm_policy_ = ast.literal_eval(tpm_policy)
-        except ValueError:
-            tpm_policy_ = {}
-        pcr_allowlist = tpm_policy_.copy()
+
+        pcr_allowlist = tpm_policy.copy()
 
         if 'mask' in pcr_allowlist:
             del pcr_allowlist['mask']
@@ -310,9 +306,8 @@ class AbstractTPM(metaclass=ABCMeta):
         # Check the remaining non validated PCRs
         for pcr_num in pcr_nums - pcrs_in_quote:
             if pcr_num not in list(pcr_allowlist.keys()):
-                if len(list(tpm_policy.keys())) > 0:
-                    logger.warning("%sPCR #%s in quote not found in %stpm_policy, skipping.",
-                                   ("", "v")[virtual], pcr_num, ("", "v")[virtual])
+                logger.warning("%sPCR #%s in quote not found in %stpm_policy, skipping.",
+                               ("", "v")[virtual], pcr_num, ("", "v")[virtual])
                 continue
             if pcrs[pcr_num] not in pcr_allowlist[pcr_num]:
                 logger.error("%sPCR #%s: %s from quote does not match expected value %s",
