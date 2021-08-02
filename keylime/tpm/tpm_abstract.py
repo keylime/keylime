@@ -307,12 +307,10 @@ class AbstractTPM(metaclass=ABCMeta):
                     return False
                 pcrs_in_quote.add(pcr_num)
 
-        tpm_policy = ast.literal_eval(tpm_policy)
-
         # Check the remaining non validated PCRs
         for pcr_num in pcr_nums - pcrs_in_quote:
             if pcr_num not in list(pcr_allowlist.keys()):
-                if len(list(tpm_policy.keys())) > 0:
+                if len(list(tpm_policy_.keys())) > 0:
                     logger.warning("%sPCR #%s in quote not found in %stpm_policy, skipping.",
                                    ("", "v")[virtual], pcr_num, ("", "v")[virtual])
                 continue
