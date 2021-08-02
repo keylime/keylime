@@ -5,6 +5,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import ast
 import codecs
+import copy
 import hashlib
 import struct
 import os
@@ -251,9 +252,15 @@ def process_allowlists(allowlist, exclude):
 
     return{'allowlist': allowlist['hashes'], 'exclude': exclude}
 
+empty_allowlist = {
+    "meta": {
+        "version": ALLOWLIST_CURRENT_VERSION,
+        },
+    "release": 0,
+    "hashes": {}
+}
 
 def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None):
-    alist = {}
     if al_path is None:
         al_path = config.get('tenant', 'ima_allowlist')
         if config.STUB_IMA:
@@ -261,12 +268,11 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
 
     # If user only wants signatures then an allowlist is not required
     if al_path is None or al_path == '':
-        return []
+        return copy.deepcopy(empty_allowlist)
 
     # Purposefully die if path doesn't exist
     with open(al_path, 'r') as f:
-        alist = f.read()
-    alist = alist.splitlines()
+        pass
 
     # verify GPG signature if needed
     if gpg_sig_file and gpg_key_file:
@@ -308,15 +314,10 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
     else:
         # convert legacy format into new structured format
         logger.debug("Converting legacy allowlist format to JSON")
-        alist = {
-            "meta": {
-                "version": ALLOWLIST_CURRENT_VERSION,
-                "generator": "keylime-legacy-format-upgrade",
-                "timestamp": str(datetime.datetime.now()),
-            },
-            "release": 0,
-            "hashes": {}
-        }
+
+        alist = copy.deepcopy(empty_allowlist)
+        alist["meta"]["timestamp"] = str(datetime.datetime.now())
+        alist["meta"]["generator"] = "keylime-legacy-format-upgrade"
         if checksum:
             alist["meta"]["checksum"] = checksum
 
