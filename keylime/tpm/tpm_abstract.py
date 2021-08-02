@@ -233,6 +233,9 @@ class AbstractTPM(metaclass=ABCMeta):
 
     def check_pcrs(self, agentAttestState, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate_str):
 
+        if isinstance(tpm_policy, str):
+            tpm_policy = json.loads(tpm_policy)
+
         pcr_allowlist = tpm_policy.copy()
 
         if 'mask' in pcr_allowlist:
