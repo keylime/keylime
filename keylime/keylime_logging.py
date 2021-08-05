@@ -1,7 +1,7 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
 import os
 
@@ -10,14 +10,21 @@ import logging.config
 from keylime import config
 
 
-def log_http_response(logger, loglevel, response_body):
-    """Takes JSON response payload and logs error info"""
-    if response_body is None:
-        return False
-    if logger is None:
-        return False
+LOG_TO_FILE = ['registrar', 'provider_registrar', 'cloudverifier']
+LOG_TO_STREAM = ['tenant_webapp']
+LOGDIR = os.getenv('KEYLIME_LOGDIR', '/var/log/keylime')
+# not clear that this works right.  console logging may not work
+if not config.REQUIRE_ROOT:
+    LOGSTREAM = './keylime-stream.log'
+else:
+    LOGSTREAM = LOGDIR + '/keylime-stream.log'
 
+logging.config.fileConfig(config.CONFIG_FILE)
+
+
+def set_log_func(loglevel, logger):
     log_func = logger.info
+
     if loglevel == logging.CRITICAL:
         log_func = logger.critical
     elif loglevel == logging.ERROR:
@@ -29,7 +36,18 @@ def log_http_response(logger, loglevel, response_body):
     elif loglevel == logging.DEBUG:
         log_func = logger.debug
 
-    if "results" in response_body and "code" in response_body and "status" in response_body:
+    return log_func
+
+
+def log_http_response(logger, loglevel, response_body):
+    """Takes JSON response payload and logs error info"""
+    if None in [response_body, logger]:
+        return False
+
+    log_func = set_log_func(loglevel, logger)
+
+    matches = ["results", "code", "status"]
+    if all(x in response_body for x in matches):
         log_func("Response code %s: %s" %
                  (response_body["code"], response_body["status"]))
     else:
@@ -39,20 +57,8 @@ def log_http_response(logger, loglevel, response_body):
     return True
 
 
-LOG_TO_FILE = ['registrar', 'provider_registrar', 'cloudverifier']
-# not clear that this works right.  console logging may not work
-LOG_TO_STREAM = ['tenant_webapp']
-LOGDIR = os.getenv('KEYLIME_LOGDIR', '/var/log/keylime')
-if not config.REQUIRE_ROOT:
-    LOGSTREAM = './keylime-stream.log'
-else:
-    LOGSTREAM = LOGDIR + '/keylime-stream.log'
-
-logging.config.fileConfig(config.CONFIG_FILE)
-
-
 def init_logging(loggername):
-    logger = logging.getLogger("keylime.%s" % (loggername))
+    logger = logging.getLogger("keylime.%s" % loggername)
     logging.getLogger("requests").setLevel(logging.WARNING)
     mainlogger = logging.getLogger("keylime")
     basic_formatter = logging.Formatter(
