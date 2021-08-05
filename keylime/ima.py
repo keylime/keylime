@@ -19,13 +19,14 @@ from keylime import gpg
 from keylime import keylime_logging
 from keylime import ima_ast
 from keylime.agentstates import AgentAttestState
+from keylime import ima_file_signatures
 
 
 logger = keylime_logging.init_logging('ima')
 
 
 # The version of the allowlist format that is supported by this keylime release
-ALLOWLIST_CURRENT_VERSION = 1
+ALLOWLIST_CURRENT_VERSION = 2
 
 
 def get_from_nth_entry(filedata, nth_entry):
@@ -76,15 +77,15 @@ def read_unpack(fd, fmt):
     return struct.unpack(fmt, fd.read(struct.calcsize(fmt)))
 
 
-def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name):
-    if allowlist is not None:
+def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, hash_types='hashes'):
+    if allowlist is not None and allowlist.get(hash_types) is not None:
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug("IMA: ignoring excluded path %s" % path)
             return True
 
-        accept_list = allowlist.get(path.name, None)
+        accept_list = allowlist[hash_types].get(path.name, None)
         if accept_list is None:
-            logger.warning("File not found in allowlist: %s" % (path.name))
+            logger.warning("Entry not found in allowlist: %s" % (path.name))
             return False
 
         if codecs.encode(digest.hash, 'hex').decode('utf-8') not in accept_list:
@@ -116,8 +117,8 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
     # If there is also an allowlist verify the file against that but only do this if:
     # - we did not evaluate the signature (valid_siganture = False)
     # - the signature is valid and the file is also in the allowlist
-    if allowlist is not None and \
-        ((allowlist.get(path.name, None) is not None and valid_signature) or not valid_signature):
+    if allowlist is not None and allowlist.get('hashes') is not None and \
+        ((allowlist['hashes'].get(path.name, None) is not None and valid_signature) or not valid_signature):
         # We use the normal ima_ng validator to validate hash
         return _validate_ima_ng(exclude_regex, allowlist, digest, path)
 
@@ -126,6 +127,16 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
         return True
 
     return valid_signature
+
+
+def _validate_ima_buf(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, data: ima_ast.Buffer):
+    # Is data.data a key?
+    pubkey, _ = ima_file_signatures.get_pubkey(data.data)
+    if pubkey:
+        return _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='keyrings')
+
+    # Anything else evaluates to true for now
+    return True
 
 
 def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
@@ -145,13 +156,13 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
         allow_list = None
         exclude_list = None
 
-    if boot_aggregates :
-        if "boot_aggregate" not in allow_list :
-            allow_list["boot_aggregate"] = []
+    if boot_aggregates and allow_list:
+        if 'boot_aggregate' not in allow_list['hashes'] :
+            allow_list['hashes']['boot_aggregate'] = []
         for alg in boot_aggregates.keys() :
             for val in boot_aggregates[alg] :
-                if val not in allow_list["boot_aggregate"] :
-                    allow_list["boot_aggregate"].append(val)
+                if val not in allow_list['hashes']['boot_aggregate'] :
+                    allow_list['hashes']['boot_aggregate'].append(val)
 
     is_valid, compiled_regex, err_msg = config.valid_exclude_list(exclude_list)
     if not is_valid:
@@ -163,7 +174,8 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
     ima_validator = ima_ast.Validator(
         {ima_ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyring, allow_list),
          ima_ast.ImaNg: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
-         ima_ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list)
+         ima_ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
+         ima_ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list),
          }
     )
 
@@ -250,14 +262,15 @@ def process_allowlists(allowlist, exclude):
         if excl == "":
             exclude.remove(excl)
 
-    return{'allowlist': allowlist['hashes'], 'exclude': exclude}
+    return{'allowlist': allowlist, 'exclude': exclude}
 
 empty_allowlist = {
     "meta": {
         "version": ALLOWLIST_CURRENT_VERSION,
         },
     "release": 0,
-    "hashes": {}
+    "hashes": {},
+    "keyrings": {}
 }
 
 def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None):
@@ -303,7 +316,7 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
         # verify it's the current version
         if "meta" in alist and "version" in alist["meta"]:
             version = alist["meta"]["version"]
-            if int(version) == ALLOWLIST_CURRENT_VERSION:
+            if int(version) <= ALLOWLIST_CURRENT_VERSION:
                 logger.debug("Allowlist has compatible version %s", version)
             else:
                 # in the future we will support multiple versions and convert between them,
@@ -311,6 +324,10 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
                 raise Exception("Allowlist has unsupported version {version}")
         else:
             logger.debug("Allowlist does not specify a version. Assuming current version %s", ALLOWLIST_CURRENT_VERSION)
+
+        # version 2 added 'keyrings'
+        if "keyrings" not in alist:
+            alist["keyrings"] = {}
     else:
         # convert legacy format into new structured format
         logger.debug("Converting legacy allowlist format to JSON")
@@ -332,10 +349,17 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
                 continue
 
             (checksum_hash, path) = pieces
-            if path in alist["hashes"]:
-                alist["hashes"][path].append(checksum_hash)
+
+            if path.startswith("%keyring:"):
+                entrytype = "keyrings"
+                path = path[len("%keyring:"):]  # remove leading '%keyring:' from path to get keyring name
             else:
-                alist["hashes"][path] = [checksum_hash]
+                entrytype = "hashes"
+
+            if path in alist[entrytype]:
+                alist[entrytype][path].append(checksum_hash)
+            else:
+                alist[entrytype][path] = [checksum_hash]
 
     return alist
 

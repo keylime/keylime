@@ -20,3 +20,5 @@ cce8b403a21f87c75aa2c23db500e4ce648f56ed  /boot/grub2/i386-pc/png.mod
 a80db30d37330fd3e043c097a64db14c85b13443  /boot/grub2/i386-pc/macho.mod
 77c3547862ac12e3fa517da8945d2e257284fe2a  /boot/grub2/i386-pc/cbmemc.mod
 ee4d2b601c0efc0ea97314c2818667a83272eac1  /boot/grub2/i386-pc/pata.mod
+
+a7d52aaa18c23d2d9bb2abb4308c0eeee67387a42259f4a6b1a42257065f3d5a %keyring:.ima
