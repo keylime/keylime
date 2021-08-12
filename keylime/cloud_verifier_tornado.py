@@ -116,6 +116,7 @@ def store_attestation_state(agentAttestState):
             update_agent.ima_pcrs = list(ima_pcrs_dict.keys())
             for pcr_num, value in ima_pcrs_dict.items():
                 setattr(update_agent, 'pcr%d' % pcr_num, value)
+            update_agent.learned_ima_keyrings = agentAttestState.get_ima_keyrings().to_json()
             try:
                 session.add(update_agent)
             except SQLAlchemyError as e:
@@ -951,7 +952,7 @@ async def activate_agents(verifier_id, verifier_ip, verifier_port):
                 ima_pcrs_dict = {}
                 for pcr_num in agent.ima_pcrs:
                     ima_pcrs_dict[pcr_num] = getattr(agent, 'pcr%d' % pcr_num)
-                aas.add(agent.agent_id, agent.boottime, ima_pcrs_dict, agent.next_ima_ml_entry)
+                aas.add(agent.agent_id, agent.boottime, ima_pcrs_dict, agent.next_ima_ml_entry, agent.learned_ima_keyrings)
         session.commit()
     except SQLAlchemyError as e:
         logger.error('SQLAlchemy Error: %s', e)
