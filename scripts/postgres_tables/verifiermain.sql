@@ -47,6 +47,7 @@ CREATE TABLE public.verifiermain (
     ima_pcrs character varying,
     pcr10 bytea,
     next_ima_ml_entry integer,
+    learned_keyrings character varying,
 );
 
 

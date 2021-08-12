@@ -48,6 +48,7 @@ class VerfierMain(Base):
     next_ima_ml_entry = Column(Integer)
     severity_level = Column(Integer, nullable=True)
     last_event_id = Column(String(200), nullable=True)
+    learned_ima_keyrings = Column(JSONPickleType(pickler=json))
 
 
 class VerifierAllowlist(Base):

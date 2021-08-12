@@ -61,7 +61,8 @@ exclude_db = {
     'boottime': '',
     'ima_pcrs': [],
     'pcr10': '',
-    'next_ima_ml_entry': 0
+    'next_ima_ml_entry': 0,
+    'learned_ima_keyrings': {},
 }
 
 
@@ -88,7 +89,8 @@ def _from_db_obj(agent_db_obj):
                 'boottime', \
                 'ima_pcrs', \
                 'pcr10', \
-                'next_ima_ml_entry']
+                'next_ima_ml_entry', \
+                'learned_ima_keyrings' ]
     agent_dict = {}
     for field in fields:
         agent_dict[field] = getattr(agent_db_obj, field, None)
@@ -413,6 +415,7 @@ class AgentsHandler(BaseHandler):
                     agent_data['ima_pcrs'] = []
                     agent_data['pcr10'] = START_HASH
                     agent_data['next_ima_ml_entry'] = 0
+                    agent_data['learned_ima_keyrings'] = {}
                     agent_data['verifier_id'] = config.get('cloud_verifier', 'cloudverifier_id', cloud_verifier_common.DEFAULT_VERIFIER_ID)
                     agent_data['verifier_ip'] = config.get('cloud_verifier', 'cloudverifier_ip')
                     agent_data['verifier_port'] = config.get('cloud_verifier', 'cloudverifier_port')
