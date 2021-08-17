@@ -29,7 +29,7 @@ def read_mb_refstate(mb_path=None):
 def get_policy(mb_refstate_str):
     """ Convert the mb_refstate_str to JSON and get the measured boot policy.
     :param mb_refstate_str: String representation of measured boot reference state
-    :returns: Returns 
+    :returns: Returns
                   * the measured boot policy object
                   * the JSON object of the measured boot reference state
               both can be None if mb_refstate_str was empty
