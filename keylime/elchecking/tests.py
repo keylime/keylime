@@ -33,11 +33,10 @@ class Test(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError
 
-
-# type_test constructs a test of data type that is expected to pass
+# type_test constructs a test of data type that is expected to pass.
+# This and the following are used to check reference state for bugs.
 def type_test(t) -> typing.Callable[[typing.Any], bool]:
     """Returns a lambda that tests against the given type.
-
     The lambda returns True on pass, raises Exception on fail."""
     def test(v: typing.Any) -> bool:
         if isinstance(v, t):
