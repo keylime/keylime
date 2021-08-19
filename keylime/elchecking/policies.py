@@ -2,7 +2,7 @@ import abc
 import importlib
 import typing
 
-from .. import config
+from keylime import config
 
 from . import tests
 
