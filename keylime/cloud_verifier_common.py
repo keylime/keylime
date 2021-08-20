@@ -114,6 +114,7 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca'):
 
     try:
         context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         context.load_verify_locations(cafile=ca_path)
         context.load_cert_chain(
             certfile=my_cert, keyfile=my_priv_key, password=my_key_pw)
