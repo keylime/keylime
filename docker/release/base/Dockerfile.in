@@ -1,0 +1,8 @@
+FROM fedora:34 AS keylime_base
+LABEL version="_version_" description="Keylime Base - Only used as an base image for derived packages"
+MAINTAINER Keylime Team <main@keylime.groups.io>
+
+ENV GOPATH=/root/go
+RUN --mount=target=/keylime,type=bind,source=. \
+    cd /keylime && ./installer.sh -o && \
+    dnf -y install python3-PyMySQL
