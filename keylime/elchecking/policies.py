@@ -49,7 +49,7 @@ class AcceptAll(Policy):
 
 
 def _mkreg() -> typing.Mapping[str, Policy]:
-    return dict()
+    return {}
 
 
 _registry = _mkreg()
