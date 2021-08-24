@@ -365,7 +365,9 @@ def process_get_status(agent):
 
 
 def notify_error(agent, msgtype='revocation', event=None):
-    if not config.getboolean('cloud_verifier', 'revocation_notifier'):
+    send_mq = config.getboolean('cloud_verifier', 'revocation_notifier')
+    send_webhook = config.getboolean('cloud_verifier', 'revocation_notifier_webhook', False)
+    if not (send_mq or send_webhook):
         return
 
     # prepare the revocation message:
@@ -391,7 +393,10 @@ def notify_error(agent, msgtype='revocation', event=None):
 
     else:
         tosend['signature'] = "none"
-    revocation_notifier.notify(tosend)
+    if send_mq:
+        revocation_notifier.notify(tosend)
+    if send_webhook:
+        revocation_notifier.notify_webhook(tosend)
 
 
 def validate_agent_data(agent_data):
