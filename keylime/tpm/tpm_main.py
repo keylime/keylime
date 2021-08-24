@@ -1255,7 +1255,7 @@ class tpm(tpm_abstract.AbstractTPM):
         old_pcrs = log['pcrs']
         if not isinstance(old_pcrs, dict):
             return
-        new_pcrs = dict()
+        new_pcrs = {}
         for hash_alg, cells in old_pcrs.items():
             if not isinstance(cells, dict):
                 new_pcrs[hash_alg] = cells

@@ -132,7 +132,7 @@ def setUpModule():
         its.wait()
         tsd = subprocess.Popen(["tpm_serverd"], shell=False, env=env)
         tsd.wait()
-    except Exception as e:
+    except Exception:
         print("WARNING: Restarting TPM emulator failed!")
     # Note: the following is required as abrmd is failing to reconnect to MSSIM, once
     # MSSIM is killed and restarted. If this is an proved an actual bug and is
@@ -150,7 +150,7 @@ def setUpModule():
                     manager.RestartUnit('tpm2-abrmd.service', 'fail')
                 except dbus.exceptions.DBusException as e:
                     print(e)
-    except Exception as e:
+    except Exception:
         print("Non systemd agent detected, no tpm2-abrmd restart required.")
 
     try:
@@ -159,7 +159,7 @@ def setUpModule():
         fileRemove(config.WORK_DIR + "/cv_data.sqlite")
         fileRemove(config.WORK_DIR + "/reg_data.sqlite")
         shutil.rmtree(config.WORK_DIR + "/cv_ca", True)
-    except Exception as e:
+    except Exception:
         print("WARNING: Cleanup of TPM files failed!")
 
     # CV must be run first to create CA and certs!
