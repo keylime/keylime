@@ -24,7 +24,7 @@ logger = keylime_logging.init_logging('platform-init')
 
 def add_vtpm(inputfile):
     # read in the file
-    with open(inputfile, 'r') as f:
+    with open(inputfile, encoding="utf-8") as f:
         group = yaml.load(f, Loader=SafeLoader)
 
     # fetch configuration parameters

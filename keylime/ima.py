@@ -63,7 +63,7 @@ def read_measurement_list(filename, nth_entry):
     if not os.path.exists(filename):
         logger.warning("IMA measurement list not available: %s", filename)
     else:
-        with open(filename, 'r') as f:
+        with open(filename, 'r', encoding="utf-8") as f:
             filedata = f.read()
         ml, num_entries = get_from_nth_entry(filedata, nth_entry)
         if nth_entry > num_entries:
@@ -284,7 +284,7 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
         return copy.deepcopy(empty_allowlist)
 
     # Purposefully die if path doesn't exist
-    with open(al_path) as f:
+    with open(al_path, 'rb') as f:
         pass
 
     # verify GPG signature if needed
@@ -372,7 +372,7 @@ def read_excllist(exclude_path=None):
 
     excl_list = []
     if os.path.exists(exclude_path):
-        with open(exclude_path) as f:
+        with open(exclude_path, encoding="utf-8") as f:
             excl_list = f.read()
         excl_list = excl_list.splitlines()
 
@@ -398,10 +398,10 @@ def main():
     # measure_path='../scripts/ima/ascii_runtime_measurements_ima'
     # measure_path = '../scripts/gerardo/ascii_runtime_measurements'
     print("reading measurement list from %s" % measure_path)
-    f = open(measure_path)
+    f = open(measure_path, encoding="ascii")
     lines = f.readlines()
 
-    m2a = open('measure2allow.txt', "w")
+    m2a = open('measure2allow.txt', "w", encoding="utf-8")
     digest = process_measurement_list(AgentAttestState('1'), lines, lists, m2a)
     print("final digest is %s" % digest)
     f.close()

@@ -328,7 +328,7 @@ class Tenant():
                 else:
                     raise UserError("Invalid key file provided")
             else:
-                f = open(args["keyfile"])
+                f = open(args["keyfile"], encoding="utf-8")
             self.K = base64.b64decode(f.readline())
             self.U = base64.b64decode(f.readline())
             self.V = base64.b64decode(f.readline())
@@ -340,7 +340,7 @@ class Tenant():
                     self.payload = args["payload"]["data"][0]
             else:
                 if args["payload"] is not None:
-                    f = open(args["payload"])
+                    f = open(args["payload"], 'rb')
                     self.payload = f.read()
                     f.close()
 
@@ -357,7 +357,7 @@ class Tenant():
                 else:
                     raise UserError("Invalid file payload provided")
             else:
-                with open(args["file"]) as f:
+                with open(args["file"], 'rb') as f:
                     contents = f.read()
             ret = user_data_encrypt.encrypt(contents)
             self.K = ret['k']

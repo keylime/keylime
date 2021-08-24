@@ -58,7 +58,7 @@ def execute(json_revocation):
 
         # write out the updated CRL
         logger.debug("Updating CRL in %s/unzipped/cacrl.der" % (secdir))
-        with open("%s/unzipped/cacrl.der" % (secdir), "w") as f:
+        with open("%s/unzipped/cacrl.der" % (secdir), "wb") as f:
             f.write(response.body)
         ca_util.convert_crl_to_pem(
             "%s/unzipped/cacrl.der" % (secdir), "%s/unzipped/cacrl.pem" % secdir)

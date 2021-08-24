@@ -30,7 +30,7 @@ def main(argv=sys.argv):
         # command line options can overwrite config values
         if each_file is not None:
 
-            with open(each_file) as input_file:
+            with open(each_file, encoding="utf-8") as input_file:
                 content = [x.strip() for x in input_file.readlines()]
                 index = 0
                 for each_value in content:
@@ -44,7 +44,7 @@ def main(argv=sys.argv):
                     the_list.append(float(each_value))
                     index = index + 1
 
-    with open(outfile, "w") as output_file:
+    with open(outfile, "w", encoding="utf-8") as output_file:
 
         index = 0
         for _, each_list in number_map.items():

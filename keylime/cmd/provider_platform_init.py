@@ -47,10 +47,10 @@ def main(argv=sys.argv):
             "\t nv_readvalue -pwdo <owner-password> -in 1000f000 -cert -of tpm_ekcert.der")
         sys.exit(-1)
 
-    f = open(argv[1], 'r')
+    f = open(argv[1], 'rb')
     ek = f.read()
     f.close()
-    f = open(argv[2], 'r')
+    f = open(argv[2], 'rb')
     ekcert = base64.b64encode(f.read())
     f.close()
 
@@ -82,7 +82,7 @@ def main(argv=sys.argv):
     }
 
     # store the key and the group UUID in a file to add to vtpms later
-    with open("group-%d-%s.tpm" % (group_num, group_uuid), 'w') as f:
+    with open(f"group-{group_num}-{group_uuid}.tpm", 'w', encoding="utf-8") as f:
         yaml.dump(output, f, Dumper=SafeDumper)
 
     logger.info("Activated VTPM group %d, UUID %s" % (group_num, group_uuid))

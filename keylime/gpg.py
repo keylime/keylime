@@ -15,7 +15,7 @@ def gpg_verify_filesignature(gpg_key_file, filename, gpg_sig_file, file_descript
        with the file (filename).
     """
     gpg = gnupg.GPG()
-    with open(gpg_key_file) as key_f:
+    with open(gpg_key_file, encoding="utf-8") as key_f:
         logger.debug("Importing GPG key %s", gpg_key_file)
         gpg_imported = gpg.import_keys(key_f.read())
         if gpg_imported.count == 1: # pylint: disable=E1101

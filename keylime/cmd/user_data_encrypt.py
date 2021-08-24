@@ -43,13 +43,13 @@ def main(argv=sys.argv):
         print("ERROR: File %s not found." % infile)
         usage()
 
-    f = open(infile, 'r')
+    f = open(infile, encoding="utf-8")
     contents = f.read()
 
     ret = encrypt(contents)
 
     print("Writing keys to content_keys.txt")
-    f = open('content_keys.txt', 'w')
+    f = open('content_keys.txt', 'w', encoding="utf-8")
     f.write(base64.b64encode(ret['k']).decode('utf-8'))
     f.write('\n')
     f.write(base64.b64encode(ret['v']).decode('utf-8'))
@@ -59,7 +59,7 @@ def main(argv=sys.argv):
     f.close()
 
     print("Writing encrypted data to content_payload.txt")
-    f = open('content_payload.txt', 'w')
+    f = open('content_payload.txt', 'w', encoding="utf-8")
     f.write(ret['ciphertext'].decode('utf-8'))
     f.close()
 
