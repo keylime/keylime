@@ -240,7 +240,7 @@ class Handler(BaseHTTPRequestHandler):
             shutil.rmtree("%s/unzipped" % secdir)
 
         # write out key file
-        f = open(secdir + "/" + self.server.enc_keyname, 'w')
+        f = open(secdir + "/" + self.server.enc_keyname, 'w', encoding="utf-8")
         f.write(base64.b64encode(self.server.K).decode())
         f.close()
 
@@ -609,7 +609,7 @@ def main():
             # load actions from unzipped
             action_list_path = os.path.join(secdir, "unzipped/action_list")
             if os.path.exists(action_list_path):
-                with open(action_list_path) as f:
+                with open(action_list_path, encoding="utf-8") as f:
                     actionlisttxt = f.read()
                 if actionlisttxt.strip() != "":
                     localactions = actionlisttxt.strip().split(',')

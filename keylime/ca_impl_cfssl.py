@@ -166,7 +166,7 @@ def mk_signed_cert(cacert, ca_pk, name, serialnum):
         # need to temporarily write out the private key with no password
         # to tmpfs
         ca_pk.save_key('%s/ca-key.pem' % secdir, None)
-        with open('%s/cfsslconfig.yml' % secdir, 'w') as f:
+        with open(os.path.join(secdir, 'cfsslconfig.yml'), 'w', encoding="utf-8") as f:
             json.dump(cfsslconfig, f)
 
         cmdline = "-config=%s/cfsslconfig.yml" % secdir
@@ -201,7 +201,7 @@ def gencrl(serials, cert, ca_pk):
         # need to temporarily write out the private key with no password
         # to tmpfs
         priv_key = os.path.abspath("%s/ca-key.pem" % secdir)
-        with open(priv_key, 'w') as f:
+        with open(priv_key, 'w', encoding="utf-8") as f:
             f.write(ca_pk)
         cmdline = " -ca-key %s -ca cacert.crt" % (priv_key)
 

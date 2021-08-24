@@ -74,7 +74,7 @@ def run_migrations_offline():
         file_ = "%s.sql" % name
         logger.info("Writing output to %s" % file_)
 
-        with open(file_, "w") as buffer:
+        with open(file_, "w", encoding="utf-8") as buffer:
             engine = DBEngineManager().make_engine(name)
             connection = engine.connect()
             context.configure(

@@ -182,19 +182,19 @@ def cmd_certpkg(workingdir, name, insecure=False):
         config.ch_dir(workingdir, logger)
         # zip up the crt, private key, and public key
 
-        with open('cacert.crt') as f:
+        with open('cacert.crt', 'rb') as f:
             cacert = f.read()
 
-        with open(f"{name}-public.pem") as f:
+        with open(f"{name}-public.pem", 'rb') as f:
             pub = f.read()
 
-        with open(f"{name}-cert.crt") as f:
+        with open(f"{name}-cert.crt", 'rb') as f:
             cert = f.read()
 
         with open('cacrl.der', 'rb') as f:
             crl = f.read()
 
-        with open('cacrl.pem') as f:
+        with open('cacrl.pem', 'rb') as f:
             crlpem = f.read()
 
         cert_obj = X509.load_cert_string(cert)
@@ -204,7 +204,7 @@ def cmd_certpkg(workingdir, name, insecure=False):
         priv = read_private()
         private = priv[0][name]
 
-        with open(f"{name}-private.pem") as f:
+        with open(f"{name}-private.pem", 'rb') as f:
             prot_priv = f.read()
 
         # no compression to avoid extraction errors in tmpfs
@@ -221,7 +221,7 @@ def cmd_certpkg(workingdir, name, insecure=False):
         if insecure:
             logger.warning(
                 "Unprotected private keys in cert package being written to disk")
-            with open('%s-pkg.zip' % name, 'w') as f:
+            with open(f'{name}-pkg.zip', 'wb') as f:
                 f.write(pkg)
         else:
             # actually output the package to disk with a protected private key
@@ -243,7 +243,7 @@ def cmd_certpkg(workingdir, name, insecure=False):
 
 def convert_crl_to_pem(derfile, pemfile):
     if config.get('general', 'ca_implementation') == 'openssl':
-        with open(pemfile, 'w') as f:
+        with open(pemfile, 'w', encoding="utf-8") as f:
             f.write("")
     else:
         cmd = ('openssl', 'crl', '-in', derfile, '-inform', 'der',
@@ -289,7 +289,7 @@ def cmd_revoke(workingdir, name=None, serial=None):
         serial = str(serial)
 
         # get the ca key cert and keys as strings
-        with open('cacert.crt') as f:
+        with open('cacert.crt', encoding="utf-8") as f:
             cacert = f.read()
         ca_pk = priv[0]['ca'].decode('utf-8')
 
@@ -320,7 +320,7 @@ def cmd_regencrl(workingdir):
         priv = read_private()
 
         # get the ca key cert and keys as strings
-        with open('cacert.crt') as f:
+        with open('cacert.crt', encoding="utf-8") as f:
             cacert = f.read()
         ca_pk = str(priv[0]['ca'])
 
@@ -453,7 +453,7 @@ def write_private(inp):
     ciphertext = crypto.encrypt(priv_encoded, key)
     towrite = {'salt': salt, 'priv': ciphertext}
 
-    with os.fdopen(os.open('private.yml', os.O_WRONLY | os.O_CREAT, 0o600), 'w') as f:
+    with os.fdopen(os.open('private.yml', os.O_WRONLY | os.O_CREAT, 0o600), 'w', encoding="utf-8") as f:
         yaml.dump(towrite, f, Dumper=SafeDumper)
 
 
@@ -464,7 +464,7 @@ def read_private(warn=False):
             "Please enter the password to decrypt your keystore: "))
 
     if os.path.exists('private.yml'):
-        with open('private.yml') as f:
+        with open('private.yml', encoding="utf-8") as f:
             toread = yaml.load(f, Loader=SafeLoader)
         key = crypto.kdf(global_password, toread['salt'])
         try:

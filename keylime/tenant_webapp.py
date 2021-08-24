@@ -381,7 +381,7 @@ class AgentsHandler(BaseHandler):
             if "pos" in rest_params and rest_params["pos"] is not None and rest_params["pos"].isdigit():
                 offset = int(rest_params["pos"])
             # intercept requests for logs
-            with open(keylime_logging.LOGSTREAM) as f:
+            with open(keylime_logging.LOGSTREAM, encoding="utf-8") as f:
                 logValue = f.readlines()
                 config.echo_json_response(self, 200, "Success", {
                                           'log': logValue[offset:]})

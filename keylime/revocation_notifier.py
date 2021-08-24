@@ -108,7 +108,7 @@ def await_notifications(callback, revocation_cert_path):
             if revocation_cert_path is not None and os.path.exists(revocation_cert_path):
                 logger.info(
                     "Lazy loading the revocation certificate from %s" % revocation_cert_path)
-                with open(revocation_cert_path) as f:
+                with open(revocation_cert_path, "rb") as f:
                     certpem = f.read()
                 cert_key = crypto.x509_import_pubkey(certpem)
 

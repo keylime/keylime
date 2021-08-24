@@ -20,7 +20,7 @@ def main(argv=sys.argv):
     for each_file in glob.glob(args.filename + "*.txt"):
         # command line options can overwrite config values
         if each_file is not None:
-            with open(each_file) as f:
+            with open(each_file, encoding="utf-8") as f:
                 content = [x.strip() for x in f.readlines()]
                 # remove last element (could be weird)
                 # del content[-1:]

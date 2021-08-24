@@ -28,7 +28,7 @@ def main(argv=sys.argv):
 
     cycle_quantity_per_second_list = []
 
-    with open(infile) as input_file:
+    with open(infile, encoding="utf-8") as input_file:
         content = [x.strip() for x in input_file.readlines()]
         index = 0
         for cycle_quantity_per_second in content:

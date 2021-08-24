@@ -21,7 +21,7 @@ FF_HASH = 'ffffffffffffffffffffffffffffffffffffffff'
 
 
 def ml_extend(ml, position, searchHash=None):
-    f = open(ml, 'r')
+    f = open(ml, encoding="utf-8")
     lines = itertools.islice(f, position, None)
 
     for line in lines:
@@ -87,7 +87,7 @@ def main():
 
     print("Monitoring %s" % (config.IMA_ML))
     poll_object = select.poll()
-    fd_object = open(config.IMA_ML, "r")
+    fd_object = open(config.IMA_ML, encoding="utf-8")
     number = fd_object.fileno()
     poll_object.register(fd_object, select.POLLIN | select.POLLPRI)
 
