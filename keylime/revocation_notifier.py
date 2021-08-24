@@ -11,6 +11,7 @@ import os
 import sys
 import signal
 
+import requests
 import simplejson as json
 import zmq
 
@@ -76,6 +77,36 @@ def notify(tosend):
 
     cb = functools.partial(worker, tosend)
     t = threading.Thread(target=cb)
+    t.start()
+
+
+def notify_webhook(tosend):
+    url = config.get('cloud_verifier', 'webhook_url', '')
+    # Check if a url was specified
+    if url == '':
+        return
+
+    def worker_webhook(tosend, url):
+        retry_interval = config.getfloat('cloud_verifier', 'retry_interval')
+        session = requests.session()
+        logger.info("Sending revocation event via webhook...")
+        for i in range(config.getint('cloud_verifier', 'max_retries')):
+            try:
+                response = session.post(url, json=tosend)
+                if response.status_code in [200, 202]:
+                    break
+
+                logger.debug(f"Unable to publish revocation message {i} times via webhook, "
+                             f"trying again in {retry_interval} seconds. "
+                             f"Server returned status code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                logger.debug(f"Unable to publish revocation message {i} times via webhook, "
+                             f"trying again in {retry_interval} seconds: {e} ")
+
+            time.sleep(retry_interval)
+
+    w = functools.partial(worker_webhook, tosend, url)
+    t = threading.Thread(target=w)
     t.start()
 
 
