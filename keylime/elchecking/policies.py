@@ -2,7 +2,7 @@ import abc
 import importlib
 import typing
 
-from .. import config
+from keylime import config
 
 from . import tests
 
@@ -93,7 +93,7 @@ def evaluate(policy_name: str, refstate: RefState, eventlog: tests.Data) -> str:
 
 
 imports = config.MEASUREDBOOT_IMPORTS
-print(f'importing {imports!r}, __package__={__package__!r}')
+#print(f'importing {imports!r}, __package__={__package__!r}')
 for imp in imports:
     if imp:
         importlib.import_module(imp, __package__)
