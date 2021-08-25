@@ -6,3 +6,4 @@
 
 # Basic policies are built in.
 # Additional policies are dynamically loaded according to config.
+from . import example
