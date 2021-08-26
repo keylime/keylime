@@ -27,6 +27,8 @@ import psutil
 
 import simplejson as json
 
+from cryptography.hazmat.primitives import serialization
+
 from keylime import config
 from keylime import keylime_logging
 from keylime import cmd_exec
@@ -39,6 +41,7 @@ from keylime import secure_mount
 from keylime import api_version as keylime_api_version
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
+from keylime.tpm.tpm2_objects import pubkey_from_tpm2b_public
 
 # Configure logger
 logger = keylime_logging.init_logging('cloudagent')
@@ -527,7 +530,10 @@ def main():
     if agent_uuid == 'openstack':
         agent_uuid = openstack.get_openstack_uuid()
     elif agent_uuid == 'hash_ek':
-        agent_uuid = hashlib.sha256(ek_tpm).hexdigest()
+        ek_pubkey = pubkey_from_tpm2b_public(base64.b64decode(ek_tpm))
+        ek_pubkey_pem = ek_pubkey.public_bytes(encoding=serialization.Encoding.PEM,
+                                               format=serialization.PublicFormat.SubjectPublicKeyInfo)
+        agent_uuid = hashlib.sha256(ek_pubkey_pem).hexdigest()
     elif agent_uuid == 'generate' or agent_uuid is None:
         agent_uuid = str(uuid.uuid4())
     elif agent_uuid == 'dmidecode':
