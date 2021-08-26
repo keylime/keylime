@@ -69,8 +69,7 @@ def evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data, pcrsInQuot
     try:
         reason = mb_policy.evaluate(mb_refstate_data, mb_measurement_data)
     except Exception as exn:
-        logger.error("Boot attestation for agent %s, configured policy %s, refstate=%s, raised Exception %s",
-            agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), str(exn))
+        reason= "policy evaluation failed: %s"%(str(exn))
     if reason:
         logger.error("Boot attestation failed for agent %s, configured policy %s, refstate=%s, reason=%s",
             agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), reason)
