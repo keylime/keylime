@@ -7,7 +7,7 @@ from . import tests
 # The Example class is an example of a policy for checking boot event logs
 # against reference state.  This policy checks:
 # - that SecureBoot was enabled
-# - that only good code was run
+# - that a good BIOS, shim, grub, and kernel were run
 # - that only good keys are allowed
 # - that all known bad keys are forbidden
 # - the initial ramdisk contents and kernel command line were good
@@ -116,7 +116,7 @@ class Example(policies.Policy):
                     kernel_cmdlines=tests.TupleTest(tests.RegExp('kernel_cmdline: ' + kernel['kernel_cmdline']))
                 ) for kernel in kernels]),
                 scrtm_and_bios_test),
-            'kernel_cmdlines', 'bsas', 'ipl9s', 's_crtms', 'post_codes', 'platform_firmware_blobs')
+            'kernel_cmdlines', 'bsas', 'ipl9s', 's_crtms', 'platform_firmware_blobs')
         dispatcher.set((0, 'EV_NO_ACTION'), tests.AcceptAll())
         dispatcher.set((0, 'EV_S_CRTM_VERSION'), events_final.get('s_crtms'))
         dispatcher.set((0, 'EV_EFI_PLATFORM_FIRMWARE_BLOB'),
