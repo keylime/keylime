@@ -20,6 +20,7 @@ from keylime import keylime_logging
 from keylime import ima_ast
 from keylime.agentstates import AgentAttestState
 from keylime import ima_file_signatures
+from keylime.failure import Failure, Component
 
 
 logger = keylime_logging.init_logging('ima')
@@ -77,39 +78,49 @@ def read_unpack(fd, fmt):
     return struct.unpack(fmt, fd.read(struct.calcsize(fmt)))
 
 
-def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, hash_types='hashes'):
-    if allowlist is not None and allowlist.get(hash_types) is not None:
+
+def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, hash_types='hashes') -> Failure:
+    failure = Failure(Component.IMA, ["validation", "ima-ng"])
+    if allowlist is not None:
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug("IMA: ignoring excluded path %s" % path)
-            return True
+            return failure
 
         accept_list = allowlist[hash_types].get(path.name, None)
         if accept_list is None:
-            logger.warning("Entry not found in allowlist: %s" % (path.name))
-            return False
+            logger.warning(f"File not found in allowlist: {path.name}")
+            failure.add_event("not_in_allowlist", f"File not found in allowlist: {path.name}", True)
+            return failure
 
         if codecs.encode(digest.hash, 'hex').decode('utf-8') not in accept_list:
             logger.warning("Hashes for file %s don't match %s not in %s" %
                            (path.name,
                             codecs.encode(digest.hash, 'hex').decode('utf-8'),
                             accept_list))
-            return False
+            failure.add_event(
+                "allowlist_hash",
+                {"message": "Hash not in allowlist found",
+                 "got": codecs.encode(digest.hash, 'hex').decode('utf-8'),
+                 "expected": accept_list}, True)
+            return failure
 
-    return True
+    return failure
 
 
 def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Digest, path: ima_ast.Name,
-                      signature: ima_ast.Signature):
+                      signature: ima_ast.Signature) -> Failure:
+    failure = Failure(Component.IMA, ["validator", "ima-sig"])
     valid_signature = False
     if ima_keyring and signature:
 
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug(f"IMA: ignoring excluded path {path.name}")
-            return True
+            return failure
 
         if not ima_keyring.integrity_digsig_verify(signature.data, digest.hash, digest.algorithm):
             logger.warning(f"signature for file {path.name} is not valid")
-            return False
+            failure.add_event("invalid_signature", f"signature for file {path.name} is not valid", True)
+            return failure
 
         valid_signature = True
         logger.debug("signature for file %s is good" % path)
@@ -124,9 +135,11 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
 
     # If we don't have a allowlist and don't have a keyring we just ignore the validation.
     if ima_keyring is None:
-        return True
+        return failure
 
-    return valid_signature
+    if not valid_signature:
+        failure.add_event("invalid_signature", f"signature for file {path.name} could not be validated", True)
+    return failure
 
 
 def _validate_ima_buf(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, data: ima_ast.Buffer):
@@ -136,10 +149,11 @@ def _validate_ima_buf(exclude_regex, allowlist, digest: ima_ast.Digest, path: im
         return _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='keyrings')
 
     # Anything else evaluates to true for now
-    return True
+    return Failure(Component.IMA)
 
 
 def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
+    failure = Failure(Component.IMA)
     running_hash = agentAttestState.get_pcr_state(config.IMA_PCR)
     found_pcr = (pcrval is None)
     errors = {}
@@ -190,7 +204,10 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
             # update hash
             running_hash = hashlib.sha1(running_hash + entry.template_hash).digest()
 
-            if not entry.valid():
+            validation_failure = entry.invalid()
+
+            if validation_failure:
+                failure.merge(validation_failure)
                 errors[type(entry.mode)] = errors.get(type(entry.mode), 0) + 1
 
             if not found_pcr:
@@ -208,6 +225,7 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
                 path = entry.mode.path.name
                 m2w.write(f"{hash_value} {path}\n")
         except ima_ast.ParserError:
+            failure.add_event("entry", f"Line was not parsable into a valid IMA entry: {line}", True, ["parser"])
             logger.error(f"Line was not parsable into a valid IMA entry: {line}")
 
     # iterative attestation may send us no log; compare last know PCR 10 state
@@ -217,30 +235,30 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
 
     # check PCR value has been found
     if not found_pcr:
-        logger.error("IMA measurement list does not match TPM PCR %s" % pcrval)
-        return None
+        logger.error(f"IMA measurement list does not match TPM PCR {pcrval}")
+        failure.add_event("pcr_mismatch", f"IMA measurement list does not match TPM PCR {pcrval}", True)
 
     # Check if any validators failed
     if sum(errors.values()) > 0:
         error_msg = "IMA ERRORS: Some entries couldn't be validated. Number of failures in modes: "
         error_msg += ", ".join([f'{k.__name__ } {v}' for k, v in errors.items()])
         logger.error(error_msg + ".")
-        return None
 
-    return codecs.encode(running_hash, 'hex').decode('utf-8')
+    return codecs.encode(running_hash, 'hex').decode('utf-8'), failure
 
 
 def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
-    result = None
+    failure = Failure(Component.IMA)
     try:
-        result = _process_measurement_list(agentAttestState, lines, lists=lists, m2w=m2w, pcrval=pcrval, ima_keyring=ima_keyring, boot_aggregates=boot_aggregates)
+        running_hash, failure = _process_measurement_list(agentAttestState, lines, lists=lists, m2w=m2w, pcrval=pcrval, ima_keyring=ima_keyring, boot_aggregates=boot_aggregates)
     except:  # pylint: disable=try-except-raise
         raise
     finally:
-        if not result:
+        if failure:
+            # TODO currently reset on any failure which might be an issue
             agentAttestState.reset_ima_attestation()
 
-    return result
+    return running_hash, failure
 
 
 def process_allowlists(allowlist, exclude):
