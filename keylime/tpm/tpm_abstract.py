@@ -22,6 +22,7 @@ from keylime import crypto
 from keylime import ima
 from keylime import measured_boot
 from keylime.common import algorithms
+from keylime.failure import Failure, Component
 
 logger = keylime_logging.init_logging('tpm')
 
@@ -204,15 +205,18 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     def __check_ima(self, agentAttestState, pcrval, ima_measurement_list, allowlist, ima_keyring, boot_aggregates):
+        failure = Failure(Component.IMA)
         logger.info("Checking IMA measurement list on agent: %s", agentAttestState.get_agent_id())
         if config.STUB_IMA:
             pcrval = None
-        ex_value = ima.process_measurement_list(agentAttestState, ima_measurement_list.split('\n'), allowlist, pcrval=pcrval, ima_keyring=ima_keyring, boot_aggregates=boot_aggregates)
-        if ex_value is None:
-            return False
 
-        logger.debug("IMA measurement list of agent %s validated", agentAttestState.get_agent_id())
-        return True
+        _, ima_failure = ima.process_measurement_list(agentAttestState, ima_measurement_list.split('\n'), allowlist,
+                                                      pcrval=pcrval, ima_keyring=ima_keyring,
+                                                      boot_aggregates=boot_aggregates)
+        failure.merge(ima_failure)
+        if not failure:
+            logger.debug("IMA measurement list of agent %s validated", agentAttestState.get_agent_id())
+        return failure
 
     def __parse_pcrs(self, pcrs, virtual) -> typing.Dict[int, str]:
         """Parses and validates the format of a list of PCR data"""
@@ -231,8 +235,9 @@ class AbstractTPM(metaclass=ABCMeta):
 
         return output
 
-    def check_pcrs(self, agentAttestState, tpm_policy, pcrs, data, virtual, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate_str):
-
+    def check_pcrs(self, agentAttestState, tpm_policy, pcrs, data, virtual, ima_measurement_list,
+                   allowlist, ima_keyring, mb_measurement_list, mb_refstate_str) -> Failure:
+        failure = Failure(Component.PCR_VALIDATION)
         if isinstance(tpm_policy, str):
             tpm_policy = json.loads(tpm_policy)
 
@@ -244,9 +249,8 @@ class AbstractTPM(metaclass=ABCMeta):
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
         mb_policy, mb_refstate_data = measured_boot.get_policy(mb_refstate_str)
-        mb_pcrs_sha256, boot_aggregates, mb_measurement_data, success = self.parse_mb_bootlog(mb_measurement_list)
-        if not success:
-            return False
+        mb_pcrs_sha256, boot_aggregates, mb_measurement_data, mb_failure = self.parse_mb_bootlog(mb_measurement_list)
+        failure.merge(mb_failure)
 
         pcrs_in_quote = set()  # PCRs in quote that were already used for some kind of validation
 
@@ -255,7 +259,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
         # Skip validation if TPM is stubbed.
         if config.STUB_TPM:
-            return True
+            return failure
 
         # Validate data PCR
         if config.TPM_DATA_PCR in pcr_nums and data is not None:
@@ -264,47 +268,57 @@ class AbstractTPM(metaclass=ABCMeta):
                 logger.error(
                     "%sPCR #%s: invalid bind data %s from quote does not match expected value %s",
                     ("", "v")[virtual], config.TPM_DATA_PCR, pcrs[config.TPM_DATA_PCR], expectedval)
-                return False
+                failure.add_event(f"invalid_pcr_{config.TPM_DATA_PCR}", {"got": pcrs[config.TPM_DATA_PCR], "expected": expectedval}, True)
             pcrs_in_quote.add(config.TPM_DATA_PCR)
         else:
             logger.error("Binding %sPCR #%s was not included in the quote, but is required", ("", "v")[virtual],
                          config.TPM_DATA_PCR)
-            return False
-
+            failure.add_event(f"missing_pcr_{config.TPM_DATA_PCR}", f"Data PCR {config.TPM_DATA_PCR} is missing in quote, but is required", True)
         # Check for ima PCR
         if config.IMA_PCR in pcr_nums:
             if ima_measurement_list is None:
                 logger.error("IMA PCR in policy, but no measurement list provided")
-                return False
-
-            if not self.__check_ima(agentAttestState, pcrs[config.IMA_PCR], ima_measurement_list, allowlist, ima_keyring,
-                                    boot_aggregates):
-                return False
+                failure.add_event(f"unused_pcr_{config.IMA_PCR}", "IMA PCR in policy, but no measurement list provided", True)
+            else:
+                ima_failure = self.__check_ima(agentAttestState, pcrs[config.IMA_PCR], ima_measurement_list, allowlist, ima_keyring,
+                                        boot_aggregates)
+                failure.merge(ima_failure)
 
             pcrs_in_quote.add(config.IMA_PCR)
 
-        # Handle measured boot PCRs
-        for pcr_num in set(config.MEASUREDBOOT_PCRS) & pcr_nums:
-            if mb_refstate_data:
-                if not mb_measurement_list:
-                    logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcr_num)
-                    return False
+        # Collect mismatched measured boot PCRs as measured_boot failures
+        mb_pcr_failure = Failure(Component.MEASURED_BOOT)
+        # Handle measured boot PCRs only if the parsing worked
+        if not mb_failure:
+            for pcr_num in set(config.MEASUREDBOOT_PCRS) & pcr_nums:
+                if mb_refstate_data:
+                    if not mb_measurement_list:
+                        logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcr_num)
+                        failure.add_event(f"unused_pcr_{pcr_num}",
+                                          f"Measured Boot PCR {pcr_num} in policy, but no measurement list provided", True)
+                        continue
 
-                val_from_log_int = mb_pcrs_sha256.get(str(pcr_num), 0)
-                val_from_log_hex = hex(val_from_log_int)[2:]
-                val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
-                pcrval_stripped = pcrs[pcr_num].lstrip('0')
-                if val_from_log_hex_stripped != pcrval_stripped:
-                    logger.error(
-                        "For PCR %d and hash SHA256 the boot event log has value %r but the agent returned %r",
-                        pcr_num, val_from_log_hex, pcrs[pcr_num])
-                    return False
-                if pcr_num in pcr_allowlist and pcrs[pcr_num] not in pcr_allowlist[pcr_num]:
-                    logger.error(
-                        "%sPCR #%s: %s from quote does not match expected value %s",
-                        ("", "v")[virtual], pcr_num, pcrs[pcr_num], pcr_allowlist[pcr_num])
-                    return False
-                pcrs_in_quote.add(pcr_num)
+                    val_from_log_int = mb_pcrs_sha256.get(str(pcr_num), 0)
+                    val_from_log_hex = hex(val_from_log_int)[2:]
+                    val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
+                    pcrval_stripped = pcrs[pcr_num].lstrip('0')
+                    if val_from_log_hex_stripped != pcrval_stripped:
+                        logger.error(
+                            "For PCR %d and hash SHA256 the boot event log has value %r but the agent returned %r",
+                            pcr_num, val_from_log_hex, pcrs[pcr_num])
+                        mb_pcr_failure.add_event(f"invalid_pcr_{pcr_num}",
+                                                 {"context": "SHA256 boot event log PCR value does not match",
+                                                  "got": pcrs[pcr_num], "expected": val_from_log_hex}, True)
+
+                    if pcr_num in pcr_allowlist and pcrs[pcr_num] not in pcr_allowlist[pcr_num]:
+                        logger.error(
+                            "%sPCR #%s: %s from quote does not match expected value %s",
+                            ("", "v")[virtual], pcr_num, pcrs[pcr_num], pcr_allowlist[pcr_num])
+                        failure.add_event(f"invalid_pcr_{pcr_num}",
+                                          {"context": "PCR value is not in allowlist",
+                                           "got": pcrs[pcr_num], "expected": pcr_allowlist[pcr_num]}, True)
+                    pcrs_in_quote.add(pcr_num)
+        failure.merge(mb_pcr_failure)
 
         # Check the remaining non validated PCRs
         for pcr_num in pcr_nums - pcrs_in_quote:
@@ -315,22 +329,23 @@ class AbstractTPM(metaclass=ABCMeta):
             if pcrs[pcr_num] not in pcr_allowlist[pcr_num]:
                 logger.error("%sPCR #%s: %s from quote does not match expected value %s",
                              ("", "v")[virtual], pcr_num, pcrs[pcr_num], pcr_allowlist[pcr_num])
-                return False
+                failure.add_event(f"invalid_pcr_{pcr_num}",
+                                  {"context": "PCR value is not in allowlist",
+                                   "got": pcrs[pcr_num], "expected": pcr_allowlist[pcr_num]}, True)
 
             pcrs_in_quote.add(pcr_num)
 
         missing = set(pcr_allowlist.keys()) - pcrs_in_quote
         if len(missing) > 0:
             logger.error("%sPCRs specified in policy not in quote: %s", ("", "v")[virtual], missing)
-            return False
+            failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": missing}, True)
 
-        if mb_refstate_data:
-            success = measured_boot.evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data,
+        if not mb_failure and mb_refstate_data:
+            mb_policy_failure = measured_boot.evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data,
                                                     pcrs_in_quote, ("", "v")[virtual], agentAttestState.get_agent_id())
-            if not success:
-                return False
+            failure.merge(mb_policy_failure)
 
-        return True
+        return failure
 
     # tpm_nvram
     @abstractmethod
