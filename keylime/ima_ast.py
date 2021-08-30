@@ -17,6 +17,7 @@ import dataclasses
 
 from typing import Dict, Callable, Any, Optional
 from keylime import keylime_logging
+from keylime.failure import Failure, Component
 
 logger = keylime_logging.init_logging("ima")
 
@@ -39,7 +40,9 @@ class Validator:
         validator = self.functions.get(class_type, None)
         if validator is None:
             logger.warning(f"No validator was implemented for: {class_type} . Using always false validator!")
-            return lambda *_: False
+            failure = Failure(Component.IMA, ["validation"])
+            failure.add_event("no_validator", f"No validator was implemented for: {class_type} . Using always false validator!", True)
+            return lambda *_: failure
         return validator
 
 
@@ -305,14 +308,22 @@ class Entry:
         if self.template_hash == START_HASH:
             self.template_hash = FF_HASH
 
-    def valid(self):
+    def invalid(self):
+        failure = Failure(Component.IMA, ["validation"])
         # Ignore template hash for ToMToU errors
         if self.template_hash == FF_HASH:
             logger.warning("Skipped template_hash validation entry with FF_HASH")
-            return self.mode.is_data_valid(self.validator)
+            failure.add_event("tomtou", "hash validation was skipped", True)
+            failure.merge(self.mode.is_data_valid(self.validator))
+            return failure
         if self.template_hash != self.mode.hash():
-            return False
+            failure.add_event("ima_hash",
+                              {"message": "IMA hash does not match the calculated hash.",
+                               "expected": self.template_hash, "got": self.mode.hash()}, True)
+            return failure
         if self.validator is None:
-            return False
+            failure.add_event("no_validator", "No validator specified", True)
+            return failure
 
-        return self.mode.is_data_valid(self.validator)
+        failure.merge(self.mode.is_data_valid(self.validator))
+        return failure
