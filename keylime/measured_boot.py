@@ -10,7 +10,7 @@ import traceback
 
 from keylime import config
 from keylime import keylime_logging
-
+from keylime.failure import Failure, Component
 logger = keylime_logging.init_logging('measured_boot')
 
 def read_mb_refstate(mb_path=None):
@@ -61,11 +61,12 @@ def get_policy(mb_refstate_str):
 
     return mb_policy, mb_refstate_data
 
-def evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data, pcrsInQuote, pcrPrefix, agent_id):
+def evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data, pcrsInQuote, pcrPrefix, agent_id) -> Failure:
+    failure = Failure(Component.MEASURED_BOOT)
     missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
     if len(missing) > 0:
         logger.error("%sPCRs specified for measured boot not in quote: %s", pcrPrefix, missing)
-        return False
+        failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": missing}, True)
     try:
         reason = mb_policy.evaluate(mb_refstate_data, mb_measurement_data)
     except Exception as exn:
@@ -73,8 +74,10 @@ def evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data, pcrsInQuot
     if reason:
         logger.error("Boot attestation failed for agent %s, configured policy %s, refstate=%s, reason=%s",
             agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), reason)
-        return False
-    return True
+        failure.add_event("policy",
+                          {"context": "Boot attestation failed", "policy": config.MEASUREDBOOT_POLICYNAME,
+                           "refstate": mb_refstate_data, "reason": reason}, True)
+    return failure
 
 def main():
     parser = argparse.ArgumentParser()
