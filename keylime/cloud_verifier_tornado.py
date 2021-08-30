@@ -27,6 +27,7 @@ from keylime import revocation_notifier
 from keylime import tornado_requests
 from keylime import api_version as keylime_api_version
 from keylime.ima_ast import START_HASH
+from keylime.failure import MAX_SEVERITY_LABEL, Failure, Component
 
 logger = keylime_logging.init_logging('cloudverifier')
 
@@ -702,6 +703,7 @@ class AllowlistHandler(BaseHandler):
 
 
 async def invoke_get_quote(agent, need_pubkey):
+    failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
         raise Exception("agent deleted while being processed")
     params = cloud_verifier_common.prepare_get_quote(agent)
@@ -724,7 +726,8 @@ async def invoke_get_quote(agent, need_pubkey):
         else:
             # catastrophic error, do not continue
             logger.critical("Unexpected Get Quote response error for cloud agent %s, Error: %s", agent['agent_id'], response.status_code)
-            asyncio.ensure_future(process_agent(agent, states.FAILED))
+            failure.add_event("no_quote", "Unexpected Get Quote reponse from agent", False)
+            asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
     else:
         try:
             json_response = json.loads(response.body)
@@ -733,13 +736,14 @@ async def invoke_get_quote(agent, need_pubkey):
             if 'provide_V' not in agent :
                 agent['provide_V'] = True
             agentAttestState = get_AgentAttestStates().get_by_agent_id(agent['agent_id'])
-            if cloud_verifier_common.process_quote_response(agent, json_response['results'], agentAttestState):
+            failure = cloud_verifier_common.process_quote_response(agent, json_response['results'], agentAttestState)
+            if not failure:
                 if agent['provide_V']:
                     asyncio.ensure_future(process_agent(agent, states.PROVIDE_V))
                 else:
                     asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
             else:
-                asyncio.ensure_future(process_agent(agent, states.INVALID_QUOTE))
+                asyncio.ensure_future(process_agent(agent, states.INVALID_QUOTE, failure))
 
             # store the attestation state
             store_attestation_state(agentAttestState)
@@ -749,6 +753,7 @@ async def invoke_get_quote(agent, need_pubkey):
 
 
 async def invoke_provide_v(agent):
+    failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
         raise Exception("Agent deleted while being processed")
     try:
@@ -769,18 +774,19 @@ async def invoke_provide_v(agent):
         else:
             # catastrophic error, do not continue
             logger.critical("Unexpected Provide V response error for cloud agent %s, Error: %s", agent['agent_id'], response.status_code)
-            asyncio.ensure_future(process_agent(agent, states.FAILED))
+            failure.add_event("no_v", {"message": "Unexpected provide V response", "data": response.error}, False)
+            asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
     else:
         asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
 
 
-async def process_agent(agent, new_operational_state):
+async def process_agent(agent, new_operational_state, failure=Failure(Component.INTERNAL, ["verifier"])):
     # Convert to dict if the agent arg is a db object
     if not isinstance(agent, dict):
         agent = _from_db_obj(agent)
 
     session = get_session()
-    try:
+    try:  # pylint: disable=R1702
         main_agent_operational_state = agent['operational_state']
         try:
             stored_agent = session.query(VerfierMain).filter_by(
@@ -808,24 +814,28 @@ async def process_agent(agent, new_operational_state):
         # If failed during processing, log regardless and drop it on the floor
         # The administration application (tenant) can GET the status and act accordingly (delete/retry/etc).
         if new_operational_state in (states.FAILED, states.INVALID_QUOTE):
-            agent['operational_state'] = new_operational_state
+            assert failure, "States FAILED and INVALID QUOTE should only be reached with a failure message"
 
-            # issue notification for invalid quotes
-            if new_operational_state == states.INVALID_QUOTE:
-                cloud_verifier_common.notify_error(agent)
+            if agent.get('severity_level') is None or agent['severity_level'] < failure.highest_severity.severity:
+                agent['severity_level'] = failure.highest_severity.severity
+                agent['last_event_id'] = failure.highest_severity_event.event_id
+                agent['operational_state'] = new_operational_state
 
-            if agent['pending_event'] is not None:
-                tornado.ioloop.IOLoop.current().remove_timeout(
-                    agent['pending_event'])
-            for key in exclude_db:
-                if key in agent:
-                    del agent[key]
-            session.query(VerfierMain).filter_by(
-                agent_id=agent['agent_id']).update(agent)
-            session.commit()
+                # issue notification for invalid quotes
+                if new_operational_state == states.INVALID_QUOTE:
+                    cloud_verifier_common.notify_error(agent, event=failure.highest_severity_event)
 
-            logger.warning("Agent %s failed, stopping polling", agent['agent_id'])
-            return
+                # When the failure is irrecoverable we stop polling the agent
+                if not failure.recoverable or failure.highest_severity == MAX_SEVERITY_LABEL:
+                    if agent['pending_event'] is not None:
+                        tornado.ioloop.IOLoop.current().remove_timeout(
+                            agent['pending_event'])
+                    for key in exclude_db:
+                        if key in agent:
+                            del agent[key]
+                    session.query(VerfierMain).filter_by(
+                        agent_id=agent['agent_id']).update(agent)
+                    session.commit()
 
         # propagate all state, but remove none DB keys first (using exclude_db)
         try:
@@ -839,6 +849,16 @@ async def process_agent(agent, new_operational_state):
             session.commit()
         except SQLAlchemyError as e:
             logger.error('SQLAlchemy Error: %s', e)
+
+        # If agent was in a failed state we check if we either stop polling
+        # or just add it again to the event loop
+        if new_operational_state in [states.FAILED, states.INVALID_QUOTE]:
+            if not failure.recoverable or failure.highest_severity == MAX_SEVERITY_LABEL:
+                logger.warning("Agent %s failed, stopping polling", agent['agent_id'])
+                return
+
+            await invoke_get_quote(agent, False)
+            return
 
         # if new, get a quote
         if (main_agent_operational_state == states.START and
@@ -876,12 +896,13 @@ async def process_agent(agent, new_operational_state):
                 new_operational_state == states.GET_QUOTE_RETRY):
             if agent['num_retries'] >= maxr:
                 logger.warning("Agent %s was not reachable for quote in %d tries, setting state to FAILED", agent['agent_id'], maxr)
+                failure.add_event("not_reachable", "agent was not reachable from verifier", False)
                 if agent['first_verified']:  # only notify on previously good agents
                     cloud_verifier_common.notify_error(
-                        agent, msgtype='comm_error')
+                        agent, msgtype='comm_error', event=failure.highest_severity_event)
                 else:
                     logger.debug("Communication error for new agent. No notification will be sent")
-                await process_agent(agent, states.FAILED)
+                await process_agent(agent, states.FAILED, failure)
             else:
                 agent['operational_state'] = states.GET_QUOTE
                 cb = functools.partial(invoke_get_quote, agent, True)
@@ -894,9 +915,10 @@ async def process_agent(agent, new_operational_state):
                 new_operational_state == states.PROVIDE_V_RETRY):
             if agent['num_retries'] >= maxr:
                 logger.warning("Agent %s was not reachable to provide v in %d tries, setting state to FAILED", agent['agent_id'], maxr)
+                failure.add_event("not_reachable_v", "agent was not reachable to provide V", False)
                 cloud_verifier_common.notify_error(
-                    agent, msgtype='comm_error')
-                await process_agent(agent, states.FAILED)
+                    agent, msgtype='comm_error', event=failure.highest_severity_event)
+                await process_agent(agent, states.FAILED, failure)
             else:
                 agent['operational_state'] = states.PROVIDE_V
                 cb = functools.partial(invoke_provide_v, agent)

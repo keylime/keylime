@@ -46,6 +46,8 @@ class VerfierMain(Base):
     ima_pcrs = Column(JSONPickleType(pickler=json))
     pcr10 = Column(LargeBinary)
     next_ima_ml_entry = Column(Integer)
+    severity_level = Column(Integer, nullable=True)
+    last_event_id = Column(String(200), nullable=True)
 
 
 class VerifierAllowlist(Base):
