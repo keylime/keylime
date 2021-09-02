@@ -8,6 +8,9 @@ import unittest
 import sys
 from pathlib import Path
 
+from cryptography import exceptions as crypto_exceptions
+from cryptography.hazmat.primitives.asymmetric import padding
+
 from keylime import ca_impl_openssl
 
 # Useful constants for the test
@@ -25,8 +28,20 @@ class OpenSSL_Test(unittest.TestCase):
         (ca_cert, ca_pk, _) = ca_impl_openssl.mk_cacert()
         cert, _ = ca_impl_openssl.mk_signed_cert(ca_cert, ca_pk, "cert", 4)
 
-        self.assertTrue(cert.verify(ca_cert.get_pubkey()))
+        pubkey = ca_cert.public_key()
+        try:
+            pubkey.verify(
+                cert.signature,
+                cert.tbs_certificate_bytes,
+                padding.PKCS1v15(),
+                cert.signature_hash_algorithm,
+            )
+        except crypto_exceptions.InvalidSignature:
+            self.fail("Certificate signature validation failed.")
 
+        # Make sure serial number in cert is 4.
+        self.assertIs(type(cert.serial_number), int)
+        self.assertEqual(cert.serial_number, 4)
 
 if __name__ == '__main__':
     unittest.main()
