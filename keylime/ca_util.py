@@ -40,7 +40,12 @@ except ImportError:
     from yaml import SafeLoader, SafeDumper
 
 import simplejson as json
-from M2Crypto import X509, EVP, BIO
+
+from cryptography import exceptions as crypto_exceptions
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 
 from keylime import cmd_exec
 from keylime import config
@@ -62,6 +67,14 @@ else:
 
 global_password = None
 
+def load_cert_by_path(cert_path):
+    cert = None
+    with open(cert_path, 'rb') as ca_file:
+        cert = x509.load_pem_x509_certificate(
+            data=ca_file.read(),
+            backend=default_backend(),
+        )
+    return cert
 
 def setpassword(pw):
     global global_password
@@ -75,40 +88,47 @@ def cmd_mkcert(workingdir, name):
     try:
         config.ch_dir(workingdir, logger)
         priv = read_private()
-        cacert = X509.load_cert('cacert.crt')
-        ca_pk = EVP.load_key_string(priv[0]['ca'])
+        cacert = load_cert_by_path('cacert.crt')
+        ca_pk = serialization.load_pem_private_key(priv[0]['ca'], password=None)
 
         cert, pk = ca_impl.mk_signed_cert(
             cacert, ca_pk, name, priv[0]['lastserial'] + 1)
 
         with open('%s-cert.crt' % name, 'wb') as f:
-            f.write(cert.as_pem())
+            f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-        f = BIO.MemoryBuffer()
-        pk.save_key_bio(f, None)
-        priv[0][name] = f.getvalue()
-        f.close()
+        priv[0][name] = pk.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
 
         # increment serial number after successful creation
         priv[0]['lastserial'] += 1
 
         write_private(priv)
 
-        # write out the private key with password
         with os.fdopen(os.open("%s-private.pem" % name, os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
-            biofile = BIO.File(f)
-            pk.save_key_bio(biofile, None)
-            biofile.close()
+            f.write(priv[0][name])
 
-        pk.get_rsa().save_pub_key('%s-public.pem' % name)
+        with os.fdopen(os.open("%s-public.pem" % name, os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
+            f.write(pk.public_key().public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ))
 
-        cc = X509.load_cert('%s-cert.crt' % name)
+        cc = load_cert_by_path('%s-cert.crt' % name)
+        pubkey = cacert.public_key()
+        pubkey.verify(
+            cc.signature,
+            cc.tbs_certificate_bytes,
+            padding.PKCS1v15(),
+            cc.signature_hash_algorithm,
+        )
 
-        if cc.verify(cacert.get_pubkey()):
-            logger.info(
-                f"Created certificate for name {name} successfully in {workingdir}")
-        else:
-            logger.error("ERROR: Cert does not validate against CA")
+        logger.info(f"Created certificate for name {name} successfully in {workingdir}")
+    except crypto_exceptions.InvalidSignature:
+        logger.error("ERROR: Cert does not validate against CA")
     finally:
         os.chdir(cwd)
 
@@ -124,23 +144,18 @@ def cmd_init(workingdir):
         rmfiles("*.der")
         rmfiles("private.yml")
 
-        if config.CA_IMPL == 'cfssl':
-            pk_str, cacert, ca_pk, _ = ca_impl.mk_cacert()
-        elif config.CA_IMPL == 'openssl':
-            cacert, ca_pk, _ = ca_impl.mk_cacert()  # pylint: disable=W0632
-        else:
-            raise Exception("Unknown CA implementation: %s" % config.CA_IMPL)
-
+        cacert, ca_pk, _ = ca_impl.mk_cacert()  # pylint: disable=W0632
         priv = read_private()
 
         # write out keys
         with open('cacert.crt', 'wb') as f:
-            f.write(cacert.as_pem())
+            f.write(cacert.public_bytes(serialization.Encoding.PEM))
 
-        f = BIO.MemoryBuffer()
-        ca_pk.save_key_bio(f, None)
-        priv[0]['ca'] = f.getvalue()
-        f.close()
+        priv[0]['ca'] = ca_pk.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
 
         # store the last serial number created.
         # the CA is always serial # 1
@@ -148,15 +163,15 @@ def cmd_init(workingdir):
 
         write_private(priv)
 
-        ca_pk.get_rsa().save_pub_key('ca-public.pem')
+        with os.fdopen(os.open("ca-public.pem", os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
+            f.write(ca_pk.public_key().public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ))
 
         # generate an empty crl
-        if config.CA_IMPL == 'cfssl':
-            crl = ca_impl.gencrl([], cacert.as_pem(), pk_str)
-        elif config.CA_IMPL == 'openssl':
-            crl = ca_impl.gencrl([], cacert.as_pem(), str(priv[0]['ca']))
-        else:
-            raise Exception("Unknown CA implementation: %s" % config.CA_IMPL)
+        cacert_str = cacert.public_bytes(serialization.Encoding.PEM).decode()
+        crl = ca_impl.gencrl([], cacert_str, priv[0]['ca'].decode())
 
         if isinstance(crl, str):
             crl = crl.encode('utf-8')
@@ -166,12 +181,18 @@ def cmd_init(workingdir):
         convert_crl_to_pem("cacrl.der", "cacrl.pem")
 
         # Sanity checks...
-        cac = X509.load_cert('cacert.crt')
-        if cac.verify():
-            logger.info("CA certificate created successfully in %s" %
-                        workingdir)
-        else:
-            logger.error("ERROR: Cert does not self validate")
+        cac = load_cert_by_path('cacert.crt')
+        pubkey = cacert.public_key()
+        pubkey.verify(
+            cac.signature,
+            cac.tbs_certificate_bytes,
+            padding.PKCS1v15(),
+            cac.signature_hash_algorithm,
+        )
+
+        logger.info(f"CA certificate created successfully in {workingdir}")
+    except crypto_exceptions.InvalidSignature:
+        logger.error("ERROR: Cert does not self validate")
     finally:
         os.chdir(cwd)
 
@@ -197,9 +218,13 @@ def cmd_certpkg(workingdir, name, insecure=False):
         with open('cacrl.pem', 'rb') as f:
             crlpem = f.read()
 
-        cert_obj = X509.load_cert_string(cert)
-        serial = cert_obj.get_serial_number()
-        subject = str(cert_obj.get_subject())
+        cert_obj = x509.load_pem_x509_certificate(
+            data=cert,
+            backend=default_backend(),
+        )
+
+        serial = cert_obj.serial_number
+        subject = cert_obj.subject.rfc4514_string()
 
         priv = read_private()
         private = priv[0][name]
@@ -252,19 +277,19 @@ def convert_crl_to_pem(derfile, pemfile):
 
 
 def get_crl_distpoint(cert_path):
-    cert_obj = X509.load_cert(cert_path)
-    text = cert_obj.as_text()
-    incrl = False
-    distpoint = ""
-    for line in text.split('\n'):
-        line = line.strip()
-        if line.startswith("X509v3 CRL Distribution Points:"):
-            incrl = True
-        if incrl and line.startswith("URI:"):
-            distpoint = line[4:]
-            break
+    cert_obj = load_cert_by_path(cert_path)
 
-    return distpoint
+    try:
+        crl_distpoints = cert_obj.extensions.get_extension_for_class(x509.CRLDistributionPoints).value
+        for dstpnt in crl_distpoints:
+            for point in dstpnt.full_name:
+                if isinstance(point, x509.general_name.UniformResourceIdentifier):
+                    return point.value
+
+    except x509.extensions.ExtensionNotFound:
+        pass
+    logger.info(f"No CRL distribution points in {cert_path}")
+    return ""
 
 # to check: openssl crl -inform DER -text -noout -in cacrl.der
 
@@ -282,8 +307,8 @@ def cmd_revoke(workingdir, name=None, serial=None):
             raise Exception("You must specify a cert or a serial to revoke")
         if name is not None:
             # load up the cert
-            cert = X509.load_cert("%s-cert.crt" % name)
-            serial = cert.get_serial_number()
+            cert = load_cert_by_path(f'{name}-cert.crt')
+            serial = cert.serial_number
 
         # convert serial to string
         serial = str(serial)
@@ -322,7 +347,7 @@ def cmd_regencrl(workingdir):
         # get the ca key cert and keys as strings
         with open('cacert.crt', encoding="utf-8") as f:
             cacert = f.read()
-        ca_pk = str(priv[0]['ca'])
+        ca_pk = priv[0]['ca'].decode()
 
         crl = ca_impl.gencrl(priv[0]['revoked_keys'], cacert, ca_pk)
 

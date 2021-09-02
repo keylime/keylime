@@ -13,7 +13,10 @@ import sys
 
 import requests
 import simplejson as json
-from M2Crypto import EVP, X509
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 
 from keylime import config
 from keylime import keylime_logging
@@ -64,7 +67,7 @@ def start_cfssl(cmdline=""):
     env['PATH'] = env['PATH'] + ":/usr/local/bin"
 
     # make sure cfssl isn't running
-    os.system('pkill -f cfssl')
+    os.system('pkill -x cfssl')
 
     cfsslproc = subprocess.Popen(cmd, env=env, shell=True, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, universal_newlines=True)
@@ -85,12 +88,21 @@ def stop_cfssl():
     global cfsslproc
     if cfsslproc is not None:
         cfsslproc.kill()
-        os.system("pkill -f cfssl")
+        cfsslproc.communicate()
+        os.system("pkill -x cfssl")
         cfsslproc = None
 
 
-def mk_cacert():
-    csr = {"CN": config.get('ca', 'cert_ca_name'),
+def mk_cacert(name=None):
+    """
+    Make a CA certificate.
+    Returns the certificate, private key and public key.
+    """
+
+    if name is None:
+        name = config.get("ca", "cert_ca_name")
+
+    csr = {"CN": name,
            "key": {
                "algo": "rsa",
                "size": config.getint('ca', 'cert_bits')
@@ -112,19 +124,21 @@ def mk_cacert():
         stop_cfssl()
 
     if body['success']:
-        pk_str = body['result']['private_key']
-        pk = EVP.load_key_string(body['result']['private_key'].encode('utf-8'))
-        cert = X509.load_cert_string(
-            body['result']['certificate'].encode('utf-8'))
-        pkey = cert.get_pubkey()
-
-        return pk_str, cert, pk, pkey
+        privkey = serialization.load_pem_private_key(
+            body['result']['private_key'].encode('utf-8'),
+            password=None,
+        )
+        cert = x509.load_pem_x509_certificate(
+            data=body['result']['certificate'].encode('utf-8'),
+            backend=default_backend(),
+        )
+        return cert, privkey, cert.public_key()
 
     raise Exception("Unable to create CA")
 
 
 def mk_signed_cert(cacert, ca_pk, name, serialnum):
-    del cacert, serialnum
+    del serialnum
     csr = {"request": {
         "CN": name,
         "hosts": [
@@ -164,15 +178,27 @@ def mk_signed_cert(cacert, ca_pk, name, serialnum):
     secdir = secure_mount.mount()
     try:
         # need to temporarily write out the private key with no password
-        # to tmpfs
-        ca_pk.save_key('%s/ca-key.pem' % secdir, None)
+        # to tmpfs.
+        with os.fdopen(os.open(f"{secdir}/ca-key.pem", os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
+            f.write(ca_pk.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+                )
+            )
+
         with open(os.path.join(secdir, 'cfsslconfig.yml'), 'w', encoding="utf-8") as f:
             json.dump(cfsslconfig, f)
 
+        with open(f"{secdir}/cacert.crt", 'wb') as f:
+            f.write(cacert.public_bytes(serialization.Encoding.PEM))
+
         cmdline = "-config=%s/cfsslconfig.yml" % secdir
 
-        priv_key = os.path.abspath("%s/ca-key.pem" % secdir)
-        cmdline += " -ca-key %s -ca cacert.crt" % (priv_key)
+        privkey_path = os.path.abspath(f"{secdir}/ca-key.pem")
+        cacert_path = os.path.abspath(f"{secdir}/cacert.crt")
+
+        cmdline += f" -ca-key {privkey_path} -ca {cacert_path}"
 
         start_cfssl(cmdline)
         body = post_cfssl('api/v1/cfssl/newcert', csr)
@@ -180,11 +206,17 @@ def mk_signed_cert(cacert, ca_pk, name, serialnum):
         stop_cfssl()
         os.remove('%s/ca-key.pem' % secdir)
         os.remove('%s/cfsslconfig.yml' % secdir)
+        os.remove('%s/cacert.crt' % secdir)
 
     if body['success']:
-        pk = EVP.load_key_string(body['result']['private_key'].encode('utf-8'))
-        cert = X509.load_cert_string(
-            body['result']['certificate'].encode("utf-8"))
+        pk = serialization.load_pem_private_key(
+            body['result']['private_key'].encode('utf-8'),
+            password=None,
+        )
+        cert = x509.load_pem_x509_certificate(
+            data=body['result']['certificate'].encode('utf-8'),
+            backend=default_backend(),
+        )
         return cert, pk
 
     raise Exception("Unable to create cert for %s" % name)
@@ -200,10 +232,15 @@ def gencrl(serials, cert, ca_pk):
     try:
         # need to temporarily write out the private key with no password
         # to tmpfs
-        priv_key = os.path.abspath("%s/ca-key.pem" % secdir)
-        with open(priv_key, 'w', encoding="utf-8") as f:
+        privkey_path = os.path.abspath(f"{secdir}/ca-key.pem")
+        with open(privkey_path, 'w', encoding="utf-8") as f:
             f.write(ca_pk)
-        cmdline = " -ca-key %s -ca cacert.crt" % (priv_key)
+
+        cacert_path = os.path.abspath(f"{secdir}/cacert.crt")
+        with open(cacert_path, 'w', encoding="utf-8") as f:
+            f.write(cert)
+
+        cmdline = f" -ca-key {privkey_path} -ca {cacert_path}"
 
         start_cfssl(cmdline)
         body = post_cfssl('api/v1/cfssl/gencrl', request)
@@ -211,7 +248,9 @@ def gencrl(serials, cert, ca_pk):
     finally:
         stop_cfssl()
         # replace with srm
-        os.remove('%s/ca-key.pem' % secdir)
+        os.remove(privkey_path)
+        os.remove(cacert_path)
+
 
     if body['success']:
         retval = base64.b64decode(body['result'])

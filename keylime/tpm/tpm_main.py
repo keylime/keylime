@@ -15,8 +15,12 @@ import zlib
 import codecs
 from distutils.version import StrictVersion
 
-import M2Crypto
+from cryptography import exceptions as crypto_exceptions
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization as crypto_serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography import x509
+
 import simplejson as json
 
 from keylime import cmd_exec
@@ -846,18 +850,33 @@ class tpm(tpm_abstract.AbstractTPM):
         """
         # openssl x509 -inform der -in certificate.cer -out certificate.pem
         try:
-            ek509 = M2Crypto.X509.load_cert_der_string(ekcert)
+            ek509 = x509.load_der_x509_certificate(
+                data=ekcert,
+                backend=default_backend(),
+            )
 
             trusted_certs = tpm_ek_ca.cert_loader()
             for cert in trusted_certs:
-                signcert = M2Crypto.X509.load_cert_string(cert)
-                if str(ek509.get_issuer()) != str(signcert.get_subject()):
+                signcert = x509.load_pem_x509_certificate(
+                    data=cert.encode(),
+                    backend=default_backend(),
+                )
+
+                if ek509.issuer.rfc4514_string() != signcert.subject.rfc4514_string():
                     continue
 
-                signkey = signcert.get_pubkey()
-                if ek509.verify(signkey) == 1:
-                    logger.debug("EK cert matched cert: %s" % cert)
-                    return True
+                try:
+                    signcert.public_key().verify(
+                        ek509.signature,
+                        ek509.tbs_certificate_bytes,
+                        padding.PKCS1v15(),
+                        ek509.signature_hash_algorithm,
+                    )
+                except crypto_exceptions.InvalidSignature:
+                    continue
+
+                logger.debug("EK cert matched cert: %s" % cert)
+                return True
         except Exception as e:
             # Log the exception so we don't lose the raw message
             logger.exception(e)

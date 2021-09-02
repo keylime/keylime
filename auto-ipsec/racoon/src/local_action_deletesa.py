@@ -7,13 +7,16 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 
 import os
-from M2Crypto import X509
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 import keylime.secure_mount as secure_mount
 import keylime.keylime_logging as keylime_logging
 import keylime.config as common
 import keylime.keylime_logging as keylime_logging
 import keylime.cmd_exec as cmd_exec
+import keylime.ca_util as ca_util
 
 import simplejson as json
 
@@ -31,7 +34,7 @@ async def execute(revocation):
 
     # load up the ca cert
     secdir = secure_mount.mount()
-    ca = X509.load_cert('%s/unzipped/cacert.crt' % secdir)
+    ca = ca_util.load_cert_by_path(f'{secdir}/unzipped/cacert.crt')
 
     # need to find any sa's that were established with that cert serial
     cmd = ('racoonctl', 'show-sa', 'ipsec')
@@ -43,13 +46,23 @@ async def execute(revocation):
             certder = cmd_exec.run(cmd, raiseOnError=False)['retout']
             if len(certder) == 0:
                 continue
-            certobj = X509.load_cert_der_string(b''.join(certder))
 
-            # check that CA is the same.  the strip indexing bit is to remove the stuff around it 'keyid:THEACTUALKEYID\n'
-            if ca.get_ext('subjectKeyIdentifier').get_value() != certobj.get_ext('authorityKeyIdentifier').get_value().strip()[6:]:
+            try:
+                certobj = x509.load_der_x509_certificate(
+                    data=b''.join(certder),
+                    backend=default_backend(),
+                )
+
+                # check that CA is the same.
+                ca_keyid = ca.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_KEY_IDENTIFIER).value.digest
+                cert_authkeyid = certobj.extensions.get_extension_for_oid(x509.oid.ExtensionOID.AUTHORITY_KEY_IDENTIFIER).value.key_identifier
+            except (ValueError, x509.extensions.ExtensionNotFound):
                 continue
 
-            if certobj.get_serial_number() == serial:
+            if ca_keyid != cert_authkeyid:
+                continue
+
+            if certobj.serial_number == serial:
                 deletelist.add(line.strip())
 
     for todelete in deletelist:

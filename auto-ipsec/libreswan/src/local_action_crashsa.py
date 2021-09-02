@@ -6,7 +6,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import os
-from M2Crypto import X509
 
 import keylime.secure_mount as secure_mount
 import keylime.config as common
