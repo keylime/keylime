@@ -34,22 +34,18 @@ Run the example playbook against your target remote host(s)::
 TPM Version Control (Software TPM)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Ansible Keylime Soft TPM** provides two role types for both 1.2 and 2.0 TPM
+**Ansible Keylime Soft TPM** provides a role type for 2.0 TPM
 versions.
 
-Either TPM version 1.2 or TPM 2.0 support can be configured by simply changing
+TPM 2.0 support can be configured by simply adding
 the role in the `playbook.yml` file `here <https://github.com/keylime/ansible-keylime/blob/master/playbook.yml#L11>`_
 
 For TPM 2.0 use::
 
     - ansible-keylime-tpm20
 
-For TPM 1.20 use::
 
-    - ansible-keylime-tpm12
-
-Both roles will deploy the relevant TPM 1.2 Emulator (tpm4720) or 2.0 Emulator
-(IBM software TPM).
+This rule uses the TPM 2.0 Emulator (IBM software TPM).
 
 Vagrant
 ~~~~~~~
@@ -103,7 +99,7 @@ cargo to run::
 Keylime Bash installer
 ----------------------
 
-Keylime requires Python 2.7.10 or newer for proper TLS support.
+Keylime requires Python 3.7 for dataclasses support.
 
 Installation can be performed via an automated shell script, `installer.sh`. The
 following command line options are available::
@@ -121,74 +117,68 @@ following command line options are available::
 Note that CFSSL is required if you want to support revocation. As noted above, do not use
 the TPM emulator option `-s` in production systems.
 
-Docker (Development Only)
--------------------------
+Docker - Deployment
+--------------------
 
-Python Keylime and related emulators can also be deployed using Docker.
-Since this docker configuration currently uses a TPM emulator,
-it should only be used for development or testing and NOT in production.
+The verifier, registrar and tenant can also be deployed using Docker images.
+Keylime's offical images can be found `here <https://github.com/orgs/keylime/packages>`_.
+Those are automatically generated for every commit and release.
+
+For building those images locally see
+`here <https://github.com/keylime/keylime/blob/master/docker/release/build_locally.sh>`_.
+
+
+Docker - Development
+--------------------
+
+Python Keylime and with a TPM emulator can also be deployed using Docker.
+Since this docker configuration uses a TPM emulator, it should only be
+used for development or testing and NOT in production.
 
 Please see either the Dockerfiles
-`here <https://github.com/keylime/keylime/tree/master/docker>`_ or our
+`here <https://github.com/keylime/keylime/tree/master/docker/ci>`_ or our
 local CI script
 `here <https://github.com/keylime/keylime/blob/master/.ci/run_local.sh>`_
-which will automate the build and pull of Keylime on TPM 1.2 or 2.0.
+which will automate the build and pull of Keylime.
 
 Manual
 ------
 
-Keylime requires Python 2.7.10 or newer for proper TLS support.  This is newer than
-some LTS distributions like Ubuntu 14.04 or CentOS 7.  See google for instructions
-on how to get a newer Python onto those platforms.
+Keylime requires Python 3.7 or newer to work properly out of the box because older versions do not support dataclasses.
 
 Python-based prerequisites
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. note::
-    The following outlines installing Keylime under the Python 2 environment,
-    work is underway to port Keylime to Python 3.
-
 The following Python packages are required:
 
-* python-cryptography>=????
-* tornado>=4.3
+
+* cryptography>=3.3.2
+* tornado>=5.0.2
 * m2crypto>=0.21.1
 * pyzmq>=14.4
-* setuptools>=0.7
-* python-dev
-* pyyaml
+* pyyaml>=3.11
+* simplejson>=3.8
+* requests>=2.6
+* sqlalchemy>=1.3
+* alembic>=1.1.0
+* python-gnupg>=0.4.6
+* packaging>=16.0
+* psutil>=5.4.2
 
-The latter of these are usually available as distro packages. See `installer.sh <https://github.com/keylime/keylime/blob/master/installer.sh>`_
+
+The current list of required packages can be found `here <https://github.com/keylime/keylime/blob/master/requirements.txt>`_.
+
+All of them should be available as distro packages. See `installer.sh <https://github.com/keylime/keylime/blob/master/installer.sh>`_
 for more information if you want to install them this way. You can also let Keylime's `setup.py`
 install them via PyPI.
 
-TPM 1.2 Support
-~~~~~~~~~~~~~~~
-
-You also need a patched version of tpm4720 the IBM software TPM emulator and
-utilities.  This is available `here <https://github.com/keylime/tpm4720-keylime>`_
-Even if you are using Keylime with a real TPM, you must install the IBM emulator
-because Keylime uses the command line utilities that come with it.
-See README.md in that project for detailed instructions on how to build and install it.
-
-The brief synopsis of a quick build/install (after installing dependencies) is::
-
-    git clone https://github.com/keylime/tpm4720-keylime.git
-    cd tpm4720-keylime/libtpm
-    ./comp-chardev.sh
-    sudo make install
-
-To build tpm4720 to use the TPM emulator replace `./comp-chardev.sh` with `./comp-sockets.sh`.
-
-To ensure that you have the patched version installed ensure that you have
-the `encaik` utility in your path.
 
 TPM 2.0 Support
 ~~~~~~~~~~~~~~~
 
 Keylime uses the Intel TPM2 software set to provide TPM 2.0 support.  You will
-need to install the tpm2-tss software stack (available `here <https://github.com/tpm2-software/tpm2-tss>`_) as well as a patched version of the
-tpm2-tools utilities available `here <https://github.com/keylime/tpm2-tools>`_.
+need to install the tpm2-tss software stack (available `here <https://github.com/tpm2-software/tpm2-tss>`_) and
+tpm2-tools utilities available `here <https://github.com/tpm2-software/tpm2-tools>`_.
 See README.md in these projects for detailed instructions on how to build and install.
 
 The brief synopsis of a quick build/install (after installing dependencies) is::
@@ -202,7 +192,7 @@ The brief synopsis of a quick build/install (after installing dependencies) is::
     sudo make install
     popd
     # tpm2-tools
-    git clone https://github.com/keylime/tpm2-tools.git tpm2-tools
+    git clone https://github.com/tpm2-software/tpm2-tools.git tpm2-tools
     pushd tpm2-tools
     ./bootstrap
     ./configure --prefix=/usr/local
@@ -210,50 +200,27 @@ The brief synopsis of a quick build/install (after installing dependencies) is::
     sudo make install
 
 
-To ensure that you have the patched version installed ensure that you have
+To ensure that you have the recent version installed ensure that you have
 the `tpm2_checkquote` utility in your path.
 
-TPM 2.0 Resource Manager
-~~~~~~~~~~~~~~~~~~~~~~~~
+.. note::
+    Keylime by default (all versions after 6.2.0) uses the kernel TPM resource
+    manager. For kernel versions older than 4.12 we recommend to use the tpm2-abrmd
+    resource manager (available `here <https://github.com/tpm2-software/tpm2-abrmd>`_).
 
-Note that it is recommended that you use the tpm2-abrmd resource manager
-(available `here <https://github.com/tpm2-software/tpm2-abrmd>`_) as well instead of
-communicating directly with the TPM.  See README.md at that project for
-detailed instructions on how to build and install.
+How the TPM is accessed by tpm2-tools can be set using the `TPM2TOOLS_TCTI` environment
+variable. More information about that can be found
+`here <https://github.com/tpm2-software/tpm2-tools/blob/master/man/common/tcti.md>`_.
 
-A brief, workable example for Debian-based systems, such as Ubuntu 18.4 LTS is::
+Talk to the swtpm emulator directly::
 
-    sudo useradd --system --user-group tss
-    git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
-    pushd tpm2-abrmd
-    ./bootstrap
-    ./configure --with-dbuspolicydir=/etc/dbus-1/system.d \
-                --with-systemdsystemunitdir=/lib/systemd/system \
-                --with-systemdpresetdir=/lib/systemd/system-preset \
-                --datarootdir=/usr/share
-    make
-    sudo make install
-    sudo ldconfig
-    sudo pkill -HUP dbus-daemon
-    sudo systemctl daemon-reload
-    sudo service tpm2-abrmd start
-    export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
+    export TPM2TOOLS_TCTI="mssim:port=2321"
 
-# NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as::
 
-    sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
-
-Alternatively, it is also possible, though not recommended, to communicate
-directly with the TPM (and not use a resource manager).  This can be done by
-setting the environment var `TPM2TOOLS_TCTI` to the appropriate value:
-
-To talk directly to the swtpm2 emulator::
-
-    export TPM2TOOLS_TCTI="mssim:port=2321"`
-
-To talk directly to a real TPM::
+To talk to the TPM directly (not recommended)::
 
     export TPM2TOOLS_TCTI="device:/dev/tpm0"
+
 
 Install Keylime
 ~~~~~~~~~~~~~~~
@@ -261,16 +228,6 @@ Install Keylime
 You're finally ready to install Keylime::
 
     sudo python setup.py install
-
-To run on OSX 10.11+
-~~~~~~~~~~~~~~~~~~~~
-
-You need to build m2crypto from source with::
-
-    brew install openssl
-    git clone https://gitlab.com/m2crypto/m2crypto.git
-    python setup.py build build_ext --openssl=/usr/local/opt/openssl/
-    sudo -E python setup.py install build_ext --openssl=/usr/local/opt/openssl/
 
 
 Optional Requirements
@@ -301,13 +258,13 @@ SQLite
 
 The following illustrates examples for SQLite and PostgreSQL::
 
-    drivername = sqlite
-    username = ''
-    password = ''
-    host = ''
-    port = ''
-    database = cv_data.sqlite
-    query = ''
+    database_drivername = sqlite
+    database_username = ''
+    database_password = ''
+    database_host = ''
+    database_port = ''
+    database_database = cv_data.sqlite
+    database_query = ''
 
 PostgreSQL
 ~~~~~~~~~~
@@ -315,13 +272,13 @@ PostgreSQL
 For PostgreSQL you will need to install the database first and set up a user
 account::
 
-    drivername = postgres
-    username = keylime
-    password = allyourbase
-    host = localhost
-    port = 5432
-    database = keylime_db
-    query = ''
+    database_drivername = postgres
+    database_username = keylime
+    database_password = allyourbase
+    database_host = localhost
+    database_port = 5432
+    database_database = keylime_db
+    database_query = ''
 
 For details on other platforms, please refer to the SQLAlchemy documentation
 on `engine configuration <https://docs.sqlalchemy.org/en/13/core/engines.html>`_.
