@@ -613,7 +613,7 @@ class Tenant():
             logger.error("POST command response: %s Unexpected response from Cloud Verifier: %s", response.status_code, response.text)
             sys.exit()
 
-    def do_cvstatus(self, listing=False, returnresponse=False, bulk=False):
+    def do_status(self, listing=False, returnresponse=False, bulk=False):
         """ Perform opertional state look up for agent
 
         Keyword Arguments:
@@ -656,8 +656,22 @@ class Tenant():
             sys.exit()
 
         if response.status_code == 404:
-            logger.error("Agent %s does not exist on the verifier. Please try to add or update agent", agent_uuid)
-            sys.exit()
+            # If the agent cannot found check if it is added to the registrar
+            # only if the state of one single agent should be displayed.
+            if listing or bulk or returnresponse:
+                logger.error("Agent %s does not exist on the verifier. Please try to add or update agent", agent_uuid)
+                sys.exit()
+
+            registrar_client.init_client_tls('tenant')
+            agent_data = registrar_client.getData(self.registrar_ip, self.registrar_port, agent_uuid)
+
+            if not agent_data:
+                logger.error("Agent %s does not exist on the registrar. Please register the agent with the registrar.",
+                             agent_uuid)
+                sys.exit()
+
+            logger.info('Agent Status: "%s"', states.state_to_str(states.REGISTERED))
+            return None
 
         if response.status_code != 200:
             logger.error("Status command response: %s. Unexpected response from Cloud Verifier.", response.status_code)
@@ -684,7 +698,7 @@ class Tenant():
     def do_cvdelete(self, verifier_check=True):
         """Delete agent from Verifier."""
         if verifier_check:
-            agent_json = self.do_cvstatus(listing=False, returnresponse=True)
+            agent_json = self.do_status(listing=False, returnresponse=True)
             self.verifier_ip = agent_json["verifier_ip"]
             self.verifier_port = agent_json["verifier_port"]
 
@@ -747,7 +761,7 @@ class Tenant():
     def do_cvreactivate(self, verifier_check=True):
         """Reactive Agent."""
         if verifier_check:
-            agent_json = self.do_cvstatus(listing=False, returnresponse=True)
+            agent_json = self.do_status(listing=False, returnresponse=True)
             self.verifier_ip = agent_json['verifier_ip']
             self.verifier_port = agent_json['verifier_port']
 
@@ -1237,11 +1251,11 @@ def main(argv=sys.argv):
     elif args.command == 'delete':
         mytenant.do_cvdelete(args.verifier_check)
     elif args.command == 'status':
-        mytenant.do_cvstatus()
+        mytenant.do_status()
     elif args.command == 'bulkinfo':
-        mytenant.do_cvstatus(bulk=True)
+        mytenant.do_status(bulk=True)
     elif args.command == 'list':
-        mytenant.do_cvstatus(listing=True)
+        mytenant.do_status(listing=True)
     elif args.command == 'reactivate':
         mytenant.do_cvreactivate(args.verifier_check)
     elif args.command == 'reglist':
