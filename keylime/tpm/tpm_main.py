@@ -45,7 +45,8 @@ def _get_cmd_env():
         lib_path = env['LD_LIBRARY_PATH']
     if 'TPM2TOOLS_TCTI' not in env:
         # Don't clobber existing setting (if present)
-        env['TPM2TOOLS_TCTI'] = 'tabrmd:bus_name=com.intel.tss2.Tabrmd'
+        env['TPM2TOOLS_TCTI'] = 'device:/dev/tpmrm0'
+        # env['TPM2TOOLS_TCTI'] = 'tabrmd:bus_name=com.intel.tss2.Tabrmd'
         # Other (not recommended) options are direct emulator and chardev communications:
         # env['TPM2TOOLS_TCTI'] = 'mssim:port=2321'
         # env['TPM2TOOLS_TCTI'] = 'device:/dev/tpm0'
