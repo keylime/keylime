@@ -5,6 +5,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import base64
 import binascii
+import hashlib
 import os
 import re
 import sys
@@ -1264,43 +1265,39 @@ class tpm(tpm_abstract.AbstractTPM):
         log['pcrs'] = new_pcrs
         return
 
-    def __add_boot_aggregate(self, tssevent_output: list, log: dict) -> None :
-        '''
-        Parses the output of `tsseventextend` and add it to log fed by the output
-        `tpm2_eventlog`
-        '''
-        _hash_alg = None
-        _boot_agg = None
-        log['boot_aggregates'] = {}
-        for _entry in tssevent_output :
-            for _line in _entry['retout'] :
-                _line = _line.decode('utf-8')
-                if _line.count("algorithmId") :
-                    _hash_alg = _line.split('_')[-1].replace('\n','').lower()
-                if _hash_alg and _hash_alg not in log['boot_aggregates'] :
-                    log['boot_aggregates'][_hash_alg] = []
-                if _line.count("boot aggregate") :
-                    _boot_agg = _line.split(':')[-1].replace('\n','').replace(' ', '')
-                if _boot_agg and _boot_agg not in log['boot_aggregates'][_hash_alg] :
-                    log['boot_aggregates'][_hash_alg].append(_boot_agg)
-                    _boot_agg = None
+    def __add_boot_aggregate(self, log: dict) -> None :
+        '''Scan the boot event log and calculate possible boot aggregates.
 
+        Hashes are calculated for both sha1 and sha256,
+        as well as for 8 or 10 participant PCRs.
+
+        Technically the sha1/10PCR combination is unnecessary, since it has no
+        implementation.
+
+        Error conditions caused by improper string formatting etc. are
+        ignored. The current assumption is that the boot event log PCR
+        values are in decimal encoding, but this is liable to change.
+        '''
+        log['boot_aggregates'] = {}
+        for hashalg in log['pcrs'].keys():
+            log['boot_aggregates'][hashalg] = []
+            for maxpcr in [8,10]:
+                try:
+                    h = eval('hashlib.' + hashalg + '()')
+                    for pcrno in range(0,maxpcr):
+                        pcrstrg=log['pcrs'][hashalg][str(pcrno)]
+                        pcrhex= '{0:0{1}x}'.format(pcrstrg, h.digest_size*2)
+                        h.update(bytes.fromhex(pcrhex))
+                    log['boot_aggregates'][hashalg].append(h.hexdigest())
+                except:
+                    pass
+                
     def parse_binary_bootlog(self, log_bin:bytes) -> dict:
         '''Parse and enrich a BIOS boot log
 
         The input is the binary log.
         The output is the result of parsing and applying other conveniences.'''
-        retDict_tss = []
-        with tempfile.NamedTemporaryFile() as log_bin_file:
-            log_bin_file.write(log_bin)
-            log_bin_filename = log_bin_file.name
-            retDict_tpm2 = self.__run(['tpm2_eventlog', '--eventlog-version=2', log_bin_filename])
-            # Unfortunately, in order to acommodate older kernels and older versions of grub (mixed)
-            # we are required to calculate boot aggregates taking into account PCRs 0-7 and 0-9
-            for pcrno in [ "7", "9" ] :
-                retDict_tss.append(self.__run(['tsseventextend', '-sim', '-if',  log_bin_filename, '-pcrmax', pcrno]))
-        log_parsed_strs = retDict_tpm2['retout']
-        log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False)
+        log_parsed_data = {}
         #pylint: disable=import-outside-toplevel
         try:
             from keylime import tpm_bootlog_enrich
@@ -1310,7 +1307,7 @@ class tpm(tpm_abstract.AbstractTPM):
         #pylint: enable=import-outside-toplevel
         tpm_bootlog_enrich.enrich(log_parsed_data)
         self.__stringify_pcr_keys(log_parsed_data)
-        self.__add_boot_aggregate(retDict_tss, log_parsed_data)
+        self.__add_boot_aggregate(log_parsed_data)
         return log_parsed_data
 
     def _parse_mb_bootlog(self, log_b64:str) -> dict:
