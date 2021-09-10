@@ -98,7 +98,7 @@ case "$ID" in
                     PYTHON_DEPS+=" efivar-libs"
                 fi
                 BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel libuuid-devel json-c-devel"
-                #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools tpm2-abrmd" TODO: still on 3.1.1 tpm2_tools
+                #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools" TODO: still on 3.1.1 tpm2_tools
                 NEED_BUILD_TOOLS=1
                 NEED_PYTHON_DIR=1
                 POWERTOOLS="--enablerepo=PowerTools install autoconf-archive"
@@ -121,7 +121,7 @@ case "$ID" in
         GOPKG="golang"
         if [[ ${VERSION_ID} -ge 30 ]] ; then
         # if fedora 30 or greater, then using TPM2 tool packages
-            TPM2_TOOLS_PKGS="tpm2-tools tpm2-tss tpm2-abrmd tss2"
+            TPM2_TOOLS_PKGS="tpm2-tools tpm2-tss tss2"
             NEED_BUILD_TOOLS=0
             HAS_GO_PKG=1
         else
@@ -429,8 +429,6 @@ if [[ ! -z $TPM2_TOOLS_PKGS ]] ; then
         echo "ERROR: Package(s) failed to install properly!"
         exit 1
     fi
-    systemctl enable tpm2-abrmd
-    systemctl start tpm2-abrmd
 else
     echo
     echo "=================================================================================="
@@ -453,33 +451,6 @@ else
 #            echo "ERROR: tpm2-tss failed to build and install properly!"
 #            exit 1
 #        fi
-
-    # Example installation instructions for using the tpm2-abrmd resource
-    # manager for Ubuntu 18 LTS. The tools and Keylime could run without this
-    # by directly communicating with the TPM (though not recommended) by setting:
-    # for swtpm2 emulator:
-    #   export TPM2TOOLS_TCTI="mssim:port=2321"
-    # for chardev communication:
-    #   export TPM2TOOLS_TCTI="device:/dev/tpm0"
-    #
-    # sudo useradd --system --user-group tss
-    # git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
-    # pushd tpm2-abrmd
-    # ./bootstrap
-    # ./configure --with-dbuspolicydir=/etc/dbus-1/system.d \
-    #             --with-systemdsystemunitdir=/lib/systemd/system \
-    #             --with-systemdpresetdir=/lib/systemd/system-preset \
-    #             --datarootdir=/usr/share
-    # make
-    # sudo make install
-    # sudo ldconfig
-    # sudo pkill -HUP dbus-daemon
-    # sudo systemctl daemon-reload
-    # sudo service tpm2-abrmd start
-    # export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
-    #
-    # NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as:
-    # sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
 
     echo
     echo "=================================================================================="
@@ -527,9 +498,6 @@ if [[ "$TPM_SOCKET" -eq "1" ]] ; then
     install -c tpm_server /usr/local/bin/tpm_server
 
     popd # tpm/swtpm2
-    sed -i 's/.*ExecStart.*/ExecStart=\/usr\/sbin\/tpm2-abrmd --tcti=mssim/' /usr/lib/systemd/system/tpm2-abrmd.service
-    systemctl daemon-reload
-    systemctl restart tpm2-abrmd
 fi
 
 if [[ "$TPM_SOCKET" -eq "1" ]] ; then
@@ -614,16 +582,17 @@ if [[ "$TPM_SOCKET" -eq "1" ]] ; then
     fi
 
     echo "=================================================================================="
-    echo $'\tWARNING: If not using abrmd you need to set the var:'
+    echo $'\tWARNING: Please set the env var for accessing the TPM:'
     echo $'\tTPM2TOOLS_TCTI="mssim:port=2321"'
     echo "=================================================================================="
 
     # disable ek cert checking
     sed -i 's/require_ek_cert = True/require_ek_cert = False/' /etc/keylime.conf
 else
-    # this just warns, and doesn't set the env var because they might be using abrmd
+    # Warn that we don't use abrmd anymore.
     echo "=================================================================================="
-    echo $'\tWARNING: If not using abrmd, you need to set the var:'
-    echo $'\tTPM2TOOLS_TCTI=="device:/dev/tpm0"'
+    echo $'\tWARNING: Keylime uses /dev/tpmrm0 by default.'
+    echo $'\t         If you want to use abrmd set:'
+    echo $'\tTPM2TOOLS_TCTI=="tabrmd:bus_name=com.intel.tss2.Tabrmd"'
     echo "=================================================================================="
 fi
