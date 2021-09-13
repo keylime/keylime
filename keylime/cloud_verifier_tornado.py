@@ -759,7 +759,7 @@ async def invoke_provide_v(agent):
     v_json_message = cloud_verifier_common.prepare_v(agent)
     version = keylime_api_version.current_version()
     res = tornado_requests.request(
-        "POST", "http://%s:%d/%s/keys/vkey" % (agent['ip'], agent['port'], version), data=v_json_message)
+        "POST", "http://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], version), data=v_json_message)
     response = await res
 
     if response.status_code != 200:
@@ -768,7 +768,7 @@ async def invoke_provide_v(agent):
                 process_agent(agent, states.PROVIDE_V_RETRY))
         else:
             # catastrophic error, do not continue
-            logger.critical("Unexpected Provide V response error for cloud agent %s, Error: %s", agent['agent_id'], response.error)
+            logger.critical("Unexpected Provide V response error for cloud agent %s, Error: %s", agent['agent_id'], response.status_code)
             asyncio.ensure_future(process_agent(agent, states.FAILED))
     else:
         asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
