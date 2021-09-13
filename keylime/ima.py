@@ -391,8 +391,11 @@ def read_excllist(exclude_path=None):
     excl_list = []
     if os.path.exists(exclude_path):
         with open(exclude_path, encoding="utf-8") as f:
-            excl_list = f.read()
-        excl_list = excl_list.splitlines()
+            for line in f :
+                line = line.strip()
+                if line.startswith('#') or len(line) == 0:
+                    continue
+                excl_list.append(line)
 
         logger.debug("Loaded exclusion list from %s: %s" %
                      (exclude_path, excl_list))
