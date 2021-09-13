@@ -684,6 +684,8 @@ class Tenant():
                     if not bulk:
                         operational_state = response_json["results"]["operational_state"]
                         logger.info('Agent Status: "%s"', states.state_to_str(operational_state))
+                        logger.info('Agent severity level: "%s"', response_json["results"]["severity_level"])
+                        logger.info('Agent last event id: "%s"', response_json["results"]["last_event_id"])
                     else:
                         for agent in response_json["results"].keys():
                             response_json["results"][agent]["operational_state"] = states.state_to_str(response_json["results"][agent]["operational_state"])
