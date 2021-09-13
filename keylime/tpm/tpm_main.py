@@ -1278,6 +1278,7 @@ class tpm(tpm_abstract.AbstractTPM):
         ignored. The current assumption is that the boot event log PCR
         values are in decimal encoding, but this is liable to change.
         '''
+        if (not isinstance(log, dict)) or 'pcrs' not in log: return
         log['boot_aggregates'] = {}
         for hashalg in log['pcrs'].keys():
             log['boot_aggregates'][hashalg] = []
