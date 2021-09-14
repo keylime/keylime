@@ -1277,21 +1277,23 @@ class tpm(tpm_abstract.AbstractTPM):
         Error conditions caused by improper string formatting etc. are
         ignored. The current assumption is that the boot event log PCR
         values are in decimal encoding, but this is liable to change.'''
-        if (not isinstance(log, dict)) or 'pcrs' not in log: return
+        if (not isinstance(log, dict)) or 'pcrs' not in log:
+            return
         log['boot_aggregates'] = {}
         for hashalg in log['pcrs'].keys():
             log['boot_aggregates'][hashalg] = []
             for maxpcr in [8,10]:
                 try:
-                    h = eval('hashlib.' + hashalg + '()')
+                    hashclass = getattr(hashlib,hashalg)
+                    h = hashclass()
                     for pcrno in range(0,maxpcr):
                         pcrstrg=log['pcrs'][hashalg][str(pcrno)]
                         pcrhex= '{0:0{1}x}'.format(pcrstrg, h.digest_size*2)
                         h.update(bytes.fromhex(pcrhex))
                     log['boot_aggregates'][hashalg].append(h.hexdigest())
-                except:
+                except Exception:
                     pass
-                
+
     def parse_binary_bootlog(self, log_bin:bytes) -> dict:
         '''Parse and enrich a BIOS boot log
 
