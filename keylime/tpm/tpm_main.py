@@ -1276,8 +1276,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
         Error conditions caused by improper string formatting etc. are
         ignored. The current assumption is that the boot event log PCR
-        values are in decimal encoding, but this is liable to change.
-        '''
+        values are in decimal encoding, but this is liable to change.'''
         if (not isinstance(log, dict)) or 'pcrs' not in log: return
         log['boot_aggregates'] = {}
         for hashalg in log['pcrs'].keys():
@@ -1298,7 +1297,12 @@ class tpm(tpm_abstract.AbstractTPM):
 
         The input is the binary log.
         The output is the result of parsing and applying other conveniences.'''
-        log_parsed_data = {}
+        with tempfile.NamedTemporaryFile() as log_bin_file:
+            log_bin_file.write(log_bin)
+            log_bin_filename = log_bin_file.name
+            retDict_tpm2 = self.__run(['tpm2_eventlog', '--eventlog-version=2', log_bin_filename])
+        log_parsed_strs = retDict_tpm2['retout']
+        log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False)
         #pylint: disable=import-outside-toplevel
         try:
             from keylime import tpm_bootlog_enrich
