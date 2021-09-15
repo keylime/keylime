@@ -44,8 +44,7 @@ def rsa_import_privkey(privkey):
 
 
 def x509_import_pubkey(pubkey):
-    key = x509.load_pem_x509_certificate(
-        pubkey.encode('utf-8'), backend=default_backend())
+    key = x509.load_pem_x509_certificate(pubkey, backend=default_backend())
     return key.public_key()
 
 
