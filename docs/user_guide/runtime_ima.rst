@@ -51,19 +51,25 @@ Keylime IMA allowlists
 ----------------------
 
 An allowlist is a set of "golden" cryptographic hashes of a files un-tampered
-state.
+state or of keys that may be loaded onto keyrings.
 
 The structure of the allowlist is a hash followed by a full POSIX path to the
 file::
 
   ffe3ad4c395985d143bd0e45a9a1dd09aac21b91 /path/to/file
 
+For a key that is expected to be loaded on a keyring with the name .ima an entry
+may look like this::
+
+  b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c %keyring:.ima
+
 Keylime will load the allowlist into the Keylime Verifier. Keylime will then
 poll tpm quotes to `PCR 10` on the agents TPM and validate the agents file(s)
-state against the allowlist. If the object has been tampered with, the hashes
-will not match and Keylime will place the agent into a failed state. Likewise,
-if any files invoke the actions stated in `ima-policy` that are not matched in
-the allowlist, keylime will place the agent into a failed state.
+state against the allowlist. If the object has been tampered with or an
+unexpected key was loaded onto a keyring, the hashes will not match and Keylime
+will place the agent into a failed state. Likewise, if any files invoke the actions
+stated in `ima-policy` that are not matched in the allowlist, keylime will place
+the agent into a failed state.
 
 Generate an allowlist
 ~~~~~~~~~~~~~~~~~~~~
@@ -102,6 +108,24 @@ those found in Perl. Note that this syntax is different from POSIX basic
 regular expressions. For example the `tmp` directory can be ignored using::
 
   /tmp/.*
+
+Allowlist entries for keys
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Allowlist entries for keys expected to be loaded onto keyrings can be generated
+by hashing the files of keys like this::
+
+   sha256sum /etc/keys/ima/rsakey-rsa.crt.der
+
+As previously shown, the allowlist entry should be formed of the hash (sha256) and
+the prefix '%keyring:' in front of the keyring the key will be loaded onto::
+
+  b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c %keyring:.ima
+
+The following rule should be added to the IMA policy so that IMA reports keys
+loaded onto keyrings .ima and .evm (since Linux 5.6)::
+
+   measure func=KEY_CHECK keyrings=.ima|.evm
 
 
 Remotely Provision Agents
