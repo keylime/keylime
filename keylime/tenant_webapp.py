@@ -347,7 +347,7 @@ class AgentsHandler(BaseHandler):
 
         inst_response_body = response.json()
 
-        if response.status_code != 200 and response.status_code != 404:
+        if response.status_code not in [200, 404]:
             logger.error("Status command response: %d Unexpected response from Cloud Verifier.", response.status_code)
             keylime_logging.log_http_response(
                 logger, logging.ERROR, inst_response_body)
