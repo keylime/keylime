@@ -27,7 +27,7 @@ logger = keylime_logging.init_logging('ima')
 
 
 # The version of the allowlist format that is supported by this keylime release
-ALLOWLIST_CURRENT_VERSION = 2
+ALLOWLIST_CURRENT_VERSION = 3
 
 
 def get_from_nth_entry(filedata, nth_entry):
@@ -147,10 +147,12 @@ def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: ima_file_signature
     # Is data.data a key?
     pubkey, keyidv2 = ima_file_signatures.get_pubkey(data.data)
     if pubkey:
-        failure = _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='keyrings')
-        if not failure:
-            # Add the key only now that it's validated (ret == True)
-            ima_keyrings.add_pubkey_to_keyring(pubkey, path.name, keyidv2=keyidv2)
+        ignored_keyrings = allowlist['ima']['ignored_keyrings']
+        if '*' not in ignored_keyrings and path.name not in ignored_keyrings:
+            failure = _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='keyrings')
+            if not failure:
+                # Add the key only now that it's validated (no failure)
+                ima_keyrings.add_pubkey_to_keyring(pubkey, path.name, keyidv2=keyidv2)
 
     # Anything else evaluates to true for now
     return failure
@@ -266,11 +268,28 @@ def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrv
 
     return running_hash, failure
 
+def update_allowlist(allowlist):
+    """ Update the allowlist to the latest version adding default values for missing fields """
+    allowlist["meta"]["version"] = ALLOWLIST_CURRENT_VERSION
+
+    # version 2 added 'keyrings'
+    if "keyrings" not in allowlist:
+        allowlist["keyrings"] = {}
+    # version 3 added 'ima' map with 'ignored_keyrings'
+    if "ima" not in allowlist:
+        allowlist["ima"] = {}
+    if not "ignored_keyrings" in allowlist["ima"]:
+        allowlist["ima"]["ignored_keyrings"] = []
+
+    return allowlist
 
 def process_allowlists(allowlist, exclude):
     # Pull in default config values if not specified
     if allowlist is None:
         allowlist = read_allowlist()
+    else:
+        allowlist = update_allowlist(allowlist)
+
     if exclude is None:
         exclude = read_excllist()
 
@@ -294,7 +313,10 @@ empty_allowlist = {
         },
     "release": 0,
     "hashes": {},
-    "keyrings": {}
+    "keyrings": {},
+    "ima" : {
+        "ignored_keyrings": []
+    }
 }
 
 def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None):
@@ -349,9 +371,6 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
         else:
             logger.debug("Allowlist does not specify a version. Assuming current version %s", ALLOWLIST_CURRENT_VERSION)
 
-        # version 2 added 'keyrings'
-        if "keyrings" not in alist:
-            alist["keyrings"] = {}
     else:
         # convert legacy format into new structured format
         logger.debug("Converting legacy allowlist format to JSON")
@@ -384,6 +403,8 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
                 alist[entrytype][path].append(checksum_hash)
             else:
                 alist[entrytype][path] = [checksum_hash]
+
+    alist = update_allowlist(alist)
 
     return alist
 
