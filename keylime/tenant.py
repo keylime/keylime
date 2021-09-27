@@ -938,7 +938,7 @@ class Tenant():
                 keylime_logging.log_http_response(
                     logger, logging.ERROR, response_body)
                 raise UserError(
-                    "Posting of Encrypted U to the Cloud Agent failed with response code %d" % response.status)
+                    "Posting of Encrypted U to the Cloud Agent failed with response code %d (%s)" % (response.status_code, response.text))
         except Exception as e:
             self.do_cvstop()
             raise e
