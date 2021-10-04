@@ -27,7 +27,7 @@ logger = keylime_logging.init_logging('ima')
 
 
 # The version of the allowlist format that is supported by this keylime release
-ALLOWLIST_CURRENT_VERSION = 3
+ALLOWLIST_CURRENT_VERSION = 4
 
 
 def get_from_nth_entry(filedata, nth_entry):
@@ -153,6 +153,9 @@ def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: ima_file_signature
             if not failure:
                 # Add the key only now that it's validated (no failure)
                 ima_keyrings.add_pubkey_to_keyring(pubkey, path.name, keyidv2=keyidv2)
+    else:
+        # handling of generic ima-buf entries that for example carry a hash in the buf field
+        failure = _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='ima-buf')
 
     # Anything else evaluates to true for now
     return failure
@@ -280,6 +283,9 @@ def update_allowlist(allowlist):
         allowlist["ima"] = {}
     if not "ignored_keyrings" in allowlist["ima"]:
         allowlist["ima"]["ignored_keyrings"] = []
+    # version 4 added 'ima-buf'
+    if "ima-buf" not in allowlist:
+        allowlist["ima-buf"] = {}
 
     return allowlist
 
