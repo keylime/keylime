@@ -16,6 +16,7 @@ import abc
 import dataclasses
 
 from typing import Dict, Callable, Any, Optional
+from keylime import config
 from keylime import keylime_logging
 from keylime.failure import Failure, Component
 
@@ -302,8 +303,8 @@ class Entry:
             raise ParserError(f"No parser for mode {tokens[2]} implemented.")
         self.mode = mode(tokens[3])
 
-        # Ignore time of measure, time of use (ToMToU) errors and if a file is already opened for write.
-        # TODO make this configurable
+        # Set correct hash for time of measure, time of use (ToMToU) errors
+        # and if a file is already opened for write.
         # https://elixir.bootlin.com/linux/v5.12.12/source/security/integrity/ima/ima_main.c#L101
         if self.template_hash == START_HASH:
             self.template_hash = FF_HASH
@@ -313,7 +314,9 @@ class Entry:
         # Ignore template hash for ToMToU errors
         if self.template_hash == FF_HASH:
             logger.warning("Skipped template_hash validation entry with FF_HASH")
-            failure.add_event("tomtou", "hash validation was skipped", True)
+            # By default ToMToU errors are not treated as a failure
+            if config.getboolean("cloud_verifier", "tomtou_errors", False):
+                failure.add_event("tomtou", "hash validation was skipped", True)
             failure.merge(self.mode.is_data_valid(self.validator))
             return failure
         if self.template_hash != self.mode.hash():
