@@ -215,7 +215,7 @@ Cloud Agent
         "payload": "WcXpUr4G9yfvVaojNx6K2XZuDYRkFoZQhHrvZB+TKZqsq41g"
       }
 
-    :<json string auth_tag: hmac with K key as key and UUID
+    :<json string auth_tag: HMAC calculated with K key as key and UUID as data, using SHA-384 as the underlying hash algorithm
     :<json string encrypted_key: U key encrypted with agents public key base64 encoded
     :<json string payload: (optional) payload encrypted with K key base64 encoded.
 
@@ -258,6 +258,7 @@ Cloud Agent
     :param string mask: Mask for what PCRs from the TPM are included in the quote.
     :param string vmask: Mask for what PCRs from the TPM are included in the quote.
     :param string partial: Is either "0" or "1". If set to "1" the public key is excluded in the response.
+    :param string ima_ml_entry: (optional) Line offset of the IMA entry list. If not present, 0 is assumed.
 
     **Example Response:**
 
@@ -276,8 +277,9 @@ Cloud Agent
         }
 
     :>json string quote: TPM integrity quote
-    :>json string ima_measurement_list: (optional) IMA entry list base64 encoded. Is included if `IMA_PCR` (10) is included in the mask
-    :>json string ima_measurement_list: (optional) UEFI Eventlog list base64 encoded. Is included if PCR 0 is included in the mask
+    :>json string ima_measurement_list: (optional) IMA entry list. Is included if `IMA_PCR` (10) is included in the mask
+    :>json string ima_measurement_list_entry: (optional) Starting line offset of the IMA entry list returned
+    :>json string mb_measurement_list: (optional) UEFI Eventlog list base64 encoded. Is included if PCR 0 is included in the mask
 
 
 .. http:get::  /v1.0/quotes/identity
