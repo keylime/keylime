@@ -193,6 +193,13 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
          }
     )
 
+    # Iterative attestation may send us no log [len(lines) == 1]; compare last know PCR 10 state
+    # against current PCR state.
+    # Since IMA log append and PCR extend is not atomic, we may get a quote that does not yet take
+    # into account the next appended measurement's [len(lines) == 2] PCR extension.
+    if not found_pcr and len(lines) <= 2:
+        found_pcr = (running_hash == pcrval_bytes)
+
     for linenum, line in enumerate(lines):
         line = line.strip()
         if line == '':
@@ -227,11 +234,6 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
         except ima_ast.ParserError:
             failure.add_event("entry", f"Line was not parsable into a valid IMA entry: {line}", True, ["parser"])
             logger.error(f"Line was not parsable into a valid IMA entry: {line}")
-
-    # iterative attestation may send us no log; compare last know PCR 10 state
-    # against current PCR state
-    if not found_pcr:
-        found_pcr = (running_hash == pcrval_bytes)
 
     # check PCR value has been found
     if not found_pcr:
