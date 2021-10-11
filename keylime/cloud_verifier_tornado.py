@@ -104,7 +104,7 @@ def verifier_db_delete_agent(session, agent_id):
 
 def store_attestation_state(agentAttestState):
     # Only store if IMA log was evaluated
-    if len(agentAttestState.get_ima_pcrs()):
+    if agentAttestState.get_ima_pcrs():
         session = get_session()
         try:
             update_agent = session.query(VerfierMain).get(agentAttestState.get_agent_id())
