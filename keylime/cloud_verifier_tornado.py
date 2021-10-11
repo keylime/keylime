@@ -61,7 +61,8 @@ exclude_db = {
     'boottime': '',
     'ima_pcrs': [],
     'pcr10': '',
-    'next_ima_ml_entry': 0
+    'next_ima_ml_entry': 0,
+    'learned_ima_keyrings': {},
 }
 
 
@@ -88,7 +89,8 @@ def _from_db_obj(agent_db_obj):
                 'boottime', \
                 'ima_pcrs', \
                 'pcr10', \
-                'next_ima_ml_entry']
+                'next_ima_ml_entry', \
+                'learned_ima_keyrings' ]
     agent_dict = {}
     for field in fields:
         agent_dict[field] = getattr(agent_db_obj, field, None)
@@ -114,6 +116,7 @@ def store_attestation_state(agentAttestState):
             update_agent.ima_pcrs = list(ima_pcrs_dict.keys())
             for pcr_num, value in ima_pcrs_dict.items():
                 setattr(update_agent, 'pcr%d' % pcr_num, value)
+            update_agent.learned_ima_keyrings = agentAttestState.get_ima_keyrings().to_json()
             try:
                 session.add(update_agent)
             except SQLAlchemyError as e:
@@ -413,6 +416,7 @@ class AgentsHandler(BaseHandler):
                     agent_data['ima_pcrs'] = []
                     agent_data['pcr10'] = START_HASH
                     agent_data['next_ima_ml_entry'] = 0
+                    agent_data['learned_ima_keyrings'] = {}
                     agent_data['verifier_id'] = config.get('cloud_verifier', 'cloudverifier_id', cloud_verifier_common.DEFAULT_VERIFIER_ID)
                     agent_data['verifier_ip'] = config.get('cloud_verifier', 'cloudverifier_ip')
                     agent_data['verifier_port'] = config.get('cloud_verifier', 'cloudverifier_port')
@@ -948,7 +952,7 @@ async def activate_agents(verifier_id, verifier_ip, verifier_port):
                 ima_pcrs_dict = {}
                 for pcr_num in agent.ima_pcrs:
                     ima_pcrs_dict[pcr_num] = getattr(agent, 'pcr%d' % pcr_num)
-                aas.add(agent.agent_id, agent.boottime, ima_pcrs_dict, agent.next_ima_ml_entry)
+                aas.add(agent.agent_id, agent.boottime, ima_pcrs_dict, agent.next_ima_ml_entry, agent.learned_ima_keyrings)
         session.commit()
     except SQLAlchemyError as e:
         logger.error('SQLAlchemy Error: %s', e)

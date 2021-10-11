@@ -246,7 +246,10 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
 
     agentAttestState.set_boottime(boottime)
 
-    ima_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
+    ima_keyrings = agentAttestState.get_ima_keyrings()
+    tenant_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
+    ima_keyrings.set_tenant_keyring(tenant_keyring)
+
     quote_validation_failure = get_tpm_instance().check_quote(
         agentAttestState,
         agent['nonce'],
@@ -257,7 +260,7 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
         ima_measurement_list,
         agent['allowlist'],
         hash_alg,
-        ima_keyring,
+        ima_keyrings,
         mb_measurement_list,
         agent['mb_refstate'])
     failure.merge(quote_validation_failure)

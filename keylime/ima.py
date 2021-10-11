@@ -27,7 +27,7 @@ logger = keylime_logging.init_logging('ima')
 
 
 # The version of the allowlist format that is supported by this keylime release
-ALLOWLIST_CURRENT_VERSION = 2
+ALLOWLIST_CURRENT_VERSION = 3
 
 
 def get_from_nth_entry(filedata, nth_entry):
@@ -107,17 +107,17 @@ def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima
     return failure
 
 
-def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Digest, path: ima_ast.Name,
+def _validate_ima_sig(exclude_regex, ima_keyrings, allowlist, digest: ima_ast.Digest, path: ima_ast.Name,
                       signature: ima_ast.Signature) -> Failure:
     failure = Failure(Component.IMA, ["validator", "ima-sig"])
     valid_signature = False
-    if ima_keyring and signature:
+    if ima_keyrings and signature:
 
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug(f"IMA: ignoring excluded path {path.name}")
             return failure
 
-        if not ima_keyring.integrity_digsig_verify(signature.data, digest.hash, digest.algorithm):
+        if not ima_keyrings.integrity_digsig_verify(signature.data, digest.hash, digest.algorithm):
             logger.warning(f"signature for file {path.name} is not valid")
             failure.add_event("invalid_signature", f"signature for file {path.name} is not valid", True)
             return failure
@@ -134,7 +134,7 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
         return _validate_ima_ng(exclude_regex, allowlist, digest, path)
 
     # If we don't have a allowlist and don't have a keyring we just ignore the validation.
-    if ima_keyring is None:
+    if ima_keyrings is None:
         return failure
 
     if not valid_signature:
@@ -142,17 +142,23 @@ def _validate_ima_sig(exclude_regex, ima_keyring, allowlist, digest: ima_ast.Dig
     return failure
 
 
-def _validate_ima_buf(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, data: ima_ast.Buffer):
+def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: ima_file_signatures.ImaKeyrings, digest: ima_ast.Digest, path: ima_ast.Name, data: ima_ast.Buffer):
+    failure = Failure(Component.IMA)
     # Is data.data a key?
-    pubkey, _ = ima_file_signatures.get_pubkey(data.data)
+    pubkey, keyidv2 = ima_file_signatures.get_pubkey(data.data)
     if pubkey:
-        return _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='keyrings')
+        ignored_keyrings = allowlist['ima']['ignored_keyrings']
+        if '*' not in ignored_keyrings and path.name not in ignored_keyrings:
+            failure = _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='keyrings')
+            if not failure:
+                # Add the key only now that it's validated (no failure)
+                ima_keyrings.add_pubkey_to_keyring(pubkey, path.name, keyidv2=keyidv2)
 
     # Anything else evaluates to true for now
-    return Failure(Component.IMA)
+    return failure
 
 
-def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
+def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyrings=None, boot_aggregates=None):
     failure = Failure(Component.IMA)
     running_hash = agentAttestState.get_pcr_state(config.IMA_PCR)
     found_pcr = (pcrval is None)
@@ -186,10 +192,10 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
         logger.error(err_msg)
 
     ima_validator = ima_ast.Validator(
-        {ima_ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyring, allow_list),
+        {ima_ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyrings, allow_list),
          ima_ast.ImaNg: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
          ima_ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
-         ima_ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list),
+         ima_ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list, ima_keyrings),
          }
     )
 
@@ -249,10 +255,10 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
     return codecs.encode(running_hash, 'hex').decode('utf-8'), failure
 
 
-def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyring=None, boot_aggregates=None):
+def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyrings=None, boot_aggregates=None):
     failure = Failure(Component.IMA)
     try:
-        running_hash, failure = _process_measurement_list(agentAttestState, lines, lists=lists, m2w=m2w, pcrval=pcrval, ima_keyring=ima_keyring, boot_aggregates=boot_aggregates)
+        running_hash, failure = _process_measurement_list(agentAttestState, lines, lists=lists, m2w=m2w, pcrval=pcrval, ima_keyrings=ima_keyrings, boot_aggregates=boot_aggregates)
     except:  # pylint: disable=try-except-raise
         raise
     finally:
@@ -262,11 +268,28 @@ def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrv
 
     return running_hash, failure
 
+def update_allowlist(allowlist):
+    """ Update the allowlist to the latest version adding default values for missing fields """
+    allowlist["meta"]["version"] = ALLOWLIST_CURRENT_VERSION
+
+    # version 2 added 'keyrings'
+    if "keyrings" not in allowlist:
+        allowlist["keyrings"] = {}
+    # version 3 added 'ima' map with 'ignored_keyrings'
+    if "ima" not in allowlist:
+        allowlist["ima"] = {}
+    if not "ignored_keyrings" in allowlist["ima"]:
+        allowlist["ima"]["ignored_keyrings"] = []
+
+    return allowlist
 
 def process_allowlists(allowlist, exclude):
     # Pull in default config values if not specified
     if allowlist is None:
         allowlist = read_allowlist()
+    else:
+        allowlist = update_allowlist(allowlist)
+
     if exclude is None:
         exclude = read_excllist()
 
@@ -290,7 +313,10 @@ empty_allowlist = {
         },
     "release": 0,
     "hashes": {},
-    "keyrings": {}
+    "keyrings": {},
+    "ima" : {
+        "ignored_keyrings": []
+    }
 }
 
 def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None):
@@ -345,9 +371,6 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
         else:
             logger.debug("Allowlist does not specify a version. Assuming current version %s", ALLOWLIST_CURRENT_VERSION)
 
-        # version 2 added 'keyrings'
-        if "keyrings" not in alist:
-            alist["keyrings"] = {}
     else:
         # convert legacy format into new structured format
         logger.debug("Converting legacy allowlist format to JSON")
@@ -380,6 +403,8 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
                 alist[entrytype][path].append(checksum_hash)
             else:
                 alist[entrytype][path] = [checksum_hash]
+
+    alist = update_allowlist(alist)
 
     return alist
 

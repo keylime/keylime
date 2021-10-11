@@ -211,6 +211,82 @@ class ImaKeyring:
                 logger.error("Could not load a base64-decoded DER key: %s" % str(ex))
         return ima_keyring
 
+
+class ImaKeyrings:
+    """ IMA Keyrings models the various keyrings of the system where IMA may take its keys from """
+
+    def __init__(self):
+        """ Constructor """
+        self.keyrings = {}
+
+    def add_to_keyring_from_data(self, filedata, keyring_name):
+        """ Add the public key, given as a plain filedata (bytes), to the keyring by the given name
+            after converting the key to an object. If a keyring by the given name doesn't exist, one
+            will be created. """
+        pubkey, keyidv2 = get_pubkey(filedata)
+        self.add_pubkey_to_keyring(pubkey, keyring_name, keyidv2=keyidv2)
+
+    def add_pubkey_to_keyring(self, pubkey, keyring_name, keyidv2=None):
+        """ Add a public key object to a keyring by the given name. If a keyring by the given name
+            doesn't exist, one will be created. """
+        keyring = self.keyrings.get(keyring_name)
+        if not keyring:
+            keyring = ImaKeyring()
+            self.keyrings[keyring_name] = keyring
+        keyring.add_pubkey(pubkey, keyidv2)
+
+    def set_tenant_keyring(self, tenant_keyring):
+        """ Set the tenant keyring for which the tenant provided the keys via command line. """
+        if tenant_keyring:
+            self.keyrings["tenant_keyring"] = tenant_keyring
+        else:
+            self.keyrings.pop("tenant_keyring", None)
+
+    def get_tenant_keyring(self):
+        """ Get the tenant keyring. """
+        return self.keyrings.get("tenant_keyring")
+
+    def get_all_keyrings(self):
+        """ Get a list of all the keyrings """
+        return list(self.keyrings.values())
+
+    def to_json(self):
+        """ Convert an ImaKeyrings into its JSON representation; this does not include the tenant keyring """
+        obj = {}
+
+        for name, keyring in self.keyrings.items():
+            if name == "tenant_keyring":
+                continue
+            obj[name] = keyring.to_string()
+
+        return obj
+
+    def to_string(self):
+        """ Convert an ImaKeyrings into its string representation; this does not include the tenant keyring """
+        return json.dumps(self.to_json())
+
+    @staticmethod
+    def from_string(stringrepr):
+        """ Convert a string-encoded ImaKeyrings into an ImaKeyrings object. """
+
+        obj = json.loads(stringrepr)
+        if isinstance(obj, str):
+            obj = json.loads(obj)
+        if not isinstance(obj, dict):
+            return None
+
+        return ImaKeyrings.from_json(obj)
+
+    @staticmethod
+    def from_json(obj):
+        """ Convert a JSON representation of an ImaKeyrings object to an ImaKeyrings object. """
+        ima_keyrings = ImaKeyrings()
+
+        for name, keyring_str in obj.items():
+            ima_keyrings.keyrings[name] = ImaKeyring.from_string(keyring_str)
+
+        return ima_keyrings
+
     @staticmethod
     def _verify(pubkey, sig, filehash, hashfunc):
         """ Do signature verification with the given public key """
@@ -255,20 +331,26 @@ class ImaKeyring:
                            (filehash_type, hashfunc().name))
             return False
 
-        pubkey = self.get_pubkey_by_keyidv2(keyidv2)
+        # Try all the keyrings until we find one with a key with the given keyidv2
+        pubkey = None
+        for keyring in self.get_all_keyrings():
+            pubkey = keyring.get_pubkey_by_keyidv2(keyidv2)
+            if pubkey:
+                break
+
         if not pubkey:
             logger.warning("No key with id 0x%08x available" % keyidv2)
             return False
 
         try:
-            ImaKeyring._verify(pubkey, signature[hdrlen:], filehash, hashfunc())
+            ImaKeyrings._verify(pubkey, signature[hdrlen:], filehash, hashfunc())
         except InvalidSignature:
             return False
         return True
 
     def integrity_digsig_verify(self, signature, filehash, filehash_type):
-        """ Given a system-specific keyring validate the signature against the
-            given hash. This function resembles the kernel code at:
+        """ Validate the signature against the given hash trying all keyrings.
+            This function resembles the kernel code at:
             https://elixir.bootlin.com/linux/v5.9/source/security/integrity/digsig.c#L59
         """
         fmt = '>BB'

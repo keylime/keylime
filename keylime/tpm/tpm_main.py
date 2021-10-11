@@ -1095,7 +1095,7 @@ class tpm(tpm_abstract.AbstractTPM):
         return retout, True
 
     def check_quote(self, agentAttestState, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={},
-                    ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyring=None,
+                    ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyrings=None,
                     mb_measurement_list=None, mb_refstate=None) -> Failure:
         failure = Failure(Component.QUOTE_VALIDATION)
         if hash_alg is None:
@@ -1125,7 +1125,7 @@ class tpm(tpm_abstract.AbstractTPM):
         if len(pcrs) == 0:
             pcrs = None
 
-        return self.check_pcrs(agentAttestState, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist, ima_keyring, mb_measurement_list, mb_refstate)
+        return self.check_pcrs(agentAttestState, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist, ima_keyrings, mb_measurement_list, mb_refstate)
 
     def sim_extend(self, hashval_1, hashval_0=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure
