@@ -36,7 +36,7 @@ def downgrade_registrar():
 
 
 def upgrade_cloud_verifier():
-    op.add_column('verifiermain', sa.Column('mb_refstate', sa.String))
+    op.add_column('verifiermain', sa.Column('mb_refstate', sa.String(1000)))
 
 
 def downgrade_cloud_verifier():

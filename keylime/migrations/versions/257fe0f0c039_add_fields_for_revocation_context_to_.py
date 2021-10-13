@@ -37,7 +37,7 @@ def downgrade_registrar():
 
 def upgrade_cloud_verifier():
     op.add_column('verifiermain', sa.Column('severity_level', sa.Integer))
-    op.add_column('verifiermain', sa.Column('last_event_id', sa.String))
+    op.add_column('verifiermain', sa.Column('last_event_id', sa.String(100)))
 
 
 def downgrade_cloud_verifier():

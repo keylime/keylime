@@ -33,7 +33,7 @@ def downgrade_registrar():
 
 
 def upgrade_cloud_verifier():
-    op.add_column('verifiermain', sa.Column('ima_sign_verification_keys', sa.String))
+    op.add_column('verifiermain', sa.Column('ima_sign_verification_keys', sa.String(1000)))
 
 
 def downgrade_cloud_verifier():
