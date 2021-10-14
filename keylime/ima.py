@@ -342,7 +342,7 @@ def process_allowlists(allowlist, exclude):
 
     if allowlist['hashes'].get('boot_aggregate') is None:
         logger.warning("No boot_aggregate value found in allowlist, adding an empty one")
-        allowlist['hashes']['boot_aggregate'] = ['0000000000000000000000000000000000000000']
+        allowlist['hashes']['boot_aggregate'] = ['0'*40, '0'*64]
 
     for excl in exclude:
         # remove commented out lines
