@@ -241,7 +241,7 @@ class TestIMAVerification(unittest.TestCase):
         al_data = ima.read_allowlist(allowlist_file)
         self.assertIsNotNone(al_data, "AllowList data is present")
         self.assertIsNotNone(al_data["meta"], "AllowList metadata is present")
-        self.assertEqual(al_data["meta"]["version"], 3, "AllowList metadata version is correct")
+        self.assertEqual(al_data["meta"]["version"], 4, "AllowList metadata version is correct")
         self.assertEqual(al_data["meta"]["generator"], "keylime-legacy-format-upgrade", "AllowList metadata generator is correct")
         self.assertNotIn("checksum", al_data["meta"], "AllowList metadata no checksum")
         self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
