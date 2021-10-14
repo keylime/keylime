@@ -30,23 +30,46 @@ logger = keylime_logging.init_logging('ima')
 ALLOWLIST_CURRENT_VERSION = 3
 
 
-def get_from_nth_entry(filedata, nth_entry):
-    """ Get the measurement list starting at the n-th entry, starting with 0.
-        Also count the total number of entries by counting the newlines.
+class IMAMeasurementList:
+    """ IMAMeasurementList models the IMA measurement lists's last known
+        two numbers of entries and filesizes
     """
-    num_entries = 0
-    offset = 0
-    result = None
-    while True:
-        try:
-            if num_entries == nth_entry:
-                result = filedata[offset:]
-            o = filedata.index('\n', offset)
-            offset = o + 1
-            num_entries += 1
-        except ValueError:
-            break
-    return result, num_entries
+    instance = None
+
+    @staticmethod
+    def get_instance():
+        """ Return a singleton """
+        if not IMAMeasurementList.instance:
+            IMAMeasurementList.instance = IMAMeasurementList()
+        return IMAMeasurementList.instance
+
+    def __init__(self):
+        """ Constructor """
+        self.tuples = []
+        self.reset()
+
+    def reset(self):
+        """ Initialize the variables """
+        self.tuples = [ (0, 0), (0, 0) ]
+        return (0, 0)
+
+    def update(self, num_entries, filesize):
+        """ Update the number of entries and current filesize of the log
+            Remember the previous values
+        """
+        entry = (num_entries, filesize)
+        if entry != self.tuples[0]:
+            self.tuples = [ entry, self.tuples[0] ]
+
+    def find(self, nth_entry):
+        """ Find the closest entry to the n-th entry and return its number
+            and filesize to seek to, return -1, -1 if nothing was found.
+        """
+        if nth_entry >= self.tuples[0][0]:
+            return self.tuples[0]
+        if nth_entry >= self.tuples[1][0]:
+            return self.tuples[1]
+        return -1, -1
 
 
 def read_measurement_list(filename, nth_entry):
@@ -58,18 +81,42 @@ def read_measurement_list(filename, nth_entry):
         This function returns the measurement list and the entry from where it
         was read and the current number of entries in the file.
     """
+    IMAML = IMAMeasurementList.get_instance()
     ml = None
-    num_entries = 0
+
+    # we only allow walking forward, otherwise we start over
+    num_entries, filesize = IMAML.find(nth_entry)
+    if num_entries == -1:
+        num_entries, filesize = IMAML.reset()
+        nth_entry = 0
 
     if not os.path.exists(filename):
+        IMAML.reset()
+        nth_entry = 0
         logger.warning("IMA measurement list not available: %s", filename)
     else:
         with open(filename, 'r', encoding="utf-8") as f:
+            f.seek(filesize)
             filedata = f.read()
-        ml, num_entries = get_from_nth_entry(filedata, nth_entry)
-        if nth_entry > num_entries:
-            nth_entry = 0
-            ml = filedata
+        # filedata now corresponds to starting list at entry number 'IMAML.num_entries'
+        # find n-th entry and determine number of total entries in file now
+        offset = 0
+        while True:
+            try:
+                if nth_entry == num_entries:
+                    ml = filedata[offset:]
+                o = filedata.index('\n', offset)
+                offset = o + 1
+                num_entries += 1
+            except ValueError:
+                break
+        # IMAML.filesize corresponds to position for entry number 'IMAML.num_entries'
+        IMAML.update(num_entries, filesize + offset)
+
+        # Nothing found? User request beyond next-expected entry.
+        # Start over with entry 0. This cannot recurse again.
+        if ml is None:
+            return read_measurement_list(filename, 0)
 
     return ml, nth_entry, num_entries
 
