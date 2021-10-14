@@ -89,6 +89,17 @@ class Signature(HexData):
     """
     Class for type "sig".
     """
+    def __init__(self, data: str):
+        super().__init__(data)
+        # basic checks on signature
+        fmt = '>BBBIH'
+        hdrlen = struct.calcsize(fmt)
+        if len(self.data) < hdrlen:
+            raise ParserError("Invalid signature: header too short")
+        _, _, _, _, sig_size = struct.unpack(fmt, self.data[:hdrlen])
+
+        if hdrlen + sig_size != len(self.data):
+            raise ParserError("Invalid signature: malformed header")
 
 
 class Buffer(HexData):
@@ -224,14 +235,33 @@ class ImaSig(Mode):
 
     def __init__(self, data: str):
         tokens = data.split(maxsplit=4)
-        if len(tokens) in [2, 3]:
+        num_tokens = len(tokens)
+        if num_tokens == 2:
             self.digest = Digest(tokens[0])
             self.path = Name(tokens[1])
-        else:
+        elif num_tokens <= 1:
             raise ParserError(f"Cannot create ImaSig expected 2 or 3 tokens got: {len(tokens)}.")
+        else:
+            self.digest = Digest(tokens[0])
+            signature = self.create_Signature(tokens[-1])
+            if signature:
+                self.signature = signature
+                if num_tokens == 3:
+                    self.path = Name(tokens[1])
+                else:
+                    # first part of data is digest , last is signature, in between is path
+                    self.path = data.split(maxsplit=1)[1].rsplit(maxsplit=1)[0]
+            else:
+                # first part is data, last part is path
+                self.path = data.split(maxsplit=1)[1]
 
-        if len(tokens) == 3:
-            self.signature = Signature(tokens[2])
+    def create_Signature(self, hexstring):
+        """ Create the Signature object if the hexstring is a valid signature """
+        try:
+            return Signature(hexstring)
+        except ParserError:
+            pass
+        return None
 
     def hash(self):
         tohash = self.digest.struct() + self.path.struct()
