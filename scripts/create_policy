@@ -130,6 +130,8 @@ def process_ima_buf_in_measurement_list(ima_measurement_list_file, ignored_keyri
 def main(argv):
     """ main """
     parser = argparse.ArgumentParser(argv[0])
+    parser.add_argument('-B', '--base-policy', action='store', dest='base_policy',
+                        help='Use given JSON policy as a "base" and merge new data into it')
     parser.add_argument('-k', '--keyrings', action='store_true', dest='get_keyrings',
                         help='Create keyrings policy entries')
     parser.add_argument('-b', '--ima-buf', action='store_true', dest='get_ima_buf',
@@ -156,8 +158,7 @@ def main(argv):
         "release": 0,
         "hashes" : {},
         "keyrings": {},
-        "ima-buf": {
-        },
+        "ima-buf": {},
         "ima" : {
             "ignored_keyrings": args.ignored_keyrings,
         }
@@ -165,12 +166,35 @@ def main(argv):
 
     ret = 0
 
+    if args.base_policy:
+        try:
+            with open(args.base_policy, 'r') as fobj:
+                basepol = fobj.read()
+            base_policy = json.loads(basepol)
+
+            # Cherry-pick from base policy what is supported and merge into policy
+            policy['hashes'] = base_policy.get('hashes', {})
+            policy['keyrings'] = base_policy.get('keyrings', {})
+            policy['ima-buf'] = base_policy.get('ima-buf', {})
+            ignored_keyrings = base_policy.get('ima', {}).get('ignored_keyrings', [])
+            policy['ima']['ignored_keyrings'] = ignored_keyrings
+        except (PermissionError, FileNotFoundError) as ex:
+            print(f"An error occurred while loading the policy: {ex}")
+            ret = 1
+        except json.decoder.JSONDecodeError as ex:
+            print(f"An error occurred while converting the policy to a JSON object: {ex}")
+            ret = 1
+    if ret:
+        sys.exit(ret)
+
     # Add the hashes map either from the allowlist, if given, or the IMA measurement list.
     if args.allowlist:
         policy['hashes'], ret = process_flat_allowlist(args.allowlist, policy['hashes'])
     elif not args.no_hashes:
         policy['hashes'], ret = get_hashes_from_measurement_list(args.ima_measurement_list,
                                                                  policy['hashes'])
+    if ret:
+        sys.exit(ret)
 
     if args.get_keyrings or args.get_ima_buf:
         policy['keyrings'], policy['ima-buf'], ret = \
@@ -179,17 +203,19 @@ def main(argv):
                                                 args.get_keyrings, policy['keyrings'],
                                                 args.get_ima_buf, policy['ima-buf'])
 
-    if not ret:
-        jsonpolicy = json.dumps(policy)
-        if args.output:
-            try:
-                with open(args.output, 'w') as fobj:
-                    fobj.write(jsonpolicy)
-            except (PermissionError, FileNotFoundError) as ex:
-                print(f"An error occurred while writing the policy: %{ex}")
-                ret = 1
-        else:
-            print(jsonpolicy)
+    if ret:
+        sys.exit(ret)
+
+    jsonpolicy = json.dumps(policy)
+    if args.output:
+        try:
+            with open(args.output, 'w') as fobj:
+                fobj.write(jsonpolicy)
+        except (PermissionError, FileNotFoundError) as ex:
+            print(f"An error occurred while writing the policy: %{ex}")
+            ret = 1
+    else:
+        print(jsonpolicy)
 
     sys.exit(ret)
 
