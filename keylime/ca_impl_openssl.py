@@ -24,7 +24,7 @@ def mk_cert_valid(cert_req, days=365):
     """
 
     one_day = datetime.timedelta(1, 0, 0)
-    today = datetime.datetime.today()
+    today = datetime.datetime.now(datetime.timezone.utc)
     cert_req = cert_req.not_valid_before(today)
     cert_req = cert_req.not_valid_after(today + (one_day * days))
     return cert_req
