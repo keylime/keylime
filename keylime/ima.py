@@ -45,31 +45,30 @@ class IMAMeasurementList:
 
     def __init__(self):
         """ Constructor """
-        self.tuples = []
+        self.entries = set()
         self.reset()
 
     def reset(self):
-        """ Initialize the variables """
-        self.tuples = [ (0, 0), (0, 0) ]
-        return (0, 0)
+        """ Reset the variables """
+        self.entries = set()
 
     def update(self, num_entries, filesize):
-        """ Update the number of entries and current filesize of the log
-            Remember the previous values
-        """
-        entry = (num_entries, filesize)
-        if entry != self.tuples[0]:
-            self.tuples = [ entry, self.tuples[0] ]
+        """ Update the number of entries and current filesize of the log. """
+        if len(self.entries) > 256:
+            for entry in self.entries:
+                self.entries.discard(entry)
+                break
+        self.entries.add((num_entries, filesize))
 
     def find(self, nth_entry):
         """ Find the closest entry to the n-th entry and return its number
-            and filesize to seek to, return -1, -1 if nothing was found.
+            and filesize to seek to, return 0, 0 if nothing was found.
         """
-        if nth_entry >= self.tuples[0][0]:
-            return self.tuples[0]
-        if nth_entry >= self.tuples[1][0]:
-            return self.tuples[1]
-        return -1, -1
+        best = (0, 0)
+        for entry in self.entries:
+            if entry[0] > best[0] and entry[0] <= nth_entry:
+                best = entry
+        return best
 
 
 def read_measurement_list(filename, nth_entry):
@@ -84,11 +83,8 @@ def read_measurement_list(filename, nth_entry):
     IMAML = IMAMeasurementList.get_instance()
     ml = None
 
-    # we only allow walking forward, otherwise we start over
+    # Try to find the closest entry to the nth_entry
     num_entries, filesize = IMAML.find(nth_entry)
-    if num_entries == -1:
-        num_entries, filesize = IMAML.reset()
-        nth_entry = 0
 
     if not os.path.exists(filename):
         IMAML.reset()
