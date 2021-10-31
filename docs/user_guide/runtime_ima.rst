@@ -72,7 +72,7 @@ stated in `ima-policy` that are not matched in the allowlist, keylime will place
 the agent into a failed state.
 
 Generate an allowlist
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 Keylime provides a script to generate allowlists from `initramfs`, but this is
 only a guide. We encourage developers / users of Keylime to be creative and come
@@ -152,7 +152,7 @@ within `/etc/keylime.conf`, you can then use `default` as follows::
 
 The allowlist can also be uploaded using the WebApp:
 
-.. image:: ../images/allowlist_ui.png
+.. image:: /images/allowlist_ui.png
 
 How can I test this?
 --------------------
