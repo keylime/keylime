@@ -196,27 +196,27 @@ Within this script create an `execute` function:
 .. sourcecode:: python
 
     import os
-    from M2Crypto import X509
+    import json
+    import keylime.ca_util as ca_util
     import keylime.secure_mount as secure_mount
 
     async def execute(event):
-        if event['type']!='revocation':
+        if event['type'] != 'revocation':
             return
 
-        serial = revocation.get("metadata",{}).get("cert_serial",None)
-        if revocation.get('type',None) != 'revocation' or serial is None:
-            logger.error("Unsupported revocation message: %s"%revocation)
+	json_meta = json.loads(event['meta_data'])
+        serial = json_meta['cert_serial']
 
         # load up my own cert
         secdir = secure_mount.mount()
-        ca = X509.load_cert('%s/unzipped/mycert.crt'%secdir)
+        mycert = ca_util.load_cert_by_path(f'{secdir}/unzipped/mycert.crt')
 
-            # is this revocation meant for me?
-            if serial === mycert.get_serial_number():
-                    os.remove("/root/.ssh/payload_id_rsa")
-                    os.remove("/root/.ssh/payload_id_rsa.pub")
+        # is this revocation meant for me?
+        if serial === mycert.get_serial_number():
+            os.remove("/root/.ssh/payload_id_rsa")
+            os.remove("/root/.ssh/payload_id_rsa.pub")
 
-Next create the `payload` directory the  `action_list` file containing
+Next, in the `payload` directory create the `action_list` file containing
 `local_action_rm_ssh` (remember not to put the `.py` extension).
 
 .. warning::
