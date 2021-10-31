@@ -232,4 +232,4 @@ Next create the `payload` directory the  `action_list` file containing
     machine from its list of Secure machines in `.ssh/authorized_keys`
 
 Many actions can be executed based on CA revocation. For more details
-and examples, please refer to the `Agent Revocation`_ page.
+and examples, please refer to the :doc:`/user_guide/revocation` page.
