@@ -140,31 +140,31 @@ For the following example, we will provision some SSH keys onto the Agent.
 1. Create a directory to host the files and `autorun.sh` script. For this example, we will use the directory `payload`
 2. Create an `autorun.sh` script in the `payload` directory:
 
-```
-#!/bin/bash
+.. sourcecode:: bash
 
-# this will make it easier for us to find our own cert
-ln -s `ls *-cert.crt | grep -v Revocation` mycert.crt
+    #!/bin/bash
 
-mkdir -p /root/.ssh/
-cp payload_id_rsa* /root/.ssh/
-chmod 600 /root/.ssh/payload_id_rsa*
-```
+    # this will make it easier for us to find our own cert
+    ln -s `ls *-cert.crt | grep -v Revocation` mycert.crt
+
+    mkdir -p /root/.ssh/
+    cp payload_id_rsa* /root/.ssh/
+    chmod 600 /root/.ssh/payload_id_rsa*
 
 3. Copy the files you wish to provision into the `payload` directory.
 
-```
-$ ls payload/
-autorun.sh
-payload_id_rsa.pub
-payload_id_rsa
-```
+.. sourcecode:: console
+
+    $ ls payload/
+    autorun.sh
+    payload_id_rsa.pub
+    payload_id_rsa
 
 Send the files using the Keylime Tenant tool:
 
-```
-keylime_tenant -t <agent-ip> --cert myca --include payload
-```
+.. sourcecode:: console
+
+  keylime_tenant -t <agent-ip> --cert myca --include payload
 
 Recall that the `--cert` option tells Keylime to create a certificate authority
 at the default location `/var/lib/keylime/ca` and give this machine an X509
@@ -193,28 +193,28 @@ For example `local_action_rm_ssh.py`
 
 Within this script create an `execute` function:
 
-```
-import os
-from M2Crypto import X509
-import keylime.secure_mount as secure_mount
+.. sourcecode:: python
 
-async def execute(event):
-    if event['type']!='revocation':
-        return
+    import os
+    from M2Crypto import X509
+    import keylime.secure_mount as secure_mount
 
-    serial = revocation.get("metadata",{}).get("cert_serial",None)
-    if revocation.get('type',None) != 'revocation' or serial is None:
-        logger.error("Unsupported revocation message: %s"%revocation)
+    async def execute(event):
+        if event['type']!='revocation':
+            return
 
-    # load up my own cert
-    secdir = secure_mount.mount()
-    ca = X509.load_cert('%s/unzipped/mycert.crt'%secdir)
+        serial = revocation.get("metadata",{}).get("cert_serial",None)
+        if revocation.get('type',None) != 'revocation' or serial is None:
+            logger.error("Unsupported revocation message: %s"%revocation)
 
-	# is this revocation meant for me?
-	if serial === mycert.get_serial_number():
-		os.remove("/root/.ssh/payload_id_rsa")
-		os.remove("/root/.ssh/payload_id_rsa.pub")
-```
+        # load up my own cert
+        secdir = secure_mount.mount()
+        ca = X509.load_cert('%s/unzipped/mycert.crt'%secdir)
+
+            # is this revocation meant for me?
+            if serial === mycert.get_serial_number():
+                    os.remove("/root/.ssh/payload_id_rsa")
+                    os.remove("/root/.ssh/payload_id_rsa.pub")
 
 Next create the `payload` directory the  `action_list` file containing
 `local_action_rm_ssh` (remember not to put the `.py` extension).
