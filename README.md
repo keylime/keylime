@@ -486,7 +486,7 @@ We welcome new contributors to Keylime of any form, including those of you who m
 So if you are new to open source development, don't worry, there are a myriad of ways you can get involved in our open source project. As a start, try exploring issues with [`good first issue`](https://github.com/keylime/keylime/labels/good%20first%20issue) label.
 We understand that the process of creating a Pull Request (PR) can be a barrier for new contributors. These issues are reserved for new contributors like you. If you need any help or advice in making the PR, feel free to jump into our [chat room](https://cloud-native.slack.com/archives/C01ARE2QUTZ) and ask for help there.
 
-Your contribution is our gift to make our project even more robust. Check out [CONTRIBUTORS.md](https://github.com/keylime/keylime/blob/master/CONTRIBUTORS.md) to find out more about how to contribute to our project.
+Your contribution is our gift to make our project even more robust. Check out [CONTRIBUTING.md](https://github.com/keylime/keylime/blob/master/CONTRIBUTING.md) to find out more about how to contribute to our project.
 
 Keylime uses [Semantic Versioning](https://semver.org/). It is recommended you also read the [RELEASE.md](RELEASE.md)
 file to learn more about it and familiarise yourself with simple of examples of using it.
