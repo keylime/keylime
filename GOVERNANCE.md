@@ -22,7 +22,7 @@ The term of the project lead is one year, with no term limit restriction.
 
 The project lead is elected by Keylime maintainers.
 
-The current project lead is identified in the [MAINTAINERS](MAINTAINERS) file with the string
+The current project lead is identified in the [MAINTAINERS](MAINTAINERS.md) file with the string
 `project lead` and the term behind the name in a comment at the top of the file.
 
 ## Expectations from Maintainers
@@ -34,11 +34,11 @@ participate in Pull Request reviews. Maintainers are expected to respond to assi
 in a *reasonable* time frame, either providing insights, or assign the Pull Requests to other
 maintainers.
 
-Every Maintainer is listed in the
-[CODEOWNERS](https://github.com/keylime/Keylime/blob/master/MAINTAINERS)
-file, with their Github handle.
+Every Maintainer is listed in the [MAINTAINERS](MAINTAINERS.md) file, with their
+Github handle.
 
-A Maintainer should be active within the CNCF slack #keylime channel
+A Maintainer should be active within the CNCF slack [#keylime
+channel](https://cloud-native.slack.com/archives/C01ARE2QUTZ)
 
 ## Becoming a Maintainer
 
@@ -63,7 +63,7 @@ Changes in project lead or term is initiated by opening a github PR.
 Anyone from Keylime community can vote on the PR with either +1 or -1.
 
 Only the following votes are binding:
-1) Any maintainer that has been listed in the [MAINTAINERS](MAINTAINERS) file before the PR is opened.
+1) Any maintainer that has been listed in the [MAINTAINERS](MAINTAINERS.md) file before the PR is opened.
 2) Any maintainer from an organization may cast the vote for that organization. However, no organization
 should have more binding votes than 1/5 of the total number of maintainers defined in 1).
 
