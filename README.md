@@ -1,7 +1,6 @@
 # Keylime
 
-[![Build
-Status](https://travis-ci.org/keylime/keylime.svg?branch=master)](https://travis-ci.org/keylime/keylime) [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/keylime-project/community)
+[![Slack CNCF chat](https://img.shields.io/badge/Chat-CNCF%20Slack-informational)](https://cloud-native.slack.com/archives/C01ARE2QUTZ)
 
 ![keylime](doc/keylime.png?raw=true "Title")
 
@@ -76,9 +75,9 @@ A hardware TPM should always be used when real secrets and trust is required.
   * [Provisioning](#provisioning)
   * [Using keylime CA](#using-keylime-ca)
 * [Request a Feature](#request-a-feature)
-* [Report a Security Vulnerability](#report-a-security-vulnerability)
+* [Security Vulnerability Management Policy](#security-vulnerability-management-policy)
 * [Meeting Information](#project-meetings)
-* [First Timers Support](#first-timers-support)
+* [Contributing: First Timers Support](#contributing--first-timers-support)
 * [Additional Reading](#additional-reading)
 * [Disclaimer](#disclaimer)
 
@@ -462,29 +461,35 @@ Keylime feature requests are tracked as enhancements in the [enhancements reposi
 The enhancement process has been implemented to provide a way to review and
 assess the impact(s) of significant changes to Keylime.
 
-## Report a Security Vulnerability
+## Security Vulnerability Management Policy
+
+If you would have found a security vulnerability in Keylime and would like to
+report, first of all: thank you.
 
 Please contact us directly at [security@keylime.groups.io](mailto:security@keylime.groups.io)
 for any bug that might impact the security of this project. **Do not** use a
-github issue to report any potential security bugs.
+Github issue to report any potential security bugs.
 
 
 ## Project Meetings
 
 We meet every Wednesday @ 15:00 UTC to 15:30. Anyone is welcome to join the meeting.
 
-The meeting is hosted in [gitter chat](https://gitter.im/keylime-project/community)
+The meeting is hosted in [CNCF chat (Slack)](https://cloud-native.slack.com/archives/C01ARE2QUTZ)
 
-Meeting agenda are hosted and archived in the [meetings repo](https://github.com/keylime/meetings) as github issues.
+Meeting agenda are hosted and archived in the [meetings repo](https://github.com/keylime/meetings) as Github issues.
 
-## First Timers Support
+## Contributing: First Timers Support
 
 We welcome new contributors to Keylime of any form, including those of you who maybe new to working in an open source project.
 
-So if you are new to open source development, don't worry, there are a myriad of ways you can get involved in our open source project. As a start, try exploring issues with `good first issue` label.
-We understand that the process of creating a PR can be a barrier for new contributors. These issues are reserved for new contributors like you. If you need any help or advice in making the PR, feel free to jump into our [gitter channel](https://gitter.im/keylime-project/community) and ask for help there.
+So if you are new to open source development, don't worry, there are a myriad of ways you can get involved in our open source project. As a start, try exploring issues with [`good first issue`](https://github.com/keylime/keylime/labels/good%20first%20issue) label.
+We understand that the process of creating a Pull Request (PR) can be a barrier for new contributors. These issues are reserved for new contributors like you. If you need any help or advice in making the PR, feel free to jump into our [chat room](https://cloud-native.slack.com/archives/C01ARE2QUTZ) and ask for help there.
 
 Your contribution is our gift to make our project even more robust. Check out [CONTRIBUTORS.md](https://github.com/keylime/keylime/blob/master/CONTRIBUTORS.md) to find out more about how to contribute to our project.
+
+Keylime uses [Semantic Versioning](https://semver.org/). It is recommended you also read the [RELEASE.md](RELEASE.md)
+file to learn more about it and familiarise yourself with simple of examples of using it.
 
 ## Additional Reading
 
@@ -524,6 +529,6 @@ FA8702-15-D-0001. Any opinions, findings, conclusions or recommendations express
 material are those of the author(s) and do not necessarily reflect the views of the
 Assistant Secretary of Defense for Research and Engineering.
 
-Keylimes license was changed from BSD Clause-2 to Apache 2.0. The original BSD
+Keylime's license was changed from BSD Clause-2 to Apache 2.0. The original BSD
 Clause-2 licensed code can be found on the [MIT github
 organization](https://github.com/mit-ll/MIT-keylime).
