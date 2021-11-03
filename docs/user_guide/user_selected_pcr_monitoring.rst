@@ -11,6 +11,10 @@ remote machine for any given PCR.
 This can be used for Trusted Boot checks for both the `rhboot` shim loader and
 Trusted Grub 2.
 
+.. note::
+    On larger deployments the PCR values might be insufficient. In this case use
+    the UEFI event log for measured boot: :doc:`use_measured_boot`.
+
 How to use
 ----------
 

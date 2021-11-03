@@ -1,5 +1,5 @@
-User Selected PCR Monitoring
-============================
+Use Measured Boot
+=================
 
 .. warning::
     This page is still under development and not complete. It will be so until
