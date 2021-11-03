@@ -33,7 +33,7 @@ In addition to these sources of (boot log) data, a "recent enough" version of
 and thus rebuild the contents of PCRs [0-9] (and potentially PCRs [11-14]).
 
 Implementation
-----------
+--------------
 
 Keylime can make use of this new capability in a very flexible manner. A
 "measured boot reference state" or `mb_refstate` for short can be specified by
@@ -78,7 +78,7 @@ providing an empty "measured boot reference state" and an `accept-all`
 "measured boot policy", which will cause the `keylime_verifer` to simply skip
 the aforementioned step 4.
 
-An example follows:
+An example follows::
 
     echo "{}" > measured_boot_reference_state.txt
 
