@@ -39,8 +39,6 @@ try:
 except ImportError:
     from yaml import SafeLoader, SafeDumper
 
-import simplejson as json
-
 from cryptography import exceptions as crypto_exceptions
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -50,6 +48,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from keylime import cmd_exec
 from keylime import config
 from keylime import crypto
+from keylime import json
 from keylime import revocation_notifier
 from keylime import keylime_logging
 

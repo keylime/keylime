@@ -9,7 +9,6 @@ import os
 import string
 import typing
 
-import simplejson as json
 import yaml
 try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
@@ -17,6 +16,7 @@ except ImportError:
     from yaml import SafeLoader, SafeDumper
 
 from keylime import config
+from keylime import json
 from keylime import keylime_logging
 from keylime import crypto
 from keylime import ima

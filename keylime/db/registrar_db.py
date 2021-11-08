@@ -3,10 +3,10 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
 '''
 
-import simplejson as json
-
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, String, Integer, PickleType, Text
+
+from keylime.json import JSONPickler
 
 
 Base = declarative_base()
@@ -28,5 +28,5 @@ class RegistrarMain(Base):
     ip = Column(String(15), nullable=True)
     port = Column(Integer, nullable=True)
     active = Column(Integer)
-    provider_keys = Column(JSONPickleType(pickler=json))
+    provider_keys = Column(JSONPickleType(pickler=JSONPickler))
     regcount = Column(Integer)

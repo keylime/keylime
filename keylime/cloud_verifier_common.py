@@ -11,13 +11,12 @@ import socket
 import time
 import sys
 
-import simplejson as json
-
 from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_client
 from keylime import crypto
 from keylime import ca_util
+from keylime import json
 from keylime import revocation_notifier
 from keylime.agentstates import AgentAttestStates
 from keylime.failure import Failure, Component

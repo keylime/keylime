@@ -9,13 +9,13 @@ import sys
 import functools
 import asyncio
 
-import simplejson as json
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
 import tornado.ioloop
 import tornado.web
 
 from keylime import config
+from keylime import json
 from keylime.agentstates import AgentAttestStates
 from keylime.common import states
 from keylime.db.verifier_db import VerfierMain

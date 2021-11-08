@@ -8,8 +8,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import sys
 import uuid
 
-import simplejson as json
-
+from keylime import json
 
 TESTING_MODE = False
 

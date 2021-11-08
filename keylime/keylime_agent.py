@@ -25,8 +25,6 @@ import shutil
 import subprocess
 import psutil
 
-import simplejson as json
-
 from cryptography.hazmat.primitives import serialization
 
 from keylime import config
@@ -34,6 +32,7 @@ from keylime import keylime_logging
 from keylime import cmd_exec
 from keylime import crypto
 from keylime import ima
+from keylime import json
 from keylime import openstack
 from keylime import revocation_notifier
 from keylime import registrar_client
