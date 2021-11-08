@@ -14,14 +14,13 @@ import time
 import tempfile
 from uuid import UUID
 
-import simplejson as json
-
 try:
     from yaml import CSafeDumper as SafeDumper
 except ImportError:
     from yaml import SafeDumper
 
 from keylime import config
+from keylime import json
 from keylime import keylime_logging
 from keylime.tpm.tpm_main import tpm
 

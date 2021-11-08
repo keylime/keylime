@@ -23,10 +23,9 @@ from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography import x509
 
-import simplejson as json
-
 from keylime import cmd_exec
 from keylime import config
+from keylime import json
 from keylime import keylime_logging
 from keylime import secure_mount
 from keylime.tpm import tpm_abstract

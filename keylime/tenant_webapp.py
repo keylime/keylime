@@ -12,13 +12,13 @@ import ssl
 import traceback
 import sys
 
-import simplejson as json
 import tornado.ioloop
 import tornado.web
 
 from keylime.requests_client import RequestsClient
 from keylime.common import states
 from keylime import config
+from keylime import json
 from keylime import keylime_logging
 from keylime import tenant
 from keylime import api_version as keylime_api_version

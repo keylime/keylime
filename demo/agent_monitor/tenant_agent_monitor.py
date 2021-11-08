@@ -24,11 +24,10 @@ import argparse
 import keylime_logging
 import common
 import sys
+from keylime import json
 sys.path.insert(0, '../../keylime/')
 
 logger = keylime_logging.init_logging('agent_monitor')
-
-import simplejson as json
 
 initscript = None
 

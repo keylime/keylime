@@ -19,9 +19,8 @@ try:
 except ImportError:
     from yaml import SafeLoader
 
-import simplejson as json
-
 from keylime import api_version as keylime_api_version
+from keylime import json
 
 
 def convert(data):

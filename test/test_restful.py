@@ -41,13 +41,13 @@ import errno
 from pathlib import Path
 
 import dbus
-import simplejson as json
 
 from keylime import config
 from keylime import tornado_requests
 from keylime.requests_client import RequestsClient
 from keylime import tenant
 from keylime import crypto
+from keylime import json
 from keylime.cmd import user_data_encrypt
 from keylime import secure_mount
 from keylime.tpm import tpm_main

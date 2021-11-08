@@ -12,11 +12,11 @@ import sys
 import signal
 
 import requests
-import simplejson as json
 import zmq
 
 from keylime import config
 from keylime import crypto
+from keylime import json
 from keylime import keylime_logging
 from keylime import secure_mount
 

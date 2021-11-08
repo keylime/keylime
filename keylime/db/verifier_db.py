@@ -3,11 +3,11 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
 '''
 
-import simplejson as json
-
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, String, Integer, PickleType, Text, LargeBinary
 from sqlalchemy import schema
+
+from keylime.json import JSONPickler
 
 
 Base = declarative_base()
@@ -29,26 +29,26 @@ class VerfierMain(Base):
     port = Column(Integer)
     operational_state = Column(Integer)
     public_key = Column(String(500))
-    tpm_policy = Column(JSONPickleType(pickler=json))
-    vtpm_policy = Column(JSONPickleType(pickler=json))
+    tpm_policy = Column(JSONPickleType(pickler=JSONPickler))
+    vtpm_policy = Column(JSONPickleType(pickler=JSONPickler))
     meta_data = Column(String(200))
     allowlist = Column(Text(429400000))
     ima_sign_verification_keys = Column(Text(429400000))
     mb_refstate = Column(Text(429400000))
     revocation_key = Column(String(2800))
-    accept_tpm_hash_algs = Column(JSONPickleType(pickler=json))
-    accept_tpm_encryption_algs = Column(JSONPickleType(pickler=json))
-    accept_tpm_signing_algs = Column(JSONPickleType(pickler=json))
+    accept_tpm_hash_algs = Column(JSONPickleType(pickler=JSONPickler))
+    accept_tpm_encryption_algs = Column(JSONPickleType(pickler=JSONPickler))
+    accept_tpm_signing_algs = Column(JSONPickleType(pickler=JSONPickler))
     hash_alg = Column(String(10))
     enc_alg = Column(String(10))
     sign_alg = Column(String(10))
     boottime = Column(Integer)
-    ima_pcrs = Column(JSONPickleType(pickler=json))
+    ima_pcrs = Column(JSONPickleType(pickler=JSONPickler))
     pcr10 = Column(LargeBinary)
     next_ima_ml_entry = Column(Integer)
     severity_level = Column(Integer, nullable=True)
     last_event_id = Column(String(200), nullable=True)
-    learned_ima_keyrings = Column(JSONPickleType(pickler=json))
+    learned_ima_keyrings = Column(JSONPickleType(pickler=JSONPickler))
 
 
 class VerifierAllowlist(Base):

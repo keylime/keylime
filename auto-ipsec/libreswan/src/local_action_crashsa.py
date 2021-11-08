@@ -11,8 +11,7 @@ import keylime.secure_mount as secure_mount
 import keylime.config as common
 import keylime.keylime_logging as keylime_logging
 import keylime.cmd_exec as cmd_exec
-
-import simplejson as json
+from keylime import json
 
 # read the config file
 config = common.get_config()
