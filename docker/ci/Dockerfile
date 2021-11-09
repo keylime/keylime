@@ -7,7 +7,7 @@
 
 FROM quay.io/fedora/fedora:34-x86_64
 MAINTAINER Luke Hinds <lhinds@redhat.com>
-LABEL version="1.0.1" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
+LABEL version="1.1.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
 # environment variables
 ARG BRANCH=master
@@ -17,10 +17,15 @@ ENV KEYLIME_HOME ${HOME}/keylime
 ENV TPM_HOME ${HOME}/swtpm2
 COPY dbus-policy.conf /etc/dbus-1/system.d/
 
+# Install dev tools and libraries (includes openssl-devel)
+RUN dnf groupinstall -y \
+    "Development Tools" \
+    "Development Libraries"
+
 # Packaged dependencies
 ENV PKGS_DEPS="automake \
-cargo \
-clang-devel \
+clang clang-devel \
+czmq-devel \
 dbus \
 dbus-daemon \
 dbus-devel \
@@ -32,11 +37,14 @@ glib2-devel \
 glib2-static \
 gnulib \
 kmod \
+libarchive-devel \
 libselinux-python3 \
 libtool \
 libtpms \
+llvm llvm-devel \
 make \
 openssl-devel \
+pkg-config \
 procps \
 python3-cryptography \
 python3-dbus \
@@ -51,7 +59,7 @@ python3-virtualenv \
 python3-yaml \
 python3-zmq \
 redhat-rpm-config \
-rust \
+rust clippy cargo \
 swtpm \
 swtpm-tools \
 tpm2-abrmd \
@@ -65,4 +73,10 @@ which"
 RUN dnf makecache && \
   dnf -y install $PKGS_DEPS && \
   dnf clean all && \
-  rm -rf /var/cache/dnf/*
+  rm -rf /var/cache/dnf/* \
+  cargo install cargo-tarpaulin
+
+# Move keylime.conf to expected location in /etc/
+RUN git clone https://github.com/keylime/keylime.git && \
+  cd keylime && \
+  cp keylime.conf /etc/keylime.conf
