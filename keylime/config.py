@@ -168,7 +168,7 @@ def getint(section, option, fallback=None):
 
 def getboolean(section, option, fallback=None):
     if fallback is not None:
-        return get_config().get(section, option, fallback=fallback)
+        return get_config().getboolean(section, option, fallback=fallback)
     return get_config().getboolean(section, option)
 
 
