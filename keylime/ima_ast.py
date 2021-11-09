@@ -347,7 +347,6 @@ class Entry:
             # By default ToMToU errors are not treated as a failure
             if config.getboolean("cloud_verifier", "tomtou_errors", False):
                 failure.add_event("tomtou", "hash validation was skipped", True)
-            failure.merge(self.mode.is_data_valid(self.validator))
             return failure
         if self.template_hash != self.mode.hash():
             failure.add_event("ima_hash",
