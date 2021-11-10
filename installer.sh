@@ -64,7 +64,7 @@ case "$ID" in
         echo "${ID} selected."
         PACKAGE_MGR=$(command -v apt-get)
         PYTHON_PREIN="git patch"
-        PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-cryptography python3-simplejson python3-requests python3-psutil gcc g++ libssl-dev swig python3-yaml python3-gnupg wget"
+        PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-cryptography python3-requests python3-psutil gcc g++ libssl-dev swig python3-yaml python3-gnupg wget"
         if [ "$(uname -m)" = "x86_64" ]; then
             PYTHON_DEPS+=" libefivar-dev"
         fi
@@ -80,7 +80,7 @@ case "$ID" in
                 PACKAGE_MGR=$(command -v yum)
                 NEED_EPEL=1
                 PYTHON_PREIN="python36 python36-devel python36-setuptools python36-pip git wget patch openssl"
-                PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python36-simplejson python36-cryptography python36-requests python36-zmq yaml-cpp-devel python3-psutil"
+                PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python36-cryptography python36-requests python36-zmq yaml-cpp-devel python3-psutil"
                 if [ "$(uname -m)" = "x86_64" ]; then
                     PYTHON_DEPS+=" efivar-libs"
                 fi
@@ -93,7 +93,7 @@ case "$ID" in
                 PACKAGE_MGR=$(command -v dnf)
                 NEED_EPEL=1
                 PYTHON_PREIN="python3 python3-devel python3-setuptools python3-pip"
-                PYTHON_DEPS="gcc gcc-c++ openssl-devel python3-yaml python3-requests swig python3-cryptography wget git python3-tornado python3-zmq python3-simplejson python3-gnupg python3-psutil"
+                PYTHON_DEPS="gcc gcc-c++ openssl-devel python3-yaml python3-requests swig python3-cryptography wget git python3-tornado python3-zmq python3-gnupg python3-psutil"
                 if [ "$(uname -m)" = "x86_64" ]; then
                     PYTHON_DEPS+=" efivar-libs"
                 fi
@@ -113,7 +113,7 @@ case "$ID" in
         echo "${ID} selected."
         PACKAGE_MGR=$(command -v dnf)
         PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
-        PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto  python3-zmq python3-cryptography python3-tornado python3-simplejson python3-requests python3-gnupg yaml-cpp-devel procps-ng python3-psutil"
+        PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto  python3-zmq python3-cryptography python3-tornado python3-requests python3-gnupg yaml-cpp-devel procps-ng python3-psutil"
         if [ "$(uname -m)" = "x86_64" ]; then
             PYTHON_DEPS+=" efivar-devel"
         fi
