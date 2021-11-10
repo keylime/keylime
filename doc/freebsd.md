@@ -74,7 +74,7 @@ make install
 
 # Installing keylime
 
-`pkg install -y git py37-pip py37-pyaml py37-pyzmq py37-m2crypto py37-tornado py37-cryptography py37-simplejson py37-requests py37-sqlite3`
+`pkg install -y git py37-pip py37-pyaml py37-pyzmq py37-m2crypto py37-tornado py37-cryptography py37-requests py37-sqlite3`
 
 clone keylime repo and install
 ```
