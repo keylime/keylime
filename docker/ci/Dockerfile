@@ -73,7 +73,7 @@ which"
 RUN dnf makecache && \
   dnf -y install $PKGS_DEPS && \
   dnf clean all && \
-  rm -rf /var/cache/dnf/* \
+  rm -rf /var/cache/dnf/* && \
   cargo install cargo-tarpaulin
 
 # Move keylime.conf to expected location in /etc/
