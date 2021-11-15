@@ -128,6 +128,54 @@ loaded onto keyrings .ima and .evm (since Linux 5.6)::
    measure func=KEY_CHECK keyrings=.ima|.evm
 
 
+IMA Keylime JSON format
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The tenant parses the allow and exclude list into a JSON object that is then sent to the verifier.
+Depending of the use case the object can also be constructed manually instead of using the tenant.
+
+.. sourcecode:: json
+
+    {
+       "allowlist":{
+          "meta":{
+             "version":"ALLOWLIST_CURRENT_VERSION"
+          },
+          "release":"RELEASE_VERSION",
+          "hashes":{
+             "/file/path":[
+                "VALID_HASH1",
+                "VALID_HASH2"
+             ]
+          },
+          "keyrings":{
+             "LINUX_KEYRING":[
+                "VALID_HASH3"
+             ]
+          },
+          "ima":{
+             "ignored_keyrings":[
+                "IGNORED_KEYRING"
+             ]
+          }
+       },
+       "exclude":[
+          "REGEX1, REGEX2"
+       ]
+    }
+
+
+- `ALLOWLIST_CURRENT_VERSION` (integer): current version of the allow list format (latest is 2).
+- `RELEASE_VERSION` (integer): release version of this allowlist.
+- `hashes`: dictionary of the file path that should be validated as key and a list of valid hashes as entry.
+- `VALID_HASHn`: valid hash of the file or keyring that is measured
+- `keyrings`: dictionary of the keyring that should be used for signature validation and a list of valid hashes as entry.
+- `LINUX_KEYRING`: kernel keyring like `.ima` or `.evm`
+- `ignored_keyrings`: successful validated keyrings are used for signature validation. Add `*` to disable all or add them one by one.
+- `exclude`: list of regexes of files to exclude
+- `REGEXn`: regex for excluding certain files (e.g. `/tmp/.*`)
+
+
 Remotely Provision Agents
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
