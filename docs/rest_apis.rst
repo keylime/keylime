@@ -66,7 +66,12 @@ Cloud verifier (CV)
             ],
             "hash_alg": "sha256",
             "enc_alg": "rsa",
-            "sign_alg": "rsassa"
+            "sign_alg": "rsassa",
+            "verifier_id": "default",
+            "verifier_ip": "127.0.0.1",
+            "verifier_port": 8881,
+            "severity_level": 6,
+            "last_event_id": "qoute_validation.quote_validation"
           }
         }
 
@@ -87,7 +92,11 @@ Cloud verifier (CV)
     :>json string hash_alg: Used hashing algorithm.
     :>json string enc_alg: Used encryption algorithm.
     :>json string sign_alg: Used signing algorithm.
-
+    :>json string verifier_id: Name of the verifier that is used. (Only important if multiple verifiers are used)
+    :>json string verifier_ip: IP of the verifier that is used.
+    :>json int verifier_port: Port of the verifier that is used.
+    :>json int severity_level: Severity level of the agent. Might be `null`. Levels are the numeric representation of the severity labels.
+    :>json string last_event_id: ID of the last revocation event. Might be `null`.
 
 
 .. http:post::  /v1.0/agents/{agent_id:UUID}
