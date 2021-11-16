@@ -73,8 +73,10 @@ which"
 RUN dnf makecache && \
   dnf -y install $PKGS_DEPS && \
   dnf clean all && \
-  rm -rf /var/cache/dnf/* && \
-  cargo install cargo-tarpaulin
+  rm -rf /var/cache/dnf/*
+
+# Install cargo dependencies
+RUN cargo install cargo-tarpaulin
 
 # Move keylime.conf to expected location in /etc/
 RUN git clone https://github.com/keylime/keylime.git && \
