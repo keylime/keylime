@@ -22,19 +22,19 @@ The term of the project lead is one year, with no term limit restriction.
 
 The project lead is elected by Keylime maintainers.
 
-The current project lead is identified in the [MAINTAINERS](MAINTAINERS.md) file with the string
+The current project lead is identified in the [MAINTAINERS.md](https://github.com/keylime/keylime/MAINTAINERS.md) file with the string
 `project lead` and the term behind the name in a comment at the top of the file.
 
 ## Expectations from Maintainers
 
-Every one carries water...
+_Every one carries water…_
 
 Making a community work requires input/effort from everyone. Maintainers should actively
 participate in Pull Request reviews. Maintainers are expected to respond to assigned Pull Requests
 in a *reasonable* time frame, either providing insights, or assign the Pull Requests to other
 maintainers.
 
-Every Maintainer is listed in the [MAINTAINERS](MAINTAINERS.md) file, with their
+Every Maintainer is listed in the [MAINTAINERS.md](https://github.com/keylime/keylime/MAINTAINERS.md) file, with their
 Github handle.
 
 A Maintainer should be active within the CNCF slack [#keylime
@@ -49,7 +49,7 @@ as part of the process.
 
 ## Changes in Maintainership
 
-If a Maintainer feels she/he can not fulfill the "Expectations from Maintainers", they are free to
+If a Maintainer feels she or he can not fulfill the "Expectations from Maintainers", they are free to
 step down.
 
 The Keylime organization will never forcefully remove a current Maintainer, unless a maintainer
@@ -63,7 +63,7 @@ Changes in project lead or term is initiated by opening a github PR.
 Anyone from Keylime community can vote on the PR with either +1 or -1.
 
 Only the following votes are binding:
-1) Any maintainer that has been listed in the [MAINTAINERS](MAINTAINERS.md) file before the PR is opened.
+1) Any maintainer that has been listed in the [MAINTAINERS.md](https://github.com/keylime/keylime/MAINTAINERS.md) file before the PR is opened.
 2) Any maintainer from an organization may cast the vote for that organization. However, no organization
 should have more binding votes than 1/5 of the total number of maintainers defined in 1).
 
@@ -122,9 +122,9 @@ considered a __CNCF sub-project under the umbrella of Keylime__.
 
 ## Keylime and CNCF
 
-Keylime is a CNCF project. As such, Keylime might be involved in CNCF (or other CNCF projects) related
+Keylime is a [CNCF](https://cncf.io) project. As such, Keylime might be involved in CNCF (or other CNCF projects) related
 marketing, events, or activities. Any maintainer could help driving the Keylime involvement, as long as
-she/he sends email to `keylime@groups.io` (or create a GitHub Pull Request) to call for participation
+they send email to `keylime@groups.io` (or create a GitHub Pull Request) to call for participation
 from other maintainers. The `Call for Participation` should be kept open for no less than a week if time
 permits, or a _reasonable_ time frame to allow maintainers to have a chance to volunteer.
 
