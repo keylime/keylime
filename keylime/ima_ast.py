@@ -341,6 +341,11 @@ class Entry:
 
     def invalid(self):
         failure = Failure(Component.IMA, ["validation"])
+        if self.pcr != str(config.IMA_PCR):
+            logger.warning(f"IMA entry PCR does not match {config.IMA_PCR}. It was: {self.pcr}")
+            failure.add_event("ima_pcr", {"message": "IMA PCR is not the configured one",
+                                          "expected": str(config.IMA_PCR), "got": self.pcr}, True)
+
         # Ignore template hash for ToMToU errors
         if self.template_hash == FF_HASH:
             logger.warning("Skipped template_hash validation entry with FF_HASH")
