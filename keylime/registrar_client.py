@@ -123,18 +123,25 @@ def getData(registrar_ip, registrar_port, agent_id):
     return None
 
 
-def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_tpm, contact_ip = None, contact_port = None):
+def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_tpm, mtls_cert=None,
+                    contact_ip=None, contact_port=None):
     data = {
         'ekcert': ekcert,
         'aik_tpm': aik_tpm,
     }
     if ekcert is None or ekcert == 'emulator':
         data['ek_tpm'] = ek_tpm
-    response = None
+
+    if mtls_cert is not None:
+        data['mtls_cert'] = mtls_cert
+    else:
+        logger.error("Most actions require the agent to have mTLS enabled, but no cert was provided!")
     if contact_ip is not None:
         data['ip'] = contact_ip
     if contact_port is not None:
         data['port'] = contact_port
+
+    response = None
     try:
         client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
         response = client.post(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, data=json.dumps(data), verify=False)
