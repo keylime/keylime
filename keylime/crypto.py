@@ -4,6 +4,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import base64
+import datetime
 import hmac
 import hashlib
 import os
@@ -19,6 +20,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric.rsa import generate_private_key
+from cryptography.x509.oid import NameOID
 
 aes_block_size = 16
 
@@ -196,3 +198,18 @@ def decrypt(ciphertext, key):
                        modes.GCM(iv, tag),
                        backend=default_backend()).decryptor()
     return decryptor.update(ciphertext) + decryptor.finalize()
+
+
+def generate_selfsigned_cert(name, key, valid_until) -> x509.Certificate:
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, name)
+    ])
+    cert = x509.CertificateBuilder()\
+        .subject_name(subject)\
+        .issuer_name(issuer)\
+        .public_key(key.public_key())\
+        .serial_number(x509.random_serial_number())\
+        .not_valid_before(datetime.datetime.utcnow())\
+        .not_valid_after(valid_until)\
+        .sign(key, hashes.SHA256())
+    return cert
