@@ -62,6 +62,7 @@ class Tenant():
 
     registrar_ip = None
     registrar_port = None
+    registrar_data = None
 
     webapp_ip = None
     webapp_port = None
@@ -253,19 +254,19 @@ class Tenant():
         if 'agent_port' in args and args['agent_port'] is not None:
             self.agent_port = args['agent_port']
 
-        # try to get the port or ip from the registrar if it is missing
-        if self.agent_ip is None or self.agent_port is None:
-            registrar_client.init_client_tls("tenant")
-            data = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid)
-            if data is not None:
-                if self.agent_ip is None:
-                    if data['ip'] is not None:
-                        self.agent_ip = data['ip']
-                    else:
-                        raise UserError("No Ip was specified or found in the Registrar")
+        registrar_client.init_client_tls("tenant")
+        self.registrar_data = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid)
 
-                if self.agent_port is None and data['port'] is not None:
-                    self.agent_port = data["port"]
+        # try to get the port or ip from the registrar if it is missing
+        if (self.agent_ip is None or self.agent_port is None) and self.registrar_data is not None:
+            if self.agent_ip is None:
+                if self.registrar_data['ip'] is not None:
+                    self.agent_ip = self.registrar_data['ip']
+                else:
+                    raise UserError("No Ip was specified or found in the Registrar")
+
+            if self.agent_port is None and self.registrar_data['port'] is not None:
+                self.agent_port = self.registrar_data["port"]
 
         # If no agent port was found try to use the default from the config file
         if self.agent_port is None:
@@ -501,20 +502,18 @@ class Tenant():
             [type] -- [description]
         """
         registrar_client.init_client_tls('tenant')
-        reg_data = registrar_client.getData(
-            self.registrar_ip, self.registrar_port, self.agent_uuid)
-        if reg_data is None:
+        if self.registrar_data is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
 
-        failure = self.tpm_instance.check_quote(AgentAttestState(self.agent_uuid), self.nonce, public_key, quote, reg_data['aik_tpm'], hash_alg=hash_alg)
+        failure = self.tpm_instance.check_quote(AgentAttestState(self.agent_uuid), self.nonce, public_key, quote, self.registrar_data['aik_tpm'], hash_alg=hash_alg)
         if failure:
-            if reg_data['regcount'] > 1:
+            if self.registrar_data['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured or a malicious host is present. Run 'regdelete' for this agent and restart")
                 sys.exit()
             return False
 
-        if reg_data['regcount'] > 1:
+        if self.registrar_data['regcount'] > 1:
             logger.warning("WARNING: This UUID had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured. Run 'regdelete' for this agent and restart")
 
         if not config.STUB_TPM and (not config.getboolean('tenant', 'require_ek_cert') and config.get('tenant', 'ek_check_script') == ""):
@@ -522,11 +521,11 @@ class Tenant():
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
         # check EK cert and make sure it matches EK
-        if not self.check_ek(reg_data['ekcert']):
+        if not self.check_ek(self.registrar_data['ekcert']):
             return False
         # if agent is virtual, check phyisical EK cert and make sure it matches phyiscal EK
-        if 'provider_keys' in reg_data:
-            if not self.check_ek(reg_data['provider_keys']['ekcert']):
+        if 'provider_keys' in self.registrar_data:
+            if not self.check_ek(self.registrar_data['provider_keys']['ekcert']):
                 return False
 
         # check all EKs with optional script:
@@ -542,18 +541,18 @@ class Tenant():
         env = os.environ.copy()
         env['AGENT_UUID'] = self.agent_uuid
         env['EK'] = tpm2_objects.pubkey_from_tpm2b_public(
-            base64.b64decode(reg_data['ek_tpm']),
+            base64.b64decode(self.registrar_data['ek_tpm']),
             ).public_bytes(
                 crypto_serialization.Encoding.PEM,
                 crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
             )
-        env['EK_TPM'] = reg_data['ek_tpm']
-        if reg_data['ekcert'] is not None:
-            env['EK_CERT'] = reg_data['ekcert']
+        env['EK_TPM'] = self.registrar_data['ek_tpm']
+        if self.registrar_data['ekcert'] is not None:
+            env['EK_CERT'] = self.registrar_data['ekcert']
         else:
             env['EK_CERT'] = ""
 
-        env['PROVKEYS'] = json.dumps(reg_data.get('provider_keys', {}))
+        env['PROVKEYS'] = json.dumps(self.registrar_data.get('provider_keys', {}))
         proc = subprocess.Popen(script, env=env, shell=True,
                                 cwd=config.WORK_DIR, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT)
@@ -946,11 +945,11 @@ class Tenant():
             try:
                 params = f'/v{self.api_version}/quotes/identity?nonce=%s' % (self.nonce)
                 cloudagent_base_url = f'{self.agent_ip}:{self.agent_port}'
-                do_quote = RequestsClient(cloudagent_base_url, tls_enabled=False)
-                response = do_quote.get(
-                    params,
-                    cert=self.cert
-                )
+
+                with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True, cert=self.cert,
+                                    verify_custom=self.registrar_data['mtls_cert']) as do_quote:
+                    response = do_quote.get(params)
+
                 print(response)
                 response_body = response.json()
 
@@ -1034,11 +1033,9 @@ class Tenant():
                 f'{self.agent_ip}:{self.agent_port}'
             )
 
-            post_ukey = RequestsClient(cloudagent_base_url, tls_enabled=False)
-            response = post_ukey.post(
-                params,
-                json=data
-            )
+            with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True, cert=self.cert,
+                                verify_custom=self.registrar_data['mtls_cert']) as post_ukey:
+                response = post_ukey.post(params, json=data)
 
             if response.status_code == 503:
                 logger.error("Cannot connect to Agent at %s with Port %s. Connection refused.", self.agent_ip, self.agent_port)
@@ -1066,13 +1063,11 @@ class Tenant():
                 cloudagent_base_url = (
                     f'{self.agent_ip}:{self.agent_port}'
                 )
-                do_verify = RequestsClient(
-                    cloudagent_base_url, tls_enabled=False)
-                response = do_verify.get(
-                    (f'/v{self.api_version}/keys/verify?challenge={challenge}'),
-                    cert=self.cert,
-                    verify=False
-                )
+
+                with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True,
+                                    cert=self.cert, verify_custom=self.registrar_data['mtls_cert']) as do_verify:
+                    response = do_verify.get(f'/v{self.api_version}/keys/verify?challenge={challenge}')
+
             except Exception as e:
                 if response.status_code in (503, 504):
                     numtries += 1
@@ -1138,6 +1133,7 @@ class Tenant():
                                  cert=self.cert, verify=False)
         print(f"Show allowlist command response: {response.status_code}.")
         print(response.json())
+
 
 def write_to_namedtempfile(data, delete_tmp_files):
     temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)
