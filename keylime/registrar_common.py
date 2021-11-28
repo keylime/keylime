@@ -94,6 +94,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 'aik_tpm': agent.aik_tpm,
                 'ek_tpm': agent.ek_tpm,
                 'ekcert': agent.ekcert,
+                'mtls_cert': agent.mtls_cert,
                 'ip': agent.ip,
                 'port': agent.port,
                 'regcount': agent.regcount,
@@ -341,6 +342,11 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     logger.warning(f"Contact port for agent {agent_id} is not a valid number got: {contact_port}.")
                     contact_port = None
 
+            # Check for mTLS cert
+            mtls_cert = json_body.get('mtls_cert', None)
+            if mtls_cert is None:
+                logger.warning(f"Agent {agent_id} did not sent a mTLS certificate. Most operations will not work!")
+
             # Add values to database
             d = {}
             d['agent_id'] = agent_id
@@ -348,6 +354,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             d['aik_tpm'] = aik_tpm
             d['ekcert'] = ekcert
             d['ip'] = contact_ip
+            d['mtls_cert'] = mtls_cert
             d['port'] = contact_port
             d['virtual'] = int(ekcert == 'virtual')
             d['active'] = int(False)

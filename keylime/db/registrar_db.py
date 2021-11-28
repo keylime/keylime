@@ -24,6 +24,7 @@ class RegistrarMain(Base):
     aik_tpm = Column(String(500))
     ekcert = Column(String(2048))
     ek_tpm = Column(String(500))
+    mtls_cert = Column(String(2048), nullable=True)
     virtual = Column(Integer)
     ip = Column(String(15), nullable=True)
     port = Column(Integer, nullable=True)
