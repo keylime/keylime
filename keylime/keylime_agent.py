@@ -33,7 +33,6 @@ from keylime import cmd_exec
 from keylime import crypto
 from keylime import ima
 from keylime import json
-from keylime import openstack
 from keylime import revocation_notifier
 from keylime import registrar_client
 from keylime import secure_mount
@@ -526,9 +525,7 @@ def main():
         agent_uuid = config.get('cloud_agent', 'agent_uuid')
     except configparser.NoOptionError:
         agent_uuid = None
-    if agent_uuid == 'openstack':
-        agent_uuid = openstack.get_openstack_uuid()
-    elif agent_uuid == 'hash_ek':
+    if agent_uuid == 'hash_ek':
         ek_pubkey = pubkey_from_tpm2b_public(base64.b64decode(ek_tpm))
         ek_pubkey_pem = ek_pubkey.public_bytes(encoding=serialization.Encoding.PEM,
                                                format=serialization.PublicFormat.SubjectPublicKeyInfo)
