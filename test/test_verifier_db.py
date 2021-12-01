@@ -10,6 +10,7 @@ from sqlalchemy import create_engine
 from keylime.db.verifier_db import VerifierAllowlist
 from keylime.db.verifier_db import VerfierMain
 from keylime.db.keylime_db import SessionManager
+from keylime import json
 
 # BEGIN TEST DATA
 
@@ -107,6 +108,10 @@ class TestVerfierDB(unittest.TestCase):
         agent = self.session.query(
             VerfierMain.agent_id).count()
         self.assertEqual(agent, 1)
+
+    def test_serialize_agent_uuids(self):
+        uuids = self.session.query(VerfierMain.agent_id).all()
+        self.assertEqual(json.dumps(uuids), f'[["{agent_id}"]]')
 
     def test_set_operation_state(self):
         self.session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update(

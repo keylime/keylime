@@ -6,14 +6,28 @@ Copyright 2021 Sergio Correia (scorreia@redhat.com), Red Hat, Inc.
 import json as json_module
 
 
+_list_types = [list, tuple]
+try:
+    from sqlalchemy.engine.row import Row  # sqlalchemy >= 1.4.
+
+    _list_types.append(Row)
+except ModuleNotFoundError:
+    from sqlalchemy.engine import RowProxy
+
+    _list_types.append(RowProxy)
+
+
 def __bytes_to_str(data):
     if isinstance(data, (bytes, bytearray)):
-        return data.decode("utf-8")
-
-    if isinstance(data, dict):
+        data = data.decode("utf-8")
+    elif isinstance(data, dict):
         for _k, _v in data.items():
             data[_k] = __bytes_to_str(_v)
-        return data
+    elif isinstance(data, tuple(_list_types)):
+        _l = list(data)
+        for _k, _v in enumerate(_l):
+            _l[_k] = __bytes_to_str(_v)
+        data = _l
 
     return data
 
