@@ -212,7 +212,7 @@ Within this script create an `execute` function:
         mycert = ca_util.load_cert_by_path(f'{secdir}/unzipped/mycert.crt')
 
         # is this revocation meant for me?
-        if serial === mycert.get_serial_number():
+        if serial == mycert.serial_number:
             os.remove("/root/.ssh/payload_id_rsa")
             os.remove("/root/.ssh/payload_id_rsa.pub")
 
