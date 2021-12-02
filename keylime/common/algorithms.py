@@ -2,6 +2,10 @@
 SPDX-License-Identifier: Apache-2.0
 Copyright 2020 Kaifeng Wang
 """
+import enum
+import hashlib
+
+from typing import Optional
 
 
 def is_accepted(algorithm, accepted):
@@ -13,17 +17,44 @@ def is_accepted(algorithm, accepted):
     return algorithm in accepted
 
 
-class Hash:
+class Hash(str, enum.Enum):
     SHA1 = 'sha1'
     SHA256 = 'sha256'
     SHA384 = 'sha384'
     SHA512 = 'sha512'
     SM3_256 = 'sm3_256'
-    supported_algorithms = (SHA1, SHA256, SHA384, SHA512, SM3_256)
 
     @staticmethod
     def is_recognized(algorithm):
-        return algorithm in Hash.supported_algorithms
+        try:
+            Hash(algorithm)
+            return True
+        except ValueError:
+            return False
+
+    def hash(self, data: bytes) -> Optional[bytes]:
+        if self == Hash.SHA1:
+            return hashlib.sha1(data).digest()
+        if self == Hash.SHA256:
+            return hashlib.sha256(data).digest()
+        if self == Hash.SHA384:
+            return hashlib.sha384(data).digest()
+        if self == Hash.SHA512:
+            return hashlib.sha512(data).digest()
+        if self == Hash.SM3_256:
+            # SM3 might not be guaranteed to be there
+            try:
+                return hashlib.new("sm3", data).digest()
+            except ValueError:
+                return None
+
+        return None
+
+    def get_size(self):
+        return _HASH_SIZE.get(self)
+
+    def __str__(self):
+        return self.value
 
 
 class Encrypt:
@@ -54,8 +85,5 @@ _HASH_SIZE = {
     Hash.SHA256: 256,
     Hash.SHA384: 384,
     Hash.SHA512: 512,
+    Hash.SM3_256: 256,
 }
-
-
-def get_hash_size(algorithm):
-    return _HASH_SIZE.get(algorithm, 0)

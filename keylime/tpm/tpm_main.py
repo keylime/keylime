@@ -248,7 +248,7 @@ class tpm(tpm_abstract.AbstractTPM):
             # Assume their defaults are sane?
             pass
 
-        self.defaults['hash'] = defaultHash
+        self.defaults['hash'] = algorithms.Hash(defaultHash)
         self.defaults['encrypt'] = defaultEncrypt
         self.defaults['sign'] = defaultSign
         self.defaults['ek_handle'] = ek_handle
@@ -1126,7 +1126,7 @@ class tpm(tpm_abstract.AbstractTPM):
             return failure
         if "pcrs" in jsonout:
             if hash_alg in jsonout["pcrs"]:
-                alg_size = algorithms.get_hash_size(hash_alg) // 4
+                alg_size = hash_alg.get_size() // 4
                 for pcrval, hashval in jsonout["pcrs"][hash_alg].items():
                     pcrs.append("PCR " + str(pcrval) + " " + '{0:0{1}x}'.format(hashval, alg_size))
             # IMA is always in SHA1 format, so don't leave it behind!
@@ -1155,7 +1155,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
     def extendPCR(self, pcrval, hashval, hash_alg=None, lock=True):
         if hash_alg is None:
-            hash_alg = self.defaults['hash']
+            hash_alg = self.defaults['hash'].value
 
         self.__run(["tpm2_pcrextend", "%d:%s=%s" % (pcrval, hash_alg, hashval)], lock=lock)
 
@@ -1175,7 +1175,7 @@ class tpm(tpm_abstract.AbstractTPM):
             raise Exception("Invalid hashing algorithm '%s' for reading PCR number %d." % (hash_alg, pcrval))
 
         # alg_size = Hash_Algorithms.get_hash_size(hash_alg)/4
-        alg_size = algorithms.get_hash_size(hash_alg) // 4
+        alg_size = hash_alg.get_size() // 4
         return '{0:0{1}x}'.format(jsonout[hash_alg][pcrval], alg_size)
 
     # tpm_random

@@ -53,6 +53,7 @@ from keylime import secure_mount
 from keylime.tpm import tpm_main
 from keylime.tpm import tpm_abstract
 from keylime import api_version
+from keylime.common import algorithms
 
 
 # Coverage support
@@ -562,7 +563,7 @@ class TestRestful(unittest.TestCase):
                                         json_response["results"]["pubkey"],
                                         json_response["results"]["quote"],
                                         aik_tpm,
-                                        hash_alg=json_response["results"]["hash_alg"])
+                                        hash_alg=algorithms.Hash(json_response["results"]["hash_alg"]))
         self.assertTrue(not failure, "Invalid quote!")
 
     @unittest.skip("Testing of agent's POST /keys/vkey disabled!  (spawned CV should do this already)")
@@ -844,7 +845,7 @@ class TestRestful(unittest.TestCase):
         self.assertIn("hash_alg", json_response["results"], "Malformed response body!")
 
         quote = json_response["results"]["quote"]
-        hash_alg = json_response["results"]["hash_alg"]
+        hash_alg = algorithms.Hash(json_response["results"]["hash_alg"])
 
         failure = tpm_instance.check_quote(tenant_templ.agent_uuid,
                                      nonce,

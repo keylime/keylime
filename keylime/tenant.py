@@ -988,7 +988,8 @@ class Tenant():
             # Ensure hash_alg is in accept_tpm_hash_algs list
             hash_alg = response_body["results"]["hash_alg"]
             logger.debug("Agent_quote received hash algorithm: %s", hash_alg)
-            if not algorithms.is_accepted(hash_alg, config.get('tenant', 'accept_tpm_hash_algs').split(',')):
+            if not algorithms.is_accepted(hash_alg, config.get('tenant', 'accept_tpm_hash_algs').split(','))\
+                    or not algorithms.Hash.is_recognized(hash_alg):
                 raise UserError(
                     "TPM Quote is using an unaccepted hash algorithm: %s" % hash_alg)
 
@@ -1006,7 +1007,7 @@ class Tenant():
                 raise UserError(
                     "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
 
-            if not self.validate_tpm_quote(public_key, quote, hash_alg):
+            if not self.validate_tpm_quote(public_key, quote, algorithms.Hash(hash_alg)):
                 raise UserError(
                     "TPM Quote from cloud agent is invalid for nonce: %s" % self.nonce)
 
