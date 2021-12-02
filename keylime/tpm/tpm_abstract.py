@@ -169,24 +169,17 @@ class AbstractTPM(metaclass=ABCMeta):
         if algorithm is None:
             algorithm = self.defaults['hash']
 
-        alg_size = algorithms.get_hash_size(algorithm) // 4
+        alg_size = algorithm.get_size() // 4
         return "0" * alg_size
 
     def hashdigest(self, payload, algorithm=None):
         if algorithm is None:
             algorithm = self.defaults['hash']
 
-        if algorithm == algorithms.Hash.SHA1:
-            measured = hashlib.sha1(payload).hexdigest()
-        elif algorithm == algorithms.Hash.SHA256:
-            measured = hashlib.sha256(payload).hexdigest()
-        elif algorithm == algorithms.Hash.SHA384:
-            measured = hashlib.sha384(payload).hexdigest()
-        elif algorithm == algorithms.Hash.SHA512:
-            measured = hashlib.sha512(payload).hexdigest()
-        else:
-            measured = None
-        return measured
+        digest = algorithm.hash(payload)
+        if digest is None:
+            return None
+        return codecs.encode(digest, 'hex').decode('utf-8')
 
     @abstractmethod
     def sim_extend(self, hashval_1, hashval_0=None):

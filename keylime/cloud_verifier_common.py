@@ -202,7 +202,8 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
     agent['sign_alg'] = sign_alg
 
     # Ensure hash_alg is in accept_tpm_hash_alg list
-    if not algorithms.is_accepted(hash_alg, agent['accept_tpm_hash_algs']):
+    if not algorithms.is_accepted(hash_alg, agent['accept_tpm_hash_algs'])\
+            or not algorithms.Hash.is_recognized(hash_alg):
         logger.error(f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}")
         failure.add_event("invalid_hash_alg",
                           {"message": f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}", "data": hash_alg},
@@ -258,7 +259,7 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
         agent['tpm_policy'],
         ima_measurement_list,
         agent['allowlist'],
-        hash_alg,
+        algorithms.Hash(hash_alg),
         ima_keyrings,
         mb_measurement_list,
         agent['mb_refstate'])
