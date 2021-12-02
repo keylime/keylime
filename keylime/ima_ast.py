@@ -10,7 +10,6 @@ Implements the templates (modes) and types as defined in:
 
 import binascii
 import codecs
-import hashlib
 import struct
 import abc
 import dataclasses
@@ -18,6 +17,7 @@ import dataclasses
 from typing import Dict, Callable, Any, Optional
 from keylime import config
 from keylime import keylime_logging
+from keylime.common.algorithms import Hash
 from keylime.failure import Failure, Component
 
 logger = keylime_logging.init_logging("ima")
@@ -26,11 +26,16 @@ TCG_EVENT_NAME_LEN_MAX = 255
 SHA_DIGEST_LEN = 20
 MD5_DIGEST_LEN = 16
 
-START_HASH = (codecs.decode(b'0000000000000000000000000000000000000000', 'hex'))
-FF_HASH = (codecs.decode(b'ffffffffffffffffffffffffffffffffffffffff', 'hex'))
-
 NULL_BYTE = ord('\0')
 COLON_BYTE = ord(':')
+
+
+def get_START_HASH(hash_alg: Hash):
+    return codecs.decode(b'0' * (hash_alg.get_size() // 4), 'hex')
+
+
+def get_FF_HASH(hash_alg: Hash):
+    return codecs.decode(b'f' * (hash_alg.get_size() // 4), 'hex')
 
 
 @dataclasses.dataclass
@@ -57,7 +62,7 @@ class Mode(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def hash(self) -> bytes:
+    def bytes(self) -> bytes:
         pass
 
 
@@ -195,9 +200,9 @@ class Ima(Mode):
         self.digest = Digest(tokens[0], legacy=True)
         self.path = Name(tokens[1], legacy=True)
 
-    def hash(self):
-        tohash = self.digest.struct() + self.path.struct()
-        return hashlib.sha1(tohash).digest()
+    def bytes(self):
+        return self.digest.struct() + self.path.struct()
+
 
     def is_data_valid(self, validator: Validator):
         return validator.get_validator(type(self))(self.digest, self.path)
@@ -217,9 +222,8 @@ class ImaNg(Mode):
         self.digest = Digest(tokens[0])
         self.path = Name(tokens[1])
 
-    def hash(self):
-        tohash = self.digest.struct() + self.path.struct()
-        return hashlib.sha1(tohash).digest()
+    def bytes(self):
+        return self.digest.struct() + self.path.struct()
 
     def is_data_valid(self, validator):
         return validator.get_validator(type(self))(self.digest, self.path)
@@ -263,14 +267,14 @@ class ImaSig(Mode):
             pass
         return None
 
-    def hash(self):
-        tohash = self.digest.struct() + self.path.struct()
+    def bytes(self):
+        output = self.digest.struct() + self.path.struct()
         # If no signature is there we sill have to add the entry for it
         if self.signature is None:
-            tohash += struct.pack("<I0s", 0, b'')
+            output += struct.pack("<I0s", 0, b'')
         else:
-            tohash += self.signature.struct()
-        return hashlib.sha1(tohash).digest()
+            output += self.signature.struct()
+        return output
 
     def is_data_valid(self, validator):
         return validator.get_validator(type(self))(self.digest, self.path, self.signature)
@@ -293,9 +297,8 @@ class ImaBuf(Mode):
         self.name = Name(tokens[1])
         self.data = Buffer(tokens[2])
 
-    def hash(self):
-        tohash = self.digest.struct() + self.name.struct() + self.data.struct()
-        return hashlib.sha1(tohash).digest()
+    def bytes(self):
+        return self.digest.struct() + self.name.struct() + self.data.struct()
 
     def is_data_valid(self, validator: Validator):
         return validator.get_validator(type(self))(self.digest, self.name, self.data)
@@ -306,38 +309,45 @@ class Entry:
     IMA Entry. Contains the PCR, template hash and mode.
     """
     pcr: str
-    template_hash: bytes
+    ima_template_hash: bytes
+    pcr_template_hash: bytes
     mode: Mode
-    validator: Validator
+    _bytes: bytes
+    _validator: Validator
+    _ima_hash_alg: Hash
+    _pcr_hash_alg: Hash
 
-    mode_lookup = {
+    _mode_lookup = {
         "ima": Ima,
         "ima-ng": ImaNg,
         "ima-sig": ImaSig,
         "ima-buf": ImaBuf
     }
 
-    def __init__(self, data: str, validator=None):
-        self.validator = validator
+    def __init__(self, data: str, validator=None, ima_hash_alg: Hash = Hash.SHA1, pcr_hash_alg: Hash = Hash.SHA1):
+        self._validator = validator
+        self._ima_hash_alg = ima_hash_alg
+        self._pcr_hash_alg = pcr_hash_alg
         tokens = data.split(maxsplit=3)
         if len(tokens) != 4:
             raise ParserError(f"Cannot create Entry expected 4 tokens got: {len(tokens)}.")
         self.pcr = tokens[0]
         try:
-            self.template_hash = codecs.decode(tokens[1].encode(), "hex")
+            self.ima_template_hash = codecs.decode(tokens[1].encode(), "hex")
         except binascii.Error as e:
             raise ParserError(f"Cannot create Entry expected 4 tokens got: {len(tokens)}.") from e
 
-        mode = self.mode_lookup.get(tokens[2], None)
+        mode = self._mode_lookup.get(tokens[2], None)
         if mode is None:
             raise ParserError(f"No parser for mode {tokens[2]} implemented.")
         self.mode = mode(tokens[3])
-
+        self._bytes = self.mode.bytes()
+        self.pcr_template_hash = self._pcr_hash_alg.hash(self._bytes)
         # Set correct hash for time of measure, time of use (ToMToU) errors
         # and if a file is already opened for write.
         # https://elixir.bootlin.com/linux/v5.12.12/source/security/integrity/ima/ima_main.c#L101
-        if self.template_hash == START_HASH:
-            self.template_hash = FF_HASH
+        if self.ima_template_hash == get_START_HASH(ima_hash_alg):
+            self.ima_template_hash = get_FF_HASH(ima_hash_alg)
 
     def invalid(self):
         failure = Failure(Component.IMA, ["validation"])
@@ -347,20 +357,20 @@ class Entry:
                                           "expected": str(config.IMA_PCR), "got": self.pcr}, True)
 
         # Ignore template hash for ToMToU errors
-        if self.template_hash == FF_HASH:
+        if self.ima_template_hash == get_FF_HASH(self._ima_hash_alg):
             logger.warning("Skipped template_hash validation entry with FF_HASH")
             # By default ToMToU errors are not treated as a failure
             if config.getboolean("cloud_verifier", "tomtou_errors", False):
                 failure.add_event("tomtou", "hash validation was skipped", True)
             return failure
-        if self.template_hash != self.mode.hash():
+        if self.ima_template_hash != self._ima_hash_alg.hash(self._bytes):
             failure.add_event("ima_hash",
                               {"message": "IMA hash does not match the calculated hash.",
-                               "expected": self.template_hash, "got": self.mode.hash()}, True)
+                               "expected": self.ima_template_hash, "got": self.mode.bytes()}, True)
             return failure
-        if self.validator is None:
+        if self._validator is None:
             failure.add_event("no_validator", "No validator specified", True)
             return failure
 
-        failure.merge(self.mode.is_data_valid(self.validator))
+        failure.merge(self.mode.is_data_valid(self._validator))
         return failure

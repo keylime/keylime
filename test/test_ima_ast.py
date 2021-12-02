@@ -7,6 +7,7 @@ import unittest
 
 from keylime import ima_ast
 from keylime.failure import Failure, Component
+from keylime.common.algorithms import Hash
 
 # BEGIN TEST DATA
 
@@ -47,14 +48,15 @@ AlwaysTrueValidator = ima_ast.Validator({
 class TestImaAst(unittest.TestCase):
 
     def test_valid_entry_construction(self):
+        hash_alg = Hash.SHA1
         for name, (expected_mode, data) in VALID_ENTRIES.items():
             err = None
             try:
-                entry = ima_ast.Entry(data, AlwaysTrueValidator)
+                entry = ima_ast.Entry(data, AlwaysTrueValidator, ima_hash_alg=hash_alg, pcr_hash_alg=hash_alg)
                 self.assertTrue(entry.pcr == "10", f"Expected pcr 10 for {name}. Got: {entry.pcr}")
                 self.assertTrue(isinstance(entry.mode, expected_mode)) # pylint: disable=isinstance-second-argument-not-valid-type
-                self.assertTrue(entry.template_hash == entry.mode.hash(),
-                                f"Constructed hash of {name} does not match template hash.\n Expected: {entry.template_hash}.\n Got: {entry.mode.hash()}")
+                self.assertTrue(entry.ima_template_hash == hash_alg.hash(entry.mode.bytes()),
+                                f"Constructed hash of {name} does not match template hash.\n Expected: {entry.ima_template_hash}.\n Got: {entry.mode.bytes()}")
                 self.assertTrue(not entry.invalid(), f"Entry of {name} couldn't be validated.")
             except ima_ast.ParserError as e:
                 err = e

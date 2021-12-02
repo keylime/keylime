@@ -4,13 +4,14 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+import hashlib
 import sys
 import select
 import time
 import itertools
 
 from keylime.tpm.tpm_main import tpm
-from keylime.tpm.tpm_abstract import config, hashlib
+from keylime.tpm.tpm_abstract import config
 from keylime.common import algorithms
 
 # Instaniate tpm

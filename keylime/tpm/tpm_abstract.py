@@ -2,9 +2,8 @@
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
-
+import codecs
 from abc import ABCMeta, abstractmethod
-import hashlib
 import os
 import string
 import typing
@@ -197,7 +196,8 @@ class AbstractTPM(metaclass=ABCMeta):
     def _get_tpm_rand_block(self, size=4096):
         pass
 
-    def __check_ima(self, agentAttestState, pcrval, ima_measurement_list, allowlist, ima_keyrings, boot_aggregates):
+    def __check_ima(self, agentAttestState, pcrval, ima_measurement_list, allowlist,
+                    ima_keyrings, boot_aggregates, hash_alg):
         failure = Failure(Component.IMA)
         logger.info("Checking IMA measurement list on agent: %s", agentAttestState.get_agent_id())
         if config.STUB_IMA:
@@ -205,7 +205,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
         _, ima_failure = ima.process_measurement_list(agentAttestState, ima_measurement_list.split('\n'), allowlist,
                                                       pcrval=pcrval, ima_keyrings=ima_keyrings,
-                                                      boot_aggregates=boot_aggregates)
+                                                      boot_aggregates=boot_aggregates, hash_alg=hash_alg)
         failure.merge(ima_failure)
         if not failure:
             logger.debug("IMA measurement list of agent %s validated", agentAttestState.get_agent_id())
@@ -229,7 +229,7 @@ class AbstractTPM(metaclass=ABCMeta):
         return output
 
     def check_pcrs(self, agentAttestState, tpm_policy, pcrs, data, virtual, ima_measurement_list,
-                   allowlist, ima_keyrings, mb_measurement_list, mb_refstate_str) -> Failure:
+                   allowlist, ima_keyrings, mb_measurement_list, mb_refstate_str, hash_alg) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
         if isinstance(tpm_policy, str):
             tpm_policy = json.loads(tpm_policy)
@@ -273,8 +273,8 @@ class AbstractTPM(metaclass=ABCMeta):
                 logger.error("IMA PCR in policy, but no measurement list provided")
                 failure.add_event(f"unused_pcr_{config.IMA_PCR}", "IMA PCR in policy, but no measurement list provided", True)
             else:
-                ima_failure = self.__check_ima(agentAttestState, pcrs[config.IMA_PCR], ima_measurement_list, allowlist, ima_keyrings,
-                                        boot_aggregates)
+                ima_failure = self.__check_ima(agentAttestState, pcrs[config.IMA_PCR], ima_measurement_list, allowlist,
+                                               ima_keyrings, boot_aggregates, hash_alg)
                 failure.merge(ima_failure)
 
             pcrs_in_quote.add(config.IMA_PCR)

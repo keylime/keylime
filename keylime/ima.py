@@ -20,6 +20,7 @@ from keylime import keylime_logging
 from keylime import ima_ast
 from keylime.agentstates import AgentAttestState
 from keylime import ima_file_signatures
+from keylime.common.algorithms import Hash
 from keylime.failure import Failure, Component
 
 
@@ -204,9 +205,10 @@ def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: ima_file_signature
     return failure
 
 
-def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyrings=None, boot_aggregates=None):
+def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w=None, pcrval=None, ima_keyrings=None,
+                              boot_aggregates=None):
     failure = Failure(Component.IMA)
-    running_hash = agentAttestState.get_pcr_state(config.IMA_PCR)
+    running_hash = agentAttestState.get_pcr_state(config.IMA_PCR, hash_alg)
     found_pcr = (pcrval is None)
     errors = {}
     pcrval_bytes = b''
@@ -258,10 +260,10 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
             continue
 
         try:
-            entry = ima_ast.Entry(line, ima_validator)
+            entry = ima_ast.Entry(line, ima_validator, pcr_hash_alg=hash_alg)
 
             # update hash
-            running_hash = hashlib.sha1(running_hash + entry.template_hash).digest()
+            running_hash = hash_alg.hash(running_hash + entry.pcr_template_hash)
 
             validation_failure = entry.invalid()
 
@@ -280,7 +282,7 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
 
             # Keep old functionality for writing the parsed files with hashes into a file
             if m2w is not None and (type(entry.mode) in [ima_ast.Ima, ima_ast.ImaNg, ima_ast.ImaSig]):
-                hash_value = codecs.encode(entry.mode.digest.hash, "hex")
+                hash_value = codecs.encode(entry.mode.digest.bytes, "hex")
                 path = entry.mode.path.name
                 m2w.write(f"{hash_value} {path}\n")
         except ima_ast.ParserError:
@@ -301,10 +303,13 @@ def _process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcr
     return codecs.encode(running_hash, 'hex').decode('utf-8'), failure
 
 
-def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyrings=None, boot_aggregates=None):
+def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyrings=None,
+                             boot_aggregates=None, hash_alg=Hash.SHA1):
     failure = Failure(Component.IMA)
     try:
-        running_hash, failure = _process_measurement_list(agentAttestState, lines, lists=lists, m2w=m2w, pcrval=pcrval, ima_keyrings=ima_keyrings, boot_aggregates=boot_aggregates)
+        running_hash, failure = _process_measurement_list(agentAttestState, lines, hash_alg, lists=lists, m2w=m2w,
+                                                          pcrval=pcrval, ima_keyrings=ima_keyrings,
+                                                          boot_aggregates=boot_aggregates)
     except:  # pylint: disable=try-except-raise
         raise
     finally:
