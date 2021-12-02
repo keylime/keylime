@@ -954,17 +954,13 @@ class tpm(tpm_abstract.AbstractTPM):
         return self.get_tpm_metadata('ekcert'), self.get_tpm_metadata('ek_tpm'), self.get_tpm_metadata('aik_tpm')
 
     # tpm_quote
-    def __pcr_mask_to_list(self, mask, hash_alg):
+    @staticmethod
+    def __pcr_mask_to_list(mask):
         pcr_list = []
-        ima_appended = ""
         for pcr in range(24):
             if tpm_abstract.TPM_Utilities.check_mask(mask, pcr):
-                if hash_alg != algorithms.Hash.SHA1 and pcr == config.IMA_PCR:
-                    # IMA is only in SHA1 format
-                    ima_appended = "+sha1:" + str(pcr)
-                else:
-                    pcr_list.append(str(pcr))
-        return ",".join(pcr_list) + ima_appended
+                pcr_list.append(str(pcr))
+        return ",".join(pcr_list)
 
     def create_quote(self, nonce, data=None, pcrmask=tpm_abstract.AbstractTPM.EMPTYMASK, hash_alg=None):
         if hash_alg is None:
@@ -985,7 +981,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 # add PCR 16 to pcrmask
                 pcrmask = "0x%X" % (int(pcrmask, 0) + (1 << config.TPM_DATA_PCR))
 
-            pcrlist = self.__pcr_mask_to_list(pcrmask, hash_alg)
+            pcrlist = self.__pcr_mask_to_list(pcrmask)
 
             with self.tpmutilLock:
                 if data is not None:
@@ -1129,18 +1125,12 @@ class tpm(tpm_abstract.AbstractTPM):
                 alg_size = hash_alg.get_size() // 4
                 for pcrval, hashval in jsonout["pcrs"][hash_alg].items():
                     pcrs.append("PCR " + str(pcrval) + " " + '{0:0{1}x}'.format(hashval, alg_size))
-            # IMA is always in SHA1 format, so don't leave it behind!
-            if hash_alg != algorithms.Hash.SHA1:
-                if algorithms.Hash.SHA1 in jsonout["pcrs"] and \
-                   config.IMA_PCR in jsonout["pcrs"][algorithms.Hash.SHA1]:
-                    sha1_size = algorithms.get_hash_size(algorithms.Hash.SHA1) // 4
-                    ima_val = jsonout["pcrs"][algorithms.Hash.SHA1][config.IMA_PCR]
-                    pcrs.append("PCR " + str(config.IMA_PCR) + " " + '{0:0{1}x}'.format(ima_val, sha1_size))
 
         if len(pcrs) == 0:
             pcrs = None
 
-        return self.check_pcrs(agentAttestState, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist, ima_keyrings, mb_measurement_list, mb_refstate)
+        return self.check_pcrs(agentAttestState, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist,
+                               ima_keyrings, mb_measurement_list, mb_refstate, hash_alg)
 
     def sim_extend(self, hashval_1, hashval_0=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure

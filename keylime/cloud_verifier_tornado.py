@@ -26,7 +26,6 @@ from keylime import cloud_verifier_common
 from keylime import revocation_notifier
 from keylime import tornado_requests
 from keylime import api_version as keylime_api_version
-from keylime.ima_ast import START_HASH
 from keylime.failure import MAX_SEVERITY_LABEL, Failure, Component
 
 logger = keylime_logging.init_logging('cloudverifier')
@@ -414,7 +413,7 @@ class AgentsHandler(BaseHandler):
                     agent_data['agent_id'] = agent_id
                     agent_data['boottime'] = 0
                     agent_data['ima_pcrs'] = []
-                    agent_data['pcr10'] = START_HASH
+                    agent_data['pcr10'] = None
                     agent_data['next_ima_ml_entry'] = 0
                     agent_data['learned_ima_keyrings'] = {}
                     agent_data['verifier_id'] = config.get('cloud_verifier', 'cloudverifier_id', cloud_verifier_common.DEFAULT_VERIFIER_ID)
