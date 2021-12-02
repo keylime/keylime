@@ -28,7 +28,7 @@ logger = keylime_logging.init_logging('ima')
 
 
 # The version of the allowlist format that is supported by this keylime release
-ALLOWLIST_CURRENT_VERSION = 4
+ALLOWLIST_CURRENT_VERSION = 5
 
 
 class IMAMeasurementList:
@@ -224,6 +224,15 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
         allow_list = None
         exclude_list = None
 
+    ima_log_hash_alg = Hash.SHA1
+    if allow_list is not None:
+        try:
+            ima_log_hash_alg = Hash(allow_list["ima"]["log_hash_alg"])
+        except ValueError:
+            logger.warning("Specified IMA log hash algorithm %s is not a valid algorithm! Defaulting to SHA1.",
+                           allow_list["ima"]["log_hash_alg"])
+
+
     if boot_aggregates and allow_list:
         if 'boot_aggregate' not in allow_list['hashes'] :
             allow_list['hashes']['boot_aggregate'] = []
@@ -260,7 +269,7 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
             continue
 
         try:
-            entry = ima_ast.Entry(line, ima_validator, pcr_hash_alg=hash_alg)
+            entry = ima_ast.Entry(line, ima_validator, ima_hash_alg=ima_log_hash_alg, pcr_hash_alg=hash_alg)
 
             # update hash
             running_hash = hash_alg.hash(running_hash + entry.pcr_template_hash)
@@ -334,6 +343,9 @@ def update_allowlist(allowlist):
     # version 4 added 'ima-buf'
     if "ima-buf" not in allowlist:
         allowlist["ima-buf"] = {}
+    # version 5 added 'log_hash_alg'
+    if not "log_hash_alg" in allowlist["ima"]:
+        allowlist["ima"]["log_hash_alg"] = "sha1"
 
     return allowlist
 
@@ -368,8 +380,9 @@ empty_allowlist = {
     "release": 0,
     "hashes": {},
     "keyrings": {},
-    "ima" : {
-        "ignored_keyrings": []
+    "ima": {
+        "ignored_keyrings": [],
+        "log_hash_alg": "sha1"
     }
 }
 
