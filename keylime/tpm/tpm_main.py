@@ -1132,15 +1132,16 @@ class tpm(tpm_abstract.AbstractTPM):
         return self.check_pcrs(agentAttestState, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist,
                                ima_keyrings, mb_measurement_list, mb_refstate, hash_alg)
 
-    def sim_extend(self, hashval_1, hashval_0=None):
+    def sim_extend(self, hashval_1, hashval_0=None, hash_alg=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure
 
         if hashval_0 is None:
-            hashval_0 = self.START_HASH()
+            hashval_0 = self.START_HASH(hash_alg)
 
         # compute expected value  H(0|H(data))
         extendedval = self.hashdigest(codecs.decode(hashval_0, 'hex_codec') +
-                                      codecs.decode(self.hashdigest(hashval_1.encode('utf-8')), 'hex_codec')).lower()
+                                      codecs.decode(self.hashdigest(hashval_1.encode('utf-8'), hash_alg), 'hex_codec'),
+                                      hash_alg).lower()
         return extendedval
 
     def extendPCR(self, pcrval, hashval, hash_alg=None, lock=True):
