@@ -7,6 +7,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import asyncio
 import http.server
+import platform
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 import threading
@@ -37,6 +38,7 @@ from keylime import revocation_notifier
 from keylime import registrar_client
 from keylime import secure_mount
 from keylime import api_version as keylime_api_version
+from keylime.common import algorithms
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime.tpm.tpm2_objects import pubkey_from_tpm2b_public
@@ -513,6 +515,13 @@ def main():
     (ekcert, ek_tpm, aik_tpm) = instance_tpm.tpm_init(self_activate=False, config_pw=config.get(
         'cloud_agent', 'tpm_ownerpassword'))  # this tells initialize not to self activate the AIK
     virtual_agent = instance_tpm.is_vtpm()
+
+    # Warn if kernel version is <5.10 and another algorithm than SHA1 is used,
+    # because otherwise IMA will not work
+    kernel_version = tuple(platform.release().split("-")[0].split("."))
+    if kernel_version < ("5", "10", "0") and instance_tpm.defaults["hash"] != algorithms.Hash.SHA1:
+        logger.warning("IMA attestation only works on kernel versions <5.10 with SHA1 as tpm_hash_alg. "
+                       "Current algorithm is: %s", instance_tpm.defaults["hash"])
 
     if ekcert is None:
         if virtual_agent:
