@@ -181,7 +181,7 @@ class AbstractTPM(metaclass=ABCMeta):
         return codecs.encode(digest, 'hex').decode('utf-8')
 
     @abstractmethod
-    def sim_extend(self, hashval_1, hashval_0=None):
+    def sim_extend(self, hashval_1, hashval_0=None, hash_alg=None):
         pass
 
     @abstractmethod
@@ -256,7 +256,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
         # Validate data PCR
         if config.TPM_DATA_PCR in pcr_nums and data is not None:
-            expectedval = self.sim_extend(data)
+            expectedval = self.sim_extend(data, hash_alg=hash_alg)
             if expectedval != pcrs[config.TPM_DATA_PCR]:
                 logger.error(
                     "%sPCR #%s: invalid bind data %s from quote does not match expected value %s",
