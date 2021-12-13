@@ -543,6 +543,11 @@ def main():
             raise RuntimeError("The UUID returned from dmidecode is invalid: %s" % e)  # pylint: disable=raise-missing-from
     elif agent_uuid == 'hostname':
         agent_uuid = socket.getfqdn()
+    elif agent_uuid == 'environment':
+        agent_uuid = os.getenv("KEYLIME_AGENT_UUID", None)
+        if agent_uuid is None:
+            raise RuntimeError("Env variable KEYLIME_AGENT_UUID is empty, but agent_uuid is set to 'environment'")
+
     if config.STUB_VTPM and config.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing
         jsonIn = config.TPM_CANNED_VALUES
