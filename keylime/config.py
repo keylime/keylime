@@ -2,7 +2,6 @@
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
-
 import os
 import os.path
 import configparser
@@ -11,6 +10,7 @@ import urllib.parse
 import re
 from http.server import BaseHTTPRequestHandler
 import http.client
+from typing import Optional
 
 import tornado.web
 import yaml
@@ -18,6 +18,7 @@ try:
     from yaml import CSafeLoader as SafeLoader
 except ImportError:
     from yaml import SafeLoader
+from yaml.reader import ReaderError
 
 from keylime import api_version as keylime_api_version
 from keylime import json
@@ -245,10 +246,15 @@ def list_to_dict(alist):
     return params
 
 
-def yaml_to_dict(arry, add_newlines=True):
+def yaml_to_dict(arry, add_newlines=True, logger=None) -> Optional[dict]:
     arry = convert(arry)
     sep = "\n" if add_newlines else ""
-    return yaml.load(sep.join(arry), Loader=SafeLoader)
+    try:
+        return yaml.load(sep.join(arry), Loader=SafeLoader)
+    except ReaderError as err:
+        if logger is not None:
+            logger.warning("Could not load yaml as dict: %s", str(err))
+    return None
 
 
 def get_restful_params(urlstring):
