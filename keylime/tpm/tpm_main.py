@@ -1342,10 +1342,11 @@ class tpm(tpm_abstract.AbstractTPM):
         log_bin = base64.b64decode(log_b64, validate=True)
         return self.parse_binary_bootlog(log_bin)
 
-    def parse_mb_bootlog(self, mb_measurement_list: str) -> typing.Tuple[dict, typing.Optional[dict], dict, Failure]:
-        """ Parse the measured boot log and return its object and the state of the SHA256 PCRs
+    def parse_mb_bootlog(self, mb_measurement_list: str, hash_alg: algorithms.Hash) -> typing.Tuple[dict, typing.Optional[dict], dict, Failure]:
+        """ Parse the measured boot log and return its object and the state of the PCRs
         :param mb_measurement_list: The measured boot measurement list
-        :returns: Returns a map of the state of the SHA256 PCRs, measured boot data object and True for success
+        :param hash_alg: the hash algorithm that should be used for the PCRs
+        :returns: Returns a map of the state of the PCRs, measured boot data object and True for success
                   and False in case an error occurred
         """
         failure = Failure(Component.MEASURED_BOOT, ["parser"])
@@ -1360,10 +1361,10 @@ class tpm(tpm_abstract.AbstractTPM):
                 logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)
                 failure.add_event("invalid_pcrs", {"got": log_pcrs}, True)
                 return {}, None, {}, failure
-            pcrs_sha256 = log_pcrs.get('sha256')
-            if (not isinstance(pcrs_sha256, dict)) or not pcrs_sha256:
-                logger.error("Parse of measured boot event log has unexpected value for .pcrs.sha256: %r", pcrs_sha256)
-                failure.add_event("invalid_pcrs_sha256", {"got": pcrs_sha256}, True)
+            pcr_hashes = log_pcrs.get(str(hash_alg))
+            if (not isinstance(pcr_hashes, dict)) or not pcr_hashes:
+                logger.error("Parse of measured boot event log has unexpected value for .pcrs.%s: %r", str(hash_alg), pcr_hashes)
+                failure.add_event("invalid_pcrs_hashes", {"got": pcr_hashes}, True)
                 return {}, None, {}, failure
             boot_aggregates = mb_measurement_data.get('boot_aggregates')
             if (not isinstance(boot_aggregates, dict)) or not boot_aggregates:
@@ -1371,6 +1372,6 @@ class tpm(tpm_abstract.AbstractTPM):
                 failure.add_event("invalid_boot_aggregates", {"got": boot_aggregates}, True)
                 return {}, None, {}, failure
 
-            return pcrs_sha256, boot_aggregates, mb_measurement_data, failure
+            return pcr_hashes, boot_aggregates, mb_measurement_data, failure
 
         return {}, None, {}, failure

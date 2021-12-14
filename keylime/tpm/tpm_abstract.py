@@ -242,7 +242,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
         mb_policy, mb_refstate_data = measured_boot.get_policy(mb_refstate_str)
-        mb_pcrs_sha256, boot_aggregates, mb_measurement_data, mb_failure = self.parse_mb_bootlog(mb_measurement_list)
+        mb_pcrs_hashes, boot_aggregates, mb_measurement_data, mb_failure = self.parse_mb_bootlog(mb_measurement_list, hash_alg)
         failure.merge(mb_failure)
 
         pcrs_in_quote = set()  # PCRs in quote that were already used for some kind of validation
@@ -291,14 +291,14 @@ class AbstractTPM(metaclass=ABCMeta):
                                           f"Measured Boot PCR {pcr_num} in policy, but no measurement list provided", True)
                         continue
 
-                    val_from_log_int = mb_pcrs_sha256.get(str(pcr_num), 0)
+                    val_from_log_int = mb_pcrs_hashes.get(str(pcr_num), 0)
                     val_from_log_hex = hex(val_from_log_int)[2:]
                     val_from_log_hex_stripped = val_from_log_hex.lstrip('0')
                     pcrval_stripped = pcrs[pcr_num].lstrip('0')
                     if val_from_log_hex_stripped != pcrval_stripped:
                         logger.error(
-                            "For PCR %d and hash SHA256 the boot event log has value %r but the agent returned %r",
-                            pcr_num, val_from_log_hex, pcrs[pcr_num])
+                            "For PCR %d and hash %s the boot event log has value %r but the agent returned %r",
+                            str(hash_alg), pcr_num, val_from_log_hex, pcrs[pcr_num])
                         mb_pcr_failure.add_event(f"invalid_pcr_{pcr_num}",
                                                  {"context": "SHA256 boot event log PCR value does not match",
                                                   "got": pcrs[pcr_num], "expected": val_from_log_hex}, True)
@@ -350,5 +350,5 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def parse_mb_bootlog(self, mb_measurement_list:str) -> dict:
+    def parse_mb_bootlog(self, mb_measurement_list: str, hash_alg: algorithms.Hash) -> dict:
         raise NotImplementedError
