@@ -161,7 +161,10 @@ class Example(policies.Policy):
             tests.FieldTest('Event', tests.FieldTest('String', tests.RegExp(r'.*/grub.*'))),
             tests.FieldTest('Event', tests.FieldTest('String', tests.RegExp(r'.*/vmlinuz.*'))),
             tests.And(
-                tests.FieldTest('Event', tests.FieldTest('String', tests.RegExp(r'.*/initrd.*'))),
+                tests.FieldTest('Event', tests.FieldTest('String', tests.Or(
+                    tests.RegExp(r'.*/initrd.*'),
+                    tests.RegExp(r'.*/initramfs.*'),
+                ))),
                 events_final.get('ipl9s'))))
         dispatcher.set((8, 'EV_IPL'), tests.FieldTest('Event', tests.FieldTest('String', tests.Or(
             tests.RegExp('grub_cmd: .*', re.DOTALL),
