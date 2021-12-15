@@ -107,7 +107,15 @@ class Example(policies.Policy):
                   tests.DigestTest({"sha256": string_strip0x(kernel['grub_authcode_sha256'])}),
                   tests.DigestTest({"sha256": string_strip0x(kernel['kernel_authcode_sha256'])}),
                 ]
-            return tests.TupleTest(*tt)
+
+            # In some scenarios the kernel gets measured twice
+            tt2 = [tests.DigestTest({"sha256": string_strip0x(kernel['shim_authcode_sha256'])}),
+                   tests.DigestTest({"sha256": string_strip0x(kernel['grub_authcode_sha256'])}),
+                   tests.DigestTest({"sha256": string_strip0x(kernel['kernel_authcode_sha256'])}),
+                   tests.DigestTest({"sha256": string_strip0x(kernel['kernel_authcode_sha256'])}),
+               ]
+            return tests.Or(tests.TupleTest(*tt), tests.TupleTest(*tt2))
+
         events_final = tests.DelayToFields(
             tests.And(
                 tests.Or(*[tests.FieldsTest(
@@ -158,6 +166,7 @@ class Example(policies.Policy):
                 tests.DigestsTest(digests_strip0x(refstate['mokxdig']))),
         ))
         dispatcher.set((9, 'EV_IPL'), tests.Or(
+            tests.FieldTest('Event', tests.FieldTest('String', tests.RegExp(r'.*/loader/entries.*'))), # Ignore  Boot Loader Spec files
             tests.FieldTest('Event', tests.FieldTest('String', tests.RegExp(r'.*/grub.*'))),
             tests.FieldTest('Event', tests.FieldTest('String', tests.RegExp(r'.*/vmlinuz.*'))),
             tests.And(
