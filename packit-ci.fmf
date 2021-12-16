@@ -1,0 +1,17 @@
+summary: check the changed tests functionality
+
+prepare:
+    how: shell
+    script: bash -c 'ln -s $(pwd) /var/tmp/keylime_sources'
+
+discover:
+    how: fmf
+    url: https://github.com/RedHat-SP-Security/keylime-tests
+    reference: main
+    test: 
+     - /setup/configure_tpm_emulator
+     - /setup/install_upstream_keylime
+     - functional/basic-attestation-on-localhost
+
+execute:
+    how: tmt
