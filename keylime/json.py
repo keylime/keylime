@@ -12,9 +12,12 @@ try:
 
     _list_types.append(Row)
 except ModuleNotFoundError:
-    from sqlalchemy.engine import RowProxy
+    try:
+        from sqlalchemy.engine import RowProxy
 
-    _list_types.append(RowProxy)
+        _list_types.append(RowProxy)
+    except ModuleNotFoundError:
+        pass
 
 
 def __bytes_to_str(data):
