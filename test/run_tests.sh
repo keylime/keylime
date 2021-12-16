@@ -20,6 +20,7 @@ UMODE_OPT=""
 COVERAGE=0
 COVERAGE_DIR=`pwd`
 unset COVERAGE_FILE
+RUST_TEST="${RUST_TEST:-0}"
 
 for opt in "$@"; do
   shift
@@ -163,6 +164,11 @@ echo "==========================================================================
 echo $'\t\t\tInstalling test requirements'
 echo "=================================================================================="
 pip3 install $UMODE_OPT -r $KEYLIME_DIR/test/test-requirements.txt
+if [ "$RUST_TEST" == 1 ]
+then
+    git clone https://github.com/keylime/rust-keylime.git $KEYLIME_DIR/../rust-keylime
+    cargo build --manifest-path $KEYLIME_DIR/../rust-keylime/Cargo.toml --bin keylime_agent
+fi
 
 # Install Keylime
 echo

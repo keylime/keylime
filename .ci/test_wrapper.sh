@@ -15,6 +15,7 @@ swtpm socket --tpm2 \
      --server type=tcp,port=2321 \
      --daemon
 export TPM2TOOLS_TCTI=tabrmd:
+export TCTI=tabrmd:
 
 # Configure dbus
 sudo rm -rf /var/run/dbus
