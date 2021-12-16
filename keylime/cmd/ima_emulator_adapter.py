@@ -49,10 +49,10 @@ def measure_list(file_path, position, hash_alg, search_val=None):
     return position
 
 
-def main(argv):
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--hash_algs', nargs='*', default=["sha1"],  help='PCR banks hash algorithms')
-    args = parser.parse_args(argv[1:])
+    args = parser.parse_args(sys.argv[1:])
 
     if not tpm_instance.is_emulator():
         raise Exception("This stub should only be used with a TPM emulator")
