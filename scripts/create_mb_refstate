@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+
+'''
+SPDX-License-Identifier: Apache-2.0
+Copyright 2021 Thore Sommer
+
+A simple script to generate a valid mb_refstate for the example policy
+'''
+
+import argparse
+import json
+import re
+import sys
+
+from keylime.tpm import tpm_main
+
+
+def event_to_sha256(event):
+    """
+    Extracts the sha256 digest from an event
+    """
+    for digest in event["Digests"]:
+        if digest["AlgorithmId"] == "sha256":
+            return {"sha256": f"0x{digest['Digest']}"}
+
+
+def get_s_crtm(events):
+    """
+    Find the EV_S_CRTM_VERSION.
+    """
+    for event in events:
+        if event["EventType"] == "EV_S_CRTM_VERSION":
+            return {"scrtm": event_to_sha256(event)}
+
+
+def get_platform_firmware(events):
+    """
+    Get all platform specific files measured with EV_EFI_PLATFORM_FIRMWARE_BLOB events.
+    """
+    out = []
+    for event in events:
+        if event["EventType"] != "EV_EFI_PLATFORM_FIRMWARE_BLOB":
+            continue
+        out.append(event_to_sha256(event))
+    return {"platform_firmware": out}
+
+
+def variabledata_to_signature(data):
+    """
+    Converts VariableData entry from EV_EFI_VARIABLE_DRIVER_CONFIG to signature data.
+    """
+    out = []
+    for entry in data:
+        for key in entry["Keys"]:
+            out.append(
+                {"SignatureOwner": key["SignatureOwner"],
+                 "SignatureData": f"0x{key['SignatureData']}"}
+            )
+    return out
+
+
+def get_keys(events):
+    """
+    Get valid signatures for UEFI Secure Boot PK, KEK, DB and DBX
+    """
+    out = {
+        "pk": [],
+        "kek": [],
+        "db": [],
+        "dbx": []
+    }
+    for event in events:
+        if event["EventType"] != "EV_EFI_VARIABLE_DRIVER_CONFIG":
+            continue
+
+        event_name = event["Event"]["UnicodeName"].lower()
+        if event_name in out:
+            data = event["Event"]["VariableData"]
+            if data is not None:
+                out[event_name] = variabledata_to_signature(data)
+    return out
+
+
+def get_kernel(events):
+    """
+    Extract digest for Shim, Grub, Linux Kernel and initrd.
+    """
+    out = []
+    for event in events:
+        if event["EventType"] != "EV_EFI_BOOT_SERVICES_APPLICATION":
+            continue
+        out.append(event_to_sha256(event))
+    assert len(out) in [3, 4], "Expected 3 different UEFI applications to be booted (Shim, Grub, Linux)"
+
+    kernel = {
+        "shim_authcode_sha256": out[0]["sha256"],
+        "grub_authcode_sha256": out[1]["sha256"],
+        "kernel_authcode_sha256": out[2]["sha256"]
+    }
+
+    for event in events:
+        if event["EventType"] != "EV_IPL" or event["PCRIndex"] != 9:
+            continue
+        if "initrd" in event["Event"]["String"] or "initramfs" in event["Event"]["String"]:
+            kernel["initrd_plain_sha256"] = event_to_sha256(event)["sha256"]
+            break
+
+    for event in events:
+        if event["EventType"] != "EV_IPL" or event["PCRIndex"] != 8:
+            continue
+        if "kernel_cmdline" in event["Event"]["String"]:
+            kernel["kernel_cmdline"] = re.escape(event["Event"]["String"][len("kernel_cmdline: "):])
+            break
+
+    return {"kernels": [kernel]}
+
+
+def get_mok(events):
+    """
+    Extract digest for MokList and MokListX.
+    """
+    out = {
+        "mokdig": [],
+        "mokxdig": []
+    }
+    for event in events:
+        if event["EventType"] != "EV_IPL":
+            continue
+
+        if event["Event"]["String"] == "MokList":
+            out["mokdig"].append(event_to_sha256(event))
+        elif event["Event"]["String"] == "MokListX":
+            out["mokxdig"].append(event_to_sha256(event))
+    return out
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('eventlog_file', type=argparse.FileType('rb'), default=sys.stdin,
+                        help="Binary UEFI eventlog (Normally /sys/kernel/security/tpm0/binary_bios_measurements)")
+    parser.add_argument('mb_refstate', type=argparse.FileType('w'),
+                        help="Output path for the generated measure boot reference state.")
+    args = parser.parse_args()
+    log_bin = args.eventlog_file.read()
+    tpm = tpm_main.tpm()
+    log_data = tpm.parse_binary_bootlog(log_bin)
+    events = log_data["events"]
+    mb_refstate = {
+        "scrtm_and_bios": [{**get_s_crtm(events),
+                            **get_platform_firmware(events),
+                            }],
+        **get_keys(events),
+        **get_mok(events),
+        **get_kernel(events)
+
+    }
+    json.dump(mb_refstate, args.mb_refstate)
+
+
+if __name__ == "__main__":
+    main()
