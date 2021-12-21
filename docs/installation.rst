@@ -272,7 +272,7 @@ PostgreSQL
 For PostgreSQL you will need to install the database first and set up a user
 account::
 
-    database_drivername = postgres
+    database_drivername = postgresql
     database_username = keylime
     database_password = allyourbase
     database_host = localhost
