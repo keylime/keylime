@@ -63,7 +63,7 @@ def upgrade_cloud_verifier():
                     sa.Column('tpm_policy', sa.String(length=1000), nullable=True),
                     sa.Column('vtpm_policy', sa.String(length=1000), nullable=True),
                     sa.Column('meta_data', sa.String(length=200), nullable=True),
-                    sa.Column('ima_whitelist', sa.Text(length=429400000), nullable=True),
+                    sa.Column('ima_whitelist', sa.Text().with_variant(sa.Text(length=429400000), "mysql"), nullable=True),
                     sa.Column('revocation_key', sa.String(length=2800), nullable=True),
                     sa.Column('tpm_version', sa.Integer(), nullable=True),
                     sa.Column('accept_tpm_hash_algs', keylime.db.verifier_db.JSONPickleType(), nullable=True),

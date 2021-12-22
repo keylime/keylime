@@ -35,10 +35,10 @@ def downgrade_registrar():
 def upgrade_cloud_verifier():
     # need to use batch_alter_table since SQLite <3.25.0 doesn't do RENAME COLUMN
     with op.batch_alter_table('verifiermain') as batch_op:
-        batch_op.alter_column('ima_whitelist', new_column_name='allowlist', existing_type=sa.Text(length=429400000), existing_nullable=True)
+        batch_op.alter_column('ima_whitelist', new_column_name='allowlist', existing_type=sa.Text(), existing_nullable=True)
 
 
 def downgrade_cloud_verifier():
     # need to use batch_alter_table since SQLite <3.25.0 doesn't do RENAME COLUMN
     with op.batch_alter_table('verifiermain') as batch_op:
-        batch_op.alter_column('allowlist', new_column_name='ima_whitelist', existing_type=sa.Text(length=429400000), existing_nullable=True)
+        batch_op.alter_column('allowlist', new_column_name='ima_whitelist', existing_type=sa.Text(), existing_nullable=True)
