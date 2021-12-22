@@ -263,7 +263,7 @@ The following illustrates examples for SQLite and PostgreSQL::
     database_password = ''
     database_host = ''
     database_port = ''
-    database_database = cv_data.sqlite
+    database_name = cv_data.sqlite
     database_query = ''
 
 PostgreSQL
@@ -277,7 +277,7 @@ account::
     database_password = allyourbase
     database_host = localhost
     database_port = 5432
-    database_database = keylime_db
+    database_name = keylime_db
     database_query = ''
 
 For details on other platforms, please refer to the SQLAlchemy documentation
