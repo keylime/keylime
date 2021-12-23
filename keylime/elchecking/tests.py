@@ -1,6 +1,9 @@
 import abc
+import codecs
 import re
 import typing
+
+from keylime.common.algorithms import Hash
 
 # This module defines the abstraction of a Test (of JSON data)
 # and several specific test classes.
@@ -593,3 +596,68 @@ class KeySuperset(TupleTest):
             FieldTest('Keys',
                       SupersetOfDicts(keys, ('SignatureOwner', 'SignatureData')))
         ))
+
+
+class OnceTest(Test):
+    """Tests that only works once"""
+
+    def __init__(self, test: Test):
+        self.executed = False
+        self.test = test
+
+    def why_not(self, globs: Globals, subject: Data) -> str:
+        if self.executed:
+            return 'test was already run once'
+
+        self.executed = True
+        return self.test.why_not(globs, subject)
+
+
+# Following tests are TCG PC Client Platform specific, but are common and reduce the use of AcceptAll
+
+class EvSeperatorTest(Or):
+    """Test for valid EV_SEPARATOR entry values"""
+    def __init__(self):
+        # See TCG PC Client Platform Firmware Profile (Table 9 Events)
+        valid_hex_values = ["00000000", "FFFFFFFF"]
+        tests = []
+        for value in valid_hex_values:
+            val_bytes = codecs.decode(value.encode(), 'hex')
+            event_test = FieldTest("Event", StringEqual(value))
+            digests = {}
+            for hash_alg in Hash:
+                digests[str(hash_alg)] = codecs.encode(hash_alg.hash(val_bytes), 'hex').decode("utf-8")
+            tests.append(And(event_test, DigestTest(digests)))
+        super().__init__(*tests)
+
+
+class EvEfiActionTest(Test):
+    """Test for valid EV_EFI_ACTION entry values"""
+
+    _expected_strings = {
+        4: ["Calling EFI Application from Boot Option", "Returning from EFI Application from Boot Option"],
+        5: ["Exit Boot Services Invocation", "Exit Boot Services Returned with Failure",
+            "Exit Boot Services Returned with Success"],
+        6: ["UEFI Debug Mode"]
+    }
+
+    def __init__(self, pcr: int):
+        self.pcr = pcr
+        if pcr not in self._expected_strings:
+            self.test = None
+            return
+
+        tests = []
+        for value in self._expected_strings[pcr]:
+            event_test = FieldTest("Event", StringEqual(value))
+            digests = {}
+            for hash_alg in Hash:
+                digests[str(hash_alg)] = codecs.encode(hash_alg.hash(value.encode()), 'hex').decode("utf-8")
+            tests.append(And(event_test, DigestTest(digests)))
+        self.test = Or(*tests)
+
+    def why_not(self, globs: Globals, subject: Data) -> str:
+        if self.test is None:
+            return f"No EV_EFI_ACTION event for {self.pcr} is expected in the spec"
+
+        return self.test.why_not(globs, subject)
