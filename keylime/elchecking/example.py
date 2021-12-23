@@ -100,7 +100,8 @@ class Example(policies.Policy):
                 raise Exception(f'refstate lacks {req}')
 
         dispatcher = tests.Dispatcher(('PCRIndex', 'EventType'))
-        vd = tests.VariableDispatch()
+        vd_driver_config = tests.VariableDispatch()
+        vd_authority = tests.VariableDispatch()
 
         def bsa_test(kernel: dict) -> tests.Test:
             tt = [tests.DigestTest({"sha256": string_strip0x(kernel['shim_authcode_sha256'])}),
@@ -125,36 +126,50 @@ class Example(policies.Policy):
                 ) for kernel in kernels]),
                 scrtm_and_bios_test),
             'kernel_cmdlines', 'bsas', 'ipl9s', 's_crtms', 'platform_firmware_blobs')
-        dispatcher.set((0, 'EV_NO_ACTION'), tests.AcceptAll())
+        # We only expect one EV_NO_ACTION event at the start.
+        dispatcher.set((0, 'EV_NO_ACTION'), tests.OnceTest(tests.AcceptAll()))
         dispatcher.set((0, 'EV_S_CRTM_VERSION'), events_final.get('s_crtms'))
         dispatcher.set((0, 'EV_EFI_PLATFORM_FIRMWARE_BLOB'),
                        events_final.get('platform_firmware_blobs'))
-        dispatcher.set((7, 'EV_EFI_VARIABLE_DRIVER_CONFIG'), vd)
-        vd.set('61dfe48b-ca93-d211-aa0d-00e098032b8c', 'SecureBoot',
+        dispatcher.set((7, 'EV_EFI_VARIABLE_DRIVER_CONFIG'), vd_driver_config)
+        vd_driver_config.set('61dfe48b-ca93-d211-aa0d-00e098032b8c', 'SecureBoot',
                tests.FieldTest('Enabled', tests.StringEqual('Yes')))
-        vd.set('61dfe48b-ca93-d211-aa0d-00e098032b8c', 'PK',
+        vd_driver_config.set('61dfe48b-ca93-d211-aa0d-00e098032b8c', 'PK',
                 tests.KeySubset('a159c0a5-e494-a74a-87b5-ab155c2bf072', sigs_strip0x(refstate['pk'])))
-        vd.set('61dfe48b-ca93-d211-aa0d-00e098032b8c', 'KEK',
+        vd_driver_config.set('61dfe48b-ca93-d211-aa0d-00e098032b8c', 'KEK',
                 tests.KeySubset('a159c0a5-e494-a74a-87b5-ab155c2bf072', sigs_strip0x(refstate['kek'])))
-        vd.set('cbb219d7-3a3d-9645-a3bc-dad00e67656f', 'db',
+        vd_driver_config.set('cbb219d7-3a3d-9645-a3bc-dad00e67656f', 'db',
                 tests.KeySubset('a159c0a5-e494-a74a-87b5-ab155c2bf072', sigs_strip0x(refstate['db'])))
-        vd.set('cbb219d7-3a3d-9645-a3bc-dad00e67656f', 'dbx',
+        vd_driver_config.set('cbb219d7-3a3d-9645-a3bc-dad00e67656f', 'dbx',
                 tests.KeySuperset('2616c4c1-4c50-9240-aca9-41f936934328', sigs_strip0x(refstate['dbx'])))
+        dispatcher.set((7, 'EV_EFI_VARIABLE_AUTHORITY'), vd_authority)
+        # Assume that the cert that was used to verify the Shim is always trusted.
+        # TODO: can we use the db entry for that instead of AcceptAll?
+        vd_authority.set('cbb219d7-3a3d-9645-a3bc-dad00e67656f', 'db',
+                         tests.OnceTest(tests.AcceptAll()))
+        # Accept all SbatLevels of the Shim, because we already checked the hash of the Shim itself.
+        vd_authority.set('50ab5d60-46e0-0043-abb6-3dd810dd8b23', 'SbatLevel',
+                         tests.OnceTest(tests.AcceptAll()))
+        # Accept all certificates that are used by the Shim to verify the next component,
+        # because we already checked the hash of the Shim itself.
+        vd_authority.set('50ab5d60-46e0-0043-abb6-3dd810dd8b23', 'Shim',
+                         tests.OnceTest(tests.AcceptAll()))
+
 
         # A list of allowed digests for firmware from device driver appears
         # in PCR2, event type EV_EFI_BOOT_SERVICES_DRIVER. Here we will just
-        # accept everything
+        # accept everything.
+        # This is fine because we do not use any other entry type from PCR 2 for validation.
         dispatcher.set((2, 'EV_EFI_BOOT_SERVICES_DRIVER'),
                                         tests.AcceptAll())
         dispatcher.set((1, 'EV_EFI_VARIABLE_BOOT'), tests.VariableTest(
             '61dfe48b-ca93-d211-aa0d-00e098032b8c',
             re.compile('BootOrder|Boot[0-9a-fA-F]+'),
             tests.AcceptAll()))
-        dispatcher.set((4, 'EV_EFI_ACTION'), tests.AcceptAll())
+        dispatcher.set((4, 'EV_EFI_ACTION'), tests.EvEfiActionTest(4))
         for pcr in range(8):
-            dispatcher.set((pcr, 'EV_SEPARATOR'), tests.AcceptAll())
-        dispatcher.set((7, 'EV_EFI_VARIABLE_AUTHORITY'), tests.AcceptAll())
-        dispatcher.set((5, 'EV_EFI_GPT_EVENT'), tests.AcceptAll())
+            dispatcher.set((pcr, 'EV_SEPARATOR'), tests.EvSeperatorTest())
+
         dispatcher.set((4, 'EV_EFI_BOOT_SERVICES_APPLICATION'),
                        events_final.get('bsas'))
         dispatcher.set((14, 'EV_IPL'), tests.Or(
@@ -181,7 +196,9 @@ class Example(policies.Policy):
                 tests.RegExp('kernel_cmdline: .*'),
                 events_final.get('kernel_cmdlines'))
         ))))
-        dispatcher.set((5, 'EV_EFI_ACTION'), tests.AcceptAll())
+        dispatcher.set((5, 'EV_EFI_ACTION'), tests.EvEfiActionTest(5))
+        # Accept all UEFI_GPT_DATA. We only expect one entry for that.
+        dispatcher.set((5, 'EV_EFI_GPT_EVENT'), tests.OnceTest(tests.AcceptAll()))
         events_test = tests.FieldTest('events',
                                       tests.And(
                                           events_final.get_initializer(),
