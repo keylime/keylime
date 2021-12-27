@@ -186,8 +186,7 @@ def setUpModule():
     tenant_templ.registrar_base_tls_url = f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_tls_boot_port}'
     tenant_templ.agent_base_url = f'{tenant_templ.cloudagent_ip}:{tenant_templ.cloudagent_port}'
     # Set up TLS
-    my_tls_cert, my_tls_priv_key = tenant_templ.get_tls_context()
-    tenant_templ.cert = (my_tls_cert, my_tls_priv_key)
+    tenant_templ.cert, tenant_templ.agent_cert = tenant_templ.get_tls_context()
 
 
 # Destroy everything on teardown
@@ -522,7 +521,7 @@ class TestRestful(unittest.TestCase):
         test_020_agent_keys_pubkey_get = RequestsClient(tenant_templ.agent_base_url, tls_enabled=True, ignore_hostname=True)
         response = test_020_agent_keys_pubkey_get.get(
             f'/v{self.api_version}/keys/pubkey',
-            cert=tenant_templ.cert,
+            cert=tenant_templ.agent_cert,
             verify=False  # TODO: use agent certificate
         )
 
@@ -554,7 +553,7 @@ class TestRestful(unittest.TestCase):
             response = test_022_agent_quotes_identity_get.get(
                 f'/v{self.api_version}/quotes/identity?nonce={nonce}',
                 data=None,
-                cert=tenant_templ.cert,
+                cert=tenant_templ.agent_cert,
                 verify=False  # TODO: use agent certificate
             )
 
@@ -628,7 +627,7 @@ class TestRestful(unittest.TestCase):
         response = test_024_agent_keys_ukey_post.post(
             f'/v{self.api_version}/keys/ukey',
             data=json.dumps(data),
-            cert=tenant_templ.cert,
+            cert=tenant_templ.agent_cert,
             verify=False  # TODO: use agent certificate
         )
 
@@ -843,7 +842,7 @@ class TestRestful(unittest.TestCase):
                                                              tls_enabled=True, ignore_hostname=True)
         response = test_040_agent_quotes_integrity_get.get(
             f'/v{self.api_version}/quotes/integrity?nonce={nonce}&mask={mask}&vmask={vmask}&partial={partial}',
-            cert=tenant_templ.cert,
+            cert=tenant_templ.agent_cert,
             verify=False  # TODO: use agent certificate
         )
 

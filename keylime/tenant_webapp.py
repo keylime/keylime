@@ -27,7 +27,7 @@ from keylime import api_version as keylime_api_version
 
 logger = keylime_logging.init_logging('tenant_webapp')
 tenant_templ = tenant.Tenant()
-my_cert, my_priv_key = tenant_templ.get_tls_context()
+(my_cert, my_priv_key), agent_cert = tenant_templ.get_tls_context()
 cert = (my_cert, my_priv_key)
 if config.getboolean('general', "enable_tls"):
     tls_enabled = True

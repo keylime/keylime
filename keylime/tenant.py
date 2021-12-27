@@ -110,8 +110,9 @@ class Tenant():
 
         self.api_version = keylime_api_version.current_version()
 
-        self.my_cert, self.my_priv_key = self.get_tls_context()
+        (self.my_cert, self.my_priv_key), (self.my_agent_cert, self.my_agent_priv_key) = self.get_tls_context()
         self.cert = (self.my_cert, self.my_priv_key)
+        self.agent_cert = (self.my_agent_cert, self.my_agent_priv_key)
         if config.getboolean('general', "enable_tls"):
             self.tls_enabled = True
         else:
@@ -146,7 +147,17 @@ class Tenant():
         my_cert = os.path.join(tls_dir, my_cert)
         my_priv_key = os.path.join(tls_dir, my_priv_key)
 
-        return my_cert, my_priv_key
+        tls_context = (my_cert, my_priv_key)
+
+        # Check for user defined CA to connect to agent
+        agent_mtls_cert = config.get("cloud_verifier", "agent_mtls_cert", fallback=None)
+        agent_mtls_private_key = config.get("cloud_verifier", "agent_mtls_private_key", fallback=None)
+
+        agent_mtls_context = tls_context
+        if agent_mtls_cert != "CV":
+            agent_mtls_context = (agent_mtls_cert, agent_mtls_private_key)
+
+        return tls_context, agent_mtls_context
 
     def process_allowlist(self, args):
         # Set up PCR values
@@ -946,7 +957,7 @@ class Tenant():
                 params = f'/v{self.api_version}/quotes/identity?nonce=%s' % (self.nonce)
                 cloudagent_base_url = f'{self.agent_ip}:{self.agent_port}'
 
-                with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True, cert=self.cert,
+                with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True, cert=self.agent_cert,
                                     verify_custom=self.registrar_data['mtls_cert']) as do_quote:
                     response = do_quote.get(params)
 
@@ -1033,7 +1044,7 @@ class Tenant():
                 f'{self.agent_ip}:{self.agent_port}'
             )
 
-            with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True, cert=self.cert,
+            with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True, cert=self.agent_cert,
                                 verify_custom=self.registrar_data['mtls_cert']) as post_ukey:
                 response = post_ukey.post(params, json=data)
 
@@ -1065,7 +1076,7 @@ class Tenant():
                 )
 
                 with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True,
-                                    cert=self.cert, verify_custom=self.registrar_data['mtls_cert']) as do_verify:
+                                    cert=self.agent_cert, verify_custom=self.registrar_data['mtls_cert']) as do_verify:
                     response = do_verify.get(f'/v{self.api_version}/keys/verify?challenge={challenge}')
 
             except Exception as e:
