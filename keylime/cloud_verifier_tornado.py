@@ -1028,6 +1028,15 @@ def main():
 
     context, mtls_options = web_util.init_mtls(logger=logger)
 
+    # Check for user defined CA to connect to agent
+    agent_mtls_cert = config.get("cloud_verifier", "agent_mtls_cert", fallback=None)
+    agent_mtls_private_key = config.get("cloud_verifier", "agent_mtls_private_key", fallback=None)
+    agent_mtls_private_key_pw = config.get("cloud_verifier", "agent_mtls_private_key_pw", fallback=None)
+
+    # Only set custom options if the cert should not be the same as used by the verifier
+    if agent_mtls_cert != "CV":
+        mtls_options = (agent_mtls_cert, agent_mtls_private_key, agent_mtls_private_key_pw)
+
     app = tornado.web.Application([
         (r"/v?[0-9]+(?:\.[0-9]+)?/agents/.*", AgentsHandler, {"mtls_options": mtls_options}),
         (r"/v?[0-9]+(?:\.[0-9]+)?/allowlists/.*", AllowlistHandler),
