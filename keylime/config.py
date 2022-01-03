@@ -114,9 +114,6 @@ if not REQUIRE_ROOT:
 if not REQUIRE_ROOT:
     print("WARNING: running without root access")
 
-TPM_LIBS_PATH = '/usr/local/lib/'
-TPM_TOOLS_PATH = '/usr/local/bin/'
-
 
 CONFIG_FILE = os.getenv('KEYLIME_CONFIG', '/etc/keylime.conf')
 
