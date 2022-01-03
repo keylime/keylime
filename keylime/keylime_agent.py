@@ -211,6 +211,10 @@ class Handler(BaseHTTPRequestHandler):
             config.echo_json_response(self, 400, "API Version not supported")
             return
 
+        if rest_params.get("keys", None) not in ["ukey", "vkey"]:
+            config.echo_json_response(self, 400, "Only /keys/ukey or /keys/vkey are supported")
+            return
+
         content_length = int(self.headers.get('Content-Length', 0))
         if content_length <= 0:
             logger.warning('POST returning 400 response, expected content in message. url: %s', self.path)
@@ -218,15 +222,23 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         post_body = self.rfile.read(content_length)
-        json_body = json.loads(post_body)
-
-        b64_encrypted_key = json_body['encrypted_key']
-        decrypted_key = crypto.rsa_decrypt(
-            self.server.rsaprivatekey, base64.b64decode(b64_encrypted_key))
+        try:
+            json_body = json.loads(post_body)
+            b64_encrypted_key = json_body['encrypted_key']
+            decrypted_key = crypto.rsa_decrypt(
+                self.server.rsaprivatekey, base64.b64decode(b64_encrypted_key))
+        except (ValueError, KeyError, TypeError) as e:
+            logger.warning('POST returning 400 response, could not parse body data: %s', e)
+            config.echo_json_response(self, 400, "content is invalid")
+            return
 
         have_derived_key = False
 
         if rest_params["keys"] == "ukey":
+            if 'auth_tag' not in json_body:
+                logger.warning('POST returning 400 response, U key provided without an auth_tag')
+                config.echo_json_response(self, 400, "auth_tag is missing")
+                return
             self.server.add_U(decrypted_key)
             self.server.auth_tag = json_body['auth_tag']
             self.server.payload = json_body.get('payload', None)
