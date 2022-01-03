@@ -297,6 +297,16 @@ def valid_regex(regex):
     return True, compiled_regex, None
 
 
+def valid_hex(value: str):
+    if not value.isalnum():
+        return False
+    try:
+        int(value, 16)
+        return True
+    except ValueError:
+        return False
+
+
 if STUB_IMA:
     IMA_ML = '../scripts/ima/ascii_runtime_measurements'
 else:
