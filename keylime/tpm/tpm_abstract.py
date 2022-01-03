@@ -76,6 +76,7 @@ class AbstractTPM(metaclass=ABCMeta):
     EXIT_SUCESS = 0
     TPM_IO_ERR = 5
     EMPTYMASK = "1"
+    MAX_NONCE_SIZE = 64
 
     # constructor
     def __init__(self, need_hw_tpm=True):

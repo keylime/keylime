@@ -106,9 +106,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         elif "quotes" in rest_params:
-            nonce = rest_params['nonce']
+            nonce = rest_params.get('nonce', None)
             pcrmask = rest_params.get('mask', None)
-            vpcrmask = rest_params.get('vmask', None)
             ima_ml_entry = rest_params.get('ima_ml_entry', '0')
 
             # if the query is not messed up
@@ -120,12 +119,18 @@ class Handler(BaseHTTPRequestHandler):
 
             # Sanitization assurance (for tpm.run() tasks below)
             if not (nonce.isalnum() and
-                    (pcrmask is None or pcrmask.isalnum()) and
-                    (vpcrmask is None or vpcrmask.isalnum() and
-                    ima_ml_entry.isalnum())):
+                    (pcrmask is None or config.valid_hex(pcrmask)) and
+                    ima_ml_entry.isalnum()):
                 logger.warning('GET quote returning 400 response. parameters should be strictly alphanumeric')
                 config.echo_json_response(
                     self, 400, "parameters should be strictly alphanumeric")
+                return
+
+            if len(nonce) > tpm_instance.MAX_NONCE_SIZE:
+                logger.warning('GET quote returning 400 response. Nonce is too long (max size %i): %i',
+                               tpm_instance.MAX_NONCE_SIZE, len(nonce))
+                config.echo_json_response(
+                    self, 400, f'Nonce is too long (max size {tpm_instance.MAX_NONCE_SIZE}): {len(nonce)}')
                 return
 
             # identity quotes are always shallow
@@ -139,7 +144,7 @@ class Handler(BaseHTTPRequestHandler):
             enc_alg = tpm_instance.defaults['encrypt']
             sign_alg = tpm_instance.defaults['sign']
 
-            if "partial" in rest_params and (rest_params["partial"] is None or int(rest_params["partial"], 0) == 1):
+            if "partial" in rest_params and (rest_params["partial"] is None or rest_params["partial"] == "1"):
                 response = {
                     'quote': quote,
                     'hash_alg': hash_alg,
