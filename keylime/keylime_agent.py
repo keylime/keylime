@@ -84,6 +84,12 @@ class Handler(BaseHTTPRequestHandler):
                 config.echo_json_response(
                     self, 400, "Bootstrap key not yet available.")
                 return
+            if "challenge" not in rest_params:
+                logger.info('GET key challenge returning 400 response. No challenge provided')
+                config.echo_json_response(
+                    self, 400, "No challenge provided.")
+                return
+
             challenge = rest_params['challenge']
             response = {}
             response['hmac'] = crypto.do_hmac(self.server.K, challenge)
