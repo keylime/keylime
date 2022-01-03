@@ -39,9 +39,6 @@ logger = keylime_logging.init_logging('tpm')
 
 def _get_cmd_env():
     env = os.environ.copy()
-    lib_path = ""
-    if 'LD_LIBRARY_PATH' in env:
-        lib_path = env['LD_LIBRARY_PATH']
     if 'TPM2TOOLS_TCTI' not in env:
         # Don't clobber existing setting (if present)
         env['TPM2TOOLS_TCTI'] = 'device:/dev/tpmrm0'
@@ -49,8 +46,6 @@ def _get_cmd_env():
         # Other (not recommended) options are direct emulator and chardev communications:
         # env['TPM2TOOLS_TCTI'] = 'mssim:port=2321'
         # env['TPM2TOOLS_TCTI'] = 'device:/dev/tpm0'
-    env['PATH'] = env['PATH'] + ":%s" % config.TPM_TOOLS_PATH
-    env['LD_LIBRARY_PATH'] = lib_path + ":%s" % config.TPM_LIBS_PATH
     return env
 
 
