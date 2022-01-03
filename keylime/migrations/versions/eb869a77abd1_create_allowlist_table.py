@@ -38,7 +38,7 @@ def upgrade_cloud_verifier():
                     sa.Column('name', sa.String(255), nullable=False),
                     sa.Column('tpm_policy', sa.Text(), nullable=True),
                     sa.Column('vtpm_policy', sa.Text(), nullable=True),
-                    sa.Column('ima_policy', sa.Text(length=429400000), nullable=True),
+                    sa.Column('ima_policy', sa.Text().with_variant(sa.Text(length=429400000), "mysql"), nullable=True),
                     sa.PrimaryKeyConstraint('id'),
                     sa.UniqueConstraint('name', name='uniq_allowlists0name'),
                     mysql_engine='InnoDB',
