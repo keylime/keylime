@@ -348,6 +348,7 @@ class Entry:
         # https://elixir.bootlin.com/linux/v5.12.12/source/security/integrity/ima/ima_main.c#L101
         if self.ima_template_hash == get_START_HASH(ima_hash_alg):
             self.ima_template_hash = get_FF_HASH(ima_hash_alg)
+            self.pcr_template_hash = get_FF_HASH(pcr_hash_alg)
 
     def invalid(self):
         failure = Failure(Component.IMA, ["validation"])
