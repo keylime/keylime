@@ -20,11 +20,11 @@ from keylime import ima_ast
 tpm_instance = tpm(need_hw_tpm=True)
 
 
-def measure_list(file_path, position, hash_alg, search_val=None):
+def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=None):
     f = open(file_path, encoding="utf-8")
     lines = itertools.islice(f, position, None)
 
-    runninghash = ima_ast.get_START_HASH(hash_alg)
+    runninghash = ima_ast.get_START_HASH(pcr_hash_alg)
 
     if search_val is not None:
         search_val = codecs.decode(search_val.encode('utf-8'), 'hex')
@@ -33,13 +33,13 @@ def measure_list(file_path, position, hash_alg, search_val=None):
         line = line.strip()
         position += 1
 
-        entry = ima_ast.Entry(line, None, ima_hash_alg=hash_alg,  pcr_hash_alg=hash_alg)
+        entry = ima_ast.Entry(line, None, ima_hash_alg=ima_hash_alg, pcr_hash_alg=pcr_hash_alg)
 
         if search_val is None:
             val = codecs.encode(entry.pcr_template_hash, 'hex').decode("utf8")
-            tpm_instance.extendPCR(config.IMA_PCR, val, hash_alg)
+            tpm_instance.extendPCR(config.IMA_PCR, val, pcr_hash_alg)
         else:
-            runninghash = hash_alg.hash(runninghash + entry.pcr_template_hash)
+            runninghash = pcr_hash_alg.hash(runninghash + entry.pcr_template_hash)
             if runninghash == search_val:
                 return position
 
@@ -51,28 +51,31 @@ def measure_list(file_path, position, hash_alg, search_val=None):
 
 def main(argv=sys.argv):
     parser = argparse.ArgumentParser()
-    parser.add_argument('-a', '--hash_algs', nargs='*', default=["sha1"],  help='PCR banks hash algorithms')
+    parser.add_argument('-a', '--hash_algs', nargs='*', default=['sha1'],  help='PCR banks hash algorithms')
+    parser.add_argument('-i', '--ima-hash-alg', default='sha1', help='Set hash algorithm that is used in IMA log')
+    parser.add_argument('-f', '--ima-log', default=config.IMA_ML, help='path to the IMA log')
     args = parser.parse_args(argv[1:])
 
     if not tpm_instance.is_emulator():
         raise Exception("This stub should only be used with a TPM emulator")
 
+    ima_hash_alg = algorithms.Hash(args.ima_hash_alg)
     position = {}
-    for hash_alg in args.hash_algs:
-        hash_alg = algorithms.Hash(hash_alg)
-        position[hash_alg] = 0
+    for pcr_hash_alg in args.hash_algs:
+        pcr_hash_alg = algorithms.Hash(pcr_hash_alg)
+        position[pcr_hash_alg] = 0
 
-    for hash_alg in position.keys():
-        print(hash)
-        pcr_val = tpm_instance.readPCR(config.IMA_PCR, hash_alg)
-        if codecs.decode(pcr_val.encode('utf-8'), 'hex') != ima_ast.get_START_HASH(hash_alg):
-            print(f"Warning: IMA PCR is not empty for hash algorithm {hash_alg}, "
+    for pcr_hash_alg in position.keys():
+        pcr_val = tpm_instance.readPCR(config.IMA_PCR, pcr_hash_alg)
+        if codecs.decode(pcr_val.encode('utf-8'), 'hex') != ima_ast.get_START_HASH(pcr_hash_alg):
+            print(f"Warning: IMA PCR is not empty for hash algorithm {pcr_hash_alg}, "
                   "trying to find the last updated file in the measurement list...")
-            position[hash_alg] = measure_list(config.IMA_ML, position[hash_alg], hash_alg, pcr_val)
+            position[pcr_hash_alg] = measure_list(args.ima_log, position[pcr_hash_alg],
+                                                  ima_hash_alg, pcr_hash_alg, pcr_val)
 
-    print(f"Monitoring {config.IMA_ML}")
+    print(f"Monitoring {args.ima_log}")
     poll_object = select.poll()
-    fd_object = open(config.IMA_ML, encoding="utf-8")
+    fd_object = open(args.ima_log, encoding="utf-8")
     number = fd_object.fileno()
     poll_object.register(fd_object, select.POLLIN | select.POLLPRI)
 
@@ -82,11 +85,12 @@ def main(argv=sys.argv):
             for result in results:
                 if result[0] != number:
                     continue
-                for hash_alg, pos in position.items():
-                    position[hash_alg] = measure_list(config.IMA_ML, pos, hash_alg)
+                for pcr_hash_alg, pos in position.items():
+                    position[pcr_hash_alg] = measure_list(args.ima_log, pos, ima_hash_alg, pcr_hash_alg)
 
                 time.sleep(0.2)
     except (SystemExit, KeyboardInterrupt):
+        fd_object.close()
         sys.exit(1)
 
 
