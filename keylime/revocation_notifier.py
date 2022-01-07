@@ -9,7 +9,6 @@ import functools
 import time
 import os
 import sys
-import signal
 
 import requests
 import zmq
@@ -39,8 +38,10 @@ def start_broker():
             f"tcp://{config.get('cloud_verifier', 'revocation_notifier_ip')}:"
             f"{config.getint('cloud_verifier', 'revocation_notifier_port')}"
         )
-
-        zmq.device(zmq.FORWARDER, frontend, backend)
+        try:
+            zmq.device(zmq.FORWARDER, frontend, backend)
+        except (KeyboardInterrupt, SystemExit):
+            context.destroy()
 
     global broker_proc
     broker_proc = Process(target=worker)
@@ -53,7 +54,9 @@ def stop_broker():
         # Remove the socket file before  we kill the process
         if os.path.exists("/tmp/keylime.verifier.ipc"):
             os.remove("/tmp/keylime.verifier.ipc")
-        os.kill(broker_proc.pid, signal.SIGKILL)
+        logger.info("Stopping revocation notifier...")
+        broker_proc.terminate()
+        broker_proc.join()
 
 
 def notify(tosend):
