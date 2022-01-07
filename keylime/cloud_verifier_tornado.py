@@ -3,7 +3,7 @@
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
-
+import signal
 import traceback
 import sys
 import functools
@@ -1007,26 +1007,27 @@ def main():
 
     context = cloud_verifier_common.init_mtls()
 
-    # after TLS is up, start revocation notifier
-    if config.getboolean('cloud_verifier', 'revocation_notifier'):
-        logger.info("Starting service for revocation notifications on port %s", config.getint('cloud_verifier', 'revocation_notifier_port'))
-        revocation_notifier.start_broker()
-
     sockets = tornado.netutil.bind_sockets(
         int(cloudverifier_port), address=cloudverifier_host)
-    task_id = tornado.process.fork_processes(config.getint(
-        'cloud_verifier', 'multiprocessing_pool_num_workers'))
-    asyncio.set_event_loop(asyncio.new_event_loop())
-    # Auto reactivate agent
-    if task_id == 0:
-        asyncio.ensure_future(activate_agents(cloudverifier_id, cloudverifier_host, cloudverifier_port))
 
     server = tornado.httpserver.HTTPServer(app, ssl_options=context, max_buffer_size=max_upload_size)
     server.add_sockets(sockets)
 
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
     try:
-        tornado.ioloop.IOLoop.instance().start()
-    except KeyboardInterrupt:
-        tornado.ioloop.IOLoop.instance().stop()
-        if config.getboolean('cloud_verifier', 'revocation_notifier'):
+        server.start(config.getint('cloud_verifier', 'multiprocessing_pool_num_workers'))
+        if tornado.process.task_id() == 0:
+            # Start the revocation notifier only on one process
+            if config.getboolean('cloud_verifier', 'revocation_notifier'):
+                logger.info("Starting service for revocation notifications on port %s",
+                            config.getint('cloud_verifier', 'revocation_notifier_port'))
+                revocation_notifier.start_broker()
+            # Auto activate agents
+            asyncio.ensure_future(activate_agents(cloudverifier_id, cloudverifier_host, cloudverifier_port))
+
+        tornado.ioloop.IOLoop.current().start()
+    except (KeyboardInterrupt, SystemExit):
+        tornado.ioloop.IOLoop.current().stop()
+        if tornado.process.task_id() == 0 and config.getboolean('cloud_verifier', 'revocation_notifier'):
             revocation_notifier.stop_broker()
