@@ -13,10 +13,12 @@ import json
 import datetime
 import functools
 
+from typing import Optional
+
 from keylime import config
 from keylime import signing
 from keylime import keylime_logging
-from keylime.ima import file_signatures, ast
+from keylime.ima import ima_dm, file_signatures, ast
 from keylime.agentstates import AgentAttestState
 from keylime.common import algorithms, validators
 from keylime.failure import Failure, Component
@@ -183,7 +185,9 @@ def _validate_ima_sig(exclude_regex, ima_keyrings, allowlist, digest: ast.Digest
     return failure
 
 
-def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: file_signatures.ImaKeyrings, digest: ast.Digest, path: ast.Name, data: ast.Buffer):
+
+def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: file_signatures.ImaKeyrings, dm_validator: Optional[ima_dm.DmIMAValidator],
+                      digest: ast.Digest, path: ast.Name, data: ast.Buffer):
     failure = Failure(Component.IMA)
     # Is data.data a key?
     pubkey, keyidv2 = file_signatures.get_pubkey(data.data)
@@ -194,6 +198,9 @@ def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: file_signatures.Im
             if not failure:
                 # Add the key only now that it's validated (no failure)
                 ima_keyrings.add_pubkey_to_keyring(pubkey, path.name, keyidv2=keyidv2)
+    # Check if this is a device mapper entry only if we have a validator for that
+    elif dm_validator is not None and path.name in dm_validator.valid_names:
+        failure = dm_validator.validate(digest, path, data)
     else:
         # handling of generic ima-buf entries that for example carry a hash in the buf field
         failure = _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types='ima-buf')
@@ -244,11 +251,23 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
         err_msg += " Exclude list will be ignored."
         logger.error(err_msg)
 
+    # Setup device mapper validation
+    dm_validator = None
+    if allow_list is not None:
+        dm_policy = allow_list["ima"]["dm_policy"]
+
+        if dm_policy is not None:
+            dm_validator = ima_dm.DmIMAValidator(dm_policy)
+            dm_state = agentAttestState.get_ima_dm_state()
+            # Only load state when using incremental attestation
+            if agentAttestState.get_next_ima_ml_entry() != 0:
+                dm_validator.state_load(dm_state)
+
     ima_validator = ast.Validator(
         {ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyrings, allow_list),
          ast.ImaNg: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
          ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
-         ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list, ima_keyrings),
+         ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list, ima_keyrings, dm_validator),
          }
     )
 
@@ -284,6 +303,8 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
                     # We always want to have the very last line for the attestation, so
                     # we keep the previous runninghash, which is not the last one!
                     agentAttestState.update_ima_attestation(int(entry.pcr), running_hash, linenum + 1)
+                    if dm_validator:
+                        agentAttestState.set_ima_dm_state(dm_validator.state_dump())
 
             # Keep old functionality for writing the parsed files with hashes into a file
             if m2w is not None and (type(entry.mode) in [ast.Ima, ast.ImaNg, ast.ImaSig]):
@@ -342,6 +363,9 @@ def update_allowlist(allowlist):
     # version 5 added 'log_hash_alg'
     if not "log_hash_alg" in allowlist["ima"]:
         allowlist["ima"]["log_hash_alg"] = "sha1"
+    # version 6 added 'dm_policy'
+    if "dm_policy" not in allowlist["ima"]:
+        allowlist["ima"]["dm_policy"] = None
 
     return allowlist
 
