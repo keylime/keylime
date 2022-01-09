@@ -16,7 +16,7 @@ from keylime.agentstates import AgentAttestState
 
 ALLOWLIST = {
     "meta": {
-        "version": 2,
+        "version": 6,
     },
     "hashes": {
         'boot_aggregate': ['e4cb9f5709c88376b5fc3743cd88e76b9aae8f3d992d845678de5215edb31216'],
@@ -26,9 +26,12 @@ ALLOWLIST = {
         '/usr/bin/zmore': ['1cb84b12db45d7da8de58ba6744187db84082f0e'],
         '/usr/bin/zless': ['233ad3a8e77c63a7d9a56063ec2cad1eafa58850'],
     },
-    "keyrings" : {
+    "keyrings": {
         '.ima':  ['a7d52aaa18c23d2d9bb2abb4308c0eeee67387a42259f4a6b1a42257065f3d5a'],
     },
+    "ima": {
+        "dm_policy": None
+    }
 }
 
 ALLOWLIST_EMPTY = {
