@@ -68,6 +68,8 @@ class AgentAttestState():
 
         self.reset_ima_attestation()
 
+        self.ima_dm_state = None
+
     def get_agent_id(self):
         """ Get the agent_id """
         return self.agent_id
@@ -136,6 +138,13 @@ class AgentAttestState():
     def get_ima_keyrings(self):
         """ Get the ImaKeyrings object """
         return self.ima_keyrings
+
+    def get_ima_dm_state(self):
+        """ Get encoded state of the DmValidator """
+        return self.ima_dm_state
+
+    def set_ima_dm_state(self, state):
+        self.ima_dm_state = state
 
 class AgentAttestStates():
     """ AgentAttestStates administers a map of AgentAttestState's indexed by agent_id """
