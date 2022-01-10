@@ -223,14 +223,14 @@ def prepare_get_quote(agent):
 
 
 def process_get_status(agent):
-    allowlist = ast.literal_eval(agent.allowlist)
+    allowlist = json.loads(agent.allowlist)
     if isinstance(allowlist, dict) and 'allowlist' in allowlist:
         al_len = len(allowlist['allowlist'])
     else:
         al_len = 0
 
     try :
-        mb_refstate = ast.literal_eval(agent.mb_refstate)
+        mb_refstate = json.loads(agent.mb_refstate)
     except Exception as e:
         logger.warning('Non-fatal problem ocurred while attempting to evaluate agent attribute "mb_refstate" (%s). Will just consider the value of this attribute to be "None"', e.args)
         mb_refstate = None

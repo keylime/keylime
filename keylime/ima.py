@@ -3,7 +3,6 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
-import ast
 import codecs
 import copy
 import hashlib
@@ -217,7 +216,7 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
 
     if lists is not None:
         if isinstance(lists, str):
-            lists = ast.literal_eval(lists)
+            lists = json.loads(lists)
         allow_list = lists['allowlist']
         exclude_list = lists['exclude']
     else:
