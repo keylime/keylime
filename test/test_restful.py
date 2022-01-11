@@ -239,8 +239,8 @@ def launch_registrar():
                 line = reg_process.stdout.readline()
                 if line == b"":
                     break
-                # line = line.rstrip(os.linesep)
                 line = line.decode('utf-8')
+                line = line.rstrip(os.linesep)
                 sys.stdout.flush()
                 sys.stdout.write('\n\033[95m' + line + '\033[0m')
         t = threading.Thread(target=initthread)
@@ -266,8 +266,8 @@ def launch_cloudagent():
                 line = agent_process.stdout.readline()
                 if line == b'':
                     break
-                # line = line.rstrip(os.linesep)
                 line = line.decode('utf-8')
+                line = line.rstrip(os.linesep)
                 sys.stdout.flush()
                 sys.stdout.write('\n\033[94m' + line + '\033[0m')
         t = threading.Thread(target=initthread)
