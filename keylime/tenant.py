@@ -957,8 +957,13 @@ class Tenant():
                 params = f'/v{self.api_version}/quotes/identity?nonce=%s' % (self.nonce)
                 cloudagent_base_url = f'{self.agent_ip}:{self.agent_port}'
 
-                with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True, cert=self.agent_cert,
-                                    verify_custom=self.registrar_data['mtls_cert']) as do_quote:
+                if self.registrar_data['mtls_cert']:
+                    with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True, cert=self.agent_cert,
+                                        verify_custom=self.registrar_data['mtls_cert']) as do_quote:
+                        response = do_quote.get(params)
+                else:
+                    logger.warning("Connecting to agent without using mTLS!")
+                    do_quote = RequestsClient(cloudagent_base_url, tls_enabled=False)
                     response = do_quote.get(params)
 
                 print(response)
@@ -1044,8 +1049,13 @@ class Tenant():
                 f'{self.agent_ip}:{self.agent_port}'
             )
 
-            with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True, cert=self.agent_cert,
-                                verify_custom=self.registrar_data['mtls_cert']) as post_ukey:
+            if self.registrar_data['mtls_cert']:
+                with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True, cert=self.agent_cert,
+                                    verify_custom=self.registrar_data['mtls_cert']) as post_ukey:
+                    response = post_ukey.post(params, json=data)
+            else:
+                logger.warning("Connecting to agent without using mTLS!")
+                post_ukey = RequestsClient(cloudagent_base_url, tls_enabled=False)
                 response = post_ukey.post(params, json=data)
 
             if response.status_code == 503:
@@ -1075,8 +1085,14 @@ class Tenant():
                     f'{self.agent_ip}:{self.agent_port}'
                 )
 
-                with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True,
-                                    cert=self.agent_cert, verify_custom=self.registrar_data['mtls_cert']) as do_verify:
+
+                if self.registrar_data['mtls_cert']:
+                    with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True,
+                                        cert=self.agent_cert, verify_custom=self.registrar_data['mtls_cert']) as do_verify:
+                        response = do_verify.get(f'/v{self.api_version}/keys/verify?challenge={challenge}')
+                else:
+                    logger.warning("Connecting to agent without using mTLS!")
+                    do_verify = RequestsClient(cloudagent_base_url, tls_enabled=False)
                     response = do_verify.get(f'/v{self.api_version}/keys/verify?challenge={challenge}')
 
             except Exception as e:
