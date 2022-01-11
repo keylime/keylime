@@ -12,7 +12,6 @@ import binascii
 import codecs
 import struct
 import abc
-import dataclasses
 
 from typing import Dict, Callable, Any, Optional
 from keylime import config
@@ -38,9 +37,11 @@ def get_FF_HASH(hash_alg: Hash):
     return codecs.decode(b'f' * (hash_alg.get_size() // 4), 'hex')
 
 
-@dataclasses.dataclass
 class Validator:
     functions: Dict[Any, Callable]
+
+    def __init__(self, functions):
+        self.functions = functions
 
     def get_validator(self, class_type) -> Callable:
         validator = self.functions.get(class_type, None)
