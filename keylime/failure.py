@@ -5,7 +5,6 @@ Copyright 2021 Thore Sommer
 Tagging of failure events that might cause revocation in Keylime.
 '''
 import ast
-import dataclasses
 import enum
 import functools
 import json
@@ -19,7 +18,6 @@ logger = keylime_logging.init_logging("failure")
 
 
 @functools.total_ordering
-@dataclasses.dataclass(frozen=True)
 class SeverityLabel:
     """
     Severity label that can be attached to an event.
@@ -29,6 +27,10 @@ class SeverityLabel:
     """
     name: str
     severity: int
+
+    def __init__(self, name, severity):
+        self.name = name
+        self.severity = severity
 
     def __lt__(self, other):
         return self.severity < other.severity
@@ -49,7 +51,6 @@ class Component(enum.Enum):
     DEFAULT = "default"
 
 
-@dataclasses.dataclass
 class Event:
     """
     Event that might be the reason for revocation.
