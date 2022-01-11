@@ -473,8 +473,15 @@ class AgentsHandler(BaseHandler):
                         agent_data['registrar_data'] = registrar_data
 
                         # Prepare SSLContext for mTLS connections
-                        agent_data['ssl_context'] = web_util.generate_agent_mtls_context(registrar_data['mtls_cert'],
-                                                                                         self.mtls_options)
+                        # WARNING: We currently still allow non mTLS connections for upgrade reasons.
+                        mtls_cert = registrar_data.get('mtls_cert', None)
+                        agent_data['ssl_context'] = None
+                        if mtls_cert:
+                            agent_data['ssl_context'] = web_util.generate_agent_mtls_context(mtls_cert,
+                                                                                             self.mtls_options)
+
+                        if agent_data['ssl_context'] is None:
+                            logger.warning('Connecting to agent without mTLS: %s', agent_id)
 
                         asyncio.ensure_future(
                             process_agent(agent_data, states.GET_QUOTE))
@@ -742,10 +749,17 @@ async def invoke_get_quote(agent, need_pubkey):
         partial_req = "0"
 
     version = keylime_api_version.current_version()
-    res = tornado_requests.request("GET",
-                                   "http://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
-                                   (agent['ip'], agent['port'], version, params["nonce"], params["mask"],
-                                    params['vmask'], partial_req, params['ima_ml_entry']), context=agent['ssl_context'])
+
+    if agent['ssl_context']:
+        res = tornado_requests.request("GET",
+                                       "https://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
+                                       (agent['ip'], agent['port'], version, params["nonce"], params["mask"], params['vmask'], partial_req, params['ima_ml_entry']),
+                                       context=agent['ssl_context'])
+    else:
+        res = tornado_requests.request("GET",
+                                       "http://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
+                                       (agent['ip'], agent['port'], version, params["nonce"], params["mask"],
+                                        params['vmask'], partial_req, params['ima_ml_entry']))
     response = await res
 
     if response.status_code != 200:
@@ -793,9 +807,16 @@ async def invoke_provide_v(agent):
         pass
     v_json_message = cloud_verifier_common.prepare_v(agent)
     version = keylime_api_version.current_version()
-    res = tornado_requests.request(
-        "POST", "http://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], version),
-        data=v_json_message, context=agent['ssl_context'])
+
+    if agent['ssl_context']:
+        res = tornado_requests.request(
+            "POST", "https://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], version),
+            data=v_json_message, context=agent['ssl_context'])
+    else:
+        res = tornado_requests.request(
+            "POST", "http://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], version),
+            data=v_json_message)
+
     response = await res
 
     if response.status_code != 200:
