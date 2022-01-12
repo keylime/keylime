@@ -92,7 +92,9 @@ def _from_db_obj(agent_db_obj):
                 'ima_pcrs', \
                 'pcr10', \
                 'next_ima_ml_entry', \
-                'learned_ima_keyrings' ]
+                'learned_ima_keyrings',
+                'supported_version'
+               ]
     agent_dict = {}
     for field in fields:
         agent_dict[field] = getattr(agent_db_obj, field, None)
@@ -415,6 +417,7 @@ class AgentsHandler(BaseHandler):
                     agent_data['accept_tpm_hash_algs'] = json_body['accept_tpm_hash_algs']
                     agent_data['accept_tpm_encryption_algs'] = json_body['accept_tpm_encryption_algs']
                     agent_data['accept_tpm_signing_algs'] = json_body['accept_tpm_signing_algs']
+                    agent_data['supported_version'] = json_body['supported_version']
                     agent_data['hash_alg'] = ""
                     agent_data['enc_alg'] = ""
                     agent_data['sign_alg'] = ""
