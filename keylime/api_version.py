@@ -2,6 +2,7 @@
 SPDX-License-Identifier: Apache-2.0
 Copyright 2021 Red Hat, Inc
 '''
+import re
 
 from packaging import version
 
@@ -56,3 +57,8 @@ def log_api_versions(logger):
     versions.remove(CURRENT_VERSION)
     if versions:
         logger.info('Supported older API versions: ' + ", ".join(versions))
+
+
+def validate_version(v: str) -> bool:
+    pattern = re.compile(r"\d.\d")
+    return re.fullmatch(pattern, v) is not None
