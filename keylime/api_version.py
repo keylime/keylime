@@ -6,12 +6,14 @@ import re
 
 from packaging import version
 
-CURRENT_VERSION = "1.0"
+CURRENT_VERSION = "2.0"
 VERSIONS = [
-    "1.0"
+    "1.0",
+    "2.0"
 ]
 LATEST_VERSIONS = {
-    "1": "1.0"
+    "1": "1.0",
+    "2": "2.0"
 }
 
 def current_version():

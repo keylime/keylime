@@ -185,7 +185,7 @@ def setUpModule():
     tenant_templ.registrar_base_url = f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_boot_port}'
     tenant_templ.registrar_base_tls_url = f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_tls_boot_port}'
     tenant_templ.agent_base_url = f'{tenant_templ.cloudagent_ip}:{tenant_templ.cloudagent_port}'
-    tenant_templ.supported_version = "1.0"
+    tenant_templ.supported_version = "2.0"
     # Set up TLS
     tenant_templ.cert, tenant_templ.agent_cert = tenant_templ.get_tls_context()
 
@@ -353,7 +353,7 @@ class TestRestful(unittest.TestCase):
         cls.vtpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.vtpm_policy)
 
         # Allow targeting a specific API version (default latest)
-        cls.api_version = '1.0'
+        cls.api_version = '2.0'
 
     def setUp(self):
         """Nothing to set up before each test"""
