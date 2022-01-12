@@ -442,6 +442,11 @@ class AgentsHandler(BaseHandler):
                         logger.warning(f"Data for agent {agent_id} could not be found in registrar!")
                         return
 
+                    # TODO: Always error for v1.0 version after initial upgrade
+                    if registrar_data.get('mtls_cert', None) is None and agent_data['supported_version'] != "1.0":
+                        web_util.echo_json_response(self, 400, "mTLS certificate for agent is required!")
+                        return
+
                     is_valid, err_msg = cloud_verifier_common.validate_agent_data(agent_data)
                     if not is_valid:
                         web_util.echo_json_response(self, 400, err_msg)
@@ -476,7 +481,7 @@ class AgentsHandler(BaseHandler):
                         agent_data['registrar_data'] = registrar_data
 
                         # Prepare SSLContext for mTLS connections
-                        # WARNING: We currently still allow non mTLS connections for upgrade reasons.
+                        # TODO: drop special handling after initial upgrade
                         mtls_cert = registrar_data.get('mtls_cert', None)
                         agent_data['ssl_context'] = None
                         if mtls_cert:
@@ -751,17 +756,16 @@ async def invoke_get_quote(agent, need_pubkey):
     if need_pubkey:
         partial_req = "0"
 
-    version = keylime_api_version.current_version()
-
+    # TODO: remove special handling after initial upgrade
     if agent['ssl_context']:
         res = tornado_requests.request("GET",
                                        "https://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
-                                       (agent['ip'], agent['port'], version, params["nonce"], params["mask"], params['vmask'], partial_req, params['ima_ml_entry']),
+                                       (agent['ip'], agent['port'], agent['supported_version'], params["nonce"], params["mask"], params['vmask'], partial_req, params['ima_ml_entry']),
                                        context=agent['ssl_context'])
     else:
         res = tornado_requests.request("GET",
                                        "http://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
-                                       (agent['ip'], agent['port'], version, params["nonce"], params["mask"],
+                                       (agent['ip'], agent['port'], agent['supported_version'], params["nonce"], params["mask"],
                                         params['vmask'], partial_req, params['ima_ml_entry']))
     response = await res
 
@@ -809,15 +813,15 @@ async def invoke_provide_v(agent):
     except KeyError:
         pass
     v_json_message = cloud_verifier_common.prepare_v(agent)
-    version = keylime_api_version.current_version()
 
+    # TODO: remove special handling after initial upgrade
     if agent['ssl_context']:
         res = tornado_requests.request(
-            "POST", "https://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], version),
+            "POST", "https://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], agent['supported_version']),
             data=v_json_message, context=agent['ssl_context'])
     else:
         res = tornado_requests.request(
-            "POST", "http://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], version),
+            "POST", "http://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], agent['supported_version']),
             data=v_json_message)
 
     response = await res
