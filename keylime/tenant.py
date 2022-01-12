@@ -87,6 +87,7 @@ class Tenant():
     accept_tpm_encryption_algs = []
     accept_tpm_signing_algs = []
     mb_refstate = None
+    supported_version = None
 
     payload = None
 
@@ -289,6 +290,33 @@ class Tenant():
 
         if self.agent_port is None:
             raise UserError("The contact port for the agent was not specified.")
+
+        # Auto-detection for API version
+        self.supported_version = args["supported_version"]
+        if self.supported_version is None:
+            # Default to 1.0 if the agent did not send a mTLS certificate
+            if self.registrar_data.get("mtls_cert", None) is None:
+                self.supported_version = "1.0"
+            else:
+                # Try to connect to the agent to get supported version
+                with RequestsClient(f"{self.agent_ip}:{self.agent_port}", tls_enabled=True, cert=self.agent_cert,
+                                    ignore_hostname=True, verify_custom=self.registrar_data['mtls_cert']) as get_version:
+                    res = get_version.get("/version")
+                    if res and res.status_code == 200:
+                        try:
+                            data = res.json()
+                            api_version = data["results"]["supported_version"]
+                            if keylime_api_version.validate_version(api_version):
+                                self.supported_version = api_version
+                            else:
+                                logger.warning("API version provided by the agent is not valid")
+                        except (TypeError, KeyError):
+                            pass
+
+        if self.supported_version is None:
+            api_version = keylime_api_version.current_version()
+            logger.warning("Could not detect supported API version. Defaulting to %s", api_version)
+            self.supported_version = api_version
 
         # Now set the cv_agent_ip
         if 'cv_agent_ip' in args and args['cv_agent_ip'] is not None:
@@ -597,6 +625,7 @@ class Tenant():
             'accept_tpm_hash_algs': self.accept_tpm_hash_algs,
             'accept_tpm_encryption_algs': self.accept_tpm_encryption_algs,
             'accept_tpm_signing_algs': self.accept_tpm_signing_algs,
+            'supported_version': self.supported_version,
         }
         json_message = json.dumps(data)
         do_cv = RequestsClient(self.verifier_base_url, self.tls_enabled)
@@ -954,7 +983,7 @@ class Tenant():
         # Note: We need a specific retry handler (perhaps in common), no point having localised unless we have too.
         while True:
             try:
-                params = f'/v{self.api_version}/quotes/identity?nonce=%s' % (self.nonce)
+                params = f'/v{self.supported_version}/quotes/identity?nonce=%s' % (self.nonce)
                 cloudagent_base_url = f'{self.agent_ip}:{self.agent_port}'
 
                 if self.registrar_data['mtls_cert']:
@@ -1044,7 +1073,7 @@ class Tenant():
 
 
             # post encrypted U back to CloudAgent
-            params = f'/v{self.api_version}/keys/ukey'
+            params = f'/v{self.supported_version}/keys/ukey'
             cloudagent_base_url = (
                 f'{self.agent_ip}:{self.agent_port}'
             )
@@ -1089,11 +1118,11 @@ class Tenant():
                 if self.registrar_data['mtls_cert']:
                     with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True,
                                         cert=self.agent_cert, verify_custom=self.registrar_data['mtls_cert']) as do_verify:
-                        response = do_verify.get(f'/v{self.api_version}/keys/verify?challenge={challenge}')
+                        response = do_verify.get(f'/v{self.supported_version}/keys/verify?challenge={challenge}')
                 else:
                     logger.warning("Connecting to agent without using mTLS!")
                     do_verify = RequestsClient(cloudagent_base_url, tls_enabled=False)
-                    response = do_verify.get(f'/v{self.api_version}/keys/verify?challenge={challenge}')
+                    response = do_verify.get(f'/v{self.supported_version}/keys/verify?challenge={challenge}')
 
             except Exception as e:
                 if response.status_code in (503, 504):
@@ -1252,6 +1281,7 @@ def main(argv=sys.argv):
     parser.add_argument('--verify', action='store_true', default=False,
                         help='Block on cryptographically checked key derivation confirmation from the agent once it has been provisioned')
     parser.add_argument('--allowlist-name', help='The name of allowlist to operate with')
+    parser.add_argument('--supported-version', default=None, action="store", dest='supported_version', help='API version that is supported by the agent. Detected automatically by default')
 
     args = parser.parse_args(argv[1:])
 
