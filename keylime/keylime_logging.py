@@ -19,7 +19,9 @@ if not config.REQUIRE_ROOT:
 else:
     LOGSTREAM = LOGDIR + '/keylime-stream.log'
 
-logging.config.fileConfig(config.CONFIG_FILE)
+for config_file in reversed(config.CONFIG_FILES):
+    if os.path.exists(config_file):
+        logging.config.fileConfig(config_file)
 
 
 def set_log_func(loglevel, logger):

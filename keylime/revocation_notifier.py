@@ -84,7 +84,7 @@ def notify(tosend):
 
 
 def notify_webhook(tosend):
-    url = config.get('cloud_verifier', 'webhook_url', '')
+    url = config.get('cloud_verifier', 'webhook_url', fallback='')
     # Check if a url was specified
     if url == '':
         return
