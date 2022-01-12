@@ -5,7 +5,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 import os
 import os.path
 import configparser
-import sys
 import urllib.parse
 import re
 from http.server import BaseHTTPRequestHandler
@@ -115,69 +114,39 @@ if not REQUIRE_ROOT:
     print("WARNING: running without root access")
 
 
-CONFIG_FILE = os.getenv('KEYLIME_CONFIG', '/etc/keylime.conf')
-
-
-WARN = False
-if not os.path.exists(CONFIG_FILE):
-    # try to locate the config file next to the script if bundled
-    if getattr(sys, 'frozen', False):
-        CONFIG_FILE = os.path.dirname(
-            os.path.abspath(sys.executable)) + "/keylime.conf"
-    else:
-        # instead try to get config file from python data_files install
-        CONFIG_FILE = os.path.dirname(os.path.abspath(
-            __file__)) + "/../package_default/keylime.conf"
-        WARN = True
-
-if not os.path.exists(CONFIG_FILE):
-    raise Exception(f"{CONFIG_FILE} does not exist. Please set environment"
-                    f"variable KEYLIME_CONFIG or see {__file__} for more"
-                    f"details")
-print(f"Using config file {CONFIG_FILE}")
-if WARN:
-    print("WARNING: Keylime is using the config file from its installation location. \n\tWe recommend you copy keylime.conf to /etc/ to customize it.")
-
-
-_CURRENT_CONFIG = None
+# Config files can be merged together, reading from the system to the
+# user.
+CONFIG_FILES = [
+    os.path.expanduser("~/.config/keylime.conf"), "/etc/keylime.conf", "/usr/etc/keylime.conf"
+]
+if "KEYLIME_CONFIG" in os.environ:
+    CONFIG_FILES.insert(0, os.environ["KEYLIME_CONFIG"])
 
 
 def get_config():
-    global _CURRENT_CONFIG
-    if _CURRENT_CONFIG is None:
-        # read the config file
-        _CURRENT_CONFIG = configparser.ConfigParser()
-        _CURRENT_CONFIG.read(CONFIG_FILE)
-    return _CURRENT_CONFIG
+    """Read configuration files and merge them together."""
+    if not getattr(get_config, "config", None):
+        # TODO - use logger and be sure that all variables have a
+        # propper default, and the sections are initialized
+        if not any(os.path.exists(c) for c in CONFIG_FILES):
+            print(f"Config file not found in {CONFIG_FILES}. Please set "
+                  f"environment variable KEYLIME_CONFIG or see {__file__} "
+                  "for more details")
+
+        # Validate that at least one config file is present
+        get_config.config = configparser.ConfigParser()
+        config_files = get_config.config.read(CONFIG_FILES)
+        # TODO - use the logger
+        print(f"Reading configuration from {config_files}")
+    return get_config.config
 
 
-def get(section, option, fallback=None):
-    if fallback is not None:
-        return get_config().get(section, option, fallback=fallback)
-    return get_config().get(section, option)
-
-
-def getint(section, option, fallback=None):
-    if fallback is not None:
-        return get_config().get(section, option, fallback=fallback)
-    return get_config().getint(section, option)
-
-
-def getboolean(section, option, fallback=None):
-    if fallback is not None:
-        return get_config().getboolean(section, option, fallback=fallback)
-    return get_config().getboolean(section, option)
-
-
-def getfloat(section, option, fallback=None):
-    if fallback is not None:
-        return get_config().get(section, option, fallback=fallback)
-    return get_config().getfloat(section, option)
-
-
-def has_option(section, option):
-    return get_config().has_option(section, option)
-
+# Re-export some utility functions
+get = get_config().get
+getint = get_config().getint
+getboolean = get_config().getboolean
+getfloat = get_config().getfloat
+has_option = get_config().has_option
 
 if not REQUIRE_ROOT:
     DEFAULT_WORK_DIR = os.path.abspath(".")
@@ -332,6 +301,6 @@ TPM_DATA_PCR = 16
 BOOTSTRAP_KEY_SIZE = 32
 
 # choose between cfssl or openssl for creating CA certificates
-CA_IMPL = get_config().get('general', 'ca_implementation')
+CA_IMPL = get_config().get('general', 'ca_implementation', fallback='openssl')
 
 CRL_PORT = 38080

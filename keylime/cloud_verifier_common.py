@@ -369,7 +369,7 @@ def process_get_status(agent):
 
 def notify_error(agent, msgtype='revocation', event=None):
     send_mq = config.getboolean('cloud_verifier', 'revocation_notifier')
-    send_webhook = config.getboolean('cloud_verifier', 'revocation_notifier_webhook', False)
+    send_webhook = config.getboolean('cloud_verifier', 'revocation_notifier_webhook', fallback=False)
     if not (send_mq or send_webhook):
         return
 

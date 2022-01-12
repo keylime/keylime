@@ -362,7 +362,7 @@ class Entry:
         if self.ima_template_hash == get_FF_HASH(self._ima_hash_alg):
             logger.warning("Skipped template_hash validation entry with FF_HASH")
             # By default ToMToU errors are not treated as a failure
-            if config.getboolean("cloud_verifier", "tomtou_errors", False):
+            if config.getboolean("cloud_verifier", "tomtou_errors", fallback=False):
                 failure.add_event("tomtou", "hash validation was skipped", True)
             return failure
         if self.ima_template_hash != self._ima_hash_alg.hash(self._bytes):
