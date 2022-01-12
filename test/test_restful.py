@@ -185,6 +185,7 @@ def setUpModule():
     tenant_templ.registrar_base_url = f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_boot_port}'
     tenant_templ.registrar_base_tls_url = f'{tenant_templ.registrar_ip}:{tenant_templ.registrar_tls_boot_port}'
     tenant_templ.agent_base_url = f'{tenant_templ.cloudagent_ip}:{tenant_templ.cloudagent_port}'
+    tenant_templ.supported_version = "1.0"
     # Set up TLS
     tenant_templ.cert, tenant_templ.agent_cert = tenant_templ.get_tls_context()
 
@@ -712,6 +713,7 @@ class TestRestful(unittest.TestCase):
             'accept_tpm_hash_algs': config.get('tenant', 'accept_tpm_hash_algs').split(','),
             'accept_tpm_encryption_algs': config.get('tenant', 'accept_tpm_encryption_algs').split(','),
             'accept_tpm_signing_algs': config.get('tenant', 'accept_tpm_signing_algs').split(','),
+            'supported_version': tenant_templ.supported_version
         }
 
         test_030_cv_agent_post = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
@@ -807,6 +809,7 @@ class TestRestful(unittest.TestCase):
             'accept_tpm_hash_algs': config.get('tenant', 'accept_tpm_hash_algs').split(','),
             'accept_tpm_encryption_algs': config.get('tenant', 'accept_tpm_encryption_algs').split(','),
             'accept_tpm_signing_algs': config.get('tenant', 'accept_tpm_signing_algs').split(','),
+            'supported_version': tenant_templ.supported_version
         }
 
         client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
