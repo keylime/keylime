@@ -876,9 +876,9 @@ class Tenant():
     def do_cvreactivate(self, verifier_check=True):
         """Reactive Agent."""
         if verifier_check:
-            agent_json = self.do_status()
-            self.verifier_ip = agent_json['verifier_ip']
-            self.verifier_port = agent_json['verifier_port']
+            agent_json = self.do_cvstatus()
+            self.verifier_ip = agent_json['results'][self.agent_uuid]['verifier_ip']
+            self.verifier_port = agent_json['results'][self.agent_uuid]['verifier_port']
 
         do_cvreactivate = RequestsClient(
             self.verifier_base_url, self.tls_enabled)
