@@ -11,6 +11,19 @@ import time
 EXIT_SUCESS = 0
 
 
+def _decode(data):
+    """Decode any binay array into a string."""
+    if isinstance(data, bytes):
+        return data.decode()
+    if isinstance(data, dict):
+        return dict(map(_decode, data.items()))
+    if isinstance(data, tuple):
+        return tuple(map(_decode, data))
+    if isinstance(data, list):
+        return list(map(_decode, data))
+    return data
+
+
 def _execute(cmd, env=None, **kwargs):
     proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, **kwargs)
@@ -20,7 +33,7 @@ def _execute(cmd, env=None, **kwargs):
 
 
 def run(cmd, expectedcode=EXIT_SUCESS, raiseOnError=True, outputpaths=None,
-        env=os.environ, **kwargs):
+        env=os.environ, decode=True, **kwargs):
     """Execute external command.
 
     :param cmd: a sequence of command arguments
@@ -56,7 +69,7 @@ def run(cmd, expectedcode=EXIT_SUCESS, raiseOnError=True, outputpaths=None,
         'fileouts': fileouts,
         'timing': timing,
     }
-    return returnDict
+    return _decode(returnDict) if decode else returnDict
 
 
 # list_contains_substring checks whether a substring is contained in the given

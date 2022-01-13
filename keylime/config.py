@@ -9,30 +9,11 @@ import urllib.parse
 import re
 from http.server import BaseHTTPRequestHandler
 import http.client
-from typing import Optional
 
 import tornado.web
-import yaml
-try:
-    from yaml import CSafeLoader as SafeLoader
-except ImportError:
-    from yaml import SafeLoader
-from yaml.reader import ReaderError
 
 from keylime import api_version as keylime_api_version
 from keylime import json
-
-
-def convert(data):
-    if isinstance(data, bytes):
-        return data.decode()
-    if isinstance(data, dict):
-        return dict(map(convert, data.items()))
-    if isinstance(data, tuple):
-        return tuple(map(convert, data))
-    if isinstance(data, list):
-        return list(map(convert, data))
-    return data
 
 
 def environ_bool(env_name, default):
@@ -210,17 +191,6 @@ def list_to_dict(alist):
         params[alist[i]] = alist[i + 1] if (i + 1) < len(alist) else None
         i = i + 2
     return params
-
-
-def yaml_to_dict(arry, add_newlines=True, logger=None) -> Optional[dict]:
-    arry = convert(arry)
-    sep = "\n" if add_newlines else ""
-    try:
-        return yaml.load(sep.join(arry), Loader=SafeLoader)
-    except ReaderError as err:
-        if logger is not None:
-            logger.warning("Could not load yaml as dict: %s", str(err))
-    return None
 
 
 def get_restful_params(urlstring):
