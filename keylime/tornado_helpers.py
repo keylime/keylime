@@ -1,9 +1,13 @@
+import http.client
 import os
 import socket
 import ssl
 import sys
+from http.server import BaseHTTPRequestHandler
 
-from keylime import config, ca_util
+import tornado.web
+
+from keylime import config, ca_util, json
 from keylime.cloud_verifier_common import logger
 
 
@@ -110,3 +114,32 @@ def generate_mtls_context(cert_path, private_key_path, ca_path, verify_client_ce
         raise exc
 
     return context
+
+
+def echo_json_response(handler, code, status=None, results=None):
+    """Takes a json package and returns it to the user w/ full HTTP headers"""
+    if handler is None or code is None:
+        return False
+    if status is None:
+        status = http.client.responses[code]
+    if results is None:
+        results = {}
+
+    json_res = {'code': code, 'status': status, 'results': results}
+    json_response = json.dumps(json_res)
+    json_response = json_response.encode('utf-8')
+
+    if isinstance(handler, BaseHTTPRequestHandler):
+        handler.send_response(code)
+        handler.send_header('Content-Type', 'application/json')
+        handler.end_headers()
+        handler.wfile.write(json_response)
+        return True
+    if isinstance(handler, tornado.web.RequestHandler):
+        handler.set_status(code)
+        handler.set_header('Content-Type', 'application/json')
+        handler.write(json_response)
+        handler.finish()
+        return True
+
+    return False

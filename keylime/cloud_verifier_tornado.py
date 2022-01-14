@@ -158,23 +158,23 @@ class BaseHandler(tornado.web.RequestHandler):
 class MainHandler(tornado.web.RequestHandler):
 
     def head(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def get(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def delete(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def post(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def put(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def data_received(self, chunk):
@@ -183,17 +183,17 @@ class MainHandler(tornado.web.RequestHandler):
 class VersionHandler(BaseHandler):
 
     def head(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 405, "Not Implemented: Use GET interface instead")
 
     def get(self):
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
-            config.echo_json_response(self, 405, "Not Implemented")
+            tornado_helpers.echo_json_response(self, 405, "Not Implemented")
             return
 
         if "version" not in rest_params:
-            config.echo_json_response(self, 400, "URI not supported")
+            tornado_helpers.echo_json_response(self, 400, "URI not supported")
             logger.warning('GET returning 400 response. URI not supported: %s', self.request.path)
             return
 
@@ -202,18 +202,18 @@ class VersionHandler(BaseHandler):
             "supported_versions": keylime_api_version.all_versions(),
         }
 
-        config.echo_json_response(self, 200, "Success", version_info)
+        tornado_helpers.echo_json_response(self, 200, "Success", version_info)
 
     def delete(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 405, "Not Implemented: Use GET interface instead")
 
     def post(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 405, "Not Implemented: Use GET interface instead")
 
     def put(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 405, "Not Implemented: Use GET interface instead")
 
     def data_received(self, chunk):
@@ -223,7 +223,7 @@ class VersionHandler(BaseHandler):
 class AgentsHandler(BaseHandler):
     def head(self):
         """HEAD not supported"""
-        config.echo_json_response(self, 405, "HEAD not supported")
+        tornado_helpers.echo_json_response(self, 405, "HEAD not supported")
 
     def get(self):
         """This method handles the GET requests to retrieve status on agents from the Cloud Verifier.
@@ -237,16 +237,16 @@ class AgentsHandler(BaseHandler):
         session = get_session()
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
-            config.echo_json_response(
+            tornado_helpers.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if not rest_params["api_version"]:
-            config.echo_json_response(self, 400, "API Version not supported")
+            tornado_helpers.echo_json_response(self, 400, "API Version not supported")
             return
 
         if "agents" not in rest_params:
-            config.echo_json_response(self, 400, "uri not supported")
+            tornado_helpers.echo_json_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: %s', self.request.path)
             return
 
@@ -261,9 +261,9 @@ class AgentsHandler(BaseHandler):
 
             if agent is not None:
                 response = cloud_verifier_common.process_get_status(agent)
-                config.echo_json_response(self, 200, "Success", response)
+                tornado_helpers.echo_json_response(self, 200, "Success", response)
             else:
-                config.echo_json_response(self, 404, "agent id not found")
+                tornado_helpers.echo_json_response(self, 404, "agent id not found")
         else:
             json_response = None
             if "bulk" in rest_params.keys():
@@ -278,7 +278,7 @@ class AgentsHandler(BaseHandler):
                 for agent in agent_list:
                     json_response[agent.agent_id] = cloud_verifier_common.process_get_status(agent)
 
-                config.echo_json_response(self, 200, "Success", json_response)
+                tornado_helpers.echo_json_response(self, 200, "Success", json_response)
             else:
                 if ("verifier" in rest_params.keys()) and (rest_params["verifier"] != ''):
                     json_response = session.query(VerfierMain.agent_id).filter_by(
@@ -286,7 +286,7 @@ class AgentsHandler(BaseHandler):
                 else:
                     json_response = session.query(VerfierMain.agent_id).all()
 
-                config.echo_json_response(self, 200, "Success", {
+                tornado_helpers.echo_json_response(self, 200, "Success", {
                     'uuids': json_response})
 
             logger.info('GET returning 200 response for agent_id list')
@@ -300,22 +300,22 @@ class AgentsHandler(BaseHandler):
         session = get_session()
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
-            config.echo_json_response(
+            tornado_helpers.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if not rest_params["api_version"]:
-            config.echo_json_response(self, 400, "API Version not supported")
+            tornado_helpers.echo_json_response(self, 400, "API Version not supported")
             return
 
         if "agents" not in rest_params:
-            config.echo_json_response(self, 400, "uri not supported")
+            tornado_helpers.echo_json_response(self, 400, "uri not supported")
             return
 
         agent_id = rest_params["agents"]
 
         if agent_id is None:
-            config.echo_json_response(self, 400, "uri not supported")
+            tornado_helpers.echo_json_response(self, 400, "uri not supported")
             logger.warning('DELETE returning 400 response. uri not supported: %s', self.request.path)
             return
 
@@ -326,13 +326,13 @@ class AgentsHandler(BaseHandler):
             logger.error('SQLAlchemy Error: %s', e)
 
         if agent is None:
-            config.echo_json_response(self, 404, "agent id not found")
+            tornado_helpers.echo_json_response(self, 404, "agent id not found")
             logger.info('DELETE returning 404 response. agent id: %s not found.', agent_id)
             return
 
         verifier_id = config.get('cloud_verifier', 'cloudverifier_id', fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
         if verifier_id != agent.verifier_id:
-            config.echo_json_response(self, 404, "agent id associated to this verifier")
+            tornado_helpers.echo_json_response(self, 404, "agent id associated to this verifier")
             logger.info('DELETE returning 404 response. agent id: %s not associated to this verifer.', agent_id)
             return
 
@@ -343,7 +343,7 @@ class AgentsHandler(BaseHandler):
                 verifier_db_delete_agent(session, agent_id)
             except SQLAlchemyError as e:
                 logger.error('SQLAlchemy Error: %s', e)
-            config.echo_json_response(self, 200, "Success")
+            tornado_helpers.echo_json_response(self, 200, "Success")
             logger.info('DELETE returning 200 response for agent id: %s', agent_id)
         else:
             try:
@@ -354,7 +354,7 @@ class AgentsHandler(BaseHandler):
                 except SQLAlchemyError as e:
                     logger.error('SQLAlchemy Error: %s', e)
                 session.commit()
-                config.echo_json_response(self, 202, "Accepted")
+                tornado_helpers.echo_json_response(self, 202, "Accepted")
                 logger.info('DELETE returning 202 response for agent id: %s', agent_id)
             except SQLAlchemyError as e:
                 logger.error('SQLAlchemy Error: %s', e)
@@ -369,16 +369,16 @@ class AgentsHandler(BaseHandler):
         try:
             rest_params = config.get_restful_params(self.request.uri)
             if rest_params is None:
-                config.echo_json_response(
+                tornado_helpers.echo_json_response(
                     self, 405, "Not Implemented: Use /agents/ interface")
                 return
 
             if not rest_params["api_version"]:
-                config.echo_json_response(self, 400, "API Version not supported")
+                tornado_helpers.echo_json_response(self, 400, "API Version not supported")
                 return
 
             if "agents" not in rest_params:
-                config.echo_json_response(self, 400, "uri not supported")
+                tornado_helpers.echo_json_response(self, 400, "uri not supported")
                 logger.warning('POST returning 400 response. uri not supported: %s', self.request.path)
                 return
 
@@ -387,7 +387,7 @@ class AgentsHandler(BaseHandler):
             if agent_id is not None:
                 content_length = len(self.request.body)
                 if content_length == 0:
-                    config.echo_json_response(
+                    tornado_helpers.echo_json_response(
                         self, 400, "Expected non zero content length")
                     logger.warning('POST returning 400 response. Expected non zero content length.')
                 else:
@@ -423,7 +423,7 @@ class AgentsHandler(BaseHandler):
 
                     is_valid, err_msg = cloud_verifier_common.validate_agent_data(agent_data)
                     if not is_valid:
-                        config.echo_json_response(self, 400, err_msg)
+                        tornado_helpers.echo_json_response(self, 400, err_msg)
                         logger.warning(err_msg)
                         return
 
@@ -436,7 +436,7 @@ class AgentsHandler(BaseHandler):
                     # don't allow overwriting
 
                     if new_agent_count > 0:
-                        config.echo_json_response(
+                        tornado_helpers.echo_json_response(
                             self, 409, "Agent of uuid %s already exists" % (agent_id))
                         logger.warning("Agent of uuid %s already exists", agent_id)
                     else:
@@ -451,13 +451,13 @@ class AgentsHandler(BaseHandler):
                             agent_data[key] = exclude_db[key]
                         asyncio.ensure_future(
                             process_agent(agent_data, states.GET_QUOTE))
-                        config.echo_json_response(self, 200, "Success")
+                        tornado_helpers.echo_json_response(self, 200, "Success")
                         logger.info('POST returning 200 response for adding agent id: %s', agent_id)
             else:
-                config.echo_json_response(self, 400, "uri not supported")
+                tornado_helpers.echo_json_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
         except Exception as e:
-            config.echo_json_response(self, 400, "Exception error: %s" % e)
+            tornado_helpers.echo_json_response(self, 400, "Exception error: %s" % e)
             logger.warning("POST returning 400 response. Exception error: %s", e)
             logger.exception(e)
 
@@ -473,23 +473,23 @@ class AgentsHandler(BaseHandler):
         try:
             rest_params = config.get_restful_params(self.request.uri)
             if rest_params is None:
-                config.echo_json_response(
+                tornado_helpers.echo_json_response(
                     self, 405, "Not Implemented: Use /agents/ interface")
                 return
 
             if not rest_params["api_version"]:
-                config.echo_json_response(self, 400, "API Version not supported")
+                tornado_helpers.echo_json_response(self, 400, "API Version not supported")
                 return
 
             if "agents" not in rest_params:
-                config.echo_json_response(self, 400, "uri not supported")
+                tornado_helpers.echo_json_response(self, 400, "uri not supported")
                 logger.warning('PUT returning 400 response. uri not supported: %s', self.request.path)
                 return
 
             agent_id = rest_params["agents"]
 
             if agent_id is None:
-                config.echo_json_response(self, 400, "uri not supported")
+                tornado_helpers.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
             try:
                 verifier_id = config.get('cloud_verifier', 'cloudverifier_id', fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
@@ -499,7 +499,7 @@ class AgentsHandler(BaseHandler):
                 logger.error('SQLAlchemy Error: %s', e)
 
             if agent is None:
-                config.echo_json_response(self, 404, "agent id not found")
+                tornado_helpers.echo_json_response(self, 404, "agent id not found")
                 logger.info('PUT returning 404 response. agent id: %s not found.', agent_id)
                 return
 
@@ -507,7 +507,7 @@ class AgentsHandler(BaseHandler):
                 agent.operational_state = states.START
                 asyncio.ensure_future(
                     process_agent(agent, states.GET_QUOTE))
-                config.echo_json_response(self, 200, "Success")
+                tornado_helpers.echo_json_response(self, 200, "Success")
                 logger.info('PUT returning 200 response for agent id: %s', agent_id)
             elif "stop" in rest_params:
                 # do stuff for terminate
@@ -519,14 +519,14 @@ class AgentsHandler(BaseHandler):
                 except SQLAlchemyError as e:
                     logger.error('SQLAlchemy Error: %s', e)
 
-                config.echo_json_response(self, 200, "Success")
+                tornado_helpers.echo_json_response(self, 200, "Success")
                 logger.info('PUT returning 200 response for agent id: %s', agent_id)
             else:
-                config.echo_json_response(self, 400, "uri not supported")
+                tornado_helpers.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
 
         except Exception as e:
-            config.echo_json_response(self, 400, "Exception error: %s" % e)
+            tornado_helpers.echo_json_response(self, 400, "Exception error: %s" % e)
             logger.warning("PUT returning 400 response. Exception error: %s", e)
             logger.exception(e)
         self.finish()
@@ -537,7 +537,7 @@ class AgentsHandler(BaseHandler):
 
 class AllowlistHandler(BaseHandler):
     def head(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 400, "Allowlist handler: HEAD Not Implemented")
 
     def get(self):
@@ -548,16 +548,16 @@ class AllowlistHandler(BaseHandler):
 
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None or 'allowlists' not in rest_params:
-            config.echo_json_response(self, 400, "Invalid URL")
+            tornado_helpers.echo_json_response(self, 400, "Invalid URL")
             return
 
         if not rest_params["api_version"]:
-            config.echo_json_response(self, 400, "API Version not supported")
+            tornado_helpers.echo_json_response(self, 400, "API Version not supported")
             return
 
         allowlist_name = rest_params['allowlists']
         if allowlist_name is None:
-            config.echo_json_response(self, 400, "Invalid URL")
+            tornado_helpers.echo_json_response(self, 400, "Invalid URL")
             logger.warning(
                 'GET returning 400 response: ' + self.request.path)
             return
@@ -567,17 +567,17 @@ class AllowlistHandler(BaseHandler):
             allowlist = session.query(VerifierAllowlist).filter_by(
                 name=allowlist_name).one()
         except NoResultFound:
-            config.echo_json_response(self, 404, "Allowlist %s not found" % allowlist_name)
+            tornado_helpers.echo_json_response(self, 404, "Allowlist %s not found" % allowlist_name)
             return
         except SQLAlchemyError as e:
             logger.error(f'SQLAlchemy Error: {e}')
-            config.echo_json_response(self, 500, "Failed to get allowlist")
+            tornado_helpers.echo_json_response(self, 500, "Failed to get allowlist")
             raise
 
         response = {}
         for field in ('name', 'tpm_policy', 'vtpm_policy', 'ima_policy'):
             response[field] = getattr(allowlist, field, None)
-        config.echo_json_response(self, 200, 'Success', response)
+        tornado_helpers.echo_json_response(self, 200, 'Success', response)
 
     def delete(self):
         """Delete an allowlist
@@ -587,16 +587,16 @@ class AllowlistHandler(BaseHandler):
 
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None or 'allowlists' not in rest_params:
-            config.echo_json_response(self, 400, "Invalid URL")
+            tornado_helpers.echo_json_response(self, 400, "Invalid URL")
             return
 
         if not rest_params["api_version"]:
-            config.echo_json_response(self, 400, "API Version not supported")
+            tornado_helpers.echo_json_response(self, 400, "API Version not supported")
             return
 
         allowlist_name = rest_params['allowlists']
         if allowlist_name is None:
-            config.echo_json_response(self, 400, "Invalid URL")
+            tornado_helpers.echo_json_response(self, 400, "Invalid URL")
             logger.warning(
                 'DELETE returning 400 response: ' + self.request.path)
             return
@@ -606,11 +606,11 @@ class AllowlistHandler(BaseHandler):
             session.query(VerifierAllowlist).filter_by(
                 name=allowlist_name).one()
         except NoResultFound:
-            config.echo_json_response(self, 404, "Allowlist %s not found" % allowlist_name)
+            tornado_helpers.echo_json_response(self, 404, "Allowlist %s not found" % allowlist_name)
             return
         except SQLAlchemyError as e:
             logger.error(f'SQLAlchemy Error: {e}')
-            config.echo_json_response(self, 500, "Failed to get allowlist")
+            tornado_helpers.echo_json_response(self, 500, "Failed to get allowlist")
             raise
 
         try:
@@ -619,7 +619,7 @@ class AllowlistHandler(BaseHandler):
             session.commit()
         except SQLAlchemyError as e:
             logger.error(f'SQLAlchemy Error: {e}')
-            config.echo_json_response(self, 500, "Failed to get allowlist")
+            tornado_helpers.echo_json_response(self, 500, "Failed to get allowlist")
             raise
 
         # NOTE(kaifeng) 204 Can not have response body, but current helper
@@ -639,21 +639,21 @@ class AllowlistHandler(BaseHandler):
 
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None or 'allowlists' not in rest_params:
-            config.echo_json_response(self, 400, "Invalid URL")
+            tornado_helpers.echo_json_response(self, 400, "Invalid URL")
             return
 
         if not rest_params["api_version"]:
-            config.echo_json_response(self, 400, "API Version not supported")
+            tornado_helpers.echo_json_response(self, 400, "API Version not supported")
             return
 
         allowlist_name = rest_params['allowlists']
         if allowlist_name is None:
-            config.echo_json_response(self, 400, "Invalid URL")
+            tornado_helpers.echo_json_response(self, 400, "Invalid URL")
             return
 
         content_length = len(self.request.body)
         if content_length == 0:
-            config.echo_json_response(
+            tornado_helpers.echo_json_response(
                 self, 400, "Expected non zero content length")
             logger.warning(
                 'POST returning 400 response. Expected non zero content length.')
@@ -678,7 +678,7 @@ class AllowlistHandler(BaseHandler):
             al_count = session.query(
                 VerifierAllowlist).filter_by(name=allowlist_name).count()
             if al_count > 0:
-                config.echo_json_response(
+                tornado_helpers.echo_json_response(
                     self, 409, "Allowlist with name %s already exists" % allowlist_name)
                 logger.warning(
                     "Allowlist with name %s already exists" % allowlist_name)
@@ -695,11 +695,11 @@ class AllowlistHandler(BaseHandler):
             logger.error(f'SQLAlchemy Error: {e}')
             raise
 
-        config.echo_json_response(self, 201)
+        tornado_helpers.echo_json_response(self, 201)
         logger.info('POST returning 201')
 
     def put(self):
-        config.echo_json_response(
+        tornado_helpers.echo_json_response(
             self, 400, "Allowlist handler: PUT Not Implemented")
 
     def data_received(self, chunk):

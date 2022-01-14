@@ -40,6 +40,7 @@ from keylime import json
 from keylime import revocation_notifier
 from keylime import registrar_client
 from keylime import secure_mount
+from keylime import tornado_helpers
 from keylime import api_version as keylime_api_version
 from keylime.common import algorithms
 from keylime.tpm.tpm_main import tpm
@@ -81,7 +82,7 @@ class Handler(RequestHandler):
 
     def head(self):
         """Not supported"""
-        config.echo_json_response(self, 405, "HEAD not supported")
+        tornado_helpers.echo_json_response(self, 405, "HEAD not supported")
 
     async def get(self):
         """This method services the GET request typically from either the Tenant or the Cloud Verifier.
@@ -93,30 +94,30 @@ class Handler(RequestHandler):
         logger.info('GET invoked from %s with uri: %s', self.request.remote_ip, self.request.uri)
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
-            config.echo_json_response(
+            tornado_helpers.echo_json_response(
                 self, 405, "Not Implemented: Use /keys/ or /quotes/ interfaces")
             return
 
         if not rest_params["api_version"]:
-            config.echo_json_response(self, 400, "API Version not supported")
+            tornado_helpers.echo_json_response(self, 400, "API Version not supported")
             return
 
         if "keys" in rest_params and rest_params['keys'] == 'verify':
             if self.agent_state.K is None:
                 logger.info('GET key challenge returning 400 response. bootstrap key not available')
-                config.echo_json_response(
+                tornado_helpers.echo_json_response(
                     self, 400, "Bootstrap key not yet available.")
                 return
             if "challenge" not in rest_params:
                 logger.info('GET key challenge returning 400 response. No challenge provided')
-                config.echo_json_response(
+                tornado_helpers.echo_json_response(
                     self, 400, "No challenge provided.")
                 return
 
             challenge = rest_params['challenge']
             response = {}
             response['hmac'] = crypto.do_hmac(self.agent_state.K, challenge)
-            config.echo_json_response(self, 200, "Success", response)
+            tornado_helpers.echo_json_response(self, 200, "Success", response)
             logger.info('GET key challenge returning 200 response.')
 
         # If agent pubkey requested
@@ -124,7 +125,7 @@ class Handler(RequestHandler):
             response = {}
             response['pubkey'] = self.agent_state.rsapublickey_exportable
 
-            config.echo_json_response(self, 200, "Success", response)
+            tornado_helpers.echo_json_response(self, 200, "Success", response)
             logger.info('GET pubkey returning 200 response.')
             return
 
@@ -136,7 +137,7 @@ class Handler(RequestHandler):
             # if the query is not messed up
             if nonce is None:
                 logger.warning('GET quote returning 400 response. nonce not provided as an HTTP parameter in request')
-                config.echo_json_response(
+                tornado_helpers.echo_json_response(
                     self, 400, "nonce not provided as an HTTP parameter in request")
                 return
 
@@ -145,14 +146,14 @@ class Handler(RequestHandler):
                     (pcrmask is None or config.valid_hex(pcrmask)) and
                     ima_ml_entry.isalnum()):
                 logger.warning('GET quote returning 400 response. parameters should be strictly alphanumeric')
-                config.echo_json_response(
+                tornado_helpers.echo_json_response(
                     self, 400, "parameters should be strictly alphanumeric")
                 return
 
             if len(nonce) > tpm_instance.MAX_NONCE_SIZE:
                 logger.warning('GET quote returning 400 response. Nonce is too long (max size %i): %i',
                                tpm_instance.MAX_NONCE_SIZE, len(nonce))
-                config.echo_json_response(
+                tornado_helpers.echo_json_response(
                     self, 400, f'Nonce is too long (max size {tpm_instance.MAX_NONCE_SIZE}): {len(nonce)}')
                 return
 
@@ -208,13 +209,13 @@ class Handler(RequestHandler):
                         el = base64.b64encode(f.read())
                     response['mb_measurement_list'] = el
 
-            config.echo_json_response(self, 200, "Success", response)
+            tornado_helpers.echo_json_response(self, 200, "Success", response)
             logger.info('GET %s quote returning 200 response.', rest_params["quotes"])
             return
 
         else:
             logger.warning('GET returning 400 response. uri not supported: %s', self.request.uri)
-            config.echo_json_response(self, 400, "uri not supported")
+            tornado_helpers.echo_json_response(self, 400, "uri not supported")
             return
 
     async def post(self):
@@ -226,22 +227,22 @@ class Handler(RequestHandler):
         rest_params = config.get_restful_params(self.request.uri)
 
         if rest_params is None:
-            config.echo_json_response(
+            tornado_helpers.echo_json_response(
                 self, 405, "Not Implemented: Use /keys/ interface")
             return
 
         if not rest_params["api_version"]:
-            config.echo_json_response(self, 400, "API Version not supported")
+            tornado_helpers.echo_json_response(self, 400, "API Version not supported")
             return
 
         if rest_params.get("keys", None) not in ["ukey", "vkey"]:
-            config.echo_json_response(self, 400, "Only /keys/ukey or /keys/vkey are supported")
+            tornado_helpers.echo_json_response(self, 400, "Only /keys/ukey or /keys/vkey are supported")
             return
 
         content_length = int(self.request.headers.get('Content-Length', 0))
         if content_length <= 0:
             logger.warning('POST returning 400 response, expected content in message. url: %s', self.request.uri)
-            config.echo_json_response(self, 400, "expected content in message")
+            tornado_helpers.echo_json_response(self, 400, "expected content in message")
             return
 
         post_body = self.request.body.decode()
@@ -252,7 +253,7 @@ class Handler(RequestHandler):
                 self.agent_state.rsaprivatekey, base64.b64decode(b64_encrypted_key))
         except (ValueError, KeyError, TypeError) as e:
             logger.warning('POST returning 400 response, could not parse body data: %s', e)
-            config.echo_json_response(self, 400, "content is invalid")
+            tornado_helpers.echo_json_response(self, 400, "content is invalid")
             return
 
         have_derived_key = False
@@ -260,7 +261,7 @@ class Handler(RequestHandler):
         if rest_params["keys"] == "ukey":
             if 'auth_tag' not in json_body:
                 logger.warning('POST returning 400 response, U key provided without an auth_tag')
-                config.echo_json_response(self, 400, "auth_tag is missing")
+                tornado_helpers.echo_json_response(self, 400, "auth_tag is missing")
                 return
             await self.agent_state.add_U(decrypted_key)
             self.agent_state.auth_tag = json_body['auth_tag']
@@ -271,10 +272,10 @@ class Handler(RequestHandler):
             have_derived_key = await self.agent_state.attempt_decryption()
         else:
             logger.warning('POST returning  response. uri not supported: %s', self.request.uri)
-            config.echo_json_response(self, 400, "uri not supported")
+            tornado_helpers.echo_json_response(self, 400, "uri not supported")
             return
         logger.info('POST of %s key returning 200', ('V', 'U')[rest_params["keys"] == "ukey"])
-        config.echo_json_response(self, 200, "Success")
+        tornado_helpers.echo_json_response(self, 200, "Success")
 
         # no key yet, then we're done
         if not have_derived_key:
