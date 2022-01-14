@@ -13,29 +13,45 @@ logger = keylime_logging.init_logging('secure_mount')
 
 
 def check_mounted(secdir):
-    whatsmounted = cmd_exec.run("mount")['retout']
-    whatsmounted_converted = config.convert(whatsmounted)
-    for line in whatsmounted_converted:
-        tokens = line.split()
-        tmpfs = False
-        if len(tokens) < 3:
-            continue
-        if tokens[0] == 'tmpfs':
-            tmpfs = True
-        if tokens[2] == secdir:
-            if not tmpfs:
-                logger.error("secure storage location %s already mounted "
-                             "on wrong file system type: %s.  Unmount to"
-                             "continue.", secdir, tokens[0])
-                raise Exception(
-                    f"secure storage location {secdir} already mounted on "
-                    f"wrong file system type: {tokens[0]}.  Unmount to "
-                    f"continue.")
+    """Inspect mountinfo to detect if a directory is mounted."""
+    secdir_escaped = secdir.replace(" ", r"\040")
+    for line in open("/proc/self/mountinfo", "r"):
+        # /proc/[pid]/mountinfo have 10+ elements separated with
+        # spaces (check proc (5) for a complete description)
+        #
+        # At position 7 there are some optional fields, so we need
+        # first to determine the separator mark, and validate the
+        # final total number of fields.
+        elements = line.split()
+        try:
+            separator = elements.index("-")
+        except ValueError:
+            msg = "Separator filed not found. " \
+                "Information line cannot be parsed"
+            logger.error(msg)
+            raise Exception(msg)
+
+        if len(elements) < 10 or len(elements) - separator < 4:
+            msg = "Mount information line cannot be parsed"
+            logger.error(msg)
+            raise Exception(msg)
+
+        mount_point = elements[4]
+        filesystem_type = elements[separator + 1]
+        if mount_point == secdir_escaped:
+            if filesystem_type != "tmpfs":
+                msg = f"Secure storage location {secdir} already mounted " \
+                    f"on wrong file system type: {filesystem_type}. " \
+                    "Unmount to continue."
+                logger.error(msg)
+                raise Exception(msg)
 
             logger.debug(
-                "secure storage location %s already mounted on tmpfs" % secdir)
+                "Secure storage location %s already mounted on tmpfs", secdir
+            )
             return True
-    logger.debug("secure storage location %s not mounted " % secdir)
+
+    logger.debug("Secure storage location %s not mounted", secdir)
     return False
 
 
