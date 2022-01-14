@@ -20,7 +20,6 @@ from cryptography.x509 import load_der_x509_certificate
 
 from keylime.db.registrar_db import RegistrarMain
 from keylime.db.keylime_db import DBEngineManager, SessionManager
-from keylime import cloud_verifier_common
 from keylime import config
 from keylime import crypto
 from keylime import json
@@ -28,6 +27,7 @@ from keylime.tpm import tpm2_objects
 from keylime import keylime_logging
 from keylime.tpm.tpm_main import tpm
 from keylime import api_version as keylime_api_version
+from keylime import tornado_helpers
 
 logger = keylime_logging.init_logging('registrar')
 
@@ -508,8 +508,7 @@ def start(host, tlsport, port):
         logger.info("Loaded %d public keys from database", count)
 
     server = RegistrarServer(serveraddr, ProtectedHandler)
-    context = cloud_verifier_common.init_mtls(section='registrar',
-                                              generatedir='reg_ca')
+    context = tornado_helpers.init_mtls(section='registrar', generatedir='reg_ca')
     if context is not None:
         server.socket = context.wrap_socket(server.socket, server_side=True)
     thread = threading.Thread(target=server.serve_forever)

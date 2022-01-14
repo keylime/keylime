@@ -24,6 +24,7 @@ from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
+from keylime import tornado_helpers
 from keylime import tornado_requests
 from keylime import api_version as keylime_api_version
 from keylime.failure import MAX_SEVERITY_LABEL, Failure, Component
@@ -1005,7 +1006,7 @@ def main():
         (r".*", MainHandler),
     ])
 
-    context = cloud_verifier_common.init_mtls()
+    context = tornado_helpers.init_mtls()
 
     sockets = tornado.netutil.bind_sockets(
         int(cloudverifier_port), address=cloudverifier_host)
