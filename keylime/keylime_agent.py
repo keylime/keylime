@@ -6,13 +6,13 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import asyncio
-import http.server
 import platform
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from socketserver import ThreadingMixIn
+import multiprocessing
+import signal
 import threading
 import base64
 import configparser
+import traceback
 import uuid
 import os
 import socket
@@ -27,6 +27,9 @@ import subprocess
 import psutil
 
 from cryptography.hazmat.primitives import serialization
+from tornado.web import Application, RequestHandler, url
+from tornado.httpserver import HTTPServer
+from tornado.ioloop import IOLoop
 
 from keylime import config
 from keylime import keylime_logging
@@ -46,29 +49,49 @@ from keylime.tpm.tpm2_objects import pubkey_from_tpm2b_public
 # Configure logger
 logger = keylime_logging.init_logging('cloudagent')
 
-# lock required for multithreaded operation
-uvLock = threading.Lock()
-
 # Instaniate tpm
 tpm_instance = tpm(need_hw_tpm=True)
 
 
-class Handler(BaseHTTPRequestHandler):
-    parsed_path = ''
+class Handler(RequestHandler):
+    agent_state = None
 
-    def do_HEAD(self):
+    def initialize(self, agent_state):
+        self.agent_state = agent_state
+
+    def write_error(self, status_code: int, **kwargs) -> None:
+        self.set_header('Content-Type', 'text/json')
+        if self.settings.get("serve_traceback") and "exc_info" in kwargs:
+            # in debug mode, try to send a traceback
+            lines = []
+            for line in traceback.format_exception(*kwargs["exc_info"]):
+                lines.append(line)
+            self.finish(json.dumps({
+                'code': status_code,
+                'status': self._reason,
+                'traceback': lines,
+                'results': {},
+            }))
+        else:
+            self.finish(json.dumps({
+                'code': status_code,
+                'status': self._reason,
+                'results': {},
+            }))
+
+    def head(self):
         """Not supported"""
         config.echo_json_response(self, 405, "HEAD not supported")
 
-    def do_GET(self):
+    async def get(self):
         """This method services the GET request typically from either the Tenant or the Cloud Verifier.
 
         Only tenant and cloudverifier uri's are supported. Both requests require a nonce parameter.
         The Cloud verifier requires an additional mask paramter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
 
-        logger.info('GET invoked from %s with uri: %s', self.client_address, self.path)
-        rest_params = config.get_restful_params(self.path)
+        logger.info('GET invoked from %s with uri: %s', self.request.remote_ip, self.request.uri)
+        rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
             config.echo_json_response(
                 self, 405, "Not Implemented: Use /keys/ or /quotes/ interfaces")
@@ -79,7 +102,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if "keys" in rest_params and rest_params['keys'] == 'verify':
-            if self.server.K is None:
+            if self.agent_state.K is None:
                 logger.info('GET key challenge returning 400 response. bootstrap key not available')
                 config.echo_json_response(
                     self, 400, "Bootstrap key not yet available.")
@@ -92,14 +115,14 @@ class Handler(BaseHTTPRequestHandler):
 
             challenge = rest_params['challenge']
             response = {}
-            response['hmac'] = crypto.do_hmac(self.server.K, challenge)
+            response['hmac'] = crypto.do_hmac(self.agent_state.K, challenge)
             config.echo_json_response(self, 200, "Success", response)
             logger.info('GET key challenge returning 200 response.')
 
         # If agent pubkey requested
         elif "keys" in rest_params and rest_params["keys"] == "pubkey":
             response = {}
-            response['pubkey'] = self.server.rsapublickey_exportable
+            response['pubkey'] = self.agent_state.rsapublickey_exportable
 
             config.echo_json_response(self, 200, "Success", response)
             logger.info('GET pubkey returning 200 response.')
@@ -137,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
             hash_alg = tpm_instance.defaults['hash']
             if not tpm_instance.is_vtpm() or rest_params["quotes"] == 'identity':
                 quote = tpm_instance.create_quote(
-                    nonce, self.server.rsapublickey_exportable, pcrmask, hash_alg)
+                    nonce, self.agent_state.rsapublickey_exportable, pcrmask, hash_alg)
                 imaMask = pcrmask
 
             # Allow for a partial quote response (without pubkey)
@@ -157,21 +180,21 @@ class Handler(BaseHTTPRequestHandler):
                     'hash_alg': hash_alg,
                     'enc_alg': enc_alg,
                     'sign_alg': sign_alg,
-                    'pubkey': self.server.rsapublickey_exportable,
+                    'pubkey': self.agent_state.rsapublickey_exportable,
                 }
 
-            response['boottime'] = self.server.boottime
+            response['boottime'] = self.agent_state.boottime
 
             # return a measurement list if available
             if TPM_Utilities.check_mask(imaMask, config.IMA_PCR):
                 ima_ml_entry = int(ima_ml_entry)
-                if ima_ml_entry > self.server.next_ima_ml_entry:
+                if ima_ml_entry > self.agent_state.next_ima_ml_entry:
                     ima_ml_entry = 0
                 ml, nth_entry, num_entries = ima.read_measurement_list(config.IMA_ML, ima_ml_entry)
                 if num_entries > 0:
                     response['ima_measurement_list'] = ml
                     response['ima_measurement_list_entry'] = nth_entry
-                    self.server.next_ima_ml_entry = num_entries
+                    self.agent_state.next_ima_ml_entry = num_entries
 
             # similar to how IMA log retrievals are triggered by IMA_PCR, we trigger boot logs with MEASUREDBOOT_PCRs
             # other possibilities would include adding additional data to rest_params to trigger boot log retrievals
@@ -190,17 +213,17 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         else:
-            logger.warning('GET returning 400 response. uri not supported: %s', self.path)
+            logger.warning('GET returning 400 response. uri not supported: %s', self.request.uri)
             config.echo_json_response(self, 400, "uri not supported")
             return
 
-    def do_POST(self):
+    async def post(self):
         """This method services the POST request typically from either the Tenant or the Cloud Verifier.
 
         Only tenant and cloudverifier uri's are supported. Both requests require a nonce parameter.
         The Cloud verifier requires an additional mask parameter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
-        rest_params = config.get_restful_params(self.path)
+        rest_params = config.get_restful_params(self.request.uri)
 
         if rest_params is None:
             config.echo_json_response(
@@ -215,18 +238,18 @@ class Handler(BaseHTTPRequestHandler):
             config.echo_json_response(self, 400, "Only /keys/ukey or /keys/vkey are supported")
             return
 
-        content_length = int(self.headers.get('Content-Length', 0))
+        content_length = int(self.request.headers.get('Content-Length', 0))
         if content_length <= 0:
-            logger.warning('POST returning 400 response, expected content in message. url: %s', self.path)
+            logger.warning('POST returning 400 response, expected content in message. url: %s', self.request.uri)
             config.echo_json_response(self, 400, "expected content in message")
             return
 
-        post_body = self.rfile.read(content_length)
+        post_body = self.request.body.decode()
         try:
             json_body = json.loads(post_body)
             b64_encrypted_key = json_body['encrypted_key']
             decrypted_key = crypto.rsa_decrypt(
-                self.server.rsaprivatekey, base64.b64decode(b64_encrypted_key))
+                self.agent_state.rsaprivatekey, base64.b64decode(b64_encrypted_key))
         except (ValueError, KeyError, TypeError) as e:
             logger.warning('POST returning 400 response, could not parse body data: %s', e)
             config.echo_json_response(self, 400, "content is invalid")
@@ -239,15 +262,15 @@ class Handler(BaseHTTPRequestHandler):
                 logger.warning('POST returning 400 response, U key provided without an auth_tag')
                 config.echo_json_response(self, 400, "auth_tag is missing")
                 return
-            self.server.add_U(decrypted_key)
-            self.server.auth_tag = json_body['auth_tag']
-            self.server.payload = json_body.get('payload', None)
-            have_derived_key = self.server.attempt_decryption()
+            await self.agent_state.add_U(decrypted_key)
+            self.agent_state.auth_tag = json_body['auth_tag']
+            self.agent_state.payload = json_body.get('payload', None)
+            have_derived_key = await self.agent_state.attempt_decryption()
         elif rest_params["keys"] == "vkey":
-            self.server.add_V(decrypted_key)
-            have_derived_key = self.server.attempt_decryption()
+            await self.agent_state.add_V(decrypted_key)
+            have_derived_key = await self.agent_state.attempt_decryption()
         else:
-            logger.warning('POST returning  response. uri not supported: %s', self.path)
+            logger.warning('POST returning  response. uri not supported: %s', self.request.uri)
             config.echo_json_response(self, 400, "uri not supported")
             return
         logger.info('POST of %s key returning 200', ('V', 'U')[rest_params["keys"] == "ukey"])
@@ -266,15 +289,15 @@ class Handler(BaseHTTPRequestHandler):
             shutil.rmtree("%s/unzipped" % secdir)
 
         # write out key file
-        f = open(secdir + "/" + self.server.enc_keyname, 'w', encoding="utf-8")
-        f.write(base64.b64encode(self.server.K).decode())
+        f = open(secdir + "/" + self.agent_state.enc_keyname, 'w', encoding="utf-8")
+        f.write(base64.b64encode(self.agent_state.K).decode())
         f.close()
 
         # stow the U value for later
-        tpm_instance.write_key_nvram(self.server.final_U)
+        tpm_instance.write_key_nvram(self.agent_state.final_U)
 
         # optionally extend a hash of they key and payload into specified PCR
-        tomeasure = self.server.K
+        tomeasure = self.agent_state.K
 
         # if we have a good key, now attempt to write out the encrypted payload
         dec_path = os.path.join(secdir,
@@ -283,17 +306,17 @@ class Handler(BaseHTTPRequestHandler):
 
         dec_payload = None
         enc_payload = None
-        if self.server.payload is not None:
+        if self.agent_state.payload is not None:
             dec_payload = crypto.decrypt(
-                self.server.payload, bytes(self.server.K))
+                self.agent_state.payload, bytes(self.agent_state.K))
 
-            enc_payload = self.server.payload
+            enc_payload = self.agent_state.payload
         elif os.path.exists(enc_path):
             # if no payload provided, try to decrypt one from a previous run stored in encrypted_payload
             with open(enc_path, 'rb') as f:
                 enc_payload = f.read()
             try:
-                dec_payload = crypto.decrypt(enc_payload, self.server.K)
+                dec_payload = crypto.decrypt(enc_payload, self.agent_state.K)
                 logger.info("Decrypted previous payload in %s to %s", enc_path, dec_path)
             except Exception as e:
                 logger.warning("Unable to decrypt previous payload %s with derived key: %s", enc_path, e)
@@ -303,7 +326,7 @@ class Handler(BaseHTTPRequestHandler):
         # also write out encrypted payload to be decrytped next time
         if enc_payload is not None:
             with open(enc_path, 'wb') as f:
-                f.write(self.server.payload.encode('utf-8'))
+                f.write(self.agent_state.payload.encode('utf-8'))
 
         # deal with payload
         payload_thread = None
@@ -321,7 +344,7 @@ class Handler(BaseHTTPRequestHandler):
                 if initscript != "":
                     def initthread():
                         env = os.environ.copy()
-                        env['AGENT_UUID'] = self.server.agent_uuid
+                        env['AGENT_UUID'] = self.agent_state.agent_uuid
                         proc = subprocess.Popen(["/bin/bash", initscript], env=env, shell=False, cwd='%s/unzipped' % secdir,
                                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                         while True:
@@ -357,18 +380,15 @@ class Handler(BaseHTTPRequestHandler):
 
         return
 
-    # pylint: disable=W0622
-    def log_message(self, format, *args):
-        return
-
-# consider using PooledProcessMixIn
-# https://github.com/muayyad-alsadi/python-PooledProcessMixIn
+    def data_received(self, chunk: bytes):
+        raise NotImplementedError()
 
 
-class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
-    """Http Server which will handle each request in a separate thread."""
+class AgentState:
+    """State handling for the agent which supports async"""
 
     # Do not modify directly unless you acquire uvLock. Set chosen for uniqueness of contained values
+    uvLock = asyncio.Lock()
     u_set = set()
     v_set = set()
 
@@ -385,8 +405,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     next_ima_ml_entry = 0 # The next IMA log offset the verifier may ask for.
     boottime = int(psutil.boot_time())
 
-    def __init__(self, server_address, RequestHandlerClass, agent_uuid):
-        """Constructor overridden to provide ability to pass configuration arguments to the server"""
+    def __init__(self, agent_uuid):
         secdir = secure_mount.mount()
         keyname = os.path.join(secdir,
                                config.get('cloud_agent', 'rsa_keyname'))
@@ -411,39 +430,37 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         if nvram_u is not None:
             logger.info("Existing U loaded from TPM NVRAM")
             self.add_U(nvram_u)
-        http.server.HTTPServer.__init__(
-            self, server_address, RequestHandlerClass)
         self.enc_keyname = config.get('cloud_agent', 'enc_keyname')
         self.agent_uuid = agent_uuid
 
-    def add_U(self, u):
-        """Threadsafe method for adding a U value received from the Tenant
+    async def add_U(self, u):
+        """Async safe method for adding a U value received from the Tenant
 
         Do not modify u_set of v_set directly.
         """
-        with uvLock:
+        async with self.uvLock:
             # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
             if config.INSECURE_DEBUG:
                 logger.debug("Adding U len %d data:%s", len(u), base64.b64encode(u))
             self.u_set.add(u)
 
-    def add_V(self, v):
-        """Threadsafe method for adding a V value received from the Cloud Verifier
+    async def add_V(self, v):
+        """Async safe method for adding a V value received from the Cloud Verifier
         Do not modify u_set of v_set directly.
         """
-        with uvLock:
+        async with self.uvLock:
             # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
             if config.INSECURE_DEBUG:
                 logger.debug("Adding V: %s", base64.b64encode(v))
             self.v_set.add(v)
 
-    def attempt_decryption(self):
+    async def attempt_decryption(self):
         """On reception of a U or V value, this method is called to attempt the decryption of the Cloud Init script
 
         At least one U and V value must be received in order to attempt encryption. Multiple U and V values are stored
         to prevent an attacker from sending U/V values to deny service.
         """
-        with uvLock:
+        async with self.uvLock:
             both_u_and_v_present = False
             return_value = False
             for u in self.u_set:
@@ -498,9 +515,77 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         return False
 
 
+def revocation_listener():
+    """
+    This function configures and starts the revocation listener. It is designed to be started in a separate process.
+    """
+
+    if not config.getboolean('cloud_agent', 'listen_notfications'):
+        return
+
+    secdir = secure_mount.mount()
+
+    cert_path = config.get('cloud_agent', 'revocation_cert')
+    if cert_path == "default":
+        cert_path = os.path.join(secdir,
+                                 "unzipped/RevocationNotifier-cert.crt")
+    elif cert_path[0] != '/':
+        # if it is a relative, convert to absolute in work_dir
+        cert_path = os.path.abspath(
+            os.path.join(config.WORK_DIR, cert_path))
+
+    # Callback function handling the revocations
+    def perform_actions(revocation):
+        actionlist = []
+
+        # load the actions from inside the keylime module
+        actionlisttxt = config.get('cloud_agent', 'revocation_actions')
+        if actionlisttxt.strip() != "":
+            actionlist = actionlisttxt.split(',')
+            actionlist = ["revocation_actions.%s" % i for i in actionlist]
+
+        # load actions from unzipped
+        action_list_path = os.path.join(secdir, "unzipped/action_list")
+        if os.path.exists(action_list_path):
+            with open(action_list_path, encoding="utf-8") as f:
+                actionlisttxt = f.read()
+            if actionlisttxt.strip() != "":
+                localactions = actionlisttxt.strip().split(',')
+                for action in localactions:
+                    if not action.startswith('local_action_'):
+                        logger.warning("Invalid local action: %s. Must start with local_action_", action)
+                    else:
+                        actionlist.append(action)
+
+                uzpath = "%s/unzipped" % secdir
+                if uzpath not in sys.path:
+                    sys.path.append(uzpath)
+
+        for action in actionlist:
+            logger.info("Executing revocation action %s", action)
+            try:
+                module = importlib.import_module(action)
+                execute = getattr(module, 'execute')
+                asyncio.get_event_loop().run_until_complete(execute(revocation))
+            except Exception as e:
+                logger.warning("Exception during execution of revocation action %s: %s", action, e)
+
+    try:
+        while True:
+            try:
+                revocation_notifier.await_notifications(
+                    perform_actions, revocation_cert_path=cert_path)
+            except Exception as e:
+                logger.exception(e)
+                logger.warning("No connection to revocation server, retrying in 10s...")
+                time.sleep(10)
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Stopping revocation listener...")
+
+
 def main():
-    for ML in [ config.MEASUREDBOOT_ML, config.IMA_ML ] :
-        if not os.access(ML, os.F_OK) :
+    for ML in [config.MEASUREDBOOT_ML, config.IMA_ML]:
+        if not os.access(ML, os.F_OK):
             logger.warning("Measurement list path %s not accessible by agent. Any attempt to instruct it to access this path - via \"keylime_tenant\" CLI - will result in agent process dying", ML)
 
     if config.get('cloud_agent', 'agent_uuid') == 'dmidecode':
@@ -514,8 +599,8 @@ def main():
                                'but it\'s is not found on the system.')
 
     # Instanitate TPM class
-
     instance_tpm = tpm()
+
     # get params for initialization
     registrar_ip = config.get('cloud_agent', 'registrar_ip')
     registrar_port = config.get('cloud_agent', 'registrar_port')
@@ -529,7 +614,7 @@ def main():
         contact_port = config.get('cloud_agent', 'agent_contact_port', fallback="invalid")
 
     # initialize the tmpfs partition to store keys if it isn't already available
-    secdir = secure_mount.mount()
+    secure_mount.mount()
 
     # change dir to working dir
     config.ch_dir(config.WORK_DIR, logger)
@@ -609,7 +694,6 @@ def main():
         raise Exception("Activation failed")
 
     # tell the registrar server we know the key
-    retval = False
     retval = registrar_client.doActivateAgent(
         registrar_ip, registrar_port, agent_uuid, key)
 
@@ -617,77 +701,30 @@ def main():
         instance_tpm.flush_keys()
         raise Exception("Registration failed on activate")
 
-    serveraddr = (config.get('cloud_agent', 'cloudagent_ip'),
-                  config.getint('cloud_agent', 'cloudagent_port'))
-    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid)
-    serverthread = threading.Thread(target=server.serve_forever)
+    # Start revocation listener in a new process to not interfere with tornado
+    revocation_process = multiprocessing.Process(target=revocation_listener, daemon=True)
+    revocation_process.start()
 
-    logger.info("Starting Cloud Agent on %s:%s with API version %s. Use <Ctrl-C> to stop", serveraddr[0], serveraddr[1], keylime_api_version.current_version())
-    serverthread.start()
+    server_port = config.getint('cloud_agent', 'cloudagent_port')
+    server_ip = config.get('cloud_agent', 'cloudagent_ip')
 
-    # want to listen for revocations?
-    if config.getboolean('cloud_agent', 'listen_notfications'):
-        cert_path = config.get('cloud_agent', 'revocation_cert')
-        if cert_path == "default":
-            cert_path = os.path.join(secdir,
-                                      "unzipped/RevocationNotifier-cert.crt")
-        elif cert_path[0] != '/':
-            # if it is a relative, convert to absolute in work_dir
-            cert_path = os.path.abspath(
-                os.path.join(config.WORK_DIR, cert_path))
+    agent_state = AgentState(agent_uuid)
+    app = Application([
+        url(r"/.*", Handler, {"agent_state": agent_state})
+    ])
+    server = HTTPServer(app)
+    server.bind(server_port, server_ip)
 
-        def perform_actions(revocation):
-            actionlist = []
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
-            # load the actions from inside the keylime module
-            actionlisttxt = config.get('cloud_agent', 'revocation_actions')
-            if actionlisttxt.strip() != "":
-                actionlist = actionlisttxt.split(',')
-                actionlist = ["revocation_actions.%s" % i for i in actionlist]
-
-            # load actions from unzipped
-            action_list_path = os.path.join(secdir, "unzipped/action_list")
-            if os.path.exists(action_list_path):
-                with open(action_list_path, encoding="utf-8") as f:
-                    actionlisttxt = f.read()
-                if actionlisttxt.strip() != "":
-                    localactions = actionlisttxt.strip().split(',')
-                    for action in localactions:
-                        if not action.startswith('local_action_'):
-                            logger.warning("Invalid local action: %s. Must start with local_action_", action)
-                        else:
-                            actionlist.append(action)
-
-                    uzpath = "%s/unzipped" % secdir
-                    if uzpath not in sys.path:
-                        sys.path.append(uzpath)
-
-            for action in actionlist:
-                logger.info("Executing revocation action %s", action)
-                try:
-                    module = importlib.import_module(action)
-                    execute = getattr(module, 'execute')
-                    asyncio.get_event_loop().run_until_complete(execute(revocation))
-                except Exception as e:
-                    logger.warning("Exception during execution of revocation action %s: %s", action, e)
-        try:
-            while True:
-                try:
-                    revocation_notifier.await_notifications(
-                        perform_actions, revocation_cert_path=cert_path)
-                except Exception as e:
-                    logger.exception(e)
-                    logger.warning("No connection to revocation server, retrying in 10s...")
-                    time.sleep(10)
-        except KeyboardInterrupt:
-            logger.info("TERM Signal received, shutting down...")
-            instance_tpm.flush_keys()
-            server.shutdown()
-    else:
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("TERM Signal received, shutting down...")
-            instance_tpm.flush_keys()
-            server.shutdown()
+    try:
+        logger.info("Starting Cloud Agent on %s:%s with API version %s. Use <Ctrl-C> to stop", server_ip, server_port,
+                    keylime_api_version.current_version())
+        server.start()  # Only start a single server because we want to share the agent state
+        IOLoop.current().start()
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("TERM Signal received, shutting down...")
+        IOLoop.current().stop()
+        revocation_process.terminate()
+        revocation_process.join()
+        instance_tpm.flush_keys()
