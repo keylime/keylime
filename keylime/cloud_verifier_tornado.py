@@ -778,7 +778,7 @@ async def invoke_provide_v(agent):
         else:
             # catastrophic error, do not continue
             logger.critical("Unexpected Provide V response error for cloud agent %s, Error: %s", agent['agent_id'], response.status_code)
-            failure.add_event("no_v", {"message": "Unexpected provide V response", "data": response.error}, False)
+            failure.add_event("no_v", {"message": "Unexpected provide V response", "data": response.status_code}, False)
             asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
     else:
         asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
