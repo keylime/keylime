@@ -7,7 +7,9 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import asyncio
 import http.server
+import multiprocessing
 import platform
+import signal
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 import threading
@@ -499,9 +501,77 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         return False
 
 
+def revocation_listener():
+    """
+    This configures and starts the revocation listener. It is designed to be started in a separate process.
+    """
+
+    if not config.getboolean('cloud_agent', 'listen_notfications'):
+        return
+
+    secdir = secure_mount.mount()
+
+    cert_path = config.get('cloud_agent', 'revocation_cert')
+    if cert_path == "default":
+        cert_path = os.path.join(secdir,
+                                 "unzipped/RevocationNotifier-cert.crt")
+    elif cert_path[0] != '/':
+        # if it is a relative, convert to absolute in work_dir
+        cert_path = os.path.abspath(
+            os.path.join(config.WORK_DIR, cert_path))
+
+    # Callback function handling the revocations
+    def perform_actions(revocation):
+        actionlist = []
+
+        # load the actions from inside the keylime module
+        actionlisttxt = config.get('cloud_agent', 'revocation_actions')
+        if actionlisttxt.strip() != "":
+            actionlist = actionlisttxt.split(',')
+            actionlist = ["revocation_actions.%s" % i for i in actionlist]
+
+        # load actions from unzipped
+        action_list_path = os.path.join(secdir, "unzipped/action_list")
+        if os.path.exists(action_list_path):
+            with open(action_list_path, encoding="utf-8") as f:
+                actionlisttxt = f.read()
+            if actionlisttxt.strip() != "":
+                localactions = actionlisttxt.strip().split(',')
+                for action in localactions:
+                    if not action.startswith('local_action_'):
+                        logger.warning("Invalid local action: %s. Must start with local_action_", action)
+                    else:
+                        actionlist.append(action)
+
+                uzpath = "%s/unzipped" % secdir
+                if uzpath not in sys.path:
+                    sys.path.append(uzpath)
+
+        for action in actionlist:
+            logger.info("Executing revocation action %s", action)
+            try:
+                module = importlib.import_module(action)
+                execute = getattr(module, 'execute')
+                asyncio.get_event_loop().run_until_complete(execute(revocation))
+            except Exception as e:
+                logger.warning("Exception during execution of revocation action %s: %s", action, e)
+
+    try:
+        while True:
+            try:
+                revocation_notifier.await_notifications(
+                    perform_actions, revocation_cert_path=cert_path)
+            except Exception as e:
+                logger.exception(e)
+                logger.warning("No connection to revocation server, retrying in 10s...")
+                time.sleep(10)
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Stopping revocation listener...")
+
+
 def main():
-    for ML in [ config.MEASUREDBOOT_ML, config.IMA_ML ] :
-        if not os.access(ML, os.F_OK) :
+    for ML in [config.MEASUREDBOOT_ML, config.IMA_ML]:
+        if not os.access(ML, os.F_OK):
             logger.warning("Measurement list path %s not accessible by agent. Any attempt to instruct it to access this path - via \"keylime_tenant\" CLI - will result in agent process dying", ML)
 
     if config.get('cloud_agent', 'agent_uuid') == 'dmidecode':
@@ -530,7 +600,7 @@ def main():
         contact_port = config.get('cloud_agent', 'agent_contact_port', fallback="invalid")
 
     # initialize the tmpfs partition to store keys if it isn't already available
-    secdir = secure_mount.mount()
+    secure_mount.mount()
 
     # change dir to working dir
     config.ch_dir(config.WORK_DIR, logger)
@@ -610,7 +680,6 @@ def main():
         raise Exception("Activation failed")
 
     # tell the registrar server we know the key
-    retval = False
     retval = registrar_client.doActivateAgent(
         registrar_ip, registrar_port, agent_uuid, key)
 
@@ -621,74 +690,33 @@ def main():
     serveraddr = (config.get('cloud_agent', 'cloudagent_ip'),
                   config.getint('cloud_agent', 'cloudagent_port'))
     server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid)
-    serverthread = threading.Thread(target=server.serve_forever)
+    serverthread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    # Start revocation listener in a new process to not interfere with tornado
+    revocation_process = multiprocessing.Process(target=revocation_listener, daemon=True)
+    revocation_process.start()
 
     logger.info("Starting Cloud Agent on %s:%s with API version %s. Use <Ctrl-C> to stop", serveraddr[0], serveraddr[1], keylime_api_version.current_version())
     serverthread.start()
 
-    # want to listen for revocations?
-    if config.getboolean('cloud_agent', 'listen_notfications'):
-        cert_path = config.get('cloud_agent', 'revocation_cert')
-        if cert_path == "default":
-            cert_path = os.path.join(secdir,
-                                      "unzipped/RevocationNotifier-cert.crt")
-        elif cert_path[0] != '/':
-            # if it is a relative, convert to absolute in work_dir
-            cert_path = os.path.abspath(
-                os.path.join(config.WORK_DIR, cert_path))
+    def shutdown_handler(*_):
+        logger.info("TERM Signal received, shutting down...")
+        logger.debug("Stopping revocation notifier...")
+        revocation_process.terminate()
+        logger.debug("Shutting down HTTP server...")
+        server.shutdown()
+        server.server_close()
+        serverthread.join()
+        logger.debug("...HTTP server stopped")
+        revocation_process.join()
+        logger.debug("... revocation notifier stopped")
+        instance_tpm.flush_keys()
+        logger.debug("Flushed keys successfully")
+        sys.exit(0)
 
-        def perform_actions(revocation):
-            actionlist = []
+    signal.signal(signal.SIGTERM, shutdown_handler)
+    signal.signal(signal.SIGQUIT, shutdown_handler)
+    signal.signal(signal.SIGINT, shutdown_handler)
 
-            # load the actions from inside the keylime module
-            actionlisttxt = config.get('cloud_agent', 'revocation_actions')
-            if actionlisttxt.strip() != "":
-                actionlist = actionlisttxt.split(',')
-                actionlist = ["revocation_actions.%s" % i for i in actionlist]
-
-            # load actions from unzipped
-            action_list_path = os.path.join(secdir, "unzipped/action_list")
-            if os.path.exists(action_list_path):
-                with open(action_list_path, encoding="utf-8") as f:
-                    actionlisttxt = f.read()
-                if actionlisttxt.strip() != "":
-                    localactions = actionlisttxt.strip().split(',')
-                    for action in localactions:
-                        if not action.startswith('local_action_'):
-                            logger.warning("Invalid local action: %s. Must start with local_action_", action)
-                        else:
-                            actionlist.append(action)
-
-                    uzpath = "%s/unzipped" % secdir
-                    if uzpath not in sys.path:
-                        sys.path.append(uzpath)
-
-            for action in actionlist:
-                logger.info("Executing revocation action %s", action)
-                try:
-                    module = importlib.import_module(action)
-                    execute = getattr(module, 'execute')
-                    asyncio.get_event_loop().run_until_complete(execute(revocation))
-                except Exception as e:
-                    logger.warning("Exception during execution of revocation action %s: %s", action, e)
-        try:
-            while True:
-                try:
-                    revocation_notifier.await_notifications(
-                        perform_actions, revocation_cert_path=cert_path)
-                except Exception as e:
-                    logger.exception(e)
-                    logger.warning("No connection to revocation server, retrying in 10s...")
-                    time.sleep(10)
-        except KeyboardInterrupt:
-            logger.info("TERM Signal received, shutting down...")
-            instance_tpm.flush_keys()
-            server.shutdown()
-    else:
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("TERM Signal received, shutting down...")
-            instance_tpm.flush_keys()
-            server.shutdown()
+    # Keep the main thread alive by waiting for the server thread
+    serverthread.join()
