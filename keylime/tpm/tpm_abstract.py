@@ -158,11 +158,11 @@ class AbstractTPM(metaclass=ABCMeta):
 
     # tpm_quote
     @abstractmethod
-    def create_quote(self, nonce, data=None, pcrmask=EMPTYMASK, hash_alg=None):
+    def create_quote(self, nonce, data=None, pcrmask=EMPTYMASK, hash_alg=None, compress=False):
         pass
 
     @abstractmethod
-    def check_quote(self, agentAttestState, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyrings=None, mb_measurement_list=None, mb_refstate=None):
+    def check_quote(self, agentAttestState, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={}, ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyrings=None, mb_measurement_list=None, mb_refstate=None, compressed=False):
         pass
 
     def START_HASH(self, algorithm=None):
