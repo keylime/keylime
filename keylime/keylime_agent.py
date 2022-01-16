@@ -76,7 +76,14 @@ class Handler(BaseHTTPRequestHandler):
         rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
             web_util.echo_json_response(
-                self, 405, "Not Implemented: Use /keys/ or /quotes/ interfaces")
+                self, 405, "Not Implemented: Use /version, /keys/ or /quotes/ interfaces")
+            return
+
+        if "version" in rest_params:
+            version_info = {
+                "supported_version": keylime_api_version.current_version()
+            }
+            web_util.echo_json_response(self, 200, version_info)
             return
 
         if not rest_params["api_version"]:
