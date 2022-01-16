@@ -724,7 +724,7 @@ async def invoke_get_quote(agent, need_pubkey):
 
     if response.status_code != 200:
         # this is a connection error, retry get quote
-        if response.status_code == 599:
+        if response.status_code in [500, 599]:
             asyncio.ensure_future(process_agent(
                 agent, states.GET_QUOTE_RETRY))
         else:
@@ -772,7 +772,7 @@ async def invoke_provide_v(agent):
     response = await res
 
     if response.status_code != 200:
-        if response.status_code == 599:
+        if response.status_code in [500, 599]:
             asyncio.ensure_future(
                 process_agent(agent, states.PROVIDE_V_RETRY))
         else:
