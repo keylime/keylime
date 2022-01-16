@@ -37,6 +37,7 @@ from keylime import json
 from keylime import revocation_notifier
 from keylime import registrar_client
 from keylime import secure_mount
+from keylime import web_util
 from keylime import api_version as keylime_api_version
 from keylime.common import algorithms
 from keylime.tpm.tpm_main import tpm
@@ -58,7 +59,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         """Not supported"""
-        config.echo_json_response(self, 405, "HEAD not supported")
+        web_util.echo_json_response(self, 405, "HEAD not supported")
 
     def do_GET(self):
         """This method services the GET request typically from either the Tenant or the Cloud Verifier.
@@ -70,30 +71,30 @@ class Handler(BaseHTTPRequestHandler):
         logger.info('GET invoked from %s with uri: %s', self.client_address, self.path)
         rest_params = config.get_restful_params(self.path)
         if rest_params is None:
-            config.echo_json_response(
+            web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /keys/ or /quotes/ interfaces")
             return
 
         if not rest_params["api_version"]:
-            config.echo_json_response(self, 400, "API Version not supported")
+            web_util.echo_json_response(self, 400, "API Version not supported")
             return
 
         if "keys" in rest_params and rest_params['keys'] == 'verify':
             if self.server.K is None:
                 logger.info('GET key challenge returning 400 response. bootstrap key not available')
-                config.echo_json_response(
+                web_util.echo_json_response(
                     self, 400, "Bootstrap key not yet available.")
                 return
             if "challenge" not in rest_params:
                 logger.info('GET key challenge returning 400 response. No challenge provided')
-                config.echo_json_response(
+                web_util.echo_json_response(
                     self, 400, "No challenge provided.")
                 return
 
             challenge = rest_params['challenge']
             response = {}
             response['hmac'] = crypto.do_hmac(self.server.K, challenge)
-            config.echo_json_response(self, 200, "Success", response)
+            web_util.echo_json_response(self, 200, "Success", response)
             logger.info('GET key challenge returning 200 response.')
 
         # If agent pubkey requested
@@ -101,7 +102,7 @@ class Handler(BaseHTTPRequestHandler):
             response = {}
             response['pubkey'] = self.server.rsapublickey_exportable
 
-            config.echo_json_response(self, 200, "Success", response)
+            web_util.echo_json_response(self, 200, "Success", response)
             logger.info('GET pubkey returning 200 response.')
             return
 
@@ -113,7 +114,7 @@ class Handler(BaseHTTPRequestHandler):
             # if the query is not messed up
             if nonce is None:
                 logger.warning('GET quote returning 400 response. nonce not provided as an HTTP parameter in request')
-                config.echo_json_response(
+                web_util.echo_json_response(
                     self, 400, "nonce not provided as an HTTP parameter in request")
                 return
 
@@ -122,14 +123,14 @@ class Handler(BaseHTTPRequestHandler):
                     (pcrmask is None or config.valid_hex(pcrmask)) and
                     ima_ml_entry.isalnum()):
                 logger.warning('GET quote returning 400 response. parameters should be strictly alphanumeric')
-                config.echo_json_response(
+                web_util.echo_json_response(
                     self, 400, "parameters should be strictly alphanumeric")
                 return
 
             if len(nonce) > tpm_instance.MAX_NONCE_SIZE:
                 logger.warning('GET quote returning 400 response. Nonce is too long (max size %i): %i',
                                tpm_instance.MAX_NONCE_SIZE, len(nonce))
-                config.echo_json_response(
+                web_util.echo_json_response(
                     self, 400, f'Nonce is too long (max size {tpm_instance.MAX_NONCE_SIZE}): {len(nonce)}')
                 return
 
@@ -185,13 +186,13 @@ class Handler(BaseHTTPRequestHandler):
                         el = base64.b64encode(f.read())
                     response['mb_measurement_list'] = el
 
-            config.echo_json_response(self, 200, "Success", response)
+            web_util.echo_json_response(self, 200, "Success", response)
             logger.info('GET %s quote returning 200 response.', rest_params["quotes"])
             return
 
         else:
             logger.warning('GET returning 400 response. uri not supported: %s', self.path)
-            config.echo_json_response(self, 400, "uri not supported")
+            web_util.echo_json_response(self, 400, "uri not supported")
             return
 
     def do_POST(self):
@@ -203,22 +204,22 @@ class Handler(BaseHTTPRequestHandler):
         rest_params = config.get_restful_params(self.path)
 
         if rest_params is None:
-            config.echo_json_response(
+            web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /keys/ interface")
             return
 
         if not rest_params["api_version"]:
-            config.echo_json_response(self, 400, "API Version not supported")
+            web_util.echo_json_response(self, 400, "API Version not supported")
             return
 
         if rest_params.get("keys", None) not in ["ukey", "vkey"]:
-            config.echo_json_response(self, 400, "Only /keys/ukey or /keys/vkey are supported")
+            web_util.echo_json_response(self, 400, "Only /keys/ukey or /keys/vkey are supported")
             return
 
         content_length = int(self.headers.get('Content-Length', 0))
         if content_length <= 0:
             logger.warning('POST returning 400 response, expected content in message. url: %s', self.path)
-            config.echo_json_response(self, 400, "expected content in message")
+            web_util.echo_json_response(self, 400, "expected content in message")
             return
 
         post_body = self.rfile.read(content_length)
@@ -229,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.server.rsaprivatekey, base64.b64decode(b64_encrypted_key))
         except (ValueError, KeyError, TypeError) as e:
             logger.warning('POST returning 400 response, could not parse body data: %s', e)
-            config.echo_json_response(self, 400, "content is invalid")
+            web_util.echo_json_response(self, 400, "content is invalid")
             return
 
         have_derived_key = False
@@ -237,7 +238,7 @@ class Handler(BaseHTTPRequestHandler):
         if rest_params["keys"] == "ukey":
             if 'auth_tag' not in json_body:
                 logger.warning('POST returning 400 response, U key provided without an auth_tag')
-                config.echo_json_response(self, 400, "auth_tag is missing")
+                web_util.echo_json_response(self, 400, "auth_tag is missing")
                 return
             self.server.add_U(decrypted_key)
             self.server.auth_tag = json_body['auth_tag']
@@ -248,10 +249,10 @@ class Handler(BaseHTTPRequestHandler):
             have_derived_key = self.server.attempt_decryption()
         else:
             logger.warning('POST returning  response. uri not supported: %s', self.path)
-            config.echo_json_response(self, 400, "uri not supported")
+            web_util.echo_json_response(self, 400, "uri not supported")
             return
         logger.info('POST of %s key returning 200', ('V', 'U')[rest_params["keys"] == "ukey"])
-        config.echo_json_response(self, 200, "Success")
+        web_util.echo_json_response(self, 200, "Success")
 
         # no key yet, then we're done
         if not have_derived_key:
