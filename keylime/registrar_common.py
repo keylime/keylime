@@ -8,7 +8,6 @@ import ipaddress
 import threading
 import sys
 import signal
-import time
 import http.server
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
@@ -485,52 +484,40 @@ class RegistrarServer(ThreadingMixIn, HTTPServer):
         http.server.HTTPServer.shutdown(self)
 
 
-def do_shutdown(servers):
-    for server in servers:
-        server.shutdown()
-
-
 def start(host, tlsport, port):
     """Main method of the Registrar Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
-
-    threads = []
-    servers = []
-    serveraddr = (host, tlsport)
 
     RegistrarMain.metadata.create_all(engine, checkfirst=True)
     session = SessionManager().make_session(engine)
     try:
         count = session.query(RegistrarMain.agent_id).count()
+        if count > 0:
+            logger.info("Loaded %d public keys from database", count)
     except SQLAlchemyError as e:
         logger.error('SQLAlchemy Error: %s', e)
-    if count > 0:
-        logger.info("Loaded %d public keys from database", count)
 
-    server = RegistrarServer(serveraddr, ProtectedHandler)
+    # Set up the protected registrar server
+    protected_server = RegistrarServer((host, tlsport), ProtectedHandler)
     context = web_util.init_mtls(section='registrar', generatedir='reg_ca', logger=logger)
     if context is not None:
-        server.socket = context.wrap_socket(server.socket, server_side=True)
-    thread = threading.Thread(target=server.serve_forever)
-    threads.append(thread)
+        protected_server.socket = context.wrap_socket(protected_server.socket, server_side=True)
+    thread_protected_server = threading.Thread(target=protected_server.serve_forever)
 
-    # start up the unprotected registrar server
-    serveraddr2 = (host, port)
-    server2 = RegistrarServer(serveraddr2, UnprotectedHandler)
-    thread2 = threading.Thread(target=server2.serve_forever)
-    threads.append(thread2)
-
-    servers.append(server)
-    servers.append(server2)
+    # Set up the unprotected registrar server
+    unprotected_server = RegistrarServer((host, port), UnprotectedHandler)
+    thread_unprotected_server = threading.Thread(target=unprotected_server.serve_forever)
 
     logger.info('Starting Cloud Registrar Server on ports %s and %s (TLS) use <Ctrl-C> to stop', port, tlsport)
     keylime_api_version.log_api_versions(logger)
-    for thread in threads:
-        thread.start()
+    thread_protected_server.start()
+    thread_unprotected_server.start()
 
     def signal_handler(signum, frame):
         del signum, frame
-        do_shutdown(servers)
+        logger.info("Shutting down Registrar Server...")
+        protected_server.shutdown()
+        unprotected_server.shutdown()
         sys.exit(0)
 
     # Catch these signals.  Note that a SIGKILL cannot be caught, so
@@ -539,13 +526,5 @@ def start(host, tlsport, port):
     signal.signal(signal.SIGQUIT, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    # keep the main thread active, so it can process the signals and gracefully shutdown
-    while True:
-        if not any([thread.is_alive() for thread in threads]):
-            # All threads have stopped
-            break
-        # Some threads are still going
-        time.sleep(1)
-
-    for thread in threads:
-        thread.join()
+    thread_protected_server.join()
+    thread_unprotected_server.join()
