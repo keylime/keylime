@@ -93,7 +93,9 @@ def _from_db_obj(agent_db_obj):
                 'pcr10', \
                 'next_ima_ml_entry', \
                 'learned_ima_keyrings',
-                'supported_version'
+                'supported_version',
+                'mtls_cert',
+                'ak_tpm',
                ]
     agent_dict = {}
     for field in fields:
@@ -442,6 +444,9 @@ class AgentsHandler(BaseHandler):
                         logger.warning(f"Data for agent {agent_id} could not be found in registrar!")
                         return
 
+                    agent_data['mtls_cert'] = registrar_data.get('mtls_cert', None)
+                    agent_data['ak_tpm'] = registrar_data['aik_tpm']
+
                     # TODO: Always error for v1.0 version after initial upgrade
                     if registrar_data.get('mtls_cert', None) is None and agent_data['supported_version'] != "1.0":
                         web_util.echo_json_response(self, 400, "mTLS certificate for agent is required!")
@@ -477,8 +482,6 @@ class AgentsHandler(BaseHandler):
 
                         for key in list(exclude_db.keys()):
                             agent_data[key] = exclude_db[key]
-
-                        agent_data['registrar_data'] = registrar_data
 
                         # Prepare SSLContext for mTLS connections
                         # TODO: drop special handling after initial upgrade
@@ -545,7 +548,11 @@ class AgentsHandler(BaseHandler):
                 return
 
             if "reactivate" in rest_params:
-                agent.operational_state = states.START
+                if not isinstance(agent, dict):
+                    agent = _from_db_obj(agent)
+                if agent["mtls_cert"]:
+                    agent['ssl_context'] = web_util.generate_agent_mtls_context(agent["mtls_cert"], self.mtls_options)
+                agent["operational_state"] = states.START
                 asyncio.ensure_future(
                     process_agent(agent, states.GET_QUOTE))
                 web_util.echo_json_response(self, 200, "Success")
@@ -992,7 +999,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
         logger.exception(e)
 
 
-async def activate_agents(verifier_id, verifier_ip, verifier_port):
+async def activate_agents(verifier_id, verifier_ip, verifier_port, mtls_options):
     session = get_session()
     aas = get_AgentAttestStates()
     try:
@@ -1001,8 +1008,11 @@ async def activate_agents(verifier_id, verifier_ip, verifier_port):
         for agent in agents:
             agent.verifier_ip = verifier_ip
             agent.verifier_host = verifier_port
+            agent_run = _from_db_obj(agent)
+            if agent_run["mtls_cert"]:
+                agent_run["ssl_context"] = web_util.generate_agent_mtls_context(agent_run["mtls_cert"], mtls_options)
             if agent.operational_state == states.START:
-                asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
+                asyncio.ensure_future(process_agent(agent_run, states.GET_QUOTE))
             if agent.boottime:
                 ima_pcrs_dict = {}
                 for pcr_num in agent.ima_pcrs:
@@ -1011,7 +1021,6 @@ async def activate_agents(verifier_id, verifier_ip, verifier_port):
         session.commit()
     except SQLAlchemyError as e:
         logger.error('SQLAlchemy Error: %s', e)
-
 
 def start_tornado(tornado_server, port):
     tornado_server.listen(port)
@@ -1089,7 +1098,7 @@ def main():
                             config.getint('cloud_verifier', 'revocation_notifier_port'))
                 revocation_notifier.start_broker()
             # Auto activate agents
-            asyncio.ensure_future(activate_agents(cloudverifier_id, cloudverifier_host, cloudverifier_port))
+            asyncio.ensure_future(activate_agents(cloudverifier_id, cloudverifier_host, cloudverifier_port, mtls_options))
 
         tornado.ioloop.IOLoop.current().start()
     except (KeyboardInterrupt, SystemExit):
