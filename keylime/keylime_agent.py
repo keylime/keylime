@@ -9,6 +9,7 @@ import asyncio
 import http.server
 import multiprocessing
 import platform
+import datetime
 import signal
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
@@ -28,6 +29,7 @@ import shutil
 import subprocess
 import psutil
 
+from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 
 from keylime import config
@@ -374,6 +376,9 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     rsaprivatekey = None
     rsapublickey = None
     rsapublickey_exportable = None
+    mtls_cert_path = None
+    rsakey_path = None
+    mtls_cert = None
     done = threading.Event()
     auth_tag = None
     payload = None
@@ -389,6 +394,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         secdir = secure_mount.mount()
         keyname = os.path.join(secdir,
                                config.get('cloud_agent', 'rsa_keyname'))
+        certname = os.path.join(secdir, config.get('cloud_agent', 'mtls_cert'))
         # read or generate the key depending on configuration
         if os.path.isfile(keyname):
             # read in private key
@@ -401,9 +407,25 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             with open(keyname, "wb") as f:
                 f.write(crypto.rsa_export_privkey(rsa_key))
 
+        self.rsakey_path = keyname
         self.rsaprivatekey = rsa_key
         self.rsapublickey_exportable = crypto.rsa_export_pubkey(
             self.rsaprivatekey)
+
+        if os.path.isfile(certname):
+            logger.debug("Using existing mTLS cert in %s", certname)
+            with open(certname, "rb") as f:
+                mtls_cert = x509.load_pem_x509_certificate(f.read())
+        else:
+            logger.debug("No mTLS certificate found generating a new one")
+            with open(certname, "wb") as f:
+                # By default generate a TLS certificate valid for 5 years
+                valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=(360 * 5))
+                mtls_cert = crypto.generate_selfsigned_cert(agent_uuid, rsa_key, valid_util)
+                f.write(mtls_cert.public_bytes(serialization.Encoding.PEM))
+
+        self.mtls_cert_path = certname
+        self.mtls_cert = mtls_cert
 
         # attempt to get a U value from the TPM NVRAM
         nvram_u = tpm_instance.read_key_nvram()
@@ -661,9 +683,22 @@ def main():
 
     logger.info("Agent UUID: %s", agent_uuid)
 
+    serveraddr = (config.get('cloud_agent', 'cloudagent_ip'),
+                  config.getint('cloud_agent', 'cloudagent_port'))
+
+    keylime_ca = config.get('cloud_agent', 'keylime_ca')
+    if keylime_ca == "default":
+        keylime_ca = os.path.join(config.WORK_DIR, 'cv_ca', 'cacert.crt')
+
+    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid)
+    context = web_util.generate_mtls_context(server.mtls_cert_path, server.rsakey_path, keylime_ca, logger=logger)
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    serverthread = threading.Thread(target=server.serve_forever, daemon=True)
+
     # register it and get back a blob
+    mtls_cert = server.mtls_cert.public_bytes(serialization.Encoding.PEM)
     keyblob = registrar_client.doRegisterAgent(
-        registrar_ip, registrar_port, agent_uuid, ek_tpm, ekcert, aik_tpm, contact_ip, contact_port)
+        registrar_ip, registrar_port, agent_uuid, ek_tpm, ekcert, aik_tpm, mtls_cert, contact_ip, contact_port)
 
     if keyblob is None:
         instance_tpm.flush_keys()
@@ -683,11 +718,6 @@ def main():
     if not retval:
         instance_tpm.flush_keys()
         raise Exception("Registration failed on activate")
-
-    serveraddr = (config.get('cloud_agent', 'cloudagent_ip'),
-                  config.getint('cloud_agent', 'cloudagent_port'))
-    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid)
-    serverthread = threading.Thread(target=server.serve_forever, daemon=True)
 
     # Start revocation listener in a new process to not interfere with tornado
     revocation_process = multiprocessing.Process(target=revocation_listener, daemon=True)
