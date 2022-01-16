@@ -959,7 +959,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 pcr_list.append(str(pcr))
         return ",".join(pcr_list)
 
-    def create_quote(self, nonce, data=None, pcrmask=tpm_abstract.AbstractTPM.EMPTYMASK, hash_alg=None):
+    def create_quote(self, nonce, data=None, pcrmask=tpm_abstract.AbstractTPM.EMPTYMASK, hash_alg=None, compress=False):
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
@@ -992,11 +992,15 @@ class tpm(tpm_abstract.AbstractTPM):
                     command = ["tpm2_quote", "-c", keyhandle, "-l", "%s:%s" % (hash_alg, pcrlist), "-q", nonce, "-m", quotepath.name, "-s", sigpath.name, "-o", pcrpath.name, "-g", hash_alg, "-p", aik_pw]
                 retDict = self.__run(command, lock=False, outputpaths=[quotepath.name, sigpath.name, pcrpath.name])
                 quoteraw = retDict['fileouts'][quotepath.name]
-                quote_b64encode = base64.b64encode(zlib.compress(quoteraw))
                 sigraw = retDict['fileouts'][sigpath.name]
-                sigraw_b64encode = base64.b64encode(zlib.compress(sigraw))
                 pcrraw = retDict['fileouts'][pcrpath.name]
-                pcrraw_b64encode = base64.b64encode(zlib.compress(pcrraw))
+                if compress:
+                    quoteraw = zlib.compress(quoteraw)
+                    sigraw = zlib.compress(sigraw)
+                    pcrraw = zlib.compress(pcrraw)
+                quote_b64encode = base64.b64encode(quoteraw)
+                sigraw_b64encode = base64.b64encode(sigraw)
+                pcrraw_b64encode = base64.b64encode(pcrraw)
                 quote = quote_b64encode.decode('utf-8') + ":" + sigraw_b64encode.decode('utf-8') + ":" + pcrraw_b64encode.decode('utf-8')
 
         return 'r' + quote
@@ -1018,12 +1022,13 @@ class tpm(tpm_abstract.AbstractTPM):
         retDict = self.__run(command, lock=False)
         return retDict
 
-    def _tpm2_checkquote(self, aikTpmFromRegistrar, quote, nonce, hash_alg):
+    def _tpm2_checkquote(self, aikTpmFromRegistrar, quote, nonce, hash_alg, compressed):
         """Write the files from data returned from tpm2_quote for running tpm2_checkquote
         :param aikTpmFromRegistrar: AIK used to generate the quote and is needed for verifying it now.
         :param quote: quote data in the format 'r<b64-compressed-quoteblob>:<b64-compressed-sigblob>:<b64-compressed-pcrblob>
         :param nonce: nonce that was used to create the quote
         :param hash_alg: the hash algorithm that was used
+        :param compressed: if the quote data is compressed with zlib or not
         :returns: Returns the 'retout' from running tpm2_checkquote and True in case of success, None and False in case of error.
         This function throws an Exception on bad input.
         """
@@ -1042,9 +1047,16 @@ class tpm(tpm_abstract.AbstractTPM):
         if len(quote_tokens) < 3:
             raise Exception("Quote is not compound! %s" % quote)
 
-        quoteblob = zlib.decompress(base64.b64decode(quote_tokens[0]))
-        sigblob = zlib.decompress(base64.b64decode(quote_tokens[1]))
-        pcrblob = zlib.decompress(base64.b64decode(quote_tokens[2]))
+        quoteblob = base64.b64decode(quote_tokens[0])
+        sigblob = base64.b64decode(quote_tokens[1])
+        pcrblob = base64.b64decode(quote_tokens[2])
+
+        if compressed:
+            logger.warning("Decompressing quote data which is unsafe!")
+            quoteblob = zlib.decompress(quoteblob)
+            sigblob = zlib.decompress(sigblob)
+            pcrblob = zlib.decompress(pcrblob)
+
 
         qfd = sfd = pfd = afd = -1
         quoteFile = None
@@ -1100,12 +1112,12 @@ class tpm(tpm_abstract.AbstractTPM):
 
     def check_quote(self, agentAttestState, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={},
                     ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyrings=None,
-                    mb_measurement_list=None, mb_refstate=None) -> Failure:
+                    mb_measurement_list=None, mb_refstate=None, compressed=False) -> Failure:
         failure = Failure(Component.QUOTE_VALIDATION)
         if hash_alg is None:
             hash_alg = self.defaults['hash']
 
-        retout, success = self._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, hash_alg)
+        retout, success = self._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, hash_alg, compressed)
         if not success:
             # If the quote validation fails we will skip all other steps therefore this failure is irrecoverable.
             failure.add_event("quote_validation", {"message": "Quote validation using tpm2-tools", "data": retout}, False)

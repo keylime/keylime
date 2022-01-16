@@ -545,7 +545,9 @@ class Tenant():
             logger.warning("AIK not found in registrar, quote not validated")
             return False
 
-        failure = self.tpm_instance.check_quote(AgentAttestState(self.agent_uuid), self.nonce, public_key, quote, self.registrar_data['aik_tpm'], hash_alg=hash_alg)
+        failure = self.tpm_instance.check_quote(AgentAttestState(self.agent_uuid), self.nonce, public_key, quote,
+                                                self.registrar_data['aik_tpm'], hash_alg=hash_alg,
+                                                compressed=(self.supported_version == "1.0"))
         if failure:
             if self.registrar_data['regcount'] > 1:
                 logger.error("WARNING: This UUID had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured or a malicious host is present. Run 'regdelete' for this agent and restart")
