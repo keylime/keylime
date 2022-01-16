@@ -21,6 +21,7 @@ from keylime import config
 from keylime import json
 from keylime import keylime_logging
 from keylime import tenant
+from keylime import web_util
 from keylime import api_version as keylime_api_version
 
 
@@ -62,9 +63,9 @@ class BaseHandler(tornado.web.RequestHandler):
             lines = []
             for line in traceback.format_exception(*kwargs["exc_info"]):
                 lines.append(line)
-            config.echo_json_response(self, status_code, self._reason, lines)
+            web_util.echo_json_response(self, status_code, self._reason, lines)
         else:
-            config.echo_json_response(self, status_code, self._reason)
+            web_util.echo_json_response(self, status_code, self._reason)
 
     def data_received(self, chunk):
         raise NotImplementedError()
@@ -72,23 +73,23 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(tornado.web.RequestHandler):
     def head(self):
-        config.echo_json_response(
+        web_util.echo_json_response(
             self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/ interface instead")
 
     def get(self):
-        config.echo_json_response(
+        web_util.echo_json_response(
             self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
 
     def put(self):
-        config.echo_json_response(
+        web_util.echo_json_response(
             self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
 
     def post(self):
-        config.echo_json_response(
+        web_util.echo_json_response(
             self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
 
     def delete(self):
-        config.echo_json_response(
+        web_util.echo_json_response(
             self, 405, "Not Implemented: Use /webapp/, /agents/ or /logs/  interface instead")
 
     def data_received(self, chunk):
@@ -98,7 +99,7 @@ class MainHandler(tornado.web.RequestHandler):
 class WebAppHandler(BaseHandler):
     def head(self):
         """HEAD not supported"""
-        config.echo_json_response(self, 405, "HEAD not supported")
+        web_util.echo_json_response(self, 405, "HEAD not supported")
 
     def get(self):
         """This method handles the GET requests to retrieve status on agents for all agents in a Web-based GUI.
@@ -325,7 +326,7 @@ class WebAppHandler(BaseHandler):
 class AgentsHandler(BaseHandler):
     def head(self):
         """HEAD not supported"""
-        config.echo_json_response(self, 405, "HEAD not supported")
+        web_util.echo_json_response(self, 405, "HEAD not supported")
 
     async def get_agent_state(self, agent_id):
         try:
@@ -340,7 +341,7 @@ class AgentsHandler(BaseHandler):
             logger.error("Status command response: %s:%s Unexpected response from Cloud Verifier.",
                 tenant_templ.cloudverifier_ip, tenant_templ.cloudverifier_port)
             logger.exception(e)
-            config.echo_json_response(
+            web_util.echo_json_response(
                 self, 500, "Unexpected response from Cloud Verifier", str(e))
             logger.error("Unexpected response from Cloud Verifier: %s", e)
             return
@@ -372,7 +373,7 @@ class AgentsHandler(BaseHandler):
 
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
-            config.echo_json_response(
+            web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ or /logs/ interface")
             return
 
@@ -383,12 +384,12 @@ class AgentsHandler(BaseHandler):
             # intercept requests for logs
             with open(keylime_logging.LOGSTREAM, encoding="utf-8") as f:
                 logValue = f.readlines()
-                config.echo_json_response(self, 200, "Success", {
+                web_util.echo_json_response(self, 200, "Success", {
                                           'log': logValue[offset:]})
             return
         if "agents" not in rest_params:
             # otherwise they must be looking for agent info
-            config.echo_json_response(self, 400, "uri not supported")
+            web_util.echo_json_response(self, 400, "uri not supported")
             logger.warning('GET returning 400 response. uri not supported: %s', self.request.path)
             return
 
@@ -398,7 +399,7 @@ class AgentsHandler(BaseHandler):
             agents = await self.get_agent_state(agent_id)
             agents["id"] = agent_id
 
-            config.echo_json_response(self, 200, "Success", agents)
+            web_util.echo_json_response(self, 200, "Success", agents)
             return
 
         # If no agent ID, get list of all agents from Registrar
@@ -414,7 +415,7 @@ class AgentsHandler(BaseHandler):
             logger.error("Status command response: %s:%s Unexpected response from Registrar.",
                 tenant_templ.registrar_ip, tenant_templ.registrar_port)
             logger.exception(e)
-            config.echo_json_response(
+            web_util.echo_json_response(
                 self, 500, "Unexpected response from Registrar", str(e))
             return
 
@@ -432,7 +433,7 @@ class AgentsHandler(BaseHandler):
 
         agent_list = response_body["results"]["uuids"]
 
-        config.echo_json_response(self, 200, "Success", {
+        web_util.echo_json_response(self, 200, "Success", {
                                   'uuids': agent_list})
 
     def delete(self):
@@ -444,12 +445,12 @@ class AgentsHandler(BaseHandler):
 
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
-            config.echo_json_response(
+            web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if "agents" not in rest_params:
-            config.echo_json_response(self, 400, "uri not supported")
+            web_util.echo_json_response(self, 400, "uri not supported")
             logger.warning('DELETE returning 400 response. uri not supported: %s', self.request.path)
             return
 
@@ -460,7 +461,7 @@ class AgentsHandler(BaseHandler):
         mytenant.agent_uuid = agent_id
         mytenant.do_cvdelete()
 
-        config.echo_json_response(self, 200, "Success")
+        web_util.echo_json_response(self, 200, "Success")
 
     def post(self):
         """This method handles the POST requests to add agents to the Cloud Verifier.
@@ -471,12 +472,12 @@ class AgentsHandler(BaseHandler):
 
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
-            config.echo_json_response(
+            web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if "agents" not in rest_params:
-            config.echo_json_response(self, 400, "uri not supported")
+            web_util.echo_json_response(self, 400, "uri not supported")
             logger.warning('POST returning 400 response. uri not supported: %s', self.request.path)
             return
 
@@ -515,7 +516,7 @@ class AgentsHandler(BaseHandler):
             if ca_dir_pw == "":
                 ca_dir_pw = 'default'
         else:
-            config.echo_json_response(self, 400, "invalid payload type chosen")
+            web_util.echo_json_response(self, 400, "invalid payload type chosen")
             logger.warning('POST returning 400 response. malformed query')
             return
 
@@ -569,10 +570,10 @@ class AgentsHandler(BaseHandler):
         except Exception as e:
             logger.exception(e)
             logger.warning('POST returning 500 response. Tenant error: %s', e)
-            config.echo_json_response(self, 500, "Request failure", str(e))
+            web_util.echo_json_response(self, 500, "Request failure", str(e))
             return
 
-        config.echo_json_response(self, 200, "Success")
+        web_util.echo_json_response(self, 200, "Success")
 
     def put(self):
         """This method handles the PUT requests to add agents to the Cloud Verifier.
@@ -582,12 +583,12 @@ class AgentsHandler(BaseHandler):
 
         rest_params = config.get_restful_params(self.request.uri)
         if rest_params is None:
-            config.echo_json_response(
+            web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if "agents" not in rest_params:
-            config.echo_json_response(self, 400, "uri not supported")
+            web_util.echo_json_response(self, 400, "uri not supported")
             logger.warning('PUT returning 400 response. uri not supported: %s', self.request.path)
             return
 
@@ -598,7 +599,7 @@ class AgentsHandler(BaseHandler):
         mytenant.agent_uuid = agent_id
         mytenant.do_cvreactivate()
 
-        config.echo_json_response(self, 200, "Success")
+        web_util.echo_json_response(self, 200, "Success")
 
     def data_received(self, chunk):
         raise NotImplementedError()
