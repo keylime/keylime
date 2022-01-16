@@ -145,7 +145,7 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
         agent['nonce'],
         received_public_key,
         quote,
-        agent['registrar_data']['aik_tpm'],
+        agent['ak_tpm'],
         agent['tpm_policy'],
         ima_measurement_list,
         agent['allowlist'],
