@@ -19,7 +19,7 @@ from keylime import config
 from keylime import json
 from keylime import registrar_client
 from keylime.agentstates import AgentAttestStates
-from keylime.common import states, validators
+from keylime.common import states, validators, retry
 from keylime.db.verifier_db import VerfierMain
 from keylime.db.verifier_db import VerifierAllowlist
 from keylime.db.keylime_db import DBEngineManager, SessionManager
@@ -987,7 +987,9 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
             return
 
         maxr = config.getint('cloud_verifier', 'max_retries')
-        retry = config.getfloat('cloud_verifier', 'retry_interval')
+        interval = config.getfloat('cloud_verifier', 'retry_interval')
+        exponential_backoff = config.getboolean('cloud_verifier', 'exponential_backoff')
+
         if (main_agent_operational_state == states.GET_QUOTE and
                 new_operational_state == states.GET_QUOTE_RETRY):
             if agent['num_retries'] >= maxr:
@@ -1003,8 +1005,9 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 agent['operational_state'] = states.GET_QUOTE
                 cb = functools.partial(invoke_get_quote, agent, True)
                 agent['num_retries'] += 1
-                logger.info("Connection to %s refused after %d/%d tries, trying again in %f seconds", agent['ip'], agent['num_retries'], maxr, retry)
-                tornado.ioloop.IOLoop.current().call_later(retry, cb)
+                next_retry = retry.retry_time(exponential_backoff, interval, agent['num_retries'], logger)
+                logger.info("Connection to %s refused after %d/%d tries, trying again in %f seconds", agent['ip'], agent['num_retries'], maxr, next_retry)
+                tornado.ioloop.IOLoop.current().call_later(next_retry, cb)
             return
 
         if (main_agent_operational_state == states.PROVIDE_V and
@@ -1019,8 +1022,9 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 agent['operational_state'] = states.PROVIDE_V
                 cb = functools.partial(invoke_provide_v, agent)
                 agent['num_retries'] += 1
-                logger.info("Connection to %s refused after %d/%d tries, trying again in %f seconds", agent['ip'], agent['num_retries'], maxr, retry)
-                tornado.ioloop.IOLoop.current().call_later(retry, cb)
+                next_retry = retry.retry_time(exponential_backoff, interval, agent['num_retries'], logger)
+                logger.info("Connection to %s refused after %d/%d tries, trying again in %f seconds", agent['ip'], agent['num_retries'], maxr, next_retry)
+                tornado.ioloop.IOLoop.current().call_later(next_retry, cb)
             return
         raise Exception("nothing should ever fall out of this!")
 
