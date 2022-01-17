@@ -5,7 +5,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 import os
 import os.path
 import configparser
-import re
 from typing import Optional
 
 import yaml
@@ -177,37 +176,6 @@ def yaml_to_dict(arry, add_newlines=True, logger=None) -> Optional[dict]:
         if logger is not None:
             logger.warning("Could not load yaml as dict: %s", str(err))
     return None
-
-
-def valid_exclude_list(exclude_list):
-    if not exclude_list:
-        return True, None, None
-
-    combined_regex = "(" + ")|(".join(exclude_list) + ")"
-    return valid_regex(combined_regex)
-
-
-def valid_regex(regex):
-    if regex is None:
-        return True, None, None
-
-    try:
-        compiled_regex = re.compile(regex)
-    except re.error as regex_err:
-        err = "Invalid regex: " + regex_err.msg + "."
-        return False, None, err
-
-    return True, compiled_regex, None
-
-
-def valid_hex(value: str):
-    if not value.isalnum():
-        return False
-    try:
-        int(value, 16)
-        return True
-    except ValueError:
-        return False
 
 
 if STUB_IMA:

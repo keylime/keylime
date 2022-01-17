@@ -15,11 +15,11 @@ import functools
 
 from keylime import config
 from keylime import gpg
-from keylime import keylime_logging
 from keylime import ima_ast
-from keylime.agentstates import AgentAttestState
 from keylime import ima_file_signatures
-from keylime.common.algorithms import Hash
+from keylime import keylime_logging
+from keylime.agentstates import AgentAttestState
+from keylime.common import algorithms, validators
 from keylime.failure import Failure, Component
 
 
@@ -223,14 +223,13 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
         allow_list = None
         exclude_list = None
 
-    ima_log_hash_alg = Hash.SHA1
+    ima_log_hash_alg = algorithms.Hash.SHA1
     if allow_list is not None:
         try:
-            ima_log_hash_alg = Hash(allow_list["ima"]["log_hash_alg"])
+            ima_log_hash_alg = algorithms.Hash(allow_list["ima"]["log_hash_alg"])
         except ValueError:
             logger.warning("Specified IMA log hash algorithm %s is not a valid algorithm! Defaulting to SHA1.",
                            allow_list["ima"]["log_hash_alg"])
-
 
     if boot_aggregates and allow_list:
         if 'boot_aggregate' not in allow_list['hashes'] :
@@ -240,7 +239,7 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
                 if val not in allow_list['hashes']['boot_aggregate'] :
                     allow_list['hashes']['boot_aggregate'].append(val)
 
-    is_valid, compiled_regex, err_msg = config.valid_exclude_list(exclude_list)
+    is_valid, compiled_regex, err_msg = validators.valid_exclude_list(exclude_list)
     if not is_valid:
         # This should not happen as the exclude list has already been validated
         # by the verifier before acceping it. This is a safety net just in case.
@@ -312,7 +311,7 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
 
 
 def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrval=None, ima_keyrings=None,
-                             boot_aggregates=None, hash_alg=Hash.SHA1):
+                             boot_aggregates=None, hash_alg=algorithms.Hash.SHA1):
     failure = Failure(Component.IMA)
     try:
         running_hash, failure = _process_measurement_list(agentAttestState, lines, hash_alg, lists=lists, m2w=m2w,

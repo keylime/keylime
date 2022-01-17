@@ -16,7 +16,7 @@ from keylime.agentstates import AgentAttestStates
 from keylime.failure import Failure, Component
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
-from keylime.common import algorithms
+from keylime.common import algorithms, validators
 from keylime import ima_file_signatures
 
 # setup logging
@@ -300,7 +300,7 @@ def validate_agent_data(agent_data):
     lists = json.loads(agent_data['allowlist'])
 
     # Validate exlude list contains valid regular expressions
-    is_valid, _, err_msg = config.valid_exclude_list(lists.get('exclude'))
+    is_valid, _, err_msg = validators.valid_exclude_list(lists.get('exclude'))
     if not is_valid:
         err_msg += " Exclude list regex is misformatted. Please correct the issue and try again."
 
