@@ -187,7 +187,7 @@ class VersionHandler(BaseHandler):
             self, 405, "Not Implemented: Use GET interface instead")
 
     def get(self):
-        rest_params = config.get_restful_params(self.request.uri)
+        rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None:
             web_util.echo_json_response(self, 405, "Not Implemented")
             return
@@ -235,7 +235,7 @@ class AgentsHandler(BaseHandler):
         to contact the Cloud Agent.
         """
         session = get_session()
-        rest_params = config.get_restful_params(self.request.uri)
+        rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
@@ -298,7 +298,7 @@ class AgentsHandler(BaseHandler):
         agents requests require a single agent_id parameter which identifies the agent to be deleted.
         """
         session = get_session()
-        rest_params = config.get_restful_params(self.request.uri)
+        rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
@@ -367,7 +367,7 @@ class AgentsHandler(BaseHandler):
         """
         session = get_session()
         try:
-            rest_params = config.get_restful_params(self.request.uri)
+            rest_params = web_util.get_restful_params(self.request.uri)
             if rest_params is None:
                 web_util.echo_json_response(
                     self, 405, "Not Implemented: Use /agents/ interface")
@@ -471,7 +471,7 @@ class AgentsHandler(BaseHandler):
         """
         session = get_session()
         try:
-            rest_params = config.get_restful_params(self.request.uri)
+            rest_params = web_util.get_restful_params(self.request.uri)
             if rest_params is None:
                 web_util.echo_json_response(
                     self, 405, "Not Implemented: Use /agents/ interface")
@@ -546,7 +546,7 @@ class AllowlistHandler(BaseHandler):
         GET /allowlists/{name}
         """
 
-        rest_params = config.get_restful_params(self.request.uri)
+        rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None or 'allowlists' not in rest_params:
             web_util.echo_json_response(self, 400, "Invalid URL")
             return
@@ -585,7 +585,7 @@ class AllowlistHandler(BaseHandler):
         DELETE /allowlists/{name}
         """
 
-        rest_params = config.get_restful_params(self.request.uri)
+        rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None or 'allowlists' not in rest_params:
             web_util.echo_json_response(self, 400, "Invalid URL")
             return
@@ -637,7 +637,7 @@ class AllowlistHandler(BaseHandler):
         body: {"tpm_policy": {..}, "vtpm_policy": {..}
         """
 
-        rest_params = config.get_restful_params(self.request.uri)
+        rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None or 'allowlists' not in rest_params:
             web_util.echo_json_response(self, 400, "Invalid URL")
             return

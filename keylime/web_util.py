@@ -1,13 +1,15 @@
 import http.client
 import os
+import re
 import socket
 import ssl
 import sys
+import urllib.parse
 from http.server import BaseHTTPRequestHandler
 
 import tornado.web
 
-from keylime import config, ca_util, json
+from keylime import config, ca_util, json, api_version as keylime_api_version
 
 
 def init_mtls(section='cloud_verifier', generatedir='cv_ca', logger=None):
@@ -147,3 +149,35 @@ def echo_json_response(handler, code, status=None, results=None):
         return True
 
     return False
+
+
+def get_restful_params(urlstring):
+    """Returns a dictionary of paired RESTful URI parameters"""
+    parsed_path = urllib.parse.urlsplit(urlstring.strip("/"))
+    query_params = urllib.parse.parse_qsl(parsed_path.query)
+    path_tokens = parsed_path.path.split('/')
+
+    # If first token looks like an API version, validate it and make sure it's supported
+    api_version = 0
+    if path_tokens[0] and len(path_tokens[0]) >= 0 and re.match(r"^v?[0-9]+(\.[0-9]+)?", path_tokens[0]):
+        version = keylime_api_version.normalize_version(path_tokens[0])
+
+        if keylime_api_version.is_supported_version(version):
+            api_version = version
+
+        path_tokens.pop(0)
+
+    path_params = _list_to_dict(path_tokens)
+    path_params["api_version"] = api_version
+    path_params.update(query_params)
+    return path_params
+
+
+def _list_to_dict(alist):
+    """Convert list into dictionary via grouping [k0,v0,k1,v1,...]"""
+    params = {}
+    i = 0
+    while i < len(alist):
+        params[alist[i]] = alist[i + 1] if (i + 1) < len(alist) else None
+        i = i + 2
+    return params
