@@ -645,7 +645,7 @@ class tpm(tpm_abstract.AbstractTPM):
             if self.tools_version in ["4.0", "4.2"]:
                 # ok lets write out the key now
                 secdir = secure_mount.mount()  # confirm that storage is still securely mounted
-                _, secpath = tempfile.mkstemp(dir=secdir)
+                secfd, secpath = tempfile.mkstemp(dir=secdir)
 
             if self.tools_version == "3.2":
                 command = ["tpm2_getpubak", "-E", hex(ek_handle), "-k", "0x81010008",
@@ -657,6 +657,8 @@ class tpm(tpm_abstract.AbstractTPM):
                            "-G", asym_alg, "-g", hash_alg, "-s", sign_alg,
                            "-u", akpubfile.name, "-p", aik_pw, "-P", owner_pw]
             retDict = self.__run(command, outputpaths=akpubfile.name)
+            if secfd >= 0:
+                os.close(secfd)
             retout = retDict['retout']
             reterr = retDict['reterr']
             code = retDict['code']
