@@ -95,7 +95,7 @@ class AgentsHandler(BaseHandler):
         """
         logger.info('Agent Monitor POST')
         try:
-            rest_params = common.get_restful_params(self.request.path)
+            rest_params = keylime.web_util.get_restful_params(self.request.path)
 
             if "agents" not in rest_params:
                 keylime.web_util.echo_json_response(self, 400, "uri not supported")

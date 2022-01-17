@@ -71,7 +71,7 @@ class Handler(BaseHTTPRequestHandler):
         """
 
         logger.info('GET invoked from %s with uri: %s', self.client_address, self.path)
-        rest_params = config.get_restful_params(self.path)
+        rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /keys/ or /quotes/ interfaces")
@@ -203,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         Only tenant and cloudverifier uri's are supported. Both requests require a nonce parameter.
         The Cloud verifier requires an additional mask parameter.  If the uri or parameters are incorrect, a 400 response is returned.
         """
-        rest_params = config.get_restful_params(self.path)
+        rest_params = web_util.get_restful_params(self.path)
 
         if rest_params is None:
             web_util.echo_json_response(

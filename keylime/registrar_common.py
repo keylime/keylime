@@ -56,7 +56,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         agent to be returned. If the agent_id is not found, a 404 response is returned.
         """
         session = SessionManager().make_session(engine)
-        rest_params = config.get_restful_params(self.path)
+        rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
@@ -131,7 +131,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         agents requests require a single agent_id parameter which identifies the agent to be deleted.
         """
         session = SessionManager().make_session(engine)
-        rest_params = config.get_restful_params(self.path)
+        rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
@@ -184,7 +184,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         Currently the only supported path is /versions which shows the supported API versions
         """
-        rest_params = config.get_restful_params(self.path)
+        rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /version/ interface")
@@ -210,7 +210,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         block sent in the body with 2 entries: ek and aik.
         """
         session = SessionManager().make_session(engine)
-        rest_params = config.get_restful_params(self.path)
+        rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
@@ -381,7 +381,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         will return errors.
         """
         session = SessionManager().make_session(engine)
-        rest_params = config.get_restful_params(self.path)
+        rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")

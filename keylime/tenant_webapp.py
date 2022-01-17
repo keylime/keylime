@@ -371,7 +371,7 @@ class AgentsHandler(BaseHandler):
         will return errors.
         """
 
-        rest_params = config.get_restful_params(self.request.uri)
+        rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ or /logs/ interface")
@@ -443,7 +443,7 @@ class AgentsHandler(BaseHandler):
         agents requests require a single agent_id parameter which identifies the agent to be deleted.
         """
 
-        rest_params = config.get_restful_params(self.request.uri)
+        rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
@@ -470,7 +470,7 @@ class AgentsHandler(BaseHandler):
         agents requests require a yaml block sent in the body
         """
 
-        rest_params = config.get_restful_params(self.request.uri)
+        rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
@@ -581,7 +581,7 @@ class AgentsHandler(BaseHandler):
         Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
         """
 
-        rest_params = config.get_restful_params(self.request.uri)
+        rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None:
             web_util.echo_json_response(
                 self, 405, "Not Implemented: Use /agents/ interface")
