@@ -32,3 +32,29 @@ def valid_hex(value):
     except Exception:
         return False
     return True
+
+
+def valid_uuid(uuid: str) -> bool:
+    """Check if the string is a valid UUID."""
+    valid = False
+    try:
+        valid = bool(
+            re.fullmatch(
+                r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",
+                uuid,
+                re.I,
+            )
+        )
+    except Exception:
+        pass
+    return valid
+
+
+def valid_agent_id(agent_id: str) -> bool:
+    """Check if agent_id is valid."""
+    valid = False
+    try:
+        valid = bool(re.fullmatch(r"[\w.-]+", agent_id))
+    except Exception:
+        pass
+    return valid
