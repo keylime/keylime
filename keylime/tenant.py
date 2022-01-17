@@ -34,7 +34,7 @@ from keylime import ima
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import ca_util
-from keylime.common import algorithms
+from keylime.common import algorithms, validators
 from keylime import ima_file_signatures
 from keylime import measured_boot
 from keylime import gpg
@@ -1313,6 +1313,8 @@ def main(argv=sys.argv):
         if mytenant.agent_uuid.startswith('-----BEGIN PUBLIC KEY-----'):
             mytenant.agent_uuid = hashlib.sha256(
                 mytenant.agent_uuid).hexdigest()
+        if not validators.valid_agent_id(mytenant.agent_uuid):
+            raise UserError("The agent ID set via agent uuid parameter use invalid characters")
     else:
         logger.warning("Using default UUID d432fbb3-d2f1-4a97-9ef7-75bd81c00000")
         mytenant.agent_uuid = "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"

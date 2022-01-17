@@ -16,7 +16,7 @@ import tornado.ioloop
 import tornado.web
 
 from keylime.requests_client import RequestsClient
-from keylime.common import states
+from keylime.common import validators, states
 from keylime import config
 from keylime import json
 from keylime import keylime_logging
@@ -395,6 +395,13 @@ class AgentsHandler(BaseHandler):
 
         agent_id = rest_params["agents"]
         if agent_id is not None:
+            # If the agent ID is not valid (wrong set of characters),
+            # just do nothing.
+            if not validators.valid_agent_id(agent_id):
+                web_util.echo_json_response(self, 400, "agent_id not not valid")
+                logger.error("GET received an invalid agent ID: %s", agent_id)
+                return
+
             # Handle request for specific agent data separately
             agents = await self.get_agent_state(agent_id)
             agents["id"] = agent_id
@@ -455,6 +462,12 @@ class AgentsHandler(BaseHandler):
             return
 
         agent_id = rest_params["agents"]
+        # If the agent ID is not valid (wrong set of characters), just
+        # do nothing.
+        if not validators.valid_agent_id(agent_id):
+            web_util.echo_json_response(self, 400, "agent_id not not valid")
+            logger.error("DELETE received an invalid agent ID: %s", agent_id)
+            return
 
         # let Tenant do dirty work of deleting agent
         mytenant = tenant.Tenant()
@@ -482,6 +495,12 @@ class AgentsHandler(BaseHandler):
             return
 
         agent_id = rest_params["agents"]
+        # If the agent ID is not valid (wrong set of characters), just
+        # do nothing.
+        if not validators.valid_agent_id(agent_id):
+            web_util.echo_json_response(self, 400, "agent_id not not valid")
+            logger.error("POST received an invalid agent ID: %s", agent_id)
+            return
 
         # Parse payload files (base64 data-uri)
         if self.get_argument("ptype", Agent_Init_Types.FILE, True) == Agent_Init_Types.FILE:
@@ -593,6 +612,12 @@ class AgentsHandler(BaseHandler):
             return
 
         agent_id = rest_params["agents"]
+        # If the agent ID is not valid (wrong set of characters), just
+        # do nothing.
+        if not validators.valid_agent_id(agent_id):
+            web_util.echo_json_response(self, 400, "agent_id not not valid")
+            logger.error("PUT received an invalid agent ID: %s", agent_id)
+            return
 
         # let Tenant do dirty work of reactivating agent
         mytenant = tenant.Tenant()

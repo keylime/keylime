@@ -18,7 +18,7 @@ from keylime import config
 from keylime import json
 from keylime import registrar_client
 from keylime.agentstates import AgentAttestStates
-from keylime.common import states
+from keylime.common import states, validators
 from keylime.db.verifier_db import VerfierMain
 from keylime.db.verifier_db import VerifierAllowlist
 from keylime.db.keylime_db import DBEngineManager, SessionManager
@@ -264,6 +264,13 @@ class AgentsHandler(BaseHandler):
         agent_id = rest_params["agents"]
 
         if (agent_id is not None) and (agent_id != ''):
+            # If the agent ID is not valid (wrong set of characters),
+            # just do nothing.
+            if not validators.valid_agent_id(agent_id):
+                web_util.echo_json_response(self, 400, "agent_id not not valid")
+                logger.error("GET received an invalid agent ID: %s", agent_id)
+                return
+
             try:
                 agent = session.query(VerfierMain).filter_by(
                     agent_id=agent_id).one_or_none()
@@ -328,6 +335,13 @@ class AgentsHandler(BaseHandler):
         if agent_id is None:
             web_util.echo_json_response(self, 400, "uri not supported")
             logger.warning('DELETE returning 400 response. uri not supported: %s', self.request.path)
+            return
+
+        # If the agent ID is not valid (wrong set of characters), just
+        # do nothing.
+        if not validators.valid_agent_id(agent_id):
+            web_util.echo_json_response(self, 400, "agent_id not not valid")
+            logger.error("DELETE received an invalid agent ID: %s", agent_id)
             return
 
         try:
@@ -396,6 +410,13 @@ class AgentsHandler(BaseHandler):
             agent_id = rest_params["agents"]
 
             if agent_id is not None:
+                # If the agent ID is not valid (wrong set of
+                # characters), just do nothing.
+                if not validators.valid_agent_id(agent_id):
+                    web_util.echo_json_response(self, 400, "agent_id not not valid")
+                    logger.error("POST received an invalid agent ID: %s", agent_id)
+                    return
+
                 content_length = len(self.request.body)
                 if content_length == 0:
                     web_util.echo_json_response(
@@ -534,6 +555,14 @@ class AgentsHandler(BaseHandler):
             if agent_id is None:
                 web_util.echo_json_response(self, 400, "uri not supported")
                 logger.warning("PUT returning 400 response. uri not supported")
+
+            # If the agent ID is not valid (wrong set of characters),
+            # just do nothing.
+            if not validators.valid_agent_id(agent_id):
+                web_util.echo_json_response(self, 400, "agent_id not not valid")
+                logger.error("PUT received an invalid agent ID: %s", agent_id)
+                return
+
             try:
                 verifier_id = config.get('cloud_verifier', 'cloudverifier_id', fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
                 agent = session.query(VerfierMain).filter_by(
