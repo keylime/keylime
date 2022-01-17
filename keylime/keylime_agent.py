@@ -43,7 +43,7 @@ from keylime import registrar_client
 from keylime import secure_mount
 from keylime import web_util
 from keylime import api_version as keylime_api_version
-from keylime.common import algorithms
+from keylime.common import algorithms, validators
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime.tpm.tpm2_objects import pubkey_from_tpm2b_public
@@ -131,7 +131,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # Sanitization assurance (for tpm.run() tasks below)
             if not (nonce.isalnum() and
-                    (pcrmask is None or config.valid_hex(pcrmask)) and
+                    (pcrmask is None or validators.valid_hex(pcrmask)) and
                     ima_ml_entry.isalnum()):
                 logger.warning('GET quote returning 400 response. parameters should be strictly alphanumeric')
                 web_util.echo_json_response(
