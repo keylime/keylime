@@ -676,6 +676,11 @@ def main():
         agent_uuid = os.getenv("KEYLIME_AGENT_UUID", None)
         if agent_uuid is None:
             raise RuntimeError("Env variable KEYLIME_AGENT_UUID is empty, but agent_uuid is set to 'environment'")
+    elif not validators.valid_uuid(agent_uuid):
+        raise RuntimeError("The UUID is not valid")
+
+    if not validators.valid_agent_id(agent_uuid):
+        raise RuntimeError("The agent ID set via agent uuid parameter use invalid characters")
 
     if config.STUB_VTPM and config.TPM_CANNED_VALUES is not None:
         # Use canned values for stubbing

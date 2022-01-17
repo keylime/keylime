@@ -17,6 +17,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_der_x509_certificate
 
+from keylime.common import validators
 from keylime.db.registrar_db import RegistrarMain
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import config
@@ -74,6 +75,13 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         agent_id = rest_params["agents"]
 
         if agent_id is not None:
+            # If the agent ID is not valid (wrong set of characters),
+            # just do nothing.
+            if not validators.valid_agent_id(agent_id):
+                web_util.echo_json_response(self, 400, "agent_id not not valid")
+                logger.error("GET received an invalid agent ID: %s", agent_id)
+                return
+
             try:
                 agent = session.query(RegistrarMain).filter_by(
                     agent_id=agent_id).first()
@@ -150,6 +158,13 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         agent_id = rest_params["agents"]
 
         if agent_id is not None:
+            # If the agent ID is not valid (wrong set of characters),
+            # just do nothing.
+            if not validators.valid_agent_id(agent_id):
+                web_util.echo_json_response(self, 400, "agent_id not not valid")
+                logger.error("DELETE received an invalid agent ID: %s", agent_id)
+                return
+
             if session.query(RegistrarMain).filter_by(agent_id=agent_id).delete():
                 # send response
                 try:
@@ -231,6 +246,13 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         if agent_id is None:
             web_util.echo_json_response(self, 400, "agent id not found in uri")
             logger.warning('POST agent returning 400 response. agent id not found in uri %s', self.path)
+            return
+
+        # If the agent ID is not valid (wrong set of characters), just
+        # do nothing.
+        if not validators.valid_agent_id(agent_id):
+            web_util.echo_json_response(self, 400, "agent id not valid")
+            logger.error("POST received an invalid agent ID: %s", agent_id)
             return
 
         try:
@@ -408,6 +430,13 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         if agent_id is None:
             web_util.echo_json_response(self, 400, "agent id not found in uri")
             logger.warning('PUT agent returning 400 response. agent id not found in uri %s', self.path)
+            return
+
+        # If the agent ID is not valid (wrong set of characters), just
+        # do nothing.
+        if not validators.valid_agent_id(agent_id):
+            web_util.echo_json_response(self, 400, "agent_id not not valid")
+            logger.error("PUT received an invalid agent ID: %s", agent_id)
             return
 
         try:
