@@ -23,12 +23,23 @@ from keylime import secure_mount
 logger = keylime_logging.init_logging('revocation_notifier')
 broker_proc = None
 
+_SOCKET_PATH = "/var/run/keylime/keylime.verifier.ipc"
+
 
 def start_broker():
     def worker():
+        dir_name = os.path.dirname(_SOCKET_PATH)
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name, 0o700)
+        else:
+            if os.stat(_SOCKET_PATH).st_mode & 0o777 != 0o700:
+                msg = f"{_SOCKET_PATH} present with wrong permissions"
+                logger.error(msg)
+                raise Exception(msg)
+
         context = zmq.Context(1)
         frontend = context.socket(zmq.SUB)
-        frontend.bind("ipc:///tmp/keylime.verifier.ipc")
+        frontend.bind(f"ipc://{_SOCKET_PATH}")
 
         frontend.setsockopt(zmq.SUBSCRIBE, b'')
 
@@ -52,8 +63,8 @@ def stop_broker():
     global broker_proc
     if broker_proc is not None:
         # Remove the socket file before  we kill the process
-        if os.path.exists("/tmp/keylime.verifier.ipc"):
-            os.remove("/tmp/keylime.verifier.ipc")
+        if os.path.exists(f"ipc://{_SOCKET_PATH}"):
+            os.remove(f"ipc://{_SOCKET_PATH}")
         logger.info("Stopping revocation notifier...")
         broker_proc.terminate()
         broker_proc.join()
@@ -63,7 +74,7 @@ def notify(tosend):
     def worker(tosend):
         context = zmq.Context()
         mysock = context.socket(zmq.PUB)
-        mysock.connect("ipc:///tmp/keylime.verifier.ipc")
+        mysock.connect(f"ipc://{_SOCKET_PATH}")
         # wait 100ms for connect to happen
         time.sleep(0.2)
         # now send it out via 0mq
