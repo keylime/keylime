@@ -88,7 +88,11 @@ def cmd_mkcert(workingdir, name):
         config.ch_dir(workingdir, logger)
         priv = read_private()
         cacert = load_cert_by_path('cacert.crt')
-        ca_pk = serialization.load_pem_private_key(priv[0]['ca'], password=None)
+        ca_pk = serialization.load_pem_private_key(
+            priv[0]['ca'],
+            password=None,
+            backend=default_backend()
+        )
 
         cert, pk = ca_impl.mk_signed_cert(
             cacert, ca_pk, name, priv[0]['lastserial'] + 1)
