@@ -34,6 +34,7 @@ from keylime import config
 from keylime import keylime_logging
 from keylime import cmd_exec
 from keylime import crypto
+from keylime import fs_util
 from keylime import ima
 from keylime import json
 from keylime import revocation_notifier
@@ -599,7 +600,7 @@ def main():
     secure_mount.mount()
 
     # change dir to working dir
-    config.ch_dir(config.WORK_DIR, logger)
+    fs_util.ch_dir(config.WORK_DIR)
 
     # initialize tpm
     (ekcert, ek_tpm, aik_tpm) = instance_tpm.tpm_init(self_activate=False, config_pw=config.get(

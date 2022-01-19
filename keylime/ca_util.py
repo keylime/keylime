@@ -48,6 +48,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from keylime import cmd_exec
 from keylime import config
 from keylime import crypto
+from keylime import fs_util
 from keylime import json
 from keylime import revocation_notifier
 from keylime import keylime_logging
@@ -85,7 +86,7 @@ def setpassword(pw):
 def cmd_mkcert(workingdir, name):
     cwd = os.getcwd()
     try:
-        config.ch_dir(workingdir, logger)
+        fs_util.ch_dir(workingdir)
         priv = read_private()
         cacert = load_cert_by_path('cacert.crt')
         ca_pk = serialization.load_pem_private_key(
@@ -139,7 +140,7 @@ def cmd_mkcert(workingdir, name):
 def cmd_init(workingdir):
     cwd = os.getcwd()
     try:
-        config.ch_dir(workingdir, logger)
+        fs_util.ch_dir(workingdir)
 
         rmfiles("*.pem")
         rmfiles("*.crt")
@@ -203,7 +204,7 @@ def cmd_init(workingdir):
 def cmd_certpkg(workingdir, name, insecure=False):
     cwd = os.getcwd()
     try:
-        config.ch_dir(workingdir, logger)
+        fs_util.ch_dir(workingdir)
         # zip up the crt, private key, and public key
 
         with open('cacert.crt', 'rb') as f:
@@ -300,7 +301,7 @@ def get_crl_distpoint(cert_path):
 def cmd_revoke(workingdir, name=None, serial=None):
     cwd = os.getcwd()
     try:
-        config.ch_dir(workingdir, logger)
+        fs_util.ch_dir(workingdir)
         priv = read_private()
 
         if name is not None and serial is not None:
@@ -344,7 +345,7 @@ def cmd_revoke(workingdir, name=None, serial=None):
 def cmd_regencrl(workingdir):
     cwd = os.getcwd()
     try:
-        config.ch_dir(workingdir, logger)
+        fs_util.ch_dir(workingdir)
         priv = read_private()
 
         # get the ca key cert and keys as strings
@@ -369,7 +370,7 @@ def cmd_regencrl(workingdir):
 def cmd_listen(workingdir, cert_path):
     cwd = os.getcwd()
     try:
-        config.ch_dir(workingdir, logger)
+        fs_util.ch_dir(workingdir)
         # just load up the password for later
         read_private(True)
 
