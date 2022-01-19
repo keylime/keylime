@@ -151,22 +151,6 @@ WORK_DIR = os.getenv('KEYLIME_DIR', DEFAULT_WORK_DIR)
 CA_WORK_DIR = '%s/ca/' % WORK_DIR
 
 
-def chownroot(path, logger):
-    if os.geteuid() == 0:
-        os.chown(path, 0, 0)
-    elif REQUIRE_ROOT:
-        logger.debug(
-            "Unable to change ownership to root for file: %s" % (path))
-
-
-def ch_dir(path, logger):
-    if not os.path.exists(path):
-        os.makedirs(path, 0o700)
-        chownroot(path, logger)
-    os.umask(0o077)
-    os.chdir(path)
-
-
 def yaml_to_dict(arry, add_newlines=True, logger=None) -> Optional[dict]:
     arry = convert(arry)
     sep = "\n" if add_newlines else ""

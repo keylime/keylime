@@ -45,6 +45,7 @@ import dbus
 
 import keylime.keylime_agent
 from keylime import config
+from keylime import fs_util
 from keylime import tornado_requests
 from keylime.requests_client import RequestsClient
 from keylime import tenant
@@ -373,7 +374,7 @@ class TestRestful(unittest.TestCase):
 
         # Change CWD for TPM-related operations
         cwd = os.getcwd()
-        config.ch_dir(config.WORK_DIR, None)
+        fs_util.ch_dir(config.WORK_DIR)
         _ = secure_mount.mount()
 
         # Create an agent server to get the mtls certificate
@@ -396,7 +397,7 @@ class TestRestful(unittest.TestCase):
                 ekcert = 'emulator'
 
         # Get back to our original CWD
-        config.ch_dir(cwd, None)
+        fs_util.ch_dir(cwd)
 
         data = {
             'ekcert': ekcert,

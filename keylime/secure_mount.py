@@ -73,7 +73,6 @@ def mount():
         # ok now we know it isn't already mounted, go ahead and create and mount
         if not os.path.exists(secdir):
             os.makedirs(secdir, 0o700)
-        config.chownroot(secdir, logger)
         size = config.get('cloud_agent', 'secure_size')
         logger.info("mounting secure storage location %s on tmpfs" % secdir)
         cmd = ('mount', '-t', 'tmpfs', '-o', 'size=%s,mode=0700' % size,
