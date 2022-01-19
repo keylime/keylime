@@ -327,12 +327,8 @@ class Handler(BaseHTTPRequestHandler):
                         env['AGENT_UUID'] = self.server.agent_uuid
                         proc = subprocess.Popen(["/bin/bash", initscript], env=env, shell=False, cwd='%s/unzipped' % secdir,
                                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                        while True:
-                            line = proc.stdout.readline()
-                            if line == '' and proc.poll() is not None:
-                                break
-                            if line:
-                                logger.debug("init-output: %s", line.strip())
+                        for line in iter(proc.stdout.readline, b''):
+                            logger.debug("init-output: %s", line.strip())
                         # should be a no-op as poll already told us it's done
                         proc.wait()
 
@@ -341,7 +337,7 @@ class Handler(BaseHTTPRequestHandler):
                         logger.info("No payload script %s found in %s/unzipped", initscript, secdir)
                     else:
                         logger.info("Executing payload script: %s/unzipped/%s", secdir, initscript)
-                        payload_thread = threading.Thread(target=initthread)
+                        payload_thread = threading.Thread(target=initthread, daemon=True)
             else:
                 logger.info("Decrypting payload to %s", dec_path)
                 with open(dec_path, 'wb') as f:
