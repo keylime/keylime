@@ -531,10 +531,12 @@ if [[ -f "/etc/keylime.conf" ]] ; then
     if [[ $(diff -N "/etc/keylime.conf" "keylime.conf") ]] ; then
         echo "Modified keylime.conf found in /etc/, creating /etc/keylime.conf.new instead"
         cp keylime.conf /etc/keylime.conf.new
+        chmod 600 /etc/keylime.conf.new
     fi
 else
     echo "Installing keylime.conf to /etc/"
     cp -n keylime.conf /etc/
+    chmod 600 /etc/keylime.conf
 fi
 
 echo
