@@ -4,6 +4,7 @@ import re
 import socket
 import ssl
 import sys
+import tempfile
 import urllib.parse
 from http.server import BaseHTTPRequestHandler
 
@@ -92,15 +93,16 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca', logger=None):
 
     check_client_cert = (config.has_option(section, 'check_client_cert')
                          and config.getboolean(section, 'check_client_cert'))
-    context = generate_mtls_context(my_cert, my_priv_key, ca_path, check_client_cert, my_key_pw, logger)
+    context = generate_mtls_context(my_cert, my_priv_key, ca_path, check_client_cert, my_key_pw, logger=logger)
 
     return context
 
 
 def generate_mtls_context(cert_path, private_key_path, ca_path, verify_client_cert=True,
-                          private_key_password=None, logger=None):
+                          private_key_password=None, ssl_purpose=ssl.Purpose.CLIENT_AUTH, logger=None):
     try:
-        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context = ssl.create_default_context(ssl_purpose)
+        context.check_hostname = False  # We do not use hostnames as part of our authentication
         if sys.version_info >= (3, 7):
             context.minimum_version = ssl.TLSVersion.TLSv1_2
         else:
@@ -118,6 +120,21 @@ def generate_mtls_context(cert_path, private_key_path, ca_path, verify_client_ce
                          'of configuration option [ca]cert_bits, remove '
                          'generated certificate and re-run keylime service')
         raise exc
+
+    return context
+
+
+def generate_agent_mtls_context(mtls_cert, mtls_options):
+    """
+    Setups mTLS SSLContext object for connecting to an agent
+    """
+    my_cert, my_priv_key, my_key_pw = mtls_options
+    with tempfile.TemporaryDirectory(prefix="keylime_", ) as tmp_dir:
+        agent_cert_file = os.path.join(tmp_dir, "agent.crt")
+        with open(agent_cert_file, 'wb') as f:
+            f.write(mtls_cert.encode())
+        context = generate_mtls_context(my_cert, my_priv_key, agent_cert_file, True, my_key_pw,
+                                        ssl_purpose=ssl.Purpose.SERVER_AUTH)
 
     return context
 
