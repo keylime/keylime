@@ -30,7 +30,7 @@ class DBEngineManager:
         try :
             p_sz_m_ovfl = config.get(service, 'database_pool_sz_ovfl')
             p_sz, m_ovfl = p_sz_m_ovfl.split(',')
-        except NoOptionError :
+        except NoOptionError:
             p_sz = 5
             m_ovfl = 10
 
@@ -51,15 +51,13 @@ class DBEngineManager:
                 database = config.get(service, 'database')
                 logger.warning('Deprecation reminder: please add the suffix "database_" to all database-related parameters in your keylime.conf.')
                 p_n_prefix = ''
-            except NoOptionError :
+            except NoOptionError:
                 drivername = config.get(service, 'database_drivername')
                 p_n_prefix = "database_"
                 database = config.get(service, p_n_prefix + 'name')
 
             if drivername == 'sqlite':
                 database_file = "%s/%s" % (config.WORK_DIR, database)
-                # Create the path to where the sqlite database will be store with a perm umask of 077
-                os.umask(0o077)
                 kl_dir = os.path.dirname(os.path.abspath(database_file))
                 if not os.path.exists(kl_dir):
                     os.makedirs(kl_dir, 0o700)
@@ -85,8 +83,8 @@ class DBEngineManager:
                 engine_args['max_overflow'] = int(m_ovfl)
 
         engine = create_engine(url, **engine_args)
-
         return engine
+
 
 class SessionManager:
     def __init__(self):

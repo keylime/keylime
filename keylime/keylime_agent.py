@@ -631,6 +631,9 @@ def main():
     # change dir to working dir
     fs_util.ch_dir(config.WORK_DIR)
 
+    # set a conservative general umask
+    os.umask(0o077)
+
     # initialize tpm
     (ekcert, ek_tpm, aik_tpm) = instance_tpm.tpm_init(self_activate=False, config_pw=config.get(
         'cloud_agent', 'tpm_ownerpassword'))  # this tells initialize not to self activate the AIK

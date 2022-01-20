@@ -534,6 +534,9 @@ def main(argv=sys.argv):
     else:
         workingdir = args.dir
 
+    # set a conservative general umask
+    os.umask(0o077)
+
     if args.command == 'init':
         cmd_init(workingdir)
     elif args.command == 'create':

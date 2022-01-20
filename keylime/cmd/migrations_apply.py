@@ -17,6 +17,9 @@ def main():
 
 
 def apply(db_name):
+    # set a conservative general umask
+    os.umask(0o077)
+
     here = os.path.dirname(os.path.abspath(__file__))
 
     # the config file for alembic is in the migrations directory

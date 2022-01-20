@@ -8,6 +8,7 @@ import ipaddress
 import threading
 import sys
 import signal
+import os
 import http.server
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
@@ -523,6 +524,9 @@ class RegistrarServer(ThreadingMixIn, HTTPServer):
 def start(host, tlsport, port):
     """Main method of the Registrar Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
+
+    # set a conservative general umask
+    os.umask(0o077)
 
     RegistrarMain.metadata.create_all(engine, checkfirst=True)
     session = SessionManager().make_session(engine)
