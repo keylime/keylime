@@ -432,6 +432,7 @@ class AgentsHandler(BaseHandler):
                             VerfierMain).filter_by(agent_id=agent_id).count()
                     except SQLAlchemyError as e:
                         logger.error('SQLAlchemy Error: %s', e)
+                        raise e
 
                     # don't allow overwriting
 
@@ -446,6 +447,7 @@ class AgentsHandler(BaseHandler):
                             session.commit()
                         except SQLAlchemyError as e:
                             logger.error('SQLAlchemy Error: %s', e)
+                            raise e
 
                         for key in list(exclude_db.keys()):
                             agent_data[key] = exclude_db[key]
@@ -460,8 +462,6 @@ class AgentsHandler(BaseHandler):
             web_util.echo_json_response(self, 400, "Exception error: %s" % e)
             logger.warning("POST returning 400 response. Exception error: %s", e)
             logger.exception(e)
-
-        self.finish()
 
     def put(self):
         """This method handles the PUT requests to add agents to the Cloud Verifier.
@@ -497,6 +497,7 @@ class AgentsHandler(BaseHandler):
                     agent_id=agent_id, verifier_id=verifier_id).one()
             except SQLAlchemyError as e:
                 logger.error('SQLAlchemy Error: %s', e)
+                raise e
 
             if agent is None:
                 web_util.echo_json_response(self, 404, "agent id not found")
@@ -529,7 +530,6 @@ class AgentsHandler(BaseHandler):
             web_util.echo_json_response(self, 400, "Exception error: %s" % e)
             logger.warning("PUT returning 400 response. Exception error: %s", e)
             logger.exception(e)
-        self.finish()
 
     def data_received(self, chunk):
         raise NotImplementedError()
