@@ -8,6 +8,7 @@ import traceback
 import sys
 import functools
 import asyncio
+import os
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
@@ -977,6 +978,9 @@ def main():
     max_upload_size = None
     if config.has_option('cloud_verifier', 'max_upload_size'):
         max_upload_size = int(config.get('cloud_verifier', 'max_upload_size'))
+
+    # set a conservative general umask
+    os.umask(0o077)
 
     VerfierMain.metadata.create_all(engine, checkfirst=True)
     session = get_session()

@@ -133,10 +133,9 @@ class AbstractTPM(metaclass=ABCMeta):
             return {}
 
     def __write_tpm_data(self):
-        os.umask(0o077)
         if os.geteuid() != 0 and config.REQUIRE_ROOT:
             logger.warning("Creating tpm metadata file without root. Sensitive trust roots may be at risk!")
-        with open('tpmdata.yml', 'w', encoding="utf-8") as f:
+        with os.fdopen(os.open("tpmdata.yml", os.O_WRONLY | os.O_CREAT, 0o600), "w", encoding="utf-8") as f:
             yaml.dump(self.global_tpmdata, f, Dumper=SafeDumper)
 
     def get_tpm_metadata(self, key):

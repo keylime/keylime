@@ -4,7 +4,7 @@ import os
 
 
 def ch_dir(path):
+    """Change directory and create it if missing."""
     if not os.path.exists(path):
         os.makedirs(path, 0o700)
-    os.umask(0o077)
     os.chdir(path)
