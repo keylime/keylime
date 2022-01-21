@@ -1027,7 +1027,6 @@ class Tenant():
             if self.payload is not None:
                 data['payload'] = self.payload.decode('utf-8')
 
-            u_json_message = json.dumps(data)
 
             # post encrypted U back to CloudAgent
             params = f'/v{self.api_version}/keys/ukey'
@@ -1038,7 +1037,7 @@ class Tenant():
             post_ukey = RequestsClient(cloudagent_base_url, tls_enabled=False)
             response = post_ukey.post(
                 params,
-                data=u_json_message
+                json=data
             )
 
             if response.status_code == 503:
