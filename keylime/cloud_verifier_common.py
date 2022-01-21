@@ -199,8 +199,7 @@ def prepare_v(agent):
     post_data = {
         'encrypted_key': b64_encrypted_V
     }
-    v_json_message = json.dumps(post_data)
-    return v_json_message
+    return post_data
 
 
 def prepare_get_quote(agent):
