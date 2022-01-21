@@ -7,6 +7,8 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 from tornado import httpclient
 
+from keylime import json
+
 
 async def request(method, url, params=None, data=None, context=None, headers=None):
 
@@ -19,6 +21,14 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
 
     if context is not None:
         url = url.replace('http://', 'https://', 1)
+
+    # Convert dict to JSON before sending
+    if isinstance(data, dict):
+        data = json.dumps(data)
+        if headers is None:
+            headers = {}
+        if "Content-Type" not in headers:
+            headers["Content-Type"] = "application/json"
 
     try:
         req = httpclient.HTTPRequest(url=url,
