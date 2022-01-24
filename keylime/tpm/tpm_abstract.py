@@ -18,10 +18,10 @@ from keylime import config
 from keylime import json
 from keylime import keylime_logging
 from keylime import crypto
-from keylime import ima
 from keylime import measured_boot
 from keylime.common import algorithms
 from keylime.failure import Failure, Component
+from keylime.ima import ima
 
 logger = keylime_logging.init_logging('tpm')
 

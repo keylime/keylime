@@ -15,9 +15,8 @@ import functools
 
 from keylime import config
 from keylime import signing
-from keylime import ima_ast
-from keylime import ima_file_signatures
 from keylime import keylime_logging
+from keylime.ima import ima_file_signatures, ima_ast
 from keylime.agentstates import AgentAttestState
 from keylime.common import algorithms, validators
 from keylime.failure import Failure, Component

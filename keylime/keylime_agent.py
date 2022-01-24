@@ -38,7 +38,6 @@ from keylime import keylime_logging
 from keylime import cmd_exec
 from keylime import crypto
 from keylime import fs_util
-from keylime import ima
 from keylime import json
 from keylime import revocation_notifier
 from keylime import registrar_client
@@ -47,6 +46,7 @@ from keylime import user_utils
 from keylime import web_util
 from keylime import api_version as keylime_api_version
 from keylime.common import algorithms, validators
+from keylime.ima import ima
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime.tpm.tpm2_objects import pubkey_from_tpm2b_public

@@ -6,7 +6,8 @@ Copyright 2021 IBM Corporation
 import tempfile
 import unittest
 
-from keylime import ima
+from keylime.ima import ima
+
 
 class TestIMA(unittest.TestCase):
 

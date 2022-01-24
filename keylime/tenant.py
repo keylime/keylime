@@ -30,12 +30,11 @@ from keylime import registrar_client
 from keylime.tpm import tpm2_objects
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
-from keylime import ima
 from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import ca_util
 from keylime.common import algorithms, validators
-from keylime import ima_file_signatures
+from keylime.ima import ima, ima_file_signatures
 from keylime import measured_boot
 from keylime import signing
 from keylime import api_version as keylime_api_version
