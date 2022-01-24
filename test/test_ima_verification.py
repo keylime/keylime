@@ -9,8 +9,7 @@ import os
 import unittest
 
 from keylime import json
-from keylime import ima
-from keylime import ima_file_signatures
+from keylime.ima import ima, ima_file_signatures
 from keylime.agentstates import AgentAttestState
 
 # BEGIN TEST DATA

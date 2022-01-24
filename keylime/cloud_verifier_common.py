@@ -16,8 +16,9 @@ from keylime.agentstates import AgentAttestStates
 from keylime.failure import Failure, Component
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
+
 from keylime.common import algorithms, validators
-from keylime import ima_file_signatures
+from keylime.ima import ima_file_signatures
 
 # setup logging
 logger = keylime_logging.init_logging('cloudverifier_common')

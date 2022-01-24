@@ -5,7 +5,7 @@ Copyright 2021 Thore Sommer
 
 import unittest
 
-from keylime import ima_ast
+from keylime.ima import ima_ast
 from keylime.failure import Failure, Component
 from keylime.common.algorithms import Hash
 

@@ -14,7 +14,7 @@ import argparse
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import config
 from keylime.common import algorithms
-from keylime import ima_ast
+from keylime.ima import ima_ast
 
 # Instaniate tpm
 tpm_instance = tpm(need_hw_tpm=True)
