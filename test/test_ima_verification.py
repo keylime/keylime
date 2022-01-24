@@ -8,6 +8,7 @@ import hashlib
 import os
 import unittest
 
+from keylime import json
 from keylime import ima
 from keylime import ima_file_signatures
 from keylime.agentstates import AgentAttestState
@@ -92,8 +93,8 @@ class TestIMAVerification(unittest.TestCase):
 
         _, failure = ima.process_measurement_list(AgentAttestState('1'), lines, lists_map)
         self.assertTrue(not failure)
-        # test with list as a string
-        _, failure = ima.process_measurement_list(AgentAttestState('1'), lines, str(lists_map))
+        # test with list with JSON
+        _, failure = ima.process_measurement_list(AgentAttestState('1'), lines, json.dumps(lists_map))
         self.assertTrue(not failure)
 
         # No files are in the allowlist -> this should fail
@@ -136,7 +137,7 @@ class TestIMAVerification(unittest.TestCase):
         list_map = ima.process_allowlists(ALLOWLIST, '')
         ima_keyrings = ima_file_signatures.ImaKeyrings()
 
-        self.assertTrue(ima.process_measurement_list(AgentAttestState('1'), KEYRINGS.splitlines(), str(list_map), ima_keyrings=ima_keyrings) is not None)
+        self.assertTrue(ima.process_measurement_list(AgentAttestState('1'), KEYRINGS.splitlines(), json.dumps(list_map), ima_keyrings=ima_keyrings) is not None)
 
     def test_iterative_attestation(self):
         """ Test that the resulting pcr value is as expected by subsequently feeding a measurement list.
@@ -171,7 +172,7 @@ class TestIMAVerification(unittest.TestCase):
         empty_keyring = ima_file_signatures.ImaKeyring()
 
         # every entry is covered by the allowlist and there's no keyring -> this should pass
-        _, failure = ima.process_measurement_list(AgentAttestState('1'), COMBINED.splitlines(), str(lists_map))
+        _, failure = ima.process_measurement_list(AgentAttestState('1'), COMBINED.splitlines(), json.dumps(lists_map))
         self.assertTrue(not failure)
 
         curdir = os.path.dirname(os.path.abspath(__file__))
@@ -193,37 +194,37 @@ class TestIMAVerification(unittest.TestCase):
         self.assertTrue(failure)
 
         # all entries are either covered by allow list or by signature verification -> this should pass
-        _, failure = ima.process_measurement_list(AgentAttestState('1'), COMBINED.splitlines(), str(lists_map), ima_keyrings=ima_keyrings)
+        _, failure = ima.process_measurement_list(AgentAttestState('1'), COMBINED.splitlines(), json.dumps(lists_map), ima_keyrings=ima_keyrings)
         self.assertTrue(not failure)
 
         # the signature is valid but the hash in the allowlist is wrong -> this should fail
-        _, failure = ima.process_measurement_list(AgentAttestState('1'), SIGNATURES.splitlines(), str(lists_map_wrong), ima_keyrings=ima_keyrings)
+        _, failure = ima.process_measurement_list(AgentAttestState('1'), SIGNATURES.splitlines(), json.dumps(lists_map_wrong), ima_keyrings=ima_keyrings)
         self.assertTrue(failure)
 
         # the signature is valid and the file is not in the allowlist -> this should pass
-        _, failure = ima.process_measurement_list(AgentAttestState('1'), SIGNATURES.splitlines(), str(lists_map_empty), ima_keyrings=ima_keyrings)
+        _, failure = ima.process_measurement_list(AgentAttestState('1'), SIGNATURES.splitlines(), json.dumps(lists_map_empty), ima_keyrings=ima_keyrings)
         self.assertTrue(not failure)
 
         # the signature is invalid but the correct hash is in the allowlist -> this should fail
         ima_keyrings.set_tenant_keyring(empty_keyring)
-        _, failure = ima.process_measurement_list(AgentAttestState('1'), SIGNATURES.splitlines(), str(lists_map), ima_keyrings=ima_keyrings)
+        _, failure = ima.process_measurement_list(AgentAttestState('1'), SIGNATURES.splitlines(), json.dumps(lists_map), ima_keyrings=ima_keyrings)
         self.assertTrue(failure)
 
         # the file has no signature but the hash is correct -> this should pass
-        _, failure = ima.process_measurement_list(AgentAttestState('1'), MEASUREMENTS.splitlines(), str(lists_map))
+        _, failure = ima.process_measurement_list(AgentAttestState('1'), MEASUREMENTS.splitlines(), json.dumps(lists_map))
         self.assertTrue(not failure)
 
         # All files are in the exclude list but hashes are invalid -> this should pass
-        _, failure = ima.process_measurement_list(AgentAttestState('1'), MEASUREMENTS.splitlines(), str(lists_map_exclude_wrong))
+        _, failure = ima.process_measurement_list(AgentAttestState('1'), MEASUREMENTS.splitlines(), json.dumps(lists_map_exclude_wrong))
         self.assertTrue(not failure)
 
         # All files are in the exclude list and their signatures are invalid -> this should pass
         ima_keyrings.set_tenant_keyring(tenant_keyring)
-        _, failure = ima.process_measurement_list(AgentAttestState('1'), SIGNATURES.splitlines(), str(lists_map_exclude), ima_keyrings=ima_keyrings)
+        _, failure = ima.process_measurement_list(AgentAttestState('1'), SIGNATURES.splitlines(), json.dumps(lists_map_exclude), ima_keyrings=ima_keyrings)
         self.assertTrue(not failure)
 
         # All files are in the exclude list but hashes or signatures are invalid -> this should pass
-        _, failure = ima.process_measurement_list(AgentAttestState('1'), MEASUREMENTS.splitlines(), str(lists_map_exclude_wrong), ima_keyrings=ima_keyrings)
+        _, failure = ima.process_measurement_list(AgentAttestState('1'), MEASUREMENTS.splitlines(), json.dumps(lists_map_exclude_wrong), ima_keyrings=ima_keyrings)
         self.assertTrue(not failure)
 
     def test_read_allowlist(self):
