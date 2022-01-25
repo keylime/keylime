@@ -915,7 +915,8 @@ class tpm(tpm_abstract.AbstractTPM):
         # TPM manufacturer information can also contain un-escaped
         # double quotes. Making sure that un-escaped quotes are
         # replaced before attempting YAML parse.
-        def quoterepl(m): return '"' + m.group(0)[1:-1].replace('"', '\\"') + '"'
+        def quoterepl(m):
+            return '"' + m.group(0)[1:-1].replace('"', '\\"') + '"'
 
         for i, s in enumerate(output):
             s1 = re.sub(r'(?!".*\\".*")".*".*"', quoterepl, s.decode('utf-8'))
