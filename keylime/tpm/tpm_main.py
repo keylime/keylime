@@ -911,8 +911,16 @@ class tpm(tpm_abstract.AbstractTPM):
         # Clean up TPM manufacturer information (strip control characters)
         # These strings are supposed to be printable ASCII characters, but
         # some TPM manufacturers put control characters in here
+
+        # TPM manufacturer information can also contain un-escaped
+        # double quotes. Making sure that un-escaped quotes are
+        # replaced before attempting YAML parse.
+
+        def quoterepl(m): return "\"" + m.group(0)[1:-1].replace('"', '\\"') + "\""        
+
         for i, s in enumerate(output):
-            output[i] = re.sub(r"[\x01-\x1F\x7F]", "", s.decode('utf-8')).encode('utf-8')
+            s1 = re.sub(r'(?!".*\\".*")".*".*"', quoterepl, s.decode('utf-8'))
+            output[i] = re.sub(r"[\x01-\x1F\x7F]", "", s1).encode('utf-8')
 
         retyaml = config.yaml_to_dict(output, logger=logger)
         if retyaml is None:
