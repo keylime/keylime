@@ -16,6 +16,7 @@ import tornado.web
 
 from keylime import config
 from keylime import json
+from keylime import registrar_client
 from keylime.agentstates import AgentAttestStates
 from keylime.common import states
 from keylime.db.verifier_db import VerfierMain
@@ -63,6 +64,7 @@ exclude_db = {
     'pcr10': '',
     'next_ima_ml_entry': 0,
     'learned_ima_keyrings': {},
+    'ssl_context': None,
 }
 
 
@@ -221,6 +223,11 @@ class VersionHandler(BaseHandler):
 
 
 class AgentsHandler(BaseHandler):
+    mtls_options = None  # Stores the cert, key and password used by the verifier for mTLS connections
+
+    def initialize(self, mtls_options):
+        self.mtls_options = mtls_options
+
     def head(self):
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
@@ -421,6 +428,17 @@ class AgentsHandler(BaseHandler):
                     agent_data['verifier_ip'] = config.get('cloud_verifier', 'cloudverifier_ip')
                     agent_data['verifier_port'] = config.get('cloud_verifier', 'cloudverifier_port')
 
+                    # We fetch the registrar data directly here because we require it for connecting to the agent
+                    # using mTLS
+                    registrar_client.init_client_tls('cloud_verifier')
+                    registrar_data = registrar_client.getData(config.get("cloud_verifier", "registrar_ip"),
+                                                              config.get("cloud_verifier", "registrar_port"), agent_id)
+                    if registrar_data is None:
+                        web_util.echo_json_response(self, 400,
+                                                    f"Data for agent {agent_id} could not be found in registrar!")
+                        logger.warning(f"Data for agent {agent_id} could not be found in registrar!")
+                        return
+
                     is_valid, err_msg = cloud_verifier_common.validate_agent_data(agent_data)
                     if not is_valid:
                         web_util.echo_json_response(self, 400, err_msg)
@@ -451,6 +469,13 @@ class AgentsHandler(BaseHandler):
 
                         for key in list(exclude_db.keys()):
                             agent_data[key] = exclude_db[key]
+
+                        agent_data['registrar_data'] = registrar_data
+
+                        # Prepare SSLContext for mTLS connections
+                        agent_data['ssl_context'] = web_util.generate_agent_mtls_context(registrar_data['mtls_cert'],
+                                                                                         self.mtls_options)
+
                         asyncio.ensure_future(
                             process_agent(agent_data, states.GET_QUOTE))
                         web_util.echo_json_response(self, 200, "Success")
@@ -719,7 +744,8 @@ async def invoke_get_quote(agent, need_pubkey):
     version = keylime_api_version.current_version()
     res = tornado_requests.request("GET",
                                    "http://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
-                                   (agent['ip'], agent['port'], version, params["nonce"], params["mask"], params['vmask'], partial_req, params['ima_ml_entry']), context=None)
+                                   (agent['ip'], agent['port'], version, params["nonce"], params["mask"],
+                                    params['vmask'], partial_req, params['ima_ml_entry']), context=agent['ssl_context'])
     response = await res
 
     if response.status_code != 200:
@@ -768,7 +794,8 @@ async def invoke_provide_v(agent):
     v_json_message = cloud_verifier_common.prepare_v(agent)
     version = keylime_api_version.current_version()
     res = tornado_requests.request(
-        "POST", "http://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], version), data=v_json_message)
+        "POST", "http://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], version),
+        data=v_json_message, context=agent['ssl_context'])
     response = await res
 
     if response.status_code != 200:
@@ -999,14 +1026,14 @@ def main():
     # print out API versions we support
     keylime_api_version.log_api_versions(logger)
 
+    context, mtls_options = web_util.init_mtls(logger=logger)
+
     app = tornado.web.Application([
-        (r"/v?[0-9]+(?:\.[0-9]+)?/agents/.*", AgentsHandler),
+        (r"/v?[0-9]+(?:\.[0-9]+)?/agents/.*", AgentsHandler, {"mtls_options": mtls_options}),
         (r"/v?[0-9]+(?:\.[0-9]+)?/allowlists/.*", AllowlistHandler),
         (r"/versions?", VersionHandler),
         (r".*", MainHandler),
     ])
-
-    context = web_util.init_mtls(logger=logger)
 
     sockets = tornado.netutil.bind_sockets(
         int(cloudverifier_port), address=cloudverifier_host)
