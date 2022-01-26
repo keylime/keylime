@@ -609,9 +609,10 @@ def main():
     # Warn if kernel version is <5.10 and another algorithm than SHA1 is used,
     # because otherwise IMA will not work
     kernel_version = tuple(platform.release().split("-")[0].split("."))
-    if kernel_version < ("5", "10", "0") and instance_tpm.defaults["hash"] != algorithms.Hash.SHA1:
-        logger.warning("IMA attestation only works on kernel versions <5.10 with SHA1 as tpm_hash_alg. "
-                       "Current algorithm is: %s", instance_tpm.defaults["hash"])
+    if tuple(map(int,kernel_version)) < (5, 10, 0) and instance_tpm.defaults["hash"] != algorithms.Hash.SHA1:
+        logger.warning("IMA attestation only works on kernel versions <5.10 with SHA1 as hash algorithm. "
+                       "Even if ascii_runtime_measurements shows \"%s\" as the "
+                       "algorithm, it might be just padding zeros", (instance_tpm.defaults["hash"]))
 
     if ekcert is None:
         if virtual_agent:

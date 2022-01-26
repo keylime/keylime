@@ -367,8 +367,8 @@ class Entry:
             return failure
         if self.ima_template_hash != self._ima_hash_alg.hash(self._bytes):
             failure.add_event("ima_hash",
-                              {"message": "IMA hash does not match the calculated hash.",
-                               "expected": self.ima_template_hash, "got": self.mode.bytes()}, True)
+                              {"message": "IMA template hash does not match the calculated hash.",
+                               "expected": str(self.ima_template_hash), "got": str(self.mode.bytes())}, True)
             return failure
         if self._validator is None:
             failure.add_event("no_validator", "No validator specified", True)
