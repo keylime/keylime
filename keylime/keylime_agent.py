@@ -610,7 +610,7 @@ def main():
     # because otherwise IMA will not work
     kernel_version = tuple(platform.release().split("-")[0].split("."))
     if tuple(map(int,kernel_version)) < (5, 10, 0) and instance_tpm.defaults["hash"] != algorithms.Hash.SHA1:
-        logger.warning("IMA attestation only works on kernel versions <5.10 with SHA1 as tpm_hash_alg. "
+        logger.warning("IMA attestation only works on kernel versions <5.10 with SHA1 as hash algorithm. "
                        "Even if ascii_runtime_measurements shows \"%s\" as the "
                        "algorithm, it might be just padding zeros", (instance_tpm.defaults["hash"]))
 

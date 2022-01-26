@@ -269,7 +269,7 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
             continue
 
         try:
-            entry = ima_ast.Entry(line, ima_validator, ima_filedata_hash_alg=ima_log_hash_alg, pcr_hash_alg=hash_alg)
+            entry = ima_ast.Entry(line, ima_validator, ima_hash_alg=ima_log_hash_alg, pcr_hash_alg=hash_alg)
 
             # update hash
             running_hash = hash_alg.hash(running_hash + entry.pcr_template_hash)
@@ -328,7 +328,7 @@ def process_measurement_list(agentAttestState, lines, lists=None, m2w=None, pcrv
 
     return running_hash, failure
 
-def update_allowlist(allowlist, ima_hash_alg="sha1"):
+def update_allowlist(allowlist):
     """ Update the allowlist to the latest version adding default values for missing fields """
     allowlist["meta"]["version"] = ALLOWLIST_CURRENT_VERSION
 
@@ -345,8 +345,8 @@ def update_allowlist(allowlist, ima_hash_alg="sha1"):
         allowlist["ima-buf"] = {}
     # version 5 added 'log_hash_alg'
     if not "log_hash_alg" in allowlist["ima"]:
-        logger.debug("Hash algorithm for IMA was not specified in allowlist, and is assumed to be \"" + ima_hash_alg + "\"")
-        allowlist["ima"]["log_hash_alg"] = ima_hash_alg
+        allowlist["ima"]["log_hash_alg"] = "sha1"
+
     return allowlist
 
 def process_allowlists(allowlist, exclude):
@@ -373,6 +373,13 @@ def process_allowlists(allowlist, exclude):
 
     return{'allowlist': allowlist, 'exclude': exclude}
 
+# IMA allowlists of versions older than 5 will not have the "log_hash_alg"
+# parameter. Hard-coding it to "sha1" is perfectly fine, and the fact one 
+# specifies a different algorithm on the kernel command line (e.g., ima_hash=sha256)
+# does not affect normal operation of Keylime, since it does not validate the 
+# hash algorithm received from agent's IMA runtime measurements.
+# The only situation where this hard-coding would become a problem is if and when
+# the kernel maintainers decide to use a different algorithm for template-hash. 
 empty_allowlist = {
     "meta": {
         "version": ALLOWLIST_CURRENT_VERSION,
@@ -382,10 +389,11 @@ empty_allowlist = {
     "keyrings": {},
     "ima": {
         "ignored_keyrings": [],
+        "log_hash_alg": "sha1"
     }
 }
 
-def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None, ima_hash_alg="sha1"):
+def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None):
     if al_path is None:
         al_path = config.get('tenant', 'ima_allowlist')
         if config.STUB_IMA:
@@ -470,7 +478,7 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
             else:
                 alist[entrytype][path] = [checksum_hash]
 
-    alist = update_allowlist(alist, ima_hash_alg)
+    alist = update_allowlist(alist)
 
     return alist
 

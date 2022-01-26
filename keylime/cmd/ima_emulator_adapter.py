@@ -33,7 +33,7 @@ def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=Non
         line = line.strip()
         position += 1
 
-        entry = ima_ast.Entry(line, None, ima_filedata_hash_alg=ima_hash_alg, pcr_hash_alg=pcr_hash_alg)
+        entry = ima_ast.Entry(line, None, ima_hash_alg=ima_hash_alg, pcr_hash_alg=pcr_hash_alg)
 
         if search_val is None:
             val = codecs.encode(entry.pcr_template_hash, 'hex').decode("utf8")

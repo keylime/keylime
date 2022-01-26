@@ -159,11 +159,6 @@ class Tenant():
         if "vtpm_policy" in args and args["vtpm_policy"] is not None:
             vtpm_policy = args["vtpm_policy"]
         self.vtpm_policy = TPM_Utilities.readPolicy(vtpm_policy)
-
-        ima_hash_alg = config.get('tenant', 'ima_hash_alg')
-        if "ima_hash_alg" in args and args["ima_hash_alg"] is not None:
-            ima_hash_alg = args["ima_hash_alg"]
-
         logger.info("TPM PCR Mask from policy is %s", self.vtpm_policy['mask'])
 
         if len(args.get("ima_sign_verification_keys")) > 0:
@@ -195,7 +190,7 @@ class Tenant():
             if isinstance(args["allowlist"], str):
                 if args["allowlist"] == "default":
                     args["allowlist"] = config.get('tenant', 'allowlist')
-                al_data = ima.read_allowlist(args["allowlist"], args["allowlist_checksum"], args["allowlist_sig"], args["allowlist_sig_key"], ima_hash_alg)
+                al_data = ima.read_allowlist(args["allowlist"], args["allowlist_checksum"], args["allowlist_sig"], args["allowlist_sig_key"])
             elif isinstance(args["allowlist"], list):
                 al_data = args["allowlist"]
             else:
@@ -1199,8 +1194,6 @@ def main(argv=sys.argv):
                         help="Include additional files in provided directory in certificate zip file.  Must be specified with --cert")
     parser.add_argument('--allowlist', action='store', dest='allowlist',
                         default=None, help="Specify the file path of an allowlist")
-    parser.add_argument('--allowlist_hash_alg', action='store', dest='ima_hash_alg',
-                        default="sha1", help="Specify the IMA hash algorithm used on the creation of pain (\"vesion 1\" allowlists")
     parser.add_argument('--signature-verification-key', '--sign_verification_key', action='append', dest='ima_sign_verification_keys',
                         default=[], help="Specify an IMA file signature verification key")
     parser.add_argument('--signature-verification-key-sig', action='append', dest='ima_sign_verification_key_sigs',

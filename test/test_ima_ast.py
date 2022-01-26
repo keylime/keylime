@@ -52,7 +52,7 @@ class TestImaAst(unittest.TestCase):
         for name, (expected_mode, data) in VALID_ENTRIES.items():
             err = None
             try:
-                entry = ima_ast.Entry(data, AlwaysTrueValidator, ima_filedata_hash_alg=hash_alg, pcr_hash_alg=hash_alg)
+                entry = ima_ast.Entry(data, AlwaysTrueValidator, ima_hash_alg=hash_alg, pcr_hash_alg=hash_alg)
                 self.assertTrue(entry.pcr == "10", f"Expected pcr 10 for {name}. Got: {entry.pcr}")
                 self.assertTrue(isinstance(entry.mode, expected_mode)) # pylint: disable=isinstance-second-argument-not-valid-type
                 self.assertTrue(entry.ima_template_hash == hash_alg.hash(entry.mode.bytes()),
