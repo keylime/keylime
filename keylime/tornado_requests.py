@@ -5,6 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+import ssl
+
 from tornado import httpclient
 
 from keylime import json
@@ -45,6 +47,8 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
         return TornadoResponse(e.response.code, e.response.body)
     except ConnectionError as e:
         return TornadoResponse(599, "Connection error: %s" % e)
+    except ssl.SSLError as e:
+        return TornadoResponse(599, "SSL connection error: %s" % e)
     if response is None:
         return None
     return TornadoResponse(response.code, response.body)
