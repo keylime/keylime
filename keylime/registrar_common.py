@@ -506,7 +506,7 @@ def start(host, tlsport, port):
 
     # Set up the protected registrar server
     protected_server = RegistrarServer((host, tlsport), ProtectedHandler)
-    context = web_util.init_mtls(section='registrar', generatedir='reg_ca', logger=logger)
+    context, _ = web_util.init_mtls(section='registrar', generatedir='reg_ca', logger=logger)
     if context is not None:
         protected_server.socket = context.wrap_socket(protected_server.socket, server_side=True)
     thread_protected_server = threading.Thread(target=protected_server.serve_forever)

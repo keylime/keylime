@@ -9,7 +9,6 @@ import time
 
 from keylime import config
 from keylime import keylime_logging
-from keylime import registrar_client
 from keylime import crypto
 from keylime import json
 from keylime import revocation_notifier
@@ -82,16 +81,6 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
             return failure
         agent['provide_V'] = False
         received_public_key = agent['public_key']
-
-    if agent.get('registrar_data', "") == "":
-        registrar_client.init_client_tls('cloud_verifier')
-        registrar_data = registrar_client.getData(config.get("cloud_verifier", "registrar_ip"), config.get(
-            "cloud_verifier", "registrar_port"), agent['agent_id'])
-        if registrar_data is None:
-            logger.warning("AIK not found in registrar, quote not validated")
-            failure.add_event("no_aik", "AIK not found in registrar, quote not validated", False)
-            return failure
-        agent['registrar_data'] = registrar_data
 
     hash_alg = json_response.get('hash_alg')
     enc_alg = json_response.get('enc_alg')

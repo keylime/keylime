@@ -95,7 +95,7 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca', logger=None):
                          and config.getboolean(section, 'check_client_cert'))
     context = generate_mtls_context(my_cert, my_priv_key, ca_path, check_client_cert, my_key_pw, logger=logger)
 
-    return context
+    return context, (my_cert, my_priv_key, my_key_pw)
 
 
 def generate_mtls_context(cert_path, private_key_path, ca_path, verify_client_cert=True,
