@@ -374,12 +374,12 @@ def process_allowlists(allowlist, exclude):
     return{'allowlist': allowlist, 'exclude': exclude}
 
 # IMA allowlists of versions older than 5 will not have the "log_hash_alg"
-# parameter. Hard-coding it to "sha1" is perfectly fine, and the fact one 
+# parameter. Hard-coding it to "sha1" is perfectly fine, and the fact one
 # specifies a different algorithm on the kernel command line (e.g., ima_hash=sha256)
-# does not affect normal operation of Keylime, since it does not validate the 
+# does not affect normal operation of Keylime, since it does not validate the
 # hash algorithm received from agent's IMA runtime measurements.
 # The only situation where this hard-coding would become a problem is if and when
-# the kernel maintainers decide to use a different algorithm for template-hash. 
+# the kernel maintainers decide to use a different algorithm for template-hash.
 empty_allowlist = {
     "meta": {
         "version": ALLOWLIST_CURRENT_VERSION,
