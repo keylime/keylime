@@ -315,7 +315,8 @@ class Entry:
     mode: Mode
     _bytes: bytes
     _validator: Validator
-    _ima_hash_alg: Hash
+    _ima_template_hash_alg: Hash
+    _ima_filedata_hash_alg: Hash
     _pcr_hash_alg: Hash
 
     _mode_lookup = {
@@ -325,9 +326,11 @@ class Entry:
         "ima-buf": ImaBuf
     }
 
-    def __init__(self, data: str, validator=None, ima_hash_alg: Hash = Hash.SHA1, pcr_hash_alg: Hash = Hash.SHA1):
+    def __init__(self, data: str, validator=None, ima_filedata_hash_alg: Hash = Hash.SHA1, pcr_hash_alg: Hash = Hash.SHA1):
         self._validator = validator
-        self._ima_hash_alg = ima_hash_alg
+        self._ima_filedata_hash_alg = ima_filedata_hash_alg
+        # Template hash will be, for the foreseeable future, always sha1, even for ima-ng and ima-sg
+        self._ima_template_hash_alg = Hash.SHA1
         self._pcr_hash_alg = pcr_hash_alg
         tokens = data.split(maxsplit=3)
         if len(tokens) != 4:
@@ -347,8 +350,8 @@ class Entry:
         # Set correct hash for time of measure, time of use (ToMToU) errors
         # and if a file is already opened for write.
         # https://elixir.bootlin.com/linux/v5.12.12/source/security/integrity/ima/ima_main.c#L101
-        if self.ima_template_hash == get_START_HASH(ima_hash_alg):
-            self.ima_template_hash = get_FF_HASH(ima_hash_alg)
+        if self.ima_template_hash == get_START_HASH(self._ima_template_hash_alg):
+            self.ima_template_hash = get_FF_HASH(self._ima_template_hash_alg)
             self.pcr_template_hash = get_FF_HASH(pcr_hash_alg)
 
     def invalid(self):
@@ -359,16 +362,16 @@ class Entry:
                                           "expected": str(config.IMA_PCR), "got": self.pcr}, True)
 
         # Ignore template hash for ToMToU errors
-        if self.ima_template_hash == get_FF_HASH(self._ima_hash_alg):
+        if self.ima_template_hash == get_FF_HASH(self._ima_template_hash_alg):
             logger.warning("Skipped template_hash validation entry with FF_HASH")
             # By default ToMToU errors are not treated as a failure
             if config.getboolean("cloud_verifier", "tomtou_errors", fallback=False):
                 failure.add_event("tomtou", "hash validation was skipped", True)
             return failure
-        if self.ima_template_hash != self._ima_hash_alg.hash(self._bytes):
+        if self.ima_template_hash != self._ima_template_hash_alg.hash(self._bytes):
             failure.add_event("ima_hash",
-                              {"message": "IMA hash does not match the calculated hash.",
-                               "expected": self.ima_template_hash, "got": self.mode.bytes()}, True)
+                              {"message": "IMA template hash does not match the calculated hash.",
+                               "expected": str(self.ima_template_hash), "got": str(self.mode.bytes())}, True)
             return failure
         if self._validator is None:
             failure.add_event("no_validator", "No validator specified", True)
