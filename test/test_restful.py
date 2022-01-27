@@ -27,7 +27,7 @@ To run without root privileges, be sure to export KEYLIME_TEST=True
 For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
     * coverage run --parallel-mode test_restful.py
 '''
-
+import datetime
 import sys
 import signal
 import unittest
@@ -43,7 +43,6 @@ from cryptography.hazmat.primitives import serialization
 
 import dbus
 
-import keylime.keylime_agent
 from keylime import config
 from keylime import fs_util
 from keylime import tornado_requests
@@ -377,12 +376,11 @@ class TestRestful(unittest.TestCase):
         fs_util.ch_dir(config.WORK_DIR)
         _ = secure_mount.mount()
 
-        # Create an agent server to get the mtls certificate
-        agent_server = keylime.keylime_agent.CloudAgentHTTPServer(("127.0.0.1", 9002),
-                                                                  keylime.keylime_agent.Handler,
-                                                                  config.get('cloud_agent', 'agent_uuid'))
+        # Create a mTLS cert for testing
         global mtls_cert
-        mtls_cert = agent_server.mtls_cert.public_bytes(serialization.Encoding.PEM)
+        rsa_key = crypto.rsa_generate(2048)
+        valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=(360 * 5))
+        mtls_cert = crypto.generate_selfsigned_cert("TEST_CERT", rsa_key, valid_util).public_bytes(serialization.Encoding.PEM)
 
         # Initialize the TPM with AIK
         (ekcert, ek_tpm, aik_tpm) = tpm_instance.tpm_init(self_activate=False,
