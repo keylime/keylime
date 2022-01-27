@@ -32,8 +32,8 @@ def start_broker():
         if not os.path.exists(dir_name):
             os.makedirs(dir_name, 0o700)
         else:
-            if os.stat(_SOCKET_PATH).st_mode & 0o777 != 0o700:
-                msg = f"{_SOCKET_PATH} present with wrong permissions"
+            if os.stat(dir_name).st_mode & 0o777 != 0o700:
+                msg = f"{dir_name} present with wrong permissions"
                 logger.error(msg)
                 raise Exception(msg)
 
