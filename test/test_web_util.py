@@ -13,9 +13,9 @@ class TestConfig(unittest.TestCase):
     @patch("keylime.web_util.config")
     def test_get_restful_params(self, _):
         """Tests if the parsing of the parameters works"""
-        version_url = "/v1.0/quotes/integrity?nonce=1234567890ABCDEFHIJ&mask=0x408000&vmask=0x808000&partial=0"
+        version_url = "/v2.0/quotes/integrity?nonce=1234567890ABCDEFHIJ&mask=0x408000&vmask=0x808000&partial=0"
         version_params = {
-            "api_version": "1.0",
+            "api_version": "2.0",
             "quotes": "integrity",
             "nonce": "1234567890ABCDEFHIJ",
             "mask": "0x408000",

@@ -13,8 +13,8 @@ class APIVersion_Test(unittest.TestCase):
         self.assertEqual(api_version.current_version(), "2.0", "Current version is 2.0")
 
     def test_latest_minor_version(self):
-        self.assertEqual(api_version.latest_minor_version("1.0"), "1.0", "Latest version of 1.0 is 1.0")
-        self.assertEqual(api_version.latest_minor_version("1"), "1.0", "Latest version of 1 is 1.0")
+        self.assertEqual(api_version.latest_minor_version("2.0"), "2.0", "Latest version of 2.0 is 2.0")
+        self.assertEqual(api_version.latest_minor_version("2"), "2.0", "Latest version of 2 is 2.0")
         self.assertEqual(api_version.latest_minor_version("20"), "0", "No latest version of v20")
 
     def test_normalize_version(self):
@@ -33,8 +33,8 @@ class APIVersion_Test(unittest.TestCase):
     def test_is_supported_version(self):
         self.assertTrue(api_version.is_supported_version("2.0"), "2.0 is a supported version")
         self.assertTrue(api_version.is_supported_version("v2.0"), "v2.0 is a supported version")
-        self.assertTrue(api_version.is_supported_version("1.0"), "1.0 is a supported version")
-        self.assertTrue(api_version.is_supported_version("v1.0"), "v1.0 is a supported version")
+        self.assertFalse(api_version.is_supported_version("1.0"), "1.0 is not a supported version")
+        self.assertFalse(api_version.is_supported_version("v1.0"), "v1.0 is not a supported version")
         self.assertFalse(api_version.is_supported_version("0"), "0 is not a supported version")
         self.assertFalse(api_version.is_supported_version("v0"), "v0 is not a supported version")
         self.assertFalse(api_version.is_supported_version("10.0"), "10.0 is not a supported version")
