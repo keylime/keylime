@@ -5,6 +5,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import base64
 import binascii
+import collections
 import hashlib
 import os
 import re
@@ -239,6 +240,10 @@ class tpm(tpm_abstract.AbstractTPM):
                 raise Exception('Unsupported encryption algorithm specified: %s!' % (defaultEncrypt))
             if defaultSign not in self.supported['sign']:
                 raise Exception('Unsupported signing algorithm specified: %s!' % (defaultSign))
+
+            enabled_pcrs = self.__get_pcrs()
+            if not enabled_pcrs.get(str(defaultHash)):
+                raise Exception(f'No PCR banks enabled for hash algorithm specified: {defaultHash}')
         else:
             # Assume their defaults are sane?
             pass
@@ -307,6 +312,29 @@ class tpm(tpm_abstract.AbstractTPM):
                 self.supported['hash'].add(algorithm)
             elif details["asymmetric"] == 1 and details["signing"] == 1 and algorithms.Sign.is_recognized(algorithm):
                 self.supported['sign'].add(algorithm)
+
+    def __get_pcrs(self):
+        """Gets which PCRs are enabled with which hash algorithm"""
+        if self.tools_version == "3.2":
+            retDict = self.__run(["tpm2_getcap", "-c", "pcrs"])
+        elif self.tools_version in ["4.0", "4.2"]:
+            retDict = self.__run(["tpm2_getcap", "pcrs"])
+
+        output = config.convert(retDict['retout'])
+        errout = config.convert(retDict['reterr'])
+        code = retDict['code']
+
+        if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+            raise Exception("get_tpm_algorithms failed with code " + str(code) + ": " + str(errout))
+
+        retyaml = config.yaml_to_dict(output, logger=logger)
+        pcrs = {}
+        if retyaml is None:
+            logger.warning("Could not read YAML output of tpm2_getcap.")
+            return pcrs
+        if "selected-pcrs" in retyaml:
+            pcrs = collections.ChainMap(*retyaml["selected-pcrs"])
+        return pcrs
 
     # tpm_exec
     @staticmethod
