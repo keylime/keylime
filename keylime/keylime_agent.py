@@ -84,7 +84,7 @@ class Handler(BaseHTTPRequestHandler):
             version_info = {
                 "supported_version": keylime_api_version.current_version()
             }
-            web_util.echo_json_response(self, 200, version_info)
+            web_util.echo_json_response(self, 200, "Success", version_info)
             return
 
         if not rest_params["api_version"]:
