@@ -1214,8 +1214,7 @@ def main(argv=sys.argv):
     parser.add_argument('-c', '--command', action='store', dest='command', default='add',
                         help="valid commands are add,delete,update,"
                              "regstatus,cvstatus,status,reglist,cvlist,reactivate,"
-                             "regdelete,"
-                             "bulkinfo. defaults to add")
+                             "regdelete,bulkinfo,addallowlist,showallowlist,deleteallowlist. defaults to add")
     parser.add_argument('-t', '--targethost', action='store',
                         dest='agent_ip', help="the IP address of the host to provision")
     parser.add_argument('-tp', '--targetport', action='store',
