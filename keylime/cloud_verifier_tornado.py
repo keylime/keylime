@@ -469,8 +469,11 @@ class AgentsHandler(BaseHandler):
                     agent_data['mtls_cert'] = registrar_data.get('mtls_cert', None)
                     agent_data['ak_tpm'] = registrar_data['aik_tpm']
 
-                    # TODO: Always error for v1.0 version after initial upgrade
-                    if registrar_data.get('mtls_cert', None) is None and agent_data['supported_version'] != "1.0":
+                    if agent_data['supported_version'] == "1.0":
+                        web_util.echo_json_response(self, 400, "API version 1.0 is not supported anymore!")
+                        return
+
+                    if registrar_data.get('mtls_cert', None) is None:
                         web_util.echo_json_response(self, 400, "mTLS certificate for agent is required!")
                         return
 
@@ -506,15 +509,8 @@ class AgentsHandler(BaseHandler):
                             agent_data[key] = exclude_db[key]
 
                         # Prepare SSLContext for mTLS connections
-                        # TODO: drop special handling after initial upgrade
                         mtls_cert = registrar_data.get('mtls_cert', None)
-                        agent_data['ssl_context'] = None
-                        if mtls_cert:
-                            agent_data['ssl_context'] = web_util.generate_agent_mtls_context(mtls_cert,
-                                                                                             self.mtls_options)
-
-                        if agent_data['ssl_context'] is None:
-                            logger.warning('Connecting to agent without mTLS: %s', agent_id)
+                        agent_data['ssl_context'] = web_util.generate_agent_mtls_context(mtls_cert, self.mtls_options)
 
                         asyncio.ensure_future(
                             process_agent(agent_data, states.GET_QUOTE))
@@ -793,17 +789,10 @@ async def invoke_get_quote(agent, need_pubkey):
     if need_pubkey:
         partial_req = "0"
 
-    # TODO: remove special handling after initial upgrade
-    if agent['ssl_context']:
-        res = tornado_requests.request("GET",
-                                       "https://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
-                                       (agent['ip'], agent['port'], agent['supported_version'], params["nonce"], params["mask"], params['vmask'], partial_req, params['ima_ml_entry']),
-                                       context=agent['ssl_context'])
-    else:
-        res = tornado_requests.request("GET",
-                                       "http://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
-                                       (agent['ip'], agent['port'], agent['supported_version'], params["nonce"], params["mask"],
-                                        params['vmask'], partial_req, params['ima_ml_entry']))
+    res = tornado_requests.request("GET",
+                                   "https://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
+                                   (agent['ip'], agent['port'], agent['supported_version'], params["nonce"], params["mask"], params['vmask'], partial_req, params['ima_ml_entry']),
+                                   context=agent['ssl_context'])
     response = await res
 
     if response.status_code != 200:
@@ -851,15 +840,9 @@ async def invoke_provide_v(agent):
         pass
     v_json_message = cloud_verifier_common.prepare_v(agent)
 
-    # TODO: remove special handling after initial upgrade
-    if agent['ssl_context']:
-        res = tornado_requests.request(
-            "POST", "https://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], agent['supported_version']),
-            data=v_json_message, context=agent['ssl_context'])
-    else:
-        res = tornado_requests.request(
-            "POST", "http://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], agent['supported_version']),
-            data=v_json_message)
+    res = tornado_requests.request(
+        "POST", "https://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], agent['supported_version']),
+        data=v_json_message, context=agent['ssl_context'])
 
     response = await res
 

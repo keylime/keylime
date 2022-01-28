@@ -297,6 +297,7 @@ class Tenant():
             # Default to 1.0 if the agent did not send a mTLS certificate
             if self.registrar_data.get("mtls_cert", None) is None:
                 self.supported_version = "1.0"
+                logger.warning("API version 1.0 is most likely not supported anymore!")
             else:
                 # Try to connect to the agent to get supported version
                 with RequestsClient(f"{self.agent_ip}:{self.agent_port}", tls_enabled=True, cert=self.agent_cert,
