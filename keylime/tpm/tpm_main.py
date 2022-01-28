@@ -1130,13 +1130,15 @@ class tpm(tpm_abstract.AbstractTPM):
                                                     "data": retout}, False)
             return failure
         if "pcrs" in jsonout:
-            if hash_alg in jsonout["pcrs"]:
+            # The hash algorithm might be in the YAML output but does not contain any data, so we also check that.
+            if hash_alg in jsonout["pcrs"] and jsonout["pcrs"][hash_alg] is not None:
                 alg_size = hash_alg.get_size() // 4
                 for pcrval, hashval in jsonout["pcrs"][hash_alg].items():
                     pcrs.append("PCR " + str(pcrval) + " " + '{0:0{1}x}'.format(hashval, alg_size))
 
         if len(pcrs) == 0:
-            pcrs = None
+            logger.warning("Quote does not contain any PCRs. Make sure that the TPM supports %s PCR banks",
+                           str(hash_alg))
 
         return self.check_pcrs(agentAttestState, tpm_policy, pcrs, data, False, ima_measurement_list, allowlist,
                                ima_keyrings, mb_measurement_list, mb_refstate, hash_alg)
