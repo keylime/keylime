@@ -94,7 +94,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 logger.warning('GET returning 404 response. agent_id %s not found.', agent_id)
                 return
 
-            if not agent.active:
+            if not bool(agent.active):
                 web_util.echo_json_response(self, 404, "agent_id not yet active")
                 logger.warning('GET returning 404 response. agent_id %s not yet active.', agent_id)
                 return
@@ -292,7 +292,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     tpm2_objects.ek_low_tpm2b_public_from_pubkey(
                         ek509.public_key(),
                     )
-                )
+                ).decode()
 
             aik_attrs = tpm2_objects.get_tpm2b_public_object_attributes(
                 base64.b64decode(aik_tpm),
@@ -466,21 +466,17 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             if config.STUB_TPM:
                 try:
                     session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
-                        {'active': True})
+                        {'active': int(True)})
                     session.commit()
                 except SQLAlchemyError as e:
                     logger.error('SQLAlchemy Error: %s', e)
                     raise
             else:
-                # TODO(kaifeng) Special handling should be removed
-                if engine.dialect.name == "mysql":
-                    agent.key = agent.key.encode('utf-8')
-
-                ex_mac = crypto.do_hmac(agent.key, agent_id)
+                ex_mac = crypto.do_hmac(agent.key.encode(), agent_id)
                 if ex_mac == auth_tag:
                     try:
                         session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
-                            {'active': True})
+                            {'active': int(True)})
                         session.commit()
                     except SQLAlchemyError as e:
                         logger.error('SQLAlchemy Error: %s', e)
