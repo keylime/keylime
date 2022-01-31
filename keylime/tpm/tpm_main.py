@@ -895,18 +895,20 @@ class tpm(tpm_abstract.AbstractTPM):
         logger.error("No Root CA matched EK Certificate")
         return False
 
-    def get_tpm_manufacturer(self):
+    def get_tpm_manufacturer(self, output=None):
         vendorStr = None
-        if self.tools_version == "3.2":
-            retDict = self.__run(["tpm2_getcap", "-c", "properties-fixed"])
-        elif self.tools_version in ["4.0", "4.2"]:
-            retDict = self.__run(["tpm2_getcap", "properties-fixed"])
-        output = retDict['retout']
-        reterr = retDict['reterr']
-        code = retDict['code']
+        if not output:
+            if self.tools_version == "3.2":
+                retDict = self.__run(["tpm2_getcap", "-c", "properties-fixed"])
+            elif self.tools_version in ["4.0", "4.2"]:
+                retDict = self.__run(["tpm2_getcap", "properties-fixed"])
+            output = retDict['retout']
+            reterr = retDict['reterr']
+            code = retDict['code']
 
-        if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            raise Exception("get_tpm_manufacturer failed with code " + str(code) + ": " + str(reterr))
+            if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+                raise Exception("get_tpm_manufacturer failed with code " + str(code) + ": " + str(reterr))
+
 
         # Clean up TPM manufacturer information (strip control characters)
         # These strings are supposed to be printable ASCII characters, but
