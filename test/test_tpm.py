@@ -28,7 +28,7 @@ tpm_manufacturer_tests = [
             b'  raw: 0x0\n',
         ],
         'response': 'SLB9'
-    },    
+    },
     # Nuvoton device with a wrinkle: un-escaped double quotes in the manufacturer string
     #    'Nuvoton 75x unfixed': {
     #        'challenge': [
@@ -53,7 +53,7 @@ tpm_manufacturer_tests = [
             b'  value: "\\"!!4"\n'
         ],
         'response': 'NPCT'
-    },    
+    },
     # Standard software TPM
     {
         'challenge': [
