@@ -532,8 +532,15 @@ def revocation_listener():
     This configures and starts the revocation listener. It is designed to be started in a separate process.
     """
 
-    if not config.getboolean('cloud_agent', 'listen_notfications'):
-        return
+    if config.has_option('cloud_agent', 'listen_notifications'):
+        if not config.getboolean('cloud_agent', 'listen_notifications'):
+            return
+
+    # keep old typo "listen_notfications" around for a few versions
+    if config.has_option('cloud_agent', 'listen_notfications'):
+        logger.warning('Option typo "listen_notfications" is deprecated. Please use "listen_notifications" instead.')
+        if not config.getboolean('cloud_agent', 'listen_notfications'):
+            return
 
     secdir = secure_mount.mount()
 
