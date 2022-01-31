@@ -800,7 +800,7 @@ class tpm(tpm_abstract.AbstractTPM):
             f.close()
 
             # read in the aes key
-            key = base64.b64encode(challenge)
+            key = base64.b64encode(challenge).decode("utf-8")
 
         except Exception as e:
             logger.error("Error encrypting AIK: " + str(e))
