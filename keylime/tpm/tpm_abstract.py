@@ -108,7 +108,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_tpm_manufacturer(self):
+    def get_tpm_manufacturer(self, output=None):
         pass
 
     @abstractmethod
