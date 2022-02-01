@@ -12,6 +12,7 @@ with open('README.md', encoding="utf-8") as fh:
 
 setuptools.setup(
     name='keylime',
+    version='6.3.1',
     description=(
         'TPM-based key bootstrapping and system '
         'integrity measurement system for cloud'),
@@ -36,6 +37,8 @@ setuptools.setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
         'Topic :: System :: Hardware',
     ],
     entry_points={
@@ -45,9 +48,6 @@ setuptools.setup(
             'keylime_tenant=keylime.cmd.tenant:main',
             'keylime_userdata_encrypt=keylime.cmd.user_data_encrypt:main',
             'keylime_registrar=keylime.cmd.registrar:main',
-            'keylime_provider_registrar=keylime.cmd.provider_registrar:main',
-            'keylime_provider_platform_init=keylime.cmd.provider_platform_init:main',  # noqa
-            'keylime_provider_vtpm_add=keylime.cmd.provider_vtpm_add:main',
             'keylime_ca=keylime.cmd.ca:main',
             'keylime_ima_emulator=keylime.cmd.ima_emulator_adapter:main',
             'keylime_webapp=keylime.cmd.webapp:main',
