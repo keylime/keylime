@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives import serialization as crypto_serialization
 
 from keylime.agentstates import AgentAttestState
 from keylime.requests_client import RequestsClient
-from keylime.common import states
+from keylime.common import states, retry
 from keylime import config
 from keylime import keylime_logging
 from keylime import registrar_client
@@ -1007,10 +1007,12 @@ class Tenant():
                     if numtries >= maxr:
                         logger.error("Tenant cannot establish connection to agent on %s with port %s", self.agent_ip, self.agent_port)
                         sys.exit()
-                    retry = config.getfloat('tenant', 'retry_interval')
+                    interval = config.getfloat('tenant', 'retry_interval')
+                    exponential_backoff = config.getboolean('tenant', 'exponential_backoff')
+                    next_retry = retry.retry_time(exponential_backoff, interval, numtries, logger)
                     logger.info("Tenant connection to agent at %s refused %s/%s times, trying again in %s seconds...",
-                        self.agent_ip, numtries, maxr, retry)
-                    time.sleep(retry)
+                        self.agent_ip, numtries, maxr, next_retry)
+                    time.sleep(next_retry)
                     continue
 
                 raise e
@@ -1133,10 +1135,12 @@ class Tenant():
                     if numtries >= maxr:
                         logger.error("Cannot establish connection to agent on %s with port %s", self.agent_ip, self.agent_port)
                         sys.exit()
-                    retry = config.getfloat('tenant', 'retry_interval')
+                    interval = config.getfloat('tenant', 'retry_interval')
+                    exponential_backoff = config.getboolean('tenant', 'exponential_backoff')
+                    next_retry = retry.retry_time(exponential_backoff, interval, numtries, logger)
                     logger.info("Verifier connection to agent at %s refused %s/%s times, trying again in %s seconds...",
-                        self.agent_ip, numtries, maxr, retry)
-                    time.sleep(retry)
+                        self.agent_ip, numtries, maxr, next_retry)
+                    time.sleep(next_retry)
                     continue
 
                 raise e
@@ -1156,9 +1160,9 @@ class Tenant():
             else:
                 keylime_logging.log_http_response(
                     logger, logging.ERROR, response_body)
-                retry = config.getfloat('tenant', 'retry_interval')
-                logger.warning("Key derivation not yet complete...trying again in %s seconds...Ctrl-C to stop", retry)
-                time.sleep(retry)
+                interval = config.getfloat('tenant', 'retry_interval')
+                logger.warning("Key derivation not yet complete...trying again in %s seconds...Ctrl-C to stop", interval)
+                time.sleep(interval)
                 continue
             break
 

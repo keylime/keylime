@@ -18,6 +18,7 @@ from keylime import crypto
 from keylime import json
 from keylime import keylime_logging
 from keylime import secure_mount
+from keylime.common import retry
 
 
 logger = keylime_logging.init_logging('revocation_notifier')
@@ -84,9 +85,12 @@ def notify(tosend):
                 mysock.send_string(json.dumps(tosend))
                 break
             except Exception as e:
+                interval = config.getfloat('cloud_verifier', 'retry_interval')
+                exponential_backoff = config.getboolean('cloud_verifier', 'exponential_backoff')
+                next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
                 logger.debug("Unable to publish revocation message %d times, trying again in %f seconds: %s" % (
-                    i, config.getfloat('cloud_verifier', 'retry_interval'), e))
-                time.sleep(config.getfloat('cloud_verifier', 'retry_interval'))
+                    i, next_retry, e))
+                time.sleep(next_retry)
         mysock.close()
 
     cb = functools.partial(worker, tosend)
@@ -101,23 +105,25 @@ def notify_webhook(tosend):
         return
 
     def worker_webhook(tosend, url):
-        retry_interval = config.getfloat('cloud_verifier', 'retry_interval')
+        interval = config.getfloat('cloud_verifier', 'retry_interval')
+        exponential_backoff = config.getboolean('cloud_verifier', 'exponential_backoff')
         session = requests.session()
         logger.info("Sending revocation event via webhook...")
         for i in range(config.getint('cloud_verifier', 'max_retries')):
+            next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
             try:
                 response = session.post(url, json=tosend)
                 if response.status_code in [200, 202]:
                     break
 
                 logger.debug(f"Unable to publish revocation message {i} times via webhook, "
-                             f"trying again in {retry_interval} seconds. "
+                             f"trying again in {next_retry} seconds. "
                              f"Server returned status code: {response.status_code}")
             except requests.exceptions.RequestException as e:
                 logger.debug(f"Unable to publish revocation message {i} times via webhook, "
-                             f"trying again in {retry_interval} seconds: {e} ")
+                             f"trying again in {next_retry} seconds: {e} ")
 
-            time.sleep(retry_interval)
+            time.sleep(next_retry)
 
     w = functools.partial(worker_webhook, tosend, url)
     t = threading.Thread(target=w)

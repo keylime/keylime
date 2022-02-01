@@ -31,7 +31,7 @@ from keylime import keylime_logging
 from keylime import secure_mount
 from keylime.tpm import tpm_abstract
 from keylime import tpm_ek_ca
-from keylime.common import algorithms
+from keylime.common import algorithms, retry
 from keylime.tpm import tpm2_objects
 from keylime.failure import Failure, Component
 
@@ -396,9 +396,11 @@ class tpm(tpm_abstract.AbstractTPM):
                 if numtries >= maxr:
                     logger.error("Agent did not return proper quote due to PCR race condition.")
                     break
-                retry = config.getfloat('cloud_agent', 'retry_interval')
-                logger.info("Failed to get quote %d/%d times, trying again in %f seconds..." % (numtries, maxr, retry))
-                time.sleep(retry)
+                interval = config.getfloat('cloud_agent', 'retry_interval')
+                exponential_backoff = config.getboolean('cloud_agent', 'exponential_backoff')
+                next_retry = retry.retry_time(exponential_backoff, interval, numtries, logger)
+                logger.info("Failed to get quote %d/%d times, trying again in %f seconds..." % (numtries, maxr, next_retry))
+                time.sleep(next_retry)
                 continue
 
             break
