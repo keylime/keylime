@@ -2,7 +2,9 @@
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
+
 import setuptools
+
 
 with open('README.md', encoding="utf-8") as fh:
     long_description = fh.read()
@@ -52,6 +54,5 @@ setuptools.setup(
             'keylime_migrations_apply=keylime.cmd.migrations_apply:main',
         ],
     },
-    data_files=[('/etc', ['keylime.conf'])],
-    package_data={'keylime': ['migrations/alembic.ini']}
+    package_data={'keylime': ['migrations/alembic.ini', "keylime.conf"]}
 )
