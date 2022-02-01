@@ -3,16 +3,40 @@ Rest API's
 ==========
 All Keylime APIs use `REST (Representational State Transfer)`.
 
-Authentication and authorization
---------------------------------
+Authentication
+--------------
+Most API interactions are secured using mTLS connections.
+There are up to three different CAs involved.
+(The revocation process also uses a CA, but this is a different to those CAs)
 
-Not yet implemented
+Verifier CA (CV CA)
+~~~~~~~~~~~~~~~~~~~
+This CA is used by the verifier to authenticate connections to it.
+The tenant requires a certificate from this CA to add/delete/list agents at the CV.
 
-RESTful API for Keylime (v1.0)
+Registrar CA
+~~~~~~~~~~~~
+This CA is used by the registrar to authenticate connections to it.
+The tenant and the verifier require certificate from this CA to get or delete agent information from the registrar.
+By default it is the same CA as the CV CA.
+
+Note that the API endpoints from the registrar for the agent are unprotected by design.
+
+Agent Keylime CA
+~~~~~~~~~~~~~~~~
+The agent runs a HTTPS server and provides it's certificate to the registrar (`mtls_cert`).
+All connections done to the agent are verified against the CA specified in the `keylime_ca` option.
+This ensures that only trusted systems can interact with the agents.
+By default the CV CA is used, but the CA certificate (`cacert.crt`) needs to be copied to the agents.
+
+Registrar, tenant and verifier can configure this CA separately using the `agent_mtls_*` options.
+
+RESTful API for Keylime (v2.0)
 ----------------------------
 Keylime API is versioned. More information can be found here: https://github.com/keylime/enhancements/blob/master/45_api_versioning.md
 
-Note: Versions before 6.2.0 used `v2` as a prefix.
+.. warning::
+    API version 1.0 will no longer be supported starting with Keylime 6.4.0.
 
 General responses
 ~~~~~~~~~~~~~~~~~~~
@@ -29,7 +53,7 @@ General responses
 Cloud verifier (CV)
 ~~~~~~~~~~~~~~~~~~~
 
-.. http:get::  /v1.0/agents/{agent_id:UUID}
+.. http:get::  /v2.0/agents/{agent_id:UUID}
 
     Get status of agent `agent_id` from CV
 
@@ -99,7 +123,7 @@ Cloud verifier (CV)
     :>json string last_event_id: ID of the last revocation event. Might be `null`.
 
 
-.. http:post::  /v1.0/agents/{agent_id:UUID}
+.. http:post::  /v2.0/agents/{agent_id:UUID}
 
     Add new agent `instance_id` to CV.
 
@@ -131,7 +155,8 @@ Cloud verifier (CV)
           "accept_tpm_signing_algs": [
             "ecschnorr",
             "rsassa"
-          ]
+          ],
+          "supported_version": "2.0"
         }
 
 
@@ -149,8 +174,9 @@ Cloud verifier (CV)
     :<json list[string] accept_tpm_hash_algs: Accepted TPM hashing algorithms. sha1 must be enabled for IMA validation to work.
     :<json list[string] accept_tpm_encryption_algs: Accepted TPM encryption algorithms.
     :<json list[string] accept_tpm_signing_algs: Accepted TPM signing algorithms.
+    :<json string supported_version: supported API version of the agent. `v` prefix must not be included.
 
-.. http:delete::  /v1.0/agents/{agent_id:UUID}
+.. http:delete::  /v2.0/agents/{agent_id:UUID}
 
     Terminate instance `agent_id`.
 
@@ -165,11 +191,11 @@ Cloud verifier (CV)
         }
 
 
-.. http:put::  /v1.0/agents/{agent_id:UUID}/reactivate
+.. http:put::  /v2.0/agents/{agent_id:UUID}/reactivate
 
     Start agent `agent_id` (for an already bootstrapped `agent_id` node)
 
-.. http:put::  /v1.0/agents/{agent_id:UUID}/stop
+.. http:put::  /v2.0/agents/{agent_id:UUID}/stop
 
     Stop cv polling on `agent_id`, but don’t delete (for an already started `agent_id`).
     This will make the agent verification fail.
@@ -177,7 +203,7 @@ Cloud verifier (CV)
 Cloud Agent
 ~~~~~~~~~~~
 
-.. http:get::  /v1.0/keys/pubkey
+.. http:get::  /v2.0/keys/pubkey
 
     Retrieves agents public key.
 
@@ -195,8 +221,25 @@ Cloud Agent
 
     :>json string pubkey: Public rsa key of the agent used for encrypting V and U key.
 
+.. http:get::  /version
 
-.. http:post::  /v1.0/keys/vkey
+    Returns what API version the agent supports. This endpoint might not be implemented by all agents.
+
+    **Example response**:
+
+    .. sourcecode:: json
+
+        {
+          "code": 200,
+          "status": "Success",
+          "results": {
+            "supported_version": "2.0"
+          }
+        }
+
+    :>json string supported_version: The latest version the agent supports.
+
+.. http:post::  /v2.0/keys/vkey
 
     Send `v_key` to node.
 
@@ -210,7 +253,7 @@ Cloud Agent
 
     :<json string encrypted_key: V key encrypted with agents public key base64 encoded.
 
-.. http:post::  /v1.0/keys/ukey
+.. http:post::  /v2.0/keys/ukey
 
     Send `u_key` to node (with optional payload)
 
@@ -228,7 +271,7 @@ Cloud Agent
     :<json string encrypted_key: U key encrypted with agents public key base64 encoded
     :<json string payload: (optional) payload encrypted with K key base64 encoded.
 
-.. http:get::  /v1.0/keys/verify
+.. http:get::  /v2.0/keys/verify
 
     Get confirmation of bootstrap key derivation
 
@@ -236,7 +279,7 @@ Cloud Agent
 
     .. sourcecode::
 
-        /v1.0/keys/verify?challenge=1234567890ABCDEFHIJ
+        /v2.0/keys/verify?challenge=1234567890ABCDEFHIJ
 
     :param string challenge: 20 character random string with [a-Z,0-9] as symbols.
 
@@ -253,7 +296,7 @@ Cloud Agent
         }
     :>json string hmac: hmac with K key as key and the challenge
 
-.. http:get::  /v1.0/quotes/integrity
+.. http:get::  /v2.0/quotes/integrity
 
     Get integrity quote from node
 
@@ -261,7 +304,7 @@ Cloud Agent
 
     .. sourcecode:: bash
 
-      /v1.0/quotes/integrity?nonce=1234567890ABCDEFHIJ&mask=0x408000&vmask=0x808000&partial=0
+      /v2.0/quotes/integrity?nonce=1234567890ABCDEFHIJ&mask=0x408000&vmask=0x808000&partial=0
 
     :param string nonce: 20 character random string with [a-Z,0-9] as symbols.
     :param string mask: Mask for what PCRs from the TPM are included in the quote.
@@ -277,7 +320,7 @@ Cloud Agent
           "code": 200,
           "status": "Success",
           "results": {
-            "quote": "reJz7H+Ls3iDBoMTAveopx4nFmZcuNzl+8C17UXNQVTE8ol0hPas1zoz9rfWtUAZhQyNjE1MzcwtLA0cnZxdXNw9PLwYg4K79OgdISYLYjAqSAsoMYmZmIDYDNzNDgyODwvGrx568qv6t6FEf8yvfOm1lzW7mayGazWW6GsKNVR9NWgBRxysC:eJwBBgH5/gAUAAsBADN1NUAMPxXX1HCwiSSHtuaHiFjHNlv+rGzEK1wNhlNWtmuiPWy5eC3dN5Axyaq9T+lznKTnOSfa0PLH0Wgu33qCcRavdGv8TIGxV/FwwlYyQGhbrm5gA+HQr1QlQ+UbvQcR97CNCCXsaMlXQJEqf/imlF46v9TS1KHhSMxgwE2dEeanXmutJEMJQizwqb4bANMpeiO6Rds3OxPxSuLJkhJM6RZg9coPCZaqWhxUuGf2uk8FYcFKmTUvID/eKPvX0DfJZ9K0czEj3gp2keLlLYD48vJVkklAtM91Tv+NFTcOzUq7iD1qoeFLKEgzdQVUWluMJU/HlkG0yjcOQtL80hV4OX0R:eJxjZGBg4GZgZmhwZBgwwAjEzECsQLFJCgx5yva31pyQ9Xx9O6uQ8aEy086yhXvK1+edqF2eqnFQgucGYRP+EwAUO3IUEAkA44Iwlw==",
+            "quote": "r/1RDR4AYABYABPihP2yz+HcGF0vD0c4qiKt4nvSOAARURVNUAAAAAAAyQ9AAAAAAAAAAAAEgGRAjABY2NgAAAAEABAMAAAEAFCkk4YmhQECgWR+MnHqT9zftc3J8:ABQABAEAQ8IwX6Ak83zGhF6w8vOKOxsyTbxACQakYWGJaan3ewf+2O9TtiH5TLB1PXrPdhknsR/yx6OVUze9jTDvML9xkkK1ghXObCJ5gH+QX0udKfrLacm/iMds28SBtVO0rjqDIoYqGgXhH2ZhwGNDwjRCp6HquvtBe7pGEgtZlxf7Hr3wQRLO3FtliBPBR6gjOo7NC/uGsuPjdPU7c9ls29NgYSqdwShuNdRzwmZrF57umuUgF6GREFlxqLkGcbDIT1itV4zJZtI1caLVxqiH0Qv3sNqlNLsSHggkgc5S2EvNqwv/TsEZOq/leCoLtyVGYghPeGwg0RJfbe8cdyBWCQ6nOA==:AQAAAAQAAwAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAEAAAAUABdJ/ntmsqy2aDi6NhKnLKz4k4uEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
             "hash_alg": "sha256",
             "enc_alg": "rsa",
             "sign_alg": "rsassa",
@@ -290,8 +333,17 @@ Cloud Agent
     :>json string ima_measurement_list_entry: (optional) Starting line offset of the IMA entry list returned
     :>json string mb_measurement_list: (optional) UEFI Eventlog list base64 encoded. Is included if PCR 0 is included in the mask
 
+    **Quote format**:
+    The quote field contains the quote, the signature and the PCR values that make up the quote.
+    .. sourcecode::
 
-.. http:get::  /v1.0/quotes/identity
+        QUOTE_DATA := rTPM_QUOTE:TPM_SIG:TPM_PCRS
+        TPM_QUOTE  := base64(TPMS_ATTEST)
+        TPM_SIG    := base64(TPMT_SIGNATURE)
+        TPM_PCRS   := base64(tpm2_pcrs) // Can hold more that 8 PCR entries. This is a data structure generated by tpm2_quote
+
+
+.. http:get::  /v2.0/quotes/identity
 
     Get identity quote from node
 
@@ -299,7 +351,7 @@ Cloud Agent
 
     .. sourcecode:: bash
 
-      /v1.0/quotes/identity?nonce=1234567890ABCDEFHIJ
+      /v2.0/quotes/identity?nonce=1234567890ABCDEFHIJ
 
     :param string nonce: 20 character random string with [a-Z,0-9] as symbols.
 
@@ -311,7 +363,7 @@ Cloud Agent
           "code": 200,
           "status": "Success",
           "results": {
-            "quote": "reJz7H+Ls3iDBoMTAveopx4nFmZcuNzl+8C17UXNQVTE8ol0hPas1zoz9rfWtUAZhQyNjE1MzcwtLA0cnZxdXNw9PLwYg4G6yVgFSkiA2o4KkgDKDmJkZiM3AzcwIJBUyjaoZjbxVfS+b2fyWP7T5ZcUjvZsSJUdvMG9u0PO/5nofAKALJ+E=:eJwBBgH5/gAUAAsBAD0E2jhLKUswajxY96mZ6N9IrxXhIDuA+dNFUouqjKcfoIcyNke8kbG2YDWK1alkExGGnCehkq213QSKFzK2Qto5SgKDtVkIuvvDW2vvYeMph6YwyBGq0V4s9rtORfyzDXZyGvdY/fmPsALQNCdtyDySFKZA8KVbcaTRXQtqrXe4fNjNLT0mxO0z8lbiWrsQcC2HAmsUFTpkgjKlaAW3lgzh0pfSvtl/QMNmXmIvB/1zWhP4HgMpexvHTgAZXVayZEOiRmtfdvoNoAYaoGUKXxgJKHZzm2moxriJLsV2r0B0z3yc+v4gkeXIGcSIMhgL85n/+0JWeTFFSPp+dTMh/m26l3gu:eJxjZGBg4GZgZmRgZBgwALKaCYgVGBpKbF6fSV0gtmUO646O/9s7Nj2O1pA68Wj3TBfthiuqQbsJmaTAkKdsf2vNCVnP17ezChkfKjPtLFu4p3x93ona5akaByV4btDeN6OAWgAAgXUg0Q==",
+            "quote": "r/1RDR4AYABYABPihP2yz+HcGF0vD0c4qiKt4nvSOAARURVNUAAAAAAAyQ9AAAAAAAAAAAAEgGRAjABY2NgAAAAEABAMAAAEAFCkk4YmhQECgWR+MnHqT9zftc3J8:ABQABAEAQ8IwX6Ak83zGhF6w8vOKOxsyTbxACQakYWGJaan3ewf+2O9TtiH5TLB1PXrPdhknsR/yx6OVUze9jTDvML9xkkK1ghXObCJ5gH+QX0udKfrLacm/iMds28SBtVO0rjqDIoYqGgXhH2ZhwGNDwjRCp6HquvtBe7pGEgtZlxf7Hr3wQRLO3FtliBPBR6gjOo7NC/uGsuPjdPU7c9ls29NgYSqdwShuNdRzwmZrF57umuUgF6GREFlxqLkGcbDIT1itV4zJZtI1caLVxqiH0Qv3sNqlNLsSHggkgc5S2EvNqwv/TsEZOq/leCoLtyVGYghPeGwg0RJfbe8cdyBWCQ6nOA==:AQAAAAQAAwAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAEAAAAUABdJ/ntmsqy2aDi6NhKnLKz4k4uEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
             "hash_alg": "sha256",
             "enc_alg": "rsa",
             "sign_alg": "rsassa",
@@ -326,7 +378,7 @@ Cloud Agent
 Cloud Registrar
 ~~~~~~~~~~~~~~~
 
-.. http:get::  /v1.0/agents/
+.. http:get::  /v2.0/agents/
 
     Get ordered list of registered agents
 
@@ -347,7 +399,7 @@ Cloud Registrar
         }
 
 
-.. http:get::  /v1.0/agents/{agent_id:UUID}
+.. http:get::  /v2.0/agents/{agent_id:UUID}
 
     Get EK certificate, AIK and optinal contact ip and port of agent `agent_id`.
 
@@ -362,6 +414,7 @@ Cloud Registrar
             "aik_tpm": "ARgAAQALAAUAcgAAABAAFAALCAAAAAAAAQDjZ4J2HO7ekIONAX/eYIzt7ziiVAqE/1D7I9oEwIE88dIfqH0FQLJAg8u3+ZOgsJDQr9HiMhZRPhv8hRuia8ULdAomyOFA1cVzlBF+xcPUEemOIofbvcBNAoTY/x49r8LpqAEUBBiUeOniQbjfRaV2S5cEAA92wHLQAPLF9Sbf3zNxCnbhtRkEi6C3NYl8/FJqyu5Z9vvwEBBOFFTPasAxMtPm6a+Z5KJ4rDflipfaVcUvTKLIBRI7wkuXqhTR8BeIByK9upQ3iBo+FbYjWSf+BaN+wodMNgPbzxyL+tuxVqiPefBbv+sTWVxmYfo5i84FlbNOAW3APH8c+jZ3tgbt",
             "ek_tpm": "AToAAQALAAMAsgAgg3GXZ0SEs/gakMyNRqXXJP1S124GUgtk8qHaGzMUaaoABgCAAEMAEAgAAAAAAAEA0YwlPPIoXryMvbD5cIokN9OkljL2mV1oDxy7ETBXBe1nL9OWrLNO8Nbf8EaSNCtYCo5iqCwatnVRMPqNXcX8mQP0f/gDAqXryb+F192IJLKShHYSN32LJjCYOKrvNX1lrmr377juICFSRClE4q+pCfzhNj0Izw/eplaAI7gq41vrlnymWYGIEi4McErWG7qwr7LR9CXwiM7nhBYGtvobqoaOm4+f6zo3jQuks/KYjk0BR3mgAec/Qkfefw2lgSSYaPNl/8ytg6Dhla1LK8f7wWy/bv+3z7L11KLr8DZiFAzKBMiIDfaqNGYPhiFLKAMJ0MmJx63obCqx9z5BltV5YQ==",
             "ekcert": "MIIEGTCCAoGgAwIBAgIBBTANBgkqhkiG9w0BAQsFADAYMRYwFAYDVQQDEw1zd3RwbS1sb2NhbGNhMB4XDTIxMDQwOTEyNDAyNVoXDTMxMDQwNzEyNDAyNVowODE2MDQGA1UEAxMtZmVkb3JhMzM6NDdjYzJlMDMtNmRmMi00OGMyLWFmNGUtMDg1MWY1MWQyODJiMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0YwlPPIoXryMvbD5cIokN9OkljL2mV1oDxy7ETBXBe1nL9OWrLNO8Nbf8EaSNCtYCo5iqCwatnVRMPqNXcX8mQP0f/gDAqXryb+F192IJLKShHYSN32LJjCYOKrvNX1lrmr377juICFSRClE4q+pCfzhNj0Izw/eplaAI7gq41vrlnymWYGIEi4McErWG7qwr7LR9CXwiM7nhBYGtvobqoaOm4+f6zo3jQuks/KYjk0BR3mgAec/Qkfefw2lgSSYaPNl/8ytg6Dhla1LK8f7wWy/bv+3z7L11KLr8DZiFAzKBMiIDfaqNGYPhiFLKAMJ0MmJx63obCqx9z5BltV5YQIDAQABo4HNMIHKMBAGA1UdJQQJMAcGBWeBBQgBMFIGA1UdEQEB/wRIMEakRDBCMRYwFAYFZ4EFAgEMC2lkOjAwMDAxMDE0MRAwDgYFZ4EFAgIMBXN3dHBtMRYwFAYFZ4EFAgMMC2lkOjIwMTkxMDIzMAwGA1UdEwEB/wQCMAAwIgYDVR0JBBswGTAXBgVngQUCEDEOMAwMAzIuMAIBAAICAKIwHwYDVR0jBBgwFoAUaO+9FEi5yX/GEnU+Vc6b3Si6JeAwDwYDVR0PAQH/BAUDAwcgADANBgkqhkiG9w0BAQsFAAOCAYEAaP/jI2i/hXDrthtaZypQ8VUG5AWFnMDtgiMhDSaKwOBfyxiUiYMTggGYXLOXGIu1SJGBtRJsh3QSYgs2tJCnntWF9Jcpmk6kIW/MC8shE+hdu/gQZKjAPZS4QCLIldv+GVZdNYEIv2FYDsKl6Bq1qUsYhAb7z29Nu1itpdvja2qy7ODJ0u+ThccBuH60VGFclFdJg19dvVQMnffxzjwxxJTMnVPmGoEdR94O0z7yxvqQ22+ITD9s1c3AfWcV+yLEpHqhXRqtKGdkAM5kU85kEs/ZPTLNutJHmF0/Vk9W2pRym8SrUe8G6mwxVW8lP9M7fhovKTzoXVFW3gQWQeUxhvWOncXxtARFLp/+f2mzGBRWxIslW17vpZ3QLlCdJ2C7P3U8x2tvkuyyDfz3/pq+8ECupZhdSvpHlBnWvqs1tAWKW0qI9d0xNYjj3Kfl3Lfy7kqqe6FIkvbDlVhw3vnJlclW+M6D86jBulL9ze+3zyMxy2z8m7UHiLCbamSe6m7W",
+            "mtls_cert": "-----BEGIN CERTIFICATE----- (...) -----END CERTIFICATE-----",
             "ip": "127.0.0.1",
             "port": 9002,
             "regcount": 1
@@ -371,11 +424,12 @@ Cloud Registrar
     :>json string aik_tpm: base64 encoded AIK. The AIK format is TPM2B_PUBLIC from tpm2-tss.
     :>json string ek_tpm: base64 encoded EK. When a `ekcert` is submitted it will be the public key of that certificate.
     :>json string ekcert: base64 encoded EK certificate. Should be in `DER` format. Gets extracted from NV `0x1c00002`.
+    :>json string mtls_cert: Agent HTTPS server certificate. PEM encoded.
     :>json string ip: IPv4 address for contacting the agent. Might be `null`.
     :>json integer port: Port for contacting the agent. Might be `null`.
 
 
-.. http:post::  /v1.0/agents/{agent_id:UUID}
+.. http:post::  /v2.0/agents/{agent_id:UUID}
 
     Add agent `agent_id` to registrar.
 
@@ -386,6 +440,7 @@ Cloud Registrar
         {
           "ekcert": "MIIEGTCCAoGgAwIBAgIBBTANBgkqhkiG9w0BAQsFADAYMRYwFAYDVQQDEw1zd3RwbS1sb2NhbGNhMB4XDTIxMDQwOTEyNDAyNVoXDTMxMDQwNzEyNDAyNVowODE2MDQGA1UEAxMtZmVkb3JhMzM6NDdjYzJlMDMtNmRmMi00OGMyLWFmNGUtMDg1MWY1MWQyODJiMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0YwlPPIoXryMvbD5cIokN9OkljL2mV1oDxy7ETBXBe1nL9OWrLNO8Nbf8EaSNCtYCo5iqCwatnVRMPqNXcX8mQP0f/gDAqXryb+F192IJLKShHYSN32LJjCYOKrvNX1lrmr377juICFSRClE4q+pCfzhNj0Izw/eplaAI7gq41vrlnymWYGIEi4McErWG7qwr7LR9CXwiM7nhBYGtvobqoaOm4+f6zo3jQuks/KYjk0BR3mgAec/Qkfefw2lgSSYaPNl/8ytg6Dhla1LK8f7wWy/bv+3z7L11KLr8DZiFAzKBMiIDfaqNGYPhiFLKAMJ0MmJx63obCqx9z5BltV5YQIDAQABo4HNMIHKMBAGA1UdJQQJMAcGBWeBBQgBMFIGA1UdEQEB/wRIMEakRDBCMRYwFAYFZ4EFAgEMC2lkOjAwMDAxMDE0MRAwDgYFZ4EFAgIMBXN3dHBtMRYwFAYFZ4EFAgMMC2lkOjIwMTkxMDIzMAwGA1UdEwEB/wQCMAAwIgYDVR0JBBswGTAXBgVngQUCEDEOMAwMAzIuMAIBAAICAKIwHwYDVR0jBBgwFoAUaO+9FEi5yX/GEnU+Vc6b3Si6JeAwDwYDVR0PAQH/BAUDAwcgADANBgkqhkiG9w0BAQsFAAOCAYEAaP/jI2i/hXDrthtaZypQ8VUG5AWFnMDtgiMhDSaKwOBfyxiUiYMTggGYXLOXGIu1SJGBtRJsh3QSYgs2tJCnntWF9Jcpmk6kIW/MC8shE+hdu/gQZKjAPZS4QCLIldv+GVZdNYEIv2FYDsKl6Bq1qUsYhAb7z29Nu1itpdvja2qy7ODJ0u+ThccBuH60VGFclFdJg19dvVQMnffxzjwxxJTMnVPmGoEdR94O0z7yxvqQ22+ITD9s1c3AfWcV+yLEpHqhXRqtKGdkAM5kU85kEs/ZPTLNutJHmF0/Vk9W2pRym8SrUe8G6mwxVW8lP9M7fhovKTzoXVFW3gQWQeUxhvWOncXxtARFLp/+f2mzGBRWxIslW17vpZ3QLlCdJ2C7P3U8x2tvkuyyDfz3/pq+8ECupZhdSvpHlBnWvqs1tAWKW0qI9d0xNYjj3Kfl3Lfy7kqqe6FIkvbDlVhw3vnJlclW+M6D86jBulL9ze+3zyMxy2z8m7UHiLCbamSe6m7W",
           "aik_tpm": "ARgAAQALAAUAcgAAABAAFAALCAAAAAAAAQCg5mMzNFqdlUbW8uI/GuMcIIvOXXTohHFTas59JlwrJQVed+5klWP+j7tI7492YPmCnoZvP4T4YdT1PN7tHHGfF81AeMnuw5GV5RkW/QeSD+ssB4f6AfuzYJgBkc28zKmpRRHUbwN4rb/HnJgRXdXsuIcnOqGcC39pD0kiu5TrN6hekjxTQtfAbIlQwwDwHCxKWdtH5x7avd15hqc6cBc2gjTQksXrk+OiMwOFTJ68n0qY+dQYuBTjE66YXn9S8cdU9sbjCTSdLRqFEpAyfkSV8F2An7N3DWNIA+PW/mVmd8XhPeYUoMlweXBOwc3e9zM9lZmMvregrFHKYc7CXChz",
+          "mtls_cert": "-----BEGIN CERTIFICATE----- (...) -----END CERTIFICATE-----",
           "ip": "127.0.0.1",
           "port": "9002"
         }
@@ -393,6 +448,7 @@ Cloud Registrar
 
     :<json string ekcert: base64 encoded EK certificate. Should be in `DER` format. Gets extracted from NV `0x1c00002`.
     :<json string aik_tpm: base64 encoded AIK. The AIK format is TPM2B_PUBLIC from tpm2-tss.
+    :<json string mtls_cert: Agent HTTPS server certificate. PEM encoded.
     :<json string ip: (Optional) contact IPv4 address for the verifier and tenant to use.
     :<json string port: (Optional) contact port for the verifier and tenant to use.
 
@@ -411,7 +467,7 @@ Cloud Registrar
     :>json string blob: base64 encoded blob containing the `aik_tpm` name and a challenge. Is encrypted with `ek_tpm`.
 
 
-.. http:delete::  /v1.0/agents/{agent_id:UUID}
+.. http:delete::  /v2.0/agents/{agent_id:UUID}
 
     Remove agent `agent_id` from registrar.
 
@@ -426,7 +482,7 @@ Cloud Registrar
         }
 
 
-.. http:put::  /v1.0/agents/{agent_id:UUID}/activate
+.. http:put::  /v2.0/agents/{agent_id:UUID}/activate
 
     Activate physical agent `agent_id`
 
@@ -441,7 +497,7 @@ Cloud Registrar
 
     :<json string auth_tag: hmac containing the challenge from `blob` and the `agent_id`.
 
-.. http:put::  /v1.0/agents/{agent_id:UUID}/vactivate
+.. http:put::  /v2.0/agents/{agent_id:UUID}/vactivate
 
     Activate virtual (vTPM) agent `agent_id`
 
@@ -456,19 +512,19 @@ Cloud Registrar
 Tenant WebApp
 ~~~~~~~~~~~~~
 
-.. http:get::  /v1.0/agents/
+.. http:get::  /v2.0/agents/
 
     Get ordered list of registered agents
 
-.. http:get::  /v1.0/agents/{agent_id:UUID}
+.. http:get::  /v2.0/agents/{agent_id:UUID}
 
     Get list of registered agents
 
-.. http:put::  /v1.0/agents/{agent_id:UUID}
+.. http:put::  /v2.0/agents/{agent_id:UUID}
 
     Start agent `agent_id` (For an already bootstrapped `agent_id` agent)
 
-.. http:post::  /v1.0/agents/{agent_id:UUID}
+.. http:post::  /v2.0/agents/{agent_id:UUID}
 
     Add agent `agent_id` to registrar
 
@@ -488,11 +544,11 @@ Tenant WebApp
         “include_dir_name” : string,
       }
 
-.. http:get::  /v1.0/logs/
+.. http:get::  /v2.0/logs/
 
           Get terminal log data
 
-.. http:get::  /v1.0/logs/{logType:string}
+.. http:get::  /v2.0/logs/{logType:string}
 
           Get terminal log data for given logType
 
@@ -506,4 +562,4 @@ Tenant WebApp
 
           .. sourcecode:: bash
 
-            /v1.0/logs/tenant?pos=#
+            /v2.0/logs/tenant?pos=#
