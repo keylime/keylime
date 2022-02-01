@@ -563,3 +563,18 @@ Tenant WebApp
           .. sourcecode:: bash
 
             /v2.0/logs/tenant?pos=#
+
+
+Changelog
+---------
+Changes between the different API versions.
+
+Changes from v1.0 to v2.0
+~~~~~~~~~~~~~~~~~~~~~~~~~
+API version 2.0 was first implemented in Keylime 6.3.0.
+
+ * Added mTLS authentication to agent endpoints.
+ * Added `supported_version` field to `POST /v2.0/agents/{agent_id:UUID}` in cloud verifier.
+ * Added `mtls_cert` field to `POST/GET /v2.0/agents/{agent_id:UUID}` in registrar.
+ * Added `/version` endpoint to agent. Note that this endpoint is not implemented by all agents.
+ * Dropped zlib encryption for `quote` field data in `GET /v2.0/quotes/integrity`/`GET /v2.0/quotes/identity`.
