@@ -36,6 +36,7 @@ git \
 glib2-devel \
 glib2-static \
 gnulib \
+iproute \
 kmod \
 libarchive-devel \
 libselinux-python3 \
