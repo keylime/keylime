@@ -399,10 +399,16 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
 
     def __init__(self, server_address, RequestHandlerClass, agent_uuid):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
+        # Find the locations for the U/V transport and mTLS key and certificate.
+        # They are either relative to secdir (/var/lib/keylime/secure) or absolute paths.
         secdir = secure_mount.mount()
-        keyname = os.path.join(secdir,
-                               config.get('cloud_agent', 'rsa_keyname'))
-        certname = os.path.join(secdir, config.get('cloud_agent', 'mtls_cert'))
+        keyname = config.get('cloud_agent', 'rsa_keyname')
+        if not os.path.isabs(keyname):
+            keyname = os.path.join(secdir, keyname)
+        certname = config.get('cloud_agent', 'mtls_cert')
+        if not os.path.isabs(certname):
+            certname = os.path.join(secdir, certname)
+
         # read or generate the key depending on configuration
         if os.path.isfile(keyname):
             # read in private key
