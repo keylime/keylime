@@ -211,5 +211,5 @@ def generate_selfsigned_cert(name, key, valid_until) -> x509.Certificate:
         .serial_number(x509.random_serial_number())\
         .not_valid_before(datetime.datetime.utcnow())\
         .not_valid_after(valid_until)\
-        .sign(key, hashes.SHA256())
+        .sign(key, hashes.SHA256(), backend=default_backend())
     return cert

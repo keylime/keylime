@@ -30,6 +30,7 @@ import subprocess
 import psutil
 
 from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
 from keylime import config
@@ -423,7 +424,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         if os.path.isfile(certname):
             logger.debug("Using existing mTLS cert in %s", certname)
             with open(certname, "rb") as f:
-                mtls_cert = x509.load_pem_x509_certificate(f.read())
+                mtls_cert = x509.load_pem_x509_certificate(f.read(), backend=default_backend())
         else:
             logger.debug("No mTLS certificate found generating a new one")
             with open(certname, "wb") as f:
