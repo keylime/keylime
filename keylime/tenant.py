@@ -656,7 +656,7 @@ class Tenant():
             sys.exit()
 
     def do_cvstatus(self):
-        """Perform operational state look up for agent"""
+        """Perform operational state look up for agent on the verifier"""
 
         do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled)
 
@@ -697,7 +697,7 @@ class Tenant():
         return response
 
     def do_cvlist(self):
-        """List all agent statues in cloudverifier"""
+        """List all agent statuses in cloudverifier"""
 
         do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled)
         verifier_id = ""
