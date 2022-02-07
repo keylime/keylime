@@ -1121,13 +1121,16 @@ def main():
     sockets = tornado.netutil.bind_sockets(
         int(cloudverifier_port), address=cloudverifier_host)
 
+    tornado.process.fork_processes(config.getint(
+        'cloud_verifier', 'multiprocessing_pool_num_workers'))
+
     server = tornado.httpserver.HTTPServer(app, ssl_options=context, max_buffer_size=max_upload_size)
     server.add_sockets(sockets)
 
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
     try:
-        server.start(config.getint('cloud_verifier', 'multiprocessing_pool_num_workers'))
+        server.start()
         if tornado.process.task_id() == 0:
             # Start the revocation notifier only on one process
             if config.getboolean('cloud_verifier', 'revocation_notifier'):
