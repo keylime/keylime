@@ -413,11 +413,11 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         # read or generate the key depending on configuration
         if os.path.isfile(keyname):
             # read in private key
-            logger.debug("Using existing key in %s", keyname)
+            logger.info("Using existing key in %s", keyname)
             f = open(keyname, "rb")
             rsa_key = crypto.rsa_import_privkey(f.read())
         else:
-            logger.debug("key not found, generating a new one")
+            logger.info("Key for U/V transport and mTLS certificate not found, generating a new one")
             rsa_key = crypto.rsa_generate(2048)
             with open(keyname, "wb") as f:
                 f.write(crypto.rsa_export_privkey(rsa_key))
@@ -428,11 +428,11 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             self.rsaprivatekey)
 
         if os.path.isfile(certname):
-            logger.debug("Using existing mTLS cert in %s", certname)
+            logger.info("Using existing mTLS cert in %s", certname)
             with open(certname, "rb") as f:
                 mtls_cert = x509.load_pem_x509_certificate(f.read(), backend=default_backend())
         else:
-            logger.debug("No mTLS certificate found generating a new one")
+            logger.info("No mTLS certificate found, generating a new one")
             with open(certname, "wb") as f:
                 # By default generate a TLS certificate valid for 5 years
                 valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=(360 * 5))
