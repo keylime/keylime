@@ -100,7 +100,7 @@ cv_process = None
 reg_process = None
 agent_process = None
 tenant_templ = None
-SKIP_RUST_TEST = not bool(os.getenv("SKIP_RUST_TEST"))
+SKIP_RUST_TEST = not bool(os.getenv("RUST_TEST"))
 
 # Class-level components that are not static (so can't be added to test class)
 public_key = None
