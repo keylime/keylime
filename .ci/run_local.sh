@@ -2,8 +2,8 @@
 
 # You can specify the path of the local keylime repository as argument
 # of this script or using the KEYLIME_REPO_PATH environment variable.
-# The default value is /home/${USER}/keylime
-REPO=${KEYLIME_REPO_PATH:-${1:-/home/${USER}/keylime}}
+# The default value is one directory above where this script is located.
+REPO=${KEYLIME_REPO_PATH:-${1:-$(realpath "$(dirname "$(readlink -f "$0")")/../")}}
 
 # keylime images
 tpmimage="quay.io/keylime/keylime-ci"
