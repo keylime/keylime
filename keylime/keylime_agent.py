@@ -398,7 +398,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     next_ima_ml_entry = 0 # The next IMA log offset the verifier may ask for.
     boottime = int(psutil.boot_time())
 
-    def __init__(self, server_address, RequestHandlerClass, agent_uuid):
+    def __init__(self, server_address, RequestHandlerClass, agent_uuid, contact_ip):
         """Constructor overridden to provide ability to pass configuration arguments to the server"""
         # Find the locations for the U/V transport and mTLS key and certificate.
         # They are either relative to secdir (/var/lib/keylime/secure) or absolute paths.
@@ -433,10 +433,13 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
                 mtls_cert = x509.load_pem_x509_certificate(f.read(), backend=default_backend())
         else:
             logger.info("No mTLS certificate found, generating a new one")
+            agent_ips = [server_address[0]]
+            if contact_ip is not None:
+                agent_ips.append(contact_ip)
             with open(certname, "wb") as f:
                 # By default generate a TLS certificate valid for 5 years
                 valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=(360 * 5))
-                mtls_cert = crypto.generate_selfsigned_cert(agent_uuid, rsa_key, valid_util)
+                mtls_cert = crypto.generate_selfsigned_cert(agent_uuid, rsa_key, valid_util, agent_ips)
                 f.write(mtls_cert.public_bytes(serialization.Encoding.PEM))
 
         self.mtls_cert_path = certname
@@ -720,7 +723,7 @@ def main():
     if keylime_ca == "default":
         keylime_ca = os.path.join(config.WORK_DIR, 'cv_ca', 'cacert.crt')
 
-    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid)
+    server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, contact_ip)
     context = web_util.generate_mtls_context(server.mtls_cert_path, server.rsakey_path, keylime_ca, logger=logger)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     serverthread = threading.Thread(target=server.serve_forever, daemon=True)

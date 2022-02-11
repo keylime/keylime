@@ -10,6 +10,9 @@ import hashlib
 import os
 import secrets
 
+from ipaddress import IPv4Address, IPv6Address, ip_address
+from typing import Optional, List
+
 # Crypto implementation using python cryptography package
 from cryptography import exceptions
 from cryptography import x509
@@ -200,12 +203,23 @@ def decrypt(ciphertext, key):
     return decryptor.update(ciphertext) + decryptor.finalize()
 
 
-def generate_selfsigned_cert(name, key, valid_until) -> x509.Certificate:
+def generate_selfsigned_cert(name, key, valid_until, other_ips: Optional[List] = None) -> x509.Certificate:
     subject = issuer = x509.Name([
         x509.NameAttribute(NameOID.COMMON_NAME, name)
     ])
+    # Add common SAN for localhost
+    san_names = [
+        x509.DNSName("localhost"),
+        x509.DNSName("localhost.localdomain"),
+        x509.IPAddress(IPv4Address("127.0.0.1")),
+        x509.IPAddress(IPv6Address("::1"))
+    ]
+    if other_ips:
+        for ip in other_ips:
+            san_names.append(x509.IPAddress(ip_address(ip)))
     cert = x509.CertificateBuilder()\
         .subject_name(subject)\
+        .add_extension(x509.SubjectAlternativeName(san_names), critical=False)\
         .issuer_name(issuer)\
         .public_key(key.public_key())\
         .serial_number(x509.random_serial_number())\
