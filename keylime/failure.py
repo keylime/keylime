@@ -156,6 +156,12 @@ class Failure:
 
         self.events.extend(other.events)
 
+    def get_event_ids(self) -> List[str]:
+        """
+        Returns a list of the event ids currently collected
+        """
+        return list(map(lambda x: x.event_id, self.events))
+
     def __bool__(self) -> bool:
         return not self.recoverable or len(self.events) > 0
 
