@@ -188,6 +188,9 @@ class Digest:
                            NULL_BYTE,
                            self.hash)
 
+    def __eq__(self, other):
+        return isinstance(other, Digest) and self.legacy == other.legacy and \
+               self.hash == other.hash and self.algorithm == other.algorithm
 
 class Ima(Mode):
     """
