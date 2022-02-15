@@ -9,6 +9,8 @@ import sys
 import functools
 import asyncio
 import os
+from multiprocessing import Process
+
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
@@ -1121,27 +1123,58 @@ def main():
     sockets = tornado.netutil.bind_sockets(
         int(cloudverifier_port), address=cloudverifier_host)
 
-    tornado.process.fork_processes(config.getint(
-        'cloud_verifier', 'multiprocessing_pool_num_workers'))
+    def server_process(task_id):
+        logger.info(f"Starting server of process {task_id}")
+        engine.dispose()
+        server = tornado.httpserver.HTTPServer(app, ssl_options=context, max_buffer_size=max_upload_size)
+        server.add_sockets(sockets)
 
-    server = tornado.httpserver.HTTPServer(app, ssl_options=context, max_buffer_size=max_upload_size)
-    server.add_sockets(sockets)
+        def server_sig_handler(*_):
+            logger.info(f"Shutting down server {task_id}..")
+            # Stop server to not accept new incoming connections
+            server.stop()
 
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+            # Wait for all connections to be closed and then stop ioloop
+            async def stop():
+                await server.close_all_connections()
+                tornado.ioloop.IOLoop.current().stop()
+            asyncio.ensure_future(stop())
 
-    try:
+        # Attach signal handler to ioloop.
+        # Do not use signal.signal(..) for that because it does not work!
+        loop = asyncio.get_event_loop()
+        loop.add_signal_handler(signal.SIGINT, server_sig_handler)
+        loop.add_signal_handler(signal.SIGTERM, server_sig_handler)
+
         server.start()
-        if tornado.process.task_id() == 0:
-            # Start the revocation notifier only on one process
-            if config.getboolean('cloud_verifier', 'revocation_notifier'):
-                logger.info("Starting service for revocation notifications on port %s",
-                            config.getint('cloud_verifier', 'revocation_notifier_port'))
-                revocation_notifier.start_broker()
-            # Auto activate agents
+        if task_id == 0:
+            # Reactivate agents
             asyncio.ensure_future(activate_agents(cloudverifier_id, cloudverifier_host, cloudverifier_port, mtls_options))
-
         tornado.ioloop.IOLoop.current().start()
-    except (KeyboardInterrupt, SystemExit):
-        tornado.ioloop.IOLoop.current().stop()
-        if tornado.process.task_id() == 0 and config.getboolean('cloud_verifier', 'revocation_notifier'):
+        logger.debug(f"Server {task_id} stopped.")
+        sys.exit(0)
+
+    processes = []
+
+    def sig_handler(*_):
+        if config.getboolean('cloud_verifier', 'revocation_notifier'):
             revocation_notifier.stop_broker()
+        for p in processes:
+            p.join()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, sig_handler)
+    signal.signal(signal.SIGTERM, sig_handler)
+    if config.getboolean('cloud_verifier', 'revocation_notifier'):
+        logger.info("Starting service for revocation notifications on port %s",
+                    config.getint('cloud_verifier', 'revocation_notifier_port'))
+        revocation_notifier.start_broker()
+
+    num_workers = config.getint(
+        'cloud_verifier', 'multiprocessing_pool_num_workers')
+    if num_workers <= 0:
+        num_workers = tornado.process.cpu_count()
+    for task_id in range(0, num_workers):
+        process = Process(target=server_process, args=(task_id,))
+        process.start()
+        processes.append(process)
