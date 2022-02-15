@@ -1058,12 +1058,6 @@ async def activate_agents(verifier_id, verifier_ip, verifier_port, mtls_options)
     except SQLAlchemyError as e:
         logger.error('SQLAlchemy Error: %s', e)
 
-def start_tornado(tornado_server, port):
-    tornado_server.listen(port)
-    print("Starting Torando on port " + str(port))
-    tornado.ioloop.IOLoop.instance().start()
-    print("Tornado finished")
-
 
 def main():
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
