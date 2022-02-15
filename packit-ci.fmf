@@ -3,6 +3,13 @@ summary: check the changed tests functionality
 prepare:
     how: shell
     script: bash -c 'ln -s $(pwd) /var/tmp/keylime_sources'
+adjust:
+  - when: distro == centos-stream-9
+    prepare+:
+       script: yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+  - when: distro == centos-stream-8
+    prepare+:
+       script: yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
 
 discover:
     how: fmf
