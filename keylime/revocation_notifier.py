@@ -2,13 +2,15 @@
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
-
+import signal
 from multiprocessing import Process
 import threading
 import functools
 import time
 import os
 import sys
+
+from typing import Optional
 
 import requests
 import zmq
@@ -22,13 +24,16 @@ from keylime.common import retry
 
 
 logger = keylime_logging.init_logging('revocation_notifier')
-broker_proc = None
+broker_proc: Optional[Process] = None
 
 _SOCKET_PATH = "/var/run/keylime/keylime.verifier.ipc"
 
 
 def start_broker():
     def worker():
+        # do not receive signals form the parent process
+        os.setpgrp()
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
         dir_name = os.path.dirname(_SOCKET_PATH)
         if not os.path.exists(dir_name):
             os.makedirs(dir_name, 0o700)
@@ -56,7 +61,7 @@ def start_broker():
             context.destroy()
 
     global broker_proc
-    broker_proc = Process(target=worker)
+    broker_proc = Process(target=worker, name="zeroMQ")
     broker_proc.start()
 
 
@@ -68,7 +73,10 @@ def stop_broker():
             os.remove(f"ipc://{_SOCKET_PATH}")
         logger.info("Stopping revocation notifier...")
         broker_proc.terminate()
-        broker_proc.join()
+        broker_proc.join(5)
+        if broker_proc.is_alive():
+            logger.debug("Killing revocation notifier because it did not terminate after 5 seconds...")
+            broker_proc.kill()
 
 
 def notify(tosend):
