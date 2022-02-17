@@ -1436,16 +1436,16 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
     if args.command == 'add':
         mytenant.init_add(vars(args))
         mytenant.preloop()
-        mytenant.do_cv()
         mytenant.do_quote()
+        mytenant.do_cv()
         if args.verify:
             mytenant.do_verify()
     elif args.command == 'update':
         mytenant.init_add(vars(args))
         mytenant.do_cvdelete(args.verifier_check)
         mytenant.preloop()
-        mytenant.do_cv()
         mytenant.do_quote()
+        mytenant.do_cv()
         if args.verify:
             mytenant.do_verify()
     elif args.command == 'delete':
