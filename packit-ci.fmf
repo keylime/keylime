@@ -1,4 +1,4 @@
-summary: check the changed tests functionality
+summary: run keylime e2e tests
 
 prepare:
     how: shell
