@@ -20,16 +20,16 @@ except ModuleNotFoundError:
         pass
 
 
-def __bytes_to_str(data):
+def bytes_to_str(data):
     if isinstance(data, (bytes, bytearray)):
         data = data.decode("utf-8")
     elif isinstance(data, dict):
         for _k, _v in data.items():
-            data[_k] = __bytes_to_str(_v)
+            data[_k] = bytes_to_str(_v)
     elif isinstance(data, tuple(_list_types)):
         _l = list(data)
         for _k, _v in enumerate(_l):
-            _l[_k] = __bytes_to_str(_v)
+            _l[_k] = bytes_to_str(_v)
         data = _l
 
     return data
@@ -41,7 +41,7 @@ def dumps(obj, **kwargs):
     except TypeError:
         # dumps() from the built-it json module does not work with bytes,
         # so let's convert those to str if we get a TypeError exception.
-        ret = json_module.dumps(__bytes_to_str(obj), **kwargs)
+        ret = json_module.dumps(bytes_to_str(obj), **kwargs)
     return ret
 
 

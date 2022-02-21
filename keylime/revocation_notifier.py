@@ -80,6 +80,12 @@ def stop_broker():
 
 
 def notify(tosend):
+    # python-requests internally uses either simplejson (preferred) or
+    # the built-in json module, and when it is using the built-in one,
+    # it may encounter difficulties handling bytes instead of strings.
+    # To avoid such issues, let's convert `tosend' to str beforehand.
+    tosend = json.bytes_to_str(tosend)
+
     def worker(tosend):
         context = zmq.Context()
         mysock = context.socket(zmq.PUB)
@@ -111,6 +117,10 @@ def notify_webhook(tosend):
     # Check if a url was specified
     if url == '':
         return
+
+    # Similarly to notify(), let's convert `tosend' to str to prevent
+    # possible issues with json handling by python-requests.
+    tosend = json.bytes_to_str(tosend)
 
     def worker_webhook(tosend, url):
         interval = config.getfloat('cloud_verifier', 'retry_interval')
