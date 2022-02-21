@@ -112,7 +112,7 @@ def notify_webhook(tosend):
         for i in range(config.getint('cloud_verifier', 'max_retries')):
             next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
             try:
-                response = session.post(url, json=tosend)
+                response = session.post(url, json=tosend, timeout=5)
                 if response.status_code in [200, 202]:
                     break
 
@@ -126,7 +126,7 @@ def notify_webhook(tosend):
             time.sleep(next_retry)
 
     w = functools.partial(worker_webhook, tosend, url)
-    t = threading.Thread(target=w)
+    t = threading.Thread(target=w, daemon=True)
     t.start()
 
 
