@@ -6,7 +6,6 @@
 
 # Configure the installer here
 KEYLIME_GIT=https://github.com/keylime/keylime.git
-TPM4720_GIT=https://github.com/keylime/tpm4720-keylime.git
 GOLANG_SRC=https://dl.google.com/go
 TPM2TSS_GIT=https://github.com/tpm2-software/tpm2-tss.git
 TPM2TOOLS_GIT=https://github.com/tpm2-software/tpm2-tools.git
@@ -14,8 +13,8 @@ TPM2SIM_SRC=http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/do
 KEYLIME_VER="master"
 TPM4720_VER="master"
 GOLANG_VER="1.13.1"
-TPM2TSS_VER="2.0.x"
-TPM2TOOLS_VER="3.X"
+TPM2TSS_VER="3.2.x"
+TPM2TOOLS_VER="5.1.X"
 
 # Minimum version requirements
 MIN_PYTHON_VERSION="3.6.7"
@@ -69,8 +68,17 @@ case "$ID" in
             PYTHON_DEPS+=" libefivar-dev"
         fi
         BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev uuid-dev libjson-c-dev"
-        NEED_BUILD_TOOLS=1
         $PACKAGE_MGR update
+        case "${VERSION_ID}" in
+          # Ubuntu 18.04, Debian 9 and 10 don't ship with a new enough version of tpm2-tools/tpm2-tss
+          18.04 | 9 | 10 )
+            NEED_BUILD_TOOLS=1
+          ;;
+          *)
+            TPM2_TOOLS_PKGS="tpm2-tools tss2"
+            NEED_BUILD_TOOLS=0
+          ;;
+        esac
     ;;
 
     rhel | centos)
