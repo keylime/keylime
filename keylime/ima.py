@@ -71,7 +71,7 @@ class IMAMeasurementList:
         return best
 
 
-def read_measurement_list(filename, nth_entry):
+def read_measurement_list(ima_log_file, nth_entry):
     """ Read the IMA measurement list starting from a given entry.
         The entry may be of any value 0 <= entry <= entries_in_log where
         entries_in_log + 1 indicates that the client wants to read the next entry
@@ -86,14 +86,13 @@ def read_measurement_list(filename, nth_entry):
     # Try to find the closest entry to the nth_entry
     num_entries, filesize = IMAML.find(nth_entry)
 
-    if not os.path.exists(filename):
+    if not ima_log_file:
         IMAML.reset()
         nth_entry = 0
-        logger.warning("IMA measurement list not available: %s", filename)
+        logger.warning("IMA measurement list not available: %s", config.IMA_ML)
     else:
-        with open(filename, 'r', encoding="utf-8") as f:
-            f.seek(filesize)
-            filedata = f.read()
+        ima_log_file.seek(filesize)
+        filedata = ima_log_file.read()
         # filedata now corresponds to starting list at entry number 'IMAML.num_entries'
         # find n-th entry and determine number of total entries in file now
         offset = 0
@@ -112,7 +111,7 @@ def read_measurement_list(filename, nth_entry):
         # Nothing found? User request beyond next-expected entry.
         # Start over with entry 0. This cannot recurse again.
         if ml is None:
-            return read_measurement_list(filename, 0)
+            return read_measurement_list(ima_log_file, 0)
 
     return ml, nth_entry, num_entries
 
