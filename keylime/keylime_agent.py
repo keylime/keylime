@@ -181,7 +181,12 @@ class Handler(BaseHTTPRequestHandler):
                 ima_ml_entry = int(ima_ml_entry)
                 if ima_ml_entry > self.server.next_ima_ml_entry:
                     ima_ml_entry = 0
-                ml, nth_entry, num_entries = ima.read_measurement_list(config.IMA_ML, ima_ml_entry)
+                ima_log_file = None
+                if os.path.exists(config.IMA_ML):
+                    ima_log_file = open(config.IMA_ML, 'r', encoding="utf-8")
+                ml, nth_entry, num_entries = ima.read_measurement_list(ima_log_file, ima_ml_entry)
+                if ima_log_file:
+                    ima_log_file.close()
                 if num_entries > 0:
                     response['ima_measurement_list'] = ml
                     response['ima_measurement_list_entry'] = nth_entry
