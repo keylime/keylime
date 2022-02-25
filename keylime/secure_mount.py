@@ -4,6 +4,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 '''
 
 import os
+import shutil
 
 from keylime import keylime_logging
 from keylime import cmd_exec
@@ -85,6 +86,12 @@ def mount():
 
 def umount():
     """Umount all the devices mounted by Keylime."""
+
+    # Make sure we leave tmpfs dir empty even if we did not mount it or
+    # if we cannot unmount it. Ignore errors while deleting. The deletion
+    # of the 'secure' directory will result in an error since it's a mount point.
+    shutil.rmtree(mount(), ignore_errors=True)
+
     while _MOUNTED:
         directory = _MOUNTED.pop()
         logger.info("Unmounting %s", directory)
