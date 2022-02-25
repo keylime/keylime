@@ -636,6 +636,9 @@ def main():
             raise RuntimeError('agent_uuid is configured to use dmidecode, '
                                'but it\'s is not found on the system.')
 
+    # initialize the tmpfs partition to store keys if it isn't already available
+    secure_mount.mount()
+
     # Instanitate TPM class
 
     instance_tpm = tpm()
@@ -650,9 +653,6 @@ def main():
     contact_port = os.getenv("KEYLIME_AGENT_CONTACT_PORT", None)
     if contact_port is None and config.has_option('cloud_agent', 'agent_contact_port'):
         contact_port = config.get('cloud_agent', 'agent_contact_port', fallback="invalid")
-
-    # initialize the tmpfs partition to store keys if it isn't already available
-    secure_mount.mount()
 
     # change dir to working dir
     fs_util.ch_dir(config.WORK_DIR)
