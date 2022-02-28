@@ -1,0 +1,12 @@
+[Unit]
+Description=Keylime configuration filesystem
+Before=keylime_agent.service
+
+[Mount]
+What=tmpfs
+Where=/var/lib/keylime/secure
+Type=tmpfs
+Options=mode=0700,size=1m,uid=keylime,gid=tss
+
+[Install]
+WantedBy=multi-user.target
