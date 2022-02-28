@@ -22,9 +22,9 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(
             config.CONFIG_FILES,
             [
-                os.path.expanduser("~/.config/keylime.conf"),
-                "/etc/keylime.conf",
                 "/usr/etc/keylime.conf",
+                "/etc/keylime.conf",
+                os.path.expanduser("~/.config/keylime.conf"),
             ],
         )
 
