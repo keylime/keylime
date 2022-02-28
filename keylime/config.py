@@ -7,7 +7,8 @@ import os.path
 import configparser
 from typing import Optional
 
-# resources in importlib is a Python 3.7 feature, so we disable fallback support if we cannot import this module
+# resources in importlib is a Python 3.7 feature, so we disable
+# fallback support if we cannot import this module
 try:
     from importlib import resources
     _CONFIG_FALLBACK = True
@@ -118,7 +119,7 @@ if not REQUIRE_ROOT:
 # Config files can be merged together, reading from the system to the
 # user.
 CONFIG_FILES = [
-    os.path.expanduser("~/.config/keylime.conf"), "/etc/keylime.conf", "/usr/etc/keylime.conf"
+    "/usr/etc/keylime.conf", "/etc/keylime.conf", os.path.expanduser("~/.config/keylime.conf")
 ]
 if "KEYLIME_CONFIG" in os.environ:
     CONFIG_FILES.insert(0, os.environ["KEYLIME_CONFIG"])
