@@ -103,6 +103,11 @@ def _from_db_obj(agent_db_obj):
     agent_dict = {}
     for field in fields:
         agent_dict[field] = getattr(agent_db_obj, field, None)
+
+    # add default fields that are ephemeral
+    for key,val in exclude_db.items():
+        agent_dict[key] = val
+
     return agent_dict
 
 
@@ -504,8 +509,9 @@ class AgentsHandler(BaseHandler):
                             logger.error('SQLAlchemy Error: %s', e)
                             raise e
 
-                        for key in list(exclude_db.keys()):
-                            agent_data[key] = exclude_db[key]
+                        # add default fields that are ephemeral
+                        for key,val in exclude_db.items():
+                            agent_data[key] = val
 
                         # Prepare SSLContext for mTLS connections
                         # TODO: drop special handling after initial upgrade
