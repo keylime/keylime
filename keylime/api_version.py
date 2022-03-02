@@ -3,6 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2021 Red Hat, Inc
 '''
 import re
+import math
 
 from packaging import version
 
@@ -15,6 +16,8 @@ LATEST_VERSIONS = {
     "1": "1.0",
     "2": "2.0"
 }
+
+MINIMUM_VERSION = "1.0"
 
 def current_version():
     return CURRENT_VERSION
@@ -34,7 +37,12 @@ def all_versions():
 
 def is_supported_version(v):
     v_obj = version.parse(str(v))
-    return v_obj.base_version in VERSIONS
+    next_major = math.floor(float(CURRENT_VERSION)) + 1
+    try:
+        float(str(v_obj))
+    except:
+        return False
+    return float(MINIMUM_VERSION) <= float(str(v_obj)) < next_major
 
 def normalize_version(v):
     v = str(v)

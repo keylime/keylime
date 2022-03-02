@@ -32,6 +32,7 @@ class APIVersion_Test(unittest.TestCase):
 
     def test_is_supported_version(self):
         self.assertTrue(api_version.is_supported_version("2.0"), "2.0 is a supported version")
+        self.assertTrue(api_version.is_supported_version("2.1"), "2.1 is a supported version")
         self.assertTrue(api_version.is_supported_version("v2.0"), "v2.0 is a supported version")
         self.assertTrue(api_version.is_supported_version("1.0"), "1.0 is a supported version")
         self.assertTrue(api_version.is_supported_version("v1.0"), "v1.0 is a supported version")
