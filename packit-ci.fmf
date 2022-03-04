@@ -5,48 +5,12 @@
   prepare:
     how: shell
     script: bash -c 'ln -s $(pwd) /var/tmp/keylime_sources'
-  adjust:
-   - when: distro == centos-stream-9
-     prepare+:
-       script: yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-   - when: distro == centos-stream-8
-     prepare+:
-       script: yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
 
   discover:
     how: fmf
     url: https://github.com/RedHat-SP-Security/keylime-tests
     ref: main
     test: 
-     - /setup/configure_tpm_emulator
-     - /setup/install_upstream_keylime
-     - /functional/basic-attestation-on-localhost
-     - /functional/keylime_tenant-commands-on-localhost
-     - /functional/tpm_policy-sanity-on-localhost
-     - /functional/db-postgresql-sanity-on-localhost
-     - /functional/db-mariadb-sanity-on-localhost
-     - /functional/db-mysql-sanity-on-localhost
-
-  execute:
-    how: tmt
-
-
-/e2e-patch-coverage:
-
-  summary: measure e2e tests code coverage for changes in pull-request
-
-  prepare:
-    how: shell
-    script: bash -c 'ln -s $(pwd) /var/tmp/keylime_sources'
-  adjust:
-    enabled: false
-    when: distro != fedora-35
-
-  discover:
-    how: fmf
-    url: https://github.com/RedHat-SP-Security/keylime-tests
-    ref: main
-    test:
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
      - /setup/enable_keylime_coverage
@@ -57,6 +21,24 @@
      - /functional/db-mariadb-sanity-on-localhost
      - /functional/db-mysql-sanity-on-localhost
      - /setup/generate_coverage_report
+
+  adjust:
+   # prepare step adjustments
+   - when: distro == centos-stream-9
+     prepare+:
+       script: yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+
+   - when: distro == centos-stream-8
+     prepare+:
+       script: yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+
+   # discover step adjustments
+   # disable code coverage measurement everywhere except F35
+   - when: distro != fedora-35
+     discover+:
+       test-:
+        - /setup/enable_keylime_coverage
+        - /setup/generate_coverage_report
 
   execute:
     how: tmt
