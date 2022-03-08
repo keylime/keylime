@@ -890,6 +890,8 @@ class tpm(tpm_abstract.AbstractTPM):
         """
         # openssl x509 -inform der -in certificate.cer -out certificate.pem
         try:
+            tpm_ek_ca.check_tpm_cert_store()
+
             ek509 = x509.load_der_x509_certificate(
                 data=ekcert,
                 backend=default_backend(),
