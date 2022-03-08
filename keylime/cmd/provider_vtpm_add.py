@@ -45,7 +45,7 @@ def add_vtpm(inputfile):
     registrar_client.doActivateAgent(
         provider_reg_ip, provider_reg_port, vtpm_uuid, key)
 
-    logger.info("Registered new vTPM with UUID: %s" % (vtpm_uuid))
+    logger.info("Registered new vTPM with UUID: %s", vtpm_uuid)
 
     return vtpm_uuid
 

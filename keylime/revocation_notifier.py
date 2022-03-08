@@ -102,8 +102,8 @@ def notify(tosend):
                 interval = config.getfloat('cloud_verifier', 'retry_interval')
                 exponential_backoff = config.getboolean('cloud_verifier', 'exponential_backoff')
                 next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
-                logger.debug("Unable to publish revocation message %d times, trying again in %f seconds: %s" % (
-                    i, next_retry, e))
+                logger.debug("Unable to publish revocation message %d times, trying again in %f seconds: %s",
+                             i, next_retry, e)
                 time.sleep(next_retry)
         mysock.close()
 
@@ -134,12 +134,14 @@ def notify_webhook(tosend):
                 if response.status_code in [200, 202]:
                     break
 
-                logger.debug(f"Unable to publish revocation message {i} times via webhook, "
-                             f"trying again in {next_retry} seconds. "
-                             f"Server returned status code: {response.status_code}")
+                logger.debug("Unable to publish revocation message %d times via webhook, "
+                             "trying again in %d seconds. "
+                             "Server returned status code: %s",
+                             i, next_retry, response.status_code)
             except requests.exceptions.RequestException as e:
-                logger.debug(f"Unable to publish revocation message {i} times via webhook, "
-                             f"trying again in {next_retry} seconds: {e} ")
+                logger.debug("Unable to publish revocation message %d times via webhook, "
+                             "trying again in %d seconds: %s",
+                             i, next_retry, e)
 
             time.sleep(next_retry)
 
@@ -165,8 +167,9 @@ def await_notifications(callback, revocation_cert_path):
         f"{config.getint('general', 'receive_revocation_port')}"
     )
 
-    logger.info('Waiting for revocation messages on 0mq %s:%s' %
-                (config.get('general', 'receive_revocation_ip'), config.getint('general', 'receive_revocation_port')))
+    logger.info('Waiting for revocation messages on 0mq %s:%s',
+                config.get('general', 'receive_revocation_ip'),
+                config.getint('general', 'receive_revocation_port'))
 
     while True:
         rawbody = mysock.recv()
@@ -176,22 +179,22 @@ def await_notifications(callback, revocation_cert_path):
             # load up the CV signing public key
             if revocation_cert_path is not None and os.path.exists(revocation_cert_path):
                 logger.info(
-                    "Lazy loading the revocation certificate from %s" % revocation_cert_path)
+                    "Lazy loading the revocation certificate from %s", revocation_cert_path)
                 with open(revocation_cert_path, "rb") as f:
                     certpem = f.read()
                 cert_key = crypto.x509_import_pubkey(certpem)
 
         if cert_key is None:
-            logger.warning(
-                "Unable to check signature of revocation message: %s not available" % revocation_cert_path)
+            logger.warning("Unable to check signature of revocation message: %s not available",
+                           revocation_cert_path)
         elif 'signature' not in body or body['signature'] == 'none':
             logger.warning("No signature on revocation message from server")
         elif not crypto.rsa_verify(cert_key, body['msg'].encode('utf-8'), body['signature'].encode('utf-8')):
-            logger.error("Invalid revocation message siganture %s" % body)
+            logger.error("Invalid revocation message siganture %s", body)
         else:
             message = json.loads(body['msg'])
             logger.debug(
-                "Revocation signature validated for revocation: %s" % message)
+                "Revocation signature validated for revocation: %s", message)
             callback(message)
 
 
@@ -200,7 +203,7 @@ def main():
 
     def worker():
         def print_notification(revocation):
-            logger.warning("Received revocation: %s" % revocation)
+            logger.warning("Received revocation: %s", revocation)
 
         keypath = '%s/unzipped/RevocationNotifier-cert.crt' % (
             secure_mount.mount())

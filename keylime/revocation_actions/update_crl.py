@@ -44,11 +44,11 @@ def execute(json_revocation):
 
     updated = False
     for _ in range(10):
-        logger.debug("Getting updated CRL from %s" % dist_path)
+        logger.debug("Getting updated CRL from %s", dist_path)
         response = tornado_requests.request("GET", dist_path, None, None, None)
         if response.status_code != 200:
-            logger.warning("Unable to get updated CRL from %s.  Code %d" %
-                           (dist_path, response.status_code))
+            logger.warning("Unable to get updated CRL from %s.  Code %d",
+                           dist_path, response.status_code)
             time.sleep(1)
             continue
         if response.body == oldcrl:
@@ -57,7 +57,7 @@ def execute(json_revocation):
             continue
 
         # write out the updated CRL
-        logger.debug("Updating CRL in %s/unzipped/cacrl.der" % (secdir))
+        logger.debug("Updating CRL in %s/unzipped/cacrl.der", secdir)
         with open("%s/unzipped/cacrl.der" % (secdir), "wb") as f:
             f.write(response.body)
         ca_util.convert_crl_to_pem(
@@ -66,5 +66,5 @@ def execute(json_revocation):
         break
 
     if not updated:
-        logger.error(
-            "Unable to load new CRL from %s after receiving notice of a revocation" % dist_path)
+        logger.error("Unable to load new CRL from %s after receiving notice of a revocation",
+                     dist_path)

@@ -97,7 +97,8 @@ def _stub_command(fprt, lock, cmd, outputpaths):
             else:
                 raise Exception("Command %s is using multiple files unexpectedly!" % fprt)
 
-        logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec" % (fprt, thisTiming))
+        logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec",
+                     fprt, thisTiming)
         time.sleep(thisTiming)
 
         # Package for return
@@ -268,16 +269,16 @@ class tpm(tpm_abstract.AbstractTPM):
         self.tools_version = version_str.split("-")
 
         if StrictVersion(self.tools_version[0]) >= StrictVersion("4.2"):
-            logger.info("TPM2-TOOLS Version: %s" % self.tools_version[0])
+            logger.info("TPM2-TOOLS Version: %s", self.tools_version[0])
             self.tools_version = "4.2"
         elif StrictVersion(self.tools_version[0]) >= StrictVersion("4.0.0"):
-            logger.info("TPM2-TOOLS Version: %s" % self.tools_version[0])
+            logger.info("TPM2-TOOLS Version: %s", self.tools_version[0])
             self.tools_version = "4.0"
         elif StrictVersion(self.tools_version[0]) >= StrictVersion("3.2.0"):
-            logger.info("TPM2-TOOLS Version: %s" % self.tools_version[0])
+            logger.info("TPM2-TOOLS Version: %s", self.tools_version[0])
             self.tools_version = "3.2"
         else:
-            logger.error("TPM2-TOOLS Version %s is not supported." % self.tools_version[0])
+            logger.error("TPM2-TOOLS Version %s is not supported.", self.tools_version[0])
             sys.exit()
 
     def __get_tpm_algorithms(self):
@@ -399,7 +400,8 @@ class tpm(tpm_abstract.AbstractTPM):
                 interval = config.getfloat('cloud_agent', 'retry_interval')
                 exponential_backoff = config.getboolean('cloud_agent', 'exponential_backoff')
                 next_retry = retry.retry_time(exponential_backoff, interval, numtries, logger)
-                logger.info("Failed to get quote %d/%d times, trying again in %f seconds..." % (numtries, maxr, next_retry))
+                logger.info("Failed to get quote %d/%d times, trying again in %f seconds...",
+                            numtries, maxr, next_retry)
                 time.sleep(next_retry)
                 continue
 
@@ -433,7 +435,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
         # clear out old handle before starting again (give idempotence)
         if current_handle is not None and owner_pw is not None:
-            logger.info("Flushing old ek handle: %s" % hex(current_handle))
+            logger.info("Flushing old ek handle: %s", hex(current_handle))
             if self.tools_version == "3.2":
                 retDict = self.__run(["tpm2_getcap", "-c", "handles-persistent"],
                                      raiseOnError=False)
@@ -462,7 +464,8 @@ class tpm(tpm_abstract.AbstractTPM):
                 code = retDict['code']
 
                 if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-                    logger.info("Failed to flush old ek handle: %s.  Code %s" % (hex(current_handle), str(code) + ": " + str(reterr)))
+                    logger.info("Failed to flush old ek handle: %s.  Code %s: %s",
+                                hex(current_handle), str(code), str(reterr))
 
                 self._set_tpm_metadata('ek_handle', None)
                 self._set_tpm_metadata('ek_tpm', None)
@@ -510,7 +513,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
     def __use_ek(self, ek_handle, config_pw):
         ek_handle = int(ek_handle, 16)
-        logger.info("Using an already created ek with handle: %s" % hex(ek_handle))
+        logger.info("Using an already created ek with handle: %s", hex(ek_handle))
 
         self._set_tpm_metadata('owner_pw', config_pw)
 
@@ -575,7 +578,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 raise Exception("Owner password unknown, TPM reset required. Code %s" + str(code) + ": " + str(reterr))
 
         self._set_tpm_metadata('owner_pw', owner_pw)
-        logger.info("TPM Owner password confirmed: %s" % owner_pw)
+        logger.info("TPM Owner password confirmed: %s", owner_pw)
 
     def __get_pub_ek(self):  # assumes that owner_pw is correct at this point
         handle = self.get_tpm_metadata('ek_handle')
@@ -613,11 +616,11 @@ class tpm(tpm_abstract.AbstractTPM):
         if self.get_tpm_metadata('aik_handle') is not None:
             aik_handle = self.get_tpm_metadata('aik_handle')
             if self.tools_version == "3.2":
-                logger.info("Flushing old ak handle: %s" % hex(aik_handle))
+                logger.info("Flushing old ak handle: %s", hex(aik_handle))
                 retDict = self.__run(["tpm2_getcap", "-c", "handles-persistent"],
                                      raiseOnError=False)
             elif self.tools_version in ["4.0", "4.2"]:
-                logger.info("Flushing old ak handle: %s" % aik_handle)
+                logger.info("Flushing old ak handle: %s", aik_handle)
                 retDict = self.__run(["tpm2_getcap", "handles-persistent"],
                                      raiseOnError=False)
             output = config.convert(retDict['retout'])
@@ -653,9 +656,11 @@ class tpm(tpm_abstract.AbstractTPM):
 
                 if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
                     if self.tools_version == "3.2":
-                        logger.info("Failed to flush old ak handle: %s.  Code %s" % (hex(aik_handle), str(code) + ": " + str(reterr)))
+                        logger.info("Failed to flush old ak handle: %s.  Code %s: %s",
+                                    hex(aik_handle), str(code), str(reterr))
                     elif self.tools_version in ["4.0", "4.2"]:
-                        logger.info("Failed to flush old ak handle: %s.  Code %s" % (aik_handle, str(code) + ": " + str(reterr)))
+                        logger.info("Failed to flush old ak handle: %s.  Code %s: %s",
+                                    aik_handle, str(code), str(reterr))
 
                 self._set_tpm_metadata('aik_pw', None)
                 self._set_tpm_metadata('aik_tpm', None)
@@ -736,7 +741,8 @@ class tpm(tpm_abstract.AbstractTPM):
         code = retDict['code']
 
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            logger.debug("tpm2_getcap failed with code " + str(code) + ": " + str(errout))
+            logger.debug("tpm2_getcap failed with code %s: %s",
+                         str(code), str(errout))
 
         if self.tools_version == "3.2":
             # output, human-readable -> json
@@ -751,7 +757,7 @@ class tpm(tpm_abstract.AbstractTPM):
             jsonout = {}
         for key in jsonout:
             if str(hex(key)) != self.defaults['ek_handle']:
-                logger.debug("Flushing key handle %s" % hex(key))
+                logger.debug("Flushing key handle %s", hex(key))
                 if self.tools_version == "3.2":
                     self.__run(["tpm2_evictcontrol", "-A", "o", "-H", hex(key), "-P", owner_pw],
                                raiseOnError=False)
@@ -794,7 +800,7 @@ class tpm(tpm_abstract.AbstractTPM):
                        "-s", challengeFile.name, "-n", aik_name, "-o", blobpath]
             self.__run(command, lock=False)
 
-            logger.info("Encrypting AIK for UUID %s" % uuid)
+            logger.info("Encrypting AIK for UUID %s", uuid)
 
             # read in the blob
             f = open(blobpath, "rb")
@@ -805,7 +811,7 @@ class tpm(tpm_abstract.AbstractTPM):
             key = base64.b64encode(challenge).decode("utf-8")
 
         except Exception as e:
-            logger.error("Error encrypting AIK: " + str(e))
+            logger.error("Error encrypting AIK: %s", str(e))
             logger.exception(e)
             raise
         finally:
@@ -867,7 +873,7 @@ class tpm(tpm_abstract.AbstractTPM):
             key = base64.b64encode(fileout)
 
         except Exception as e:
-            logger.error("Error decrypting AIK: " + str(e))
+            logger.error("Error decrypting AIK: %s", str(e))
             logger.exception(e)
             return None
         finally:
@@ -917,7 +923,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 except crypto_exceptions.InvalidSignature:
                     continue
 
-                logger.debug("EK cert matched cert: %s" % cert)
+                logger.debug("EK cert matched cert: %s", cert)
                 return True
         except Exception as e:
             # Log the exception so we don't lose the raw message
@@ -1135,7 +1141,7 @@ class tpm(tpm_abstract.AbstractTPM):
             reterr = retDict['reterr']
             code = retDict['code']
         except Exception as e:
-            logger.error("Error verifying quote: " + str(e))
+            logger.error("Error verifying quote: %s", str(e))
             logger.exception(e)
             return None, False
         finally:
@@ -1147,7 +1153,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     os.remove(fi.name)
 
         if len(retout) < 1 or code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            logger.error("Failed to validate signature, output: %s" % reterr)
+            logger.error("Failed to validate signature, output: %s", reterr)
             return None, False
 
         return retout, True
@@ -1233,7 +1239,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 rand = retDict['fileouts'][randpath.name]
             except Exception as e:
                 if not self.tpmrand_warned:
-                    logger.warning("TPM randomness not available: %s" % e)
+                    logger.warning("TPM randomness not available: %s", e)
                     self.tpmrand_warned = True
                 return None
         return rand
@@ -1326,7 +1332,7 @@ class tpm(tpm_abstract.AbstractTPM):
             raise Exception("nv_readvalue failed with code " + str(code) + ": " + str(errout))
 
         if len(output) != config.BOOTSTRAP_KEY_SIZE:
-            logger.debug("Invalid key length from NVRAM: %d" % (len(output)))
+            logger.debug("Invalid key length from NVRAM: %d", len(output))
             return None
         return output
 
@@ -1399,7 +1405,8 @@ class tpm(tpm_abstract.AbstractTPM):
         try:
             from keylime import tpm_bootlog_enrich
         except Exception as e:
-            logger.error("Could not load tpm_bootlog_enrich (which depends on %s): %s" % (config.LIBEFIVAR,str(e)))
+            logger.error("Could not load tpm_bootlog_enrich (which depends on %s): %s",
+                         config.LIBEFIVAR, str(e))
             return None
         #pylint: enable=import-outside-toplevel
         tpm_bootlog_enrich.enrich(log_parsed_data)

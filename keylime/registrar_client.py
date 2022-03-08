@@ -186,7 +186,7 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
         return True
 
     logger.error(
-        "Error: unexpected http response code from Registrar Server: " + str(response.status_code))
+        "Error: unexpected http response code from Registrar Server: %s", str(response.status_code))
     keylime_logging.log_http_response(logger, logging.ERROR, response_body)
     return False
 
