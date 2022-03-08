@@ -45,8 +45,8 @@ def post_cfssl(params, data):
                 logger.error(
                     "Quiting after max number of retries to connect to cfssl server")
                 raise e
-            logger.info(
-                "Connection to cfssl refused %d/%d times, trying again in %f seconds..." % (numtries, maxr, retry))
+            logger.info("Connection to cfssl refused %d/%d times, trying again in %f seconds...",
+                        numtries, maxr, retry)
             time.sleep(retry)
             continue
 

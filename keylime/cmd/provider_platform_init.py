@@ -85,7 +85,7 @@ def main(argv=sys.argv):
     with open(f"group-{group_num}-{group_uuid}.tpm", 'w', encoding="utf-8") as f:
         yaml.dump(output, f, Dumper=SafeDumper)
 
-    logger.info("Activated VTPM group %d, UUID %s" % (group_num, group_uuid))
+    logger.info("Activated VTPM group %d, UUID %s", group_num, group_uuid)
     if group_num == 0:
         logger.info(
             "WARNING: Group 0 created, repeating activation again to create Group 1")

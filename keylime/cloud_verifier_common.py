@@ -94,7 +94,7 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
     # Ensure hash_alg is in accept_tpm_hash_alg list
     if not algorithms.is_accepted(hash_alg, agent['accept_tpm_hash_algs'])\
             or not algorithms.Hash.is_recognized(hash_alg):
-        logger.error(f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}")
+        logger.error("TPM Quote is using an unaccepted hash algorithm: %s", hash_alg)
         failure.add_event("invalid_hash_alg",
                           {"message": f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}", "data": hash_alg},
                           False)
@@ -102,7 +102,7 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
 
     # Ensure enc_alg is in accept_tpm_encryption_algs list
     if not algorithms.is_accepted(enc_alg, agent['accept_tpm_encryption_algs']):
-        logger.error(f"TPM Quote is using an unaccepted encryption algorithm: {enc_alg}")
+        logger.error("TPM Quote is using an unaccepted encryption algorithm: %s", enc_alg)
         failure.add_event("invalid_enc_alg",
                           {"message": f"TPM Quote is using an unaccepted encryption algorithm: {enc_alg}", "data": enc_alg},
                           False)
@@ -110,7 +110,7 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
 
     # Ensure sign_alg is in accept_tpm_encryption_algs list
     if not algorithms.is_accepted(sign_alg, agent['accept_tpm_signing_algs']):
-        logger.error(f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}")
+        logger.error("TPM Quote is using an unaccepted signing algorithm: %s", sign_alg)
         failure.add_event("invalid_sign_alg",
                           {"message": f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}", "data": {sign_alg}},
                           False)
@@ -121,8 +121,8 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
     elif ima_measurement_list_entry != agentAttestState.get_next_ima_ml_entry():
         # If we requested a particular entry number then the agent must return either
         # starting at 0 (handled above) or with the requested number.
-        logger.error("Agent did not respond with requested next IMA measurement list entry "
-                     f"{agentAttestState.get_next_ima_ml_entry()} but started at {ima_measurement_list_entry}")
+        logger.error("Agent did not respond with requested next IMA measurement list entry %s but started at %s",
+                     agentAttestState.get_next_ima_ml_entry(), ima_measurement_list_entry)
         failure.add_event("invalid_ima_entry_nb",
                           {"message": "Agent did not respond with requested next IMA measurement list entry",
                            "got": ima_measurement_list_entry, "expected": agentAttestState.get_next_ima_ml_entry()},

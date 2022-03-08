@@ -6,3 +6,6 @@ disable=W1509,C0103,C0115,C0116,C0201,C0209,C0301,C0302,C0111,W0102,W0511,W0602,
 
 [TYPECHECK]
 ignored-modules=zmq,alembic.op,alembic.context,M2Crypto.m2,Cryptodome,pylab,matplotlib,numpy,cryptography.hazmat.primitives.asymmetric.rsa
+
+[LOGGING]
+enable=logging

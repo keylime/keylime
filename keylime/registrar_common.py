@@ -273,13 +273,13 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             initialize_tpm = tpm()
 
             if ekcert is None or ekcert == 'emulator':
-                logger.warning('Agent %s did not submit an ekcert' % agent_id)
+                logger.warning('Agent %s did not submit an ekcert', agent_id)
                 ek_tpm = json_body['ek_tpm']
             else:
                 if 'ek_tpm' in json_body:
                     # This would mean the agent submitted both a non-None ekcert, *and*
                     #  an ek_tpm... We can deal with it by just ignoring the ek_tpm they sent
-                    logger.warning('Overriding ek_tpm for agent %s from ekcert' % agent_id)
+                    logger.warning('Overriding ek_tpm for agent %s from ekcert', agent_id)
                 # If there's an EKCert, we just overwrite their ek_tpm
                 # Note, we don't validate the EKCert here, other than the implicit
                 #  "is it a valid x509 cert" check. So it's still untrusted.
@@ -353,22 +353,25 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     # Use parser from the standard library instead of implementing our own
                     ipaddress.ip_address(contact_ip)
                 except ValueError:
-                    logger.warning(f"Contact ip for agent {agent_id} is not a valid ip got: {contact_ip}.")
+                    logger.warning("Contact ip for agent %s is not a valid ip got: %s.", agent_id, contact_ip)
                     contact_ip = None
             if contact_port is not None:
                 try:
                     contact_port = int(contact_port)
                     if contact_port < 1 or contact_port > 65535:
-                        logger.warning(f"Contact port for agent {agent_id} is not a number between 1 and got: {contact_port}.")
+                        logger.warning("Contact port for agent %s is not a number between 1 and got: %s.",
+                                       agent_id, contact_port)
                         contact_port = None
                 except ValueError:
-                    logger.warning(f"Contact port for agent {agent_id} is not a valid number got: {contact_port}.")
+                    logger.warning("Contact port for agent %s is not a valid number got: %s.",
+                                   agent_id, contact_port)
                     contact_port = None
 
             # Check for mTLS cert
             mtls_cert = json_body.get('mtls_cert', None)
             if mtls_cert is None:
-                logger.warning(f"Agent {agent_id} did not sent a mTLS certificate. Most operations will not work!")
+                logger.warning("Agent %s did not send a mTLS certificate. Most operations will not work!",
+                               agent_id)
 
             # Add values to database
             d = {}

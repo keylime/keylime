@@ -470,7 +470,7 @@ class AgentsHandler(BaseHandler):
                     if registrar_data is None:
                         web_util.echo_json_response(self, 400,
                                                     f"Data for agent {agent_id} could not be found in registrar!")
-                        logger.warning(f"Data for agent {agent_id} could not be found in registrar!")
+                        logger.warning("Data for agent %s could not be found in registrar!", agent_id)
                         return
 
                     agent_data['mtls_cert'] = registrar_data.get('mtls_cert', None)
@@ -644,7 +644,7 @@ class AllowlistHandler(BaseHandler):
         if allowlist_name is None:
             web_util.echo_json_response(self, 400, "Invalid URL")
             logger.warning(
-                'GET returning 400 response: ' + self.request.path)
+                'GET returning 400 response: %s', self.request.path)
             return
 
         session = get_session()
@@ -655,7 +655,7 @@ class AllowlistHandler(BaseHandler):
             web_util.echo_json_response(self, 404, "Allowlist %s not found" % allowlist_name)
             return
         except SQLAlchemyError as e:
-            logger.error(f'SQLAlchemy Error: {e}')
+            logger.error('SQLAlchemy Error: %s', e)
             web_util.echo_json_response(self, 500, "Failed to get allowlist")
             raise
 
@@ -683,7 +683,7 @@ class AllowlistHandler(BaseHandler):
         if allowlist_name is None:
             web_util.echo_json_response(self, 400, "Invalid URL")
             logger.warning(
-                'DELETE returning 400 response: ' + self.request.path)
+                'DELETE returning 400 response: %s', self.request.path)
             return
 
         session = get_session()
@@ -694,7 +694,7 @@ class AllowlistHandler(BaseHandler):
             web_util.echo_json_response(self, 404, "Allowlist %s not found" % allowlist_name)
             return
         except SQLAlchemyError as e:
-            logger.error(f'SQLAlchemy Error: {e}')
+            logger.error('SQLAlchemy Error: %s', e)
             web_util.echo_json_response(self, 500, "Failed to get allowlist")
             raise
 
@@ -703,7 +703,7 @@ class AllowlistHandler(BaseHandler):
                 name=allowlist_name).delete()
             session.commit()
         except SQLAlchemyError as e:
-            logger.error(f'SQLAlchemy Error: {e}')
+            logger.error('SQLAlchemy Error: %s', e)
             web_util.echo_json_response(self, 500, "Failed to get allowlist")
             raise
 
@@ -713,7 +713,7 @@ class AllowlistHandler(BaseHandler):
         self.set_header('Content-Type', 'application/json')
         self.finish()
         logger.info(
-            'DELETE returning 204 response for allowlist: ' + allowlist_name)
+            'DELETE returning 204 response for allowlist: %s', allowlist_name)
 
     def post(self):
         """Create an allowlist
@@ -766,10 +766,10 @@ class AllowlistHandler(BaseHandler):
                 web_util.echo_json_response(
                     self, 409, "Allowlist with name %s already exists" % allowlist_name)
                 logger.warning(
-                    "Allowlist with name %s already exists" % allowlist_name)
+                    "Allowlist with name %s already exists", allowlist_name)
                 return
         except SQLAlchemyError as e:
-            logger.error(f'SQLAlchemy Error: {e}')
+            logger.error('SQLAlchemy Error: %s', e)
             raise
 
         try:
@@ -777,7 +777,7 @@ class AllowlistHandler(BaseHandler):
             session.add(VerifierAllowlist(**allowlist))
             session.commit()
         except SQLAlchemyError as e:
-            logger.error(f'SQLAlchemy Error: {e}')
+            logger.error('SQLAlchemy Error: %s', e)
             raise
 
         web_util.echo_json_response(self, 201)
@@ -1124,13 +1124,13 @@ def main():
         int(cloudverifier_port), address=cloudverifier_host)
 
     def server_process(task_id):
-        logger.info(f"Starting server of process {task_id}")
+        logger.info("Starting server of process %s", task_id)
         engine.dispose()
         server = tornado.httpserver.HTTPServer(app, ssl_options=context, max_buffer_size=max_upload_size)
         server.add_sockets(sockets)
 
         def server_sig_handler(*_):
-            logger.info(f"Shutting down server {task_id}..")
+            logger.info("Shutting down server %s..", task_id)
             # Stop server to not accept new incoming connections
             server.stop()
 
@@ -1151,7 +1151,7 @@ def main():
             # Reactivate agents
             asyncio.ensure_future(activate_agents(cloudverifier_id, cloudverifier_host, cloudverifier_port, mtls_options))
         tornado.ioloop.IOLoop.current().start()
-        logger.debug(f"Server {task_id} stopped.")
+        logger.debug("Server %s stopped.", task_id)
         sys.exit(0)
 
     processes = []

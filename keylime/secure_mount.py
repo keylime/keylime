@@ -74,7 +74,7 @@ def mount():
         if not os.path.exists(secdir):
             os.makedirs(secdir, 0o700)
         size = config.get('cloud_agent', 'secure_size')
-        logger.info("mounting secure storage location %s on tmpfs" % secdir)
+        logger.info("mounting secure storage location %s on tmpfs", secdir)
         cmd = ('mount', '-t', 'tmpfs', '-o', 'size=%s,mode=0700' % size,
                'tmpfs', secdir)
         cmd_exec.run(cmd)

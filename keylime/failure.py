@@ -108,8 +108,9 @@ class Failure:
             self.recoverable = False
             if event.severity_label != MAX_SEVERITY_LABEL:
                 logger.warning(
-                    f"Irrecoverable Event with id: {event.event_id} has not the highest severity level.\n "
-                    f"Setting it the the highest severity level.")
+                    "Irrecoverable Event with id: %s has not the highest severity level.\n "
+                    "Setting it the the highest severity level.",
+                    event.event_id,)
                 event.severity_label = MAX_SEVERITY_LABEL
 
         if self.highest_severity is None or event.severity_label > self.highest_severity:
@@ -177,7 +178,8 @@ def _eval_severity_config() -> Tuple[List[Callable[[str], Optional[SeverityLabel
             if policy_regex.fullmatch(event_id):
                 policy_label = labels.get(label_str)
                 if policy_label is None:
-                    logger.error(f"Label {label_str} is not a valid label. Defaulting to maximal severity label!")
+                    logger.error("Label %s is not a valid label. Defaulting to maximal severity label!",
+                                 label_str)
                     return label_max
                 return policy_label
             return None
@@ -198,5 +200,6 @@ def _severity_match(event_id: str) -> SeverityLabel:
         match = rule(event_id)
         if match is not None:
             return match
-    logger.warning(f"No rule matched for event_id: {event_id}. Defaulting to max severity label")
+    logger.warning("No rule matched for event_id: %s. Defaulting to max severity label",
+                   event_id)
     return MAX_SEVERITY_LABEL

@@ -686,7 +686,7 @@ class Tenant():
                 response['results'][self.agent_uuid]['operational_state'])
             response['results'][self.agent_uuid]['operational_state'] = operational_state
 
-            logger.info("Agent Info:\n%s" % json.dumps(response["results"]))
+            logger.info("Agent Info:\n%s", json.dumps(response["results"]))
 
             return response
 
@@ -764,7 +764,7 @@ class Tenant():
                 response["results"][agent]["operational_state"] = \
                     states.state_to_str(response["results"][agent][
                                             "operational_state"])
-            logger.info("Bulk Agent Info:\n%s" % json.dumps(response["results"]))
+            logger.info("Bulk Agent Info:\n%s", json.dumps(response["results"]))
 
             return response
 
@@ -1353,7 +1353,7 @@ def main(argv=sys.argv):
             response = requests.get(args.allowlist_url, allow_redirects=False)
             if response.status_code == 200:
                 args.allowlist = write_to_namedtempfile(response.content, delete_tmp_files)
-                logger.debug("Allowlist temporarily saved in %s" % args.allowlist)
+                logger.debug("Allowlist temporarily saved in %s", args.allowlist)
             else:
                 raise Exception(f"Downloading allowlist ({args.allowlist_url}) failed with status code {response.status_code}!")
 
@@ -1377,7 +1377,7 @@ def main(argv=sys.argv):
             gpg_key_file = args.ima_sign_verification_key_sig_keys[i]
             gpg.gpg_verify_filesignature(gpg_key_file, key_file, keysig_file, "IMA file signing key")
 
-            logger.info("Signature verification on %s was successful" % key_file)
+            logger.info("Signature verification on %s was successful", key_file)
 
         # verify all the remote keys for which we have a signature URL and key to to verify
         # Append the downloaded key files to args.ima_sign_verification_keys
@@ -1388,7 +1388,7 @@ def main(argv=sys.argv):
             if response.status_code == 200:
                 key_file = write_to_namedtempfile(response.content, delete_tmp_files)
                 args.ima_sign_verification_keys.append(key_file)
-                logger.debug("Key temporarily saved in %s" % key_file)
+                logger.debug("Key temporarily saved in %s", key_file)
             else:
                 raise Exception(f"Downloading key ({key_url}) failed with status code {response.status_code}!")
 
@@ -1400,17 +1400,17 @@ def main(argv=sys.argv):
             if len(args.ima_sign_verification_key_sig_url_keys) == 0:
                 raise UserError("A gpg key is missing for key signature URL '%s'" % keysig_url)
 
-            logger.info("Downloading key signature from %s" % keysig_url)
+            logger.info("Downloading key signature from %s", keysig_url)
             response = requests.get(keysig_url, allow_redirects=False)
             if response.status_code == 200:
                 keysig_file = write_to_namedtempfile(response.content, delete_tmp_files)
-                logger.debug("Key signature temporarily saved in %s" % keysig_file)
+                logger.debug("Key signature temporarily saved in %s", keysig_file)
             else:
                 raise Exception(f"Downloading key signature ({key_url}) failed with status code {response.status_code}!")
 
             gpg_key_file = args.ima_sign_verification_key_sig_url_keys[i]
             gpg.gpg_verify_filesignature(gpg_key_file, key_file, keysig_file, "IMA file signing key")
-            logger.info("Signature verification on %s was successful" % key_url)
+            logger.info("Signature verification on %s was successful", key_url)
 
     if args.command == 'add':
         mytenant.init_add(vars(args))

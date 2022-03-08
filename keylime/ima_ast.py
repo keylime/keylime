@@ -46,7 +46,8 @@ class Validator:
     def get_validator(self, class_type) -> Callable:
         validator = self.functions.get(class_type, None)
         if validator is None:
-            logger.warning(f"No validator was implemented for: {class_type} . Using always false validator!")
+            logger.warning("No validator was implemented for: %s. Using always false validator!",
+                           class_type)
             failure = Failure(Component.IMA, ["validation"])
             failure.add_event("no_validator", f"No validator was implemented for: {class_type} . Using always false validator!", True)
             return lambda *_: failure
@@ -354,7 +355,8 @@ class Entry:
     def invalid(self):
         failure = Failure(Component.IMA, ["validation"])
         if self.pcr != str(config.IMA_PCR):
-            logger.warning(f"IMA entry PCR does not match {config.IMA_PCR}. It was: {self.pcr}")
+            logger.warning("IMA entry PCR does not match %s. It was: %s",
+                           config.IMA_PCR, self.pcr)
             failure.add_event("ima_pcr", {"message": "IMA PCR is not the configured one",
                                           "expected": str(config.IMA_PCR), "got": self.pcr}, True)
 

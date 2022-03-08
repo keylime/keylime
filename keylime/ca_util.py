@@ -130,7 +130,7 @@ def cmd_mkcert(workingdir, name):
             cc.signature_hash_algorithm,
         )
 
-        logger.info(f"Created certificate for name {name} successfully in {workingdir}")
+        logger.info("Created certificate for name %s successfully in %s", name, workingdir)
     except crypto_exceptions.InvalidSignature:
         logger.error("ERROR: Cert does not validate against CA")
     finally:
@@ -194,7 +194,7 @@ def cmd_init(workingdir):
             cac.signature_hash_algorithm,
         )
 
-        logger.info(f"CA certificate created successfully in {workingdir}")
+        logger.info("CA certificate created successfully in %s", workingdir)
     except crypto_exceptions.InvalidSignature:
         logger.error("ERROR: Cert does not self validate")
     finally:
@@ -262,8 +262,8 @@ def cmd_certpkg(workingdir, name, insecure=False):
                 f.writestr('cacrl.der', crl)
                 f.writestr('cacrl.pem', crlpem)
 
-        logger.info("Creating cert package for %s in %s-pkg.zip" %
-                    (name, name))
+        logger.info("Creating cert package for %s in %s-pkg.zip",
+                    name, name)
 
         return pkg, serial, subject
     finally:
@@ -292,7 +292,7 @@ def get_crl_distpoint(cert_path):
 
     except x509.extensions.ExtensionNotFound:
         pass
-    logger.info(f"No CRL distribution points in {cert_path}")
+    logger.info("No CRL distribution points in %s", cert_path)
     return ""
 
 # to check: openssl crl -inform DER -text -noout -in cacrl.der
@@ -377,13 +377,13 @@ def cmd_listen(workingdir, cert_path):
         serveraddr = ('', config.CRL_PORT)
         server = ThreadedCRLServer(serveraddr, CRLHandler)
         if os.path.exists('cacrl.der'):
-            logger.info("Loading existing crl: %s" %
+            logger.info("Loading existing crl: %s",
                         os.path.abspath("cacrl.der"))
             with open('cacrl.der', 'rb') as f:
                 server.setcrl(f.read())
         t = threading.Thread(target=server.serve_forever)
-        logger.info("Hosting CRL on %s:%d" %
-                    (socket.getfqdn(), config.CRL_PORT))
+        logger.info("Hosting CRL on %s:%d",
+                    socket.getfqdn(), config.CRL_PORT)
         t.start()
 
         def check_expiration():
@@ -404,7 +404,7 @@ def cmd_listen(workingdir, cert_path):
                                 in1hour = datetime.datetime.utcnow() + datetime.timedelta(hours=6)
                                 if expire <= in1hour:
                                     logger.info(
-                                        "Certificate to expire soon %s, re-issuing" % expire)
+                                        "Certificate to expire soon %s, re-issuing", expire)
                                     cmd_regencrl(workingdir)
                     # check a little less than every hour
                     time.sleep(3540)
@@ -422,10 +422,10 @@ def cmd_listen(workingdir, cert_path):
             json_meta = json.loads(revocation['meta_data'])
             serial = json_meta['cert_serial']
             if revocation.get('type', None) != 'revocation' or serial is None:
-                logger.error("Unsupported revocation message: %s" % revocation)
+                logger.error("Unsupported revocation message: %s", revocation)
                 return
 
-            logger.info("Revoking certificate: %s" % serial)
+            logger.info("Revoking certificate: %s", serial)
             server.setcrl(cmd_revoke(workingdir, None, serial))
         try:
             while True:
@@ -454,7 +454,7 @@ class ThreadedCRLServer(ThreadingMixIn, HTTPServer):
 
 class CRLHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        logger.info('GET invoked from ' + str(self.client_address) + ' with uri:' + self.path)
+        logger.info('GET invoked from %s with uri: %s', str(self.client_address), self.path)
 
         if self.server.published_crl is None:
             self.send_response(404)
@@ -505,7 +505,7 @@ def read_private(warn=False):
 
     if warn:
         # file doesn't exist, just invent a salt
-        logger.warning("Private certificate data %s does not exist yet." %
+        logger.warning("Private certificate data %s does not exist yet.",
                        os.path.abspath("private.yml"))
         logger.warning(
             "Keylime will attempt to load private certificate data again when it is needed.")
@@ -528,7 +528,7 @@ def main(argv=sys.argv):
     if args.dir is None:
         if os.getuid() != 0 and config.REQUIRE_ROOT:
             logger.error(
-                "If you don't specify a working directory, this process must be run as root to access %s" % config.WORK_DIR)
+                "If you don't specify a working directory, this process must be run as root to access %s", config.WORK_DIR)
             sys.exit(-1)
         workingdir = config.CA_WORK_DIR
     else:
@@ -563,10 +563,10 @@ def main(argv=sys.argv):
     elif args.command == 'listen':
         if args.name is None:
             args.name = os.path.join(workingdir, 'RevocationNotifier-cert.crt')
-            logger.warning("using default name for revocation cert %s"
-                           % args.name)
+            logger.warning("using default name for revocation cert %s",
+                           args.name)
         cmd_listen(workingdir, args.name)
     else:
-        logger.error("Invalid command: %s" % args.command)
+        logger.error("Invalid command: %s", args.command)
         parser.print_help()
         sys.exit(-1)
