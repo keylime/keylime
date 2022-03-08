@@ -35,6 +35,8 @@ def get_policy(mb_refstate_str):
               both can be None if mb_refstate_str was empty
     """
 
+    mb_policy_name = "empty"
+
     if mb_refstate_str:
         mb_refstate_data = json.loads(mb_refstate_str)
     else:
@@ -49,6 +51,7 @@ def get_policy(mb_refstate_str):
         if mb_policy is None:
             logger.warning(
                 "Invalid measured boot policy name %s -- using accept-all instead.", mb_policy_name)
+            mb_policy_name = "accept-all"
             mb_policy = eventlog_policies.AcceptAll()
 
         mb_pcrs_config = frozenset(config.MEASUREDBOOT_PCRS)
@@ -59,9 +62,9 @@ def get_policy(mb_refstate_str):
     else:
         mb_policy = None
 
-    return mb_policy, mb_refstate_data
+    return mb_policy, mb_policy_name, mb_refstate_data
 
-def evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data, pcrsInQuote, pcrPrefix, agent_id) -> Failure:
+def evaluate_policy(mb_policy, mb_policy_name, mb_refstate_data, mb_measurement_data, pcrsInQuote, pcrPrefix, agent_id) -> Failure:
     failure = Failure(Component.MEASURED_BOOT)
     missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
     if len(missing) > 0:
@@ -72,10 +75,10 @@ def evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data, pcrsInQuot
     except Exception as exn:
         reason= "policy evaluation failed: %s"%(str(exn))
     if reason:
-        logger.error("Boot attestation failed for agent %s, configured policy %s, refstate=%s, reason=%s",
-            agent_id, config.MEASUREDBOOT_POLICYNAME, json.dumps(mb_refstate_data), reason)
-        failure.add_event("policy",
-                          {"context": "Boot attestation failed", "policy": config.MEASUREDBOOT_POLICYNAME,
+        logger.error("Boot attestation failed for agent %s, policy %s, refstate=%s, reason=%s",
+            agent_id, mb_policy_name, json.dumps(mb_refstate_data), reason)
+        failure.add_event(f"policy_{mb_policy_name}",
+                          {"context": "Boot attestation failed", "policy": mb_policy_name,
                            "refstate": mb_refstate_data, "reason": reason}, True)
     return failure
 

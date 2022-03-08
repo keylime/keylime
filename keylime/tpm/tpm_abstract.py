@@ -241,7 +241,7 @@ class AbstractTPM(metaclass=ABCMeta):
         # convert all pcr num keys to integers
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
-        mb_policy, mb_refstate_data = measured_boot.get_policy(mb_refstate_str)
+        mb_policy, mb_policy_name, mb_refstate_data = measured_boot.get_policy(mb_refstate_str)
         mb_pcrs_hashes, boot_aggregates, mb_measurement_data, mb_failure = self.parse_mb_bootlog(mb_measurement_list, hash_alg)
         failure.merge(mb_failure)
 
@@ -334,7 +334,7 @@ class AbstractTPM(metaclass=ABCMeta):
             failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": missing}, True)
 
         if not mb_failure and mb_refstate_data:
-            mb_policy_failure = measured_boot.evaluate_policy(mb_policy, mb_refstate_data, mb_measurement_data,
+            mb_policy_failure = measured_boot.evaluate_policy(mb_policy, mb_policy_name, mb_refstate_data, mb_measurement_data,
                                                     pcrs_in_quote, ("", "v")[virtual], agentAttestState.get_agent_id())
             failure.merge(mb_policy_failure)
 
