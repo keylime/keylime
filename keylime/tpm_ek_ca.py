@@ -5,7 +5,6 @@ Copyright 2017 Massachusetts Institute of Technology.
 
 import glob
 import os
-import sys
 
 from keylime import config
 from keylime import keylime_logging
@@ -18,14 +17,15 @@ tpm_cert_store = config.get('tenant', 'tpm_cert_store')
 def check_tpm_cert_store():
     if not os.path.isdir(tpm_cert_store):
         logger.error("The directory %s does not exist.", tpm_cert_store)
-        sys.exit()
+        raise Exception(f"The directory {tpm_cert_store} does not exist.")
+
+    for fname in os.listdir(tpm_cert_store):
+        if fname.endswith('.pem'):
+            break
     else:
-        for fname in os.listdir(tpm_cert_store):
-            if fname.endswith('.pem'):
-                break
-        else:
-            logger.error("The directory %s does not contain any .pem files.", tpm_cert_store)
-            sys.exit()
+        logger.error("The directory %s does not contain any .pem files.", tpm_cert_store)
+        raise Exception(f"The directory {tpm_cert_store} does not contain "
+                        f"any .pem files")
 
 
 def cert_loader():
