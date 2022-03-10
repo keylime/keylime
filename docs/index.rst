@@ -26,6 +26,7 @@ or develop services against Keylime's Rest API(s).
 
    installation
    user_guide
+   design
    rest_apis
    developers
    security
