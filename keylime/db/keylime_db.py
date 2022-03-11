@@ -39,8 +39,9 @@ class DBEngineManager:
         url = config.get(service, 'database_url')
         if url:
             logger.info('database_url is set, using it to establish database connection')
-            engine_args['pool_size'] = int(p_sz)
-            engine_args['max_overflow'] = int(m_ovfl)
+            if not url.count('sqlite:') :
+                engine_args['pool_size'] = int(p_sz)
+                engine_args['max_overflow'] = int(m_ovfl)
 
         else :
             logger.info('database_url is not set, using multi-parameter database configuration options')
