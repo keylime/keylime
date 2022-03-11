@@ -194,7 +194,7 @@ class Handler(BaseHTTPRequestHandler):
             # potential Mbytes of an IMA measurement list.
             if TPM_Utilities.check_mask(imaMask, config.MEASUREDBOOT_PCRS[0]):
                 if not self.server.tpm_log_file_data:
-                    logger.warning(f"TPM2 event log not available: {config.MEASUREDBOOT_ML}")
+                    logger.warning("TPM2 event log not available: %s", config.MEASUREDBOOT_ML)
                 else:
                     response['mb_measurement_list'] = self.server.tpm_log_file_data
 
@@ -647,7 +647,7 @@ def main():
         if run_as != '':
             user_utils.chown(secdir, run_as)
             user_utils.change_uidgid(run_as)
-            logger.info(f"Dropped privileges to {run_as}")
+            logger.info("Dropped privileges to %s", run_as)
         else:
             logger.warning("Cannot drop privileges since 'run_as' is empty or missing in keylime.conf agent section.")
 
