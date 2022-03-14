@@ -18,7 +18,7 @@ class RequestsClient:
         else:
             self.base_url = f'http://{base_url}'
         self.session = requests.Session()
-        if ignore_hostname:
+        if ignore_hostname and tls_enabled:
             self.session.mount("http://", HostNameIgnoreAdapter())
             self.session.mount("https://", HostNameIgnoreAdapter())
         self.verify_custom = verify_custom
