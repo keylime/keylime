@@ -16,6 +16,7 @@ from keylime import api_version as keylime_api_version
 
 logger = keylime_logging.init_logging('registrar_client')
 tls_cert_info = ()
+ca_cert = False
 tls_enabled = False
 api_version = keylime_api_version.current_version()
 
@@ -23,6 +24,7 @@ api_version = keylime_api_version.current_version()
 def init_client_tls(section):
     global tls_cert_info
     global tls_enabled
+    global ca_cert
 
     # make this reentrant
     if tls_cert_info:
@@ -38,22 +40,28 @@ def init_client_tls(section):
     logger.info("Setting up client TLS...")
     tls_dir = config.get(section, 'registrar_tls_dir')
 
+    ca_cert = config.get(section, 'registrar_ca_cert')
     my_cert = config.get(section, 'registrar_my_cert')
     my_priv_key = config.get(section, 'registrar_private_key')
 
     if tls_dir == 'default':
         tls_dir = 'reg_ca'
+        ca_cert = 'cacert.crt'
         my_cert = 'client-cert.crt'
         my_priv_key = 'client-private.pem'
 
     if tls_dir == 'CV':
         tls_dir = 'cv_ca'
+        ca_cert = 'cacert.crt'
         my_cert = 'client-cert.crt'
         my_priv_key = 'client-private.pem'
 
     # this is relative path, convert to absolute in WORK_DIR
     if tls_dir[0] != '/':
         tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
+
+    if not os.path.isabs(ca_cert):
+        ca_cert = os.path.join(tls_dir, ca_cert)
 
     if os.path.isabs(my_cert):
         tls_cert = my_cert
@@ -75,8 +83,8 @@ def getData(registrar_ip, registrar_port, agent_id):
 
     response = None
     try:
-        client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-        response = client.get(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, verify=False)
+        client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled, ignore_hostname=True)
+        response = client.get(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, verify=ca_cert)
         response_body = response.json()
 
         if response.status_code != 200:
@@ -143,8 +151,8 @@ def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_
 
     response = None
     try:
-        client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-        response = client.post(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, data=json.dumps(data), verify=False)
+        client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled, ignore_hostname=True)
+        response = client.post(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, data=json.dumps(data), verify=ca_cert)
         response_body = response.json()
 
         if response.status_code != 200:
@@ -177,8 +185,8 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
     data = {
         'auth_tag': crypto.do_hmac(key, agent_id),
     }
-    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-    response = client.put(f'/v{api_version}/agents/{agent_id}/activate', cert=tls_cert_info, data=json.dumps(data), verify=False)
+    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled, ignore_hostname=True)
+    response = client.put(f'/v{api_version}/agents/{agent_id}/activate', cert=tls_cert_info, data=json.dumps(data), verify=ca_cert)
     response_body = response.json()
 
     if response.status_code == 200:
@@ -192,8 +200,8 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
 
 
 def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
-    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-    response = client.delete(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, verify=False)
+    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled, ignore_hostname=True)
+    response = client.delete(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, verify=ca_cert)
     response_body = response.json()
 
     if response.status_code == 200:
@@ -206,8 +214,8 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
 
 
 def doRegistrarList(registrar_ip, registrar_port):
-    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled)
-    response = client.get(f'/v{api_version}/agents/', cert=tls_cert_info, verify=False)
+    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled, ignore_hostname=True)
+    response = client.get(f'/v{api_version}/agents/', cert=tls_cert_info, verify=ca_cert)
     response_body = response.json()
 
     if response.status_code != 200:
