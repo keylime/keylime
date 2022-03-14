@@ -188,7 +188,7 @@ def setUpModule():
     tenant_templ.agent_base_url = f'{tenant_templ.cloudagent_ip}:{tenant_templ.cloudagent_port}'
     tenant_templ.supported_version = "2.0"
     # Set up TLS
-    tenant_templ.cert, tenant_templ.agent_cert = tenant_templ.get_tls_context()
+    tenant_templ.cert, tenant_templ.agent_cert, _ = tenant_templ.get_tls_context()
 
 
 # Destroy everything on teardown

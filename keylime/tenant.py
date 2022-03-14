@@ -111,7 +111,7 @@ class Tenant():
 
         self.api_version = keylime_api_version.current_version()
 
-        (self.my_cert, self.my_priv_key), (self.my_agent_cert, self.my_agent_priv_key) = self.get_tls_context()
+        (self.my_cert, self.my_priv_key), (self.my_agent_cert, self.my_agent_priv_key), self.verifier_ca_cert = self.get_tls_context()
         self.cert = (self.my_cert, self.my_priv_key)
         self.agent_cert = (self.my_agent_cert, self.my_agent_priv_key)
         if config.getboolean('general', "enable_tls"):
@@ -132,11 +132,13 @@ class Tenant():
         Returns:
             string -- my_cert (client_cert), my_priv_key (client private key)
         """
+        verifier_ca_cert = config.get('tenant', 'ca_cert')
         my_cert = config.get('tenant', 'my_cert')
         my_priv_key = config.get('tenant', 'private_key')
         tls_dir = config.get('tenant', 'tls_dir')
 
         if tls_dir == 'default':
+            verifier_ca_cert = 'cacert.crt'
             my_cert = 'client-cert.crt'
             my_priv_key = 'client-private.pem'
             tls_dir = 'cv_ca'
@@ -145,6 +147,7 @@ class Tenant():
             tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
 
         logger.info("Setting up client TLS in %s", tls_dir)
+        verifier_ca_cert = os.path.join(tls_dir, verifier_ca_cert)
         my_cert = os.path.join(tls_dir, my_cert)
         my_priv_key = os.path.join(tls_dir, my_priv_key)
 
@@ -158,7 +161,7 @@ class Tenant():
         if agent_mtls_cert != "CV":
             agent_mtls_context = (agent_mtls_cert, agent_mtls_private_key)
 
-        return tls_context, agent_mtls_context
+        return tls_context, agent_mtls_context, verifier_ca_cert
 
     def process_allowlist(self, args):
         # Set up PCR values
@@ -630,12 +633,12 @@ class Tenant():
             'supported_version': self.supported_version,
         }
         json_message = json.dumps(data)
-        do_cv = RequestsClient(self.verifier_base_url, self.tls_enabled)
+        do_cv = RequestsClient(self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
         response = do_cv.post(
             (f'/v{self.api_version}/agents/{self.agent_uuid}'),
             data=json_message,
             cert=self.cert,
-            verify=False
+            verify=self.verifier_ca_cert
         )
 
         if response.status_code == 503:
@@ -658,12 +661,12 @@ class Tenant():
     def do_cvstatus(self):
         """Perform operational state look up for agent on the verifier"""
 
-        do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled)
+        do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
 
         response = do_cvstatus.get(
             (f'/v{self.api_version}/agents/{self.agent_uuid}'),
             cert=self.cert,
-            verify=False
+            verify=self.verifier_ca_cert
         )
 
         if response.status_code == 503:
@@ -699,14 +702,14 @@ class Tenant():
     def do_cvlist(self):
         """List all agent statuses in cloudverifier"""
 
-        do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled)
+        do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
         verifier_id = ""
         if self.verifier_id is not None:
             verifier_id = self.verifier_id
         response = do_cvstatus.get(
             (f'/v{self.api_version}/agents/?verifier={verifier_id}'),
             cert=self.cert,
-            verify=False
+            verify=self.verifier_ca_cert
         )
 
         if response.status_code == 503:
@@ -736,7 +739,7 @@ class Tenant():
     def do_cvbulkinfo(self):
         """Perform operational state look up for agent"""
 
-        do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled)
+        do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
 
         verifier_id = ""
         if self.verifier_id is not None:
@@ -744,7 +747,7 @@ class Tenant():
         response = do_cvstatus.get(
             (f'/v{self.api_version}/agents/?bulk={True}&verifier={verifier_id}'),
             cert=self.cert,
-            verify=False
+            verify=self.verifier_ca_cert
         )
 
         if response.status_code == 503:
@@ -790,11 +793,11 @@ class Tenant():
             self.verifier_ip = cvresponse['results'][self.agent_uuid]["verifier_ip"]
             self.verifier_port = cvresponse['results'][self.agent_uuid]["verifier_port"]
 
-        do_cvdelete = RequestsClient(self.verifier_base_url, self.tls_enabled)
+        do_cvdelete = RequestsClient(self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
         response = do_cvdelete.delete(
             (f'/v{self.api_version}/agents/{self.agent_uuid}'),
             cert=self.cert,
-            verify=False
+            verify=self.verifier_ca_cert
         )
 
         response = response.json()
@@ -809,11 +812,11 @@ class Tenant():
             deleted = False
             for _ in range(12):
                 get_cvdelete = RequestsClient(
-                    self.verifier_base_url, self.tls_enabled)
+                    self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
                 response = get_cvdelete.get(
                     (f'/v{self.api_version}/agents/{self.agent_uuid}'),
                     cert=self.cert,
-                    verify=False
+                    verify=self.verifier_ca_cert
                 )
 
                 if response.status_code == 404:
@@ -922,12 +925,12 @@ class Tenant():
             self.verifier_port = agent_json['results'][self.agent_uuid]['verifier_port']
 
         do_cvreactivate = RequestsClient(
-            self.verifier_base_url, self.tls_enabled)
+            self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
         response = do_cvreactivate.put(
             f'/v{self.api_version}/agents/{self.agent_uuid}/reactivate',
             data=b'',
             cert=self.cert,
-            verify=False
+            verify=self.verifier_ca_cert
         )
 
         if response.status_code == 503:
@@ -950,12 +953,12 @@ class Tenant():
         """ Stop declared active agent
         """
         params = f'/v{self.api_version}/agents/{self.agent_uuid}/stop'
-        do_cvstop = RequestsClient(self.verifier_base_url, self.tls_enabled)
+        do_cvstop = RequestsClient(self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
         response = do_cvstop.put(
             params,
             cert=self.cert,
             data=b'',
-            verify=False
+            verify=self.verifier_ca_cert
         )
 
         if response.status_code == 503:
@@ -1178,21 +1181,21 @@ class Tenant():
             'allowlist': json.dumps(self.allowlist)
         }
         body = json.dumps(data)
-        cv_client = RequestsClient(self.verifier_base_url, self.tls_enabled)
+        cv_client = RequestsClient(self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
         response = cv_client.post(f'/v{self.api_version}/allowlists/{allowlist_name}', data=body,
-                                  cert=self.cert, verify=False)
+                                  cert=self.cert, verify=self.verifier_ca_cert)
         print(response.json())
 
     def do_delete_allowlist(self, name):
-        cv_client = RequestsClient(self.verifier_base_url, self.tls_enabled)
+        cv_client = RequestsClient(self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
         response = cv_client.delete(f'/v{self.api_version}/allowlists/{name}',
-                                    cert=self.cert, verify=False)
+                                    cert=self.cert, verify=self.verifier_ca_cert)
         print(response.json())
 
     def do_show_allowlist(self, name):
-        cv_client = RequestsClient(self.verifier_base_url, self.tls_enabled)
+        cv_client = RequestsClient(self.verifier_base_url, self.tls_enabled, ignore_hostname=True)
         response = cv_client.get(f'/v{self.api_version}/allowlists/{name}',
-                                 cert=self.cert, verify=False)
+                                 cert=self.cert, verify=self.verifier_ca_cert)
         print(f"Show allowlist command response: {response.status_code}.")
         print(response.json())
 
