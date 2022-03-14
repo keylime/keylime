@@ -78,6 +78,7 @@ A hardware TPM should always be used when real secrets and trust is required.
 * [Security Vulnerability Management Policy](#security-vulnerability-management-policy)
 * [Meeting Information](#project-meetings)
 * [Contributing: First Timers Support](#contributing--first-timers-support)
+* [Testing](#testing)
 * [Additional Reading](#additional-reading)
 * [Disclaimer](#disclaimer)
 
@@ -490,6 +491,10 @@ Your contribution is our gift to make our project even more robust. Check out [C
 
 Keylime uses [Semantic Versioning](https://semver.org/). It is recommended you also read the [RELEASE.md](RELEASE.md)
 file to learn more about it and familiarise yourself with simple of examples of using it.
+
+## Testing
+
+Please, see [TESTING.md](TESTING.md) for details.
 
 ## Additional Reading
 
