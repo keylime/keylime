@@ -276,7 +276,7 @@ class TestIMAVerification(unittest.TestCase):
         # test with a bad GPG sig
         with self.assertRaises(Exception) as bad_sig_context:
             ima.read_allowlist(allowlist_file, None, allowlist_bad_sig, allowlist_gpg_key)
-        self.assertIn('GPG signature verification failed', str(bad_sig_context.exception))
+        self.assertIn('Allowlist signature verification failed', str(bad_sig_context.exception))
 
         # validate everything together
         al_data = ima.read_allowlist(allowlist_file, allowlist_checksum, allowlist_sig, allowlist_gpg_key)

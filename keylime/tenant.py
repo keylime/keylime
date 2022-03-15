@@ -37,7 +37,7 @@ from keylime import ca_util
 from keylime.common import algorithms, validators
 from keylime import ima_file_signatures
 from keylime import measured_boot
-from keylime import gpg
+from keylime import signing
 from keylime import api_version as keylime_api_version
 
 # setup logging
@@ -1399,7 +1399,7 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
                 raise UserError(f"A gpg key is missing for key signature file '{keysig_file}'")
 
             gpg_key_file = args.ima_sign_verification_key_sig_keys[i]
-            gpg.gpg_verify_filesignature(gpg_key_file, key_file, keysig_file, "IMA file signing key")
+            signing.verify_signature_from_file(gpg_key_file, key_file, keysig_file, "IMA file signing key")
 
             logger.info("Signature verification on %s was successful", key_file)
 
@@ -1433,7 +1433,7 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
                 raise Exception(f"Downloading key signature ({key_url}) failed with status code {response.status_code}!")
 
             gpg_key_file = args.ima_sign_verification_key_sig_url_keys[i]
-            gpg.gpg_verify_filesignature(gpg_key_file, key_file, keysig_file, "IMA file signing key")
+            signing.verify_signature_from_file(gpg_key_file, key_file, keysig_file, "IMA file signing key")
             logger.info("Signature verification on %s was successful", key_url)
 
     if args.command == 'add':

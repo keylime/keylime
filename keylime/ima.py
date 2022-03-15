@@ -14,7 +14,7 @@ import datetime
 import functools
 
 from keylime import config
-from keylime import gpg
+from keylime import signing
 from keylime import ima_ast
 from keylime import ima_file_signatures
 from keylime import keylime_logging
@@ -406,7 +406,7 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
 
     # verify GPG signature if needed
     if gpg_sig_file and gpg_key_file:
-        gpg.gpg_verify_filesignature(gpg_key_file, al_path, gpg_sig_file, "allowlist")
+        signing.verify_signature_from_file(gpg_key_file, al_path, gpg_sig_file, "allowlist")
 
     # Purposefully die if path doesn't exist
     with open(al_path, 'rb') as f:
