@@ -3,7 +3,12 @@ Description=The Keylime registrar service
 After=network.target
 
 [Service]
+Group=keylime
+User=keylime
 ExecStart=/usr/bin/keylime_registrar
+TimeoutSec=60s
+Restart=on-failure
+RestartSec=120s
 
 [Install]
 WantedBy=default.target

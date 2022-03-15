@@ -1,9 +1,16 @@
 [Unit]
 Description=The Keylime registrar service
-After=network.target
+After=network.target keylime_verifier.service
+StartLimitInterval=10s
+StartLimitBurst=5
 
 [Service]
+Group=keylime
+User=keylime
 ExecStart=KEYLIMEDIR/keylime_registrar
+TimeoutSec=60s
+Restart=on-failure
+RestartSec=120s
 
 [Install]
 WantedBy=default.target

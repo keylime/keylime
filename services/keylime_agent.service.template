@@ -1,9 +1,16 @@
 [Unit]
 Description=The Keylime compute agent
+StartLimitInterval=10s
+StartLimitBurst=5
+ConditionPathExistsGlob=/dev/tpm[0-9]*
+ConditionPathExistsGlob=/dev/tpmrm[0-9]*
 
 [Service]
 ExecStart=KEYLIMEDIR/keylime_agent
 KillSignal=SIGINT
+TimeoutSec=60s
+Restart=on-failure
+RestartSec=120s
 
 [Install]
 WantedBy=default.target
