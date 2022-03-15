@@ -81,6 +81,8 @@ class Tenant():
     vtpm_policy = {}
     metadata = {}
     allowlist = {}
+    allowlist_signature = None
+    allowlist_signature_key = None
     ima_sign_verification_keys = []
     revocation_key = ""
     accept_tpm_hash_algs = []
@@ -237,6 +239,14 @@ class Tenant():
                                          config.IMA_PCR):
             # Process allowlists
             self.allowlist = ima.process_allowlists(al_data, excl_data)
+            self.allowlist_signature = b''
+            self.allowlist_signature_key = b''
+            if args["allowlist_sig"]:
+                with open(args['allowlist_sig'], 'rb') as sig_in:
+                    self.allowlist_signature = sig_in.read()
+            if args['allowlist_sig_key']:
+                with open(args["allowlist_sig_key"], 'rb') as key_in:
+                    self.allowlist_signature_key = key_in.read()
 
         # Read command-line path string TPM event log (measured boot) reference state
         mb_refstate_data = None
@@ -1189,10 +1199,14 @@ class Tenant():
 
         allowlist_name = args['allowlist_name']
         self.process_allowlist(args)
+        with open(args["allowlist"], 'rb') as alist_f:
+            allowlist_raw = alist_f.read()
         data = {
             'tpm_policy': json.dumps(self.tpm_policy),
             'vtpm_policy': json.dumps(self.vtpm_policy),
-            'allowlist': json.dumps(self.allowlist)
+            'allowlist': base64.b64encode(allowlist_raw).decode(),
+            'allowlist_signature': base64.b64encode(self.allowlist_signature).decode(),
+            'allowlist_signature_key': base64.b64encode(self.allowlist_signature_key).decode()
         }
         body = json.dumps(data)
         cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)

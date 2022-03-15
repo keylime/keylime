@@ -3,6 +3,7 @@
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
+import base64
 import signal
 import traceback
 import sys
@@ -28,6 +29,7 @@ from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime import keylime_logging
 from keylime import cloud_verifier_common
 from keylime import revocation_notifier
+from keylime import signing
 from keylime import web_util
 from keylime import tornado_requests
 from keylime import api_version as keylime_api_version
@@ -745,6 +747,25 @@ class AllowlistHandler(BaseHandler):
 
         allowlist = {}
         json_body = json.loads(self.request.body)
+
+        # Verify allowlist signatures if set to enforce
+        if config.getboolean('cloud_verifier', 'enforce_allow_list_signatures', fallback=False):
+            if not json_body.get('allowlist_signature'):
+                web_util.echo_json_response(self, 405, "Verifier is enforcing signature validation, but no signature was provided.")
+                return
+            if not json_body.get('allowlist_signature_key'):
+                web_util.echo_json_response(self, 405, "Verifier is enforcing signature validation, but no public key was provided.")
+                return
+
+            allowlist_sig = base64.b64decode(json_body.get('allowlist_signature').encode())
+            allowlist_sig_key = base64.b64decode(json_body.get('allowlist_signature_key').encode())
+            allowlist_raw = base64.b64decode(json_body.get('allowlist').encode())
+
+            if not signing.verify_signature(allowlist_sig_key, allowlist_sig, allowlist_raw):
+                web_util.echo_json_response(self, 401, f"Signature verification for allowlist {allowlist_name} failed!")
+                return
+            logger.info(f'Allowlist {allowlist_name} signature validation passed.')
+
         allowlist['name'] = allowlist_name
         tpm_policy = json_body.get('tpm_policy')
         if tpm_policy:
