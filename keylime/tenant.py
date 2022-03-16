@@ -1271,7 +1271,7 @@ def main(argv=sys.argv):
     parser.add_argument('--mb_refstate', action='store', dest='mb_refstate',
                         default=None, help="Specify the location of a measure boot reference state (intended state)")
     parser.add_argument('--allowlist-checksum', action='store', dest='allowlist_checksum',
-                        default=None, help="Specify the SHA2 checksum of an allowlist")
+                        default=None, help="Specify the SHA-256 checksum of an allowlist")
     parser.add_argument('--allowlist-sig', action='store', dest='allowlist_sig',
                         default=None, help="Specify the GPG signature file of an allowlist")
     parser.add_argument('--allowlist-sig-key', action='store', dest='allowlist_sig_key',
