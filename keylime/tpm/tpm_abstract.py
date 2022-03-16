@@ -331,7 +331,7 @@ class AbstractTPM(metaclass=ABCMeta):
         missing = set(pcr_allowlist.keys()) - pcrs_in_quote
         if len(missing) > 0:
             logger.error("%sPCRs specified in policy not in quote: %s", ("", "v")[virtual], missing)
-            failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": missing}, True)
+            failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": list(missing)}, True)
 
         if not mb_failure and mb_refstate_data:
             mb_policy_failure = measured_boot.evaluate_policy(mb_policy, mb_policy_name, mb_refstate_data, mb_measurement_data,
