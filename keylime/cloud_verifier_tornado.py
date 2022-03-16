@@ -514,12 +514,11 @@ class AgentsHandler(BaseHandler):
                             agent_data[key] = val
 
                         # Prepare SSLContext for mTLS connections
-                        # TODO: drop special handling after initial upgrade
+                        agent_mtls_cert_enabled = config.getboolean('cloud_verifier', 'agent_mtls_cert_enabled', fallback=False)
                         mtls_cert = registrar_data.get('mtls_cert', None)
                         agent_data['ssl_context'] = None
-                        if mtls_cert:
-                            agent_data['ssl_context'] = web_util.generate_agent_mtls_context(mtls_cert,
-                                                                                             self.mtls_options)
+                        if agent_mtls_cert_enabled and mtls_cert:
+                            agent_data['ssl_context'] = web_util.generate_agent_mtls_context(mtls_cert, self.mtls_options)
 
                         if agent_data['ssl_context'] is None:
                             logger.warning('Connecting to agent without mTLS: %s', agent_id)
