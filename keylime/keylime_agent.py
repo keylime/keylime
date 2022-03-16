@@ -297,10 +297,15 @@ class Handler(BaseHTTPRequestHandler):
         dec_payload = None
         enc_payload = None
         if self.server.payload is not None:
-            dec_payload = crypto.decrypt(
-                self.server.payload, bytes(self.server.K))
+            if (not self.server.mtls_cert_enabled and
+                not config.getboolean('cloud_agent', 'enable_insecure_payload', fallback=False)):
+                logger.warning('agent mTLS is disabled, and unless "enable_insecure_payload" is set to "True", payloads cannot be deployed')
+                enc_payload = None
+            else:
+                dec_payload = crypto.decrypt(
+                    self.server.payload, bytes(self.server.K))
+                enc_payload = self.server.payload
 
-            enc_payload = self.server.payload
         elif os.path.exists(enc_path):
             # if no payload provided, try to decrypt one from a previous run stored in encrypted_payload
             with open(enc_path, 'rb') as f:
@@ -386,6 +391,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     rsapublickey_exportable = None
     mtls_cert_path = None
     rsakey_path = None
+    mtls_cert_enabled = False
     mtls_cert = None
     done = threading.Event()
     auth_tag = None
@@ -405,9 +411,6 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         keyname = config.get('cloud_agent', 'rsa_keyname')
         if not os.path.isabs(keyname):
             keyname = os.path.join(secdir, keyname)
-        certname = config.get('cloud_agent', 'mtls_cert')
-        if not os.path.isabs(certname):
-            certname = os.path.join(secdir, certname)
 
         # read or generate the key depending on configuration
         if os.path.isfile(keyname):
@@ -426,23 +429,34 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         self.rsapublickey_exportable = crypto.rsa_export_pubkey(
             self.rsaprivatekey)
 
-        if os.path.isfile(certname):
-            logger.info("Using existing mTLS cert in %s", certname)
-            with open(certname, "rb") as f:
-                mtls_cert = x509.load_pem_x509_certificate(f.read(), backend=default_backend())
-        else:
-            logger.info("No mTLS certificate found, generating a new one")
-            agent_ips = [server_address[0]]
-            if contact_ip is not None:
-                agent_ips.append(contact_ip)
-            with open(certname, "wb") as f:
-                # By default generate a TLS certificate valid for 5 years
-                valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=(360 * 5))
-                mtls_cert = crypto.generate_selfsigned_cert(agent_uuid, rsa_key, valid_util, agent_ips)
-                f.write(mtls_cert.public_bytes(serialization.Encoding.PEM))
+        self.mtls_cert_enabled = config.getboolean('cloud_agent', 'mtls_cert_enabled', fallback=False)
+        if self.mtls_cert_enabled:
+            certname = config.get('cloud_agent', 'mtls_cert')
 
-        self.mtls_cert_path = certname
-        self.mtls_cert = mtls_cert
+            if not os.path.isabs(certname):
+                certname = os.path.join(secdir, certname)
+
+            if os.path.isfile(certname):
+                logger.info("Using existing mTLS cert in %s", certname)
+                with open(certname, "rb") as f:
+                    mtls_cert = x509.load_pem_x509_certificate(f.read(), backend=default_backend())
+            else:
+                logger.info("No mTLS certificate found, generating a new one")
+                agent_ips = [server_address[0]]
+                if contact_ip is not None:
+                    agent_ips.append(contact_ip)
+                with open(certname, "wb") as f:
+                    # By default generate a TLS certificate valid for 5 years
+                    valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=(360 * 5))
+                    mtls_cert = crypto.generate_selfsigned_cert(agent_uuid, rsa_key, valid_util, agent_ips)
+                    f.write(mtls_cert.public_bytes(serialization.Encoding.PEM))
+
+            self.mtls_cert_path = certname
+            self.mtls_cert = mtls_cert
+        else:
+            self.mtls_cert_path = None
+            self.mtls_cert = None
+            logger.info("WARNING: mTLS disabled, Tenant and Verifier will reach out to agent via HTTP")
 
         # attempt to get a U value from the TPM NVRAM
         nvram_u = tpm_instance.read_key_nvram()
@@ -745,12 +759,21 @@ def main():
         keylime_ca = os.path.join(config.WORK_DIR, 'cv_ca', 'cacert.crt')
 
     server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, contact_ip, ima_log_file, tpm_log_file_data)
-    context = web_util.generate_mtls_context(server.mtls_cert_path, server.rsakey_path, keylime_ca, logger=logger)
-    server.socket = context.wrap_socket(server.socket, server_side=True)
+    if server.mtls_cert_enabled:
+        context = web_util.generate_mtls_context(server.mtls_cert_path, server.rsakey_path, keylime_ca, logger=logger)
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+    else:
+        if not config.getboolean('cloud_agent', 'enable_insecure_payload', fallback=False) and config.get('cloud_agent', 'payload_script') != "":
+            raise RuntimeError('agent mTLS is disabled, while a tenant can instruct the agent to execute code on the node. '
+                               'In order to allow the running of the agent, "enable_insecure_payload" has to be set to "True"')
+
     serverthread = threading.Thread(target=server.serve_forever, daemon=True)
 
     # register it and get back a blob
-    mtls_cert = server.mtls_cert.public_bytes(serialization.Encoding.PEM)
+    mtls_cert = "disabled"
+    if server.mtls_cert:
+        mtls_cert = server.mtls_cert.public_bytes(serialization.Encoding.PEM)
+
     keyblob = registrar_client.doRegisterAgent(
         registrar_ip, registrar_port, agent_uuid, ek_tpm, ekcert, aik_tpm, mtls_cert, contact_ip, contact_port)
 
