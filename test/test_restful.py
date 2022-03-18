@@ -203,7 +203,7 @@ def launch_cloudverifier():
     """Start up the cloud verifier"""
     global cv_process, script_env, FORK_ARGS
     if cv_process is None:
-        cv_process = subprocess.Popen("keylime_verifier",
+        cv_process = subprocess.Popen("keylime_verifier",  # pylint: disable=subprocess-popen-preexec-fn
                                       shell=False,
                                       preexec_fn=os.setsid,
                                       stdout=subprocess.PIPE,
@@ -230,7 +230,7 @@ def launch_registrar():
     """Start up the registrar"""
     global reg_process, script_env, FORK_ARGS
     if reg_process is None:
-        reg_process = subprocess.Popen("keylime_registrar",
+        reg_process = subprocess.Popen("keylime_registrar",  # pylint: disable=subprocess-popen-preexec-fn
                                        shell=False,
                                        preexec_fn=os.setsid,
                                        stdout=subprocess.PIPE,
@@ -263,7 +263,7 @@ def launch_cloudagent(agent="python"):
     else:
         agent_path = "echo"
     if agent_process is None:
-        agent_process = subprocess.Popen(agent_path,
+        agent_process = subprocess.Popen(agent_path,  # pylint: disable=subprocess-popen-preexec-fn
                                          shell=False,
                                          preexec_fn=os.setsid,
                                          stdout=subprocess.PIPE,
