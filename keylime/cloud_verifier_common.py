@@ -2,7 +2,7 @@ import ast
 import base64
 import time
 
-from keylime import config, crypto, json, keylime_logging, revocation_notifier
+from keylime import config, crypto, json, keylime_logging
 from keylime.agentstates import AgentAttestStates
 from keylime.common import algorithms, validators
 from keylime.failure import Component, Failure
@@ -263,14 +263,7 @@ def process_get_status(agent):
 
 
 # sign a message with revocation key.  telling of verification problem
-
-
-def notify_error(agent, msgtype="revocation", event=None):
-    send_mq = config.getboolean("cloud_verifier", "revocation_notifier")
-    send_webhook = config.getboolean("cloud_verifier", "revocation_notifier_webhook", fallback=False)
-    if not (send_mq or send_webhook):
-        return
-
+def prepare_error(agent, msgtype="revocation", event=None):
     # prepare the revocation message:
     revocation = {
         "type": msgtype,
@@ -295,10 +288,7 @@ def notify_error(agent, msgtype="revocation", event=None):
 
     else:
         tosend["signature"] = "none"
-    if send_mq:
-        revocation_notifier.notify(tosend)
-    if send_webhook:
-        revocation_notifier.notify_webhook(tosend)
+    return tosend
 
 
 def validate_agent_data(agent_data):

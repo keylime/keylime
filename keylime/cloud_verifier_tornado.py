@@ -4,6 +4,7 @@ import os
 import signal
 import sys
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Process
 
 import tornado.ioloop
@@ -30,6 +31,9 @@ from keylime.failure import MAX_SEVERITY_LABEL, Component, Failure
 from keylime.ima import ima
 
 logger = keylime_logging.init_logging("cloudverifier")
+
+# mTLS configuration to connect to the agent
+mtls_options = None
 
 
 try:
@@ -228,11 +232,6 @@ class VersionHandler(BaseHandler):
 
 
 class AgentsHandler(BaseHandler):
-    mtls_options = None  # Stores the cert, key and password used by the verifier for mTLS connections
-
-    def initialize(self, mtls_options):
-        self.mtls_options = mtls_options
-
     def head(self):
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
@@ -515,9 +514,7 @@ class AgentsHandler(BaseHandler):
                         mtls_cert = agent_data["mtls_cert"]
                         agent_data["ssl_context"] = None
                         if agent_mtls_cert_enabled and mtls_cert:
-                            agent_data["ssl_context"] = web_util.generate_agent_mtls_context(
-                                mtls_cert, self.mtls_options
-                            )
+                            agent_data["ssl_context"] = web_util.generate_agent_mtls_context(mtls_cert, mtls_options)
 
                         if agent_data["ssl_context"] is None:
                             logger.warning("Connecting to agent without mTLS: %s", agent_id)
@@ -585,7 +582,7 @@ class AgentsHandler(BaseHandler):
                 if not isinstance(agent, dict):
                     agent = _from_db_obj(agent)
                 if agent["mtls_cert"]:
-                    agent["ssl_context"] = web_util.generate_agent_mtls_context(agent["mtls_cert"], self.mtls_options)
+                    agent["ssl_context"] = web_util.generate_agent_mtls_context(agent["mtls_cert"], mtls_options)
                 agent["operational_state"] = states.START
                 asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
                 web_util.echo_json_response(self, 200, "Success")
@@ -879,6 +876,70 @@ async def invoke_provide_v(agent):
         asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
 
 
+async def invoke_notify_error(agent, tosend):
+    if agent is None:
+        logger.warning("Agent deleted while being processed")
+        return
+    kwargs = {
+        "data": tosend,
+    }
+    if agent["ssl_context"]:
+        kwargs["context"] = agent["ssl_context"]
+    res = tornado_requests.request(
+        "POST",
+        f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/notifications/revocation",
+        **kwargs,
+    )
+    response = await res
+
+    if response is None:
+        logger.warning(
+            "Empty Notify Revocation response from cloud agent %s",
+            agent["agent_id"],
+        )
+    elif response.status_code != 200:
+        logger.warning(
+            "Unexpected Notify Revocation response error for cloud agent %s, Error: %s",
+            agent["agent_id"],
+            response.status_code,
+        )
+
+
+async def notify_error(agent, msgtype="revocation", event=None):
+    notifiers = revocation_notifier.get_notifiers()
+    if len(notifiers) == 0:
+        return
+
+    tosend = cloud_verifier_common.prepare_error(agent, msgtype, event)
+    if "webhook" in notifiers:
+        revocation_notifier.notify_webhook(tosend)
+    if "zeromq" in notifiers:
+        revocation_notifier.notify(tosend)
+    if "agent" in notifiers:
+        verifier_id = config.get(
+            "cloud_verifier", "cloudverifier_id", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID
+        )
+        session = get_session()
+        agents = session.query(VerfierMain).filter_by(verifier_id=verifier_id).all()
+        futures = []
+        loop = asyncio.get_event_loop()
+        # Notify all agents asynchronously through a thread pool
+        with ThreadPoolExecutor() as pool:
+            for agent_db_obj in agents:
+                if agent_db_obj.agent_id != agent["agent_id"]:
+                    agent = _from_db_obj(agent_db_obj)
+                    if agent["mtls_cert"]:
+                        agent["ssl_context"] = web_util.generate_agent_mtls_context(agent["mtls_cert"], mtls_options)
+                func = functools.partial(invoke_notify_error, agent, tosend)
+                futures.append(await loop.run_in_executor(pool, func))
+            # Wait for all tasks complete in 60 seconds
+            try:
+                for f in asyncio.as_completed(futures, timeout=60):
+                    await f
+            except asyncio.TimeoutError as e:
+                logger.error("Timeout during notifying error to agents: %s", e)
+
+
 async def process_agent(agent, new_operational_state, failure=Failure(Component.INTERNAL, ["verifier"])):
     # Convert to dict if the agent arg is a db object
     if not isinstance(agent, dict):
@@ -919,7 +980,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
 
                 # issue notification for invalid quotes
                 if new_operational_state == states.INVALID_QUOTE:
-                    cloud_verifier_common.notify_error(agent, event=failure.highest_severity_event)
+                    await notify_error(agent, event=failure.highest_severity_event)
 
                 # When the failure is irrecoverable we stop polling the agent
                 if not failure.recoverable or failure.highest_severity == MAX_SEVERITY_LABEL:
@@ -994,9 +1055,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 )
                 failure.add_event("not_reachable", "agent was not reachable from verifier", False)
                 if agent["first_verified"]:  # only notify on previously good agents
-                    cloud_verifier_common.notify_error(
-                        agent, msgtype="comm_error", event=failure.highest_severity_event
-                    )
+                    await notify_error(agent, msgtype="comm_error", event=failure.highest_severity_event)
                 else:
                     logger.debug("Communication error for new agent. No notification will be sent")
                 await process_agent(agent, states.FAILED, failure)
@@ -1023,7 +1082,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                     maxr,
                 )
                 failure.add_event("not_reachable_v", "agent was not reachable to provide V", False)
-                cloud_verifier_common.notify_error(agent, msgtype="comm_error", event=failure.highest_severity_event)
+                await notify_error(agent, msgtype="comm_error", event=failure.highest_severity_event)
                 await process_agent(agent, states.FAILED, failure)
             else:
                 agent["operational_state"] = states.PROVIDE_V
@@ -1050,7 +1109,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
         await process_agent(agent, states.FAILED, failure)
 
 
-async def activate_agents(verifier_id, verifier_ip, verifier_port, mtls_options):
+async def activate_agents(verifier_id, verifier_ip, verifier_port):
     session = get_session()
     aas = get_AgentAttestStates()
     try:
@@ -1119,7 +1178,7 @@ def main():
     # print out API versions we support
     keylime_api_version.log_api_versions(logger)
 
-    context, mtls_options = web_util.init_mtls(logger=logger)
+    context, server_mtls_options = web_util.init_mtls(logger=logger)
 
     # Check for user defined CA to connect to agent
     agent_mtls_cert = config.get("cloud_verifier", "agent_mtls_cert", fallback=None)
@@ -1127,12 +1186,15 @@ def main():
     agent_mtls_private_key_pw = config.get("cloud_verifier", "agent_mtls_private_key_pw", fallback=None)
 
     # Only set custom options if the cert should not be the same as used by the verifier
-    if agent_mtls_cert != "CV":
+    global mtls_options
+    if agent_mtls_cert == "CV":
+        mtls_options = server_mtls_options
+    else:
         mtls_options = (agent_mtls_cert, agent_mtls_private_key, agent_mtls_private_key_pw)
 
     app = tornado.web.Application(
         [
-            (r"/v?[0-9]+(?:\.[0-9]+)?/agents/.*", AgentsHandler, {"mtls_options": mtls_options}),
+            (r"/v?[0-9]+(?:\.[0-9]+)?/agents/.*", AgentsHandler),
             (r"/v?[0-9]+(?:\.[0-9]+)?/allowlists/.*", AllowlistHandler),
             (r"/versions?", VersionHandler),
             (r".*", MainHandler),
@@ -1168,17 +1230,17 @@ def main():
         server.start()
         if task_id == 0:
             # Reactivate agents
-            asyncio.ensure_future(
-                activate_agents(cloudverifier_id, cloudverifier_host, cloudverifier_port, mtls_options)
-            )
+            asyncio.ensure_future(activate_agents(cloudverifier_id, cloudverifier_host, cloudverifier_port))
         tornado.ioloop.IOLoop.current().start()
         logger.debug("Server %s stopped.", task_id)
         sys.exit(0)
 
     processes = []
 
+    run_revocation_notifier = "zeromq" in revocation_notifier.get_notifiers()
+
     def sig_handler(*_):
-        if config.getboolean("cloud_verifier", "revocation_notifier"):
+        if run_revocation_notifier:
             revocation_notifier.stop_broker()
         for p in processes:
             p.join()
@@ -1186,7 +1248,7 @@ def main():
 
     signal.signal(signal.SIGINT, sig_handler)
     signal.signal(signal.SIGTERM, sig_handler)
-    if config.getboolean("cloud_verifier", "revocation_notifier"):
+    if run_revocation_notifier:
         logger.info(
             "Starting service for revocation notifications on port %s",
             config.getint("cloud_verifier", "revocation_notifier_port"),

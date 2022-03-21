@@ -18,8 +18,22 @@ broker_proc: Optional[Process] = None
 _SOCKET_PATH = "/var/run/keylime/keylime.verifier.ipc"
 
 
+# return the revocation notification methods for cloud verifier
+def get_notifiers():
+    notifiers = set(config.get("cloud_verifier", "revocation_notifiers", fallback="").split(","))
+    if ("zeromq" not in notifiers) and config.getboolean("cloud_verifier", "revocation_notifier", fallback=False):
+        logger.warning("Warning: 'revocation_notifier' option is deprecated; use 'revocation_notifiers'")
+        notifiers.add("zeromq")
+    if ("webhook" not in notifiers) and config.getboolean(
+        "cloud_verifier", "revocation_notifier_webhook", fallback=False
+    ):
+        logger.warning("Warning: 'revocation_notifier_webhook' option is deprecated; use 'revocation_notifiers'")
+        notifiers.add("webhook")
+    return notifiers.intersection({"zeromq", "webhook", "agent"})
+
+
 def start_broker():
-    assert config.getboolean("cloud_verifier", "revocation_notifier")
+    assert "zeromq" in get_notifiers()
     try:
         import zmq  # pylint: disable=import-outside-toplevel
     except ImportError as error:
@@ -74,7 +88,7 @@ def stop_broker():
 
 
 def notify(tosend):
-    assert config.getboolean("cloud_verifier", "revocation_notifier")
+    assert "zeromq" in get_notifiers()
     try:
         import zmq  # pylint: disable=import-outside-toplevel
     except ImportError as error:
