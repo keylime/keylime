@@ -12,8 +12,9 @@ import binascii
 import codecs
 import struct
 import abc
+import typing
 
-from typing import Dict, Callable, Any, Optional
+from typing import Dict, Callable, Optional, Union
 from keylime import config
 from keylime import keylime_logging
 from keylime.common.algorithms import Hash
@@ -29,21 +30,21 @@ NULL_BYTE = ord('\0')
 COLON_BYTE = ord(':')
 
 
-def get_START_HASH(hash_alg: Hash):
+def get_START_HASH(hash_alg: Hash) -> bytes:
     return codecs.decode(b'0' * (hash_alg.get_size() // 4), 'hex')
 
 
-def get_FF_HASH(hash_alg: Hash):
+def get_FF_HASH(hash_alg: Hash) -> bytes:
     return codecs.decode(b'f' * (hash_alg.get_size() // 4), 'hex')
 
 
 class Validator:
-    functions: Dict[Any, Callable]
+    functions: Dict[typing.Type['Mode'], Callable[..., Failure]]
 
-    def __init__(self, functions):
+    def __init__(self, functions: Dict[typing.Type['Mode'], Callable[..., Failure]]):
         self.functions = functions
 
-    def get_validator(self, class_type) -> Callable:
+    def get_validator(self, class_type: typing.Type['Mode']) -> Callable[..., Failure]:
         validator = self.functions.get(class_type, None)
         if validator is None:
             logger.warning("No validator was implemented for: %s. Using always false validator!",
@@ -60,7 +61,7 @@ class ParserError(TypeError):
 
 class Mode(abc.ABC):
     @abc.abstractmethod
-    def is_data_valid(self, validator: Validator):
+    def is_data_valid(self, validator: Validator) -> Failure:
         pass
 
     @abc.abstractmethod
@@ -70,7 +71,7 @@ class Mode(abc.ABC):
 
 class Type(abc.ABC):
     @abc.abstractmethod
-    def struct(self):
+    def struct(self) -> bytes:
         pass
 
 
@@ -83,10 +84,10 @@ class HexData(Type):
         except binascii.Error as e:
             raise ParserError(f"Provided data was not valid hex: {data}") from e
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.data.decode("utf-8")
 
-    def struct(self):
+    def struct(self) -> bytes:
         return struct.pack(f"<I{len(self.data)}s",
                            len(self.data),
                            self.data)
@@ -122,14 +123,14 @@ class Name(Type):
     name: str
     legacy: bool = False
 
-    def __init__(self, name: str, legacy=False):
+    def __init__(self, name: str, legacy: bool = False):
         self.name = name
         self.legacy = legacy
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def struct(self):
+    def struct(self) -> bytes:
         # The old "n" option is fixed length.
         if self.legacy:
             return struct.pack(f"{len(self.name)}sB{TCG_EVENT_NAME_LEN_MAX - len(self.name)}s",
@@ -151,7 +152,7 @@ class Digest:
     algorithm: Optional[str] = None
     legacy: bool = False
 
-    def __init__(self, digest: str, legacy=False):
+    def __init__(self, digest: str, legacy: bool = False):
         self.legacy = legacy
         tokens = digest.split(":")
         if len(tokens) == 1:
@@ -171,7 +172,7 @@ class Digest:
         else:
             raise ParserError(f"Cannot create Digest expected 1 or 2 tokens got: {len(tokens)} for {digest}")
 
-    def struct(self):
+    def struct(self) -> bytes:
         # The legacy format "d" has fixed length, so it does not contain a length attribute
         if self.legacy:
             return struct.pack(f"<{len(self.hash)}s", self.hash)
@@ -202,11 +203,10 @@ class Ima(Mode):
         self.digest = Digest(tokens[0], legacy=True)
         self.path = Name(tokens[1], legacy=True)
 
-    def bytes(self):
+    def bytes(self) -> bytes:
         return self.digest.struct() + self.path.struct()
 
-
-    def is_data_valid(self, validator: Validator):
+    def is_data_valid(self, validator: Validator) -> Failure:
         return validator.get_validator(type(self))(self.digest, self.path)
 
 
@@ -224,10 +224,10 @@ class ImaNg(Mode):
         self.digest = Digest(tokens[0])
         self.path = Name(tokens[1])
 
-    def bytes(self):
+    def bytes(self) -> bytes:
         return self.digest.struct() + self.path.struct()
 
-    def is_data_valid(self, validator):
+    def is_data_valid(self, validator: Validator) -> Failure:
         return validator.get_validator(type(self))(self.digest, self.path)
 
 
@@ -249,19 +249,20 @@ class ImaSig(Mode):
             raise ParserError(f"Cannot create ImaSig expected 2 or 3 tokens got: {len(tokens)}.")
         else:
             self.digest = Digest(tokens[0])
-            signature = self.create_Signature(tokens[-1])
+            signature = self.create_signature(tokens[-1])
             if signature:
                 self.signature = signature
                 if num_tokens == 3:
                     self.path = Name(tokens[1])
                 else:
                     # first part of data is digest , last is signature, in between is path
-                    self.path = data.split(maxsplit=1)[1].rsplit(maxsplit=1)[0]
+                    self.path = Name(data.split(maxsplit=1)[1].rsplit(maxsplit=1)[0])
             else:
                 # first part is data, last part is path
-                self.path = data.split(maxsplit=1)[1]
+                self.path = Name(data.split(maxsplit=1)[1])
 
-    def create_Signature(self, hexstring):
+    @staticmethod
+    def create_signature(hexstring: str) -> Optional[Signature]:
         """ Create the Signature object if the hexstring is a valid signature """
         try:
             return Signature(hexstring)
@@ -269,7 +270,7 @@ class ImaSig(Mode):
             pass
         return None
 
-    def bytes(self):
+    def bytes(self) -> bytes:
         output = self.digest.struct() + self.path.struct()
         # If no signature is there we sill have to add the entry for it
         if self.signature is None:
@@ -278,7 +279,7 @@ class ImaSig(Mode):
             output += self.signature.struct()
         return output
 
-    def is_data_valid(self, validator):
+    def is_data_valid(self, validator: Validator) -> Failure:
         return validator.get_validator(type(self))(self.digest, self.path, self.signature)
 
 
@@ -299,10 +300,10 @@ class ImaBuf(Mode):
         self.name = Name(tokens[1])
         self.data = Buffer(tokens[2])
 
-    def bytes(self):
+    def bytes(self) -> bytes:
         return self.digest.struct() + self.name.struct() + self.data.struct()
 
-    def is_data_valid(self, validator: Validator):
+    def is_data_valid(self, validator: Validator) -> Failure:
         return validator.get_validator(type(self))(self.digest, self.name, self.data)
 
 
@@ -312,21 +313,21 @@ class Entry:
     """
     pcr: str
     ima_template_hash: bytes
-    pcr_template_hash: bytes
+    pcr_template_hash: Optional[bytes]
     mode: Mode
     _bytes: bytes
-    _validator: Validator
+    _validator: Optional[Validator]
     _ima_hash_alg: Hash
     _pcr_hash_alg: Hash
 
-    _mode_lookup = {
+    _mode_lookup: Dict[str, Union[typing.Type[Ima], typing.Type[ImaNg], typing.Type[ImaSig], typing.Type[ImaBuf]]] = {
         "ima": Ima,
         "ima-ng": ImaNg,
         "ima-sig": ImaSig,
         "ima-buf": ImaBuf
     }
 
-    def __init__(self, data: str, validator=None, ima_hash_alg: Hash = Hash.SHA1, pcr_hash_alg: Hash = Hash.SHA1):
+    def __init__(self, data: str, validator: Optional[Validator] = None, ima_hash_alg: Hash = Hash.SHA1, pcr_hash_alg: Hash = Hash.SHA1):
         self._validator = validator
         self._ima_hash_alg = ima_hash_alg
         self._pcr_hash_alg = pcr_hash_alg
@@ -352,7 +353,7 @@ class Entry:
             self.ima_template_hash = get_FF_HASH(ima_hash_alg)
             self.pcr_template_hash = get_FF_HASH(pcr_hash_alg)
 
-    def invalid(self):
+    def invalid(self) -> Failure:
         failure = Failure(Component.IMA, ["validation"])
         if self.pcr != str(config.IMA_PCR):
             logger.warning("IMA entry PCR does not match %s. It was: %s",
