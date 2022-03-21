@@ -5,10 +5,10 @@ Copyright 2020 Kaifeng Wang
 import enum
 import hashlib
 
-from typing import Optional
+from typing import Optional, List, Any
 
 
-def is_accepted(algorithm, accepted):
+def is_accepted(algorithm: str, accepted: List[Any]) -> bool:
     """Check whether algorithm is accepted
 
     @param algorithm: algorithm to be checked
@@ -25,7 +25,7 @@ class Hash(str, enum.Enum):
     SM3_256 = 'sm3_256'
 
     @staticmethod
-    def is_recognized(algorithm):
+    def is_recognized(algorithm: str) -> bool:
         try:
             Hash(algorithm)
             return True
@@ -50,10 +50,10 @@ class Hash(str, enum.Enum):
 
         return None
 
-    def get_size(self):
+    def get_size(self) -> Optional[int]:
         return _HASH_SIZE.get(self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
 
@@ -63,7 +63,7 @@ class Encrypt:
     supported_algorithms = (RSA, ECC)
 
     @staticmethod
-    def is_recognized(algorithm):
+    def is_recognized(algorithm: str) -> bool:
         return algorithm in Encrypt.supported_algorithms
 
 
@@ -76,7 +76,7 @@ class Sign:
     supported_algorithms = (RSASSA, RSAPSS, ECDSA, ECDAA, ECSCHNORR)
 
     @staticmethod
-    def is_recognized(algorithm):
+    def is_recognized(algorithm: str) -> bool:
         return algorithm in Sign.supported_algorithms
 
 
