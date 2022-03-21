@@ -65,7 +65,7 @@ def main(argv=sys.argv):
         pcr_hash_alg = algorithms.Hash(pcr_hash_alg)
         position[pcr_hash_alg] = 0
 
-    for pcr_hash_alg in position.keys():
+    for pcr_hash_alg in position:
         pcr_val = tpm_instance.readPCR(config.IMA_PCR, pcr_hash_alg)
         if codecs.decode(pcr_val.encode('utf-8'), 'hex') != ima_ast.get_START_HASH(pcr_hash_alg):
             print(f"Warning: IMA PCR is not empty for hash algorithm {pcr_hash_alg}, "
