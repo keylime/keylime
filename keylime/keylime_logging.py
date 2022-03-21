@@ -4,8 +4,10 @@ Copyright 2017 Massachusetts Institute of Technology.
 """
 
 import os
+import logging
 
-import logging.config
+from typing import Any, Callable, Dict
+from logging import Logger, config as logging_config
 
 from keylime import config
 
@@ -19,10 +21,10 @@ if not config.REQUIRE_ROOT:
 else:
     LOGSTREAM = LOGDIR + '/keylime-stream.log'
 
-logging.config.fileConfig(config.get_config())
+logging_config.fileConfig(config.get_config())
 
 
-def set_log_func(loglevel, logger):
+def set_log_func(loglevel: int, logger: Logger) -> Callable[..., None]:
     log_func = logger.info
 
     if loglevel == logging.CRITICAL:
@@ -39,7 +41,7 @@ def set_log_func(loglevel, logger):
     return log_func
 
 
-def log_http_response(logger, loglevel, response_body):
+def log_http_response(logger: Logger, loglevel: int, response_body: Dict[str, Any]) -> bool:
     """Takes JSON response payload and logs error info"""
     if None in [response_body, logger]:
         return False
@@ -57,7 +59,7 @@ def log_http_response(logger, loglevel, response_body):
     return True
 
 
-def init_logging(loggername):
+def init_logging(loggername: str) -> Logger:
     logger = logging.getLogger("keylime.%s" % loggername)
     logging.getLogger("requests").setLevel(logging.WARNING)
     mainlogger = logging.getLogger("keylime")
