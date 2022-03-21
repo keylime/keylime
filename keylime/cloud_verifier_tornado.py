@@ -292,10 +292,10 @@ class AgentsHandler(BaseHandler):
                 web_util.echo_json_response(self, 404, "agent id not found")
         else:
             json_response = None
-            if "bulk" in rest_params.keys():
+            if "bulk" in rest_params:
                 agent_list = None
 
-                if ("verifier" in rest_params.keys()) and (rest_params["verifier"] != ''):
+                if ("verifier" in rest_params) and (rest_params["verifier"] != ''):
                     agent_list = session.query(VerfierMain).filter_by(verifier_id=rest_params["verifier"]).all()
                 else:
                     agent_list = session.query(VerfierMain).all()
@@ -306,7 +306,7 @@ class AgentsHandler(BaseHandler):
 
                 web_util.echo_json_response(self, 200, "Success", json_response)
             else:
-                if ("verifier" in rest_params.keys()) and (rest_params["verifier"] != ''):
+                if ("verifier" in rest_params) and (rest_params["verifier"] != ''):
                     json_response = session.query(VerfierMain.agent_id).filter_by(
                         verifier_id=rest_params["verifier"]).all()
                 else:
