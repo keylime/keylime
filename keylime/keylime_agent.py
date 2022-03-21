@@ -203,15 +203,11 @@ class Handler(BaseHTTPRequestHandler):
         rest_params = web_util.get_restful_params(self.path)
 
         if rest_params is None:
-            web_util.echo_json_response(self, 405, "Not Implemented: Use /keys/ interface")
+            web_util.echo_json_response(self, 405, "Not Implemented: Use /keys/ or /notifications/ interface")
             return
 
         if not rest_params["api_version"]:
             web_util.echo_json_response(self, 400, "API Version not supported")
-            return
-
-        if rest_params.get("keys", None) not in ["ukey", "vkey"]:
-            web_util.echo_json_response(self, 400, "Only /keys/ukey or /keys/vkey are supported")
             return
 
         content_length = int(self.headers.get("Content-Length", 0))
@@ -223,6 +219,26 @@ class Handler(BaseHTTPRequestHandler):
         post_body = self.rfile.read(content_length)
         try:
             json_body = json.loads(post_body)
+        except Exception as e:
+            logger.warning("POST returning 400 response, could not parse body data: %s", e)
+            web_util.echo_json_response(self, 400, "content is invalid")
+            return
+
+        if "notifications" in rest_params:
+            if rest_params["notifications"] == "revocation":
+                revocation_notifier.process_revocation(
+                    json_body, perform_actions, cert_path=self.server.revocation_cert_path
+                )
+                web_util.echo_json_response(self, 200, "Success")
+            else:
+                web_util.echo_json_response(self, 400, "Only /notifications/revocation is supported")
+            return
+
+        if rest_params.get("keys", None) not in ["ukey", "vkey"]:
+            web_util.echo_json_response(self, 400, "Only /keys/ukey or /keys/vkey are supported")
+            return
+
+        try:
             b64_encrypted_key = json_body["encrypted_key"]
             decrypted_key = crypto.rsa_decrypt(self.server.rsaprivatekey, base64.b64decode(b64_encrypted_key))
         except (ValueError, KeyError, TypeError) as e:
@@ -385,6 +401,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     rsakey_path = None
     mtls_cert_enabled = False
     mtls_cert = None
+    revocation_cert_path = None
     done = threading.Event()
     auth_tag = None
     payload = None
@@ -448,6 +465,13 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             self.mtls_cert_path = None
             self.mtls_cert = None
             logger.info("WARNING: mTLS disabled, Tenant and Verifier will reach out to agent via HTTP")
+
+        self.revocation_cert_path = config.get("cloud_agent", "revocation_cert")
+        if self.revocation_cert_path == "default":
+            self.revocation_cert_path = os.path.join(secdir, "unzipped/RevocationNotifier-cert.crt")
+        elif self.revocation_cert_path[0] != "/":
+            # if it is a relative, convert to absolute in work_dir
+            self.revocation_cert_path = os.path.abspath(os.path.join(config.WORK_DIR, self.revocation_cert_path))
 
         # attempt to get a U value from the TPM NVRAM
         nvram_u = tpm_instance.read_key_nvram()
@@ -542,6 +566,45 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         return False
 
 
+# Execute revocation action
+def perform_actions(revocation):
+    actionlist = []
+
+    # load the actions from inside the keylime module
+    actionlisttxt = config.get("cloud_agent", "revocation_actions")
+    if actionlisttxt.strip() != "":
+        actionlist = actionlisttxt.split(",")
+        actionlist = [f"revocation_actions.{i}" % i for i in actionlist]
+
+    # load actions from unzipped
+    secdir = secure_mount.mount()
+    action_list_path = os.path.join(secdir, "unzipped/action_list")
+    if os.path.exists(action_list_path):
+        with open(action_list_path, encoding="utf-8") as f:
+            actionlisttxt = f.read()
+        if actionlisttxt.strip() != "":
+            localactions = actionlisttxt.strip().split(",")
+            for action in localactions:
+                if not action.startswith("local_action_"):
+                    logger.warning("Invalid local action: %s. Must start with local_action_", action)
+                else:
+                    actionlist.append(action)
+
+            uzpath = os.path.join(secdir, "unzipped")
+            if uzpath not in sys.path:
+                sys.path.append(uzpath)
+
+    for action in actionlist:
+        logger.info("Executing revocation action %s", action)
+        try:
+            module = importlib.import_module(action)
+            execute = getattr(module, "execute")
+            loop = asyncio.new_event_loop()
+            loop.run_until_complete(execute(revocation))
+        except Exception as e:
+            logger.warning("Exception during execution of revocation action %s: %s", action, e)
+
+
 def revocation_listener():
     """
     This configures and starts the revocation listener. It is designed to be started in a separate process.
@@ -565,42 +628,6 @@ def revocation_listener():
     elif cert_path[0] != "/":
         # if it is a relative, convert to absolute in work_dir
         cert_path = os.path.abspath(os.path.join(config.WORK_DIR, cert_path))
-
-    # Callback function handling the revocations
-    def perform_actions(revocation):
-        actionlist = []
-
-        # load the actions from inside the keylime module
-        actionlisttxt = config.get("cloud_agent", "revocation_actions")
-        if actionlisttxt.strip() != "":
-            actionlist = actionlisttxt.split(",")
-            actionlist = [f"revocation_actions.{i}" % i for i in actionlist]
-
-        # load actions from unzipped
-        action_list_path = os.path.join(secdir, "unzipped/action_list")
-        if os.path.exists(action_list_path):
-            with open(action_list_path, encoding="utf-8") as f:
-                actionlisttxt = f.read()
-            if actionlisttxt.strip() != "":
-                localactions = actionlisttxt.strip().split(",")
-                for action in localactions:
-                    if not action.startswith("local_action_"):
-                        logger.warning("Invalid local action: %s. Must start with local_action_", action)
-                    else:
-                        actionlist.append(action)
-
-                uzpath = os.path.join(secdir, "unzipped")
-                if uzpath not in sys.path:
-                    sys.path.append(uzpath)
-
-        for action in actionlist:
-            logger.info("Executing revocation action %s", action)
-            try:
-                module = importlib.import_module(action)
-                execute = getattr(module, "execute")
-                asyncio.get_event_loop().run_until_complete(execute(revocation))
-            except Exception as e:
-                logger.warning("Exception during execution of revocation action %s: %s", action, e)
 
     try:
         while True:
