@@ -161,6 +161,29 @@ def notify_webhook(tosend):
 cert_key = None
 
 
+def process_revocation(revocation, callback, cert_path):
+    global cert_key
+
+    if cert_key is None:
+        # load up the CV signing public key
+        if cert_path is not None and os.path.exists(cert_path):
+            logger.info("Lazy loading the revocation certificate from %s", cert_path)
+            with open(cert_path, "rb") as f:
+                certpem = f.read()
+            cert_key = crypto.x509_import_pubkey(certpem)
+
+    if cert_key is None:
+        logger.warning("Unable to check signature of revocation message: %s not available", cert_path)
+    elif "signature" not in revocation or revocation["signature"] == "none":
+        logger.warning("No signature on revocation message from server")
+    elif not crypto.rsa_verify(cert_key, revocation["msg"].encode("utf-8"), revocation["signature"].encode("utf-8")):
+        logger.error("Invalid revocation message siganture %s", revocation)
+    else:
+        message = json.loads(revocation["msg"])
+        logger.debug("Revocation signature validated for revocation: %s", message)
+        callback(message)
+
+
 def await_notifications(callback, revocation_cert_path):
     # keep old typo "listen_notfications" around for a few versions
     assert config.getboolean("cloud_agent", "listen_notifications", fallback=False) or config.getboolean(
@@ -170,8 +193,6 @@ def await_notifications(callback, revocation_cert_path):
         import zmq  # pylint: disable=import-outside-toplevel
     except ImportError as error:
         raise Exception("install PyZMQ for 'listen_notifications' option") from error
-
-    global cert_key
 
     if revocation_cert_path is None:
         raise Exception("must specify revocation_cert_path")
@@ -193,25 +214,7 @@ def await_notifications(callback, revocation_cert_path):
     while True:
         rawbody = mysock.recv()
         body = json.loads(rawbody)
-
-        if cert_key is None:
-            # load up the CV signing public key
-            if revocation_cert_path is not None and os.path.exists(revocation_cert_path):
-                logger.info("Lazy loading the revocation certificate from %s", revocation_cert_path)
-                with open(revocation_cert_path, "rb") as f:
-                    certpem = f.read()
-                cert_key = crypto.x509_import_pubkey(certpem)
-
-        if cert_key is None:
-            logger.warning("Unable to check signature of revocation message: %s not available", revocation_cert_path)
-        elif "signature" not in body or body["signature"] == "none":
-            logger.warning("No signature on revocation message from server")
-        elif not crypto.rsa_verify(cert_key, body["msg"].encode("utf-8"), body["signature"].encode("utf-8")):
-            logger.error("Invalid revocation message siganture %s", body)
-        else:
-            message = json.loads(body["msg"])
-            logger.debug("Revocation signature validated for revocation: %s", message)
-            callback(message)
+        process_revocation(body, callback, revocation_cert_path)
 
 
 def main():
