@@ -7,15 +7,14 @@ Tagging of failure events that might cause revocation in Keylime.
 import ast
 import enum
 import functools
-import json
 import re
-from typing import List, Optional, Tuple, Callable, Union
+from typing import List, Optional, Tuple, Callable, Union, Dict, Any
 
 from keylime import config
+from keylime import json
 from keylime import keylime_logging
 
 logger = keylime_logging.init_logging("failure")
-
 
 @functools.total_ordering
 class SeverityLabel:
@@ -28,14 +27,18 @@ class SeverityLabel:
     name: str
     severity: int
 
-    def __init__(self, name, severity):
+    def __init__(self, name: str, severity: int):
         self.name = name
         self.severity = severity
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, SeverityLabel):
+            return NotImplemented
         return self.severity < other.severity
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SeverityLabel):
+            return NotImplemented
         return self.severity == other.severity
 
 
@@ -65,7 +68,7 @@ class Event:
     def __init__(self, component: Component,
                  sub_components: Optional[List[str]],
                  event_id: str,
-                 context: Union[str, dict],
+                 context: Union[str, Dict[str, json.JSONType]],
                  recoverable: bool):
 
         # Build full event id with the format "component.[sub_component].event_id"
@@ -92,10 +95,10 @@ class Failure:
     events: List[Event]
     recoverable: bool
     highest_severity: Optional[SeverityLabel]
-    _component: Optional[Component]
+    _component: Component
     _sub_components: Optional[List[str]]
 
-    def __init__(self, component, sub_components=None):
+    def __init__(self, component: Component, sub_components: Optional[List[str]] = None):
         self._component = component
         self._sub_components = sub_components
         self.events = []
@@ -103,7 +106,7 @@ class Failure:
         self.highest_severity_event: Optional[Event] = None  # This only holds the first event that has the highest severity
         self.highest_severity: Optional[SeverityLabel] = None
 
-    def _add(self, event: Event):
+    def _add(self, event: Event) -> None:
         if not event.recoverable:
             self.recoverable = False
             if event.severity_label != MAX_SEVERITY_LABEL:
@@ -119,7 +122,8 @@ class Failure:
 
         self.events.append(event)
 
-    def add_event(self, event_id: str, context: Union[str, dict], recoverable: bool, sub_components=None):
+    def add_event(self, event_id: str, context: Union[str, Dict[str, json.JSONType]], recoverable: bool,
+                  sub_components: Optional[List[str]] = None) -> None:
         """
         Add event to Failure object. Uses the component and subcomponents specified in the Failure object.
 
@@ -140,7 +144,7 @@ class Failure:
         event = Event(self._component, sub_components, event_id, context, recoverable)
         self._add(event)
 
-    def merge(self, other):
+    def merge(self, other: 'Failure') -> None:
         if self.recoverable:
             self.recoverable = other.recoverable
         if self.highest_severity is None:
@@ -152,7 +156,7 @@ class Failure:
 
         self.events.extend(other.events)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return not self.recoverable or len(self.events) > 0
 
 
@@ -174,7 +178,7 @@ def _eval_severity_config() -> Tuple[List[Callable[[str], Optional[SeverityLabel
         # TODO validate regex
         regex = re.compile(policy["event_id"])
 
-        def rule(policy_regex, label_str: str, event_id: str) -> Optional[SeverityLabel]:
+        def rule(policy_regex: re.Pattern[Any], label_str: str, event_id: str) -> Optional[SeverityLabel]:
             if policy_regex.fullmatch(event_id):
                 policy_label = labels.get(label_str)
                 if policy_label is None:
@@ -184,7 +188,8 @@ def _eval_severity_config() -> Tuple[List[Callable[[str], Optional[SeverityLabel
                 return policy_label
             return None
 
-        rules.append(functools.partial(rule, regex, policy["severity_label"]))
+        new_rule: Callable[[str], Optional[SeverityLabel]] = functools.partial(rule, regex, policy["severity_label"])
+        rules.append(new_rule)
     return rules, label_max
 
 
