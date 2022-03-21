@@ -40,7 +40,7 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca', logger=None):
             generatedir = os.path.abspath(os.path.join(config.WORK_DIR,
                                                        generatedir))
         tls_dir = generatedir
-        ca_path = "%s/cacert.crt" % (tls_dir)
+        ca_path = os.path.join(tls_dir, "cacert.crt")
         if os.path.exists(ca_path):
             if logger:
                 logger.info("Existing CA certificate found in %s, not generating a new one", tls_dir)
@@ -61,9 +61,9 @@ def init_mtls(section='cloud_verifier', generatedir='cv_ca', logger=None):
     if tls_dir == 'CV':
         if section != 'registrar':
             raise Exception(
-                "You only use the CV option to tls_dir for the registrar not %s" % section)
+                f"You only use the CV option to tls_dir for the registrar not {section}")
         tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, 'cv_ca'))
-        if not os.path.exists("%s/cacert.crt" % (tls_dir)):
+        if not os.path.exists(os.path.join(tls_dir, "cacert.crt")):
             raise Exception(
                 "It appears that the verifier has not yet created a CA and certificates, please run the verifier first")
 

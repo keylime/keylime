@@ -129,7 +129,7 @@ def store_attestation_state(agentAttestState):
             ima_pcrs_dict = agentAttestState.get_ima_pcrs()
             update_agent.ima_pcrs = list(ima_pcrs_dict.keys())
             for pcr_num, value in ima_pcrs_dict.items():
-                setattr(update_agent, 'pcr%d' % pcr_num, value)
+                setattr(update_agent, f'pcr{pcr_num}', value)
             update_agent.learned_ima_keyrings = agentAttestState.get_ima_keyrings().to_json()
             try:
                 session.add(update_agent)
@@ -498,7 +498,7 @@ class AgentsHandler(BaseHandler):
 
                     if new_agent_count > 0:
                         web_util.echo_json_response(
-                            self, 409, "Agent of uuid %s already exists" % (agent_id))
+                            self, 409, f"Agent of uuid {agent_id} already exists")
                         logger.warning("Agent of uuid %s already exists", agent_id)
                     else:
                         try:
@@ -531,7 +531,7 @@ class AgentsHandler(BaseHandler):
                 web_util.echo_json_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
         except Exception as e:
-            web_util.echo_json_response(self, 400, "Exception error: %s" % e)
+            web_util.echo_json_response(self, 400, f"Exception error: {str(e)}")
             logger.warning("POST returning 400 response. Exception error: %s", e)
             logger.exception(e)
 
@@ -611,7 +611,7 @@ class AgentsHandler(BaseHandler):
                 logger.warning("PUT returning 400 response. uri not supported")
 
         except Exception as e:
-            web_util.echo_json_response(self, 400, "Exception error: %s" % e)
+            web_util.echo_json_response(self, 400, f"Exception error: {str(e)}")
             logger.warning("PUT returning 400 response. Exception error: %s", e)
             logger.exception(e)
 
@@ -651,7 +651,7 @@ class AllowlistHandler(BaseHandler):
             allowlist = session.query(VerifierAllowlist).filter_by(
                 name=allowlist_name).one()
         except NoResultFound:
-            web_util.echo_json_response(self, 404, "Allowlist %s not found" % allowlist_name)
+            web_util.echo_json_response(self, 404, f"Allowlist {allowlist_name} not found")
             return
         except SQLAlchemyError as e:
             logger.error('SQLAlchemy Error: %s', e)
@@ -690,7 +690,7 @@ class AllowlistHandler(BaseHandler):
             session.query(VerifierAllowlist).filter_by(
                 name=allowlist_name).one()
         except NoResultFound:
-            web_util.echo_json_response(self, 404, "Allowlist %s not found" % allowlist_name)
+            web_util.echo_json_response(self, 404, f"Allowlist {allowlist_name} not found")
             return
         except SQLAlchemyError as e:
             logger.error('SQLAlchemy Error: %s', e)
@@ -763,7 +763,7 @@ class AllowlistHandler(BaseHandler):
                 VerifierAllowlist).filter_by(name=allowlist_name).count()
             if al_count > 0:
                 web_util.echo_json_response(
-                    self, 409, "Allowlist with name %s already exists" % allowlist_name)
+                    self, 409, f"Allowlist with name {allowlist_name} already exists")
                 logger.warning(
                     "Allowlist with name %s already exists", allowlist_name)
                 return
@@ -803,14 +803,15 @@ async def invoke_get_quote(agent, need_pubkey):
     # TODO: remove special handling after initial upgrade
     if agent['ssl_context']:
         res = tornado_requests.request("GET",
-                                       "https://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
-                                       (agent['ip'], agent['port'], agent['supported_version'], params["nonce"], params["mask"], params['vmask'], partial_req, params['ima_ml_entry']),
+                                       f"https://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/quotes/integrity"
+                                       f"?nonce={params['nonce']}&mask={params['mask']}&vmask={params['vmask']}"
+                                       f"&partial={partial_req}&ima_ml_entry={params['ima_ml_entry']}",
                                        context=agent['ssl_context'])
     else:
         res = tornado_requests.request("GET",
-                                       "http://%s:%d/v%s/quotes/integrity?nonce=%s&mask=%s&vmask=%s&partial=%s&ima_ml_entry=%d" %
-                                       (agent['ip'], agent['port'], agent['supported_version'], params["nonce"], params["mask"],
-                                        params['vmask'], partial_req, params['ima_ml_entry']))
+                                       f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/quotes/integrity"
+                                       f"?nonce={params['nonce']}&mask={params['mask']}&vmask={params['vmask']}"
+                                       f"&partial={partial_req}&ima_ml_entry={params['ima_ml_entry']}")
     response = await res
 
     if response.status_code != 200:
@@ -861,11 +862,11 @@ async def invoke_provide_v(agent):
     # TODO: remove special handling after initial upgrade
     if agent['ssl_context']:
         res = tornado_requests.request(
-            "POST", "https://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], agent['supported_version']),
+            "POST", f"https://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/keys/vkey",
             data=v_json_message, context=agent['ssl_context'])
     else:
         res = tornado_requests.request(
-            "POST", "http://%s:%d/v%s/keys/vkey" % (agent['ip'], agent['port'], agent['supported_version']),
+            "POST", f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/keys/vkey",
             data=v_json_message)
 
     response = await res
@@ -1057,7 +1058,7 @@ async def activate_agents(verifier_id, verifier_ip, verifier_port, mtls_options)
             if agent.boottime:
                 ima_pcrs_dict = {}
                 for pcr_num in agent.ima_pcrs:
-                    ima_pcrs_dict[pcr_num] = getattr(agent, 'pcr%d' % pcr_num)
+                    ima_pcrs_dict[pcr_num] = getattr(agent, f'pcr{pcr_num}')
                 aas.add(agent.agent_id, agent.boottime, ima_pcrs_dict, agent.next_ima_ml_entry, agent.learned_ima_keyrings)
         session.commit()
     except SQLAlchemyError as e:

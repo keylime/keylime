@@ -51,12 +51,12 @@ class TPM_Utilities:
         mask = 0
         for key in list(policy.keys()):
             if not key.isdigit() or int(key) > 24:
-                raise Exception("Invalid tpm policy pcr number: %s" % (key))
+                raise Exception(f"Invalid tpm policy pcr number: {key}")
 
             if int(key) == config.TPM_DATA_PCR:
-                raise Exception("Invalid allowlist PCR number %s, keylime uses this PCR to bind data." % key)
+                raise Exception(f"Invalid allowlist PCR number {key}, keylime uses this PCR to bind data.")
             if int(key) == config.IMA_PCR:
-                raise Exception("Invalid allowlist PCR number %s, this PCR is used for IMA." % key)
+                raise Exception(f"Invalid allowlist PCR number {key}, this PCR is used for IMA.")
 
             mask = mask | (1 << int(key))
 
@@ -67,7 +67,7 @@ class TPM_Utilities:
             # convert all hash values to lowercase
             policy[key] = [x.lower() for x in policy[key]]
 
-        policy['mask'] = "0x%X" % (mask)
+        policy['mask'] = hex(mask)
         return policy
 
 

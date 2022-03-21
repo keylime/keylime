@@ -503,11 +503,11 @@ def read_excllist(exclude_path=None):
 
 def main():
     allowlist_path = 'allowlist.txt'
-    print("reading allowlist from %s" % allowlist_path)
+    print(f"reading allowlist from {allowlist_path}")
 
     exclude_path = 'exclude.txt'
     # exclude_path = '../scripts/ima/exclude.txt'
-    print("reading exclude list from %s" % exclude_path)
+    print(f"reading exclude list from {exclude_path}")
 
     al_data = read_allowlist(allowlist_path)
     excl_data = read_excllist(exclude_path)
@@ -516,13 +516,13 @@ def main():
     measure_path = config.IMA_ML
     # measure_path='../scripts/ima/ascii_runtime_measurements_ima'
     # measure_path = '../scripts/gerardo/ascii_runtime_measurements'
-    print("reading measurement list from %s" % measure_path)
+    print(f"reading measurement list from {measure_path}")
     f = open(measure_path, encoding="ascii")
     lines = f.readlines()
 
     m2a = open('measure2allow.txt', "w", encoding="utf-8")
     digest = process_measurement_list(AgentAttestState('1'), lines, lists, m2a)
-    print("final digest is %s" % digest)
+    print(f"final digest is {digest}")
     f.close()
     m2a.close()
 

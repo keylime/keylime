@@ -184,16 +184,14 @@ class Tenant():
 
         if len(args.get("ima_sign_verification_keys")) > 0:
             # Auto-enable IMA (or-bit mask)
-            self.tpm_policy['mask'] = "0x%X" % (
-                    int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
+            self.tpm_policy['mask'] = hex(int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
 
             # Add all IMA file signing verification keys to a keyring
             tenant_keyring = ima_file_signatures.ImaKeyring()
             for filename in args["ima_sign_verification_keys"]:
                 pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(filename)
                 if not pubkey:
-                    raise UserError(
-                        "File '%s' is not a file with a key" % filename)
+                    raise UserError(f"File '{filename}' is not a file with a key")
                 tenant_keyring.add_pubkey(pubkey, keyidv2)
             self.ima_sign_verification_keys = tenant_keyring.to_string()
 
@@ -205,8 +203,7 @@ class Tenant():
             self.enforce_pcrs(list(self.tpm_policy.keys()), [ config.IMA_PCR ], "IMA")
 
             # Auto-enable IMA (or-bit mask)
-            self.tpm_policy['mask'] = "0x%X" % (
-                    int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
+            self.tpm_policy['mask'] = hex(int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
 
             if isinstance(args["allowlist"], str):
                 if args["allowlist"] == "default":
@@ -247,9 +244,8 @@ class Tenant():
             self.enforce_pcrs(list(self.tpm_policy.keys()), config.MEASUREDBOOT_PCRS, "measured boot")
 
             # Auto-enable TPM event log mesured boot (or-bit mask)
-            for _pcr in config.MEASUREDBOOT_PCRS :
-                self.tpm_policy['mask'] = "0x%X" % (
-                    int(self.tpm_policy['mask'], 0) | (1 << _pcr))
+            for _pcr in config.MEASUREDBOOT_PCRS:
+                self.tpm_policy['mask'] = hex(int(self.tpm_policy['mask'], 0) | (1 << _pcr))
 
             logger.info("TPM PCR Mask automatically modified is %s to include IMA/Event log PCRs", self.tpm_policy['mask'])
 
@@ -439,7 +435,7 @@ class Tenant():
             if "ca_dir_pw" in args and args["ca_dir_pw"] is not None:
                 ca_util.setpassword(args["ca_dir_pw"])
 
-            if not os.path.exists(args["ca_dir"]) or not os.path.exists("%s/cacert.crt" % args["ca_dir"]):
+            if not os.path.exists(args["ca_dir"]) or not os.path.exists(os.path.join(args["ca_dir"], "cacert.crt")):
                 logger.warning("CA directory does not exist. Creating...")
                 ca_util.cmd_init(args["ca_dir"])
             if not os.path.exists(
@@ -451,7 +447,7 @@ class Tenant():
                 args["ca_dir"], self.agent_uuid)
 
             # support revocation
-            if not os.path.exists("%s/RevocationNotifier-private.pem" % args["ca_dir"]):
+            if not os.path.exists(os.path.join(args["ca_dir"], "RevocationNotifier-private.pem")):
                 ca_util.cmd_mkcert(args["ca_dir"], "RevocationNotifier")
             rev_package, _, _ = ca_util.cmd_certpkg(
                 args["ca_dir"], "RevocationNotifier")
@@ -501,8 +497,7 @@ class Tenant():
             self.payload = ret['ciphertext']
 
         if self.payload is not None and len(self.payload) > config.getint('tenant', 'max_payload_size'):
-            raise UserError("Payload size %s exceeds max size %d" % (
-                len(self.payload), config.getint('tenant', 'max_payload_size')))
+            raise UserError(f"Payload size {len(self.payload)} exceeds max size {config.getint('tenant', 'max_payload_size')}")
 
     def enforce_pcrs(self, policy_pcrs, protected_pcrs, pcr_use) :
         policy_pcrs = list(self.tpm_policy.keys())
@@ -864,20 +859,17 @@ class Tenant():
             logger.info(
                 "Agent %s does not exist on the registrar. Please register the agent with the registrar.",
                 self.agent_uuid)
-            response = {}
-            response['code'] = 404
-            response['status'] = "Agent {0} does not exist on " \
-                                 "registrar {1} port {2}.".format(
-                self.agent_uuid, self.registrar_ip, self.registrar_port)
-            response['results'] = {}
-            logger.info(json.dumps((response)))
+            response = {'code': 404,
+                        'status': f"Agent {self.agent_uuid} does not exist on "
+                                  f"registrar {self.registrar_ip} port {self.registrar_port}.",
+                        'results': {}}
+            logger.info(json.dumps(response))
             return response
 
-        response = {}
-        response['code'] = 200
-        response['status'] = "Agent {0} exists on registrar {1} port {2}.".format(
-                self.agent_uuid, self.registrar_ip, self.registrar_port)
-        response['results'] = {}
+        response = {'code': 200,
+                    'status': f"Agent {self.agent_uuid} exists on "
+                              f"registrar {self.registrar_ip} port {self.registrar_port}.",
+                    'results': {}}
         response['results'][self.agent_uuid] = agent_info
         response['results'][self.agent_uuid]['operational_state'] = \
             states.state_to_str(states.REGISTERED)
@@ -1042,11 +1034,11 @@ class Tenant():
         try:
             if response is not None and response.status_code != 200:
                 raise UserError(
-                    "Status command response: %d Unexpected response from Cloud Agent." % response.status)
+                   f"Status command response: {response.status_code} Unexpected response from Cloud Agent.")
 
             if "results" not in response_body:
                 raise UserError(
-                    "Error: unexpected http response body from Cloud Agent: %s" % str(response.status))
+                    f"Error: unexpected http response body from Cloud Agent: {str(response.status)}")
 
             quote = response_body["results"]["quote"]
             logger.debug("Agent_quote received quote: %s", quote)
@@ -1060,25 +1052,25 @@ class Tenant():
             if not algorithms.is_accepted(hash_alg, config.get('tenant', 'accept_tpm_hash_algs').split(','))\
                     or not algorithms.Hash.is_recognized(hash_alg):
                 raise UserError(
-                    "TPM Quote is using an unaccepted hash algorithm: %s" % hash_alg)
+                    f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}")
 
             # Ensure enc_alg is in accept_tpm_encryption_algs list
             enc_alg = response_body["results"]["enc_alg"]
             logger.debug("Agent_quote received encryption algorithm: %s", enc_alg)
             if not algorithms.is_accepted(enc_alg, config.get('tenant', 'accept_tpm_encryption_algs').split(',')):
                 raise UserError(
-                    "TPM Quote is using an unaccepted encryption algorithm: %s" % enc_alg)
+                    f"TPM Quote is using an unaccepted encryption algorithm: {enc_alg}")
 
             # Ensure sign_alg is in accept_tpm_encryption_algs list
             sign_alg = response_body["results"]["sign_alg"]
             logger.debug("Agent_quote received signing algorithm: %s", sign_alg)
             if not algorithms.is_accepted(sign_alg, config.get('tenant', 'accept_tpm_signing_algs').split(',')):
                 raise UserError(
-                    "TPM Quote is using an unaccepted signing algorithm: %s" % sign_alg)
+                    f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}")
 
             if not self.validate_tpm_quote(public_key, quote, algorithms.Hash(hash_alg)):
                 raise UserError(
-                    "TPM Quote from cloud agent is invalid for nonce: %s" % self.nonce)
+                    f"TPM Quote from cloud agent is invalid for nonce: {self.nonce}")
 
             logger.info("Quote from %s validated", self.agent_ip)
 
@@ -1123,7 +1115,7 @@ class Tenant():
                 keylime_logging.log_http_response(
                     logger, logging.ERROR, response_body)
                 raise UserError(
-                    "Posting of Encrypted U to the Cloud Agent failed with response code %d (%s)" % (response.status_code, response.text))
+                    f"Posting of Encrypted U to the Cloud Agent failed with response code {response.status_code} ({response.text})")
         except Exception as e:
             self.do_cvstop()
             raise e
@@ -1357,8 +1349,7 @@ def main(argv=sys.argv):
             mytenant.agent_uuid = jsonIn['add_vtpm_to_group']['retout']
         else:
             # Our command hasn't been canned!
-            raise UserError("Command %s not found in canned JSON!" %
-                            ("add_vtpm_to_group"))
+            raise UserError("Command add_vtpm_to_group not found in canned JSON!")
 
     if args.verifier_id is not None:
         mytenant.verifier_id = args.verifier_id
@@ -1400,7 +1391,7 @@ def main(argv=sys.argv):
                 break
             keysig_file = args.ima_sign_verification_key_sigs[i]
             if len(args.ima_sign_verification_key_sig_keys) == 0:
-                raise UserError("A gpg key is missing for key signature file '%s'" % keysig_file)
+                raise UserError(f"A gpg key is missing for key signature file '{keysig_file}'")
 
             gpg_key_file = args.ima_sign_verification_key_sig_keys[i]
             gpg.gpg_verify_filesignature(gpg_key_file, key_file, keysig_file, "IMA file signing key")
@@ -1426,7 +1417,7 @@ def main(argv=sys.argv):
             keysig_url = args.ima_sign_verification_key_sig_urls[i]
 
             if len(args.ima_sign_verification_key_sig_url_keys) == 0:
-                raise UserError("A gpg key is missing for key signature URL '%s'" % keysig_url)
+                raise UserError(f"A gpg key is missing for key signature URL '{keysig_url}'")
 
             logger.info("Downloading key signature from %s", keysig_url)
             response = requests.get(keysig_url, allow_redirects=False)
@@ -1480,4 +1471,4 @@ def main(argv=sys.argv):
     elif args.command == 'deleteallowlist':
         mytenant.do_delete_allowlist(args.allowlist_name)
     else:
-        raise UserError("Invalid command specified: %s" % (args.command))
+        raise UserError(f"Invalid command specified: {args.command}")

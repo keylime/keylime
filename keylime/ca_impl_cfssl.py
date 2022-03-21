@@ -51,8 +51,7 @@ def post_cfssl(params, data):
             continue
 
     if response.status_code != 200:
-        raise Exception("Unable to issue CFSSL API command %s: %s" %
-                        (params, response.text))
+        raise Exception(f"Unable to issue CFSSL API command {params}: {response.text}")
     return response.json()
 
 
@@ -62,7 +61,7 @@ def start_cfssl(cmdline=""):
             "cfssl binary not found in the path.  Please install cfssl or change the setting \"ca_implementation\" in keylime.conf")
         sys.exit(1)
     global cfsslproc
-    cmd = "cfssl serve -loglevel=1 %s " % cmdline
+    cmd = f"cfssl serve -loglevel=1 {cmdline} "
     env = os.environ.copy()
     env['PATH'] = env['PATH'] + ":/usr/local/bin"
 
@@ -72,8 +71,7 @@ def start_cfssl(cmdline=""):
     cfsslproc = subprocess.Popen(cmd, env=env, shell=True, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, universal_newlines=True)
     if cfsslproc.returncode is not None:
-        raise Exception("Unable to launch %s: failed with code %d" %
-                        (cmd, cfsslproc.returncode))
+        raise Exception(f"Unable to launch {cmd}: failed with code {cfsslproc.returncode}")
 
     logger.debug("Waiting for cfssl to start...")
     while True:
@@ -194,7 +192,7 @@ def mk_signed_cert(cacert, ca_pk, name, serialnum):
         with open(f"{secdir}/cacert.crt", 'wb') as f:
             f.write(cacert.public_bytes(serialization.Encoding.PEM))
 
-        cmdline = "-config=%s/cfsslconfig.yml" % secdir
+        cmdline = f"-config={secdir}/cfsslconfig.yml"
 
         privkey_path = os.path.abspath(f"{secdir}/ca-key.pem")
         cacert_path = os.path.abspath(f"{secdir}/cacert.crt")
@@ -205,9 +203,9 @@ def mk_signed_cert(cacert, ca_pk, name, serialnum):
         body = post_cfssl('api/v1/cfssl/newcert', csr)
     finally:
         stop_cfssl()
-        os.remove('%s/ca-key.pem' % secdir)
-        os.remove('%s/cfsslconfig.yml' % secdir)
-        os.remove('%s/cacert.crt' % secdir)
+        os.remove(os.path.join(secdir, "ca-key.pem"))
+        os.remove(os.path.join(secdir, "cfsslconfig.yml"))
+        os.remove(os.path.join(secdir, "cacert.crt"))
 
     if body['success']:
         pk = serialization.load_pem_private_key(
@@ -221,7 +219,7 @@ def mk_signed_cert(cacert, ca_pk, name, serialnum):
         )
         return cert, pk
 
-    raise Exception("Unable to create cert for %s" % name)
+    raise Exception(f"Unable to create cert for {name}")
 
 
 def gencrl(serials, cert, ca_pk):

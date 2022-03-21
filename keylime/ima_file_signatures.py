@@ -125,8 +125,7 @@ class ImaKeyring:
             pubbytes = pubkey.public_bytes(encoding=serialization.Encoding.X962,
                                            format=fmt)
         else:
-            raise UnsupportedAlgorithm("Unsupported public key type %s" %
-                                       type(pubkey))
+            raise UnsupportedAlgorithm(f"Unsupported public key type {type(pubkey)}")
 
         default_be = backends.default_backend()
         digest = hashes.Hash(hashes.SHA1(), backend=default_be)

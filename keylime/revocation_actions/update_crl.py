@@ -27,19 +27,18 @@ def execute(json_revocation):
 
     cert_path = config.get('cloud_agent', 'revocation_cert')
     if cert_path == "default":
-        cert_path = '%s/unzipped/RevocationNotifier-cert.crt' % (secdir)
+        cert_path = os.path.join(secdir, "unzipped", "RevocationNotifier-cert.crt")
     else:
         # if it is a relative, convert to absolute in work_dir
         if cert_path[0] != '/':
-            cert_path = os.path.abspath('%s/%s' % (common.WORK_DIR, cert_path))
+            cert_path = os.path.abspath(os.path.join(common.WORK_DIR, cert_path))
         if not os.path.exists(cert_path):
-            raise Exception("revocation_cert %s not found" %
-                            (os.path.abspath(cert_path)))
+            raise Exception(f"revocation_cert {os.path.abspath(cert_path)} not found")
 
     # get the updated CRL
     dist_path = ca_util.get_crl_distpoint(cert_path)
 
-    with open("%s/unzipped/cacrl.der" % (secdir), "rb") as f:
+    with open(os.path.join(secdir, "unzipped", "cacrl.der"), "rb") as f:
         oldcrl = f.read()
 
     updated = False
@@ -58,10 +57,11 @@ def execute(json_revocation):
 
         # write out the updated CRL
         logger.debug("Updating CRL in %s/unzipped/cacrl.der", secdir)
-        with open("%s/unzipped/cacrl.der" % (secdir), "wb") as f:
+        with open(os.path.join(secdir, "unzipped", "cacrl.der"), "wb") as f:
             f.write(response.body)
         ca_util.convert_crl_to_pem(
-            "%s/unzipped/cacrl.der" % (secdir), "%s/unzipped/cacrl.pem" % secdir)
+            os.path.join(secdir, "unzipped", "cacrl.der"),
+            os.path.join(secdir, "unzipped", "cacrl.pem"))
         updated = True
         break
 

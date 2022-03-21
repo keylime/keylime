@@ -61,7 +61,7 @@ if config.CA_IMPL == 'cfssl':
 elif config.CA_IMPL == 'openssl':
     from keylime import ca_impl_openssl as ca_impl
 else:
-    raise Exception("Unknown CA implementation: %s" % config.CA_IMPL)
+    raise Exception(f"Unknown CA implementation: {config.CA_IMPL}")
 
 
 
@@ -98,7 +98,7 @@ def cmd_mkcert(workingdir, name):
         cert, pk = ca_impl.mk_signed_cert(
             cacert, ca_pk, name, priv[0]['lastserial'] + 1)
 
-        with open('%s-cert.crt' % name, 'wb') as f:
+        with open(f'{name}-cert.crt', 'wb') as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
 
         priv[0][name] = pk.private_bytes(
@@ -112,16 +112,16 @@ def cmd_mkcert(workingdir, name):
 
         write_private(priv)
 
-        with os.fdopen(os.open("%s-private.pem" % name, os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
+        with os.fdopen(os.open(f"{name}-private.pem", os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
             f.write(priv[0][name])
 
-        with os.fdopen(os.open("%s-public.pem" % name, os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
+        with os.fdopen(os.open(f"{name}-public.pem", os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
             f.write(pk.public_key().public_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             ))
 
-        cc = load_cert_by_path('%s-cert.crt' % name)
+        cc = load_cert_by_path(f'{name}-cert.crt')
         pubkey = cacert.public_key()
         pubkey.verify(
             cc.signature,
@@ -254,7 +254,7 @@ def cmd_certpkg(workingdir, name, insecure=False):
                 f.write(pkg)
         else:
             # actually output the package to disk with a protected private key
-            with zipfile.ZipFile('%s-pkg.zip' % name, 'w', compression=zipfile.ZIP_STORED) as f:
+            with zipfile.ZipFile(f'{name}-pkg.zip', 'w', compression=zipfile.ZIP_STORED) as f:
                 f.writestr(f"{name}-public.pem", pub)
                 f.writestr(f"{name}-cert.crt", cert)
                 f.writestr(f"{name}-private.pem", prot_priv)

@@ -205,8 +205,7 @@ def main():
         def print_notification(revocation):
             logger.warning("Received revocation: %s", revocation)
 
-        keypath = '%s/unzipped/RevocationNotifier-cert.crt' % (
-            secure_mount.mount())
+        keypath = os.path.join(secure_mount.mount(), "unzipped", "RevocationNotifier-cert.crt")
         await_notifications(print_notification, revocation_cert_path=keypath)
 
     t = threading.Thread(target=worker)

@@ -147,7 +147,7 @@ def getVar(event, b):
                 r = []
                 for x in range(l):
                     d = int.from_bytes(b[x*2:x*2+2], byteorder='little')
-                    r.append("Boot%04x" % d)
+                    r.append(f"Boot{d:04x}")
                 return r
             # Boot#### variable
             if re.match('Boot[0-9a-fA-F]{4}', event['UnicodeName']):

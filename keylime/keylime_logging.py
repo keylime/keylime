@@ -50,8 +50,7 @@ def log_http_response(logger: Logger, loglevel: int, response_body: Dict[str, An
 
     matches = ["results", "code", "status"]
     if all(x in response_body for x in matches):
-        log_func("Response code %s: %s" %
-                 (response_body["code"], response_body["status"]))
+        log_func(f"Response code {response_body['code']}: {response_body['status']}")
     else:
         logger.error("Error: unexpected or malformed http response payload")
         return False
@@ -60,7 +59,7 @@ def log_http_response(logger: Logger, loglevel: int, response_body: Dict[str, An
 
 
 def init_logging(loggername: str) -> Logger:
-    logger = logging.getLogger("keylime.%s" % loggername)
+    logger = logging.getLogger(f"keylime.{loggername}")
     logging.getLogger("requests").setLevel(logging.WARNING)
     mainlogger = logging.getLogger("keylime")
     basic_formatter = logging.Formatter(

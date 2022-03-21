@@ -95,7 +95,7 @@ def _stub_command(fprt, lock, cmd, outputpaths):
                         fileoutEncoded[quote_pcr] = zlib.decompress(
                             base64.b64decode(thisFileout["file://quotePCR"]))
             else:
-                raise Exception("Command %s is using multiple files unexpectedly!" % fprt)
+                raise Exception(f"Command {fprt} is using multiple files unexpectedly!")
 
         logger.debug("TPM call '%s' was stubbed out, with a simulated delay of %f sec",
                      fprt, thisTiming)
@@ -115,7 +115,7 @@ def _stub_command(fprt, lock, cmd, outputpaths):
         return None
 
     # Our command hasn't been canned!
-    raise Exception("Command %s not found in canned YAML!" % fprt)
+    raise Exception(f"Command {fprt} not found in canned YAML!")
 
 
 def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
@@ -143,8 +143,7 @@ def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
     # print "\033[95mTIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\033[0m" % (fprt, pad, t1-t0, len(retout), filelen, cmd)
     if config.TPM_BENCHMARK_PATH is not None:
         with open(config.TPM_BENCHMARK_PATH, "ab") as f:
-            f.write(
-                "TIMING: %s%s\t:%f\toutlines:%d\tfilelines:%d\t%s\n" % (fprt, pad, t1 - t0, len(retout), filelen, cmd))
+            f.write(f"TIMING: {fprt}{pad}\t:{t1 - t0}\toutlines:{len(retout)}\tfilelines:{filelen}\t{cmd}\n".encode())
 
     # Print out YAML canned values (if requested)
     # NOTE: resulting file will be missing the surrounding braces! (must add '{' and '}' for reading)
@@ -182,7 +181,7 @@ def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
                             # fileoutEncoded["file://quotePCR"] = base64.b64encode(fileouts[quote_pcr].encode("zlib"))
                             fileoutEncoded["file://quotePCR"] = zlib.compress(base64.b64decode(fileouts[quote_pcr]))
                 else:
-                    raise Exception("Command %s is using multiple files unexpectedly!" % (fprt))
+                    raise Exception(f"Command {fprt} is using multiple files unexpectedly!")
 
             # tpm_cexec will need to know the nonce
             nonce = ""
@@ -199,7 +198,7 @@ def _output_metrics(fprt, cmd, cmd_ret, outputpaths):
                 'code': code,
                 'nonce': nonce
             }
-            can.write("\"%s\": %s,\n" % (fprt, json.dumps(jsonObj, indent=4, sort_keys=True)))
+            can.write(f"\"{fprt}\": {json.dumps(jsonObj, indent=4, sort_keys=True)},\n".encode())
 
 
 class tpm(tpm_abstract.AbstractTPM):
@@ -236,11 +235,11 @@ class tpm(tpm_abstract.AbstractTPM):
 
             # Ensure TPM supports the defaults requested
             if defaultHash not in self.supported['hash']:
-                raise Exception('Unsupported hash algorithm specified: %s!' % (defaultHash))
+                raise Exception(f'Unsupported hash algorithm specified: {str(defaultHash)}!')
             if defaultEncrypt not in self.supported['encrypt']:
-                raise Exception('Unsupported encryption algorithm specified: %s!' % (defaultEncrypt))
+                raise Exception(f'Unsupported encryption algorithm specified: {str(defaultEncrypt)}!')
             if defaultSign not in self.supported['sign']:
-                raise Exception('Unsupported signing algorithm specified: %s!' % (defaultSign))
+                raise Exception(f'Unsupported signing algorithm specified: {str(defaultSign)}!')
 
             enabled_pcrs = self.__get_pcrs()
             if not enabled_pcrs.get(str(defaultHash)):
@@ -409,7 +408,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
         # Don't bother continuing if TPM call failed and we're raising on error
         if code != expectedcode and raiseOnError:
-            raise Exception("Command: %s returned %d, expected %d, output %s, stderr %s" % (cmd, code, expectedcode, retout, reterr))
+            raise Exception(f"Command: {cmd} returned {code}, expected {expectedcode}, output {retout}, stderr {reterr}")
 
         # Metric output
         if lock or self.tpmutilLock.locked():
@@ -863,7 +862,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 self.__run(["tpm2_policysecret", "-S", sesspath, "-c", "0x4000000B", owner_pw])
                 command = ["tpm2_activatecredential", "-c", aik_keyhandle, "-C", hex(ek_keyhandle),
                            "-i", keyblobFile.name, "-o", secpath, "-p", apw,
-                           "-P", "session:%s" % sesspath]
+                           "-P", f"session:{sesspath}"]
                 retDict = self.__run(command, outputpaths=secpath)
                 self.__run(["tpm2_flushcontext", sesspath])
 
@@ -1024,7 +1023,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
             if data is not None:
                 # add PCR 16 to pcrmask
-                pcrmask = "0x%X" % (int(pcrmask, 0) + (1 << config.TPM_DATA_PCR))
+                pcrmask = hex(int(pcrmask, 0) | (1 << config.TPM_DATA_PCR))
 
             pcrlist = self.__pcr_mask_to_list(pcrmask)
 
@@ -1035,9 +1034,9 @@ class tpm(tpm_abstract.AbstractTPM):
 
                 nonce = bytes(nonce, encoding="utf8").hex()
                 if self.tools_version == "3.2":
-                    command = ["tpm2_quote", "-k", hex(keyhandle), "-L", "%s:%s" % (hash_alg, pcrlist), "-q", nonce, "-m", quotepath.name, "-s", sigpath.name, "-p", pcrpath.name, "-G", hash_alg, "-P", aik_pw]
+                    command = ["tpm2_quote", "-k", hex(keyhandle), "-L", f"{str(hash_alg)}:{pcrlist}", "-q", nonce, "-m", quotepath.name, "-s", sigpath.name, "-p", pcrpath.name, "-G", hash_alg, "-P", aik_pw]
                 elif self.tools_version in ["4.0", "4.2"]:
-                    command = ["tpm2_quote", "-c", keyhandle, "-l", "%s:%s" % (hash_alg, pcrlist), "-q", nonce, "-m", quotepath.name, "-s", sigpath.name, "-o", pcrpath.name, "-g", hash_alg, "-p", aik_pw]
+                    command = ["tpm2_quote", "-c", keyhandle, "-l", f"{str(hash_alg)}:{pcrlist}", "-q", nonce, "-m", quotepath.name, "-s", sigpath.name, "-o", pcrpath.name, "-g", hash_alg, "-p", aik_pw]
                 retDict = self.__run(command, lock=False, outputpaths=[quotepath.name, sigpath.name, pcrpath.name])
                 quoteraw = retDict['fileouts'][quotepath.name]
                 sigraw = retDict['fileouts'][sigpath.name]
@@ -1088,12 +1087,12 @@ class tpm(tpm_abstract.AbstractTPM):
             )
 
         if quote[0] != 'r':
-            raise Exception("Invalid quote type %s" % quote[0])
+            raise Exception(f"Invalid quote type {quote[0]}")
         quote = quote[1:]
 
         quote_tokens = quote.split(":")
         if len(quote_tokens) < 3:
-            raise Exception("Quote is not compound! %s" % quote)
+            raise Exception(f"Quote is not compound! {quote}")
 
         quoteblob = base64.b64decode(quote_tokens[0])
         sigblob = base64.b64decode(quote_tokens[1])
@@ -1182,7 +1181,7 @@ class tpm(tpm_abstract.AbstractTPM):
             if hash_alg in jsonout["pcrs"] and jsonout["pcrs"][hash_alg] is not None:
                 alg_size = hash_alg.get_size() // 4
                 for pcrval, hashval in jsonout["pcrs"][hash_alg].items():
-                    pcrs.append("PCR " + str(pcrval) + " " + '{0:0{1}x}'.format(hashval, alg_size))
+                    pcrs.append(f"PCR {pcrval} {hashval:0{alg_size}x}")
 
         if len(pcrs) == 0:
             logger.warning("Quote does not contain any PCRs. Make sure that the TPM supports %s PCR banks",
@@ -1207,7 +1206,7 @@ class tpm(tpm_abstract.AbstractTPM):
         if hash_alg is None:
             hash_alg = self.defaults['hash'].value
 
-        self.__run(["tpm2_pcrextend", "%d:%s=%s" % (pcrval, hash_alg, hashval)], lock=lock)
+        self.__run(["tpm2_pcrextend", f"{pcrval}:{str(hash_alg)}={hashval}"], lock=lock)
 
     def readPCR(self, pcrval, hash_alg=None):
         if hash_alg is None:
@@ -1222,11 +1221,11 @@ class tpm(tpm_abstract.AbstractTPM):
             raise Exception("Could not read YAML output of tpm2_pcrread.")
 
         if hash_alg not in jsonout:
-            raise Exception("Invalid hashing algorithm '%s' for reading PCR number %d." % (hash_alg, pcrval))
+            raise Exception(f"Invalid hashing algorithm '{hash_alg}' for reading PCR number {pcrval}.")
 
         # alg_size = Hash_Algorithms.get_hash_size(hash_alg)/4
         alg_size = hash_alg.get_size() // 4
-        return '{0:0{1}x}'.format(jsonout[hash_alg][pcrval], alg_size)
+        return f'{jsonout[hash_alg][pcrval]:0{alg_size}x}'
 
     # tpm_random
     def _get_tpm_rand_block(self, size=32):
@@ -1256,10 +1255,10 @@ class tpm(tpm_abstract.AbstractTPM):
             attrs = "ownerread|ownerwrite"
             # TODO(kaifeng) Escaping attrs is probably not required
             if self.tools_version == "3.2":
-                self.__run(["tpm2_nvdefine", "-x", "0x1500018", "-a", "0x40000001", "-s", str(config.BOOTSTRAP_KEY_SIZE), "-t", '"%s"' % attrs, "-I", owner_pw, "-P", owner_pw], raiseOnError=False)
+                self.__run(["tpm2_nvdefine", "-x", "0x1500018", "-a", "0x40000001", "-s", str(config.BOOTSTRAP_KEY_SIZE), "-t", f'"{attrs}"', "-I", owner_pw, "-P", owner_pw], raiseOnError=False)
                 self.__run(["tpm2_nvwrite", "-x", "0x1500018", "-a", "0x40000001", "-P", owner_pw, keyFile.name], raiseOnError=False)
             elif self.tools_version in ["4.0", "4.2"]:
-                self.__run(["tpm2_nvdefine", "0x1500018", "-C", "0x40000001", "-s", str(config.BOOTSTRAP_KEY_SIZE), "-a", '"%s"' % attrs, "-p", owner_pw, "-P", owner_pw], raiseOnError=False)
+                self.__run(["tpm2_nvdefine", "0x1500018", "-C", "0x40000001", "-s", str(config.BOOTSTRAP_KEY_SIZE), "-a", f'"{attrs}"', "-p", owner_pw, "-P", owner_pw], raiseOnError=False)
                 self.__run(["tpm2_nvwrite", "0x1500018", "-C", "0x40000001", "-P", owner_pw, "-i", keyFile.name], raiseOnError=False)
 
     def read_ekcert_nvram(self):
@@ -1376,13 +1375,13 @@ class tpm(tpm_abstract.AbstractTPM):
         log['boot_aggregates'] = {}
         for hashalg in log['pcrs'].keys():
             log['boot_aggregates'][hashalg] = []
-            for maxpcr in [8,10]:
+            for maxpcr in [8, 10]:
                 try:
-                    hashclass = getattr(hashlib,hashalg)
+                    hashclass = getattr(hashlib, hashalg)
                     h = hashclass()
-                    for pcrno in range(0,maxpcr):
-                        pcrstrg=log['pcrs'][hashalg][str(pcrno)]
-                        pcrhex= '{0:0{1}x}'.format(pcrstrg, h.digest_size*2)
+                    for pcrno in range(0, maxpcr):
+                        pcrstrg = log['pcrs'][hashalg][str(pcrno)]
+                        pcrhex = f'{pcrstrg:0{h.digest_size*2}x}'
                         h.update(bytes.fromhex(pcrhex))
                     log['boot_aggregates'][hashalg].append(h.hexdigest())
                 except Exception:

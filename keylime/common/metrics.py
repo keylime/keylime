@@ -23,7 +23,7 @@ class Timer:
         self.secs = self.end - self.start
         self.msecs = self.secs * 1000  # millisecs
         if self.verbose:
-            print('elapsed time: %f ms' % self.msecs)
+            print(f'elapsed time: {self.msecs} ms')
 
 
 def timerfunc(func):
