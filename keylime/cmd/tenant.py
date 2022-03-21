@@ -12,13 +12,13 @@ logger = keylime_logging.init_logging('tenant')
 
 
 def main():
-    tenant.main()
-
-
-if __name__ == "__main__":
     try:
-        main()
+        tenant.main()
     except tenant.UserError as ue:
         logger.error(str(ue))
     except Exception as e:
         logger.exception(e)
+
+
+if __name__ == "__main__":
+    main()

@@ -211,7 +211,10 @@ class Tenant():
             if isinstance(args["allowlist"], str):
                 if args["allowlist"] == "default":
                     args["allowlist"] = config.get('tenant', 'allowlist')
-                al_data = ima.read_allowlist(args["allowlist"], args["allowlist_checksum"], args["allowlist_sig"], args["allowlist_sig_key"])
+                try:
+                    al_data = ima.read_allowlist(args["allowlist"], args["allowlist_checksum"], args["allowlist_sig"], args["allowlist_sig_key"])
+                except Exception as ima_e:
+                    raise UserError(str(ima_e)) from ima_e
             elif isinstance(args["allowlist"], list):
                 al_data = args["allowlist"]
             else:
@@ -1199,20 +1202,27 @@ class Tenant():
         cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
         response = cv_client.post(f'/v{self.api_version}/allowlists/{allowlist_name}', data=body,
                                   cert=self.cert, verify=self.verifier_ca_cert)
-        print(response.json())
+        self._print_json_response(response)
 
     def do_delete_allowlist(self, name):
         cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
         response = cv_client.delete(f'/v{self.api_version}/allowlists/{name}',
                                     cert=self.cert, verify=self.verifier_ca_cert)
-        print(response.json())
+        self._print_json_response(response)
 
     def do_show_allowlist(self, name):
         cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
         response = cv_client.get(f'/v{self.api_version}/allowlists/{name}',
                                  cert=self.cert, verify=self.verifier_ca_cert)
         print(f"Show allowlist command response: {response.status_code}.")
-        print(response.json())
+        self._print_json_response(response)
+
+    def _print_json_response(self, response):
+        try:
+            json_response = response.json()
+        except ValueError:
+            json_response = '{}'
+        print(json_response)
 
 
 def write_to_namedtempfile(data, delete_tmp_files):
@@ -1363,7 +1373,7 @@ def main(argv=sys.argv):
         mytenant.registrar_port = args.registrar_port
 
     # we only need to fetch remote files if we are adding or updating
-    if args.command in ['add', 'update']:
+    if args.command in ['add', 'update', 'addallowlist']:
         delete_tmp_files = logger.level > logging.DEBUG # delete tmp files unless in DEBUG mode
 
         if args.allowlist_url:
