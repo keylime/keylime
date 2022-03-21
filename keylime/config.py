@@ -125,7 +125,7 @@ if "KEYLIME_CONFIG" in os.environ:
     CONFIG_FILES.insert(0, os.environ["KEYLIME_CONFIG"])
 
 
-def get_config():
+def get_config() -> configparser.RawConfigParser:
     """Read configuration files and merge them together."""
     if not getattr(get_config, "config", None):
         # Use RawConfigParser, so we can also use it as the logging config
