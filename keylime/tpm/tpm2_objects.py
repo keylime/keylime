@@ -177,7 +177,7 @@ def _curve_id_from_name(name: str) -> int:
     if name == "secp521r1":
         return TPM_ECC_NIST_P521
 
-    raise ValueError("Invalid curve name %s requested" % name)
+    raise ValueError(f"Invalid curve name {name} requested")
 
 
 def _curve_from_curve_id(cid: int) -> EllipticCurve:
@@ -192,7 +192,7 @@ def _curve_from_curve_id(cid: int) -> EllipticCurve:
     if cid == TPM_ECC_NIST_P521:
         return crypto_ec.SECP521R1()
 
-    raise ValueError("Invalid curve id %d requested" % cid)
+    raise ValueError(f"Invalid curve id {cid} requested")
 
 
 def _extract_tpm2b(vals: bytes) -> Tuple[bytes, bytes]:
@@ -229,9 +229,7 @@ def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
         (modulus, _) = _extract_tpm2b(asym_parms[6:])
         if (len(modulus) * 8) != keybits:
             raise ValueError(
-                "Misparsed either modulus or keybits: %d*8 != %d"
-                % (len(modulus), keybits)
-            )
+                f"Misparsed either modulus or keybits: {len(modulus)}*8 != {keybits}")
         bmodulus = int.from_bytes(modulus, byteorder="big")
 
         numbers = RSAPublicNumbers(exponent, bmodulus)
@@ -249,14 +247,10 @@ def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
 
         if (len(x) * 8) != curve.key_size:
             raise ValueError(
-                "Misparsed either X or curve: %d*8 != %d" % (
-                    len(x), curve.key_size)
-            )
+                f"Misparsed either X or curve: {len(x)}*8 != {curve.key_size}")
         if (len(y) * 8) != curve.key_size:
             raise ValueError(
-                "Misparsed either Y or curve curve: %d*8 != %d"
-                % (len(y), curve.key_size)
-            )
+                f"Misparsed either Y or curve curve: {len(y)}*8 != {curve.key_size}")
 
         bx = int.from_bytes(x, byteorder="big")
         by = int.from_bytes(y, byteorder="big")
@@ -264,7 +258,7 @@ def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
         numbers = EllipticCurvePublicNumbers(bx, by, curve)
         return numbers.public_key(backend=default_backend())
 
-    raise ValueError("Invalid tpm2b_public type: %d" % alg_type)
+    raise ValueError(f"Invalid tpm2b_public type: {alg_type}")
 
 
 def tpm2b_public_from_pubkey(pubkey: pubkey_type, name_alg: int, attributes: int, auth_policy: bytes, parms: NonAsymAlgSpecificParameters) -> bytes:
@@ -331,7 +325,7 @@ def _get_hasher_from_name_alg(nameAlg: int):
     if nameAlg == TPM_ALG_SHA512:
         return hashlib.sha512()
 
-    raise ValueError("Unsupported nameAlg %s used" % nameAlg)
+    raise ValueError(f"Unsupported nameAlg {nameAlg} used")
 
 
 def get_tpm2b_public_object_attributes(public: bytes) -> int:

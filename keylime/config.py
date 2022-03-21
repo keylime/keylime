@@ -46,9 +46,8 @@ def environ_bool(env_name, default):
     if val == "default":
         return default
     raise ValueError(
-        "Environment variable %s set to invalid value "
-        "%s (use either on/true/1 or off/false/0)" %
-        (env_name, val))
+        f"Environment variable {env_name} set to invalid value "
+        f"{val} (use either on/true/1 or off/false/0)")
 
 
 # SET STUB_TPM TO True TO ALLOW ALL TPM Operations to be stubbed out
@@ -98,8 +97,7 @@ MOUNT_SECURE = True
 TPM_CANNED_VALUES = None
 if STUB_TPM and TPM_CANNED_VALUES_PATH is not None:
     with open(TPM_CANNED_VALUES_PATH, "rb") as can:
-        print("WARNING: using canned values in stub mode from file '%s'" %
-              (TPM_CANNED_VALUES_PATH))
+        print(f"WARNING: using canned values in stub mode from file '{TPM_CANNED_VALUES_PATH}'")
         # Read in JSON and strip trailing extraneous commas
         jsonInTxt = can.read().rstrip(',\r\n')
         # Saved JSON is missing surrounding braces, so add them here
@@ -162,7 +160,7 @@ else:
     DEFAULT_WORK_DIR = '/var/lib/keylime'
 WORK_DIR = os.getenv('KEYLIME_DIR', DEFAULT_WORK_DIR)
 
-CA_WORK_DIR = '%s/ca/' % WORK_DIR
+CA_WORK_DIR = f'{WORK_DIR}/ca/'
 
 
 def yaml_to_dict(arry, add_newlines=True, logger=None) -> Optional[dict]:

@@ -73,7 +73,7 @@ def evaluate_policy(mb_policy, mb_policy_name, mb_refstate_data, mb_measurement_
     try:
         reason = mb_policy.evaluate(mb_refstate_data, mb_measurement_data)
     except Exception as exn:
-        reason= "policy evaluation failed: %s"%(str(exn))
+        reason = f"policy evaluation failed: {str(exn)}"
     if reason:
         logger.error("Boot attestation failed for agent %s, policy %s, refstate=%s, reason=%s",
             agent_id, mb_policy_name, json.dumps(mb_refstate_data), reason)

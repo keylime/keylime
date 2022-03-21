@@ -125,7 +125,7 @@ class WebAppHandler(BaseHandler):
         self.set_status(200)
         self.set_header('Content-Type', 'text/html')
         self.write(
-            """
+            f"""
             <!DOCTYPE html>
             <html>
                 <head>
@@ -140,9 +140,9 @@ class WebAppHandler(BaseHandler):
                                 droppable[i].addEventListener('drop', fileUploadCallback, false);
                             }}
                             populateAgents();
-                            setInterval(populateAgents, {0});
-                            setInterval(updateAgentsInfo, {1});
-                            setInterval(updateTerminal, {2});
+                            setInterval(populateAgents, {populate_agents_interval});
+                            setInterval(updateAgentsInfo, {update_agents_interval});
+                            setInterval(updateTerminal, {update_terminal_interval});
                         }}
                     </script>
                     <link href='/static/css/webapp.css' rel='stylesheet' type='text/css'/>
@@ -150,11 +150,11 @@ class WebAppHandler(BaseHandler):
                 <body>
                     <div id='modal_box' onclick="if (event.target == this) {{toggleVisibility(this.id);resetAddAgentForm();return false;}}">
 
-            """.format(populate_agents_interval, update_agents_interval, update_terminal_interval)
+            """
         )
 
         self.write(
-            """
+            f"""
                         <div id='modal_body'>
                             <center>
                                 <h3>Add Agent</h3>
@@ -199,31 +199,31 @@ class WebAppHandler(BaseHandler):
                                 <div id="policy_block">
                                     <div class="form_block">
                                         <label for='tpm_policy'>TPM Policy: </label><br>
-                                        <textarea class='json_input' id='tpm_policy' name='tpm_policy'>{}</textarea>
+                                        <textarea class='json_input' id='tpm_policy' name='tpm_policy'>{tpm_policy}</textarea>
                                         <br>
                                     </div>
 
                                     <div class="form_block">
                                         <label for='vtpm_policy'>vTPM Policy: </label><br>
-                                        <textarea class='json_input' id='vtpm_policy' name='vtpm_policy'>{}</textarea>
+                                        <textarea class='json_input' id='vtpm_policy' name='vtpm_policy'>{vtpm_policy}</textarea>
                                         <br>
                                     </div>
                                 </div>
                                 <br>
-            """.format(tpm_policy, vtpm_policy)
+            """
         )
 
         self.write(
-            """
+            f"""
                                 <div id="payload_block">
                                     <div class="form_block">
                                         <label for='ptype'>Payload type: </label>
-                                        <label><input type='radio' name='ptype' value='{}' checked="checked" onclick='toggleTabs(this.value)'> File </label>&nbsp;
-                                        <label><input type='radio' name='ptype' value='{}' onclick='toggleTabs(this.value)'> Keyfile </label>&nbsp;
-                                        <label><input type='radio' name='ptype' value='{}' onclick='toggleTabs(this.value)'> CA Dir </label>&nbsp;
+                                        <label><input type='radio' name='ptype' value='{Agent_Init_Types.FILE}' checked="checked" onclick='toggleTabs(this.value)'> File </label>&nbsp;
+                                        <label><input type='radio' name='ptype' value='{Agent_Init_Types.KEYFILE}' onclick='toggleTabs(this.value)'> Keyfile </label>&nbsp;
+                                        <label><input type='radio' name='ptype' value='{Agent_Init_Types.CA_DIR}' onclick='toggleTabs(this.value)'> CA Dir </label>&nbsp;
                                         <br>
                                     </div>
-            """.format(Agent_Init_Types.FILE, Agent_Init_Types.KEYFILE, Agent_Init_Types.CA_DIR)
+            """
         )
 
         self.write(
@@ -708,7 +708,7 @@ def main():
         root_dir = os.path.dirname(os.path.abspath(__file__))
     if not os.path.exists(root_dir + "/static/"):
         raise Exception(
-            'Static resource directory could not be found in %s!' % (root_dir))
+            f'Static resource directory could not be found in {root_dir}!')
 
     app = tornado.web.Application([
         (r"/webapp/.*", WebAppHandler),

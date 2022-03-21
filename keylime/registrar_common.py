@@ -403,7 +403,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
             logger.info('POST returning key blob for agent_id: %s', agent_id)
         except Exception as e:
-            web_util.echo_json_response(self, 400, "Error: %s" % e)
+            web_util.echo_json_response(self, 400, f"Error: {str(e)}")
             logger.warning("POST for %s returning 400 response. Error: %s", agent_id, e)
             logger.exception(e)
 
@@ -461,7 +461,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             except NoResultFound as e:
                 raise Exception(
                     "attempting to activate agent before requesting "
-                    "registrar for %s" % agent_id) from e
+                    f"registrar for {agent_id}") from e
             except SQLAlchemyError as e:
                 logger.error('SQLAlchemy Error: %s', e)
                 raise
@@ -491,7 +491,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             web_util.echo_json_response(self, 200, "Success")
             logger.info('PUT activated: %s', agent_id)
         except Exception as e:
-            web_util.echo_json_response(self, 400, "Error: %s" % e)
+            web_util.echo_json_response(self, 400, f"Error: {str(e)}")
             logger.warning("PUT for %s returning 400 response. Error: %s", agent_id, e)
             logger.exception(e)
             return

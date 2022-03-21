@@ -275,8 +275,8 @@ class Handler(BaseHTTPRequestHandler):
         secdir = secure_mount.mount()  # confirm that storage is still securely mounted
 
         # clean out the secure dir of any previous info before we extract files
-        if os.path.isdir("%s/unzipped" % secdir):
-            shutil.rmtree("%s/unzipped" % secdir)
+        if os.path.isdir(os.path.join(secdir, "unzipped")):
+            shutil.rmtree(os.path.join(secdir, "unzipped"))
 
         # write out key file
         f = open(secdir + "/" + self.server.enc_keyname, 'w', encoding="utf-8")
@@ -332,7 +332,7 @@ class Handler(BaseHTTPRequestHandler):
             if config.getboolean('cloud_agent', 'extract_payload_zip') and zipfile.is_zipfile(zfio):
                 logger.info("Decrypting and unzipping payload to %s/unzipped", secdir)
                 with zipfile.ZipFile(zfio, 'r')as f:
-                    f.extractall('%s/unzipped' % secdir)
+                    f.extractall(os.path.join(secdir, "unzipped"))
 
                 # run an included script if one has been provided
                 initscript = config.get('cloud_agent', 'payload_script')
@@ -340,7 +340,8 @@ class Handler(BaseHTTPRequestHandler):
                     def initthread():
                         env = os.environ.copy()
                         env['AGENT_UUID'] = self.server.agent_uuid
-                        proc = subprocess.Popen(["/bin/bash", initscript], env=env, shell=False, cwd='%s/unzipped' % secdir,
+                        proc = subprocess.Popen(["/bin/bash", initscript], env=env, shell=False,
+                                                cwd=os.path.join(secdir, "unzipped"),
                                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                         for line in iter(proc.stdout.readline, b''):
                             logger.debug("init-output: %s", line.strip())
@@ -586,7 +587,7 @@ def revocation_listener():
         actionlisttxt = config.get('cloud_agent', 'revocation_actions')
         if actionlisttxt.strip() != "":
             actionlist = actionlisttxt.split(',')
-            actionlist = ["revocation_actions.%s" % i for i in actionlist]
+            actionlist = [f"revocation_actions.{i}" % i for i in actionlist]
 
         # load actions from unzipped
         action_list_path = os.path.join(secdir, "unzipped/action_list")
@@ -601,7 +602,7 @@ def revocation_listener():
                     else:
                         actionlist.append(action)
 
-                uzpath = "%s/unzipped" % secdir
+                uzpath = os.path.join(secdir, "unzipped")
                 if uzpath not in sys.path:
                     sys.path.append(uzpath)
 
@@ -725,7 +726,7 @@ def main():
         try:
             uuid.UUID(agent_uuid)
         except ValueError as e:
-            raise RuntimeError("The UUID returned from dmidecode is invalid: %s" % e)  # pylint: disable=raise-missing-from
+            raise RuntimeError(f"The UUID returned from dmidecode is invalid: {str(e)}")  # pylint: disable=raise-missing-from
     elif agent_uuid == 'hostname':
         agent_uuid = socket.getfqdn()
     elif agent_uuid == 'environment':
@@ -746,8 +747,7 @@ def main():
             agent_uuid = jsonIn['add_vtpm_to_group']['retout']
         else:
             # Our command hasn't been canned!
-            raise Exception("Command %s not found in canned json!" %
-                            ("add_vtpm_to_group"))
+            raise Exception("Command add_vtpm_to_group not found in canned json!")
 
     logger.info("Agent UUID: %s", agent_uuid)
 

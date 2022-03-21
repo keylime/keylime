@@ -58,7 +58,7 @@ class DBEngineManager:
                 database = config.get(service, p_n_prefix + 'name')
 
             if drivername == 'sqlite':
-                database_file = "%s/%s" % (config.WORK_DIR, database)
+                database_file = os.path.join(config.WORK_DIR, database)
                 kl_dir = os.path.dirname(os.path.abspath(database_file))
                 if not os.path.exists(kl_dir):
                     os.makedirs(kl_dir, 0o700)

@@ -40,7 +40,7 @@ def main(argv=sys.argv):
     infile = argv[1]
 
     if not os.path.isfile(infile):
-        print("ERROR: File %s not found." % infile)
+        print(f"ERROR: File %s not found. {infile}")
         usage()
 
     f = open(infile, encoding="utf-8")
