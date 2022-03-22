@@ -8,7 +8,7 @@ import ast
 import enum
 import functools
 import re
-from typing import List, Optional, Tuple, Callable, Union, Dict, Any
+from typing import List, Optional, Tuple, Callable, Union, Dict, Any, Pattern
 
 from keylime import config
 from keylime import json
@@ -178,7 +178,7 @@ def _eval_severity_config() -> Tuple[List[Callable[[str], Optional[SeverityLabel
         # TODO validate regex
         regex = re.compile(policy["event_id"])
 
-        def rule(policy_regex: re.Pattern[Any], label_str: str, event_id: str) -> Optional[SeverityLabel]:
+        def rule(policy_regex: Pattern[Any], label_str: str, event_id: str) -> Optional[SeverityLabel]:
             if policy_regex.fullmatch(event_id):
                 policy_label = labels.get(label_str)
                 if policy_label is None:
