@@ -25,13 +25,17 @@
 
   adjust:
    # prepare step adjustments
-   - when: distro == centos-stream-9
-     prepare+:
-       script: yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+   - prepare:
+       script:
+        - bash -c 'ln -s $(pwd) /var/tmp/keylime_sources'
+        - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+     when: distro == centos-stream-9
 
-   - when: distro == centos-stream-8
-     prepare+:
-       script: yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+   - prepare:
+       script:
+        - bash -c 'ln -s $(pwd) /var/tmp/keylime_sources'
+        - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+     when: distro == centos-stream-8
 
    # discover step adjustments
    # disable code coverage measurement everywhere except F35
