@@ -21,30 +21,30 @@ tpm_instance = tpm(need_hw_tpm=True)
 
 
 def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=None):
-    f = open(file_path, encoding="utf-8")
-    lines = itertools.islice(f, position, None)
+    with open(file_path, encoding="utf-8") as f:
+        lines = itertools.islice(f, position, None)
 
-    runninghash = ima_ast.get_START_HASH(pcr_hash_alg)
+        runninghash = ima_ast.get_START_HASH(pcr_hash_alg)
 
-    if search_val is not None:
-        search_val = codecs.decode(search_val.encode('utf-8'), 'hex')
+        if search_val is not None:
+            search_val = codecs.decode(search_val.encode('utf-8'), 'hex')
 
-    for line in lines:
-        line = line.strip()
-        position += 1
+        for line in lines:
+            line = line.strip()
+            position += 1
 
-        entry = ima_ast.Entry(line, None, ima_hash_alg=ima_hash_alg, pcr_hash_alg=pcr_hash_alg)
+            entry = ima_ast.Entry(line, None, ima_hash_alg=ima_hash_alg, pcr_hash_alg=pcr_hash_alg)
 
-        if search_val is None:
-            val = codecs.encode(entry.pcr_template_hash, 'hex').decode("utf8")
-            tpm_instance.extendPCR(config.IMA_PCR, val, pcr_hash_alg)
-        else:
-            runninghash = pcr_hash_alg.hash(runninghash + entry.pcr_template_hash)
-            if runninghash == search_val:
-                return position
+            if search_val is None:
+                val = codecs.encode(entry.pcr_template_hash, 'hex').decode("utf8")
+                tpm_instance.extendPCR(config.IMA_PCR, val, pcr_hash_alg)
+            else:
+                runninghash = pcr_hash_alg.hash(runninghash + entry.pcr_template_hash)
+                if runninghash == search_val:
+                    return position
 
-    if search_val is not None:
-        raise Exception("Unable to find current measurement list position, Resetting the TPM emulator may be neccesary")
+        if search_val is not None:
+            raise Exception("Unable to find current measurement list position, Resetting the TPM emulator may be neccesary")
 
     return position
 
@@ -75,23 +75,22 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
 
     print(f"Monitoring {args.ima_log}")
     poll_object = select.poll()
-    fd_object = open(args.ima_log, encoding="utf-8")
-    number = fd_object.fileno()
-    poll_object.register(fd_object, select.POLLIN | select.POLLPRI)
+    with open(args.ima_log, encoding="utf-8") as fd_object:
+        number = fd_object.fileno()
+        poll_object.register(fd_object, select.POLLIN | select.POLLPRI)
 
-    try:
-        while True:
-            results = poll_object.poll()
-            for result in results:
-                if result[0] != number:
-                    continue
-                for pcr_hash_alg, pos in position.items():
-                    position[pcr_hash_alg] = measure_list(args.ima_log, pos, ima_hash_alg, pcr_hash_alg)
+        try:
+            while True:
+                results = poll_object.poll()
+                for result in results:
+                    if result[0] != number:
+                        continue
+                    for pcr_hash_alg, pos in position.items():
+                        position[pcr_hash_alg] = measure_list(args.ima_log, pos, ima_hash_alg, pcr_hash_alg)
 
-                time.sleep(0.2)
-    except (SystemExit, KeyboardInterrupt):
-        fd_object.close()
-        sys.exit(1)
+                    time.sleep(0.2)
+        except (SystemExit, KeyboardInterrupt):
+            sys.exit(1)
 
 
 if __name__ == '__main__':

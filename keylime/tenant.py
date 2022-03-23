@@ -386,7 +386,7 @@ class Tenant():
                 else:
                     raise UserError("Invalid key file provided")
             else:
-                f = open(args["keyfile"], encoding="utf-8")
+                f = open(args["keyfile"], encoding="utf-8")  #pylint: disable=consider-using-with
             self.K = base64.b64decode(f.readline())
             self.U = base64.b64decode(f.readline())
             self.V = base64.b64decode(f.readline())
@@ -398,9 +398,8 @@ class Tenant():
                     self.payload = args["payload"]["data"][0]
             else:
                 if args["payload"] is not None:
-                    f = open(args["payload"], 'rb')
-                    self.payload = f.read()
-                    f.close()
+                    with open(args["payload"], 'rb') as f:
+                        self.payload = f.read()
 
         if args["file"] is not None:
             if args["keyfile"] is not None or args["ca_dir"] is not None:
@@ -611,18 +610,18 @@ class Tenant():
             env['EK_CERT'] = ""
 
         env['PROVKEYS'] = json.dumps(self.registrar_data.get('provider_keys', {}))
-        proc = subprocess.Popen(script, env=env, shell=True,
-                                cwd=config.WORK_DIR, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT)
-        retval = proc.wait()
-        if retval != 0:
-            raise UserError("External check script failed to validate EK")
-        logger.debug("External check script successfully to validated EK")
-        while True:
-            line = proc.stdout.readline().decode()
-            if line == "":
-                break
-            logger.debug("ek_check output: %s", line.strip())
+        with subprocess.Popen(script, env=env, shell=True,
+                              cwd=config.WORK_DIR, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT) as proc:
+            retval = proc.wait()
+            if retval != 0:
+                raise UserError("External check script failed to validate EK")
+            logger.debug("External check script successfully to validated EK")
+            while True:
+                line = proc.stdout.readline().decode()
+                if line == "":
+                    break
+                logger.debug("ek_check output: %s", line.strip())
         return True
 
     def do_cv(self):
@@ -1221,7 +1220,7 @@ class Tenant():
 
 
 def write_to_namedtempfile(data, delete_tmp_files):
-    temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)
+    temp = tempfile.NamedTemporaryFile(prefix="keylime-", delete=delete_tmp_files)  #pylint: disable=consider-using-with
     temp.write(data)
     temp.flush()
     return temp.name

@@ -517,14 +517,12 @@ def main():
     # measure_path='../scripts/ima/ascii_runtime_measurements_ima'
     # measure_path = '../scripts/gerardo/ascii_runtime_measurements'
     print(f"reading measurement list from {measure_path}")
-    f = open(measure_path, encoding="ascii")
-    lines = f.readlines()
+    with open(measure_path, encoding="ascii") as f:
+        lines = f.readlines()
 
-    m2a = open('measure2allow.txt', "w", encoding="utf-8")
-    digest = process_measurement_list(AgentAttestState('1'), lines, lists, m2a)
-    print(f"final digest is {digest}")
-    f.close()
-    m2a.close()
+        with open('measure2allow.txt', "w", encoding="utf-8") as m2a:
+            digest = process_measurement_list(AgentAttestState('1'), lines, lists, m2a)
+            print(f"final digest is {digest}")
 
     print("using m2a")
 
