@@ -20,42 +20,43 @@ _MOUNTED = []
 def check_mounted(secdir):
     """Inspect mountinfo to detect if a directory is mounted."""
     secdir_escaped = secdir.replace(" ", r"\040")
-    for line in open("/proc/self/mountinfo", "r", encoding="utf-8"):  #pylint: disable=consider-using-with
-        # /proc/[pid]/mountinfo have 10+ elements separated with
-        # spaces (check proc (5) for a complete description)
-        #
-        # At position 7 there are some optional fields, so we need
-        # first to determine the separator mark, and validate the
-        # final total number of fields.
-        elements = line.split()
-        try:
-            separator = elements.index("-")
-        except ValueError:
-            msg = "Separator filed not found. " \
-                "Information line cannot be parsed"
-            logger.error(msg)
-            # pylint: disable=raise-missing-from
-            raise Exception(msg)
+    with open("/proc/self/mountinfo", "r", encoding="utf-8") as f:
+        for line in f:
+            # /proc/[pid]/mountinfo have 10+ elements separated with
+            # spaces (check proc (5) for a complete description)
+            #
+            # At position 7 there are some optional fields, so we need
+            # first to determine the separator mark, and validate the
+            # final total number of fields.
+            elements = line.split()
+            try:
+                separator = elements.index("-")
+            except ValueError:
+                msg = "Separator field not found. " \
+                    "Information line cannot be parsed"
+                logger.error(msg)
+                # pylint: disable=raise-missing-from
+                raise Exception(msg)
 
-        if len(elements) < 10 or len(elements) - separator < 4:
-            msg = "Mount information line cannot be parsed"
-            logger.error(msg)
-            raise Exception(msg)
-
-        mount_point = elements[4]
-        filesystem_type = elements[separator + 1]
-        if mount_point == secdir_escaped:
-            if filesystem_type != "tmpfs":
-                msg = f"Secure storage location {secdir} already mounted " \
-                    f"on wrong file system type: {filesystem_type}. " \
-                    "Unmount to continue."
+            if len(elements) < 10 or len(elements) - separator < 4:
+                msg = "Mount information line cannot be parsed"
                 logger.error(msg)
                 raise Exception(msg)
 
-            logger.debug(
-                "Secure storage location %s already mounted on tmpfs", secdir
-            )
-            return True
+            mount_point = elements[4]
+            filesystem_type = elements[separator + 1]
+            if mount_point == secdir_escaped:
+                if filesystem_type != "tmpfs":
+                    msg = f"Secure storage location {secdir} already mounted " \
+                        f"on wrong file system type: {filesystem_type}. " \
+                        "Unmount to continue."
+                    logger.error(msg)
+                    raise Exception(msg)
+
+                logger.debug(
+                    "Secure storage location %s already mounted on tmpfs", secdir
+                )
+                return True
 
     logger.debug("Secure storage location %s not mounted", secdir)
     return False
