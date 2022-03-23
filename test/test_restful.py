@@ -58,6 +58,8 @@ from keylime import api_version
 from keylime.common import algorithms
 
 
+#pylint: disable=no-self-use
+
 # Coverage support
 if "COVERAGE_FILE" in os.environ:
     FORK_ARGS = ["coverage", "run", "--parallel-mode"]

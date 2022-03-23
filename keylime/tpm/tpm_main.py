@@ -1335,7 +1335,8 @@ class tpm(tpm_abstract.AbstractTPM):
             return None
         return output
 
-    def __stringify_pcr_keys(self, log: dict) -> None:
+    @staticmethod
+    def __stringify_pcr_keys(log: dict) -> None:
         '''Ensure that the PCR indices are strings
 
         The YAML produced by `tpm2_eventlog`, when loaded by the yaml module,
@@ -1358,7 +1359,8 @@ class tpm(tpm_abstract.AbstractTPM):
         log['pcrs'] = new_pcrs
         return
 
-    def __add_boot_aggregate(self, log: dict) -> None :
+    @staticmethod
+    def __add_boot_aggregate(log: dict) -> None :
         '''Scan the boot event log and calculate possible boot aggregates.
 
         Hashes are calculated for both sha1 and sha256,
@@ -1409,8 +1411,8 @@ class tpm(tpm_abstract.AbstractTPM):
             return None
         #pylint: enable=import-outside-toplevel
         tpm_bootlog_enrich.enrich(log_parsed_data)
-        self.__stringify_pcr_keys(log_parsed_data)
-        self.__add_boot_aggregate(log_parsed_data)
+        tpm.__stringify_pcr_keys(log_parsed_data)
+        tpm.__add_boot_aggregate(log_parsed_data)
         return log_parsed_data
 
     def _parse_mb_bootlog(self, log_b64:str) -> dict:
