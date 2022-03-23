@@ -20,7 +20,7 @@ _MOUNTED = []
 def check_mounted(secdir):
     """Inspect mountinfo to detect if a directory is mounted."""
     secdir_escaped = secdir.replace(" ", r"\040")
-    for line in open("/proc/self/mountinfo", "r", encoding="utf-8"):
+    for line in open("/proc/self/mountinfo", "r", encoding="utf-8"):  #pylint: disable=consider-using-with
         # /proc/[pid]/mountinfo have 10+ elements separated with
         # spaces (check proc (5) for a complete description)
         #

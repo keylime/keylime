@@ -68,7 +68,7 @@ def start_cfssl(cmdline=""):
     # make sure cfssl isn't running
     os.system('pkill -x cfssl')
 
-    cfsslproc = subprocess.Popen(cmd, env=env, shell=True, stdout=subprocess.PIPE,
+    cfsslproc = subprocess.Popen(cmd, env=env, shell=True, stdout=subprocess.PIPE,  #pylint: disable=consider-using-with
                                  stderr=subprocess.STDOUT, universal_newlines=True)
     if cfsslproc.returncode is not None:
         raise Exception(f"Unable to launch {cmd}: failed with code {cfsslproc.returncode}")

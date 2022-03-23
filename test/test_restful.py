@@ -135,10 +135,10 @@ def setUpModule():
         env = os.environ.copy()
         env['PATH'] = env['PATH'] + ":/usr/local/bin"
         # Run init_tpm_server and tpm_serverd (start fresh)
-        its = subprocess.Popen(["init_tpm_server"], shell=False, env=env)
-        its.wait()
-        tsd = subprocess.Popen(["tpm_serverd"], shell=False, env=env)
-        tsd.wait()
+        with subprocess.Popen(["init_tpm_server"], shell=False, env=env) as its:
+            its.wait()
+        with subprocess.Popen(["tpm_serverd"], shell=False, env=env) as tsd:
+            tsd.wait()
     except Exception:
         print("WARNING: Restarting TPM emulator failed!")
     # Note: the following is required as abrmd is failing to reconnect to MSSIM, once
@@ -205,7 +205,7 @@ def launch_cloudverifier():
     """Start up the cloud verifier"""
     global cv_process, script_env, FORK_ARGS
     if cv_process is None:
-        cv_process = subprocess.Popen("keylime_verifier",  # pylint: disable=subprocess-popen-preexec-fn
+        cv_process = subprocess.Popen("keylime_verifier",  # pylint: disable=subprocess-popen-preexec-fn,consider-using-with
                                       shell=False,
                                       preexec_fn=os.setsid,
                                       stdout=subprocess.PIPE,
@@ -232,7 +232,7 @@ def launch_registrar():
     """Start up the registrar"""
     global reg_process, script_env, FORK_ARGS
     if reg_process is None:
-        reg_process = subprocess.Popen("keylime_registrar",  # pylint: disable=subprocess-popen-preexec-fn
+        reg_process = subprocess.Popen("keylime_registrar",  # pylint: disable=subprocess-popen-preexec-fn,consider-using-with
                                        shell=False,
                                        preexec_fn=os.setsid,
                                        stdout=subprocess.PIPE,
@@ -265,7 +265,7 @@ def launch_cloudagent(agent="python"):
     else:
         agent_path = "echo"
     if agent_process is None:
-        agent_process = subprocess.Popen(agent_path,  # pylint: disable=subprocess-popen-preexec-fn
+        agent_process = subprocess.Popen(agent_path,  # pylint: disable=subprocess-popen-preexec-fn,consider-using-with
                                          shell=False,
                                          preexec_fn=os.setsid,
                                          stdout=subprocess.PIPE,

@@ -155,24 +155,22 @@ class AgentAttestStates():
     def get_by_agent_id(self, agent_id):
         """ Get an agent's state given its id """
 
-        self.map_lock.acquire()
-        agentAttestState = self.map.get(agent_id)
-        if not agentAttestState:
-            agentAttestState = AgentAttestState(agent_id)
-            self.map[agent_id] = agentAttestState
-        self.map_lock.release()
+        with self.map_lock:
+            agentAttestState = self.map.get(agent_id)
+            if not agentAttestState:
+                agentAttestState = AgentAttestState(agent_id)
+                self.map[agent_id] = agentAttestState
 
         return agentAttestState
 
     def delete_by_agent_id(self, agent_id):
         """ Delete an agent's state given its id """
 
-        self.map_lock.acquire()
-        try:
-            del self.map[agent_id]
-        except KeyError:
-            pass
-        self.map_lock.release()
+        with self.map_lock:
+            try:
+                del self.map[agent_id]
+            except KeyError:
+                pass
 
     def add(self, agent_id, boottime, ima_pcrs_dict, next_ima_ml_entry, learned_ima_keyrings):
         """ Add or replace an existing AgentAttestState initialized with the given values """

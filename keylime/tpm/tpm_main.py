@@ -781,17 +781,15 @@ class tpm(tpm_abstract.AbstractTPM):
         try:
             # write out the public EK
             efd, etemp = tempfile.mkstemp()
-            ekFile = open(etemp, "wb")
-            ekFile.write(ek_tpm)
-            ekFile.close()
+            with open(etemp, "wb") as ekFile:
+                ekFile.write(ek_tpm)
 
             # write out the challenge
             challenge = tpm_abstract.TPM_Utilities.random_password(32)
             challenge = challenge.encode()
             keyfd, keypath = tempfile.mkstemp()
-            challengeFile = open(keypath, "wb")
-            challengeFile.write(challenge)
-            challengeFile.close()
+            with open(keypath, "wb") as challengeFile:
+                challengeFile.write(challenge)
 
             # create temp file for the blob
             blobfd, blobpath = tempfile.mkstemp()
@@ -802,9 +800,8 @@ class tpm(tpm_abstract.AbstractTPM):
             logger.info("Encrypting AIK for UUID %s", uuid)
 
             # read in the blob
-            f = open(blobpath, "rb")
-            keyblob = base64.b64encode(f.read())
-            f.close()
+            with open(blobpath, "rb") as f:
+                keyblob = base64.b64encode(f.read())
 
             # read in the aes key
             key = base64.b64encode(challenge).decode("utf-8")
@@ -838,11 +835,10 @@ class tpm(tpm_abstract.AbstractTPM):
         try:
             # write out key blob
             kfd, ktemp = tempfile.mkstemp()
-            keyblobFile = open(ktemp, "wb")
-            # the below is a coroutine?
-            keyblobFile.write(base64.b64decode(keyblob))
+            with open(ktemp, "wb") as keyblobFile:
+                # the below is a coroutine?
+                keyblobFile.write(base64.b64decode(keyblob))
 
-            keyblobFile.close()
             os.close(kfd)
 
             # ok lets write out the key now
@@ -1114,26 +1110,22 @@ class tpm(tpm_abstract.AbstractTPM):
         try:
             # write out quote
             qfd, qtemp = tempfile.mkstemp()
-            quoteFile = open(qtemp, "wb")
-            quoteFile.write(quoteblob)
-            quoteFile.close()
+            with open(qtemp, "wb") as quoteFile:
+                quoteFile.write(quoteblob)
 
             # write out sig
             sfd, stemp = tempfile.mkstemp()
-            sigFile = open(stemp, "wb")
-            sigFile.write(sigblob)
-            sigFile.close()
+            with open(stemp, "wb") as sigFile:
+                sigFile.write(sigblob)
 
             # write out pcr
             pfd, ptemp = tempfile.mkstemp()
-            pcrFile = open(ptemp, "wb")
-            pcrFile.write(pcrblob)
-            pcrFile.close()
+            with open(ptemp, "wb") as pcrFile:
+                pcrFile.write(pcrblob)
 
             afd, atemp = tempfile.mkstemp()
-            aikFile = open(atemp, "wb")
-            aikFile.write(aikFromRegistrar)
-            aikFile.close()
+            with open(atemp, "wb") as aikFile:
+                aikFile.write(aikFromRegistrar)
 
             retDict = self.__tpm2_checkquote(aikFile.name, nonce, quoteFile.name, sigFile.name, pcrFile.name, hash_alg)
             retout = retDict['retout']

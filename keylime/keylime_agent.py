@@ -279,9 +279,8 @@ class Handler(BaseHTTPRequestHandler):
             shutil.rmtree(os.path.join(secdir, "unzipped"))
 
         # write out key file
-        f = open(secdir + "/" + self.server.enc_keyname, 'w', encoding="utf-8")
-        f.write(base64.b64encode(self.server.K).decode())
-        f.close()
+        with open(os.path.join(secdir, self.server.enc_keyname), 'w', encoding="utf-8") as f:
+            f.write(base64.b64encode(self.server.K).decode())
 
         # stow the U value for later
         tpm_instance.write_key_nvram(self.server.final_U)
@@ -340,13 +339,13 @@ class Handler(BaseHTTPRequestHandler):
                     def initthread():
                         env = os.environ.copy()
                         env['AGENT_UUID'] = self.server.agent_uuid
-                        proc = subprocess.Popen(["/bin/bash", initscript], env=env, shell=False,
+                        with subprocess.Popen(["/bin/bash", initscript], env=env, shell=False,
                                                 cwd=os.path.join(secdir, "unzipped"),
-                                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                        for line in iter(proc.stdout.readline, b''):
-                            logger.debug("init-output: %s", line.strip())
-                        # should be a no-op as poll already told us it's done
-                        proc.wait()
+                                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as proc:
+                            for line in iter(proc.stdout.readline, b''):
+                                logger.debug("init-output: %s", line.strip())
+                            # should be a no-op as poll already told us it's done
+                            proc.wait()
 
                     if not os.path.exists(
                             os.path.join(secdir, "unzipped", initscript)):
@@ -417,8 +416,8 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         if os.path.isfile(keyname):
             # read in private key
             logger.info("Using existing key in %s", keyname)
-            f = open(keyname, "rb")
-            rsa_key = crypto.rsa_import_privkey(f.read())
+            with open(keyname, "rb") as f:
+                rsa_key = crypto.rsa_import_privkey(f.read())
         else:
             logger.info("Key for U/V transport and mTLS certificate not found, generating a new one")
             rsa_key = crypto.rsa_generate(2048)
@@ -635,7 +634,7 @@ def main():
 
     ima_log_file = None
     if os.path.exists(config.IMA_ML):
-        ima_log_file = open(config.IMA_ML, 'r', encoding="utf-8")
+        ima_log_file = open(config.IMA_ML, 'r', encoding="utf-8")  #pylint: disable=consider-using-with
 
     tpm_log_file_data = None
     if os.path.exists(config.MEASUREDBOOT_ML):
