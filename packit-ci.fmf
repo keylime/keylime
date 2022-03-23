@@ -10,7 +10,7 @@
     how: fmf
     url: https://github.com/RedHat-SP-Security/keylime-tests
     ref: main
-    test: 
+    test:
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
      - /setup/enable_keylime_coverage
@@ -21,6 +21,7 @@
      - /functional/db-postgresql-sanity-on-localhost
      - /functional/db-mariadb-sanity-on-localhost
      - /functional/db-mysql-sanity-on-localhost
+     - /functional/tenant-allowlist-sanity
      - /setup/generate_coverage_report
 
   adjust:
