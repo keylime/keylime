@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from keylime import fs_util
 
+#pylint: disable=no-self-use
 
 class TestChDir(unittest.TestCase):
 

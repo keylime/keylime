@@ -125,7 +125,8 @@ class AbstractTPM(metaclass=ABCMeta):
             logger.warning("INSECURE: The security of Keylime is currently NOT linked to a hardware root of trust.")
             logger.warning("INSECURE: Only use Keylime in this mode for testing or debugging purposes.")
 
-    def __read_tpm_data(self):
+    @staticmethod
+    def __read_tpm_data():
         if os.path.exists('tpmdata.yml'):
             with open('tpmdata.yml', 'rb') as f:
                 return yaml.load(f, Loader=SafeLoader)
@@ -140,12 +141,12 @@ class AbstractTPM(metaclass=ABCMeta):
 
     def get_tpm_metadata(self, key):
         if self.global_tpmdata is None:
-            self.global_tpmdata = self.__read_tpm_data()
+            self.global_tpmdata = AbstractTPM.__read_tpm_data()
         return self.global_tpmdata.get(key, None)
 
     def _set_tpm_metadata(self, key, value):
         if self.global_tpmdata is None:
-            self.global_tpmdata = self.__read_tpm_data()
+            self.global_tpmdata = AbstractTPM.__read_tpm_data()
 
         if self.global_tpmdata.get(key, None) is not value:
             self.global_tpmdata[key] = value
@@ -196,7 +197,8 @@ class AbstractTPM(metaclass=ABCMeta):
     def _get_tpm_rand_block(self, size=4096):
         pass
 
-    def __check_ima(self, agentAttestState, pcrval, ima_measurement_list, allowlist,
+    @staticmethod
+    def __check_ima(agentAttestState, pcrval, ima_measurement_list, allowlist,
                     ima_keyrings, boot_aggregates, hash_alg):
         failure = Failure(Component.IMA)
         logger.info("Checking IMA measurement list on agent: %s", agentAttestState.get_agent_id())
@@ -211,7 +213,8 @@ class AbstractTPM(metaclass=ABCMeta):
             logger.debug("IMA measurement list of agent %s validated", agentAttestState.get_agent_id())
         return failure
 
-    def __parse_pcrs(self, pcrs, virtual) -> typing.Dict[int, str]:
+    @staticmethod
+    def __parse_pcrs(pcrs, virtual) -> typing.Dict[int, str]:
         """Parses and validates the format of a list of PCR data"""
         output = {}
         for line in pcrs:
@@ -247,7 +250,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
         pcrs_in_quote = set()  # PCRs in quote that were already used for some kind of validation
 
-        pcrs = self.__parse_pcrs(pcrs, virtual)
+        pcrs = AbstractTPM.__parse_pcrs(pcrs, virtual)
         pcr_nums = set(pcrs.keys())
 
         # Skip validation if TPM is stubbed.
@@ -273,8 +276,8 @@ class AbstractTPM(metaclass=ABCMeta):
                 logger.error("IMA PCR in policy, but no measurement list provided")
                 failure.add_event(f"unused_pcr_{config.IMA_PCR}", "IMA PCR in policy, but no measurement list provided", True)
             else:
-                ima_failure = self.__check_ima(agentAttestState, pcrs[config.IMA_PCR], ima_measurement_list, allowlist,
-                                               ima_keyrings, boot_aggregates, hash_alg)
+                ima_failure = AbstractTPM.__check_ima(agentAttestState, pcrs[config.IMA_PCR], ima_measurement_list, allowlist,
+                                                      ima_keyrings, boot_aggregates, hash_alg)
                 failure.merge(ima_failure)
 
             pcrs_in_quote.add(config.IMA_PCR)

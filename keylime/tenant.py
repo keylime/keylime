@@ -111,7 +111,7 @@ class Tenant():
 
         self.api_version = keylime_api_version.current_version()
 
-        (self.my_cert, self.my_priv_key), (self.my_agent_cert, self.my_agent_priv_key), self.verifier_ca_cert = self.get_tls_context()
+        (self.my_cert, self.my_priv_key), (self.my_agent_cert, self.my_agent_priv_key), self.verifier_ca_cert = Tenant.get_tls_context()
         self.cert = (self.my_cert, self.my_priv_key)
         self.agent_cert = (self.my_agent_cert, self.my_agent_priv_key)
         if config.getboolean('general', "enable_tls"):
@@ -128,7 +128,8 @@ class Tenant():
     def verifier_base_url(self):
         return f'{self.verifier_ip}:{self.verifier_port}'
 
-    def get_tls_context(self):
+    @staticmethod
+    def get_tls_context():
         """Generate certifcate naming and path
 
         Returns:
@@ -1194,22 +1195,23 @@ class Tenant():
         cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
         response = cv_client.post(f'/v{self.api_version}/allowlists/{allowlist_name}', data=body,
                                   cert=self.cert, verify=self.verifier_ca_cert)
-        self._print_json_response(response)
+        Tenant._print_json_response(response)
 
     def do_delete_allowlist(self, name):
         cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
         response = cv_client.delete(f'/v{self.api_version}/allowlists/{name}',
                                     cert=self.cert, verify=self.verifier_ca_cert)
-        self._print_json_response(response)
+        Tenant._print_json_response(response)
 
     def do_show_allowlist(self, name):
         cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
         response = cv_client.get(f'/v{self.api_version}/allowlists/{name}',
                                  cert=self.cert, verify=self.verifier_ca_cert)
         print(f"Show allowlist command response: {response.status_code}.")
-        self._print_json_response(response)
+        Tenant._print_json_response(response)
 
-    def _print_json_response(self, response):
+    @staticmethod
+    def _print_json_response(response):
         try:
             json_response = response.json()
         except ValueError:
