@@ -1157,9 +1157,14 @@ class tpm(tpm_abstract.AbstractTPM):
 
         return retout, True
 
-    def check_quote(self, agentAttestState, nonce, data, quote, aikTpmFromRegistrar, tpm_policy={},
-                    ima_measurement_list=None, allowlist={}, hash_alg=None, ima_keyrings=None,
+    def check_quote(self, agentAttestState, nonce, data, quote, aikTpmFromRegistrar, tpm_policy=None,
+                    ima_measurement_list=None, allowlist=None, hash_alg=None, ima_keyrings=None,
                     mb_measurement_list=None, mb_refstate=None, compressed=False) -> Failure:
+        if tpm_policy is None:
+            tpm_policy = {}
+        if allowlist is None:
+            allowlist = {}
+
         failure = Failure(Component.QUOTE_VALIDATION)
         if hash_alg is None:
             hash_alg = self.defaults['hash']

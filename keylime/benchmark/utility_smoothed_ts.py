@@ -8,7 +8,7 @@ import sys
 import glob
 
 
-def main(argv=sys.argv):
+def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
     parser = argparse.ArgumentParser("keylime-utility-smoother")
     parser.add_argument('-f', '--filename', required=True,
                         action='store', dest='filename')

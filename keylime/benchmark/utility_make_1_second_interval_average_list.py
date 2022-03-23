@@ -10,7 +10,7 @@ from collections import OrderedDict
 import glob
 
 
-def main(argv=sys.argv):
+def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
 
     parser = argparse.ArgumentParser(
         "keylime-utility-make_1_second_interval_average_list")

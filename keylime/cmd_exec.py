@@ -20,11 +20,14 @@ def _execute(cmd, env=None, **kwargs):
 
 
 def run(cmd, expectedcode=EXIT_SUCESS, raiseOnError=True, outputpaths=None,
-        env=os.environ, **kwargs):
+        env=None, **kwargs):
     """Execute external command.
 
     :param cmd: a sequence of command arguments
     """
+    if env is None:
+        env = os.environ
+
     t0 = time.time()
     retout, reterr, code = _execute(cmd, env=env, **kwargs)
 

@@ -512,7 +512,7 @@ def read_private(warn=False):
     return {'revoked_keys': []}, base64.b64encode(crypto.generate_random_key()).decode()
 
 
-def main(argv=sys.argv):
+def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument('-c', '--command', action='store', dest='command',
                         required=True, help="valid commands are init,create,pkg,revoke,listen")

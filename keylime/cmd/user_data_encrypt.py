@@ -33,7 +33,7 @@ def encrypt(contents):
     return {'u': u, 'v': v, 'k': k, 'ciphertext': ciphertext}
 
 
-def main(argv=sys.argv):
+def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
     if len(argv) < 2:
         usage()
 
