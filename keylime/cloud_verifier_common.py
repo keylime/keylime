@@ -152,8 +152,7 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
         algorithms.Hash(hash_alg),
         ima_keyrings,
         mb_measurement_list,
-        agent['mb_refstate'],
-        compressed=(agent['supported_version'] == "1.0"))  # TODO: change this to always False after initial update
+        agent['mb_refstate'])
     failure.merge(quote_validation_failure)
 
     if not failure:

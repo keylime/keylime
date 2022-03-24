@@ -471,8 +471,13 @@ class AgentsHandler(BaseHandler):
                     agent_data['mtls_cert'] = registrar_data.get('mtls_cert', None)
                     agent_data['ak_tpm'] = registrar_data['aik_tpm']
 
-                    # TODO: Always error for v1.0 version after initial upgrade
-                    if registrar_data.get('mtls_cert', None) is None and agent_data['supported_version'] != "1.0":
+                    if not keylime_api_version.is_supported_version(agent_data['supported_version']):
+                        web_util.echo_json_response(self, 400, "Keylime does not support agents "
+                                                               f"with version: {agent_data['supported_version']}")
+                        return
+
+                    if agent_data['mtls_cert'] is None and config.getboolean('cloud_verifier', 'agent_mtls_cert_enabled',
+                                                                             fallback=True):
                         web_util.echo_json_response(self, 400, "mTLS certificate for agent is required!")
                         return
 
@@ -788,7 +793,7 @@ async def invoke_get_quote(agent, need_pubkey):
     if need_pubkey:
         partial_req = "0"
 
-    # TODO: remove special handling after initial upgrade
+    # ssl_context is only None if mTLS verification was disabled in the configuration
     if agent['ssl_context']:
         res = tornado_requests.request("GET",
                                        f"https://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/quotes/integrity"
@@ -847,7 +852,7 @@ async def invoke_provide_v(agent):
         pass
     v_json_message = cloud_verifier_common.prepare_v(agent)
 
-    # TODO: remove special handling after initial upgrade
+    # ssl_context is only None if mTLS verification was disabled in the configuration
     if agent['ssl_context']:
         res = tornado_requests.request(
             "POST", f"https://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/keys/vkey",
