@@ -137,7 +137,7 @@ it should only be used for development or testing and NOT in production.
 Please see either the 
 [Dockerfiles](https://github.com/keylime/keylime/tree/master/docker) or our
 [local CI script](https://github.com/keylime/keylime/blob/master/.ci/run_local.sh)
-which will automate the build and pull of keylime on TPM 1.2 or 2.0.
+which will automate the build and pull of keylime.
 
 ### Manual
 
@@ -198,61 +198,12 @@ sudo make install
 To ensure that you have the patched version installed ensure that you have
 the `tpm2_checkquote` utility in your path.
 
-###### TPM 2.0 Resource Manager
+###### TPM 2.0 Access
 
-Note that it is recommended that you use the [tpm2-abrmd](https://github.com/tpm2-software/tpm2-abrmd) resource manager as well instead of communicating directly with the TPM. 
-See README.md for detailed instructions on how to build and install.
-
-A brief, workable example for Ubuntu 18 LTS systems is:
-
-```
-sudo useradd --system --user-group tss
-git clone https://github.com/tpm2-software/tpm2-abrmd.git tpm2-abrmd
-pushd tpm2-abrmd
-./bootstrap
-./configure --with-dbuspolicydir=/etc/dbus-1/system.d \
-            --with-systemdsystemunitdir=/lib/systemd/system \
-            --with-systemdpresetdir=/lib/systemd/system-preset \
-            --datarootdir=/usr/share
-make
-sudo make install
-sudo ldconfig
-sudo pkill -HUP dbus-daemon
-sudo systemctl daemon-reload
-sudo service tpm2-abrmd start
-export TPM2TOOLS_TCTI="tabrmd:bus_name=com.intel.tss2.Tabrmd"
-
-# NOTE: if using swtpm2 emulator, you need to run the tpm2-abrmd service as:
-sudo -u tss /usr/local/sbin/tpm2-abrmd --tcti=mssim &
-```
-
-A brief, workable example for Fedora is:
-
-```
-git clone https://github.com/tpm2-software/tpm2-abrmd.git ${TPM2_ABRMD}
-pushd tpm2-abrmd
-./bootstrap
-./configure --prefix=/usr
-make
-make install
-ldconfig
-pkill -HUP dbus-daemon
-systemctl enable tpm2-abrmd
-systemctl start tpm2-abrmd
-```
-
-Note: if you use an emulator, you will need to add the `--tcti=mssim` argument to `ExecStart` within the systemd file (`/usr/lib/systemd/system/tpm2-abrmd.service`):
-
-`ExecStart=/usr/sbin/tpm2-abrmd --tcti=mssim`
-
-After this, reload systemd to pick up the above changes.
-
-```
-systemctl daemon-reload
-systemctl restart tpm2-abrmd
-```
-
-###### TPM 2.0 Direct Access (without tpm2-abrmd)
+The Linux kernel provides a resource manager since version 5.4 which is 
+configured as the default in Keylime. On older kernel versions it is 
+recommended to use the [tpm2-abrmd](https://github.com/tpm2-software/tpm2-abrmd) 
+resource manager.
 
 Alternatively, it is also possible, though not recommended, to communicate
 directly with the TPM (and not use a resource manager).  This can be done by
@@ -272,17 +223,6 @@ You're finally ready to install keylime!
 
 ```bash
 sudo python3 -m pip install . -r requirements.txt
-```
-
-#### To run on OSX 10.11+
-
-You need to build m2crypto from source with following steps:
-
-```bash
-brew install openssl
-git clone https://gitlab.com/m2crypto/m2crypto.git
-python setup.py build build_ext --openssl=/usr/local/opt/openssl/
-sudo -E python setup.py install build_ext --openssl=/usr/local/opt/openssl/
 ```
 
 #### Optional Requirements
