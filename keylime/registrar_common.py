@@ -90,13 +90,13 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 logger.error('SQLAlchemy Error: %s', e)
 
             if agent is None:
-                web_util.echo_json_response(self, 404, "agent_id not found")
-                logger.warning('GET returning 404 response. agent_id %s not found.', agent_id)
+                web_util.echo_json_response(self, 404, f"agent {agent_id} not found")
+                logger.warning('GET returning 404 response. agent %s not found.', agent_id)
                 return
 
             if not bool(agent.active):
-                web_util.echo_json_response(self, 404, "agent_id not yet active")
-                logger.warning('GET returning 404 response. agent_id %s not yet active.', agent_id)
+                web_util.echo_json_response(self, 404, f"agent {agent_id} not yet active")
+                logger.warning('GET returning 404 response. agent %s not yet active.', agent_id)
                 return
 
             response = {

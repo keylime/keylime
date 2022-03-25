@@ -87,6 +87,11 @@ def getData(registrar_ip, registrar_port, agent_id):
         response = client.get(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, verify=ca_cert)
         response_body = response.json()
 
+        if response.status_code == 404:
+            logger.critical("Error: could not get agent %s data from Registrar Server: %s", agent_id, response.status_code)
+            keylime_logging.log_http_response(logger, logging.CRITICAL, response_body)
+            return None
+
         if response.status_code != 200:
             logger.critical("Error: unexpected http response code from Registrar Server: %s", response.status_code)
             keylime_logging.log_http_response(logger, logging.CRITICAL, response_body)
