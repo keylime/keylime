@@ -9,7 +9,7 @@ import glob
 import numpy
 
 
-def main(argv=sys.argv):
+def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
     parser = argparse.ArgumentParser("keylime-utility-average_logged_deltas")
     parser.add_argument('-f', '--filename', required=True,
                         action='store', dest='filename')

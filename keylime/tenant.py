@@ -1225,7 +1225,7 @@ def write_to_namedtempfile(data, delete_tmp_files):
     temp.flush()
     return temp.name
 
-def main(argv=sys.argv):
+def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
     """[summary]
 
     Keyword Arguments:

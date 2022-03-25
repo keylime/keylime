@@ -13,7 +13,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 
-def main(argv=sys.argv):
+def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
 
     parser = argparse.ArgumentParser("keylime-utility-plot_time_series")
     parser.add_argument('-i', '--infile', required=True,

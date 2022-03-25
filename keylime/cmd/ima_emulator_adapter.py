@@ -49,7 +49,7 @@ def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=Non
     return position
 
 
-def main(argv=sys.argv):
+def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--hash_algs', nargs='*', default=['sha1'],  help='PCR banks hash algorithms')
     parser.add_argument('-i', '--ima-hash-alg', default='sha1', help='Set hash algorithm that is used in IMA log')
