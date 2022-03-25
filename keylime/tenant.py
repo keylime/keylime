@@ -1126,12 +1126,13 @@ class Tenant():
         """
         challenge = TPM_Utilities.random_password(20)
         numtries = 0
+
         while True:
+            response = None
             try:
                 cloudagent_base_url = (
                     f'{self.agent_ip}:{self.agent_port}'
                 )
-
 
                 if self.registrar_data['mtls_cert']:
                     with RequestsClient(cloudagent_base_url, tls_enabled=True, ignore_hostname=True,
@@ -1143,7 +1144,7 @@ class Tenant():
                     response = do_verify.get(f'/v{self.supported_version}/keys/verify?challenge={challenge}')
 
             except Exception as e:
-                if response.status_code in (503, 504):
+                if response is not None and response.status_code in (503, 504):
                     numtries += 1
                     maxr = config.getint('tenant', 'max_retries')
                     if numtries >= maxr:
