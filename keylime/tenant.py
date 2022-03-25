@@ -277,6 +277,9 @@ class Tenant():
         registrar_client.init_client_tls("tenant")
         self.registrar_data = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid)
 
+        if self.registrar_data is None:
+            raise UserError(f"Agent ${self.agent_uuid} data not found in the Registrar.")
+
         # try to get the port or ip from the registrar if it is missing
         if (self.agent_ip is None or self.agent_port is None) and self.registrar_data is not None:
             if self.agent_ip is None:
