@@ -203,7 +203,7 @@ def tearDownModule():
 
 def launch_cloudverifier():
     """Start up the cloud verifier"""
-    global cv_process, script_env, FORK_ARGS
+    global cv_process
     if cv_process is None:
         cv_process = subprocess.Popen("keylime_verifier",  # pylint: disable=subprocess-popen-preexec-fn,consider-using-with
                                       shell=False,
@@ -230,7 +230,7 @@ def launch_cloudverifier():
 
 def launch_registrar():
     """Start up the registrar"""
-    global reg_process, script_env, FORK_ARGS
+    global reg_process
     if reg_process is None:
         reg_process = subprocess.Popen("keylime_registrar",  # pylint: disable=subprocess-popen-preexec-fn,consider-using-with
                                        shell=False,
@@ -257,7 +257,7 @@ def launch_registrar():
 
 def launch_cloudagent(agent="python"):
     """Start up the cloud agent"""
-    global agent_process, script_env, FORK_ARGS
+    global agent_process
     if agent == "python":
         agent_path = "keylime_agent"
     elif agent == "rust":
@@ -446,7 +446,6 @@ class TestRestful(unittest.TestCase):
     @unittest.skipIf(vtpm, "Registrar's PUT /agents/{UUID}/activate only for non-vTPMs!")
     def test_011_reg_agent_activate_put(self):
         """Test registrar's PUT /agents/{UUID}/activate Interface"""
-        global keyblob
 
         self.assertIsNotNone(keyblob, "Required value not set.  Previous step may have failed?")
 
@@ -600,7 +599,6 @@ class TestRestful(unittest.TestCase):
         """Test agent's POST /keys/vkey Interface"""
         # CV should do this (during CV POST/PUT test)
         # Running this test might hide problems with the CV sending the V key
-        global public_key
 
         self.assertIsNotNone(self.V, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(public_key, "Required value not set.  Previous step may have failed?")
@@ -625,7 +623,6 @@ class TestRestful(unittest.TestCase):
 
     def test_024_agent_keys_ukey_post(self):
         """Test agents's POST /keys/ukey Interface"""
-        global public_key
 
         self.assertIsNotNone(public_key, "Required value not set.  Previous step may have failed?")
         self.assertIsNotNone(self.U, "Required value not set.  Previous step may have failed?")

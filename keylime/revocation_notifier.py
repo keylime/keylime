@@ -66,7 +66,6 @@ def start_broker():
 
 
 def stop_broker():
-    global broker_proc
     if broker_proc is not None:
         # Remove the socket file before  we kill the process
         if os.path.exists(f"ipc://{_SOCKET_PATH}"):

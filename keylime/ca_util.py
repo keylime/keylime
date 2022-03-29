@@ -475,7 +475,6 @@ def rmfiles(path):
 def write_private(inp):
     priv = inp[0]
     salt = inp[1]
-    global global_password
 
     priv_encoded = yaml.dump(priv, Dumper=SafeDumper)
     key = crypto.kdf(global_password, salt)
@@ -487,7 +486,6 @@ def write_private(inp):
 
 
 def read_private(warn=False):
-    global global_password
     if global_password is None:
         setpassword(getpass.getpass(
             "Please enter the password to decrypt your keystore: "))
