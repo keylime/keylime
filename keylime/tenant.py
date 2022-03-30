@@ -1173,9 +1173,18 @@ class Tenant():
             else:
                 keylime_logging.log_http_response(
                     logger, logging.ERROR, response_body)
+                numtries += 1
+                maxr = config.getint('tenant', 'max_retries')
+                if numtries >= maxr:
+                    logger.error("Agent on %s with port %s failed key derivation", self.agent_ip, self.agent_port)
+                    self.do_cvstop()
+                    sys.exit()
                 interval = config.getfloat('tenant', 'retry_interval')
-                logger.warning("Key derivation not yet complete...trying again in %s seconds...Ctrl-C to stop", interval)
-                time.sleep(interval)
+                exponential_backoff = config.getboolean('tenant', 'exponential_backoff')
+                next_retry = retry.retry_time(exponential_backoff, interval, numtries, logger)
+                logger.info("Key derivation not yet complete (retry %s/%s), trying again in %s seconds... (Ctrl-C to stop)",
+                    numtries, maxr, next_retry)
+                time.sleep(next_retry)
                 continue
             break
 
