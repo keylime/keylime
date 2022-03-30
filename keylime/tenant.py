@@ -1032,94 +1032,90 @@ class Tenant():
                 raise e
             break
 
-        try:
-            if response is not None and response.status_code != 200:
-                raise UserError(
-                   f"Status command response: {response.status_code} Unexpected response from Cloud Agent.")
+        if response is not None and response.status_code != 200:
+            raise UserError(
+               f"Status command response: {response.status_code} Unexpected response from Cloud Agent.")
 
-            if "results" not in response_body:
-                raise UserError(
-                    f"Error: unexpected http response body from Cloud Agent: {str(response.status)}")
+        if "results" not in response_body:
+            raise UserError(
+                f"Error: unexpected http response body from Cloud Agent: {str(response.status)}")
 
-            quote = response_body["results"]["quote"]
-            logger.debug("Agent_quote received quote: %s", quote)
+        quote = response_body["results"]["quote"]
+        logger.debug("Agent_quote received quote: %s", quote)
 
-            public_key = response_body["results"]["pubkey"]
-            logger.debug("Agent_quote received public key: %s", public_key)
+        public_key = response_body["results"]["pubkey"]
+        logger.debug("Agent_quote received public key: %s", public_key)
 
-            # Ensure hash_alg is in accept_tpm_hash_algs list
-            hash_alg = response_body["results"]["hash_alg"]
-            logger.debug("Agent_quote received hash algorithm: %s", hash_alg)
-            if not algorithms.is_accepted(hash_alg, config.get('tenant', 'accept_tpm_hash_algs').split(','))\
-                    or not algorithms.Hash.is_recognized(hash_alg):
-                raise UserError(
-                    f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}")
+        # Ensure hash_alg is in accept_tpm_hash_algs list
+        hash_alg = response_body["results"]["hash_alg"]
+        logger.debug("Agent_quote received hash algorithm: %s", hash_alg)
+        if not algorithms.is_accepted(hash_alg, config.get('tenant', 'accept_tpm_hash_algs').split(','))\
+                or not algorithms.Hash.is_recognized(hash_alg):
+            raise UserError(
+                f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}")
 
-            # Ensure enc_alg is in accept_tpm_encryption_algs list
-            enc_alg = response_body["results"]["enc_alg"]
-            logger.debug("Agent_quote received encryption algorithm: %s", enc_alg)
-            if not algorithms.is_accepted(enc_alg, config.get('tenant', 'accept_tpm_encryption_algs').split(',')):
-                raise UserError(
-                    f"TPM Quote is using an unaccepted encryption algorithm: {enc_alg}")
+        # Ensure enc_alg is in accept_tpm_encryption_algs list
+        enc_alg = response_body["results"]["enc_alg"]
+        logger.debug("Agent_quote received encryption algorithm: %s", enc_alg)
+        if not algorithms.is_accepted(enc_alg, config.get('tenant', 'accept_tpm_encryption_algs').split(',')):
+            raise UserError(
+                f"TPM Quote is using an unaccepted encryption algorithm: {enc_alg}")
 
-            # Ensure sign_alg is in accept_tpm_encryption_algs list
-            sign_alg = response_body["results"]["sign_alg"]
-            logger.debug("Agent_quote received signing algorithm: %s", sign_alg)
-            if not algorithms.is_accepted(sign_alg, config.get('tenant', 'accept_tpm_signing_algs').split(',')):
-                raise UserError(
-                    f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}")
+        # Ensure sign_alg is in accept_tpm_encryption_algs list
+        sign_alg = response_body["results"]["sign_alg"]
+        logger.debug("Agent_quote received signing algorithm: %s", sign_alg)
+        if not algorithms.is_accepted(sign_alg, config.get('tenant', 'accept_tpm_signing_algs').split(',')):
+            raise UserError(
+                f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}")
 
-            if not self.validate_tpm_quote(public_key, quote, algorithms.Hash(hash_alg)):
-                raise UserError(
-                    f"TPM Quote from cloud agent is invalid for nonce: {self.nonce}")
+        if not self.validate_tpm_quote(public_key, quote, algorithms.Hash(hash_alg)):
+            raise UserError(
+                f"TPM Quote from cloud agent is invalid for nonce: {self.nonce}")
 
-            logger.info("Quote from %s validated", self.agent_ip)
+        logger.info("Quote from %s validated", self.agent_ip)
 
-            # encrypt U with the public key
-            encrypted_U = crypto.rsa_encrypt(
-                crypto.rsa_import_pubkey(public_key), self.U)
+        # encrypt U with the public key
+        encrypted_U = crypto.rsa_encrypt(
+            crypto.rsa_import_pubkey(public_key), self.U)
 
-            b64_encrypted_u = base64.b64encode(encrypted_U)
-            logger.debug("b64_encrypted_u: %s", b64_encrypted_u.decode('utf-8'))
-            data = {
-                'encrypted_key': b64_encrypted_u.decode('utf-8'),
-                'auth_tag': self.auth_tag
-            }
+        b64_encrypted_u = base64.b64encode(encrypted_U)
+        logger.debug("b64_encrypted_u: %s", b64_encrypted_u.decode('utf-8'))
+        data = {
+            'encrypted_key': b64_encrypted_u.decode('utf-8'),
+            'auth_tag': self.auth_tag
+        }
 
-            if self.payload is not None:
-                data['payload'] = self.payload.decode('utf-8')
+        if self.payload is not None:
+            data['payload'] = self.payload.decode('utf-8')
 
 
-            # post encrypted U back to CloudAgent
-            params = f'/v{self.supported_version}/keys/ukey'
-            cloudagent_base_url = (
-                f'{self.agent_ip}:{self.agent_port}'
-            )
+        # post encrypted U back to CloudAgent
+        params = f'/v{self.supported_version}/keys/ukey'
+        cloudagent_base_url = (
+            f'{self.agent_ip}:{self.agent_port}'
+        )
 
-            if self.registrar_data['mtls_cert']:
-                with RequestsClient(cloudagent_base_url, tls_enabled=self.tls_agent_enabled, ignore_hostname=True, cert=self.agent_cert,
-                                    verify_custom=self.verify_custom) as post_ukey:
-                    response = post_ukey.post(params, json=data)
-            else:
-                logger.warning("Connecting to agent without using mTLS!")
-                post_ukey = RequestsClient(cloudagent_base_url, tls_enabled=False)
+        if self.registrar_data['mtls_cert']:
+            with RequestsClient(cloudagent_base_url, tls_enabled=self.tls_agent_enabled, ignore_hostname=True, cert=self.agent_cert,
+                                verify_custom=self.verify_custom) as post_ukey:
                 response = post_ukey.post(params, json=data)
+        else:
+            logger.warning("Connecting to agent without using mTLS!")
+            post_ukey = RequestsClient(cloudagent_base_url, tls_enabled=False)
+            response = post_ukey.post(params, json=data)
 
-            if response.status_code == 503:
-                logger.error("Cannot connect to Agent at %s with Port %s. Connection refused.", self.agent_ip, self.agent_port)
-                sys.exit()
-            elif response.status_code == 504:
-                logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
-                sys.exit()
+        if response.status_code == 503:
+            logger.error("Cannot connect to Agent at %s with Port %s. Connection refused.", self.agent_ip, self.agent_port)
+            sys.exit()
+        elif response.status_code == 504:
+            logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
+            sys.exit()
 
-            if response.status_code != 200:
-                keylime_logging.log_http_response(
-                    logger, logging.ERROR, response_body)
-                raise UserError(
-                    f"Posting of Encrypted U to the Cloud Agent failed with response code {response.status_code} ({response.text})")
-        except Exception as e:
-            self.do_cvstop()
-            raise e
+        if response.status_code != 200:
+            keylime_logging.log_http_response(
+                logger, logging.ERROR, response_body)
+            raise UserError(
+                f"Posting of Encrypted U to the Cloud Agent failed with response code {response.status_code} ({response.text})")
 
     def do_verify(self):
         """ Perform verify using a random generated challenge
@@ -1148,6 +1144,7 @@ class Tenant():
                     maxr = config.getint('tenant', 'max_retries')
                     if numtries >= maxr:
                         logger.error("Cannot establish connection to agent on %s with port %s", self.agent_ip, self.agent_port)
+                        self.do_cvstop()
                         sys.exit()
                     interval = config.getfloat('tenant', 'retry_interval')
                     exponential_backoff = config.getboolean('tenant', 'exponential_backoff')
@@ -1156,12 +1153,13 @@ class Tenant():
                         self.agent_ip, numtries, maxr, next_retry)
                     time.sleep(next_retry)
                     continue
-
+                self.do_cvstop()
                 raise e
             response_body = response.json()
             if response.status_code == 200:
                 if "results" not in response_body or 'hmac' not in response_body['results']:
                     logger.critical("Error: unexpected http response body from Cloud Agent: %s", response.status_code)
+                    self.do_cvstop()
                     break
                 mac = response_body['results']['hmac']
 
@@ -1171,6 +1169,7 @@ class Tenant():
                     logger.info("Key derivation successful")
                 else:
                     logger.error("Key derivation failed")
+                    self.do_cvstop()
             else:
                 keylime_logging.log_http_response(
                     logger, logging.ERROR, response_body)
