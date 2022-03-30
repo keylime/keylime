@@ -1138,6 +1138,7 @@ class Tenant():
                     do_verify = RequestsClient(cloudagent_base_url, tls_enabled=False)
                     response = do_verify.get(f'/v{self.supported_version}/keys/verify?challenge={challenge}')
 
+                response_body = response.json()
             except Exception as e:
                 if response.status_code in (503, 504):
                     numtries += 1
@@ -1155,7 +1156,6 @@ class Tenant():
                     continue
                 self.do_cvstop()
                 raise e
-            response_body = response.json()
             if response.status_code == 200:
                 if "results" not in response_body or 'hmac' not in response_body['results']:
                     logger.critical("Error: unexpected http response body from Cloud Agent: %s", response.status_code)
