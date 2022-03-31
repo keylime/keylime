@@ -1,8 +1,11 @@
 [Unit]
+Description=IBM TPM emulator service for Keylime
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/tpm_with_ima.sh
+Environment=TPM_PATH=/var/run/keylime/tpm0
+ExecStartPre=mkdir -p /var/run/keylime/tpm0 && chmod 700 /var/run/keylime/tpm0
+ExecStart=/bin/bash -c "tpm_server"
 
 [Install]
 WantedBy=default.target
