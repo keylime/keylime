@@ -14,6 +14,7 @@ Base = declarative_base()
 
 class JSONPickleType(PickleType):  # pylint: disable=abstract-method
     impl = Text
+    cache_ok = True
 
 
 class RegistrarMain(Base):
