@@ -508,21 +508,6 @@ if [[ "$TPM_SOCKET" -eq "1" ]] ; then
     popd # tpm/swtpm2
 fi
 
-if [[ "$TPM_SOCKET" -eq "1" ]] ; then
-    pushd scripts
-
-    # Ensure everything is executable
-    chmod +x init_tpm_server
-    chmod +x tpm_serverd
-
-    # Install scripts
-    install -c tpm_serverd /usr/local/bin/tpm_serverd
-    install -c init_tpm_server /usr/local/bin/init_tpm_server
-
-    # Clear TPM on first use
-    init_tpm_server
-fi
-
 
 # Install keylime
 echo
@@ -587,9 +572,6 @@ if [[ "$TPM_SOCKET" -eq "1" ]] ; then
     # starts emulator and IMA stub at boot
     cd $KEYLIME_DIR/ima_stub_service
     ./installer.sh
-    if [[ -n "$(command -v service)" ]] ; then
-        service tpm_emulator restart
-    fi
 
     echo "=================================================================================="
     echo $'\tWARNING: Please set the env var for accessing the TPM:'
