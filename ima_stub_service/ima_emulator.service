@@ -1,10 +1,10 @@
 [Unit]
 Description=IMA emulator for Keylime
-After=network.target tpm_emulator.service
-Requires=tpm_emulator.service
+After=network.target tpm_emulator_rm.service
+Requires=tpm_emulator_rm.service
 
 [Service]
-Environment=TPM2TOOLS_TCTI="mssim:port=2321"
+Environment=TPM2TOOLS_TCTI=tabrmd:bus_name=dev.keylime.tss2.Tabrmd
 ExecStart=/usr/bin/bash -c "keylime_ima_emulator"
 
 [Install]

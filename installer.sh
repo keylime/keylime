@@ -68,6 +68,7 @@ case "$ID" in
             PYTHON_DEPS+=" libefivar-dev"
         fi
         BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev uuid-dev libjson-c-dev"
+        TPM2_ABRMD_PKGS="tpm2-abrmd"
         $PACKAGE_MGR update
         case "${VERSION_ID}" in
           # Ubuntu 18.04, Debian 9 and 10 don't ship with a new enough version of tpm2-tools/tpm2-tss
@@ -95,6 +96,7 @@ case "$ID" in
                 BUILD_TOOLS="openssl-devel file libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
                 NEED_BUILD_TOOLS=1
                 CENTOS7_TSS_FLAGS="--enable-esapi=no --disable-doxygen-doc"
+                TPM2_ABRMD_PKGS="tpm2-abrmd"
             ;;
             8*)
                 echo "${ID} ${VERSION_ID} selected."
@@ -110,6 +112,7 @@ case "$ID" in
                 NEED_BUILD_TOOLS=1
                 NEED_PYTHON_DIR=1
                 POWERTOOLS="--enablerepo=PowerTools install autoconf-archive"
+                TPM2_ABRMD_PKGS="tpm2-abrmd"
             ;;
             *)
                 echo "Version ${VERSION_ID} of ${ID} not supported"
@@ -126,6 +129,7 @@ case "$ID" in
             PYTHON_DEPS+=" efivar-devel"
         fi
         BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
+        TPM2_ABRMD_PKGS="tpm2-abrmd"
         GOPKG="golang"
         if [[ ${VERSION_ID} -ge 30 ]] ; then
         # if fedora 30 or greater, then using TPM2 tool packages
@@ -506,6 +510,14 @@ if [[ "$TPM_SOCKET" -eq "1" ]] ; then
     install -c tpm_server /usr/local/bin/tpm_server
 
     popd # tpm/swtpm2
+
+    if [[ ! -z $TPM2_ABRMD_PKGS ]]; then
+      $PACKAGE_MGR install -y $TPM2_ABRMD_PKGS
+      if [[ $? > 0 ]] ; then
+          echo "ERROR: Package(s) failed to install properly!"
+          exit 1
+      fi
+    fi
 fi
 
 
@@ -575,7 +587,7 @@ if [[ "$TPM_SOCKET" -eq "1" ]] ; then
 
     echo "=================================================================================="
     echo $'\tWARNING: Please set the env var for accessing the TPM:'
-    echo $'\tTPM2TOOLS_TCTI="mssim:port=2321"'
+    echo $'\tTPM2TOOLS_TCTI=tabrmd:bus_name=dev.keylime.tss2.Tabrmd'
     echo "=================================================================================="
 
     # disable ek cert checking

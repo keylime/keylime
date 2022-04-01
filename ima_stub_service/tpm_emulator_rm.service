@@ -1,0 +1,12 @@
+[Unit]
+Description=Resource Manager for emulated TPM
+After=network.target tpm_emulator.service
+Requires=tpm_emulator.service
+
+[Service]
+Type=dbus
+BusName=dev.keylime.tss2.Tabrmd
+ExecStart=/bin/bash -c "tpm2-abrmd --allow-root -t 'mssim:port=2321' --dbus-name=dev.keylime.tss2.Tabrmd"
+
+[Install]
+WantedBy=default.target

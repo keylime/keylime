@@ -14,8 +14,13 @@ if [[ -n `systemctl 2>&1 > /dev/null` ]]; then
 	exit 1
 fi
 
+cp tpm2-abrmd-emulator.conf /etc/dbus-1/system.d/tpm2-abrmd-emulator.conf
+
+systemctl daemon-reload
+systemctl reload dbus.service
+
 # create services and socket
-for service in "tpm_emulator.service" "ima_emulator.service"; do
+for service in "tpm_emulator.service" "tpm_emulator_rm.service" "ima_emulator.service"; do
   cp  ${service} /etc/systemd/system
   chmod 644 /etc/systemd/system/${service}
   systemctl enable ${service}
