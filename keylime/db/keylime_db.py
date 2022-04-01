@@ -83,6 +83,10 @@ class DBEngineManager:
                 engine_args['pool_size'] = int(p_sz)
                 engine_args['max_overflow'] = int(m_ovfl)
 
+        # Enable DB debugging
+        if config.DEBUG_DB and config.INSECURE_DEBUG:
+            engine_args['echo'] = True
+
         engine = create_engine(url, **engine_args)
         return engine
 
