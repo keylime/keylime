@@ -21,4 +21,5 @@ for service in "tpm_emulator.service" "ima_emulator.service"; do
   systemctl enable ${service}
 done
 
+systemctl daemon-reload
 systemctl start ima_emulator.service
