@@ -202,3 +202,7 @@ BOOTSTRAP_KEY_SIZE = 32
 CA_IMPL = get_config().get('general', 'ca_implementation', fallback='openssl')
 
 CRL_PORT = 38080
+
+# Enable DB debugging via environment variable DEBUG_DB
+# This is only effective when INSECURE_DEBUG is also True
+DEBUG_DB = environ_bool('DEBUG_DB', False)
