@@ -584,8 +584,8 @@ class AgentsHandler(BaseHandler):
             mytenant.agent_uuid = agent_id
             mytenant.init_add(args)
             mytenant.preloop()
-            mytenant.do_cv()
             mytenant.do_quote()
+            mytenant.do_cv()
         except Exception as e:
             logger.exception(e)
             logger.warning('POST returning 500 response. Tenant error: %s', e)
