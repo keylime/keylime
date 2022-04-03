@@ -83,7 +83,10 @@ case "$ID" in
 
     fedora)
         PACKAGE_MGR="dnf"
+    ;;
 
+    sles | opensuse-leap | opensuse-tumbleweed )
+        PACKAGE_MGR="zypper"
     ;;
 
     *)
@@ -139,6 +142,10 @@ elif [ $PACKAGE_MGR = "yum" ]; then
     PYTHON_DEPS="python36-pip python36-dbus"
 # Ubuntu / Debian
 elif [ $PACKAGE_MGR = "apt-get" ]; then
+    PYTHON_PREIN="python3"
+    PYTHON_DEPS="python3-pip python3-dbus"
+# SUSE
+elif [ $PACKAGE_MGR = "zypper" ]; then
     PYTHON_PREIN="python3"
     PYTHON_DEPS="python3-pip python3-dbus"
 else
