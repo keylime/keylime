@@ -1,5 +1,5 @@
 import unittest
-import keylime
+from keylime.tpm.tpm_main import tpm
 
 # ############################################################
 # list of input challenges for get_tpm_manufacturer function
@@ -76,7 +76,7 @@ tpm_manufacturer_tests = [
 
 class TestTPM(unittest.TestCase):
     def setUp(self):
-        self.tpm = keylime.tpm.tpm_main.tpm()
+        self.tpm = tpm()
 
     # basic test:
     # whatever the underlying TPM is, just ensure get_manufacturer worked.
