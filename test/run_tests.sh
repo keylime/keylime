@@ -119,10 +119,9 @@ if [ ! -f "/etc/keylime.conf" ]; then
         cp -n $KEYLIME_DIR/keylime.conf /etc/keylime.conf
         echo -e "Setting require_ek_cert to False"
         sed -i 's/require_ek_cert = True/require_ek_cert = False/g' /etc/keylime.conf
-        if [ "$CA_IMP" == "openssl" ]; then
-            echo -e "Setting CA Implementation to OpenSSL"
-            sed -i 's/ca_implementation = cfssl/ca_implementation = openssl/g' /etc/keylime.conf
-        elif [ "$CA_IMP" == "cfssl" ]; then
+        if [ "$CA_IMP" == "cfssl" ]; then
+            echo -e "Setting CA Implementation to CFSSL"
+            sed -i 's/ca_implementation = openssl/ca_implementation = cfssl/g' /etc/keylime.conf
             $PACKAGE_MGR install -y golang
         fi
     fi
