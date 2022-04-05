@@ -532,9 +532,7 @@ class Tenant():
             [type] -- [description]
         """
         if config.getboolean('tenant', 'require_ek_cert'):
-            if config.STUB_TPM:
-                logger.debug("Not checking ekcert due to STUB_TPM mode")
-            elif ekcert == 'emulator' and config.DISABLE_EK_CERT_CHECK_EMULATOR:
+            if ekcert == 'emulator' and config.DISABLE_EK_CERT_CHECK_EMULATOR:
                 logger.info("Not checking ekcert of TPM emulator")
             elif ekcert is None:
                 logger.warning("No EK cert provided, require_ek_cert option in config set to True")
@@ -576,7 +574,7 @@ class Tenant():
         if self.registrar_data['regcount'] > 1:
             logger.warning("WARNING: This UUID had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured. Run 'regdelete' for this agent and restart")
 
-        if not config.STUB_TPM and (not config.getboolean('tenant', 'require_ek_cert') and config.get('tenant', 'ek_check_script') == ""):
+        if not config.getboolean('tenant', 'require_ek_cert') and config.get('tenant', 'ek_check_script') == "":
             logger.warning(
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!")
 
@@ -1354,15 +1352,6 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
     else:
         logger.warning("Using default UUID d432fbb3-d2f1-4a97-9ef7-75bd81c00000")
         mytenant.agent_uuid = "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"
-
-    if config.STUB_VTPM and config.TPM_CANNED_VALUES is not None:
-        # Use canned values for agent UUID
-        jsonIn = config.TPM_CANNED_VALUES
-        if "add_vtpm_to_group" in jsonIn:
-            mytenant.agent_uuid = jsonIn['add_vtpm_to_group']['retout']
-        else:
-            # Our command hasn't been canned!
-            raise UserError("Command add_vtpm_to_group not found in canned JSON!")
 
     if args.verifier_id is not None:
         mytenant.verifier_id = args.verifier_id

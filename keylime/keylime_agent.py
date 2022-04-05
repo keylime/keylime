@@ -738,16 +738,6 @@ def main():
     if not validators.valid_agent_id(agent_uuid):
         raise RuntimeError("The agent ID set via agent uuid parameter use invalid characters")
 
-    if config.STUB_VTPM and config.TPM_CANNED_VALUES is not None:
-        # Use canned values for stubbing
-        jsonIn = config.TPM_CANNED_VALUES
-        if "add_vtpm_to_group" in jsonIn:
-            # The value we're looking for has been canned!
-            agent_uuid = jsonIn['add_vtpm_to_group']['retout']
-        else:
-            # Our command hasn't been canned!
-            raise Exception("Command add_vtpm_to_group not found in canned json!")
-
     logger.info("Agent UUID: %s", agent_uuid)
 
     serveraddr = (config.get('cloud_agent', 'cloudagent_ip'),

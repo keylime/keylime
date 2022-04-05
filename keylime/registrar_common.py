@@ -21,7 +21,6 @@ from cryptography.x509 import load_der_x509_certificate
 from keylime.common import validators
 from keylime.db.registrar_db import RegistrarMain
 from keylime.db.keylime_db import DBEngineManager, SessionManager
-from keylime import config
 from keylime import crypto
 from keylime import json
 from keylime.tpm import tpm2_objects
@@ -466,7 +465,8 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 logger.error('SQLAlchemy Error: %s', e)
                 raise
 
-            if config.STUB_TPM:
+            ex_mac = crypto.do_hmac(agent.key.encode(), agent_id)
+            if ex_mac == auth_tag:
                 try:
                     session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
                         {'active': int(True)})
@@ -475,18 +475,8 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                     logger.error('SQLAlchemy Error: %s', e)
                     raise
             else:
-                ex_mac = crypto.do_hmac(agent.key.encode(), agent_id)
-                if ex_mac == auth_tag:
-                    try:
-                        session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
-                            {'active': int(True)})
-                        session.commit()
-                    except SQLAlchemyError as e:
-                        logger.error('SQLAlchemy Error: %s', e)
-                        raise
-                else:
-                    raise Exception(
-                        f"Auth tag {auth_tag} does not match expected value {ex_mac}")
+                raise Exception(
+                    f"Auth tag {auth_tag} does not match expected value {ex_mac}")
 
             web_util.echo_json_response(self, 200, "Success")
             logger.info('PUT activated: %s', agent_id)
