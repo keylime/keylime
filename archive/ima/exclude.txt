@@ -1,5 +1,0 @@
-# enter regex to match one per line to exclude from IMA
-/var/log/wtmp
-/root/etc/fstab
-/boot/grub/grubenv
-/sys/fs/.*
