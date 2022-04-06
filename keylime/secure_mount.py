@@ -62,11 +62,18 @@ def check_mounted(secdir):
     return False
 
 
-def mount():
+def get_secdir():
     secdir = os.path.join(config.WORK_DIR, "secure")
 
     if not config.MOUNT_SECURE:
         secdir = os.path.join(config.WORK_DIR, "tmpfs-dev")
+
+    return secdir
+
+def mount():
+    secdir = get_secdir()
+
+    if not config.MOUNT_SECURE:
         if not os.path.isdir(secdir):
             os.makedirs(secdir)
         return secdir
@@ -91,7 +98,10 @@ def umount():
     # Make sure we leave tmpfs dir empty even if we did not mount it or
     # if we cannot unmount it. Ignore errors while deleting. The deletion
     # of the 'secure' directory will result in an error since it's a mount point.
-    shutil.rmtree(mount(), ignore_errors=True)
+    # Also, with config.MOUNT_SECURE being False we remove the directory
+    secdir = get_secdir()
+    if not config.MOUNT_SECURE or check_mounted(secdir):
+        shutil.rmtree(secdir, ignore_errors=True)
 
     while _MOUNTED:
         directory = _MOUNTED.pop()
