@@ -21,7 +21,11 @@ def check_mounted(secdir):
     """Inspect mountinfo to detect if a directory is mounted."""
     secdir_escaped = secdir.replace(" ", r"\040")
     with open("/proc/self/mountinfo", "r", encoding="utf-8") as f:
-        for line in f:
+        # because of tests we use readlines() and avoid using iterator
+        # since mocked open cannot use iterator on Python 3.6
+        # see https://code-examples.net/en/q/17a1c75
+        #     https://bugs.python.org/issue21258
+        for line in f.readlines():
             # /proc/[pid]/mountinfo have 10+ elements separated with
             # spaces (check proc (5) for a complete description)
             #
