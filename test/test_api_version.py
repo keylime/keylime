@@ -10,7 +10,7 @@ from keylime import api_version
 class APIVersion_Test(unittest.TestCase):
 
     def test_current_version(self):
-        self.assertEqual(api_version.current_version(), "2.0", "Current version is 2.0")
+        self.assertEqual(api_version.current_version(), "2.1", "Current version is 2.1")
 
     def test_latest_minor_version(self):
         self.assertEqual(api_version.latest_minor_version("1.0"), "1.0", "Latest version of 1.0 is 1.0")

@@ -498,6 +498,8 @@ class TestRestful(unittest.TestCase):
         self.assertIn("port", json_response["results"], "Malformed response body!")
 
         global aik_tpm
+        global mtls_cert
+        mtls_cert = json_response["results"]["mtls_cert"]
         aik_tpm = json_response["results"]["aik_tpm"]
 
     def test_015_reg_agent_delete(self):
@@ -712,7 +714,9 @@ class TestRestful(unittest.TestCase):
             'accept_tpm_hash_algs': config.get('tenant', 'accept_tpm_hash_algs').split(','),
             'accept_tpm_encryption_algs': config.get('tenant', 'accept_tpm_encryption_algs').split(','),
             'accept_tpm_signing_algs': config.get('tenant', 'accept_tpm_signing_algs').split(','),
-            'supported_version': tenant_templ.supported_version
+            'supported_version': tenant_templ.supported_version,
+            'ak_tpm': aik_tpm,
+            'mtls_cert': mtls_cert,
         }
 
         test_030_cv_agent_post = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
