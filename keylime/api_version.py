@@ -6,14 +6,15 @@ import re
 
 from packaging import version
 
-CURRENT_VERSION = "2.0"
+CURRENT_VERSION = "2.1"
 VERSIONS = [
     "1.0",
-    "2.0"
+    "2.0",
+    "2.1"
 ]
 LATEST_VERSIONS = {
     "1": "1.0",
-    "2": "2.0"
+    "2": "2.1"
 }
 DEPRECATED_VERSIONS = ["1.0"]
 
