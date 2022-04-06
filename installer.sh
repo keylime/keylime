@@ -145,10 +145,10 @@ esac
 # Command line params
 STUB=0
 KEYLIME_DIR=
-OPENSSL=0
+OPENSSL=1
 TARBALL=0
 TPM_SOCKET=0
-while getopts ":shotkmp:" opt; do
+while getopts ":shctkmp:" opt; do
     case $opt in
         k) STUB=1 ;;
         p)
@@ -158,7 +158,7 @@ while getopts ":shotkmp:" opt; do
                 KEYLIME_DIR=`pwd`"/$KEYLIME_DIR"
             fi
             ;;
-        o) OPENSSL=1 ;;
+        c) OPENSSL=0 ;;
         t) TARBALL=1 ;;
         m) ;;
         s) TPM_SOCKET=1 NEED_BUILD_TOOLS=1 ;;
@@ -166,7 +166,7 @@ while getopts ":shotkmp:" opt; do
             echo "Usage: $0 [option...]"
             echo "Options:"
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
-            echo $'-o \t\t\t\t Use OpenSSL (vs. CFSSL). NOTE: OpenSSL does not support revocation'
+            echo $'-c \t\t\t\t Use CFSSL (vs. OpenSSL). NOTE: OpenSSL does not support revocation'
             echo $'-t \t\t\t\t Create tarball with keylime_agent'
             echo $'-m \t\t\t\t Use modern TPM 2.0 libraries; this is the default'
             echo $'-s \t\t\t\t Install & use a Software TPM emulator (development only)'
