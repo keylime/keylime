@@ -393,8 +393,6 @@ empty_allowlist = {
 def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None):
     if al_path is None:
         al_path = config.get('tenant', 'ima_allowlist')
-        if config.STUB_IMA:
-            al_path = '../scripts/ima/allowlist.txt'
 
     # If user only wants signatures then an allowlist is not required
     if al_path is None or al_path == '':
@@ -483,8 +481,6 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
 def read_excllist(exclude_path=None):
     if exclude_path is None:
         exclude_path = config.get('tenant', 'ima_excludelist')
-        if config.STUB_IMA:
-            exclude_path = '../scripts/ima/exclude.txt'
 
     excl_list = []
     if os.path.exists(exclude_path):

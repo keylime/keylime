@@ -202,9 +202,6 @@ class AbstractTPM(metaclass=ABCMeta):
                     ima_keyrings, boot_aggregates, hash_alg):
         failure = Failure(Component.IMA)
         logger.info("Checking IMA measurement list on agent: %s", agentAttestState.get_agent_id())
-        if config.STUB_IMA:
-            pcrval = None
-
         _, ima_failure = ima.process_measurement_list(agentAttestState, ima_measurement_list.split('\n'), allowlist,
                                                       pcrval=pcrval, ima_keyrings=ima_keyrings,
                                                       boot_aggregates=boot_aggregates, hash_alg=hash_alg)
@@ -252,10 +249,6 @@ class AbstractTPM(metaclass=ABCMeta):
 
         pcrs = AbstractTPM.__parse_pcrs(pcrs, virtual)
         pcr_nums = set(pcrs.keys())
-
-        # Skip validation if TPM is stubbed.
-        if config.STUB_TPM:
-            return failure
 
         # Validate data PCR
         if config.TPM_DATA_PCR in pcr_nums and data is not None:
