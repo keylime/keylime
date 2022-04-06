@@ -19,7 +19,6 @@ import tornado.web
 
 from keylime import config
 from keylime import json
-from keylime import registrar_client
 from keylime.agentstates import AgentAttestStates
 from keylime.common import states, validators, retry
 from keylime.db.verifier_db import VerfierMain
@@ -444,6 +443,8 @@ class AgentsHandler(BaseHandler):
                     agent_data['accept_tpm_encryption_algs'] = json_body['accept_tpm_encryption_algs']
                     agent_data['accept_tpm_signing_algs'] = json_body['accept_tpm_signing_algs']
                     agent_data['supported_version'] = json_body['supported_version']
+                    agent_data['ak_tpm'] = json_body['ak_tpm']
+                    agent_data['mtls_cert'] = json_body.get('mtls_cert', None)
                     agent_data['hash_alg'] = ""
                     agent_data['enc_alg'] = ""
                     agent_data['sign_alg'] = ""
@@ -457,22 +458,8 @@ class AgentsHandler(BaseHandler):
                     agent_data['verifier_ip'] = config.get('cloud_verifier', 'cloudverifier_ip')
                     agent_data['verifier_port'] = config.get('cloud_verifier', 'cloudverifier_port')
 
-                    # We fetch the registrar data directly here because we require it for connecting to the agent
-                    # using mTLS
-                    registrar_client.init_client_tls('cloud_verifier')
-                    registrar_data = registrar_client.getData(config.get("cloud_verifier", "registrar_ip"),
-                                                              config.get("cloud_verifier", "registrar_port"), agent_id)
-                    if registrar_data is None:
-                        web_util.echo_json_response(self, 400,
-                                                    f"Data for agent {agent_id} could not be found in registrar!")
-                        logger.warning("Data for agent %s could not be found in registrar!", agent_id)
-                        return
-
-                    agent_data['mtls_cert'] = registrar_data.get('mtls_cert', None)
-                    agent_data['ak_tpm'] = registrar_data['aik_tpm']
-
                     # TODO: Always error for v1.0 version after initial upgrade
-                    if registrar_data.get('mtls_cert', None) is None and agent_data['supported_version'] != "1.0":
+                    if agent_data['mtls_cert'] is None and agent_data['supported_version'] != "1.0":
                         web_util.echo_json_response(self, 400, "mTLS certificate for agent is required!")
                         return
 
@@ -510,7 +497,7 @@ class AgentsHandler(BaseHandler):
 
                         # Prepare SSLContext for mTLS connections
                         agent_mtls_cert_enabled = config.getboolean('cloud_verifier', 'agent_mtls_cert_enabled', fallback=False)
-                        mtls_cert = registrar_data.get('mtls_cert', None)
+                        mtls_cert = agent_data['mtls_cert']
                         agent_data['ssl_context'] = None
                         if agent_mtls_cert_enabled and mtls_cert:
                             agent_data['ssl_context'] = web_util.generate_agent_mtls_context(mtls_cert, self.mtls_options)

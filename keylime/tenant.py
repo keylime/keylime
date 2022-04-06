@@ -631,6 +631,8 @@ class Tenant():
             'accept_tpm_hash_algs': self.accept_tpm_hash_algs,
             'accept_tpm_encryption_algs': self.accept_tpm_encryption_algs,
             'accept_tpm_signing_algs': self.accept_tpm_signing_algs,
+            'ak_tpm': self.registrar_data['aik_tpm'],
+            'mtls_cert': self.registrar_data.get('mtls_cert', None),
             'supported_version': self.supported_version,
         }
         json_message = json.dumps(data)
