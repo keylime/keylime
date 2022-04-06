@@ -320,6 +320,10 @@ class tpm(tpm_abstract.AbstractTPM):
                 if "persistent-handle" in retyaml:
                     handle = retyaml["persistent-handle"]
 
+            # Make sure that all transient objects are flushed
+            self.__run(["tpm2_flushcontext", "-t"], raiseOnError=False)
+
+
             self._set_tpm_metadata('ek_handle', handle)
             self._set_tpm_metadata('ek_pw', ek_pw)
             self._set_tpm_metadata('ek_tpm', base64.b64encode(ek_tpm))
@@ -540,6 +544,9 @@ class tpm(tpm_abstract.AbstractTPM):
             # persist the pem
             self._set_tpm_metadata('aik_handle', handle)
 
+        # Make sure that all transient objects are flushed
+        self.__run(["tpm2_flushcontext", "-t"], raiseOnError=False)
+
         # persist common results
         self._set_tpm_metadata('aik_pw', aik_pw)
 
@@ -578,6 +585,8 @@ class tpm(tpm_abstract.AbstractTPM):
                 elif self.tools_version in ["4.0", "4.2"]:
                     self.__run(["tpm2_evictcontrol", "-C", "o", "-c", hex(key), "-P", owner_pw],
                                raiseOnError=False)
+        # Make sure that all transient objects are flushed
+        self.__run(["tpm2_flushcontext", "-t"], lock=False, raiseOnError=False)
 
     def encryptAIK(self, uuid, ek_tpm: bytes, aik_tpm: bytes):
 
@@ -676,6 +685,9 @@ class tpm(tpm_abstract.AbstractTPM):
                            "-P", f"session:{sesspath}"]
                 retDict = self.__run(command, outputpaths=secpath)
                 self.__run(["tpm2_flushcontext", sesspath])
+
+            # Make sure that all transient objects are flushed
+            self.__run(["tpm2_flushcontext", "-t"], raiseOnError=False)
 
             fileout = retDict['fileouts'][secpath]
             logger.info("AIK activated.")
@@ -849,6 +861,8 @@ class tpm(tpm_abstract.AbstractTPM):
                 elif self.tools_version in ["4.0", "4.2"]:
                     command = ["tpm2_quote", "-c", keyhandle, "-l", f"{str(hash_alg)}:{pcrlist}", "-q", nonce, "-m", quotepath.name, "-s", sigpath.name, "-o", pcrpath.name, "-g", hash_alg, "-p", aik_pw]
                 retDict = self.__run(command, lock=False, outputpaths=[quotepath.name, sigpath.name, pcrpath.name])
+                # Make sure that all transient objects are flushed
+                self.__run(["tpm2_flushcontext", "-t"], lock=False, raiseOnError=False)
                 quoteraw = retDict['fileouts'][quotepath.name]
                 sigraw = retDict['fileouts'][sigpath.name]
                 pcrraw = retDict['fileouts'][pcrpath.name]
