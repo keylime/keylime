@@ -14,7 +14,7 @@ import argparse
 from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import config
 from keylime.common import algorithms
-from keylime.ima import ima_ast
+from keylime.ima import ast
 
 # Instaniate tpm
 tpm_instance = tpm(need_hw_tpm=True)
@@ -24,7 +24,7 @@ def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=Non
     with open(file_path, encoding="utf-8") as f:
         lines = itertools.islice(f, position, None)
 
-        runninghash = ima_ast.get_START_HASH(pcr_hash_alg)
+        runninghash = ast.get_START_HASH(pcr_hash_alg)
 
         if search_val is not None:
             search_val = codecs.decode(search_val.encode('utf-8'), 'hex')
@@ -33,7 +33,7 @@ def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=Non
             line = line.strip()
             position += 1
 
-            entry = ima_ast.Entry(line, None, ima_hash_alg=ima_hash_alg, pcr_hash_alg=pcr_hash_alg)
+            entry = ast.Entry(line, None, ima_hash_alg=ima_hash_alg, pcr_hash_alg=pcr_hash_alg)
 
             if search_val is None:
                 val = codecs.encode(entry.pcr_template_hash, 'hex').decode("utf8")
@@ -67,7 +67,7 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
 
     for pcr_hash_alg in dict(position):
         pcr_val = tpm_instance.readPCR(config.IMA_PCR, pcr_hash_alg)
-        if codecs.decode(pcr_val.encode('utf-8'), 'hex') != ima_ast.get_START_HASH(pcr_hash_alg):
+        if codecs.decode(pcr_val.encode('utf-8'), 'hex') != ast.get_START_HASH(pcr_hash_alg):
             print(f"Warning: IMA PCR is not empty for hash algorithm {pcr_hash_alg}, "
                   "trying to find the last updated file in the measurement list...")
             position[pcr_hash_alg] = measure_list(args.ima_log, position[pcr_hash_alg],

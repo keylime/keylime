@@ -6,7 +6,7 @@ Copyright 2021 IBM Corporation
 
 import threading
 
-from keylime.ima.ima_ast import get_FF_HASH, get_START_HASH
+from keylime.ima.ast import get_FF_HASH, get_START_HASH
 from keylime.common.algorithms import Hash
 from keylime.ima.ima_file_signatures import ImaKeyrings
 
