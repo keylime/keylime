@@ -9,7 +9,7 @@ import os
 import unittest
 
 from keylime import json
-from keylime.ima import ima, ima_file_signatures
+from keylime.ima import ima, file_signatures
 from keylime.agentstates import AgentAttestState
 
 # BEGIN TEST DATA
@@ -108,16 +108,16 @@ class TestIMAVerification(unittest.TestCase):
         lines = SIGNATURES.split('\n')
 
         # empty keyring
-        keyrings = ima_file_signatures.ImaKeyrings()
+        keyrings = file_signatures.ImaKeyrings()
         _, failure = ima.process_measurement_list(AgentAttestState('1'), lines, ima_keyrings=keyrings)
         self.assertTrue(failure)
 
-        tenant_keyring = ima_file_signatures.ImaKeyring()
+        tenant_keyring = file_signatures.ImaKeyring()
         keyrings.set_tenant_keyring(tenant_keyring)
 
         # add key for 1st entry; 1st entry must be verifiable
         rsakeyfile = os.path.join(keydir, "rsa2048pub.pem")
-        pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(rsakeyfile)
+        pubkey, keyidv2 = file_signatures.get_pubkey_from_file(rsakeyfile)
         tenant_keyring.add_pubkey(pubkey, keyidv2)
         _, failure = ima.process_measurement_list(AgentAttestState('1'), lines[0:1], ima_keyrings=keyrings)
         self.assertTrue(not failure)
@@ -126,7 +126,7 @@ class TestIMAVerification(unittest.TestCase):
 
         # add key for 2nd entry; 1st & 2nd entries must be verifiable
         eckeyfile = os.path.join(keydir, "secp256k1.pem")
-        pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(eckeyfile)
+        pubkey, keyidv2 = file_signatures.get_pubkey_from_file(eckeyfile)
         tenant_keyring.add_pubkey(pubkey, keyidv2)
         _, failure = ima.process_measurement_list(AgentAttestState('1'), lines[0:2], ima_keyrings=keyrings)
         self.assertTrue(not failure)
@@ -134,7 +134,7 @@ class TestIMAVerification(unittest.TestCase):
     def test_ima_buf_verification(self):
         """ The verification of ima-buf entries supporting keys loaded onto keyrings """
         list_map = ima.process_allowlists(ALLOWLIST, '')
-        ima_keyrings = ima_file_signatures.ImaKeyrings()
+        ima_keyrings = file_signatures.ImaKeyrings()
 
         self.assertTrue(ima.process_measurement_list(AgentAttestState('1'), KEYRINGS.splitlines(), json.dumps(list_map), ima_keyrings=ima_keyrings) is not None)
 
@@ -167,8 +167,8 @@ class TestIMAVerification(unittest.TestCase):
         lists_map_exclude = ima.process_allowlists(ALLOWLIST, EXCLUDELIST)
         lists_map_exclude_wrong = ima.process_allowlists(ALLOWLIST_WRONG, EXCLUDELIST)
 
-        ima_keyrings = ima_file_signatures.ImaKeyrings()
-        empty_keyring = ima_file_signatures.ImaKeyring()
+        ima_keyrings = file_signatures.ImaKeyrings()
+        empty_keyring = file_signatures.ImaKeyring()
 
         # every entry is covered by the allowlist and there's no keyring -> this should pass
         _, failure = ima.process_measurement_list(AgentAttestState('1'), COMBINED.splitlines(), json.dumps(lists_map))
@@ -176,14 +176,14 @@ class TestIMAVerification(unittest.TestCase):
 
         curdir = os.path.dirname(os.path.abspath(__file__))
         keydir = os.path.join(curdir, "data", "ima_keys")
-        tenant_keyring = ima_file_signatures.ImaKeyring()
+        tenant_keyring = file_signatures.ImaKeyring()
 
         rsakeyfile = os.path.join(keydir, "rsa2048pub.pem")
-        pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(rsakeyfile)
+        pubkey, keyidv2 = file_signatures.get_pubkey_from_file(rsakeyfile)
         tenant_keyring.add_pubkey(pubkey, keyidv2)
 
         eckeyfile = os.path.join(keydir, "secp256k1.pem")
-        pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(eckeyfile)
+        pubkey, keyidv2 = file_signatures.get_pubkey_from_file(eckeyfile)
         tenant_keyring.add_pubkey(pubkey, keyidv2)
 
         ima_keyrings.set_tenant_keyring(tenant_keyring)

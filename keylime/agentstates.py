@@ -8,7 +8,7 @@ import threading
 
 from keylime.ima.ast import get_FF_HASH, get_START_HASH
 from keylime.common.algorithms import Hash
-from keylime.ima.ima_file_signatures import ImaKeyrings
+from keylime.ima.file_signatures import ImaKeyrings
 
 class TPMState():
     """ TPMState models the state of the TPM's PCRs """

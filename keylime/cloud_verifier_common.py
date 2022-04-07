@@ -18,7 +18,7 @@ from keylime.tpm.tpm_main import tpm
 from keylime.tpm.tpm_abstract import TPM_Utilities
 
 from keylime.common import algorithms, validators
-from keylime.ima import ima_file_signatures
+from keylime.ima import file_signatures
 
 # setup logging
 logger = keylime_logging.init_logging('cloudverifier_common')
@@ -138,7 +138,7 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
     agentAttestState.set_boottime(boottime)
 
     ima_keyrings = agentAttestState.get_ima_keyrings()
-    tenant_keyring = ima_file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
+    tenant_keyring = file_signatures.ImaKeyring.from_string(agent['ima_sign_verification_keys'])
     ima_keyrings.set_tenant_keyring(tenant_keyring)
 
     quote_validation_failure = get_tpm_instance().check_quote(
