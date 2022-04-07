@@ -190,6 +190,16 @@ def get_restful_params(urlstring):
     return path_params
 
 
+def validate_api_version(handler, version, logger):
+    if not version or not keylime_api_version.is_supported_version(version):
+        echo_json_response(handler, 400, "API Version not supported")
+        return False
+
+    if keylime_api_version.is_deprecated_version(version):
+        logger.warning('Client request to API version %s is deprecated and will be removed in future versions.', version)
+    return True
+
+
 def _list_to_dict(alist):
     """Convert list into dictionary via grouping [k0,v0,k1,v1,...]"""
     params = {}

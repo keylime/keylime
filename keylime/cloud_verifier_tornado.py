@@ -259,8 +259,7 @@ class AgentsHandler(BaseHandler):
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
-        if not rest_params["api_version"]:
-            web_util.echo_json_response(self, 400, "API Version not supported")
+        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
             return
 
         if "agents" not in rest_params:
@@ -329,8 +328,7 @@ class AgentsHandler(BaseHandler):
                 self, 405, "Not Implemented: Use /agents/ interface")
             return
 
-        if not rest_params["api_version"]:
-            web_util.echo_json_response(self, 400, "API Version not supported")
+        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
             return
 
         if "agents" not in rest_params:
@@ -405,8 +403,7 @@ class AgentsHandler(BaseHandler):
                     self, 405, "Not Implemented: Use /agents/ interface")
                 return
 
-            if not rest_params["api_version"]:
-                web_util.echo_json_response(self, 400, "API Version not supported")
+            if not web_util.validate_api_version(self, rest_params["api_version"], logger):
                 return
 
             if "agents" not in rest_params:
@@ -547,8 +544,7 @@ class AgentsHandler(BaseHandler):
                     self, 405, "Not Implemented: Use /agents/ interface")
                 return
 
-            if not rest_params["api_version"]:
-                web_util.echo_json_response(self, 400, "API Version not supported")
+            if not web_util.validate_api_version(self, rest_params["api_version"], logger):
                 return
 
             if "agents" not in rest_params:
@@ -633,8 +629,7 @@ class AllowlistHandler(BaseHandler):
             web_util.echo_json_response(self, 400, "Invalid URL")
             return
 
-        if not rest_params["api_version"]:
-            web_util.echo_json_response(self, 400, "API Version not supported")
+        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
             return
 
         allowlist_name = rest_params['allowlists']
@@ -672,8 +667,7 @@ class AllowlistHandler(BaseHandler):
             web_util.echo_json_response(self, 400, "Invalid URL")
             return
 
-        if not rest_params["api_version"]:
-            web_util.echo_json_response(self, 400, "API Version not supported")
+        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
             return
 
         allowlist_name = rest_params['allowlists']
@@ -724,8 +718,7 @@ class AllowlistHandler(BaseHandler):
             web_util.echo_json_response(self, 400, "Invalid URL")
             return
 
-        if not rest_params["api_version"]:
-            web_util.echo_json_response(self, 400, "API Version not supported")
+        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
             return
 
         allowlist_name = rest_params['allowlists']
