@@ -24,7 +24,7 @@ from cryptography.exceptions import InvalidSignature
 from keylime import keylime_logging
 
 
-logger = keylime_logging.init_logging('ima_file_signatures')
+logger = keylime_logging.init_logging('file_signatures')
 
 
 """

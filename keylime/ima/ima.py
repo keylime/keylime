@@ -16,7 +16,7 @@ import functools
 from keylime import config
 from keylime import signing
 from keylime import keylime_logging
-from keylime.ima import ima_file_signatures, ast
+from keylime.ima import file_signatures, ast
 from keylime.agentstates import AgentAttestState
 from keylime.common import algorithms, validators
 from keylime.failure import Failure, Component
@@ -183,10 +183,10 @@ def _validate_ima_sig(exclude_regex, ima_keyrings, allowlist, digest: ast.Digest
     return failure
 
 
-def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: ima_file_signatures.ImaKeyrings, digest: ast.Digest, path: ast.Name, data: ast.Buffer):
+def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: file_signatures.ImaKeyrings, digest: ast.Digest, path: ast.Name, data: ast.Buffer):
     failure = Failure(Component.IMA)
     # Is data.data a key?
-    pubkey, keyidv2 = ima_file_signatures.get_pubkey(data.data)
+    pubkey, keyidv2 = file_signatures.get_pubkey(data.data)
     if pubkey:
         ignored_keyrings = allowlist['ima']['ignored_keyrings']
         if '*' not in ignored_keyrings and path.name not in ignored_keyrings:

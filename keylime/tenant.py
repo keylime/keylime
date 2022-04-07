@@ -34,7 +34,7 @@ from keylime import crypto
 from keylime.cmd import user_data_encrypt
 from keylime import ca_util
 from keylime.common import algorithms, validators
-from keylime.ima import ima, ima_file_signatures
+from keylime.ima import ima, file_signatures
 from keylime import measured_boot
 from keylime import signing
 from keylime import api_version as keylime_api_version
@@ -187,9 +187,9 @@ class Tenant():
             self.tpm_policy['mask'] = hex(int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
 
             # Add all IMA file signing verification keys to a keyring
-            tenant_keyring = ima_file_signatures.ImaKeyring()
+            tenant_keyring = file_signatures.ImaKeyring()
             for filename in args["ima_sign_verification_keys"]:
-                pubkey, keyidv2 = ima_file_signatures.get_pubkey_from_file(filename)
+                pubkey, keyidv2 = file_signatures.get_pubkey_from_file(filename)
                 if not pubkey:
                     raise UserError(f"File '{filename}' is not a file with a key")
                 tenant_keyring.add_pubkey(pubkey, keyidv2)
