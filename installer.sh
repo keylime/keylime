@@ -20,7 +20,6 @@ TPM2TOOLS_VER="5.1.X"
 MIN_PYTHON_VERSION="3.6.7"
 MIN_PYSETUPTOOLS_VERSION="0.7"
 MIN_PYTORNADO_VERSION="4.3"
-MIN_PYM2CRYPTO_VERSION="0.21.1"
 MIN_PYZMQ_VERSION="14.4"
 MIN_PYCRYPTOGRAPHY_VERSION="2.1.4"
 MIN_GO_VERSION="1.11.13"
@@ -121,7 +120,7 @@ case "$ID" in
         echo "${ID} selected."
         PACKAGE_MGR=$(command -v dnf)
         PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
-        PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-m2crypto  python3-zmq python3-cryptography python3-tornado python3-requests python3-gnupg yaml-cpp-devel procps-ng python3-psutil"
+        PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-zmq python3-cryptography python3-tornado python3-requests python3-gnupg yaml-cpp-devel procps-ng python3-psutil"
         if [ "$(uname -m)" = "x86_64" ]; then
             PYTHON_DEPS+=" efivar-devel"
         fi
@@ -232,12 +231,6 @@ else
     pynado_ver=$(python3 -c 'import tornado; print(tornado.version)')
     if ! $(version_checker "$MIN_PYTORNADO_VERSION" "$pynado_ver"); then
         confirm_force_install "ERROR: Minimum python-tornado version is $MIN_PYTORNADO_VERSION, but $pynado_ver is installed!" || exit 1
-    fi
-
-    # Ensure Python M2Crypto installed meets min requirements
-    pym2_ver=$(python3 -c 'import M2Crypto; print(M2Crypto.version)')
-    if ! $(version_checker "$MIN_PYM2CRYPTO_VERSION" "$pym2_ver"); then
-        confirm_force_install "ERROR: Minimum python-M2Crypto version is $MIN_PYM2CRYPTO_VERSION, but $pym2_ver is installed!" || exit 1
     fi
 
     # Ensure Python ZeroMQ installed meets min requirements

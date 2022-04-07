@@ -9,7 +9,7 @@ if [[ -n "$(command -v dnf)" ]]; then
     PACKAGE_MGR=$(command -v dnf)
     PACKAGE_INSP="rpm -ql"
     PYTHON_PREIN="python3 python3-devel python3-setuptools git wget"
-    PYTHON_DEPS="python3-pip gcc gcc-c++ upx czmq-devel zeromq-devel openssl-devel swig python3-pyyaml python3-m2crypto python3-cryptography python3-tornado python3-requests yaml-cpp-devel"
+    PYTHON_DEPS="python3-pip gcc gcc-c++ upx czmq-devel zeromq-devel openssl-devel swig python3-pyyaml python3-cryptography python3-tornado python3-requests yaml-cpp-devel"
     PYTHON_PIPS="pyzmq pyinstaller"
 elif [[ -n "$(command -v yum)" ]]; then
     PACKAGE_MGR=$(command -v yum)
@@ -17,13 +17,13 @@ elif [[ -n "$(command -v yum)" ]]; then
     $PACKAGE_MGR -y install epel-release
     PYTHON_PREIN="python36 python36-devel python36-setuptools python36-pip git wget patch openssl"
     PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python3-cryptography python36-requests yaml-cpp-devel"
-    PYTHON_PIPS="pyzmq m2crypto pyinstaller"
+    PYTHON_PIPS="pyzmq pyinstaller"
 elif [[ -n "$(command -v apt-get)" ]]; then
     PACKAGE_MGR=$(command -v apt-get)
     PACKAGE_INSP="dpkg -L"
     PYTHON_PREIN="git patch wget"
     PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-cryptography python3-tornado python3-requests gcc g++ libssl-dev upx-ucl swig python3-yaml"
-    PYTHON_PIPS="m2crypto pyinstaller"
+    PYTHON_PIPS="pyinstaller"
     $PACKAGE_MGR update
 else
    echo "No recognized package manager found on this system!" 1>&2

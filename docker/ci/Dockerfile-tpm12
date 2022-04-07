@@ -27,7 +27,6 @@ RUN dnf -y install git \
            python3-zmq \
            python3-yaml \
            python3-dbus \
-           python3-m2crypto \
            python3-cryptography \
            python3-sqlalchemy \
            procps \
