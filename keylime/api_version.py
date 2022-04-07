@@ -15,6 +15,7 @@ LATEST_VERSIONS = {
     "1": "1.0",
     "2": "2.0"
 }
+DEPRECATED_VERSIONS = ["1.0"]
 
 def current_version():
     return CURRENT_VERSION
@@ -35,6 +36,10 @@ def all_versions():
 def is_supported_version(v):
     v_obj = version.parse(str(v))
     return v_obj.base_version in VERSIONS
+
+def is_deprecated_version(v):
+    v_obj = version.parse(str(v))
+    return is_supported_version(v) and v_obj.base_version in DEPRECATED_VERSIONS
 
 def normalize_version(v):
     v = str(v)
@@ -59,6 +64,8 @@ def log_api_versions(logger):
     versions.remove(CURRENT_VERSION)
     if versions:
         logger.info('Supported older API versions: ' + ", ".join(versions))
+    if DEPRECATED_VERSIONS:
+        logger.info("Deprecated API versions (soon to be removed): " + ", ".join(DEPRECATED_VERSIONS))
 
 
 def validate_version(v: str) -> bool:
