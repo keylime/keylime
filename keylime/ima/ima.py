@@ -16,7 +16,7 @@ import functools
 from keylime import config
 from keylime import signing
 from keylime import keylime_logging
-from keylime.ima import ima_file_signatures, ima_ast
+from keylime.ima import ima_file_signatures, ast
 from keylime.agentstates import AgentAttestState
 from keylime.common import algorithms, validators
 from keylime.failure import Failure, Component
@@ -120,7 +120,7 @@ def read_unpack(fd, fmt):
 
 
 
-def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima_ast.Name, hash_types='hashes') -> Failure:
+def _validate_ima_ng(exclude_regex, allowlist, digest: ast.Digest, path: ast.Name, hash_types='hashes') -> Failure:
     failure = Failure(Component.IMA, ["validation", "ima-ng"])
     if allowlist is not None:
         if exclude_regex is not None and exclude_regex.match(path.name):
@@ -148,8 +148,8 @@ def _validate_ima_ng(exclude_regex, allowlist, digest: ima_ast.Digest, path: ima
     return failure
 
 
-def _validate_ima_sig(exclude_regex, ima_keyrings, allowlist, digest: ima_ast.Digest, path: ima_ast.Name,
-                      signature: ima_ast.Signature) -> Failure:
+def _validate_ima_sig(exclude_regex, ima_keyrings, allowlist, digest: ast.Digest, path: ast.Name,
+                      signature: ast.Signature) -> Failure:
     failure = Failure(Component.IMA, ["validator", "ima-sig"])
     valid_signature = False
     if ima_keyrings and signature:
@@ -183,7 +183,7 @@ def _validate_ima_sig(exclude_regex, ima_keyrings, allowlist, digest: ima_ast.Di
     return failure
 
 
-def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: ima_file_signatures.ImaKeyrings, digest: ima_ast.Digest, path: ima_ast.Name, data: ima_ast.Buffer):
+def _validate_ima_buf(exclude_regex, allowlist, ima_keyrings: ima_file_signatures.ImaKeyrings, digest: ast.Digest, path: ast.Name, data: ast.Buffer):
     failure = Failure(Component.IMA)
     # Is data.data a key?
     pubkey, keyidv2 = ima_file_signatures.get_pubkey(data.data)
@@ -244,11 +244,11 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
         err_msg += " Exclude list will be ignored."
         logger.error(err_msg)
 
-    ima_validator = ima_ast.Validator(
-        {ima_ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyrings, allow_list),
-         ima_ast.ImaNg: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
-         ima_ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
-         ima_ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list, ima_keyrings),
+    ima_validator = ast.Validator(
+        {ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyrings, allow_list),
+         ast.ImaNg: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
+         ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
+         ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list, ima_keyrings),
          }
     )
 
@@ -265,7 +265,7 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
             continue
 
         try:
-            entry = ima_ast.Entry(line, ima_validator, ima_hash_alg=ima_log_hash_alg, pcr_hash_alg=hash_alg)
+            entry = ast.Entry(line, ima_validator, ima_hash_alg=ima_log_hash_alg, pcr_hash_alg=hash_alg)
 
             # update hash
             running_hash = hash_alg.hash(running_hash + entry.pcr_template_hash)
@@ -286,11 +286,11 @@ def _process_measurement_list(agentAttestState, lines, hash_alg, lists=None, m2w
                     agentAttestState.update_ima_attestation(int(entry.pcr), running_hash, linenum + 1)
 
             # Keep old functionality for writing the parsed files with hashes into a file
-            if m2w is not None and (type(entry.mode) in [ima_ast.Ima, ima_ast.ImaNg, ima_ast.ImaSig]):
+            if m2w is not None and (type(entry.mode) in [ast.Ima, ast.ImaNg, ast.ImaSig]):
                 hash_value = codecs.encode(entry.mode.digest.bytes, "hex")
                 path = entry.mode.path.name
                 m2w.write(f"{hash_value} {path}\n")
-        except ima_ast.ParserError:
+        except ast.ParserError:
             failure.add_event("entry", f"Line was not parsable into a valid IMA entry: {line}", True, ["parser"])
             logger.error("Line was not parsable into a valid IMA entry: %s", line)
 
