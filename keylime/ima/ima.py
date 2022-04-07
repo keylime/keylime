@@ -376,6 +376,9 @@ def process_allowlists(allowlist, exclude):
     else:
         allowlist = update_allowlist(allowlist)
 
+    if allowlist["ima"]["dm_policy"] is not None:
+        logger.info("IMA device mapper support is still experimental and might change in the future!")
+
     if exclude is None:
         exclude = read_excllist()
 
