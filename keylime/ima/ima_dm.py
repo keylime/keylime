@@ -7,12 +7,12 @@ Parser and validator for device mapper IMA events
 '''
 import pickle
 import re
+import sys
 
 from distutils.util import strtobool
 from itertools import chain
 from typing import Optional, List, Dict, Union
 from collections import ChainMap
-from dataclasses import dataclass
 from packaging import version
 
 import lark
@@ -22,6 +22,11 @@ from keylime.failure import Component, Failure
 from keylime.common.algorithms import Hash
 from keylime.ima import ast
 from keylime.ima.dm_grammar import DM_GRAMMAR
+
+if sys.version_info >= (3, 7):
+    from dataclasses import dataclass
+else:
+    from keylime.backport_dataclasses import dataclass
 
 
 class DeepChainMap(ChainMap):
