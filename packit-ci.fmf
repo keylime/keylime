@@ -4,7 +4,9 @@
 
   prepare:
     how: shell
-    script: bash -c 'ln -s $(pwd) /var/tmp/keylime_sources'
+    script:
+     - rm -f /etc/yum.repos.d/tag-repository.repo
+     - ln -s $(pwd) /var/tmp/keylime_sources
 
   discover:
     how: fmf
@@ -27,15 +29,13 @@
 
   adjust:
    # prepare step adjustments
-   - prepare:
-       script:
-        - bash -c 'ln -s $(pwd) /var/tmp/keylime_sources'
+   - prepare+:
+       script+:
         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
      when: distro == centos-stream-9
 
-   - prepare:
-       script:
-        - bash -c 'ln -s $(pwd) /var/tmp/keylime_sources'
+   - prepare+:
+       script+:
         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
      when: distro == centos-stream-8
 
