@@ -105,8 +105,6 @@ class Tenant():
         self.registrar_ip = config.get('tenant', 'registrar_ip')
         self.registrar_port = config.get('tenant', 'registrar_port')
         self.webapp_port = config.getint('webapp', 'webapp_port')
-        if not config.REQUIRE_ROOT and self.webapp_port < 1024:
-            self.webapp_port += 2000
         self.webapp_ip = config.get('webapp', 'webapp_ip')
 
         self.api_version = keylime_api_version.current_version()

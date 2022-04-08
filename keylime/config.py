@@ -48,34 +48,28 @@ def environ_bool(env_name, default):
         f"{val} (use either on/true/1 or off/false/0)")
 
 
-# set to False to enable keylime to run from the CWD and not require
-# root access.  for testing purposes only
-# all processes will log to the CWD in keylime-all.log
-REQUIRE_ROOT = environ_bool('KEYLIME_REQUIRE_ROOT', True)
-
 # enable printing of keys and other info for debug purposes
 INSECURE_DEBUG = False
 
 # allow the emuatlor to not have an ekcert even if check ekcert is true
 DISABLE_EK_CERT_CHECK_EMULATOR = False
 
-# allow testing mode
-TEST_MODE = os.getenv('KEYLIME_TEST', 'False')
-if TEST_MODE.upper() == 'TRUE':
-    print("WARNING: running keylime in testing mode.\nkeylime will not run as root and ekcert checking for the TPM emulator is disabled")
-    REQUIRE_ROOT = False
-    DISABLE_EK_CERT_CHECK_EMULATOR = True
-
 # whether to use tpmfs or not
 MOUNT_SECURE = True
 
+DEFAULT_WORK_DIR = '/var/lib/keylime'
+WORK_DIR = os.getenv('KEYLIME_DIR', DEFAULT_WORK_DIR)
 
-if not REQUIRE_ROOT:
+# allow testing mode
+TEST_MODE = environ_bool('KEYLIME_TEST', False)
+if TEST_MODE:
+    print("WARNING: running keylime in testing mode.\nKeylime will:\n"
+          "- Not check the ekcert for the TPM emulator\n"
+          "- Not create a secure mount\n"
+          "- Change the KEYLIME_DIR to CWD")
+    DISABLE_EK_CERT_CHECK_EMULATOR = True
     MOUNT_SECURE = False
-
-if not REQUIRE_ROOT:
-    print("WARNING: running without root access")
-
+    WORK_DIR = os.getcwd()
 
 # Config files can be merged together, reading from the system to the
 # user.
@@ -116,12 +110,6 @@ getint = get_config().getint
 getboolean = get_config().getboolean
 getfloat = get_config().getfloat
 has_option = get_config().has_option
-
-if not REQUIRE_ROOT:
-    DEFAULT_WORK_DIR = os.path.abspath(".")
-else:
-    DEFAULT_WORK_DIR = '/var/lib/keylime'
-WORK_DIR = os.getenv('KEYLIME_DIR', DEFAULT_WORK_DIR)
 
 CA_WORK_DIR = f'{WORK_DIR}/ca/'
 

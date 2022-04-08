@@ -88,8 +88,8 @@ def cmp(a, b):
 
 
 # Ensure this is run as root
-if os.geteuid() != 0 and config.REQUIRE_ROOT:
-    sys.exit("Tests need to be run with root privileges, or set env KEYLIME_TEST=True!")
+if os.geteuid() != 0:
+    sys.exit("Tests need to be run with root privileges")
 
 # Force sorting tests alphabetically
 unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(x, y)

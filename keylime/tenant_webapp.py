@@ -693,10 +693,6 @@ def main():
 
     webapp_port = config.getint('webapp', 'webapp_port')
 
-    if not config.REQUIRE_ROOT and webapp_port < 1024:
-        webapp_port += 2000
-        logger.warning("Running without root, changing port to %d", webapp_port)
-
     logger.info('Starting Tenant WebApp (tornado) on port %d use <Ctrl-C> to stop', webapp_port)
 
     # Figure out where our static files are located
