@@ -16,10 +16,7 @@ LOG_TO_FILE = ['registrar', 'provider_registrar', 'cloudverifier']
 LOG_TO_STREAM = ['tenant_webapp']
 LOGDIR = os.getenv('KEYLIME_LOGDIR', '/var/log/keylime')
 # not clear that this works right.  console logging may not work
-if not config.REQUIRE_ROOT:
-    LOGSTREAM = './keylime-stream.log'
-else:
-    LOGSTREAM = LOGDIR + '/keylime-stream.log'
+LOGSTREAM = os.path.join(LOGDIR, 'keylime-stream.log')
 
 logging_config.fileConfig(config.get_config())
 

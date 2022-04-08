@@ -524,9 +524,10 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
     args = parser.parse_args(argv[1:])
 
     if args.dir is None:
-        if os.getuid() != 0 and config.REQUIRE_ROOT:
+        if not os.access(config.WORK_DIR, os.R_OK + os.W_OK):
             logger.error(
-                "If you don't specify a working directory, this process must be run as root to access %s", config.WORK_DIR)
+                "If you don't specify a working directory, this process must be run as a user with access to %s",
+                config.WORK_DIR)
             sys.exit(-1)
         workingdir = config.CA_WORK_DIR
     else:
