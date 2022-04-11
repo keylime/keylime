@@ -148,12 +148,10 @@ class Handler(BaseHTTPRequestHandler):
                     self, 400, f'Nonce is too long (max size {tpm_instance.MAX_NONCE_SIZE}): {len(nonce)}')
                 return
 
-            # identity quotes are always shallow
             hash_alg = tpm_instance.defaults['hash']
-            if not tpm_instance.is_vtpm() or rest_params["quotes"] == 'identity':
-                quote = tpm_instance.create_quote(
-                    nonce, self.server.rsapublickey_exportable, pcrmask, hash_alg)
-                imaMask = pcrmask
+            quote = tpm_instance.create_quote(
+                nonce, self.server.rsapublickey_exportable, pcrmask, hash_alg)
+            imaMask = pcrmask
 
             # Allow for a partial quote response (without pubkey)
             enc_alg = tpm_instance.defaults['encrypt']
@@ -689,7 +687,6 @@ def main():
     # initialize tpm
     (ekcert, ek_tpm, aik_tpm) = instance_tpm.tpm_init(self_activate=False, config_pw=config.get(
         'cloud_agent', 'tpm_ownerpassword'))  # this tells initialize not to self activate the AIK
-    virtual_agent = instance_tpm.is_vtpm()
 
     # Warn if kernel version is <5.10 and another algorithm than SHA1 is used,
     # because otherwise IMA will not work
@@ -699,11 +696,8 @@ def main():
                        "Even if ascii_runtime_measurements shows \"%s\" as the "
                        "algorithm, it might be just padding zeros", (instance_tpm.defaults["hash"]))
 
-    if ekcert is None:
-        if virtual_agent:
-            ekcert = 'virtual'
-        elif instance_tpm.is_emulator():
-            ekcert = 'emulator'
+    if ekcert is None and instance_tpm.is_emulator():
+        ekcert = 'emulator'
 
     # now we need the UUID
     try:
