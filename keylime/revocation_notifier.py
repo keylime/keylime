@@ -217,7 +217,6 @@ def main():
         'cloudagent_ip': 'ipaddy',
         'cloudagent_port': '39843',
         'tpm_policy': '{"ab":"1"}',
-        'vtpm_policy': '{"ab":"1"}',
         'metadata': '{"cert_serial":"1"}',
         'allowlist': '{}',
         'ima_sign_verification_keys': '{}',
