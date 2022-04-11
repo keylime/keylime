@@ -79,7 +79,6 @@ def _from_db_obj(agent_db_obj):
                 'operational_state', \
                 'public_key', \
                 'tpm_policy', \
-                'vtpm_policy', \
                 'meta_data', \
                 'mb_refstate', \
                 'allowlist', \
@@ -439,7 +438,6 @@ class AgentsHandler(BaseHandler):
                     agent_data['operational_state'] = states.START
                     agent_data['public_key'] = ""
                     agent_data['tpm_policy'] = json_body['tpm_policy']
-                    agent_data['vtpm_policy'] = json_body['vtpm_policy']
                     agent_data['meta_data'] = json_body['metadata']
                     agent_data['allowlist'] = json_body['allowlist']
                     agent_data['mb_refstate'] = json_body['mb_refstate']
@@ -659,7 +657,7 @@ class AllowlistHandler(BaseHandler):
             raise
 
         response = {}
-        for field in ('name', 'tpm_policy', 'vtpm_policy', 'ima_policy'):
+        for field in ('name', 'tpm_policy', 'ima_policy'):
             response[field] = getattr(allowlist, field, None)
         web_util.echo_json_response(self, 200, 'Success', response)
 
@@ -718,7 +716,7 @@ class AllowlistHandler(BaseHandler):
         """Create an allowlist
 
         POST /allowlists/{name}
-        body: {"tpm_policy": {..}, "vtpm_policy": {..}
+        body: {"tpm_policy": {..} ...
         """
 
         rest_params = web_util.get_restful_params(self.request.uri)
@@ -749,9 +747,6 @@ class AllowlistHandler(BaseHandler):
         tpm_policy = json_body.get('tpm_policy')
         if tpm_policy:
             allowlist['tpm_policy'] = tpm_policy
-        vtpm_policy = json_body.get('vtpm_policy')
-        if vtpm_policy:
-            allowlist['vtpm_policy'] = vtpm_policy
         ima_policy = json_body.get('ima_policy')
         if ima_policy:
             allowlist['ima_policy'] = ima_policy
@@ -804,13 +799,13 @@ async def invoke_get_quote(agent, need_pubkey):
     if agent['ssl_context']:
         res = tornado_requests.request("GET",
                                        f"https://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/quotes/integrity"
-                                       f"?nonce={params['nonce']}&mask={params['mask']}&vmask={params['vmask']}"
+                                       f"?nonce={params['nonce']}&mask={params['mask']}"
                                        f"&partial={partial_req}&ima_ml_entry={params['ima_ml_entry']}",
                                        context=agent['ssl_context'])
     else:
         res = tornado_requests.request("GET",
                                        f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/quotes/integrity"
-                                       f"?nonce={params['nonce']}&mask={params['mask']}&vmask={params['vmask']}"
+                                       f"?nonce={params['nonce']}&mask={params['mask']}"
                                        f"&partial={partial_req}&ima_ml_entry={params['ima_ml_entry']}")
     response = await res
 

@@ -445,7 +445,6 @@ Please, see [TESTING.md](TESTING.md) for details.
 * See the HotCloud 2018 paper: [doc/hotcloud18.pdf](https://github.com/keylime/keylime/blob/master/doc/hotcloud18.pdf)
 * Details about Keylime REST API: [doc/keylime RESTful API.docx](https://github.com/keylime/keylime/raw/master/doc/keylime%20RESTful%20API.docx)
 * [Bundling a portable Cloud Agent](doc/cloud-agent-tarball-notes.md) - Create portable tarball of Cloud Agent, for usage on systems without python and other dependencies.
-* [Xen vTPM setup notes](doc/xen-vtpm-notes.md) - Guidance on getting Xen set up with vTPM support for Keylime.
 * IPsec Configurations
   * [IPsec with Libreswan](auto-ipsec/libreswan) - Configuring Keylime with a Libreswan backend for IPsec functionality.
   * [IPsec with Racoon](auto-ipsec/racoon) - Configuring Keylime with a Racoon backend for IPsec functionality.

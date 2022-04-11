@@ -797,9 +797,6 @@ class tpm(tpm_abstract.AbstractTPM):
     def is_emulator(self):
         return self.get_tpm_manufacturer() == 'SW'
 
-    def is_vtpm(self):
-        return False
-
     def tpm_init(self, self_activate=False, config_pw=None):
         # this was called tpm_initialize.init before
         self.warn_emulator()

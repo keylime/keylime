@@ -13,9 +13,6 @@ Tests all but two RESTful interfaces:
     * CV's PUT /agents/{UUID}
         - POST already bootstraps agent, so PUT is redundant in this test
 
-The registrar's PUT vactivate interface is only tested if a vTPM is present!
-
-
 USAGE:
 Should be run in test directory under root privileges with either command:
     * python -m unittest -v test_restful
@@ -110,7 +107,6 @@ mtls_cert = None
 keyblob = None
 ek_tpm = None
 aik_tpm = None
-vtpm = False
 
 # Set up mTLS
 my_cert = config.get('tenant', 'my_cert')
@@ -339,7 +335,6 @@ class TestRestful(unittest.TestCase):
     payload = None
     auth_tag = None
     tpm_policy = {}
-    vtpm_policy = {}
     metadata = {}
     allowlist = {}
     revocation_key = ""
@@ -366,9 +361,7 @@ class TestRestful(unittest.TestCase):
 
         # Prepare policies for agent
         cls.tpm_policy = config.get('tenant', 'tpm_policy')
-        cls.vtpm_policy = config.get('tenant', 'vtpm_policy')
         cls.tpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.tpm_policy)
-        cls.vtpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.vtpm_policy)
 
         # Allow targeting a specific API version (default latest)
         cls.api_version = '2.0'
@@ -384,7 +377,7 @@ class TestRestful(unittest.TestCase):
     # Registrar Testset
     def test_010_reg_agent_post(self):
         """Test registrar's POST /agents/{UUID} Interface"""
-        global keyblob, vtpm, tpm_instance, ek_tpm, aik_tpm
+        global keyblob, tpm_instance, ek_tpm, aik_tpm
         contact_ip = "127.0.0.1"
         contact_port = 9002
         tpm_instance = tpm_main.tpm()
@@ -403,13 +396,10 @@ class TestRestful(unittest.TestCase):
         # Initialize the TPM with AIK
         (ekcert, ek_tpm, aik_tpm) = tpm_instance.tpm_init(self_activate=False,
                                                            config_pw=config.get('cloud_agent', 'tpm_ownerpassword'))
-        vtpm = tpm_instance.is_vtpm()
 
-        # Handle virtualized and emulated TPMs
+        # Handle emulated TPMs
         if ekcert is None:
-            if vtpm:
-                ekcert = 'virtual'
-            elif tpm_instance.is_emulator():
+            if tpm_instance.is_emulator():
                 ekcert = 'emulator'
 
         # Get back to our original CWD
@@ -443,7 +433,6 @@ class TestRestful(unittest.TestCase):
         keyblob = json_response["results"]["blob"]
         self.assertIsNotNone(keyblob, "Malformed response body!")
 
-    @unittest.skipIf(vtpm, "Registrar's PUT /agents/{UUID}/activate only for non-vTPMs!")
     def test_011_reg_agent_activate_put(self):
         """Test registrar's PUT /agents/{UUID}/activate Interface"""
 
@@ -656,7 +645,6 @@ class TestRestful(unittest.TestCase):
         data = {
             'name': 'test-allowlist',
             'tpm_policy': json.dumps(self.tpm_policy),
-            'vtpm_policy': json.dumps(self.vtpm_policy),
             'ima_policy': json.dumps(self.allowlist),
         }
 
@@ -691,7 +679,6 @@ class TestRestful(unittest.TestCase):
         results = json_response['results']
         self.assertEqual(results['name'], 'test-allowlist')
         self.assertEqual(results['tpm_policy'], json.dumps(self.tpm_policy))
-        self.assertEqual(results['vtpm_policy'], json.dumps(self.vtpm_policy))
         self.assertEqual(results['ima_policy'], json.dumps(self.allowlist))
 
     def test_027_cv_allowlist_delete(self):
@@ -717,7 +704,6 @@ class TestRestful(unittest.TestCase):
             'cloudagent_ip': tenant_templ.cloudagent_ip,
             'cloudagent_port': tenant_templ.cloudagent_port,
             'tpm_policy': json.dumps(self.tpm_policy),
-            'vtpm_policy': json.dumps(self.vtpm_policy),
             'allowlist': json.dumps(self.allowlist),
             'ima_sign_verification_keys': '',
             'mb_refstate': None,
@@ -814,7 +800,6 @@ class TestRestful(unittest.TestCase):
             'cloudagent_ip': tenant_templ.cloudagent_ip,
             'cloudagent_port': tenant_templ.cloudagent_port,
             'tpm_policy': json.dumps(self.tpm_policy),
-            'vtpm_policy': json.dumps(self.vtpm_policy),
             'allowlist': json.dumps(allowlist),
             'ima_sign_verification_keys': '',
             'metadata': json.dumps(self.metadata),
@@ -849,7 +834,6 @@ class TestRestful(unittest.TestCase):
 
         nonce = tpm_abstract.TPM_Utilities.random_password(20)
         mask = self.tpm_policy["mask"]
-        vmask = self.vtpm_policy["mask"]
         partial = "1"
         if public_key is None:
             partial = "0"
@@ -857,7 +841,7 @@ class TestRestful(unittest.TestCase):
         test_040_agent_quotes_integrity_get = RequestsClient(tenant_templ.agent_base_url,
                                                              tls_enabled=True, ignore_hostname=True)
         response = test_040_agent_quotes_integrity_get.get(
-            f'/v{self.api_version}/quotes/integrity?nonce={nonce}&mask={mask}&vmask={vmask}&partial={partial}',
+            f'/v{self.api_version}/quotes/integrity?nonce={nonce}&mask={mask}&partial={partial}',
             cert=tenant_templ.agent_cert,
             verify=False  # TODO: use agent certificate
         )

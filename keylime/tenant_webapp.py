@@ -108,12 +108,9 @@ class WebAppHandler(BaseHandler):
         will return errors.
         """
 
-        # Get default policies for TPM/vTPM from config as suggestions to user
+        # Get default policies for TPM from config as suggestions to user
         tpm_policy = json.dumps(json.loads(
             config.get('tenant', 'tpm_policy')), indent=2)
-        vtpm_policy = json.dumps(json.loads(
-            config.get('tenant', 'vtpm_policy')), indent=2)
-
         # Get default intervals for populating angents, updating agents and updating terminal
         populate_agents_interval = json.dumps(json.loads(
             config.get('webapp', 'populate_agents_interval')), indent=2)
@@ -193,19 +190,13 @@ class WebAppHandler(BaseHandler):
                                 </div>
                                 <br>
 
-                                <div id='policy_toggle' onclick="toggleVisibility('policy_block');" title='TPM &amp; vTPM Policy Configuration'>
-                                    TPM &amp; vTPM Policy Configuration
+                                <div id='policy_toggle' onclick="toggleVisibility('policy_block');" title='TPM Policy Configuration'>
+                                    TPM Policy Configuration
                                 </div>
                                 <div id="policy_block">
                                     <div class="form_block">
                                         <label for='tpm_policy'>TPM Policy: </label><br>
                                         <textarea class='json_input' id='tpm_policy' name='tpm_policy'>{tpm_policy}</textarea>
-                                        <br>
-                                    </div>
-
-                                    <div class="form_block">
-                                        <label for='vtpm_policy'>vTPM Policy: </label><br>
-                                        <textarea class='json_input' id='vtpm_policy' name='vtpm_policy'>{vtpm_policy}</textarea>
                                         <br>
                                     </div>
                                 </div>
@@ -539,13 +530,10 @@ class AgentsHandler(BaseHandler):
             logger.warning('POST returning 400 response. malformed query')
             return
 
-        # Pull in user-defined v/TPM policies
+        # Pull in user-defined TPM policies
         tpm_policy = self.get_argument("tpm_policy", "", True)
         if tpm_policy == "":
             tpm_policy = None
-        vtpm_policy = self.get_argument("vtpm_policy", "", True)
-        if vtpm_policy == "":
-            vtpm_policy = None
 
         # Pull in allowlist
         allowlist = None
@@ -573,7 +561,6 @@ class AgentsHandler(BaseHandler):
             'incl_dir': incl_dir,
             'ca_dir_pw': ca_dir_pw,
             'tpm_policy': tpm_policy,
-            'vtpm_policy': vtpm_policy,
             'allowlist': allowlist,
             'ima_exclude': ima_exclude,
         }

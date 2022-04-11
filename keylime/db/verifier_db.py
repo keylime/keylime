@@ -31,7 +31,6 @@ class VerfierMain(Base):
     operational_state = Column(Integer)
     public_key = Column(String(500))
     tpm_policy = Column(JSONPickleType(pickler=JSONPickler))
-    vtpm_policy = Column(JSONPickleType(pickler=JSONPickler))
     meta_data = Column(String(200))
     allowlist = Column(Text().with_variant(Text(429400000), "mysql"))
     ima_sign_verification_keys = Column(Text().with_variant(Text(429400000), "mysql"))
@@ -63,5 +62,4 @@ class VerifierAllowlist(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
     tpm_policy = Column(Text())
-    vtpm_policy = Column(Text())
     ima_policy = Column(Text().with_variant(Text(429400000), "mysql"))

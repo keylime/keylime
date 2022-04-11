@@ -201,12 +201,9 @@ def prepare_get_quote(agent):
     agent['nonce'] = TPM_Utilities.random_password(20)
 
     tpm_policy = ast.literal_eval(agent['tpm_policy'])
-    vtpm_policy = ast.literal_eval(agent['vtpm_policy'])
-
     params = {
         'nonce': agent['nonce'],
         'mask': tpm_policy['mask'],
-        'vmask': vtpm_policy['mask'],
         'ima_ml_entry': agentAttestState.get_next_ima_ml_entry(),
     }
     return params
@@ -235,7 +232,6 @@ def process_get_status(agent):
                 'ip': agent.ip,
                 'port': agent.port,
                 'tpm_policy': agent.tpm_policy,
-                'vtpm_policy': agent.vtpm_policy,
                 'meta_data': agent.meta_data,
                 'allowlist_len': al_len,
                 'mb_refstate_len': mb_refstate_len,
@@ -269,7 +265,6 @@ def notify_error(agent, msgtype='revocation', event=None):
                   'agent_id': agent['agent_id'],
                   'port': agent['port'],
                   'tpm_policy': agent['tpm_policy'],
-                  'vtpm_policy': agent['vtpm_policy'],
                   'meta_data': agent['meta_data'],
                   'event_time': time.asctime()}
     if event:

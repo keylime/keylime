@@ -21,7 +21,6 @@ test_data = {
     'operational_state': 1,
     'public_key': '',
     'tpm_policy': '{"22": ["0000000000000000000000000000000000000001", "0000000000000000000000000000000000000000000000000000000000000001", "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", "ffffffffffffffffffffffffffffffffffffffff", "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"], "15": ["0000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000000000000000000000000", "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"], "mask": "0x408400"}',
-    'vtpm_policy': '{"23": ["ffffffffffffffffffffffffffffffffffffffff", "0000000000000000000000000000000000000000"], "15": ["0000000000000000000000000000000000000000"], "mask": "0x808000"}',
     'meta_data': '{"cert_serial": 2, "subject": "/C=US/CN=d432fbb3-d2f1-4a97-9ef7-75bd81c00000/ST=MA/L=Lexington/O=MITLL/OU=53"}',
     'allowlist': '{"allowlist": {"/boot/System.map-5.1.17-300.fc30.x86_64": ["bdc084cc61c67dada53ff92c3235fbc774eace36aceb11967718399837e36485"], "/boot/vmlinuz-5.0.9-301.fc30.x86_64": ["187e65c35f449df145b57940cb73606623ab1eccc352f5b0d9b64c4d2ad3be58"], "/boot/initramfs-5.1.15-300.fc30.x86_64.img": ["7fb94b644d95de6ed2f70c247cf9a572027815b8f6a00b8c5f7b9fd2feef0ff1"], "/boot/config-5.0.9-301.fc30.x86_64": ["540f7b2732b8018be45dcfdf737fa6e51d9f5924d85b6c1987ddb4215260b49f"], "boot_aggregate": ["0000000000000000000000000000000000000000"]}, "exclude": ["/*"]}',
     'ima_sign_verification_keys': '',
@@ -44,7 +43,6 @@ test_data = {
 test_allowlist_data = {
     'name': 'test-allowlist',
     'tpm_policy': '{"22": ["0000000000000000000000000000000000000001", "0000000000000000000000000000000000000000000000000000000000000001", "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", "ffffffffffffffffffffffffffffffffffffffff", "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"], "15": ["0000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000000000000000000000000", "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"], "mask": "0x408400"}',
-    'vtpm_policy': '{"23": ["ffffffffffffffffffffffffffffffffffffffff", "0000000000000000000000000000000000000000"], "15": ["0000000000000000000000000000000000000000"], "mask": "0x808000"}',
     'ima_policy': '{"allowlist": {"/boot/System.map-5.1.17-300.fc30.x86_64": ["bdc084cc61c67dada53ff92c3235fbc774eace36aceb11967718399837e36485"], "/boot/vmlinuz-5.0.9-301.fc30.x86_64": ["187e65c35f449df145b57940cb73606623ab1eccc352f5b0d9b64c4d2ad3be58"], "/boot/initramfs-5.1.15-300.fc30.x86_64.img": ["7fb94b644d95de6ed2f70c247cf9a572027815b8f6a00b8c5f7b9fd2feef0ff1"], "/boot/config-5.0.9-301.fc30.x86_64": ["540f7b2732b8018be45dcfdf737fa6e51d9f5924d85b6c1987ddb4215260b49f"], "boot_aggregate": ["0000000000000000000000000000000000000000"]}, "exclude": ["/*"]}',
 }
 
@@ -76,8 +74,6 @@ class TestVerfierDB(unittest.TestCase):
             name='test-allowlist').one()
         self.assertEqual(allowlist.name, 'test-allowlist')
         self.assertEqual(allowlist.tpm_policy, test_allowlist_data['tpm_policy'])
-        self.assertEqual(allowlist.vtpm_policy,
-                         test_allowlist_data['vtpm_policy'])
         self.assertEqual(allowlist.ima_policy,
                          test_allowlist_data['ima_policy'])
 

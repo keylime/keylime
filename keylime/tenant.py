@@ -78,7 +78,6 @@ class Tenant():
     auth_tag = None
 
     tpm_policy = None
-    vtpm_policy = {}
     metadata = {}
     allowlist = {}
     ima_sign_verification_keys = []
@@ -175,12 +174,6 @@ class Tenant():
         self.tpm_policy = TPM_Utilities.readPolicy(tpm_policy)
         logger.info("TPM PCR Mask from policy is %s", self.tpm_policy['mask'])
 
-        vtpm_policy = config.get('tenant', 'vtpm_policy')
-        if "vtpm_policy" in args and args["vtpm_policy"] is not None:
-            vtpm_policy = args["vtpm_policy"]
-        self.vtpm_policy = TPM_Utilities.readPolicy(vtpm_policy)
-        logger.info("TPM PCR Mask from policy is %s", self.vtpm_policy['mask'])
-
         if len(args.get("ima_sign_verification_keys")) > 0:
             # Auto-enable IMA (or-bit mask)
             self.tpm_policy['mask'] = hex(int(self.tpm_policy['mask'], 0) | (1 << config.IMA_PCR))
@@ -230,9 +223,7 @@ class Tenant():
                 raise UserError("Invalid exclude list provided")
 
         # Set up IMA
-        if TPM_Utilities.check_mask(self.tpm_policy['mask'], config.IMA_PCR) or \
-                TPM_Utilities.check_mask(self.vtpm_policy['mask'],
-                                         config.IMA_PCR):
+        if TPM_Utilities.check_mask(self.tpm_policy['mask'], config.IMA_PCR):
             # Process allowlists
             self.allowlist = ima.process_allowlists(al_data, excl_data)
 
@@ -633,7 +624,6 @@ class Tenant():
             'cloudagent_ip': self.cv_cloudagent_ip,
             'cloudagent_port': self.agent_port,
             'tpm_policy': json.dumps(self.tpm_policy),
-            'vtpm_policy': json.dumps(self.vtpm_policy),
             'allowlist': json.dumps(self.allowlist),
             'mb_refstate': json.dumps(self.mb_refstate),
             'ima_sign_verification_keys': json.dumps(self.ima_sign_verification_keys),
@@ -1195,7 +1185,6 @@ class Tenant():
         self.process_allowlist(args)
         data = {
             'tpm_policy': json.dumps(self.tpm_policy),
-            'vtpm_policy': json.dumps(self.vtpm_policy),
             'allowlist': json.dumps(self.allowlist)
         }
         body = json.dumps(data)
@@ -1310,8 +1299,6 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
                         default=None, help="Specify the location of an IMA exclude list")
     parser.add_argument('--tpm_policy', action='store', dest='tpm_policy', default=None,
                         help="Specify a TPM policy in JSON format. e.g., {\"15\":\"0000000000000000000000000000000000000000\"}")
-    parser.add_argument('--vtpm_policy', action='store', dest='vtpm_policy',
-                        default=None, help="Specify a vTPM policy in JSON format")
     parser.add_argument('--verify', action='store_true', default=False,
                         help='Block on cryptographically checked key derivation confirmation from the agent once it has been provisioned')
     parser.add_argument('--allowlist-name', help='The name of allowlist to operate with')
