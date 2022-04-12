@@ -669,8 +669,7 @@ def get_tls_context():
     context.load_cert_chain(
         certfile=my_tls_cert, keyfile=my_tls_priv_key)
     context.verify_mode = ssl.CERT_REQUIRED
-    context.check_hostname = config.getboolean(
-        'general', 'tls_check_hostnames')
+    context.check_hostname = False
     return context
 
 
@@ -704,7 +703,6 @@ def main():
 
     # WebApp Server TLS
     server_context = get_tls_context()
-    server_context.check_hostname = False  # config.getboolean('general', 'tls_check_hostnames')
     server_context.verify_mode = ssl.CERT_NONE  # ssl.CERT_REQUIRED
 
     # Set up server
