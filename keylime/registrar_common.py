@@ -30,6 +30,7 @@ from keylime import api_version as keylime_api_version
 from keylime import web_util
 
 logger = keylime_logging.init_logging('registrar')
+#testmessage = "foo"
 
 
 try:
