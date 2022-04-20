@@ -17,35 +17,7 @@
      - /setup/install_upstream_keylime
      - /setup/enable_keylime_coverage
      - /functional/basic-attestation-on-localhost
-     - /functional/basic-attestation-with-unpriviledged-agent
-     - /functional/keylime_tenant-commands-on-localhost
-     - /functional/tpm_policy-sanity-on-localhost
-     - /functional/db-postgresql-sanity-on-localhost
-     - /functional/db-mariadb-sanity-on-localhost
-     - /functional/db-mysql-sanity-on-localhost
-     - /functional/tenant-allowlist-sanity
-     - /upstream/run_keylime_tests
      - /setup/generate_coverage_report
-
-  adjust:
-   # prepare step adjustments
-   - prepare+:
-       script+:
-        - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-     when: distro == centos-stream-9
-
-   - prepare+:
-       script+:
-        - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-     when: distro == centos-stream-8
-
-   # discover step adjustments
-   # disable code coverage measurement everywhere except F35
-   - when: distro != fedora-35
-     discover+:
-       test-:
-        - /setup/enable_keylime_coverage
-        - /setup/generate_coverage_report
 
   execute:
     how: tmt
