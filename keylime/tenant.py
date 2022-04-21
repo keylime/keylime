@@ -186,19 +186,12 @@ class Tenant:
             # Auto-enable IMA (or-bit mask)
             self.tpm_policy["mask"] = hex(int(self.tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
 
-            if isinstance(args["allowlist"], str):
-                if args["allowlist"] == "default":
-                    args["allowlist"] = config.get("tenant", "allowlist")
-                try:
-                    al_data = ima.read_allowlist(
-                        args["allowlist"], args["allowlist_checksum"], args["allowlist_sig"], args["allowlist_sig_key"]
-                    )
-                except Exception as ima_e:
-                    raise UserError(str(ima_e)) from ima_e
-            elif isinstance(args["allowlist"], list):
-                al_data = args["allowlist"]
-            else:
-                raise UserError("Invalid allowlist provided")
+            try:
+                al_data = ima.read_allowlist(
+                    args["allowlist"], args["allowlist_checksum"], args["allowlist_sig"], args["allowlist_sig_key"]
+                )
+            except Exception as ima_e:
+                raise UserError(str(ima_e)) from ima_e
 
         # Read command-line path string IMA exclude list
         excl_data = None
@@ -215,7 +208,8 @@ class Tenant:
         # Set up IMA
         if TPM_Utilities.check_mask(self.tpm_policy["mask"], config.IMA_PCR):
             # Process allowlists
-            self.allowlist = ima.process_allowlists(al_data, excl_data)
+            al_data["excllist"] = excl_data
+            self.allowlist = al_data
 
         # Read command-line path string TPM event log (measured boot) reference state
         mb_refstate_data = None
@@ -632,7 +626,7 @@ class Tenant:
             "cloudagent_ip": self.cv_cloudagent_ip,
             "cloudagent_port": self.agent_port,
             "tpm_policy": json.dumps(self.tpm_policy),
-            "allowlist": json.dumps(self.allowlist),
+            "ima_policy_bundle": json.dumps(self.allowlist),
             "mb_refstate": json.dumps(self.mb_refstate),
             "ima_sign_verification_keys": json.dumps(self.ima_sign_verification_keys),
             "metadata": json.dumps(self.metadata),

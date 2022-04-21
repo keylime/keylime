@@ -43,6 +43,7 @@ from cryptography.hazmat.primitives import serialization
 from keylime import api_version, config, crypto, fs_util, json, secure_mount, tenant, tornado_requests
 from keylime.cmd import user_data_encrypt
 from keylime.common import algorithms
+from keylime.ima import ima
 from keylime.requests_client import RequestsClient
 from keylime.tpm import tpm_abstract, tpm_main
 
@@ -335,6 +336,9 @@ class TestRestful(unittest.TestCase):
     tpm_policy = {}
     metadata = {}
     allowlist = {}
+    excllist = {}
+    ima_policy_bundle = {}
+    bad_ima_policy_bundle = {}
     revocation_key = ""
     mb_refstate = None
     K = None
@@ -363,6 +367,13 @@ class TestRestful(unittest.TestCase):
 
         # Allow targeting a specific API version (default latest)
         cls.api_version = "2.0"
+
+        # Set up allowlist bundles. Use invalid exclusion list regex for bad bundle.
+        cls.ima_policy_bundle = ima.read_allowlist()
+        cls.ima_policy_bundle["excllist"] = base64.b64encode(json.dumps([]).encode()).decode()
+
+        cls.bad_ima_policy_bundle = ima.read_allowlist()
+        cls.bad_ima_policy_bundle["excllist"] = base64.b64encode(json.dumps(["*"]).encode()).decode()
 
     def setUp(self):
         """Nothing to set up before each test"""
@@ -685,7 +696,7 @@ class TestRestful(unittest.TestCase):
             "cloudagent_ip": tenant_templ.cloudagent_ip,
             "cloudagent_port": tenant_templ.cloudagent_port,
             "tpm_policy": json.dumps(self.tpm_policy),
-            "allowlist": json.dumps(self.allowlist),
+            "ima_policy_bundle": json.dumps(self.ima_policy_bundle),
             "ima_sign_verification_keys": "",
             "mb_refstate": None,
             "metadata": json.dumps(self.metadata),
@@ -766,15 +777,15 @@ class TestRestful(unittest.TestCase):
         self.assertIsNotNone(self.V, "Required value not set.  Previous step may have failed?")
 
         b64_v = base64.b64encode(self.V)
-        # Set unsupported regex in exclude list
-        allowlist = {"exclude": ["*"]}
+
+        # Use bad allowlist bundle for testing
         data = {
             "v": b64_v,
             "mb_refstate": None,
             "cloudagent_ip": tenant_templ.cloudagent_ip,
             "cloudagent_port": tenant_templ.cloudagent_port,
             "tpm_policy": json.dumps(self.tpm_policy),
-            "allowlist": json.dumps(allowlist),
+            "ima_policy_bundle": json.dumps(self.bad_ima_policy_bundle),
             "ima_sign_verification_keys": "",
             "metadata": json.dumps(self.metadata),
             "revocation_key": self.revocation_key,

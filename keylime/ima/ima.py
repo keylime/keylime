@@ -1,3 +1,4 @@
+import base64
 import codecs
 import copy
 import datetime
@@ -19,6 +20,25 @@ logger = keylime_logging.init_logging("ima")
 
 # The version of the allowlist format that is supported by this keylime release
 ALLOWLIST_CURRENT_VERSION = 5
+
+# A correctly-formatted empty allowlist.
+#
+# IMA allowlists of versions older than 5 will not have the "log_hash_alg"
+# parameter. Hard-coding it to "sha1" is perfectly fine, and the fact one
+# specifies a different algorithm on the kernel command line (e.g., ima_hash=sha256)
+# does not affect normal operation of Keylime, since it does not validate the
+# hash algorithm received from agent's IMA runtime measurements.
+# The only situation where this hard-coding would become a problem is if and when
+# the kernel maintainers decide to use a different algorithm for template-hash.
+EMPTY_ALLOWLIST = {
+    "meta": {
+        "version": ALLOWLIST_CURRENT_VERSION,
+    },
+    "release": 0,
+    "hashes": {},
+    "keyrings": {},
+    "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1"},
+}
 
 
 class IMAMeasurementList:
@@ -392,7 +412,7 @@ def update_allowlist(allowlist):
     return allowlist
 
 
-def process_allowlists(allowlist, exclude):
+def process_ima_policy(allowlist, exclude):
     # Pull in default config values if not specified
     if allowlist is None:
         allowlist = read_allowlist()
@@ -420,49 +440,49 @@ def process_allowlists(allowlist, exclude):
     return {"allowlist": allowlist, "exclude": exclude}
 
 
-# IMA allowlists of versions older than 5 will not have the "log_hash_alg"
-# parameter. Hard-coding it to "sha1" is perfectly fine, and the fact one
-# specifies a different algorithm on the kernel command line (e.g., ima_hash=sha256)
-# does not affect normal operation of Keylime, since it does not validate the
-# hash algorithm received from agent's IMA runtime measurements.
-# The only situation where this hard-coding would become a problem is if and when
-# the kernel maintainers decide to use a different algorithm for template-hash.
-empty_allowlist = {
-    "meta": {
-        "version": ALLOWLIST_CURRENT_VERSION,
-    },
-    "release": 0,
-    "hashes": {},
-    "keyrings": {},
-    "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1"},
-}
+# Read allowlist files from disk, validate signatures and checksums, and prepare for sending.
+# Does not process exclusion lists.
+def read_allowlist(alist=None, checksum="", al_sig_file=None, al_key_file=None):
 
-
-def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None):
-    if al_path is None:
-        al_path = config.get("tenant", "ima_allowlist")
+    al_key = b""
+    al_sig = b""
 
     # If user only wants signatures then an allowlist is not required
-    if al_path is None or al_path == "":
-        return copy.deepcopy(empty_allowlist)
+    if alist is None or alist == "":
+        alist_bytes = json.dumps(copy.deepcopy(EMPTY_ALLOWLIST)).encode()
 
-    # Purposefully die if path doesn't exist
-    with open(al_path, "rb") as f:
-        pass
+    elif isinstance(alist, str):
+        if alist == "default":
+            alist = config.get("tenant", "ima_allowlist")
 
-    # verify GPG signature if needed
-    if gpg_sig_file and gpg_key_file:
-        signing.verify_signature_from_file(gpg_key_file, al_path, gpg_sig_file, "allowlist")
+        # Purposefully die if path doesn't exist
+        with open(alist, "rb") as alist_f:
+            logger.debug("Loading allowlist from %s", alist)
+            alist_bytes = alist_f.read()
 
-    # Purposefully die if path doesn't exist
-    with open(al_path, "rb") as f:
-        logger.debug("Loading allowlist from %s", al_path)
-        alist_bytes = f.read()
-        sha256 = hashlib.sha256()
-        sha256.update(alist_bytes)
-        calculated_checksum = sha256.hexdigest()
-        alist_raw = alist_bytes.decode("utf-8")
-        logger.debug("Loaded allowlist from %s with checksum %s", al_path, calculated_checksum)
+    else:
+        raise Exception("Invalid allowlist provided")
+
+    # verify file signature if needed
+    if al_sig_file and al_key_file:
+        logger.debug(
+            "Loading signature (%s) and key (%s) and checking against allowlist (%s)", al_sig_file, al_key_file, alist
+        )
+        with open(al_key_file, "rb") as key_f:
+            al_key = key_f.read()
+        with open(al_sig_file, "rb") as sig_f:
+            al_sig = sig_f.read()
+        if signing.verify_signature(al_key, al_sig, alist_bytes):
+            logger.debug("Allowlist passed signature verification")
+        else:
+            raise Exception(
+                f"Allowlist signature verification failed comparing allowlist ({alist}) against sig_file ({al_sig_file})"
+            )
+
+    sha256 = hashlib.sha256()
+    sha256.update(alist_bytes)
+    calculated_checksum = sha256.hexdigest()
+    logger.debug("Loaded allowlist from %s with checksum %s", alist, calculated_checksum)
 
     if checksum:
         if checksum == calculated_checksum:
@@ -472,7 +492,53 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
                 f"Checksum of allowlist does not match! Expected {checksum}, Calculated {calculated_checksum}"
             )
 
+    # Return artifacts as a JSON bundle, ready for sending
+    bundle = {
+        "ima_policy": base64.b64encode(alist_bytes).decode(),
+        "key": base64.b64encode(al_key).decode(),
+        "sig": base64.b64encode(al_sig).decode(),
+        "checksum": checksum,
+    }
+
+    return bundle
+
+
+class SignatureValidationError(Exception):
+    def __init__(self, message, code):
+        self.message = message
+        self.code = code
+        super().__init__(self.message)
+
+
+# Reads allowlist bundles sent to the verifier, validates them, and processes them. Returns an allowlist.
+def unbundle_ima_policy(allowlist_bundle, verify=True):
+    allowlist_raw = base64.b64decode(allowlist_bundle["ima_policy"])
+
+    # Verify allowlist signatures if set to enforce
+    if verify:
+        if not allowlist_bundle.get("sig"):
+            raise SignatureValidationError(
+                message="Verifier is enforcing signature validation, but no signature was provided.", code=405
+            )
+        if not allowlist_bundle.get("key"):
+            raise SignatureValidationError(
+                message="Verifier is enforcing signature validation, but no public key was provided.", code=405
+            )
+
+        allowlist_sig = base64.b64decode(allowlist_bundle.get("sig"))
+        allowlist_sig_key = base64.b64decode(allowlist_bundle.get("key"))
+
+        if not signing.verify_signature(allowlist_sig_key, allowlist_sig, allowlist_raw):
+            raise SignatureValidationError(message="Signature verification for allowlist failed!", code=401)
+        logger.info("Allowlist signature validation passed.")
+
+    return canonicalize_allowlist(allowlist_raw, allowlist_bundle["checksum"])
+
+
+# Manipulates allowlists into database-ready format.
+def canonicalize_allowlist(alist_bytes, checksum=""):
     # if the first non-whitespace character in the file is '{' treat it as the new JSON format
+    alist_raw = alist_bytes.decode("utf-8")
     p = re.compile(r"^\s*{")
     if p.match(alist_raw):
         logger.debug("Reading allow list as JSON format")
@@ -494,7 +560,7 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
         # convert legacy format into new structured format
         logger.debug("Converting legacy allowlist format to JSON")
 
-        alist = copy.deepcopy(empty_allowlist)
+        alist = copy.deepcopy(EMPTY_ALLOWLIST)
         alist["meta"]["timestamp"] = str(datetime.datetime.now())
         alist["meta"]["generator"] = "keylime-legacy-format-upgrade"
         if checksum:
@@ -556,7 +622,7 @@ def main():
 
     al_data = read_allowlist(allowlist_path)
     excl_data = read_excllist(exclude_path)
-    lists = process_allowlists(al_data, excl_data)
+    lists = process_ima_policy(al_data, excl_data)
 
     measure_path = config.IMA_ML
     # measure_path='../scripts/ima/ascii_runtime_measurements_ima'
@@ -573,7 +639,7 @@ def main():
 
     al_data = read_allowlist("measure2allow.txt")
     excl_data = read_excllist(exclude_path)
-    lists2 = process_allowlists(al_data, excl_data)
+    lists2 = process_ima_policy(al_data, excl_data)
     process_measurement_list(AgentAttestState("2"), lines, lists2)
 
     print("done")
