@@ -3,6 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 '''
 
+import base64
 import codecs
 import copy
 import hashlib
@@ -416,7 +417,10 @@ empty_allowlist = {
     }
 }
 
-def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=None):
+
+# Read allowlist files from disk, validate signatures and checksums, and prepare for sending.
+# Does not process exclusion lists.
+def read_allowlist(al_path=None, checksum="", al_sig_file=None, al_key_file=None):
     if al_path is None:
         al_path = config.get('tenant', 'ima_allowlist')
 
@@ -425,22 +429,27 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
         return copy.deepcopy(empty_allowlist)
 
     # Purposefully die if path doesn't exist
-    with open(al_path, 'rb') as f:
-        pass
-
-    # verify GPG signature if needed
-    if gpg_sig_file and gpg_key_file:
-        signing.verify_signature_from_file(gpg_key_file, al_path, gpg_sig_file, "allowlist")
-
-    # Purposefully die if path doesn't exist
-    with open(al_path, 'rb') as f:
+    with open(al_path, 'rb') as alist_f:
         logger.debug("Loading allowlist from %s", al_path)
-        alist_bytes = f.read()
-        sha256 = hashlib.sha256()
-        sha256.update(alist_bytes)
-        calculated_checksum = sha256.hexdigest()
-        alist_raw = alist_bytes.decode("utf-8")
-        logger.debug("Loaded allowlist from %s with checksum %s", al_path, calculated_checksum)
+        alist_bytes = alist_f.read()
+    # verify GPG signature if needed
+    al_key = b''
+    al_sig = b''
+    if al_sig_file and al_key_file:
+        logger.debug(f"Loading signature ({al_sig_file}) and key ({al_key_file}) and checking against allowlist ({al_path})")
+        with open(al_key_file, 'rb') as key_f:
+            al_key = key_f.read()
+        with open(al_sig_file, 'rb') as sig_f:
+            al_sig = sig_f.read()
+        if signing.verify_signature(al_key, al_sig, alist_bytes):
+            logger.debug("Allowlist passed signature verification")
+        else:
+            raise Exception(f"Allowlist signature verification failed comparing allowlist ({al_path}) against sig_file ({al_sig_file})")
+
+    sha256 = hashlib.sha256()
+    sha256.update(alist_bytes)
+    calculated_checksum = sha256.hexdigest()
+    logger.debug("Loaded allowlist from %s with checksum %s", al_path, calculated_checksum)
 
     if checksum:
         if checksum == calculated_checksum:
@@ -448,7 +457,42 @@ def read_allowlist(al_path=None, checksum="", gpg_sig_file=None, gpg_key_file=No
         else:
             raise Exception(f"Checksum of allowlist does not match! Expected {checksum}, Calculated {calculated_checksum}")
 
+    return {'allowlist': base64.b64encode(alist_bytes).decode(), 'key': base64.b64encode(al_key).decode(), 'sig': base64.b64encode(al_sig).decode(), 'checksum': checksum}
+
+
+class SignatureValidationError(Exception):
+    def __init__(self, message, code):
+        self.message = message
+        self.code = code
+        super().__init__(self.message)
+
+# Reads allowlist bundles sent to the verifier, validates them, and processes them.
+def unbundle_allowlist(allowlist_bundle):
+    allowlist_raw = base64.b64decode(allowlist_bundle['allowlist'])
+    excllist = allowlist_bundle['excllist']
+
+    # Verify allowlist signatures if set to enforce
+    if True:#config.getboolean('cloud_verifier', 'enforce_allow_list_signatures', fallback=False):
+        if not allowlist_bundle.get('sig'):
+            raise SignatureValidationError(message="Verifier is enforcing signature validation, but no signature was provided.", code=405)
+        if not allowlist_bundle.get('key'):
+            raise SignatureValidationError(message="Verifier is enforcing signature validation, but no public key was provided.", code=405)
+
+        allowlist_sig = base64.b64decode(allowlist_bundle.get('sig'))
+        allowlist_sig_key = base64.b64decode(allowlist_bundle.get('key'))
+
+        if not signing.verify_signature(allowlist_sig_key, allowlist_sig, allowlist_raw):
+            raise SignatureValidationError(message="Signature verification for allowlist failed!", code=401)
+        logger.info(f'Allowlist signature validation passed.')
+
+    formatted_allowlist = format_allowlist(allowlist_raw, allowlist_bundle['checksum'])
+    return json.dumps(process_allowlists(formatted_allowlist, excllist))
+
+
+# Manipulates allowlists into database-ready format.
+def format_allowlist(alist_bytes, checksum=""):
     # if the first non-whitespace character in the file is '{' treat it as the new JSON format
+    alist_raw = alist_bytes.decode("utf-8")
     p = re.compile(r'^\s*{')
     if p.match(alist_raw):
         logger.debug("Reading allow list as JSON format")

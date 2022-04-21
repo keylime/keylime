@@ -38,7 +38,7 @@ def get_AgentAttestStates():
     return AgentAttestStates.get_instance()
 
 
-def process_quote_response(agent, json_response, agentAttestState) -> Failure:
+def process_quote_response(agent, allowlist, json_response, agentAttestState) -> Failure:
     """Validates the response from the Cloud agent.
 
     This method invokes an Registrar Server call to register, and then check the quote.
@@ -149,7 +149,7 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
         agent['ak_tpm'],
         agent['tpm_policy'],
         ima_measurement_list,
-        agent['allowlist'],
+        allowlist.ima_policy,
         algorithms.Hash(hash_alg),
         ima_keyrings,
         mb_measurement_list,
@@ -210,10 +210,10 @@ def prepare_get_quote(agent):
     return params
 
 
-def process_get_status(agent):
-    allowlist = json.loads(agent.allowlist)
-    if isinstance(allowlist, dict) and 'allowlist' in allowlist:
-        al_len = len(allowlist['allowlist'])
+def process_get_status(agent, allowlist):
+    allowlist_json = json.loads(allowlist.ima_policy)
+    if isinstance(allowlist_json, dict) and 'allowlist' in allowlist_json:
+        al_len = len(allowlist_json['allowlist'])
     else:
         al_len = 0
 
@@ -288,12 +288,12 @@ def notify_error(agent, msgtype='revocation', event=None):
         revocation_notifier.notify_webhook(tosend)
 
 
-def validate_agent_data(agent_data):
+def validate_allowlist_data(agent_data):
     if agent_data is None:
         return False, None
 
     # validate that the allowlist is proper JSON
-    lists = json.loads(agent_data['allowlist'])
+    lists = json.loads(agent_data)
 
     # Validate exlude list contains valid regular expressions
     is_valid, _, err_msg = validators.valid_exclude_list(lists.get('exclude'))

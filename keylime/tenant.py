@@ -79,6 +79,7 @@ class Tenant():
     tpm_policy = None
     metadata = {}
     allowlist = {}
+    allowlist_name = ""
     ima_sign_verification_keys = []
     revocation_key = ""
     accept_tpm_hash_algs = []
@@ -186,6 +187,11 @@ class Tenant():
                 tenant_keyring.add_pubkey(pubkey, keyidv2)
             self.ima_sign_verification_keys = tenant_keyring.to_string()
 
+        # Store allowlist name
+        if 'allowlist_name' not in args or not args['allowlist_name']:
+            raise UserError('allowlist_name is required to perform allowlist operations')
+        self.allowlist_name = args['allowlist_name']
+
         # Read command-line path string allowlist
         al_data = None
 
@@ -224,7 +230,8 @@ class Tenant():
         # Set up IMA
         if TPM_Utilities.check_mask(self.tpm_policy['mask'], config.IMA_PCR):
             # Process allowlists
-            self.allowlist = ima.process_allowlists(al_data, excl_data)
+            al_data['excllist'] = excl_data
+            self.allowlist = al_data
 
         # Read command-line path string TPM event log (measured boot) reference state
         mb_refstate_data = None
@@ -624,6 +631,7 @@ class Tenant():
             'cloudagent_port': self.agent_port,
             'tpm_policy': json.dumps(self.tpm_policy),
             'allowlist': json.dumps(self.allowlist),
+            'allowlist_name': self.allowlist_name,
             'mb_refstate': json.dumps(self.mb_refstate),
             'ima_sign_verification_keys': json.dumps(self.ima_sign_verification_keys),
             'metadata': json.dumps(self.metadata),
@@ -1177,10 +1185,6 @@ class Tenant():
             break
 
     def do_add_allowlist(self, args):
-        if 'allowlist_name' not in args or not args['allowlist_name']:
-            raise UserError('allowlist_name is required to add an allowlist')
-
-        allowlist_name = args['allowlist_name']
         self.process_allowlist(args)
         data = {
             'tpm_policy': json.dumps(self.tpm_policy),
@@ -1188,7 +1192,7 @@ class Tenant():
         }
         body = json.dumps(data)
         cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
-        response = cv_client.post(f'/v{self.api_version}/allowlists/{allowlist_name}', data=body,
+        response = cv_client.post(f'/v{self.api_version}/allowlists/{self.allowlist_name}', data=body,
                                   cert=self.cert, verify=self.verifier_ca_cert)
         Tenant._print_json_response(response)
 

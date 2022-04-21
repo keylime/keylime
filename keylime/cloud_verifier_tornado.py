@@ -18,6 +18,7 @@ import tornado.ioloop
 import tornado.web
 
 from keylime import config
+from keylime.ima import ima
 from keylime import json
 from keylime import registrar_client
 from keylime.agentstates import AgentAttestStates
@@ -284,7 +285,13 @@ class AgentsHandler(BaseHandler):
                 logger.error('SQLAlchemy Error: %s', e)
 
             if agent is not None:
-                response = cloud_verifier_common.process_get_status(agent)
+                al_name = agent.allowlist
+                try:
+                    allowlist = session.query(VerifierAllowlist).filter_by(
+                        name=al_name).one_or_none()
+                except SQLAlchemyError as e:
+                    logger.error('SQLAlchemy Error: %s', e)
+                response = cloud_verifier_common.process_get_status(agent, allowlist)
                 web_util.echo_json_response(self, 200, "Success", response)
             else:
                 web_util.echo_json_response(self, 404, "agent id not found")
@@ -300,7 +307,13 @@ class AgentsHandler(BaseHandler):
 
                 json_response = {}
                 for agent in agent_list:
-                    json_response[agent.agent_id] = cloud_verifier_common.process_get_status(agent)
+                    al_name = agent.allowlist
+                    try:
+                        allowlist = session.query(VerifierAllowlist).filter_by(
+                            name=al_name).one_or_none()
+                    except SQLAlchemyError as e:
+                        logger.error('SQLAlchemy Error: %s', e)
+                    json_response[agent.agent_id] = cloud_verifier_common.process_get_status(agent, allowlist)
 
                 web_util.echo_json_response(self, 200, "Success", json_response)
             else:
@@ -428,6 +441,60 @@ class AgentsHandler(BaseHandler):
                     logger.warning('POST returning 400 response. Expected non zero content length.')
                 else:
                     json_body = json.loads(self.request.body)
+
+                    # Handle allowlists
+                    allowlist_name = json_body['allowlist_name']
+
+                    # Find whether an allowlist with the provided name already exists
+                    try:
+                        al_count = session.query(
+                            VerifierAllowlist).filter_by(name=allowlist_name).count()
+                    except SQLAlchemyError as e:
+                        logger.error('SQLAlchemy Error: %s', e)
+                        raise
+
+                    # If allowlist data was provided with the request, assume intent to add. Otherwise, assume intent to retrieve.
+                    allowlist_bundle = json.loads(json_body.get('allowlist'))
+                    if allowlist_bundle:
+                        # Attempt to add a new allowlist to the database - but disallow overwriting
+                        if al_count > 0:
+                            web_util.echo_json_response(
+                                self, 409, f"Allowlist with name {allowlist_name} already exists")
+                            logger.warning(
+                                "Allowlist with name %s already exists", allowlist_name)
+                            return
+                        try:
+                            processed_allowlist = ima.unbundle_allowlist(allowlist_bundle)
+                        except ima.SignatureValidationError as e:
+                            web_util.echo_json_response(self, e.code, e.message)
+                            logger.warning(e.message)
+                            return
+
+                        is_valid, err_msg = cloud_verifier_common.validate_allowlist_data(processed_allowlist)
+                        if not is_valid:
+                            web_util.echo_json_response(self, 400, err_msg)
+                            logger.warning(err_msg)
+                            return
+
+                        allowlist = {}
+                        allowlist['name'] = allowlist_name
+                        allowlist['ima_policy'] = processed_allowlist
+                        try:
+                            # Add the allowlist to the database
+                            session.add(VerifierAllowlist(**allowlist))
+                            session.commit()
+                        except SQLAlchemyError as e:
+                            logger.error('SQLAlchemy Error: %s', e)
+                            raise
+                    else:
+                        # If an allowlist exists in the database, we're fine. If not, return an error code
+                        if al_count == 0:
+                            web_util.echo_json_response(
+                                self, 404, f"Could not find allowlist with name {allowlist_name}!")
+                            logger.warning(
+                                "Could not find allowlist with name %s", allowlist_name)
+                            return
+
                     agent_data = {}
                     agent_data['v'] = json_body['v']
                     agent_data['ip'] = json_body['cloudagent_ip']
@@ -436,7 +503,7 @@ class AgentsHandler(BaseHandler):
                     agent_data['public_key'] = ""
                     agent_data['tpm_policy'] = json_body['tpm_policy']
                     agent_data['meta_data'] = json_body['metadata']
-                    agent_data['allowlist'] = json_body['allowlist']
+                    agent_data['allowlist'] = json_body['allowlist_name']
                     agent_data['mb_refstate'] = json_body['mb_refstate']
                     agent_data['ima_sign_verification_keys'] = json_body['ima_sign_verification_keys']
                     agent_data['revocation_key'] = json_body['revocation_key']
@@ -474,12 +541,6 @@ class AgentsHandler(BaseHandler):
                     # TODO: Always error for v1.0 version after initial upgrade
                     if registrar_data.get('mtls_cert', None) is None and agent_data['supported_version'] != "1.0":
                         web_util.echo_json_response(self, 400, "mTLS certificate for agent is required!")
-                        return
-
-                    is_valid, err_msg = cloud_verifier_common.validate_agent_data(agent_data)
-                    if not is_valid:
-                        web_util.echo_json_response(self, 400, err_msg)
-                        logger.warning(err_msg)
                         return
 
                     try:
@@ -737,12 +798,18 @@ class AllowlistHandler(BaseHandler):
         allowlist = {}
         json_body = json.loads(self.request.body)
         allowlist['name'] = allowlist_name
+        allowlist_bundle = json.loads(json_body.get('allowlist'))
+        if allowlist_bundle:
+            try:
+                processed_allowlist = ima.unbundle_allowlist(allowlist_bundle)
+            except ima.SignatureValidationError as e:
+                web_util.echo_json_response(self, e.code, e.message)
+                logger.warning(e.message)
+                return
+            allowlist['ima_policy'] = processed_allowlist
         tpm_policy = json_body.get('tpm_policy')
         if tpm_policy:
             allowlist['tpm_policy'] = tpm_policy
-        ima_policy = json_body.get('ima_policy')
-        if ima_policy:
-            allowlist['ima_policy'] = ima_policy
 
         session = get_session()
         # don't allow overwritting
@@ -778,7 +845,7 @@ class AllowlistHandler(BaseHandler):
         raise NotImplementedError()
 
 
-async def invoke_get_quote(agent, need_pubkey):
+async def invoke_get_quote(agent, allowlist, need_pubkey):
     failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
         raise Exception("agent deleted while being processed")
@@ -820,7 +887,7 @@ async def invoke_get_quote(agent, need_pubkey):
             if 'provide_V' not in agent :
                 agent['provide_V'] = True
             agentAttestState = get_AgentAttestStates().get_by_agent_id(agent['agent_id'])
-            failure = cloud_verifier_common.process_quote_response(agent, json_response['results'], agentAttestState)
+            failure = cloud_verifier_common.process_quote_response(agent, allowlist, json_response['results'], agentAttestState)
             if not failure:
                 if agent['provide_V']:
                     asyncio.ensure_future(process_agent(agent, states.PROVIDE_V))
@@ -942,6 +1009,14 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
         except SQLAlchemyError as e:
             logger.error('SQLAlchemy Error: %s', e)
 
+        # Load agent's allowlist
+        al_name = agent['allowlist']
+        try:
+            allowlist = session.query(VerifierAllowlist).filter_by(
+                name=al_name).one_or_none()
+        except SQLAlchemyError as e:
+            logger.error('SQLAlchemy Error: %s', e)
+
         # If agent was in a failed state we check if we either stop polling
         # or just add it again to the event loop
         if new_operational_state in [states.FAILED, states.INVALID_QUOTE]:
@@ -949,7 +1024,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 logger.warning("Agent %s failed, stopping polling", agent['agent_id'])
                 return
 
-            await invoke_get_quote(agent, False)
+            await invoke_get_quote(agent, allowlist, False)
             return
 
         # if new, get a quote
@@ -957,7 +1032,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 new_operational_state == states.GET_QUOTE):
             agent['num_retries'] = 0
             agent['operational_state'] = states.GET_QUOTE
-            await invoke_get_quote(agent, True)
+            await invoke_get_quote(agent, allowlist, True)
             return
 
         if (main_agent_operational_state == states.GET_QUOTE and
@@ -973,11 +1048,11 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
             interval = config.getfloat('cloud_verifier', 'quote_interval')
             agent['operational_state'] = states.GET_QUOTE
             if interval == 0:
-                await invoke_get_quote(agent, False)
+                await invoke_get_quote(agent, allowlist, False)
             else:
                 logger.debug("Setting up callback to check again in %f seconds", interval)
                 # set up a call back to check again
-                cb = functools.partial(invoke_get_quote, agent, False)
+                cb = functools.partial(invoke_get_quote, agent, allowlist, False)
                 pending = tornado.ioloop.IOLoop.current().call_later(interval, cb)
                 agent['pending_event'] = pending
             return
@@ -999,7 +1074,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 await process_agent(agent, states.FAILED, failure)
             else:
                 agent['operational_state'] = states.GET_QUOTE
-                cb = functools.partial(invoke_get_quote, agent, True)
+                cb = functools.partial(invoke_get_quote, agent, allowlist, True)
                 agent['num_retries'] += 1
                 next_retry = retry.retry_time(exponential_backoff, interval, agent['num_retries'], logger)
                 logger.info("Connection to %s refused after %d/%d tries, trying again in %f seconds", agent['ip'], agent['num_retries'], maxr, next_retry)
