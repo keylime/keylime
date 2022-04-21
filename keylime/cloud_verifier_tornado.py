@@ -27,6 +27,7 @@ from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist
 from keylime.elchecking import policies
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Failure
+from keylime.ima import ima
 
 logger = keylime_logging.init_logging("cloudverifier")
 
@@ -416,6 +417,29 @@ class AgentsHandler(BaseHandler):
                     logger.warning("POST returning 400 response. Expected non zero content length.")
                 else:
                     json_body = json.loads(self.request.body)
+
+                    # Handle allowlists/IMA policies
+                    ima_policy_bundle = json.loads(json_body.get("ima_policy_bundle"))
+                    if ima_policy_bundle:
+                        try:
+                            allowlist = ima.unbundle_ima_policy(
+                                ima_policy_bundle,
+                                verify=config.getboolean(
+                                    "cloud_verifier", "require_allow_list_signatures", fallback=False
+                                ),
+                            )
+                            ima_policy = json.dumps(ima.process_ima_policy(allowlist, ima_policy_bundle["excllist"]))
+                        except ima.SignatureValidationError as e:
+                            web_util.echo_json_response(self, e.code, e.message)
+                            logger.warning(e.message)
+                            return
+                    else:
+                        # Read legacy allowlist if present in payload
+                        ima_policy = json_body.get("allowlist", None)
+                        if not ima_policy:
+                            logger.info("Allowlist data not provided with request! Using default allowlist.")
+                            ima_policy = json.dumps(ima.process_ima_policy(ima.EMPTY_ALLOWLIST, []))
+
                     agent_data = {}
                     agent_data["v"] = json_body["v"]
                     agent_data["ip"] = json_body["cloudagent_ip"]
@@ -424,7 +448,7 @@ class AgentsHandler(BaseHandler):
                     agent_data["public_key"] = ""
                     agent_data["tpm_policy"] = json_body["tpm_policy"]
                     agent_data["meta_data"] = json_body["metadata"]
-                    agent_data["allowlist"] = json_body["allowlist"]
+                    agent_data["allowlist"] = ima_policy
                     agent_data["mb_refstate"] = json_body["mb_refstate"]
                     agent_data["ima_sign_verification_keys"] = json_body["ima_sign_verification_keys"]
                     agent_data["revocation_key"] = json_body["revocation_key"]

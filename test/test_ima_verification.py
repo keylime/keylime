@@ -3,6 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2020 IBM Corporation
 """
 
+import base64
 import codecs
 import hashlib
 import os
@@ -89,8 +90,8 @@ class TestIMAVerification(unittest.TestCase):
     def test_measurment_verification(self):
         """Test IMA measurement list verification"""
         lines = MEASUREMENTS.splitlines()
-        lists_map = ima.process_allowlists(ALLOWLIST, "")
-        lists_map_empty = ima.process_allowlists(ALLOWLIST_EMPTY, "")
+        lists_map = ima.process_ima_policy(ALLOWLIST, "")
+        lists_map_empty = ima.process_ima_policy(ALLOWLIST_EMPTY, "")
 
         _, failure = ima.process_measurement_list(AgentAttestState("1"), lines)
         self.assertTrue(not failure, "Validation should always work when no allowlist and no keyring is specified")
@@ -138,7 +139,7 @@ class TestIMAVerification(unittest.TestCase):
 
     def test_ima_buf_verification(self):
         """The verification of ima-buf entries supporting keys loaded onto keyrings"""
-        list_map = ima.process_allowlists(ALLOWLIST, "")
+        list_map = ima.process_ima_policy(ALLOWLIST, "")
         ima_keyrings = file_signatures.ImaKeyrings()
 
         self.assertTrue(
@@ -171,11 +172,11 @@ class TestIMAVerification(unittest.TestCase):
     def test_mixed_verfication(self):
         """Test verification using allowlist and keys"""
 
-        lists_map = ima.process_allowlists(ALLOWLIST, "")
-        lists_map_wrong = ima.process_allowlists(ALLOWLIST_WRONG, "")
-        lists_map_empty = ima.process_allowlists(ALLOWLIST_EMPTY, "")
-        lists_map_exclude = ima.process_allowlists(ALLOWLIST, EXCLUDELIST)
-        lists_map_exclude_wrong = ima.process_allowlists(ALLOWLIST_WRONG, EXCLUDELIST)
+        lists_map = ima.process_ima_policy(ALLOWLIST, "")
+        lists_map_wrong = ima.process_ima_policy(ALLOWLIST_WRONG, "")
+        lists_map_empty = ima.process_ima_policy(ALLOWLIST_EMPTY, "")
+        lists_map_exclude = ima.process_ima_policy(ALLOWLIST, EXCLUDELIST)
+        lists_map_exclude_wrong = ima.process_ima_policy(ALLOWLIST_WRONG, EXCLUDELIST)
 
         ima_keyrings = file_signatures.ImaKeyrings()
         empty_keyring = file_signatures.ImaKeyring()
@@ -269,8 +270,12 @@ class TestIMAVerification(unittest.TestCase):
         allowlist_bad_checksum = "4c143670836f96535d9e617359b4d87c59e89e633e2773b4d7feae97f561b3dc"
 
         # simple read, no fancy verification
-        al_data = ima.read_allowlist(allowlist_file)
-        self.assertIsNotNone(al_data, "AllowList data is present")
+        al_bundle = ima.read_allowlist(allowlist_file)
+        self.assertIsNotNone(al_bundle, "IMA policy bundle data is present")
+        self.assertIsNotNone(al_bundle.get("ima_policy", None), "AllowList data is present in bundle")
+
+        # unbundle and test output
+        al_data = ima.unbundle_ima_policy(al_bundle, verify=False)
         self.assertIsNotNone(al_data["meta"], "AllowList metadata is present")
         self.assertEqual(al_data["meta"]["version"], 5, "AllowList metadata version is correct")
         self.assertEqual(
@@ -292,9 +297,14 @@ class TestIMAVerification(unittest.TestCase):
             "AllowList sample keyring is correct",
         )
 
-        # validate checkum
-        al_data = ima.read_allowlist(allowlist_file, allowlist_checksum)
-        self.assertIsNotNone(al_data, "AllowList data is present")
+        # validate checksum
+        al_bundle = ima.read_allowlist(allowlist_file, allowlist_checksum)
+        self.assertIsNotNone(al_bundle, "IMA policy bundle data is present")
+        self.assertIsNotNone(al_bundle.get("ima_policy", None), "AllowList data is present in bundle")
+        self.assertIsNotNone(al_bundle.get("checksum", None), "AllowList checksum is present in bundle")
+
+        # unbundle and test output
+        al_data = ima.unbundle_ima_policy(al_bundle, verify=False)
         self.assertEqual(al_data["meta"]["checksum"], allowlist_checksum, "AllowList metadata correct checksum")
         self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
         self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
@@ -310,8 +320,14 @@ class TestIMAVerification(unittest.TestCase):
         self.assertIn("Checksum of allowlist does not match", str(bad_checksum_context.exception))
 
         # validate GPG signature
-        al_data = ima.read_allowlist(allowlist_file, None, allowlist_sig, allowlist_gpg_key)
-        self.assertIsNotNone(al_data, "AllowList data is present")
+        al_bundle = ima.read_allowlist(allowlist_file, None, allowlist_sig, allowlist_gpg_key)
+        self.assertIsNotNone(al_bundle, "IMA policy bundle data is present")
+        self.assertIsNotNone(al_bundle.get("ima_policy", None), "AllowList data is present in bundle")
+        self.assertIsNotNone(al_bundle.get("key", None), "AllowList signing key is present in bundle")
+        self.assertIsNotNone(al_bundle.get("sig", None), "AllowList signature is present in bundle")
+
+        # unbundle and test output
+        al_data = ima.unbundle_ima_policy(al_bundle, verify=True)
         self.assertNotIn("checksum", al_data["meta"], "AllowList metadata no checksum")
         self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
         self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
@@ -321,14 +337,29 @@ class TestIMAVerification(unittest.TestCase):
             "AllowList sample hash is correct",
         )
 
-        # test with a bad GPG sig
+        # test with a bad GPG sig (tenant-side)
         with self.assertRaises(Exception) as bad_sig_context:
             ima.read_allowlist(allowlist_file, None, allowlist_bad_sig, allowlist_gpg_key)
         self.assertIn("Allowlist signature verification failed", str(bad_sig_context.exception))
 
+        # test with a bad GPG sig (verifier-side)
+        with open(allowlist_bad_sig, "rb") as bad_sig_f:
+            bad_sig_raw = bad_sig_f.read()
+        al_bundle["sig"] = base64.b64encode(bad_sig_raw).decode()
+        with self.assertRaises(ima.SignatureValidationError) as bad_sig_context:
+            ima.unbundle_ima_policy(al_bundle, verify=True)
+        self.assertIn("Signature verification for allowlist failed!", str(bad_sig_context.exception.message))
+
         # validate everything together
-        al_data = ima.read_allowlist(allowlist_file, allowlist_checksum, allowlist_sig, allowlist_gpg_key)
-        self.assertIsNotNone(al_data, "AllowList data is present")
+        al_bundle = ima.read_allowlist(allowlist_file, allowlist_checksum, allowlist_sig, allowlist_gpg_key)
+        self.assertIsNotNone(al_bundle, "IMA policy bundle data is present")
+        self.assertIsNotNone(al_bundle.get("ima_policy", None), "AllowList data is present in bundle")
+        self.assertIsNotNone(al_bundle.get("checksum", None), "AllowList checksum is present in bundle")
+        self.assertIsNotNone(al_bundle.get("key", None), "AllowList signing key is present in bundle")
+        self.assertIsNotNone(al_bundle.get("sig", None), "AllowList signature is present in bundle")
+
+        # unbundle and test output
+        al_data = ima.unbundle_ima_policy(al_bundle, verify=True)
         self.assertEqual(al_data["meta"]["checksum"], allowlist_checksum, "AllowList metadata correct checksum")
         self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
         self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
