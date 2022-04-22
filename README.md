@@ -94,7 +94,7 @@ The following command line options are available using `installer.sh` script:
 Usage: ./installer.sh [option...]
 Options:
 -k              Download Keylime (stub installer mode)
--o              Use OpenSSL instead of CFSSL
+-c              Use CFSSL (vs. OpenSSL). Note: OpenSSL does not support revocation
 -t              Create tarball with keylime_agent
 -m              Use modern TPM 2.0 libraries (vs. TPM 1.2)
 -s              Install & use a Software TPM emulator (development only)
@@ -166,36 +166,17 @@ These can be installed using your package manager.
 
 * On Fedora 32 (and greater):
 
-`sudo dnf install tpm2-tss tpm2-tools tpm2-abrmd`
+`sudo dnf install tpm2-tss tpm2-tools`
 
-* On Ubuntu 20 LTS:
+* On Ubuntu 20 LTS (and greater):
 
-`sudo apt-get install tpm2-tss tpm2-tools tpm2-abrmd`
+`sudo apt-get install tpm2-tools`
 
 You can also build the [tpm2-tss](https://github.com/tpm2-software/tpm2-tss) software stack as well as
 [tpm2-tools](https://github.com/tpm2-software/tpm2-tools) instead . See the
 README.md in these projects for detailed instructions on how to build and install.
 
-The brief synopsis of a quick build/install (after installing dependencies) is:
-
-```bash
-git clone https://github.com/tpm2-software/tpm2-tss.git tpm2-tss
-pushd tpm2-tss
-./bootstrap
-./configure --prefix=/usr
-make
-sudo make install
-popd
-
-git clone https://github.com/tpm2-software/tpm2-tools.git tpm2-tools
-pushd tpm2-tools
-./bootstrap
-./configure --prefix=/usr/local
-make
-sudo make install
-```
-
-To ensure that you have the patched version installed ensure that you have
+To ensure that you have the supported version installed ensure that you have
 the `tpm2_checkquote` utility in your path.
 
 ###### TPM 2.0 Access
@@ -292,6 +273,8 @@ securely with the agent.  The verifier uses mutual TLS for its control interface
 * The *agent* is the target of bootstrapping and integrity measurements.  It puts
     its stuff into `/var/lib/keylime/`.
 
+If you are using the TPM emulator make sure that `TPM2TOOLS_TCTI` is correctly set with: 
+`export TPM2TOOLS_TCTI="mssim:port=2321"`.
 To run a basic test, run `keylime_verifier`, `keylime_registrar`, and `keylime_agent`.  If
 the agent starts up properly, then you can proceed.
 
