@@ -1,0 +1,38 @@
+name: Upload code coverage for a merged PR to codecov.io
+
+on:
+  push:
+    branches:
+    - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Submit code coverage from merged PR
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+    - uses: actions/checkout@v3
+    - name: Find PR Packit tests to finish and download coverage.xml file
+      run: ./download_packit_coverage.sh ${{ github.event.pull_request.head.sha }} || exit 0
+      env:
+        MAX_DURATION: 120
+        SLEEP_DELAY: 20
+    - name: List downloaded files
+      run: ls
+    - name: Upload coverage.unittests.xml report to Codecov with GitHub Action
+      uses: codecov/codecov-action@v2
+      with:
+        files: scripts/coverage.unittests.xml
+        flags: unittests
+    - name: Upload coverage.testsuite.xml report to Codecov with GitHub Action
+      uses: codecov/codecov-action@v2
+      with:
+        files: scripts/coverage.testsuite.xml
+        flags: testsuite
+    - name: Upload coverage.packit.xml report to Codecov with GitHub Action
+      uses: codecov/codecov-action@v2
+      with:
+        files: scripts/coverage.packit.xml
+        flags: packit-e2e

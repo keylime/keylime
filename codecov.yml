@@ -1,0 +1,27 @@
+codecov:
+  notify:
+    after_n_builds: 3
+
+coverage:
+  fixes:
+  - "/usr/local/bin/keylime_::keylime/cmd/"
+  - "/usr/local/lib/python*/site-packages/keylime-*/::"
+  status:
+    project:
+      default:
+        informational: true
+
+comment:
+  layout: "flags,files"
+  behavior: default
+  require_changes: false
+  require_base: no
+  after_n_builds: 3
+
+flags:
+  testsuite:
+    carryforward: false
+  unittests:
+    carryforward: false
+  packit-e2e:
+    carryforward: false
