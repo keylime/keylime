@@ -16,11 +16,23 @@ Tests are run for every pull-request update. One can also re-run all tests by ad
 
 #### Pull-request code coverage measurements
 
-During test execution we can measure Python code coverage, in particular code coverage for changes introduced in pull-request.
-Such a measurement is currently enabled only on Fedora 35 release. In order to access code coverage report one has to open Packit-as-a-Service logs for Fedora 35 and display test logs of `/setup/generate_coverage_report
+During test execution we can measure Python code coverage, in particular code coverage for changes introduced in pull-request. Such a measurement is currently enabled only on Fedora 35 release and executed using Packit service. We do measure code coverage for keylime unittests, keylime testsuite and functional tests from keylime-tests repository.
+
+There are two ways how to review code coverage details.
+
+##### codecov.io service
+
+[codecov.io](https://about.codecov.io/) service should provide code coverage related statistics for every pull request. These statistics can be accessed either from a comment added by the codecov.io service or via respective pull request checks. Be aware that GitHub/Gitlab/Bitbucket authentication is necessary for accessing statistics at codecov.io.
+
+From an implementation perspective, for proper codecov.io functioning we need to submit code coverage data for every HEAD commit in a pull request and for every new HEAD commit in the main keylime branch. This comes from the fact that on GitHub merged commits are different from commits in PR. For differential coverage metrics codecov.io needs coverage data both for PR base commit (typically originates in a main branch) and the PR HEAD commit so a diff can be made. Therefore we need to submit coverage data on two occasions. First, when a commit gets merged into the keylime main branch - this way we provide coverage data for a baseline of a future pull request. Second, when a new commit lands in a pull request - this way we provide data for the PR HEAD commit so that codecov.io can update pull request with computed coverage metrics. Therefore we have two GitHub workflows configured. The first workflow is triggered by a pull request update. It waits until tests scheduled by Packit service are finished and then downloads and submits code coverage data to codecov.io. The second workflow is triggered by a commit merged to a main keylime branch and the main difference here is that this workflow doesn't wait for tests to be finished as there are none - we can't run tests again on a merged commit. Instead, we find the related pull request and download existing coverage data from the respective (and already finished) test in a pull request. The advantage is that we do not have to run tests again and the workflow is fast. The disadvantage is that such data won't be correct if any other commit has been merged to the main branch in the meantime. Therefore, we need to verify that all commits between PR BASE commit and main branch HEAD comes from a single pull request and if not, we won't submit coverage data. This results in a gap in our data sequence and we won't be able to get differential statistics for the next pull request.
+
+#### Checking the output of /setup/generate_coverage_report task
+
+In order to access code coverage report one has to open Packit-as-a-Service logs for Fedora 35 and display test logs of `/setup/generate_coverage_report
 ` task.
 
-In the log one can see overall code coverage report.
+In the log one can see indivudual code coverage report summaries for unittests, keylime testsuite and keylime-tests. Also, there is an overall report.
+One can also download HTML report from transfer.sh, specific URL is listed in the test log too.
 
 ```
 Name                                                                                                                                                  Stmts   Miss  Cover
