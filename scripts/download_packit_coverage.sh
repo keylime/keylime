@@ -206,7 +206,7 @@ echo TF_RESULT=${TF_RESULT}
 
 if [ "${TF_RESULT}" != "success" ]; then
     echo "Testing Farm tests failed, we won't be uploading coverage data since they may be incomplete"
-    return 3
+    exit 3
 fi
 
 # wait a bit since there could be some timing issue
