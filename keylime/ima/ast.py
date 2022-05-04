@@ -1,4 +1,4 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2021 Thore Sommer
 
@@ -6,19 +6,18 @@ AST with parser and validator for IMA ASCII entries.
 Implements the templates (modes) and types as defined in:
 - https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_template.c
 - https://www.kernel.org/doc/html/v5.12/security/IMA-templates.html
-'''
+"""
 
+import abc
 import binascii
 import codecs
 import struct
-import abc
 import typing
+from typing import Callable, Dict, Optional, Union
 
-from typing import Dict, Callable, Optional, Union
-from keylime import config
-from keylime import keylime_logging
+from keylime import config, keylime_logging
 from keylime.common.algorithms import Hash
-from keylime.failure import Failure, Component
+from keylime.failure import Component, Failure
 
 logger = keylime_logging.init_logging("ima")
 
@@ -26,31 +25,32 @@ TCG_EVENT_NAME_LEN_MAX = 255
 SHA_DIGEST_LEN = 20
 MD5_DIGEST_LEN = 16
 
-NULL_BYTE = ord('\0')
-COLON_BYTE = ord(':')
+NULL_BYTE = ord("\0")
+COLON_BYTE = ord(":")
 
 
 def get_START_HASH(hash_alg: Hash) -> bytes:
-    return codecs.decode(b'0' * (hash_alg.get_size() // 4), 'hex')
+    return codecs.decode(b"0" * (hash_alg.get_size() // 4), "hex")
 
 
 def get_FF_HASH(hash_alg: Hash) -> bytes:
-    return codecs.decode(b'f' * (hash_alg.get_size() // 4), 'hex')
+    return codecs.decode(b"f" * (hash_alg.get_size() // 4), "hex")
 
 
 class Validator:
-    functions: Dict[typing.Type['Mode'], Callable[..., Failure]]
+    functions: Dict[typing.Type["Mode"], Callable[..., Failure]]
 
-    def __init__(self, functions: Dict[typing.Type['Mode'], Callable[..., Failure]]):
+    def __init__(self, functions: Dict[typing.Type["Mode"], Callable[..., Failure]]):
         self.functions = functions
 
-    def get_validator(self, class_type: typing.Type['Mode']) -> Callable[..., Failure]:
+    def get_validator(self, class_type: typing.Type["Mode"]) -> Callable[..., Failure]:
         validator = self.functions.get(class_type, None)
         if validator is None:
-            logger.warning("No validator was implemented for: %s. Using always false validator!",
-                           class_type)
+            logger.warning("No validator was implemented for: %s. Using always false validator!", class_type)
             failure = Failure(Component.IMA, ["validation"])
-            failure.add_event("no_validator", f"No validator was implemented for: {class_type} . Using always false validator!", True)
+            failure.add_event(
+                "no_validator", f"No validator was implemented for: {class_type} . Using always false validator!", True
+            )
             return lambda *_: failure
         return validator
 
@@ -88,19 +88,18 @@ class HexData(Type):
         return self.data.decode("utf-8")
 
     def struct(self) -> bytes:
-        return struct.pack(f"<I{len(self.data)}s",
-                           len(self.data),
-                           self.data)
+        return struct.pack(f"<I{len(self.data)}s", len(self.data), self.data)
 
 
 class Signature(HexData):
     """
     Class for type "sig".
     """
+
     def __init__(self, data: str):
         super().__init__(data)
         # basic checks on signature
-        fmt = '>BBBIH'
+        fmt = ">BBBIH"
         hdrlen = struct.calcsize(fmt)
         if len(self.data) < hdrlen:
             raise ParserError("Invalid signature: header too short")
@@ -120,6 +119,7 @@ class Name(Type):
     """
     Class for type "n" and "n-ng".
     """
+
     name: str
     legacy: bool = False
 
@@ -133,21 +133,21 @@ class Name(Type):
     def struct(self) -> bytes:
         # The old "n" option is fixed length.
         if self.legacy:
-            return struct.pack(f"{len(self.name)}sB{TCG_EVENT_NAME_LEN_MAX - len(self.name)}s",
-                               self.name.encode("utf-8"),
-                               NULL_BYTE,
-                               bytearray(TCG_EVENT_NAME_LEN_MAX - len(self.name)))
+            return struct.pack(
+                f"{len(self.name)}sB{TCG_EVENT_NAME_LEN_MAX - len(self.name)}s",
+                self.name.encode("utf-8"),
+                NULL_BYTE,
+                bytearray(TCG_EVENT_NAME_LEN_MAX - len(self.name)),
+            )
 
-        return struct.pack(f"<I{len(self.name)}sB",
-                           len(self.name) + 1,
-                           self.name.encode("utf-8"),
-                           NULL_BYTE)
+        return struct.pack(f"<I{len(self.name)}sB", len(self.name) + 1, self.name.encode("utf-8"), NULL_BYTE)
 
 
 class Digest:
     """
     Class for types "d" and "d-ng" with and without algorithm
     """
+
     hash: bytes
     algorithm: Optional[str] = None
     legacy: bool = False
@@ -162,7 +162,8 @@ class Digest:
                 raise ParserError(f"Digest hash is not valid hex. Got: {tokens[0]}") from e
             if not (len(self.hash) == SHA_DIGEST_LEN or len(self.hash) == MD5_DIGEST_LEN):
                 raise ParserError(
-                    "Cannot create Digest. No hash algorithm is provided and hash does not belong to a md5 or sha1 hash.")
+                    "Cannot create Digest. No hash algorithm is provided and hash does not belong to a md5 or sha1 hash."
+                )
         elif len(tokens) == 2:
             try:
                 self.hash = codecs.decode(tokens[1].encode("utf-8"), "hex")
@@ -181,21 +182,29 @@ class Digest:
             return struct.pack(f"<I{len(self.hash)}s", len(self.hash), self.hash)
         # After the ':' must be a '\O':
         # https://elixir.bootlin.com/linux/v5.12.10/source/security/integrity/ima/ima_template_lib.c#L230
-        return struct.pack(f"<I{len(self.algorithm)}sBB{len(self.hash)}s",
-                           len(self.algorithm) + 2 + len(self.hash),
-                           self.algorithm.encode("utf-8"),
-                           COLON_BYTE,
-                           NULL_BYTE,
-                           self.hash)
+        return struct.pack(
+            f"<I{len(self.algorithm)}sBB{len(self.hash)}s",
+            len(self.algorithm) + 2 + len(self.hash),
+            self.algorithm.encode("utf-8"),
+            COLON_BYTE,
+            NULL_BYTE,
+            self.hash,
+        )
 
     def __eq__(self, other):
-        return isinstance(other, Digest) and self.legacy == other.legacy and \
-               self.hash == other.hash and self.algorithm == other.algorithm
+        return (
+            isinstance(other, Digest)
+            and self.legacy == other.legacy
+            and self.hash == other.hash
+            and self.algorithm == other.algorithm
+        )
+
 
 class Ima(Mode):
     """
     Class for "ima". Contains the digest and a path.
     """
+
     digest: Digest
     path: Name
 
@@ -217,6 +226,7 @@ class ImaNg(Mode):
     """
     Class for "ima-ng". Contains the digest and a path.
     """
+
     digest: Digest
     path: Name
 
@@ -238,6 +248,7 @@ class ImaSig(Mode):
     """
     Class for "ima-sig" template. Nearly the same as ImaNg but can contain a optional signature.
     """
+
     digest: Digest
     path: Name
     signature: Optional[Signature] = None
@@ -266,7 +277,7 @@ class ImaSig(Mode):
 
     @staticmethod
     def create_signature(hexstring: str) -> Optional[Signature]:
-        """ Create the Signature object if the hexstring is a valid signature """
+        """Create the Signature object if the hexstring is a valid signature"""
         try:
             return Signature(hexstring)
         except ParserError:
@@ -277,7 +288,7 @@ class ImaSig(Mode):
         output = self.digest.struct() + self.path.struct()
         # If no signature is there we sill have to add the entry for it
         if self.signature is None:
-            output += struct.pack("<I0s", 0, b'')
+            output += struct.pack("<I0s", 0, b"")
         else:
             output += self.signature.struct()
         return output
@@ -291,6 +302,7 @@ class ImaBuf(Mode):
     Class for "ima-buf". Contains a digest, buffer name and the buffer itself.
     For validation the buffer must be done based on the name because IMA only provides it as an byte array.
     """
+
     digest: Digest
     name: Name
     data: Buffer
@@ -314,6 +326,7 @@ class Entry:
     """
     IMA Entry. Contains the PCR, template hash and mode.
     """
+
     pcr: str
     ima_template_hash: bytes
     pcr_template_hash: Optional[bytes]
@@ -327,10 +340,16 @@ class Entry:
         "ima": Ima,
         "ima-ng": ImaNg,
         "ima-sig": ImaSig,
-        "ima-buf": ImaBuf
+        "ima-buf": ImaBuf,
     }
 
-    def __init__(self, data: str, validator: Optional[Validator] = None, ima_hash_alg: Hash = Hash.SHA1, pcr_hash_alg: Hash = Hash.SHA1):
+    def __init__(
+        self,
+        data: str,
+        validator: Optional[Validator] = None,
+        ima_hash_alg: Hash = Hash.SHA1,
+        pcr_hash_alg: Hash = Hash.SHA1,
+    ):
         self._validator = validator
         self._ima_hash_alg = ima_hash_alg
         self._pcr_hash_alg = pcr_hash_alg
@@ -359,10 +378,12 @@ class Entry:
     def invalid(self) -> Failure:
         failure = Failure(Component.IMA, ["validation"])
         if self.pcr != str(config.IMA_PCR):
-            logger.warning("IMA entry PCR does not match %s. It was: %s",
-                           config.IMA_PCR, self.pcr)
-            failure.add_event("ima_pcr", {"message": "IMA PCR is not the configured one",
-                                          "expected": str(config.IMA_PCR), "got": self.pcr}, True)
+            logger.warning("IMA entry PCR does not match %s. It was: %s", config.IMA_PCR, self.pcr)
+            failure.add_event(
+                "ima_pcr",
+                {"message": "IMA PCR is not the configured one", "expected": str(config.IMA_PCR), "got": self.pcr},
+                True,
+            )
 
         # Ignore template hash for ToMToU errors
         if self.ima_template_hash == get_FF_HASH(self._ima_hash_alg):
@@ -372,9 +393,15 @@ class Entry:
                 failure.add_event("tomtou", "hash validation was skipped", True)
             return failure
         if self.ima_template_hash != self._ima_hash_alg.hash(self._bytes):
-            failure.add_event("ima_hash",
-                              {"message": "IMA template hash does not match the calculated hash.",
-                               "expected": str(self.ima_template_hash), "got": str(self.mode.bytes())}, True)
+            failure.add_event(
+                "ima_hash",
+                {
+                    "message": "IMA template hash does not match the calculated hash.",
+                    "expected": str(self.ima_template_hash),
+                    "got": str(self.mode.bytes()),
+                },
+                True,
+            )
             return failure
         if self._validator is None:
             failure.add_event("no_validator", "No validator specified", True)

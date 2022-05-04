@@ -11,8 +11,8 @@ from alembic import op
 import keylime
 
 # revision identifiers, used by Alembic.
-revision = 'f35cdd35eb83'
-down_revision = '7d5db1a6ffb0'
+revision = "f35cdd35eb83"
+down_revision = "7d5db1a6ffb0"
 branch_labels = None
 depends_on = None
 
@@ -34,16 +34,32 @@ def downgrade_registrar():
 
 
 def upgrade_cloud_verifier():
-    with op.batch_alter_table('verifiermain') as batch_op:
-        batch_op.alter_column('tpm_policy', existing_type=sa.String(1000),
-                              type_=keylime.db.verifier_db.JSONPickleType(), existing_nullable=True)
-        batch_op.alter_column('vtpm_policy', existing_type=sa.String(1000),
-                              type_=keylime.db.verifier_db.JSONPickleType(), existing_nullable=True)
+    with op.batch_alter_table("verifiermain") as batch_op:
+        batch_op.alter_column(
+            "tpm_policy",
+            existing_type=sa.String(1000),
+            type_=keylime.db.verifier_db.JSONPickleType(),
+            existing_nullable=True,
+        )
+        batch_op.alter_column(
+            "vtpm_policy",
+            existing_type=sa.String(1000),
+            type_=keylime.db.verifier_db.JSONPickleType(),
+            existing_nullable=True,
+        )
 
 
 def downgrade_cloud_verifier():
-    with op.batch_alter_table('verifiermain') as batch_op:
-        batch_op.alter_column('tpm_policy', type_=sa.String(1000),
-                              existing_type=keylime.db.verifier_db.JSONPickleType(), existing_nullable=True)
-        batch_op.alter_column('vtpm_policy', type_=sa.String(1000),
-                              existing_type=keylime.db.verifier_db.JSONPickleType(), existing_nullable=True)
+    with op.batch_alter_table("verifiermain") as batch_op:
+        batch_op.alter_column(
+            "tpm_policy",
+            type_=sa.String(1000),
+            existing_type=keylime.db.verifier_db.JSONPickleType(),
+            existing_nullable=True,
+        )
+        batch_op.alter_column(
+            "vtpm_policy",
+            type_=sa.String(1000),
+            existing_type=keylime.db.verifier_db.JSONPickleType(),
+            existing_nullable=True,
+        )

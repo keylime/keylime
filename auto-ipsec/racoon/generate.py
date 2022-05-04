@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
-import sys
 import argparse
 import os
 import shutil
+import sys
 
 IPSEC_TOOLS_CONF = "flush;\n\
 spdflush;\n"
@@ -41,17 +41,17 @@ def main(argv=sys.argv):
 
     subnets = None
     exclude = None
-    with open(argv[1], 'r') as f:
+    with open(argv[1], "r") as f:
         for line in f:
             line = line.strip()
-            if line[0] == '#':
+            if line[0] == "#":
                 continue
 
-            if line == 'ipsec':
+            if line == "ipsec":
                 subnets = []
                 continue
 
-            if line == 'exclude':
+            if line == "exclude":
                 exclude = []
                 continue
 
@@ -71,24 +71,24 @@ def main(argv=sys.argv):
     print("enabling ipsec for subnets:  %s" % subnets)
     print("disabling ipsec for subnets: %s" % exclude)
 
-    if os.path.exists('ipsec-extra'):
-        shutil.rmtree('ipsec-extra')
+    if os.path.exists("ipsec-extra"):
+        shutil.rmtree("ipsec-extra")
     os.mkdir("ipsec-extra")
 
-    with open('ipsec-extra/ipsec-tools.conf', 'w') as f:
+    with open("ipsec-extra/ipsec-tools.conf", "w") as f:
         f.write(IPSEC_TOOLS_CONF)
         for subnet in subnets:
             f.write(IPSEC_TOOLS_SUBNET % (subnet, subnet))
         for subnet in exclude:
             f.write(IPSEC_TOOLS_EXCLUDE % (subnet, subnet))
 
-    with open("ipsec-extra/action_list", 'w') as f:
+    with open("ipsec-extra/action_list", "w") as f:
         f.write("local_action_update_crl,local_action_deletesa\n")
 
     shutil.copy("src/local_action_update_crl.py", "ipsec-extra")
-    shutil.copy("src/local_action_deletesa.py", 'ipsec-extra')
-    shutil.copy("src/autorun.sh", 'ipsec-extra')
-    shutil.copy("src/racoon.conf", 'ipsec-extra')
+    shutil.copy("src/local_action_deletesa.py", "ipsec-extra")
+    shutil.copy("src/autorun.sh", "ipsec-extra")
+    shutil.copy("src/racoon.conf", "ipsec-extra")
 
     print("include directory ipsec-extra when using keylime in cert mode to enable ipsec")
 

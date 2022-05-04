@@ -1,19 +1,18 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
 import base64
 
-# Crypto implementation using Cryptodomex package
-
-from Cryptodome.Random import get_random_bytes
+from Cryptodome.Cipher import AES, PKCS1_OAEP
 from Cryptodome.Hash import HMAC, SHA384
-from Cryptodome.Cipher import PKCS1_OAEP
-from Cryptodome.PublicKey import RSA
-from Cryptodome.Cipher import AES
 from Cryptodome.Protocol import KDF
+from Cryptodome.PublicKey import RSA
+from Cryptodome.Random import get_random_bytes
 from Cryptodome.Signature import pss
+
+# Crypto implementation using Cryptodomex package
 
 
 def rsa_import_pubkey(buf):
@@ -51,6 +50,7 @@ def rsa_verify(pubkey, received_message, signature):
     except ValueError:
         return False
 
+
 # don't use tpm randomness on encrypt to avoid contention for TPM
 
 
@@ -82,10 +82,10 @@ def kdf(password, salt):
 
 
 def do_hmac(key, value):
-    value = value.encode('utf-8')
+    value = value.encode("utf-8")
     # Let's only encode if its not a byte
     try:
-        key = key.encode('utf-8')
+        key = key.encode("utf-8")
     except AttributeError:
         pass
 
@@ -98,27 +98,27 @@ def sha2(value):
 
 
 def _pad(s):
-    '''
+    """
     Returns the string padded with its length such
     that is a multiple of 16
     Appends 10* at the bit level. Following ISO/IEC 9797-1
     - padding mode 2
-    '''
+    """
     # Let's only encode if its not a byte
     try:
-        s = s.encode('utf-8')
+        s = s.encode("utf-8")
     except AttributeError:
         pass
     pad_len = AES.block_size - (len(s) % AES.block_size) - 1
-    padding = b'\x80' + b'\0' * pad_len
+    padding = b"\x80" + b"\0" * pad_len
     return s + padding
 
 
 def _strip_pad(s):
-    '''
+    """
     Strips the padding from the string
-    '''
-    return s.rstrip(b'\0')[:-1]
+    """
+    return s.rstrip(b"\0")[:-1]
 
 
 def _is_multiple_16(s):
@@ -140,7 +140,7 @@ def _has_iv_material(s):
 def encrypt(plaintext, key):
     # Deal with the case when field is empty
     if plaintext is None:
-        plaintext = b''
+        plaintext = b""
 
     nonce = get_random_bytes(AES.block_size)
     cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
@@ -156,8 +156,8 @@ def decrypt(ciphertext, key):
     _has_iv_material(ciphertext)
     _is_multiple_16(ciphertext)
 
-    nonce = ciphertext[:AES.block_size]
-    digest = ciphertext[-AES.block_size:]
+    nonce = ciphertext[: AES.block_size]
+    digest = ciphertext[-AES.block_size :]
     cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
-    cipher_text = bytes(ciphertext[AES.block_size:-AES.block_size])
+    cipher_text = bytes(ciphertext[AES.block_size : -AES.block_size])
     return _strip_pad(cipher.decrypt_and_verify(cipher_text, digest))

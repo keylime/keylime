@@ -1,23 +1,20 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
 import argparse
-import sys
-import math
-from collections import OrderedDict
 import glob
+import math
+import sys
+from collections import OrderedDict
 
 
-def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
+def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
 
-    parser = argparse.ArgumentParser(
-        "keylime-utility-make_1_second_interval_average_list")
-    parser.add_argument('-i', '--infile', action='store',
-                        required=True, dest='infile')
-    parser.add_argument('-o', '--outfile', action='store',
-                        required=True, dest='outfile')
+    parser = argparse.ArgumentParser("keylime-utility-make_1_second_interval_average_list")
+    parser.add_argument("-i", "--infile", action="store", required=True, dest="infile")
+    parser.add_argument("-o", "--outfile", action="store", required=True, dest="outfile")
 
     args = parser.parse_args(argv[1:])
 

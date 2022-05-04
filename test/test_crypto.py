@@ -1,17 +1,32 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
-import unittest
 import sys
+import unittest
 from pathlib import Path
 
-from keylime.crypto import rsa_sign, rsa_verify, rsa_generate,\
-   rsa_import_pubkey, rsa_export_pubkey, \
-   rsa_import_privkey, rsa_export_privkey, rsa_encrypt, rsa_decrypt,\
-   get_public_key, encrypt, decrypt, base64, get_random_bytes, do_hmac,\
-   generate_random_key, kdf, strbitxor
+from keylime.crypto import (
+    base64,
+    decrypt,
+    do_hmac,
+    encrypt,
+    generate_random_key,
+    get_public_key,
+    get_random_bytes,
+    kdf,
+    rsa_decrypt,
+    rsa_encrypt,
+    rsa_export_privkey,
+    rsa_export_pubkey,
+    rsa_generate,
+    rsa_import_privkey,
+    rsa_import_pubkey,
+    rsa_sign,
+    rsa_verify,
+    strbitxor,
+)
 
 # Useful constants for the test
 KEYLIME_DIR = Path(__file__).parents[1]
@@ -21,7 +36,6 @@ sys.path.insert(0, KEYLIME_DIR)
 
 
 class Crypto_Test(unittest.TestCase):
-
     def test_rsa(self):
         message = b"a secret message!"
         private = rsa_generate(2048)
@@ -42,9 +56,9 @@ class Crypto_Test(unittest.TestCase):
 
     def test_hmac(self):
         message = "a secret message!"
-        aeskey = kdf(message, 'salty-McSaltface')
+        aeskey = kdf(message, "salty-McSaltface")
         digest = do_hmac(aeskey, message)
-        aeskey2 = kdf(message, 'salty-McSaltface')
+        aeskey2 = kdf(message, "salty-McSaltface")
         self.assertEqual(do_hmac(aeskey2, message), digest)
 
     def test_xor(self):
@@ -74,5 +88,5 @@ class Crypto_Test(unittest.TestCase):
         self.assertFalse(rsa_verify(public_key, message, signature))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

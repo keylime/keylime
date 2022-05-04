@@ -1,14 +1,12 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
-'''
+"""
 
+from sqlalchemy import Column, Integer, LargeBinary, PickleType, String, Text, schema
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, String, Integer, PickleType, Text, LargeBinary
-from sqlalchemy import schema
 
 from keylime.json import JSONPickler
-
 
 Base = declarative_base()
 
@@ -19,9 +17,8 @@ class JSONPickleType(PickleType):  # pylint: disable=abstract-method
 
 
 class VerfierMain(Base):
-    __tablename__ = 'verifiermain'
-    agent_id = Column(String(80),
-                      primary_key=True)
+    __tablename__ = "verifiermain"
+    agent_id = Column(String(80), primary_key=True)
     v = Column(String(45))
     ip = Column(String(15))
     verifier_id = Column(String(80))
@@ -55,10 +52,8 @@ class VerfierMain(Base):
 
 
 class VerifierAllowlist(Base):
-    __tablename__ = 'allowlists'
-    __table_args__ = (
-        schema.UniqueConstraint('name', name='uniq_allowlists0name'),
-    )
+    __tablename__ = "allowlists"
+    __table_args__ = (schema.UniqueConstraint("name", name="uniq_allowlists0name"),)
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
     tpm_policy = Column(Text())

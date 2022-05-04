@@ -1,46 +1,42 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
 import base64
-import ipaddress
-import threading
-import sys
-import signal
-import os
 import http.server
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import ipaddress
+import os
+import signal
+import sys
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm.exc import NoResultFound
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_der_x509_certificate
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm.exc import NoResultFound
 
-from keylime.common import validators
-from keylime.db.registrar_db import RegistrarMain
-from keylime.db.keylime_db import DBEngineManager, SessionManager
-from keylime import crypto
-from keylime import json
-from keylime.tpm import tpm2_objects
-from keylime import keylime_logging
-from keylime.tpm.tpm_main import tpm
 from keylime import api_version as keylime_api_version
-from keylime import web_util
+from keylime import crypto, json, keylime_logging, web_util
+from keylime.common import validators
+from keylime.db.keylime_db import DBEngineManager, SessionManager
+from keylime.db.registrar_db import RegistrarMain
+from keylime.tpm import tpm2_objects
+from keylime.tpm.tpm_main import tpm
 
-logger = keylime_logging.init_logging('registrar')
+logger = keylime_logging.init_logging("registrar")
 
 
 try:
-    engine = DBEngineManager().make_engine('registrar')
+    engine = DBEngineManager().make_engine("registrar")
 except SQLAlchemyError as err:
-    logger.error('Error creating SQL engine: %s', err)
+    logger.error("Error creating SQL engine: %s", err)
     sys.exit(1)
 
 
 class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
-
     def do_HEAD(self):
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
@@ -59,8 +55,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         session = SessionManager().make_session(engine)
         rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
-            web_util.echo_json_response(
-                self, 405, "Not Implemented: Use /agents/ interface")
+            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if not web_util.validate_api_version(self, rest_params["api_version"], logger):
@@ -68,7 +63,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         if "agents" not in rest_params:
             web_util.echo_json_response(self, 400, "uri not supported")
-            logger.warning('GET returning 400 response. uri not supported: %s', self.path)
+            logger.warning("GET returning 400 response. uri not supported: %s", self.path)
             return
 
         agent_id = rest_params["agents"]
@@ -82,55 +77,51 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 return
 
             try:
-                agent = session.query(RegistrarMain).filter_by(
-                    agent_id=agent_id).first()
+                agent = session.query(RegistrarMain).filter_by(agent_id=agent_id).first()
             except SQLAlchemyError as e:
-                logger.error('SQLAlchemy Error: %s', e)
+                logger.error("SQLAlchemy Error: %s", e)
 
             if agent is None:
                 web_util.echo_json_response(self, 404, f"agent {agent_id} not found")
-                logger.warning('GET returning 404 response. agent %s not found.', agent_id)
+                logger.warning("GET returning 404 response. agent %s not found.", agent_id)
                 return
 
             if not bool(agent.active):
                 web_util.echo_json_response(self, 404, f"agent {agent_id} not yet active")
-                logger.warning('GET returning 404 response. agent %s not yet active.', agent_id)
+                logger.warning("GET returning 404 response. agent %s not yet active.", agent_id)
                 return
 
             response = {
-                'aik_tpm': agent.aik_tpm,
-                'ek_tpm': agent.ek_tpm,
-                'ekcert': agent.ekcert,
-                'mtls_cert': agent.mtls_cert,
-                'ip': agent.ip,
-                'port': agent.port,
-                'regcount': agent.regcount,
+                "aik_tpm": agent.aik_tpm,
+                "ek_tpm": agent.ek_tpm,
+                "ekcert": agent.ekcert,
+                "mtls_cert": agent.mtls_cert,
+                "ip": agent.ip,
+                "port": agent.port,
+                "regcount": agent.regcount,
             }
 
             if agent.virtual:
-                response['provider_keys'] = agent.provider_keys
+                response["provider_keys"] = agent.provider_keys
 
             web_util.echo_json_response(self, 200, "Success", response)
-            logger.info('GET returning 200 response for agent_id: %s', agent_id)
+            logger.info("GET returning 200 response for agent_id: %s", agent_id)
         else:
             # return the available registered uuids from the DB
             json_response = session.query(RegistrarMain.agent_id).all()
             return_response = [item[0] for item in json_response]
-            web_util.echo_json_response(self, 200, "Success", {
-                                      'uuids': return_response})
-            logger.info('GET returning 200 response for agent_id list')
+            web_util.echo_json_response(self, 200, "Success", {"uuids": return_response})
+            logger.info("GET returning 200 response for agent_id list")
 
         return
 
     def do_POST(self):
         """POST not supported"""
-        web_util.echo_json_response(
-            self, 405, "POST not supported via TLS interface")
+        web_util.echo_json_response(self, 405, "POST not supported via TLS interface")
 
     def do_PUT(self):
         """PUT not supported"""
-        web_util.echo_json_response(
-            self, 405, "PUT not supported via TLS interface")
+        web_util.echo_json_response(self, 405, "PUT not supported via TLS interface")
 
     def do_DELETE(self):
         """This method handles the DELETE requests to remove agents from the Registrar Server.
@@ -141,8 +132,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         session = SessionManager().make_session(engine)
         rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
-            web_util.echo_json_response(
-                self, 405, "Not Implemented: Use /agents/ interface")
+            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if not web_util.validate_api_version(self, rest_params["api_version"], logger):
@@ -150,7 +140,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         if "agents" not in rest_params:
             web_util.echo_json_response(self, 400, "URI not supported")
-            logger.warning('DELETE agent returning 400 response. uri not supported: %s', self.path)
+            logger.warning("DELETE agent returning 400 response. uri not supported: %s", self.path)
             return
 
         agent_id = rest_params["agents"]
@@ -168,7 +158,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 try:
                     session.commit()
                 except SQLAlchemyError as e:
-                    logger.error('SQLAlchemy Error: %s', e)
+                    logger.error("SQLAlchemy Error: %s", e)
                 web_util.echo_json_response(self, 200, "Success")
                 return
 
@@ -184,7 +174,6 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
 
 class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
-
     def do_HEAD(self):
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
@@ -200,13 +189,12 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         """
         rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
-            web_util.echo_json_response(
-                self, 405, "Not Implemented: Use /version/ interface")
+            web_util.echo_json_response(self, 405, "Not Implemented: Use /version/ interface")
             return
 
         if "version" not in rest_params:
             web_util.echo_json_response(self, 400, "URI not supported")
-            logger.warning('GET agent returning 400 response. URI not supported: %s', self.path)
+            logger.warning("GET agent returning 400 response. URI not supported: %s", self.path)
             return
 
         version_info = {
@@ -226,8 +214,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         session = SessionManager().make_session(engine)
         rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
-            web_util.echo_json_response(
-                self, 405, "Not Implemented: Use /agents/ interface")
+            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if not web_util.validate_api_version(self, rest_params["api_version"], logger):
@@ -235,14 +222,14 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         if "agents" not in rest_params:
             web_util.echo_json_response(self, 400, "uri not supported")
-            logger.warning('POST agent returning 400 response. uri not supported: %s', self.path)
+            logger.warning("POST agent returning 400 response. uri not supported: %s", self.path)
             return
 
         agent_id = rest_params["agents"]
 
         if agent_id is None:
             web_util.echo_json_response(self, 400, "agent id not found in uri")
-            logger.warning('POST agent returning 400 response. agent id not found in uri %s', self.path)
+            logger.warning("POST agent returning 400 response. agent id not found in uri %s", self.path)
             return
 
         # If the agent ID is not valid (wrong set of characters), just
@@ -253,29 +240,28 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             return
 
         try:
-            content_length = int(self.headers.get('Content-Length', 0))
+            content_length = int(self.headers.get("Content-Length", 0))
             if content_length == 0:
-                web_util.echo_json_response(
-                    self, 400, "Expected non zero content length")
-                logger.warning('POST for %s returning 400 response. Expected non zero content length.', agent_id)
+                web_util.echo_json_response(self, 400, "Expected non zero content length")
+                logger.warning("POST for %s returning 400 response. Expected non zero content length.", agent_id)
                 return
 
             post_body = self.rfile.read(content_length)
             json_body = json.loads(post_body)
 
-            ekcert = json_body['ekcert']
-            aik_tpm = json_body['aik_tpm']
+            ekcert = json_body["ekcert"]
+            aik_tpm = json_body["aik_tpm"]
 
             initialize_tpm = tpm()
 
-            if ekcert is None or ekcert == 'emulator':
-                logger.warning('Agent %s did not submit an ekcert', agent_id)
-                ek_tpm = json_body['ek_tpm']
+            if ekcert is None or ekcert == "emulator":
+                logger.warning("Agent %s did not submit an ekcert", agent_id)
+                ek_tpm = json_body["ek_tpm"]
             else:
-                if 'ek_tpm' in json_body:
+                if "ek_tpm" in json_body:
                     # This would mean the agent submitted both a non-None ekcert, *and*
                     #  an ek_tpm... We can deal with it by just ignoring the ek_tpm they sent
-                    logger.warning('Overriding ek_tpm for agent %s from ekcert', agent_id)
+                    logger.warning("Overriding ek_tpm for agent %s from ekcert", agent_id)
                 # If there's an EKCert, we just overwrite their ek_tpm
                 # Note, we don't validate the EKCert here, other than the implicit
                 #  "is it a valid x509 cert" check. So it's still untrusted.
@@ -294,8 +280,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 base64.b64decode(aik_tpm),
             )
             if aik_attrs != tpm2_objects.AK_EXPECTED_ATTRS:
-                web_util.echo_json_response(
-                    self, 400, "Invalid AK attributes")
+                web_util.echo_json_response(self, 400, "Invalid AK attributes")
                 logger.warning(
                     "Agent %s submitted AIK with invalid attributes! %s (provided) != %s (expected)",
                     agent_id,
@@ -314,12 +299,11 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             # special behavior if we've registered this uuid before
             regcount = 1
             try:
-                agent = session.query(RegistrarMain).filter_by(
-                    agent_id=agent_id).first()
+                agent = session.query(RegistrarMain).filter_by(agent_id=agent_id).first()
             except NoResultFound:
                 agent = None
             except SQLAlchemyError as e:
-                logger.error('SQLAlchemy Error: %s', e)
+                logger.error("SQLAlchemy Error: %s", e)
                 raise
 
             if agent is not None:
@@ -327,21 +311,20 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 # keep track of how many ek-ekcerts have registered on this uuid
                 regcount = agent.regcount
                 if agent.ek_tpm != ek_tpm or agent.ekcert != ekcert:
-                    logger.warning('WARNING: Overwriting previous registration for this UUID with new ek-ekcert pair!')
+                    logger.warning("WARNING: Overwriting previous registration for this UUID with new ek-ekcert pair!")
                     regcount += 1
 
                 # force overwrite
-                logger.info('Overwriting previous registration for this UUID.')
+                logger.info("Overwriting previous registration for this UUID.")
                 try:
-                    session.query(RegistrarMain).filter_by(
-                        agent_id=agent_id).delete()
+                    session.query(RegistrarMain).filter_by(agent_id=agent_id).delete()
                     session.commit()
                 except SQLAlchemyError as e:
-                    logger.error('SQLAlchemy Error: %s', e)
+                    logger.error("SQLAlchemy Error: %s", e)
                     raise
             # Check for ip and port
-            contact_ip = json_body.get('ip', None)
-            contact_port = json_body.get('port', None)
+            contact_ip = json_body.get("ip", None)
+            contact_port = json_body.get("port", None)
 
             # Validate ip and port
             if contact_ip is not None:
@@ -355,49 +338,47 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 try:
                     contact_port = int(contact_port)
                     if contact_port < 1 or contact_port > 65535:
-                        logger.warning("Contact port for agent %s is not a number between 1 and got: %s.",
-                                       agent_id, contact_port)
+                        logger.warning(
+                            "Contact port for agent %s is not a number between 1 and got: %s.", agent_id, contact_port
+                        )
                         contact_port = None
                 except ValueError:
-                    logger.warning("Contact port for agent %s is not a valid number got: %s.",
-                                   agent_id, contact_port)
+                    logger.warning("Contact port for agent %s is not a valid number got: %s.", agent_id, contact_port)
                     contact_port = None
 
             # Check for mTLS cert
-            mtls_cert = json_body.get('mtls_cert', None)
+            mtls_cert = json_body.get("mtls_cert", None)
             if mtls_cert is None:
-                logger.warning("Agent %s did not send a mTLS certificate. Most operations will not work!",
-                               agent_id)
+                logger.warning("Agent %s did not send a mTLS certificate. Most operations will not work!", agent_id)
 
             # Add values to database
             d = {}
-            d['agent_id'] = agent_id
-            d['ek_tpm'] = ek_tpm
-            d['aik_tpm'] = aik_tpm
-            d['ekcert'] = ekcert
-            d['ip'] = contact_ip
-            d['mtls_cert'] = mtls_cert
-            d['port'] = contact_port
-            d['virtual'] = int(ekcert == 'virtual')
-            d['active'] = int(False)
-            d['key'] = key
-            d['provider_keys'] = {}
-            d['regcount'] = regcount
-
+            d["agent_id"] = agent_id
+            d["ek_tpm"] = ek_tpm
+            d["aik_tpm"] = aik_tpm
+            d["ekcert"] = ekcert
+            d["ip"] = contact_ip
+            d["mtls_cert"] = mtls_cert
+            d["port"] = contact_port
+            d["virtual"] = int(ekcert == "virtual")
+            d["active"] = int(False)
+            d["key"] = key
+            d["provider_keys"] = {}
+            d["regcount"] = regcount
 
             try:
                 session.add(RegistrarMain(**d))
                 session.commit()
             except SQLAlchemyError as e:
-                logger.error('SQLAlchemy Error: %s', e)
+                logger.error("SQLAlchemy Error: %s", e)
                 raise
 
             response = {
-                'blob': blob,
+                "blob": blob,
             }
             web_util.echo_json_response(self, 200, "Success", response)
 
-            logger.info('POST returning key blob for agent_id: %s', agent_id)
+            logger.info("POST returning key blob for agent_id: %s", agent_id)
         except Exception as e:
             web_util.echo_json_response(self, 400, f"Error: {str(e)}")
             logger.warning("POST for %s returning 400 response. Error: %s", agent_id, e)
@@ -412,8 +393,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         session = SessionManager().make_session(engine)
         rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
-            web_util.echo_json_response(
-                self, 405, "Not Implemented: Use /agents/ interface")
+            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
         if not web_util.validate_api_version(self, rest_params["api_version"], logger):
@@ -421,14 +401,14 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         if "agents" not in rest_params:
             web_util.echo_json_response(self, 400, "uri not supported")
-            logger.warning('PUT agent returning 400 response. uri not supported: %s', self.path)
+            logger.warning("PUT agent returning 400 response. uri not supported: %s", self.path)
             return
 
         agent_id = rest_params["agents"]
 
         if agent_id is None:
             web_util.echo_json_response(self, 400, "agent id not found in uri")
-            logger.warning('PUT agent returning 400 response. agent id not found in uri %s', self.path)
+            logger.warning("PUT agent returning 400 response. agent id not found in uri %s", self.path)
             return
 
         # If the agent ID is not valid (wrong set of characters), just
@@ -439,43 +419,39 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             return
 
         try:
-            content_length = int(self.headers.get('Content-Length', 0))
+            content_length = int(self.headers.get("Content-Length", 0))
             if content_length == 0:
-                web_util.echo_json_response(
-                    self, 400, "Expected non zero content length")
-                logger.warning('PUT for %s returning 400 response. Expected non zero content length.', agent_id)
+                web_util.echo_json_response(self, 400, "Expected non zero content length")
+                logger.warning("PUT for %s returning 400 response. Expected non zero content length.", agent_id)
                 return
 
             post_body = self.rfile.read(content_length)
             json_body = json.loads(post_body)
 
-            auth_tag = json_body['auth_tag']
+            auth_tag = json_body["auth_tag"]
             try:
-                agent = session.query(RegistrarMain).filter_by(
-                    agent_id=agent_id).first()
+                agent = session.query(RegistrarMain).filter_by(agent_id=agent_id).first()
             except NoResultFound as e:
-                raise Exception(
-                    "attempting to activate agent before requesting "
-                    f"registrar for {agent_id}") from e
+                raise Exception("attempting to activate agent before requesting " f"registrar for {agent_id}") from e
             except SQLAlchemyError as e:
-                logger.error('SQLAlchemy Error: %s', e)
+                logger.error("SQLAlchemy Error: %s", e)
                 raise
 
             ex_mac = crypto.do_hmac(agent.key.encode(), agent_id)
             if ex_mac == auth_tag:
                 try:
                     session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
-                        {'active': int(True)})
+                        {"active": int(True)}
+                    )
                     session.commit()
                 except SQLAlchemyError as e:
-                    logger.error('SQLAlchemy Error: %s', e)
+                    logger.error("SQLAlchemy Error: %s", e)
                     raise
             else:
-                raise Exception(
-                    f"Auth tag {auth_tag} does not match expected value {ex_mac}")
+                raise Exception(f"Auth tag {auth_tag} does not match expected value {ex_mac}")
 
             web_util.echo_json_response(self, 200, "Success")
-            logger.info('PUT activated: %s', agent_id)
+            logger.info("PUT activated: %s", agent_id)
         except Exception as e:
             web_util.echo_json_response(self, 400, f"Error: {str(e)}")
             logger.warning("PUT for %s returning 400 response. Error: %s", agent_id, e)
@@ -490,6 +466,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
     def log_message(self, format, *args):
         return
 
+
 # consider using PooledProcessMixIn
 # https://github.com/muayyad-alsadi/python-PooledProcessMixIn
 
@@ -499,8 +476,7 @@ class RegistrarServer(ThreadingMixIn, HTTPServer):
 
     def __init__(self, server_address, RequestHandlerClass):
         """Constructor overridden to provide ability to read file"""
-        http.server.HTTPServer.__init__(
-            self, server_address, RequestHandlerClass)
+        http.server.HTTPServer.__init__(self, server_address, RequestHandlerClass)
 
     def shutdown(self):
         http.server.HTTPServer.shutdown(self)
@@ -520,11 +496,11 @@ def start(host, tlsport, port):
         if count > 0:
             logger.info("Loaded %d public keys from database", count)
     except SQLAlchemyError as e:
-        logger.error('SQLAlchemy Error: %s', e)
+        logger.error("SQLAlchemy Error: %s", e)
 
     # Set up the protected registrar server
     protected_server = RegistrarServer((host, tlsport), ProtectedHandler)
-    context, _ = web_util.init_mtls(section='registrar', generatedir='reg_ca', logger=logger)
+    context, _ = web_util.init_mtls(section="registrar", generatedir="reg_ca", logger=logger)
     if context is not None:
         protected_server.socket = context.wrap_socket(protected_server.socket, server_side=True)
     thread_protected_server = threading.Thread(target=protected_server.serve_forever)
@@ -533,7 +509,7 @@ def start(host, tlsport, port):
     unprotected_server = RegistrarServer((host, port), UnprotectedHandler)
     thread_unprotected_server = threading.Thread(target=unprotected_server.serve_forever)
 
-    logger.info('Starting Cloud Registrar Server on ports %s and %s (TLS) use <Ctrl-C> to stop', port, tlsport)
+    logger.info("Starting Cloud Registrar Server on ports %s and %s (TLS) use <Ctrl-C> to stop", port, tlsport)
     keylime_api_version.log_api_versions(logger)
     thread_protected_server.start()
     thread_unprotected_server.start()

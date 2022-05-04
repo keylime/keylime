@@ -1,19 +1,17 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
 import argparse
-import sys
 import glob
+import sys
 
 
-def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
+def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
     parser = argparse.ArgumentParser("keylime-utility-smoother")
-    parser.add_argument('-f', '--filename', required=True,
-                        action='store', dest='filename')
-    parser.add_argument('-t', '--text_description',
-                        action='store', dest='text_description')
+    parser.add_argument("-f", "--filename", required=True, action="store", dest="filename")
+    parser.add_argument("-t", "--text_description", action="store", dest="text_description")
 
     concat_content = []
     args = parser.parse_args(argv[1:])
@@ -31,7 +29,7 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
         float_list.append(float(i))
 
     time = float_list[-1] - float_list[0]
-    x = (len(float_list) / time)
+    x = len(float_list) / time
     print(f"{args.text_description} {x:.3f}")
 
 

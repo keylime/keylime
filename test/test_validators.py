@@ -20,9 +20,7 @@ class TestValidRegex(unittest.TestCase):
     def test_invalid(self):
         """Check a not valid regex."""
         value = validators.valid_regex(r"a[")
-        self.assertEqual(
-            value, (False, None, "Invalid regex: unterminated character set.")
-        )
+        self.assertEqual(value, (False, None, "Invalid regex: unterminated character set."))
 
 
 class TestValidExcludeList(unittest.TestCase):
@@ -49,9 +47,7 @@ class TestValidExcludeList(unittest.TestCase):
     def test_invalid(self):
         """Check an invalid exclude list."""
         value = validators.valid_exclude_list([r"a["])
-        self.assertEqual(
-            value, (False, None, "Invalid regex: unterminated character set.")
-        )
+        self.assertEqual(value, (False, None, "Invalid regex: unterminated character set."))
 
 
 class TestValidHex(unittest.TestCase):

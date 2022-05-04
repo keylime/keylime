@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2021 Thore Sommer
 
 A simple script to generate a valid mb_refstate for the example policy
-'''
+"""
 
 import argparse
 import json
@@ -52,10 +52,7 @@ def variabledata_to_signature(data):
     out = []
     for entry in data:
         for key in entry["Keys"]:
-            out.append(
-                {"SignatureOwner": key["SignatureOwner"],
-                 "SignatureData": f"0x{key['SignatureData']}"}
-            )
+            out.append({"SignatureOwner": key["SignatureOwner"], "SignatureData": f"0x{key['SignatureData']}"})
     return out
 
 
@@ -63,12 +60,7 @@ def get_keys(events):
     """
     Get valid signatures for UEFI Secure Boot PK, KEK, DB and DBX
     """
-    out = {
-        "pk": [],
-        "kek": [],
-        "db": [],
-        "dbx": []
-    }
+    out = {"pk": [], "kek": [], "db": [], "dbx": []}
     for event in events:
         if event["EventType"] != "EV_EFI_VARIABLE_DRIVER_CONFIG":
             continue
@@ -95,7 +87,7 @@ def get_kernel(events):
     kernel = {
         "shim_authcode_sha256": out[0]["sha256"],
         "grub_authcode_sha256": out[1]["sha256"],
-        "kernel_authcode_sha256": out[2]["sha256"]
+        "kernel_authcode_sha256": out[2]["sha256"],
     }
 
     for event in events:
@@ -109,7 +101,7 @@ def get_kernel(events):
         if event["EventType"] != "EV_IPL" or event["PCRIndex"] != 8:
             continue
         if "kernel_cmdline" in event["Event"]["String"]:
-            kernel["kernel_cmdline"] = re.escape(event["Event"]["String"][len("kernel_cmdline: "):])
+            kernel["kernel_cmdline"] = re.escape(event["Event"]["String"][len("kernel_cmdline: ") :])
             break
 
     return {"kernels": [kernel]}
@@ -119,10 +111,7 @@ def get_mok(events):
     """
     Extract digest for MokList and MokListX.
     """
-    out = {
-        "mokdig": [],
-        "mokxdig": []
-    }
+    out = {"mokdig": [], "mokxdig": []}
     for event in events:
         if event["EventType"] != "EV_IPL":
             continue
@@ -136,23 +125,30 @@ def get_mok(events):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('eventlog_file', type=argparse.FileType('rb'), default=sys.stdin,
-                        help="Binary UEFI eventlog (Normally /sys/kernel/security/tpm0/binary_bios_measurements)")
-    parser.add_argument('mb_refstate', type=argparse.FileType('w'),
-                        help="Output path for the generated measure boot reference state.")
+    parser.add_argument(
+        "eventlog_file",
+        type=argparse.FileType("rb"),
+        default=sys.stdin,
+        help="Binary UEFI eventlog (Normally /sys/kernel/security/tpm0/binary_bios_measurements)",
+    )
+    parser.add_argument(
+        "mb_refstate", type=argparse.FileType("w"), help="Output path for the generated measure boot reference state."
+    )
     args = parser.parse_args()
     log_bin = args.eventlog_file.read()
     tpm = tpm_main.tpm()
     log_data = tpm.parse_binary_bootlog(log_bin)
     events = log_data["events"]
     mb_refstate = {
-        "scrtm_and_bios": [{**get_s_crtm(events),
-                            **get_platform_firmware(events),
-                            }],
+        "scrtm_and_bios": [
+            {
+                **get_s_crtm(events),
+                **get_platform_firmware(events),
+            }
+        ],
         **get_keys(events),
         **get_mok(events),
-        **get_kernel(events)
-
+        **get_kernel(events),
     }
     json.dump(mb_refstate, args.mb_refstate)
 

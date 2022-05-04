@@ -1,31 +1,33 @@
 #!/usr/bin/python3
 
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2022 IBM Corporation
-'''
+"""
 
-import os
 import grp
+import os
 import pwd
 
 from keylime import keylime_logging
 
 # Configure logger
-logger = keylime_logging.init_logging('privileges')
+logger = keylime_logging.init_logging("privileges")
 
 
 def string_to_uidgid(user_and_group):
-    """ Translate the user_and_group string to uid and gid.
-        The userandgroup parameter must be a string of the format '<user>[:[<group>]]'
-        or '[<user>]:gid'
-        User and group can be strings or integers. If no group is given, -1 will be
-        returned for gid.
-        :raises ValueError: if user or group could not be resolved
+    """Translate the user_and_group string to uid and gid.
+    The userandgroup parameter must be a string of the format '<user>[:[<group>]]'
+    or '[<user>]:gid'
+    User and group can be strings or integers. If no group is given, -1 will be
+    returned for gid.
+    :raises ValueError: if user or group could not be resolved
     """
-    params = user_and_group.split(':')
+    params = user_and_group.split(":")
     if len(params) > 2:
-        raise ValueError(f"User and group {user_and_group} are in wrong format. Expected <user>[:[<group>]] or [<user>]:group")
+        raise ValueError(
+            f"User and group {user_and_group} are in wrong format. Expected <user>[:[<group>]] or [<user>]:group"
+        )
 
     gid = None
     if len(params) == 2 and len(params[1]) > 0:
@@ -38,7 +40,7 @@ def string_to_uidgid(user_and_group):
                 gr = grp.getgrnam(params[1])
                 gid = gr.gr_gid
             except KeyError as e:
-                raise ValueError(f'Could not resolve group {params[1]}: {e}') from e
+                raise ValueError(f"Could not resolve group {params[1]}: {e}") from e
 
     uid = None
     if len(params[0]) > 0:
@@ -51,21 +53,23 @@ def string_to_uidgid(user_and_group):
                 passwd = pwd.getpwnam(params[0])
                 uid = passwd.pw_uid
             except KeyError as e:
-                raise ValueError(f'Could not resolve user {params[0]}: {e}') from e
+                raise ValueError(f"Could not resolve user {params[0]}: {e}") from e
 
     if uid is None and gid is None:
-        raise ValueError(f"User and group {user_and_group} are in wrong format. Expected <user>[:[<group>]] or [<user>]:group")
+        raise ValueError(
+            f"User and group {user_and_group} are in wrong format. Expected <user>[:[<group>]] or [<user>]:group"
+        )
 
     return uid, gid
 
 
 def change_uidgid(user_and_group):
-    """ Change uid and gid of the current process.
-        The user_and_group parameter must be a string of the format
-        '<user>[:[<group>]]' or [<user>]:<group>. User and group can
-        be strings or integers.
-        :raises ValueError: if user or group could not be resolved
-        :raises RuntimeError: if setting gid or uid did not succeed
+    """Change uid and gid of the current process.
+    The user_and_group parameter must be a string of the format
+    '<user>[:[<group>]]' or [<user>]:<group>. User and group can
+    be strings or integers.
+    :raises ValueError: if user or group could not be resolved
+    :raises RuntimeError: if setting gid or uid did not succeed
     """
     uid, gid = string_to_uidgid(user_and_group)
 
@@ -74,22 +78,22 @@ def change_uidgid(user_and_group):
         try:
             os.setgid(gid)
         except (OSError, PermissionError) as e:
-            raise RuntimeError(f'Could not set gid to {gid}: {e}') from e
+            raise RuntimeError(f"Could not set gid to {gid}: {e}") from e
 
     if uid is not None:
         try:
             os.setuid(uid)
         except (OSError, PermissionError) as e:
-            raise RuntimeError(f'Could not set uid to {uid}: {e}') from e
+            raise RuntimeError(f"Could not set uid to {uid}: {e}") from e
 
 
 def chown(path, user_and_group):
-    """ Change ownership on a given file to the new owner described in
-        user_and_group string.
-        The user_and_group parameter must be a string of the format
-        '<user>[:[<group>]]' or [<user>]:<group>. User and group can
-        be strings or integers.
-        :raises ValueError: if user or group could not be resolved
+    """Change ownership on a given file to the new owner described in
+    user_and_group string.
+    The user_and_group parameter must be a string of the format
+    '<user>[:[<group>]]' or [<user>]:<group>. User and group can
+    be strings or integers.
+    :raises ValueError: if user or group could not be resolved
     """
     uid, gid = string_to_uidgid(user_and_group)
     if uid is None:

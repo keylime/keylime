@@ -4,8 +4,7 @@ Copyright 2020 Kaifeng Wang
 """
 import enum
 import hashlib
-
-from typing import Optional, List, Any
+from typing import Any, List, Optional
 
 
 def is_accepted(algorithm: str, accepted: List[Any]) -> bool:
@@ -18,11 +17,11 @@ def is_accepted(algorithm: str, accepted: List[Any]) -> bool:
 
 
 class Hash(str, enum.Enum):
-    SHA1 = 'sha1'
-    SHA256 = 'sha256'
-    SHA384 = 'sha384'
-    SHA512 = 'sha512'
-    SM3_256 = 'sm3_256'
+    SHA1 = "sha1"
+    SHA256 = "sha256"
+    SHA384 = "sha384"
+    SHA512 = "sha512"
+    SM3_256 = "sm3_256"
 
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
@@ -58,8 +57,8 @@ class Hash(str, enum.Enum):
 
 
 class Encrypt:
-    RSA = 'rsa'
-    ECC = 'ecc'
+    RSA = "rsa"
+    ECC = "ecc"
     supported_algorithms = (RSA, ECC)
 
     @staticmethod
@@ -68,11 +67,11 @@ class Encrypt:
 
 
 class Sign:
-    RSASSA = 'rsassa'
-    RSAPSS = 'rsapss'
-    ECDSA = 'ecdsa'
-    ECDAA = 'ecdaa'
-    ECSCHNORR = 'ecschnorr'
+    RSASSA = "rsassa"
+    RSAPSS = "rsapss"
+    ECDSA = "ecdsa"
+    ECDAA = "ecdaa"
+    ECSCHNORR = "ecschnorr"
     supported_algorithms = (RSASSA, RSAPSS, ECDSA, ECDAA, ECSCHNORR)
 
     @staticmethod

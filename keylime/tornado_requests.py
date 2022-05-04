@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
 import ssl
 
@@ -16,13 +16,13 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
 
     http_client = httpclient.AsyncHTTPClient()
     if params is not None and len(list(params.keys())) > 0:
-        url += '?'
+        url += "?"
         for key in list(params.keys()):
             url += f"{key}={params[key]}&"
         url = url[:-1]
 
     if context is not None:
-        url = url.replace('http://', 'https://', 1)
+        url = url.replace("http://", "https://", 1)
 
     # Convert dict to JSON before sending
     if isinstance(data, dict):
@@ -33,11 +33,7 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
             headers["Content-Type"] = "application/json"
 
     try:
-        req = httpclient.HTTPRequest(url=url,
-                                     method=method,
-                                     ssl_options=context,
-                                     body=data,
-                                     headers=headers)
+        req = httpclient.HTTPRequest(url=url, method=method, ssl_options=context, body=data, headers=headers)
         response = await http_client.fetch(req)
 
     except httpclient.HTTPError as e:
@@ -55,7 +51,6 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
 
 
 class TornadoResponse:
-
     def __init__(self, code, body):
         self.status_code = code
         self.body = body
