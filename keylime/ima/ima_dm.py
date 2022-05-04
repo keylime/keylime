@@ -1,25 +1,24 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2022 Thore Sommer
 
 Parser and validator for device mapper IMA events
 - https://www.kernel.org/doc/html/v5.15/admin-guide/device-mapper/dm-ima.html
-'''
+"""
 import pickle
 import re
 import sys
-
+from collections import ChainMap
 from distutils.util import strtobool
 from itertools import chain
-from typing import Optional, List, Dict, Union
-from collections import ChainMap
-from packaging import version
+from typing import Dict, List, Optional, Union
 
 import lark
 from lark import Lark, Transformer, v_args
+from packaging import version
 
-from keylime.failure import Component, Failure
 from keylime.common.algorithms import Hash
+from keylime.failure import Component, Failure
 from keylime.ima import ast
 from keylime.ima.dm_grammar import DM_GRAMMAR
 
@@ -112,7 +111,7 @@ class DmIMAValidator:
 
         return failure
 
-    def validate_table_clear(self, event: 'ClearEvent', match_key) -> Failure:
+    def validate_table_clear(self, event: "ClearEvent", match_key) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_table_clear"])
 
         device_key = getattr(event.device_metadata, match_key)
@@ -123,13 +122,15 @@ class DmIMAValidator:
 
         policy = self.policies["rules"][device_state.policy_name]
         if not policy["allow_clear"]:
-            failure.add_event("table_cleared", f"Table for device {device_key} was cleared, but that is not allowed", True)
+            failure.add_event(
+                "table_cleared", f"Table for device {device_key} was cleared, but that is not allowed", True
+            )
             device_state.valid_state = False
             return failure
 
         return failure
 
-    def validate_target_update(self, event: 'UpdateEvent', match_key) -> Failure:
+    def validate_target_update(self, event: "UpdateEvent", match_key) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_target_update"])
 
         device_key = getattr(event.device_metadata, match_key)
@@ -146,7 +147,7 @@ class DmIMAValidator:
 
         return failure
 
-    def validate_device_remove(self, event: 'RemoveEvent', match_key) -> Failure:
+    def validate_device_remove(self, event: "RemoveEvent", match_key) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_device_remove"])
 
         # TODO: check if we can always use the active table
@@ -166,7 +167,7 @@ class DmIMAValidator:
         del self.devices[device_key]
         return failure
 
-    def validate_device_resume(self, event: 'ResumeEvent', match_key) -> Failure:
+    def validate_device_resume(self, event: "ResumeEvent", match_key) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_device_resume"])
 
         device_key = getattr(event.device_metadata, match_key)
@@ -184,9 +185,15 @@ class DmIMAValidator:
 
         # Check if the table hash is consistent
         if device_state.active_table_hash != event.active_table_hash:
-            failure.add_event("active_table_mismatch", {"got": event.active_table_hash,
-                                                        "expected": device_state.active_table_hash,
-                                                        "context": "resume does not match the table"}, True)
+            failure.add_event(
+                "active_table_mismatch",
+                {
+                    "got": event.active_table_hash,
+                    "expected": device_state.active_table_hash,
+                    "context": "resume does not match the table",
+                },
+                True,
+            )
             device_state.valid_state = False
             return failure
 
@@ -197,7 +204,7 @@ class DmIMAValidator:
         device_state.valid_state = True
         return failure
 
-    def validate_device_rename(self, event: 'RenameEvent', match_key) -> Failure:
+    def validate_device_rename(self, event: "RenameEvent", match_key) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_device_rename"])
 
         device_key = getattr(event.device_metadata, match_key)
@@ -211,9 +218,15 @@ class DmIMAValidator:
         # Only check if the name changed
         if event.device_metadata.name != event.new_name:
             if not _check_attr(event.new_name, policy["device_rename"]["valid_name"]):
-                failure.add_event("new_name_invalid", {"message": "New name is invalid",
-                                                       "got": event.new_name,
-                                                       "expected": policy["device_rename"]["valid_name"]}, True)
+                failure.add_event(
+                    "new_name_invalid",
+                    {
+                        "message": "New name is invalid",
+                        "got": event.new_name,
+                        "expected": policy["device_rename"]["valid_name"],
+                    },
+                    True,
+                )
                 device_state.valid_state = False
             elif match_key == "name":
                 self.devices[event.new_name] = self.devices.pop(device_key)
@@ -221,16 +234,22 @@ class DmIMAValidator:
         # Only check if uuid changed
         if event.device_metadata.uuid != event.new_uuid:
             if not _check_attr(event.new_uuid, policy["device_rename"]["valid_uuid"]):
-                failure.add_event("new_uuid_invalid", {"message": "New name is invalid",
-                                                       "got": event.new_uuid,
-                                                       "expected": policy["device_rename"]["valid_uuid"]}, True)
+                failure.add_event(
+                    "new_uuid_invalid",
+                    {
+                        "message": "New name is invalid",
+                        "got": event.new_uuid,
+                        "expected": policy["device_rename"]["valid_uuid"],
+                    },
+                    True,
+                )
                 device_state.valid_state = False
             elif match_key == "uuid":
                 self.devices[event.new_name] = self.devices.pop(device_key)
 
         return failure
 
-    def validate_table_load(self, event: 'LoadEvent', match_key, digest) -> Failure:
+    def validate_table_load(self, event: "LoadEvent", match_key, digest) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_table_load"])
 
         device_key = getattr(event.device_metadata, match_key)
@@ -255,16 +274,23 @@ class DmIMAValidator:
         # Validate device metadata
         for entry in ["name", "uuid", "major", "minor", "minor_count", "num_targets"]:
             if not _check_attr(getattr(event.device_metadata, entry), used_policy["table_load"][entry]):
-                failure.add_event("invalid_entry", {"got": getattr(event.device_metadata, entry),
-                                                    "expected": used_policy["table_load"][entry],
-                                                    "context": entry}, True)
+                failure.add_event(
+                    "invalid_entry",
+                    {
+                        "got": getattr(event.device_metadata, entry),
+                        "expected": used_policy["table_load"][entry],
+                        "context": entry,
+                    },
+                    True,
+                )
                 return failure
 
         # Check "num_targets"
         # Note that we get actually could get multiple lines, but this does not happen for our use cases so we
         # treat it as a failure.
         if event.device_metadata.num_targets != len(event.targets) or used_policy["table_load"][entry] != len(
-                event.targets):
+            event.targets
+        ):
             failure.add_event("num_targets_mismatch", "lengths are not consistent", True)
             return failure
 
@@ -299,12 +325,16 @@ class DmIMAValidator:
                 data = target.target_attributes
             try:
                 if not _check_attr(getattr(data, key), reference_values[key]):
-                    failure.add_event("target_data_mismatch", {"got": getattr(data, key),
-                                                               "expected": reference_values[key],
-                                                               "context": key}, True)
+                    failure.add_event(
+                        "target_data_mismatch",
+                        {"got": getattr(data, key), "expected": reference_values[key], "context": key},
+                        True,
+                    )
                     valid = False
             except AttributeError as e:
-                failure.add_event("target_attribute_not_found", {"context": f"Key {key} not found on target: {e}"}, True)
+                failure.add_event(
+                    "target_attribute_not_found", {"context": f"Key {key} not found on target: {e}"}, True
+                )
 
         if not valid:
             failure.add_event("target_data_invalid", "target data was not valid", True)
@@ -455,6 +485,7 @@ class MirrorDevice:
     """
     Device information used by the mirror target attributes
     """
+
     mirror_device_name: str  # In raw data this is "mirror_device_X"
     mirror_device_status: str  # In raw data this is "mirror_device_X_status"
 
@@ -483,6 +514,7 @@ class DeviceMetaData:
     """
     Generic device metadata.
     """
+
     name: str
     uuid: str
     major: int
@@ -496,6 +528,7 @@ class DeviceMetaDataMinimal:
     """
     Device metadata that is measured when no_data happens
     """
+
     name: str
     uuid: str
 
@@ -561,7 +594,7 @@ def _token_to_dict(name, prefix=None):
     The length of prefix is stripped from the key.
     """
     if prefix is not None:
-        return lambda x: {name[len(prefix):]: x[0]}
+        return lambda x: {name[len(prefix) :]: x[0]}
     return lambda x: {name: x[0]}
 
 
@@ -569,28 +602,82 @@ class DeviceMapperTransformer(Transformer):
     """
     Converts the Lark AST into the data structures for validation.
     """
+
     # All the tokens specified here just need to converted to a dict and in some cases their prefix stripped
-    verity_tokens = ["verity_hash_failed", "verity_verity_version", "verity_data_device_name", "verity_hash_device_name",
-                     "verity_verity_algorithm", "verity_root_digest", "verity_salt", "verity_ignore_zero_blocks",
-                     "verity_check_at_most_once", "verity_root_hash_sig_key_desc", "verity_verity_mode"]
-    cache_tokens = ["cache_metadata_mode", "cache_cache_metadata_device", "cache_cache_device",
-                    "cache_cache_origin_device", "cache_writethrough", "cache_writeback", "cache_passthrough",
-                    "cache_metadata2", "cache_no_discard_passdown"]
-    crypt_tokens = ["crypt_allow_discards", "crypt_same_cpu_crypt", "crypt_submit_from_crypt_cpus",
-                    "crypt_no_read_workqueue", "crypt_no_write_workqueue", "crypt_iv_large_sectors",
-                    "crypt_integrity_tag_size", "crypt_cipher_auth", "crypt_sector_size", "crypt_cipher_string",
-                    "crypt_key_size", "crypt_key_parts", "crypt_key_extra_size", "crypt_key_mac_size"]
-    integrity_tokens = ["integrity_dev_name", "integrity_start", "integrity_tag_size", "integrity_mode",
-                        "integrity_meta_device", "integrity_block_size", "integrity_recalculate",
-                        "integrity_allow_discards", "integrity_fix_padding", "integrity_fix_hmac",
-                        "integrity_legacy_recalculate", "integrity_journal_sectors", "integrity_interleave_sectors",
-                        "integrity_buffer_sectors"]
+    verity_tokens = [
+        "verity_hash_failed",
+        "verity_verity_version",
+        "verity_data_device_name",
+        "verity_hash_device_name",
+        "verity_verity_algorithm",
+        "verity_root_digest",
+        "verity_salt",
+        "verity_ignore_zero_blocks",
+        "verity_check_at_most_once",
+        "verity_root_hash_sig_key_desc",
+        "verity_verity_mode",
+    ]
+    cache_tokens = [
+        "cache_metadata_mode",
+        "cache_cache_metadata_device",
+        "cache_cache_device",
+        "cache_cache_origin_device",
+        "cache_writethrough",
+        "cache_writeback",
+        "cache_passthrough",
+        "cache_metadata2",
+        "cache_no_discard_passdown",
+    ]
+    crypt_tokens = [
+        "crypt_allow_discards",
+        "crypt_same_cpu_crypt",
+        "crypt_submit_from_crypt_cpus",
+        "crypt_no_read_workqueue",
+        "crypt_no_write_workqueue",
+        "crypt_iv_large_sectors",
+        "crypt_integrity_tag_size",
+        "crypt_cipher_auth",
+        "crypt_sector_size",
+        "crypt_cipher_string",
+        "crypt_key_size",
+        "crypt_key_parts",
+        "crypt_key_extra_size",
+        "crypt_key_mac_size",
+    ]
+    integrity_tokens = [
+        "integrity_dev_name",
+        "integrity_start",
+        "integrity_tag_size",
+        "integrity_mode",
+        "integrity_meta_device",
+        "integrity_block_size",
+        "integrity_recalculate",
+        "integrity_allow_discards",
+        "integrity_fix_padding",
+        "integrity_fix_hmac",
+        "integrity_legacy_recalculate",
+        "integrity_journal_sectors",
+        "integrity_interleave_sectors",
+        "integrity_buffer_sectors",
+    ]
     mirror_tokens = ["mirror_nr_mirrors", "mirror_handle_errors", "mirror_keep_log", "mirror_log_type_status"]
     linear_tokens = ["linear_device_name", "linear_start"]
-    snapshot_tokens = ["snapshot_snap_origin_name", "snapshot_snap_cow_name", "snapshot_snap_valid",
-                       "snapshot_snap_merge_failed", "snapshot_snapshot_overflowed"]
+    snapshot_tokens = [
+        "snapshot_snap_origin_name",
+        "snapshot_snap_cow_name",
+        "snapshot_snap_valid",
+        "snapshot_snap_merge_failed",
+        "snapshot_snapshot_overflowed",
+    ]
     target_tokens = ["target_index", "target_begin", "target_len", "target_name", "target_version", "target_attributes"]
-    device_tokens = ["device_name", "device_uuid", "device_major", "device_minor", "device_minor_count", "device_num_targets"]
+    device_tokens = [
+        "device_name",
+        "device_uuid",
+        "device_major",
+        "device_minor",
+        "device_minor_count",
+        "device_num_targets",
+    ]
     other_tokens = ["dm_version", "remove_all", "current_device_capacity", "active_table_hash", "inactive_table_hash"]
     rename_tokens = ["rename_new_name", "rename_new_uuid"]
 
@@ -636,7 +723,7 @@ class DeviceMapperTransformer(Transformer):
 
     @staticmethod
     def optional_string(children):
-        """ Special handling for options that can have an empty string"""
+        """Special handling for options that can have an empty string"""
         if not children:
             return ""
         return children[0]
@@ -744,7 +831,7 @@ class DeviceMapperTransformer(Transformer):
 
     @staticmethod
     @v_args(inline=True)
-    def device_active_metadata( device_metadata):
+    def device_active_metadata(device_metadata):
         return {"device_active_metadata": device_metadata["device_metadata"]}
 
     @staticmethod
@@ -759,9 +846,7 @@ class DeviceMapperTransformer(Transformer):
         but only with the devices name and uuid. This handles that special case.
         """
         if "no_data" in data:
-            data["device_metadata"] = DeviceMetaDataMinimal(
-                name=data["name"],
-                uuid=data["uuid"])
+            data["device_metadata"] = DeviceMetaDataMinimal(name=data["name"], uuid=data["uuid"])
             del data["name"]
             del data["uuid"]
 

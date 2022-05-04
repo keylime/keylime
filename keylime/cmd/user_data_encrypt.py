@@ -1,13 +1,13 @@
 #!/usr/bin/python3
 
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
-import sys
-import os
 import base64
+import os
+import sys
 
 from keylime import crypto
 
@@ -24,16 +24,16 @@ def encrypt(contents):
     ciphertext = crypto.encrypt(contents, k)
 
     try:
-        recovered = crypto.decrypt(ciphertext, k).decode('utf-8')
+        recovered = crypto.decrypt(ciphertext, k).decode("utf-8")
     except UnicodeDecodeError:
         recovered = crypto.decrypt(ciphertext, k)
 
     if recovered != contents:
         raise Exception("Test decryption failed")
-    return {'u': u, 'v': v, 'k': k, 'ciphertext': ciphertext}
+    return {"u": u, "v": v, "k": k, "ciphertext": ciphertext}
 
 
-def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
+def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
     if len(argv) < 2:
         usage()
 
@@ -49,17 +49,17 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
     ret = encrypt(contents)
 
     print("Writing keys to content_keys.txt")
-    with open('content_keys.txt', 'w', encoding="utf-8") as f:
-        f.write(base64.b64encode(ret['k']).decode('utf-8'))
-        f.write('\n')
-        f.write(base64.b64encode(ret['v']).decode('utf-8'))
-        f.write('\n')
-        f.write(base64.b64encode(ret['u']).decode('utf-8'))
-        f.write('\n')
+    with open("content_keys.txt", "w", encoding="utf-8") as f:
+        f.write(base64.b64encode(ret["k"]).decode("utf-8"))
+        f.write("\n")
+        f.write(base64.b64encode(ret["v"]).decode("utf-8"))
+        f.write("\n")
+        f.write(base64.b64encode(ret["u"]).decode("utf-8"))
+        f.write("\n")
 
     print("Writing encrypted data to content_payload.txt")
-    with open('content_payload.txt', 'w', encoding="utf-8") as f:
-        f.write(ret['ciphertext'].decode('utf-8'))
+    with open("content_payload.txt", "w", encoding="utf-8") as f:
+        f.write(ret["ciphertext"].decode("utf-8"))
 
 
 if __name__ == "__main__":

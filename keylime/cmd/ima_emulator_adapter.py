@@ -1,20 +1,20 @@
 #!/usr/bin/python3
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
-import codecs
-import sys
-import select
-import time
-import itertools
 import argparse
+import codecs
+import itertools
+import select
+import sys
+import time
 
-from keylime.tpm.tpm_main import tpm
-from keylime.tpm.tpm_abstract import config
 from keylime.common import algorithms
 from keylime.ima import ast
+from keylime.tpm.tpm_abstract import config
+from keylime.tpm.tpm_main import tpm
 
 # Instaniate tpm
 tpm_instance = tpm(need_hw_tpm=True)
@@ -27,7 +27,7 @@ def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=Non
         runninghash = ast.get_START_HASH(pcr_hash_alg)
 
         if search_val is not None:
-            search_val = codecs.decode(search_val.encode('utf-8'), 'hex')
+            search_val = codecs.decode(search_val.encode("utf-8"), "hex")
 
         for line in lines:
             line = line.strip()
@@ -36,7 +36,7 @@ def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=Non
             entry = ast.Entry(line, None, ima_hash_alg=ima_hash_alg, pcr_hash_alg=pcr_hash_alg)
 
             if search_val is None:
-                val = codecs.encode(entry.pcr_template_hash, 'hex').decode("utf8")
+                val = codecs.encode(entry.pcr_template_hash, "hex").decode("utf8")
                 tpm_instance.extendPCR(config.IMA_PCR, val, pcr_hash_alg)
             else:
                 runninghash = pcr_hash_alg.hash(runninghash + entry.pcr_template_hash)
@@ -44,16 +44,18 @@ def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=Non
                     return position
 
         if search_val is not None:
-            raise Exception("Unable to find current measurement list position, Resetting the TPM emulator may be neccesary")
+            raise Exception(
+                "Unable to find current measurement list position, Resetting the TPM emulator may be neccesary"
+            )
 
     return position
 
 
-def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
+def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
     parser = argparse.ArgumentParser()
-    parser.add_argument('-a', '--hash_algs', nargs='*', default=['sha1'],  help='PCR banks hash algorithms')
-    parser.add_argument('-i', '--ima-hash-alg', default='sha1', help='Set hash algorithm that is used in IMA log')
-    parser.add_argument('-f', '--ima-log', default=config.IMA_ML, help='path to the IMA log')
+    parser.add_argument("-a", "--hash_algs", nargs="*", default=["sha1"], help="PCR banks hash algorithms")
+    parser.add_argument("-i", "--ima-hash-alg", default="sha1", help="Set hash algorithm that is used in IMA log")
+    parser.add_argument("-f", "--ima-log", default=config.IMA_ML, help="path to the IMA log")
     args = parser.parse_args(argv[1:])
 
     if not tpm_instance.is_emulator():
@@ -67,11 +69,14 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
 
     for pcr_hash_alg in dict(position):
         pcr_val = tpm_instance.readPCR(config.IMA_PCR, pcr_hash_alg)
-        if codecs.decode(pcr_val.encode('utf-8'), 'hex') != ast.get_START_HASH(pcr_hash_alg):
-            print(f"Warning: IMA PCR is not empty for hash algorithm {pcr_hash_alg}, "
-                  "trying to find the last updated file in the measurement list...")
-            position[pcr_hash_alg] = measure_list(args.ima_log, position[pcr_hash_alg],
-                                                  ima_hash_alg, pcr_hash_alg, pcr_val)
+        if codecs.decode(pcr_val.encode("utf-8"), "hex") != ast.get_START_HASH(pcr_hash_alg):
+            print(
+                f"Warning: IMA PCR is not empty for hash algorithm {pcr_hash_alg}, "
+                "trying to find the last updated file in the measurement list..."
+            )
+            position[pcr_hash_alg] = measure_list(
+                args.ima_log, position[pcr_hash_alg], ima_hash_alg, pcr_hash_alg, pcr_val
+            )
 
     print(f"Monitoring {args.ima_log}")
     poll_object = select.poll()
@@ -93,5 +98,5 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
             sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(sys.argv)

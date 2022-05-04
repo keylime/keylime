@@ -1,12 +1,11 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 import os.path
 import tempfile
 
 import requests
-
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.poolmanager import PoolManager  # pylint: disable=import-error
 
@@ -14,9 +13,9 @@ from requests.packages.urllib3.poolmanager import PoolManager  # pylint: disable
 class RequestsClient:
     def __init__(self, base_url, tls_enabled, ignore_hostname=False, verify_custom: str = False, **kwargs):
         if tls_enabled:
-            self.base_url = f'https://{base_url}'
+            self.base_url = f"https://{base_url}"
         else:
-            self.base_url = f'http://{base_url}'
+            self.base_url = f"http://{base_url}"
         self.session = requests.Session()
         if ignore_hostname and tls_enabled:
             self.session.mount("http://", HostNameIgnoreAdapter())
@@ -25,8 +24,7 @@ class RequestsClient:
         self.temp_dir = None
         for arg, value in kwargs.items():
             if isinstance(value, dict):
-                value = self.__deep_merge(
-                    getattr(self.session, arg), value)
+                value = self.__deep_merge(getattr(self.session, arg), value)
             setattr(self.session, arg, value)
 
     def __enter__(self):
@@ -80,9 +78,8 @@ class HostNameIgnoreAdapter(HTTPAdapter):
 
     It is required because in most cases we don't know the hostname during certificate generation.
     """
+
     def init_poolmanager(self, connections, maxsize, block=requests.adapters.DEFAULT_POOLBLOCK, **pool_kwargs):
-        self.poolmanager = PoolManager(num_pools=connections,
-                                       maxsize=maxsize,
-                                       block=block,
-                                       strict=True,
-                                       assert_hostname=False, **pool_kwargs)
+        self.poolmanager = PoolManager(
+            num_pools=connections, maxsize=maxsize, block=block, strict=True, assert_hostname=False, **pool_kwargs
+        )

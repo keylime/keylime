@@ -3,20 +3,19 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 """
 
-import os
 import logging
-
+import os
+from logging import Logger
+from logging import config as logging_config
 from typing import Any, Callable, Dict
-from logging import Logger, config as logging_config
 
 from keylime import config
 
-
-LOG_TO_FILE = ['registrar', 'provider_registrar', 'cloudverifier']
-LOG_TO_STREAM = ['tenant_webapp']
-LOGDIR = os.getenv('KEYLIME_LOGDIR', '/var/log/keylime')
+LOG_TO_FILE = ["registrar", "provider_registrar", "cloudverifier"]
+LOG_TO_STREAM = ["tenant_webapp"]
+LOGDIR = os.getenv("KEYLIME_LOGDIR", "/var/log/keylime")
 # not clear that this works right.  console logging may not work
-LOGSTREAM = os.path.join(LOGDIR, 'keylime-stream.log')
+LOGSTREAM = os.path.join(LOGDIR, "keylime-stream.log")
 
 logging_config.fileConfig(config.get_config())
 
@@ -59,8 +58,7 @@ def init_logging(loggername: str) -> Logger:
     logger = logging.getLogger(f"keylime.{loggername}")
     logging.getLogger("requests").setLevel(logging.WARNING)
     mainlogger = logging.getLogger("keylime")
-    basic_formatter = logging.Formatter(
-        '%(asctime)s %(name)s %(levelname)s %(message)s')
+    basic_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s")
     if loggername in LOG_TO_FILE:
         logfilename = os.path.join(LOGDIR, f"{loggername}.log")
         if not os.path.exists(LOGDIR):
@@ -71,7 +69,7 @@ def init_logging(loggername: str) -> Logger:
         mainlogger.addHandler(fh)
 
     if loggername in LOG_TO_STREAM:
-        fh = logging.FileHandler(filename=LOGSTREAM, mode='w')
+        fh = logging.FileHandler(filename=LOGSTREAM, mode="w")
         fh.setLevel(logger.getEffectiveLevel())
         fh.setFormatter(basic_formatter)
         mainlogger.addHandler(fh)

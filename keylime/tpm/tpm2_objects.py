@@ -5,19 +5,16 @@ Copyright 2021 Red Hat, Inc.
 
 import hashlib
 import struct
-from typing import Union, Tuple
+from typing import Tuple, Union
 
+import cryptography.hazmat.primitives.asymmetric.ec as crypto_ec
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric.rsa import (
-    RSAPublicKey,
-    RSAPublicNumbers,
-)
 from cryptography.hazmat.primitives.asymmetric.ec import (
-    EllipticCurvePublicKey,
     EllipticCurve,
+    EllipticCurvePublicKey,
     EllipticCurvePublicNumbers,
 )
-import cryptography.hazmat.primitives.asymmetric.ec as crypto_ec
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey, RSAPublicNumbers
 
 pubkey_type = Union[RSAPublicKey, EllipticCurvePublicKey]
 
@@ -64,16 +61,11 @@ OA_SIGN_ENCRYPT = 0x00040000
 # These are some common object attribute values
 # Source for AK_EXPECTED_ATTRS: tpm2-tools, tpm2_createak.c, set_key_algorithm
 AK_EXPECTED_ATTRS = (
-    OA_RESTRICTED
-    | OA_USERWITHAUTH
-    | OA_SIGN_ENCRYPT
-    | OA_FIXEDTPM
-    | OA_FIXEDPARENT
-    | OA_SENSITIVEDATAORIGIN
+    OA_RESTRICTED | OA_USERWITHAUTH | OA_SIGN_ENCRYPT | OA_FIXEDTPM | OA_FIXEDPARENT | OA_SENSITIVEDATAORIGIN
 )
 
 
-class NonAsymAlgSpecificParameters():
+class NonAsymAlgSpecificParameters:
     sym_algorithm = None
     sym_keybits = None
     sym_mode = None
@@ -90,16 +82,8 @@ class NonAsymAlgSpecificParameters():
         self.scheme_details = scheme_details
 
     def to_bytes(self):
-        sym = struct.pack(
-            ">HHH",
-            self.sym_algorithm,
-            self.sym_keybits,
-            self.sym_mode
-        )
-        scheme = struct.pack(
-            ">H",
-            self.scheme_scheme
-        )
+        sym = struct.pack(">HHH", self.sym_algorithm, self.sym_keybits, self.sym_mode)
+        scheme = struct.pack(">H", self.scheme_scheme)
         return sym + scheme
 
 
@@ -108,50 +92,107 @@ class NonAsymAlgSpecificParameters():
 EK_LOW_NAMEALG = TPM_ALG_SHA256
 EK_HIGH_SHA256_NAMEALG = EK_LOW_NAMEALG
 EK_LOW_ATTRIBUTES = (
-    OA_FIXEDTPM |
+    OA_FIXEDTPM
+    |
     # ~OA_STCLEAR |
-    OA_FIXEDPARENT |
-    OA_SENSITIVEDATAORIGIN |
+    OA_FIXEDPARENT
+    | OA_SENSITIVEDATAORIGIN
+    |
     # ~OA_USERWITHAUTH |
-    OA_ADMINWITHPOLICY |
+    OA_ADMINWITHPOLICY
+    |
     # ~OA_NODA |
     # ~OA_ENCRYPTEDDUPLICATION |
-    OA_RESTRICTED |
-    OA_DECRYPT
+    OA_RESTRICTED
+    | OA_DECRYPT
     # ~OA_SIGN_ENCRYPT,
 )
 EK_HIGH_ATTRIBUTES = (
-    OA_FIXEDTPM |
+    OA_FIXEDTPM
+    |
     # ~OA_STCLEAR |
-    OA_FIXEDPARENT |
-    OA_SENSITIVEDATAORIGIN |
-    OA_USERWITHAUTH |
-    OA_ADMINWITHPOLICY |
+    OA_FIXEDPARENT
+    | OA_SENSITIVEDATAORIGIN
+    | OA_USERWITHAUTH
+    | OA_ADMINWITHPOLICY
+    |
     # ~OA_NODA |
     # ~OA_ENCRYPTEDDUPLICATION |
-    OA_RESTRICTED |
-    OA_DECRYPT
+    OA_RESTRICTED
+    | OA_DECRYPT
     # ~OA_SIGN_ENCRYPT,
 )
 # TPM2_PolicySecret(TPM_RH_ENDORSEMENT)
 EK_LOW_AUTH_POLICY = bytes(
     [
-        0x83, 0x71, 0x97, 0x67, 0x44, 0x84,
-        0xB3, 0xF8, 0x1A, 0x90, 0xCC, 0x8D,
-        0x46, 0xA5, 0xD7, 0x24, 0xFD, 0x52,
-        0xD7, 0x6E, 0x06, 0x52, 0x0B, 0x64,
-        0xF2, 0xA1, 0xDA, 0x1B, 0x33, 0x14,
-        0x69, 0xAA,
+        0x83,
+        0x71,
+        0x97,
+        0x67,
+        0x44,
+        0x84,
+        0xB3,
+        0xF8,
+        0x1A,
+        0x90,
+        0xCC,
+        0x8D,
+        0x46,
+        0xA5,
+        0xD7,
+        0x24,
+        0xFD,
+        0x52,
+        0xD7,
+        0x6E,
+        0x06,
+        0x52,
+        0x0B,
+        0x64,
+        0xF2,
+        0xA1,
+        0xDA,
+        0x1B,
+        0x33,
+        0x14,
+        0x69,
+        0xAA,
     ]
 )
 EK_HIGH_SHA256_AUTH_POLICY = bytes(
     [
-        0xCA, 0x3D, 0x0A, 0x99, 0xA2, 0xB9,
-        0x39, 0x06, 0xF7, 0xA3, 0x34, 0x24,
-        0x14, 0xEF, 0xCF, 0xB3, 0xA3, 0x85,
-        0xD4, 0x4C, 0xD1, 0xFD, 0x45, 0x90,
-        0x89, 0xD1, 0x9B, 0x50, 0x71, 0xC0,
-        0xB7, 0xA0,
+        0xCA,
+        0x3D,
+        0x0A,
+        0x99,
+        0xA2,
+        0xB9,
+        0x39,
+        0x06,
+        0xF7,
+        0xA3,
+        0x34,
+        0x24,
+        0x14,
+        0xEF,
+        0xCF,
+        0xB3,
+        0xA3,
+        0x85,
+        0xD4,
+        0x4C,
+        0xD1,
+        0xFD,
+        0x45,
+        0x90,
+        0x89,
+        0xD1,
+        0x9B,
+        0x50,
+        0x71,
+        0xC0,
+        0xB7,
+        0xA0,
     ]
 )
 EK_LOW_NON_ASYM_ALG_PARMS = NonAsymAlgSpecificParameters(
@@ -228,8 +269,7 @@ def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
             exponent = 65537
         (modulus, _) = _extract_tpm2b(asym_parms[6:])
         if (len(modulus) * 8) != keybits:
-            raise ValueError(
-                f"Misparsed either modulus or keybits: {len(modulus)}*8 != {keybits}")
+            raise ValueError(f"Misparsed either modulus or keybits: {len(modulus)}*8 != {keybits}")
         bmodulus = int.from_bytes(modulus, byteorder="big")
 
         numbers = RSAPublicNumbers(exponent, bmodulus)
@@ -246,11 +286,9 @@ def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
             raise ValueError("Misparsed: more contents after X and Y")
 
         if (len(x) * 8) != curve.key_size:
-            raise ValueError(
-                f"Misparsed either X or curve: {len(x)}*8 != {curve.key_size}")
+            raise ValueError(f"Misparsed either X or curve: {len(x)}*8 != {curve.key_size}")
         if (len(y) * 8) != curve.key_size:
-            raise ValueError(
-                f"Misparsed either Y or curve curve: {len(y)}*8 != {curve.key_size}")
+            raise ValueError(f"Misparsed either Y or curve curve: {len(y)}*8 != {curve.key_size}")
 
         bx = int.from_bytes(x, byteorder="big")
         by = int.from_bytes(y, byteorder="big")
@@ -261,7 +299,9 @@ def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
     raise ValueError(f"Invalid tpm2b_public type: {alg_type}")
 
 
-def tpm2b_public_from_pubkey(pubkey: pubkey_type, name_alg: int, attributes: int, auth_policy: bytes, parms: NonAsymAlgSpecificParameters) -> bytes:
+def tpm2b_public_from_pubkey(
+    pubkey: pubkey_type, name_alg: int, attributes: int, auth_policy: bytes, parms: NonAsymAlgSpecificParameters
+) -> bytes:
     """
     Returns a reconstructed TPM2B_PUBLIC from a public key.
     """
@@ -269,8 +309,7 @@ def tpm2b_public_from_pubkey(pubkey: pubkey_type, name_alg: int, attributes: int
         alg_type = TPM_ALG_RSA
 
         numbers = pubkey.public_numbers()
-        n = numbers.n.to_bytes((numbers.n.bit_length() + 7) // 8,
-                               byteorder="big")
+        n = numbers.n.to_bytes((numbers.n.bit_length() + 7) // 8, byteorder="big")
 
         pub_e = numbers.e
         if pub_e == 65537:
@@ -288,12 +327,8 @@ def tpm2b_public_from_pubkey(pubkey: pubkey_type, name_alg: int, attributes: int
             _curve_id_from_name(numbers.curve.name),
             TPM2_ALG_NULL,
         )
-        unique_x = numbers.x.to_bytes(
-            (numbers.x.bit_length() + 7) // 8, byteorder="big"
-        )
-        unique_y = numbers.y.to_bytes(
-            (numbers.y.bit_length() + 7) // 8, byteorder="big"
-        )
+        unique_x = numbers.x.to_bytes((numbers.x.bit_length() + 7) // 8, byteorder="big")
+        unique_y = numbers.y.to_bytes((numbers.y.bit_length() + 7) // 8, byteorder="big")
         unique = _pack_in_tpm2b(unique_x) + _pack_in_tpm2b(unique_y)
     else:
         raise ValueError("Unsupported public key type")

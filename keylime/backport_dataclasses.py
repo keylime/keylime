@@ -4,13 +4,14 @@ Only import it conditionally for Python 3.6.
 Source: https://pypi.org/project/dataclasses/
 """
 # pylint: skip-file
+# fmt: off
 
-import re
-import sys
 import copy
-import types
 import inspect
 import keyword
+import re
+import sys
+import types
 
 __all__ = ['dataclass',
            'field',

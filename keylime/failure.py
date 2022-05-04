@@ -1,20 +1,19 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2021 Thore Sommer
 
 Tagging of failure events that might cause revocation in Keylime.
-'''
+"""
 import ast
 import enum
 import functools
 import re
-from typing import List, Optional, Tuple, Callable, Union, Dict, Any, Pattern
+from typing import Any, Callable, Dict, List, Optional, Pattern, Tuple, Union
 
-from keylime import config
-from keylime import json
-from keylime import keylime_logging
+from keylime import config, json, keylime_logging
 
 logger = keylime_logging.init_logging("failure")
+
 
 @functools.total_ordering
 class SeverityLabel:
@@ -24,6 +23,7 @@ class SeverityLabel:
     The severity level is assigned dynamically based on the configuration,
     so only use the name for use outside use of the tagging module.
     """
+
     name: str
     severity: int
 
@@ -46,6 +46,7 @@ class Component(enum.Enum):
     """
     Main components of Keylime that can generate revocations.
     """
+
     QUOTE_VALIDATION = "qoute_validation"
     PCR_VALIDATION = "pcr_validation"
     MEASURED_BOOT = "measured_boot"
@@ -60,16 +61,20 @@ class Event:
 
     The context is string
     """
+
     event_id: str
     severity_label: SeverityLabel
     context: str
     recoverable: bool
 
-    def __init__(self, component: Component,
-                 sub_components: Optional[List[str]],
-                 event_id: str,
-                 context: Union[str, Dict[str, json.JSONType]],
-                 recoverable: bool):
+    def __init__(
+        self,
+        component: Component,
+        sub_components: Optional[List[str]],
+        event_id: str,
+        context: Union[str, Dict[str, json.JSONType]],
+        recoverable: bool,
+    ):
 
         # Build full event id with the format "component.[sub_component].event_id"
         self.event_id = component.value
@@ -92,6 +97,7 @@ class Failure:
 
     If recoverable is set to False the validation process returned early and might skipped other validation steps.
     """
+
     events: List[Event]
     recoverable: bool
     highest_severity: Optional[SeverityLabel]
@@ -103,7 +109,9 @@ class Failure:
         self._sub_components = sub_components
         self.events = []
         self.recoverable = True
-        self.highest_severity_event: Optional[Event] = None  # This only holds the first event that has the highest severity
+        self.highest_severity_event: Optional[
+            Event
+        ] = None  # This only holds the first event that has the highest severity
         self.highest_severity: Optional[SeverityLabel] = None
 
     def _add(self, event: Event) -> None:
@@ -113,7 +121,8 @@ class Failure:
                 logger.warning(
                     "Irrecoverable Event with id: %s has not the highest severity level.\n "
                     "Setting it the the highest severity level.",
-                    event.event_id,)
+                    event.event_id,
+                )
                 event.severity_label = MAX_SEVERITY_LABEL
 
         if self.highest_severity is None or event.severity_label > self.highest_severity:
@@ -122,8 +131,13 @@ class Failure:
 
         self.events.append(event)
 
-    def add_event(self, event_id: str, context: Union[str, Dict[str, json.JSONType]], recoverable: bool,
-                  sub_components: Optional[List[str]] = None) -> None:
+    def add_event(
+        self,
+        event_id: str,
+        context: Union[str, Dict[str, json.JSONType]],
+        recoverable: bool,
+        sub_components: Optional[List[str]] = None,
+    ) -> None:
         """
         Add event to Failure object. Uses the component and subcomponents specified in the Failure object.
 
@@ -144,7 +158,7 @@ class Failure:
         event = Event(self._component, sub_components, event_id, context, recoverable)
         self._add(event)
 
-    def merge(self, other: 'Failure') -> None:
+    def merge(self, other: "Failure") -> None:
         if self.recoverable:
             self.recoverable = other.recoverable
         if self.highest_severity is None:
@@ -188,8 +202,7 @@ def _eval_severity_config() -> Tuple[List[Callable[[str], Optional[SeverityLabel
             if policy_regex.fullmatch(event_id):
                 policy_label = labels.get(label_str)
                 if policy_label is None:
-                    logger.error("Label %s is not a valid label. Defaulting to maximal severity label!",
-                                 label_str)
+                    logger.error("Label %s is not a valid label. Defaulting to maximal severity label!", label_str)
                     return label_max
                 return policy_label
             return None
@@ -211,6 +224,5 @@ def _severity_match(event_id: str) -> SeverityLabel:
         match = rule(event_id)
         if match is not None:
             return match
-    logger.warning("No rule matched for event_id: %s. Defaulting to max severity label",
-                   event_id)
+    logger.warning("No rule matched for event_id: %s. Defaulting to max severity label", event_id)
     return MAX_SEVERITY_LABEL

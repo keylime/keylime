@@ -3,10 +3,10 @@ from unittest.mock import patch
 
 from keylime import fs_util
 
-#pylint: disable=no-self-use
+# pylint: disable=no-self-use
+
 
 class TestChDir(unittest.TestCase):
-
     @patch("keylime.fs_util.os.path.exists")
     @patch("keylime.fs_util.os.makedirs")
     @patch("keylime.fs_util.os.chdir")

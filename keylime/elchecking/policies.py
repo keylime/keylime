@@ -77,7 +77,7 @@ def refstate_to_test(policy_name: str, refstate: RefState) -> tests.Test:
     """Compiles the given RefState into the Test prescribed by the named policy"""
     policy = get_policy(policy_name)
     if policy is None:
-        raise Exception(f'there is no policy named {policy_name!a}')
+        raise Exception(f"there is no policy named {policy_name!a}")
     return policy.refstate_to_test(refstate)
 
 
@@ -93,7 +93,7 @@ def evaluate(policy_name: str, refstate: RefState, eventlog: tests.Data) -> str:
 
 
 imports = config.MEASUREDBOOT_IMPORTS
-#print(f'importing {imports!r}, __package__={__package__!r}')
+# print(f'importing {imports!r}, __package__={__package__!r}')
 for imp in imports:
     if imp:
         importlib.import_module(imp, __package__)

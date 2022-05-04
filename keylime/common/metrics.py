@@ -23,7 +23,7 @@ class Timer:
         self.secs = self.end - self.start
         self.msecs = self.secs * 1000  # millisecs
         if self.verbose:
-            print(f'elapsed time: {self.msecs} ms')
+            print(f"elapsed time: {self.msecs} ms")
 
 
 def timerfunc(func):
@@ -31,6 +31,7 @@ def timerfunc(func):
     A timer decorator for debugging function return times.
     To use, decorate a function with @common.timerfunc
     """
+
     def function_timer(*args, **kwargs):
         """
         A nested function for timing other functions
@@ -40,7 +41,7 @@ def timerfunc(func):
         end = time.time()
         runtime = end - start
         msg = "The runtime for {func} took {time} seconds to complete"
-        print(msg.format(func=func.__name__,
-                         time=runtime))
+        print(msg.format(func=func.__name__, time=runtime))
         return value
+
     return function_timer

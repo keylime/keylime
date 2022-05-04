@@ -1,20 +1,17 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
-import os
 import logging
+import os
 import sys
 
-from keylime import config
-from keylime import crypto
-from keylime import json
-from keylime import keylime_logging
-from keylime.requests_client import RequestsClient
 from keylime import api_version as keylime_api_version
+from keylime import config, crypto, json, keylime_logging
+from keylime.requests_client import RequestsClient
 
-logger = keylime_logging.init_logging('registrar_client')
+logger = keylime_logging.init_logging("registrar_client")
 tls_cert_info = ()
 ca_cert = False
 tls_enabled = False
@@ -30,7 +27,7 @@ def init_client_tls(section):
     if tls_cert_info:
         return
 
-    if not config.getboolean('general', "enable_tls"):
+    if not config.getboolean("general", "enable_tls"):
         logger.warning("Warning: TLS is currently disabled, AIKs may not be authentic.")
         return
 
@@ -38,26 +35,26 @@ def init_client_tls(section):
     tls_enabled = True
 
     logger.info("Setting up client TLS...")
-    tls_dir = config.get(section, 'registrar_tls_dir')
+    tls_dir = config.get(section, "registrar_tls_dir")
 
-    ca_cert = config.get(section, 'registrar_ca_cert')
-    my_cert = config.get(section, 'registrar_my_cert')
-    my_priv_key = config.get(section, 'registrar_private_key')
+    ca_cert = config.get(section, "registrar_ca_cert")
+    my_cert = config.get(section, "registrar_my_cert")
+    my_priv_key = config.get(section, "registrar_private_key")
 
-    if tls_dir == 'default':
-        tls_dir = 'reg_ca'
-        ca_cert = 'cacert.crt'
-        my_cert = 'client-cert.crt'
-        my_priv_key = 'client-private.pem'
+    if tls_dir == "default":
+        tls_dir = "reg_ca"
+        ca_cert = "cacert.crt"
+        my_cert = "client-cert.crt"
+        my_priv_key = "client-private.pem"
 
-    if tls_dir == 'CV':
-        tls_dir = 'cv_ca'
-        ca_cert = 'cacert.crt'
-        my_cert = 'client-cert.crt'
-        my_priv_key = 'client-private.pem'
+    if tls_dir == "CV":
+        tls_dir = "cv_ca"
+        ca_cert = "cacert.crt"
+        my_cert = "client-cert.crt"
+        my_priv_key = "client-private.pem"
 
     # this is relative path, convert to absolute in WORK_DIR
-    if tls_dir[0] != '/':
+    if tls_dir[0] != "/":
         tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
 
     if not os.path.isabs(ca_cert):
@@ -78,17 +75,18 @@ def init_client_tls(section):
 def getData(registrar_ip, registrar_port, agent_id):
     # make absolutely sure you don't ask for data that contains AIK keys unauthenticated
     if not tls_enabled:
-        raise Exception(
-            "It is unsafe to use this interface to query AIKs without server-authenticated TLS.")
+        raise Exception("It is unsafe to use this interface to query AIKs without server-authenticated TLS.")
 
     response = None
     try:
-        client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled, ignore_hostname=True)
-        response = client.get(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, verify=ca_cert)
+        client = RequestsClient(f"{registrar_ip}:{registrar_port}", tls_enabled, ignore_hostname=True)
+        response = client.get(f"/v{api_version}/agents/{agent_id}", cert=tls_cert_info, verify=ca_cert)
         response_body = response.json()
 
         if response.status_code == 404:
-            logger.critical("Error: could not get agent %s data from Registrar Server: %s", agent_id, response.status_code)
+            logger.critical(
+                "Error: could not get agent %s data from Registrar Server: %s", agent_id, response.status_code
+            )
             keylime_logging.log_http_response(logger, logging.CRITICAL, response_body)
             return None
 
@@ -136,28 +134,31 @@ def getData(registrar_ip, registrar_port, agent_id):
     return None
 
 
-def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_tpm, mtls_cert=None,
-                    contact_ip=None, contact_port=None):
+def doRegisterAgent(
+    registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_tpm, mtls_cert=None, contact_ip=None, contact_port=None
+):
     data = {
-        'ekcert': ekcert,
-        'aik_tpm': aik_tpm,
+        "ekcert": ekcert,
+        "aik_tpm": aik_tpm,
     }
-    if ekcert is None or ekcert == 'emulator':
-        data['ek_tpm'] = ek_tpm
+    if ekcert is None or ekcert == "emulator":
+        data["ek_tpm"] = ek_tpm
 
     if mtls_cert is not None:
-        data['mtls_cert'] = mtls_cert
+        data["mtls_cert"] = mtls_cert
     else:
         logger.error("Most actions require the agent to have mTLS enabled, but no cert was provided!")
     if contact_ip is not None:
-        data['ip'] = contact_ip
+        data["ip"] = contact_ip
     if contact_port is not None:
-        data['port'] = contact_port
+        data["port"] = contact_port
 
     response = None
     try:
-        client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled, ignore_hostname=True)
-        response = client.post(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, data=json.dumps(data), verify=ca_cert)
+        client = RequestsClient(f"{registrar_ip}:{registrar_port}", tls_enabled, ignore_hostname=True)
+        response = client.post(
+            f"/v{api_version}/agents/{agent_id}", cert=tls_cert_info, data=json.dumps(data), verify=ca_cert
+        )
         response_body = response.json()
 
         if response.status_code != 200:
@@ -188,25 +189,26 @@ def doRegisterAgent(registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_
 
 def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
     data = {
-        'auth_tag': crypto.do_hmac(key, agent_id),
+        "auth_tag": crypto.do_hmac(key, agent_id),
     }
-    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled, ignore_hostname=True)
-    response = client.put(f'/v{api_version}/agents/{agent_id}/activate', cert=tls_cert_info, data=json.dumps(data), verify=ca_cert)
+    client = RequestsClient(f"{registrar_ip}:{registrar_port}", tls_enabled, ignore_hostname=True)
+    response = client.put(
+        f"/v{api_version}/agents/{agent_id}/activate", cert=tls_cert_info, data=json.dumps(data), verify=ca_cert
+    )
     response_body = response.json()
 
     if response.status_code == 200:
         logger.info("Registration activated for agent %s.", agent_id)
         return True
 
-    logger.error(
-        "Error: unexpected http response code from Registrar Server: %s", str(response.status_code))
+    logger.error("Error: unexpected http response code from Registrar Server: %s", str(response.status_code))
     keylime_logging.log_http_response(logger, logging.ERROR, response_body)
     return False
 
 
 def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
-    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled, ignore_hostname=True)
-    response = client.delete(f'/v{api_version}/agents/{agent_id}', cert=tls_cert_info, verify=ca_cert)
+    client = RequestsClient(f"{registrar_ip}:{registrar_port}", tls_enabled, ignore_hostname=True)
+    response = client.delete(f"/v{api_version}/agents/{agent_id}", cert=tls_cert_info, verify=ca_cert)
     response_body = response.json()
 
     if response.status_code == 200:
@@ -219,8 +221,8 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
 
 
 def doRegistrarList(registrar_ip, registrar_port):
-    client = RequestsClient(f'{registrar_ip}:{registrar_port}', tls_enabled, ignore_hostname=True)
-    response = client.get(f'/v{api_version}/agents/', cert=tls_cert_info, verify=ca_cert)
+    client = RequestsClient(f"{registrar_ip}:{registrar_port}", tls_enabled, ignore_hostname=True)
+    response = client.get(f"/v{api_version}/agents/", cert=tls_cert_info, verify=ca_cert)
     response_body = response.json()
 
     if response.status_code != 200:

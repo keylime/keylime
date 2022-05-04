@@ -1,9 +1,9 @@
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 
 Database migration
-'''
+"""
 import logging
 import re
 import sys
@@ -27,7 +27,7 @@ logger = logging.getLogger("alembic.env")
 # gather section names referring to different
 # databases.  These are named "engine1", "engine2"
 # in the sample .ini file.
-db_names = context.get_x_argument(as_dictionary=True).get('db')
+db_names = context.get_x_argument(as_dictionary=True).get("db")
 if not db_names:
     db_names = config.get_main_option("databases")
 
@@ -42,10 +42,7 @@ if not db_names:
 #       'engine1':mymodel.metadata1,
 #       'engine2':mymodel.metadata2
 # }
-target_metadata = {
-    'registrar': RegistrarBase.metadata,
-    'cloud_verifier': VerifierBase.metadata
-}
+target_metadata = {"registrar": RegistrarBase.metadata, "cloud_verifier": VerifierBase.metadata}
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

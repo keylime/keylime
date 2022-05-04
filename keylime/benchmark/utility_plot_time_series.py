@@ -1,24 +1,24 @@
 #!/usr/bin/python3
 
-'''
+"""
 SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
-'''
+"""
 
 import argparse
 import sys
 
-import pylab
 import matplotlib
-matplotlib.use('Agg')
+import pylab
+
+matplotlib.use("Agg")
 
 
-def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
+def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
 
     parser = argparse.ArgumentParser("keylime-utility-plot_time_series")
-    parser.add_argument('-i', '--infile', required=True,
-                        action='store', dest='infile')
-    parser.add_argument('-o', '--outfile', action='store', dest='outfile')
+    parser.add_argument("-i", "--infile", required=True, action="store", dest="infile")
+    parser.add_argument("-o", "--outfile", action="store", dest="outfile")
 
     args = parser.parse_args(argv[1:])
 
@@ -34,27 +34,25 @@ def main(argv=sys.argv):  #pylint: disable=dangerous-default-value
         for cycle_quantity_per_second in content:
             # throw out the first two and the last 2
             # if index >= 5 and index <= (len(content) - 6):
-            cycle_quantity_per_second_list.append(
-                float(cycle_quantity_per_second.strip()))
+            cycle_quantity_per_second_list.append(float(cycle_quantity_per_second.strip()))
             index = index + 1
 
-
-#     for each_file in glob.glob(infile + "*.txt"):
-#         if each_file is not None:
-#             with open(each_file) as input_file:
-#                 content = [x.strip() for x in input_file.readlines()]
-#                 index = 0
-#                 for timestamp in content:
-#                     if index != 0 and index <= (len(content) - 3):
-#                         dec_secs = float(content[index + 1]) - float(timestamp)
-#                         msecs = dec_secs * 1000
-#                         difference_list.append(msecs)
-#                     index = index + 1
+    #     for each_file in glob.glob(infile + "*.txt"):
+    #         if each_file is not None:
+    #             with open(each_file) as input_file:
+    #                 content = [x.strip() for x in input_file.readlines()]
+    #                 index = 0
+    #                 for timestamp in content:
+    #                     if index != 0 and index <= (len(content) - 3):
+    #                         dec_secs = float(content[index + 1]) - float(timestamp)
+    #                         msecs = dec_secs * 1000
+    #                         difference_list.append(msecs)
+    #                     index = index + 1
     pylab.clf()
     pylab.plot(cycle_quantity_per_second_list, "-x")
     pylab.ylim([0, max(cycle_quantity_per_second_list)])
-    pylab.ylabel('cycles per second')
-    pylab.xlabel('time')
+    pylab.ylabel("cycles per second")
+    pylab.xlabel("time")
 
     if outfile is not None:
         pylab.savefig(outfile)

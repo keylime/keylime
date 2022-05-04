@@ -10,7 +10,8 @@ from keylime import signing
 
 # Useful constants for the test
 PACKAGE_ROOT = Path(__file__).parents[1]
-TEST_FILES = (f"{PACKAGE_ROOT}/test-data/files")
+TEST_FILES = f"{PACKAGE_ROOT}/test-data/files"
+
 
 class TestSigning(unittest.TestCase):
     def test_sign_gpg(self):
@@ -19,7 +20,7 @@ class TestSigning(unittest.TestCase):
                 f"{TEST_FILES}/allowlist-pgp-key.pgp",
                 f"{TEST_FILES}/allowlist.json",
                 f"{TEST_FILES}/allowlist-pgp-sig.sig",
-                "Testing Allowlist"
+                "Testing Allowlist",
             )
         except Exception as e:
             self.fail(f"Signing raised exception: {e}!")
@@ -30,7 +31,7 @@ class TestSigning(unittest.TestCase):
                 f"{TEST_FILES}/allowlist-ec-key.pem",
                 f"{TEST_FILES}/allowlist.json",
                 f"{TEST_FILES}/allowlist-ec-sig.bin",
-                "Testing Allowlist"
+                "Testing Allowlist",
             )
         except Exception as e:
             self.fail(f"Signing raised exception: {e}!")
@@ -41,7 +42,7 @@ class TestSigning(unittest.TestCase):
                 f"{TEST_FILES}/allowlist-pgp-key.pgp",
                 f"{TEST_FILES}/allowlist.json",
                 f"{TEST_FILES}/allowlist-invalid-sig.sig",
-                "Testing Allowlist"
+                "Testing Allowlist",
             )
             self.fail("Signing passed with invalid signature!")
         except Exception:

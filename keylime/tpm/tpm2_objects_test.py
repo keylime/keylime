@@ -10,23 +10,24 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_der_x509_certificate
 
 from keylime.tpm.tpm2_objects import (
+    OA_ADMINWITHPOLICY,
+    OA_DECRYPT,
+    OA_ENCRYPTEDDUPLICATION,
+    OA_FIXEDPARENT,
+    OA_FIXEDTPM,
+    OA_NODA,
+    OA_RESTRICTED,
+    OA_SENSITIVEDATAORIGIN,
+    OA_SIGN_ENCRYPT,
+    OA_STCLEAR,
+    OA_USERWITHAUTH,
     ek_low_tpm2b_public_from_pubkey,
     get_tpm2b_public_name,
     get_tpm2b_public_object_attributes,
     object_attributes_description,
     pubkey_from_tpm2b_public,
-    OA_FIXEDTPM,
-    OA_STCLEAR,
-    OA_FIXEDPARENT,
-    OA_SENSITIVEDATAORIGIN,
-    OA_USERWITHAUTH,
-    OA_ADMINWITHPOLICY,
-    OA_NODA,
-    OA_ENCRYPTEDDUPLICATION,
-    OA_RESTRICTED,
-    OA_DECRYPT,
-    OA_SIGN_ENCRYPT,
 )
+
 
 class TestTpm2Objects(unittest.TestCase):
     def test_get_tpm2b_public_name(self):
@@ -38,10 +39,7 @@ class TestTpm2Objects(unittest.TestCase):
             "649mg6EHyv0geSHXojx0Iqjsl/NQXzOCvyuaf6CBu9pkiIZCePlrl2uD1tXEdX0ipB"
             "B9Fppc/5cJQ2NyJOuvi4MUK5y38QpwnZwd4Utr2WdyEPoF"
         )
-        test_pub_correct_name = (
-            "000b347dbfebe5bdbc55f6782a3cba91610f9d1b554a1aef07b4db28cf36da9390"
-            "09"
-        )
+        test_pub_correct_name = "000b347dbfebe5bdbc55f6782a3cba91610f9d1b554a1aef07b4db28cf36da939009"
         new_name = get_tpm2b_public_name(test_pub)
         self.assertEqual(new_name, test_pub_correct_name)
 
@@ -55,12 +53,7 @@ class TestTpm2Objects(unittest.TestCase):
             "B9Fppc/5cJQ2NyJOuvi4MUK5y38QpwnZwd4Utr2WdyEPoF"
         )
         expected_attributes = (
-            OA_RESTRICTED
-            | OA_USERWITHAUTH
-            | OA_SIGN_ENCRYPT
-            | OA_FIXEDTPM
-            | OA_FIXEDPARENT
-            | OA_SENSITIVEDATAORIGIN
+            OA_RESTRICTED | OA_USERWITHAUTH | OA_SIGN_ENCRYPT | OA_FIXEDTPM | OA_FIXEDPARENT | OA_SENSITIVEDATAORIGIN
         )
         new_attributes = get_tpm2b_public_object_attributes(test_pub)
         self.assertEqual(new_attributes, expected_attributes)
@@ -110,12 +103,8 @@ class TestTpm2Objects(unittest.TestCase):
             "GOQ3xK4wuMoFBmOH6sRsegW4bshv2k25ys8DJyJ3gQEFAHrmP2KtnwL5l1RSQozmGw"
             "OFx6eb/QB1+oAZewW2wRrwO4MQ=="
         )
-        test_rsa_cert = load_der_x509_certificate(
-            test_rsa_cert, backend=default_backend()
-        )
-        new_rsa_obj = ek_low_tpm2b_public_from_pubkey(
-            test_rsa_cert.public_key()
-        )
+        test_rsa_cert = load_der_x509_certificate(test_rsa_cert, backend=default_backend())
+        new_rsa_obj = ek_low_tpm2b_public_from_pubkey(test_rsa_cert.public_key())
         self.assertEqual(new_rsa_obj.hex(), correct_rsa_obj.hex())
 
     def test_tpm2b_public_from_pubkey_ec(self):
@@ -142,9 +131,7 @@ class TestTpm2Objects(unittest.TestCase):
             "MAEAADABAAINK9AtBnW5bwNG2ZIWDrM8w/h03Ht2lp3MUosV05DeBHACBZkRl+Yqwc"
             "wGqmoOwgqQSByVBrADgEVHlhS9J2tJQNMQ=="
         )
-        test_ec_cert = load_der_x509_certificate(
-            test_ec_cert, backend=default_backend()
-        )
+        test_ec_cert = load_der_x509_certificate(test_ec_cert, backend=default_backend())
         new_ec_obj = ek_low_tpm2b_public_from_pubkey(test_ec_cert.public_key())
         self.assertEqual(new_ec_obj.hex(), correct_ec_obj.hex())
 
@@ -175,9 +162,7 @@ class TestTpm2Objects(unittest.TestCase):
             "0FH9UAvvR8byEbK+adE+teBUOexdXhTC1ZmPZmTvHSqmeRV3UTZFZRnyOTBnN8QlN0"
             "pMVmwFTak931PqxV0xOSXkMcvTre39jzkhEJ+VMb5EOMFfsVn+b4snob9jank="
         )
-        test_rsa_cert = load_der_x509_certificate(
-            test_rsa_cert, backend=default_backend()
-        )
+        test_rsa_cert = load_der_x509_certificate(test_rsa_cert, backend=default_backend())
         correct_rsa_obj = base64.b64decode(
             "AToAAQALAAMAsgAgg3GXZ0SEs/gakMyNRqXXJP1S124GUgtk8qHaGzMUaaoABgCAAE"
             "MAEAgAAAAAAAEAtoiuJckJJQp29ZENh1Fu11MryLt4InAdXw2FDwKivw0qhWauc50O"
@@ -192,8 +177,8 @@ class TestTpm2Objects(unittest.TestCase):
         new_rsa_pubkey_n = new_rsa_pubkey.public_numbers()
         correct_rsa_pubkey_n = correct_rsa_pubkey.public_numbers()
         self.assertEqual(new_rsa_pubkey.key_size, correct_rsa_pubkey.key_size)
-        self.assertEqual(new_rsa_pubkey_n.e, correct_rsa_pubkey_n.e)
-        self.assertEqual(new_rsa_pubkey_n.n, correct_rsa_pubkey_n.n)
+        self.assertEqual(new_rsa_pubkey_n.e, correct_rsa_pubkey_n.e)  # pylint: disable=no-member
+        self.assertEqual(new_rsa_pubkey_n.n, correct_rsa_pubkey_n.n)  # pylint: disable=no-member
 
     def test_pubkey_from_tpm2b_public_rsa_without_encryption(self):
         new_rsa_pubkey = pubkey_from_tpm2b_public(
@@ -213,9 +198,9 @@ class TestTpm2Objects(unittest.TestCase):
         new_rsa_pubkey_n = new_rsa_pubkey.public_numbers()
 
         self.assertEqual(new_rsa_pubkey.key_size, 2048)
-        self.assertEqual(new_rsa_pubkey_n.e, 65537)
+        self.assertEqual(new_rsa_pubkey_n.e, 65537)  # pylint: disable=no-member
         self.assertEqual(
-            str(new_rsa_pubkey_n.n),
+            str(new_rsa_pubkey_n.n),  # pylint: disable=no-member
             "255968986296679270326283402717529063492526907681140893873754141432"
             "890531031973586937300971300465026177966018575012122367284728088154"
             "485873651193407172159946655006581809152369460009001515677703036255"
@@ -252,17 +237,12 @@ class TestTpm2Objects(unittest.TestCase):
             "MAEAADABAAINK9AtBnW5bwNG2ZIWDrM8w/h03Ht2lp3MUosV05DeBHACBZkRl+Yqwc"
             "wGqmoOwgqQSByVBrADgEVHlhS9J2tJQNMQ=="
         )
-        test_ec_cert = load_der_x509_certificate(
-            test_ec_cert, backend=default_backend()
-        )
+        test_ec_cert = load_der_x509_certificate(test_ec_cert, backend=default_backend())
         new_ec_pubkey = pubkey_from_tpm2b_public(correct_ec_obj)
         correct_ec_pubkey = test_ec_cert.public_key()
         new_ec_pubkey_n = new_ec_pubkey.public_numbers()
         correct_ec_pubkey_n = correct_ec_pubkey.public_numbers()
-        self.assertEqual(
-            new_ec_pubkey_n.curve.name,
-            correct_ec_pubkey_n.curve.name
-        )
+        self.assertEqual(new_ec_pubkey_n.curve.name, correct_ec_pubkey_n.curve.name)
         self.assertEqual(new_ec_pubkey_n.x, correct_ec_pubkey_n.x)
         self.assertEqual(new_ec_pubkey_n.y, correct_ec_pubkey_n.y)
 
@@ -279,13 +259,11 @@ class TestTpm2Objects(unittest.TestCase):
         self.assertEqual(new_ec_pubkey_n.curve.name, "secp256r1")
         self.assertEqual(
             str(new_ec_pubkey_n.x),
-            "901328876186929754842544537316510944104832864446891914011641755043"
-            "34705501424",
+            "901328876186929754842544537316510944104832864446891914011641755043" "34705501424",
         )
         self.assertEqual(
             str(new_ec_pubkey_n.y),
-            "428583369628394219355595706223697775291854911504755996137787899503"
-            "32157332666",
+            "428583369628394219355595706223697775291854911504755996137787899503" "32157332666",
         )
 
     def test_object_attributes_description(self):
