@@ -49,3 +49,40 @@
 
   execute:
     how: tmt
+
+/e2e-without-revocation:
+
+  summary: run keylime e2e tests without revocation support
+
+  environment:
+    KEYLIME_TEST_DISABLE_REVOCATION: 1
+
+  prepare:
+    how: shell
+    script:
+     - rm -f /etc/yum.repos.d/tag-repository.repo
+     - ln -s $(pwd) /var/tmp/keylime_sources
+
+  discover:
+    how: fmf
+    url: https://github.com/RedHat-SP-Security/keylime-tests
+    ref: main
+    test:
+     - /setup/configure_tpm_emulator
+     - /setup/install_upstream_keylime
+     - "/functional/basic-attestation.*"
+
+  adjust:
+   # prepare step adjustments
+   - prepare+:
+       script+:
+        - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+     when: distro == centos-stream-9
+
+   - prepare+:
+       script+:
+        - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+     when: distro == centos-stream-8
+
+  execute:
+    how: tmt
