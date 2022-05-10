@@ -12,7 +12,6 @@ from multiprocessing import Process
 from typing import Optional
 
 import requests
-import zmq
 
 from keylime import config, crypto, json, keylime_logging, secure_mount
 from keylime.common import retry
@@ -24,6 +23,12 @@ _SOCKET_PATH = "/var/run/keylime/keylime.verifier.ipc"
 
 
 def start_broker():
+    assert config.getboolean("cloud_verifier", "revocation_notifier")
+    try:
+        import zmq  # pylint: disable=import-outside-toplevel
+    except ImportError as error:
+        raise Exception("install PyZMQ for 'revocation_notifier' option") from error
+
     def worker():
         # do not receive signals form the parent process
         os.setpgrp()
@@ -73,6 +78,12 @@ def stop_broker():
 
 
 def notify(tosend):
+    assert config.getboolean("cloud_verifier", "revocation_notifier")
+    try:
+        import zmq  # pylint: disable=import-outside-toplevel
+    except ImportError as error:
+        raise Exception("install PyZMQ for 'revocation_notifier' option") from error
+
     # python-requests internally uses either simplejson (preferred) or
     # the built-in json module, and when it is using the built-in one,
     # it may encounter difficulties handling bytes instead of strings.
@@ -155,6 +166,15 @@ cert_key = None
 
 
 def await_notifications(callback, revocation_cert_path):
+    # keep old typo "listen_notfications" around for a few versions
+    assert config.getboolean("cloud_agent", "listen_notifications", fallback=False) or config.getboolean(
+        "cloud_agent", "listen_notfications", fallback=False
+    )
+    try:
+        import zmq  # pylint: disable=import-outside-toplevel
+    except ImportError as error:
+        raise Exception("install PyZMQ for 'listen_notifications' option") from error
+
     global cert_key
 
     if revocation_cert_path is None:
