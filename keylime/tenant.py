@@ -875,7 +875,7 @@ class Tenant:
                     break
                 time.sleep(0.4)
             if deleted:
-                logger.info("CV completed deletion of agent %s", self.agent_uuid)
+                logger.info("Agent %s deleted from the CV", self.agent_uuid)
                 return response.json()
             logger.error("Timed out waiting for delete of agent %s to complete at CV", self.agent_uuid)
             return response.json()
