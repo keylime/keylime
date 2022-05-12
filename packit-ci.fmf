@@ -17,6 +17,7 @@
      - /setup/install_upstream_keylime
      - /setup/enable_keylime_coverage
      - /functional/basic-attestation-on-localhost
+     - /functional/basic-attestation-without-mtls
      - /functional/basic-attestation-with-unpriviledged-agent
      - /functional/keylime_tenant-commands-on-localhost
      - /functional/tpm_policy-sanity-on-localhost
