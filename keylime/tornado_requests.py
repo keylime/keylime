@@ -45,6 +45,8 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
         return TornadoResponse(599, f"Connection error: {str(e)}")
     except ssl.SSLError as e:
         return TornadoResponse(599, f"SSL connection error: {str(e)}")
+    except OSError as e:
+        return TornadoResponse(599, f"TCP/IP Connection error: {str(e)}")
     if response is None:
         return None
     return TornadoResponse(response.code, response.body)
