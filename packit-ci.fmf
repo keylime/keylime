@@ -1,4 +1,4 @@
-/e2e:
+/e2e-with-revocation:
 
   summary: run keylime e2e tests
 
@@ -71,7 +71,9 @@
     test:
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
-     - "/functional/basic-attestation.*"
+     - /functional/basic-attestation-on-localhost
+     - /functional/basic-attestation-without-mtls
+     - /functional/basic-attestation-with-unpriviledged-agent
 
   adjust:
    # prepare step adjustments
