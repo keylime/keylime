@@ -11,7 +11,6 @@ import hashlib
 import json
 import os
 import re
-import struct
 from typing import Optional
 
 from keylime import config, keylime_logging, signing
@@ -112,10 +111,6 @@ def read_measurement_list(ima_log_file, nth_entry):
             return read_measurement_list(ima_log_file, 0)
 
     return ml, nth_entry, num_entries
-
-
-def read_unpack(fd, fmt):
-    return struct.unpack(fmt, fd.read(struct.calcsize(fmt)))
 
 
 def _validate_ima_ng(exclude_regex, allowlist, digest: ast.Digest, path: ast.Name, hash_types="hashes") -> Failure:
