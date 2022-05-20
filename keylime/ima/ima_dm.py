@@ -61,7 +61,14 @@ class DeviceState:
 
 
 class DmIMAValidator:
-    valid_names = ["dm_table_load", "dm_device_resume", "dm_device_remove", "dm_table_clear", "dm_device_rename"]
+    valid_names = [
+        "dm_table_load",
+        "dm_device_resume",
+        "dm_device_remove",
+        "dm_table_clear",
+        "dm_device_rename",
+        "dm_target_update",
+    ]
     policies: dict
     devices: Dict[str, DeviceState]
 
