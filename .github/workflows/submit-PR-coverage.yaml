@@ -12,12 +12,12 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Wait for Packit tests to finish and download coverage.xml file
-      run: ./download_packit_coverage.sh ${{ github.event.pull_request.head.sha }}
+      run: ./download_packit_coverage.sh
       env:
         MAX_DURATION: 5400
         SLEEP_DELAY: 120
     - name: List downloaded files
-      run: ls
+      run: ls coverage*
     - name: Upload coverage.unittests.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@v2
       with:
