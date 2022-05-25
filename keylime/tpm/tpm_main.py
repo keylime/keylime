@@ -15,13 +15,13 @@ import threading
 import time
 import typing
 import zlib
-from distutils.version import StrictVersion
 
 from cryptography import exceptions as crypto_exceptions
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+from packaging.version import Version
 
 from keylime import cmd_exec, config, keylime_logging, secure_mount, tpm_ek_ca
 from keylime.common import algorithms, retry
@@ -111,13 +111,13 @@ class tpm(tpm_abstract.AbstractTPM):
         # Extract the full semver release number.
         self.tools_version = version_str.split("-")
 
-        if StrictVersion(self.tools_version[0]) >= StrictVersion("4.2"):
+        if Version(self.tools_version[0]) >= Version("4.2"):
             logger.info("TPM2-TOOLS Version: %s", self.tools_version[0])
             self.tools_version = "4.2"
-        elif StrictVersion(self.tools_version[0]) >= StrictVersion("4.0.0"):
+        elif Version(self.tools_version[0]) >= Version("4.0.0"):
             logger.info("TPM2-TOOLS Version: %s", self.tools_version[0])
             self.tools_version = "4.0"
-        elif StrictVersion(self.tools_version[0]) >= StrictVersion("3.2.0"):
+        elif Version(self.tools_version[0]) >= Version("3.2.0"):
             logger.info("TPM2-TOOLS Version: %s", self.tools_version[0])
             self.tools_version = "3.2"
         else:

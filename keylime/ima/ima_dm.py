@@ -9,7 +9,6 @@ import pickle
 import re
 import sys
 from collections import ChainMap
-from distutils.util import strtobool
 from itertools import chain
 from typing import Dict, List, Optional, Union
 
@@ -367,6 +366,22 @@ class DmIMAValidator:
         return failure
 
 
+def _strtobool(val: str) -> bool:
+    """Convert a string representation of truth to true (1) or false (0).
+
+    True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
+    are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
+    'val' is anything else.
+    """
+    val = val.lower()
+    if val in ("y", "yes", "t", "true", "on", "1"):
+        return True
+    if val in ("n", "no", "f", "false", "off", "0"):
+        return False
+
+    raise ValueError(f"invalid truth value {val}")
+
+
 def _check_attr(attr: Optional[Union[int, str, bool]], reference_value: Optional[Union[int, str, bool]]) -> bool:
     """
     Validate an attribute against the reference value
@@ -385,7 +400,7 @@ def _check_attr(attr: Optional[Union[int, str, bool]], reference_value: Optional
 
         if isinstance(attr, str):
             try:
-                return reference_value == bool(strtobool(attr))
+                return reference_value == _strtobool(attr)
             except ValueError:
                 return False
         else:
