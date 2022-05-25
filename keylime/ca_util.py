@@ -400,8 +400,7 @@ def cmd_listen(workingdir, cert_path):
                     # server.shutdown()
                     break
 
-        t2 = threading.Thread(target=check_expiration)
-        t2.setDaemon(True)
+        t2 = threading.Thread(target=check_expiration, daemon=True)
         t2.start()
 
         def revoke_callback(revocation):
