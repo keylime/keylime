@@ -30,6 +30,7 @@ from keylime.agentstates import AgentAttestStates
 from keylime.common import retry, states, validators
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist
+from keylime.elchecking import policies
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Failure
 
 logger = keylime_logging.init_logging("cloudverifier")
@@ -1056,6 +1057,11 @@ def main():
     cloudverifier_id = config.get(
         "cloud_verifier", "cloudverifier_id", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID
     )
+
+    # Check if measured boot was configured correctly
+    if policies.get_policy(config.MEASUREDBOOT_POLICYNAME) is None:
+        logger.error('Measued boot policy "%s" could not be found!', config.MEASUREDBOOT_POLICYNAME)
+        raise Exception(f'Measued boot policy "{config.MEASUREDBOOT_POLICYNAME}" could not be found!')
 
     # allow tornado's max upload size to be configurable
     max_upload_size = None
