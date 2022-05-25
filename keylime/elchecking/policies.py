@@ -48,6 +48,16 @@ class AcceptAll(Policy):
         return tests.AcceptAll()
 
 
+class RejectAll(Policy):
+    """Policy that rejects all eventlogs"""
+
+    def get_relevant_pcrs(self) -> typing.FrozenSet[int]:
+        return set()
+
+    def refstate_to_test(self, refstate: RefState) -> tests.Test:
+        return tests.RejectAll("reject all")
+
+
 def _mkreg() -> typing.Mapping[str, Policy]:
     return {}
 
@@ -61,6 +71,7 @@ def register(name: str, policy: Policy):
 
 
 register("accept-all", AcceptAll())
+register("reject-all", RejectAll())
 
 
 def get_policy_names() -> typing.Tuple[str, ...]:

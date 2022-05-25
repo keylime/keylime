@@ -51,10 +51,11 @@ def get_policy(mb_refstate_str):
 
         # pylint: enable=import-outside-toplevel
         mb_policy = eventlog_policies.get_policy(mb_policy_name)
+        # Should not happen in the verifier because we check on startup if the policy exists
         if mb_policy is None:
-            logger.warning("Invalid measured boot policy name %s -- using accept-all instead.", mb_policy_name)
-            mb_policy_name = "accept-all"
-            mb_policy = eventlog_policies.AcceptAll()
+            logger.warning("Invalid measured boot policy name %s -- using reject-all instead.", mb_policy_name)
+            mb_policy_name = "reject-all"
+            mb_policy = eventlog_policies.RejectAll()
 
         mb_pcrs_config = frozenset(config.MEASUREDBOOT_PCRS)
         mb_pcrs_policy = mb_policy.get_relevant_pcrs()
