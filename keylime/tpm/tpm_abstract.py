@@ -346,8 +346,8 @@ class AbstractTPM(metaclass=ABCMeta):
                     if val_from_log_hex_stripped != pcrval_stripped:
                         logger.error(
                             "For PCR %d and hash %s the boot event log has value %r but the agent returned %r",
-                            str(hash_alg),
                             pcr_num,
+                            str(hash_alg),
                             val_from_log_hex,
                             pcrs[pcr_num],
                         )
