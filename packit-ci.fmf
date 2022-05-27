@@ -25,6 +25,7 @@
      - /functional/db-mariadb-sanity-on-localhost
      - /functional/db-mysql-sanity-on-localhost
      - /functional/tenant-allowlist-sanity
+     - /functional/measured-boot-swtpm-sanity
      - /upstream/run_keylime_tests
      - /setup/generate_coverage_report
 
