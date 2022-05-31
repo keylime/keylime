@@ -155,38 +155,91 @@ class Example(policies.Policy):
         dispatcher.set((0, "EV_S_CRTM_VERSION"), events_final.get("s_crtms"))
         dispatcher.set((0, "EV_EFI_PLATFORM_FIRMWARE_BLOB"), events_final.get("platform_firmware_blobs"))
         dispatcher.set((7, "EV_EFI_VARIABLE_DRIVER_CONFIG"), vd_driver_config)
-        vd_driver_config.set(
-            "61dfe48b-ca93-d211-aa0d-00e098032b8c", "SecureBoot", tests.FieldTest("Enabled", tests.StringEqual("Yes"))
+        # tpm2-tools versions < 5.2 parsed the GUIDs wrong therefore we include a check for both here
+        # For more information see: https://github.com/keylime/keylime/issues/1003
+        secure_boot_test = tests.FieldTest("Enabled", tests.StringEqual("Yes"))
+        vd_driver_config.set("61dfe48b-ca93-d211-aa0d-00e098032b8c", "SecureBoot", secure_boot_test)
+        vd_driver_config.set("8be4df61-93ca-11d2-aa0d-00e098032b8c", "SecureBoot", secure_boot_test)
+        pk_test = tests.OnceTest(
+            tests.Or(
+                tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["pk"])),
+                tests.KeySubset("a5c059a1-94e4-4aa7-87b5-ab155c2bf072", sigs_strip0x(refstate["pk"])),
+            )
         )
         vd_driver_config.set(
             "61dfe48b-ca93-d211-aa0d-00e098032b8c",
             "PK",
-            tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["pk"])),
+            pk_test,
+        )
+        vd_driver_config.set(
+            "8be4df61-93ca-11d2-aa0d-00e098032b8c",
+            "PK",
+            pk_test,
+        )
+
+        kek_test = tests.OnceTest(
+            tests.Or(
+                tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["kek"])),
+                tests.KeySubset("a5c059a1-94e4-4aa7-87b5-ab155c2bf072", sigs_strip0x(refstate["kek"])),
+            )
         )
         vd_driver_config.set(
             "61dfe48b-ca93-d211-aa0d-00e098032b8c",
             "KEK",
-            tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["kek"])),
+            kek_test,
+        )
+        vd_driver_config.set(
+            "8be4df61-93ca-11d2-aa0d-00e098032b8c",
+            "KEK",
+            kek_test,
+        )
+        db_test = tests.OnceTest(
+            tests.Or(
+                tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["db"])),
+                tests.KeySubset("a5c059a1-94e4-4aa7-87b5-ab155c2bf072", sigs_strip0x(refstate["db"])),
+            )
         )
         vd_driver_config.set(
             "cbb219d7-3a3d-9645-a3bc-dad00e67656f",
             "db",
-            tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["db"])),
+            db_test,
+        )
+        vd_driver_config.set(
+            "d719b2cb-3d3a-4596-a3bc-dad00e67656f",
+            "db",
+            db_test,
+        )
+        dbx_test = tests.OnceTest(
+            tests.Or(
+                tests.KeySuperset("2616c4c1-4c50-9240-aca9-41f936934328", sigs_strip0x(refstate["dbx"])),
+                tests.KeySuperset("c1c41626-504c-4092-aca9-41f936934328", sigs_strip0x(refstate["dbx"])),
+            )
         )
         vd_driver_config.set(
             "cbb219d7-3a3d-9645-a3bc-dad00e67656f",
             "dbx",
-            tests.KeySuperset("2616c4c1-4c50-9240-aca9-41f936934328", sigs_strip0x(refstate["dbx"])),
+            dbx_test,
+        )
+        vd_driver_config.set(
+            "d719b2cb-3d3a-4596-a3bc-dad00e67656f",
+            "dbx",
+            dbx_test,
         )
         dispatcher.set((7, "EV_EFI_VARIABLE_AUTHORITY"), vd_authority)
         # Assume that the cert that was used to verify the Shim is always trusted.
         # TODO: can we use the db entry for that instead of AcceptAll?
-        vd_authority.set("cbb219d7-3a3d-9645-a3bc-dad00e67656f", "db", tests.OnceTest(tests.AcceptAll()))
+        vd_db_test = tests.OnceTest(tests.AcceptAll())
+        vd_authority.set("cbb219d7-3a3d-9645-a3bc-dad00e67656f", "db", vd_db_test)
+        vd_authority.set("d719b2cb-3d3a-4596-a3bc-dad00e67656f", "db", vd_db_test)
         # Accept all SbatLevels of the Shim, because we already checked the hash of the Shim itself.
-        vd_authority.set("50ab5d60-46e0-0043-abb6-3dd810dd8b23", "SbatLevel", tests.OnceTest(tests.AcceptAll()))
+        vd_sbat_level_test = tests.OnceTest(tests.AcceptAll())
+        vd_authority.set("50ab5d60-46e0-0043-abb6-3dd810dd8b23", "SbatLevel", vd_sbat_level_test)
+        vd_authority.set("605dab50-e046-4300-abb6-3dd810dd8b23", "SbatLevel", vd_sbat_level_test)
         # Accept all certificates that are used by the Shim to verify the next component,
         # because we already checked the hash of the Shim itself.
-        vd_authority.set("50ab5d60-46e0-0043-abb6-3dd810dd8b23", "Shim", tests.OnceTest(tests.AcceptAll()))
+        vd_shim_test = tests.OnceTest(tests.AcceptAll())
+        vd_authority.set("50ab5d60-46e0-0043-abb6-3dd810dd8b23", "Shim", vd_shim_test)
+        vd_authority.set("605dab50-e046-4300-abb6-3dd810dd8b23", "Shim", vd_shim_test)
 
         # A list of allowed digests for firmware from device driver appears
         # in PCR2, event type EV_EFI_BOOT_SERVICES_DRIVER. Here we will just
@@ -195,8 +248,13 @@ class Example(policies.Policy):
         dispatcher.set((2, "EV_EFI_BOOT_SERVICES_DRIVER"), tests.AcceptAll())
         dispatcher.set(
             (1, "EV_EFI_VARIABLE_BOOT"),
-            tests.VariableTest(
-                "61dfe48b-ca93-d211-aa0d-00e098032b8c", re.compile("BootOrder|Boot[0-9a-fA-F]+"), tests.AcceptAll()
+            tests.Or(
+                tests.VariableTest(
+                    "61dfe48b-ca93-d211-aa0d-00e098032b8c", re.compile("BootOrder|Boot[0-9a-fA-F]+"), tests.AcceptAll()
+                ),
+                tests.VariableTest(
+                    "8be4df61-93ca-11d2-aa0d-00e098032b8c", re.compile("BootOrder|Boot[0-9a-fA-F]+"), tests.AcceptAll()
+                ),
             ),
         )
         dispatcher.set((4, "EV_EFI_ACTION"), tests.EvEfiActionTest(4))
