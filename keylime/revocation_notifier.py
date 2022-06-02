@@ -149,7 +149,7 @@ def notify_webhook(tosend):
                 )
             except requests.exceptions.RequestException as e:
                 logger.debug(
-                    "Unable to publish revocation message %d times via webhook, " "trying again in %d seconds: %s",
+                    "Unable to publish revocation message %d times via webhook, trying again in %d seconds: %s",
                     i,
                     next_retry,
                     e,

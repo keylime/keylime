@@ -640,13 +640,11 @@ def main():
 
     if config.get("cloud_agent", "agent_uuid") == "dmidecode":
         if os.getuid() != 0:
-            raise RuntimeError(
-                "agent_uuid is configured to use dmidecode, " "but current process is not running as root."
-            )
+            raise RuntimeError("agent_uuid is configured to use dmidecode, but current process is not running as root.")
         cmd = ["which", "dmidecode"]
         ret = cmd_exec.run(cmd, raiseOnError=False)
         if ret["code"] != 0:
-            raise RuntimeError("agent_uuid is configured to use dmidecode, " "but it's is not found on the system.")
+            raise RuntimeError("agent_uuid is configured to use dmidecode, but it's is not found on the system.")
 
     # initialize the tmpfs partition to store keys if it isn't already available
     secdir = secure_mount.mount()

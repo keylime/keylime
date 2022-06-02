@@ -725,7 +725,7 @@ class Tenant:
             return response
 
         logger.info(
-            "Status command response: %s. Unexpected response " "from Cloud Verifier %s on port %s. %s",
+            "Status command response: %s. Unexpected response from Cloud Verifier %s on port %s. %s",
             response.status_code,
             self.verifier_ip,
             self.verifier_port,
@@ -770,7 +770,7 @@ class Tenant:
             return response
 
         logger.info(
-            "Status command response: %s. Unexpected response " "from Cloud Verifier %s on port %s. %s",
+            "Status command response: %s. Unexpected response from Cloud Verifier %s on port %s. %s",
             response.status_code,
             self.verifier_ip,
             self.verifier_port,
@@ -822,7 +822,7 @@ class Tenant:
             return response
 
         logger.info(
-            "Status command response: %s. Unexpected response " "from Cloud Verifier %s on port %s. %s",
+            "Status command response: %s. Unexpected response from Cloud Verifier %s on port %s. %s",
             response.status_code,
             self.verifier_ip,
             self.verifier_port,
@@ -839,7 +839,7 @@ class Tenant:
                 return cvresponse
 
             if cvresponse["code"] != 200:
-                logger.error("Could not get status of agent %s from " "verifier %s.", self.agent_uuid, self.verifier_ip)
+                logger.error("Could not get status of agent %s from verifier %s.", self.agent_uuid, self.verifier_ip)
                 return cvresponse
 
             self.verifier_ip = cvresponse["results"][self.agent_uuid]["verifier_ip"]
@@ -946,7 +946,7 @@ class Tenant:
 
         if not isinstance(cvresponse, dict):
             logger.error(
-                "Unexpected response from Cloud Verifier %s on " "port %s. response %s",
+                "Unexpected response from Cloud Verifier %s on port %s. response %s",
                 self.verifier_ip,
                 self.verifier_port,
                 str(cvresponse),
