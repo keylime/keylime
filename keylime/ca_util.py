@@ -48,17 +48,10 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
+from keylime import ca_impl_openssl as ca_impl
 from keylime import cmd_exec, config, crypto, fs_util, json, keylime_logging, revocation_notifier
 
 logger = keylime_logging.init_logging("ca-util")
-
-if config.CA_IMPL == "cfssl":
-    from keylime import ca_impl_cfssl as ca_impl
-elif config.CA_IMPL == "openssl":
-    from keylime import ca_impl_openssl as ca_impl
-else:
-    raise Exception(f"Unknown CA implementation: {config.CA_IMPL}")
-
 
 global_password = None
 
@@ -263,12 +256,9 @@ def cmd_certpkg(workingdir, name, insecure=False):
 
 
 def convert_crl_to_pem(derfile, pemfile):
-    if config.get("general", "ca_implementation") == "openssl":
-        with open(pemfile, "w", encoding="utf-8") as f:
-            f.write("")
-    else:
-        cmd = ("openssl", "crl", "-in", derfile, "-inform", "der", "-out", pemfile)
-        cmd_exec.run(cmd)
+    with open(derfile, "rb") as der_f, open(pemfile, "wb") as pem_f:
+        der_crl = der_f.read()
+        pem_f.write(x509.load_der_x509_crl(der_crl).public_bytes(encoding=serialization.Encoding.PEM))
 
 
 def get_crl_distpoint(cert_path):
