@@ -46,8 +46,6 @@ from keylime.common import algorithms
 from keylime.requests_client import RequestsClient
 from keylime.tpm import tpm_abstract, tpm_main
 
-# pylint: disable=no-self-use
-
 # Coverage support
 if "COVERAGE_FILE" in os.environ:
     FORK_ARGS = ["coverage", "run", "--parallel-mode"]

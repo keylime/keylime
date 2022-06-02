@@ -112,7 +112,7 @@ def umount():
             ret = cmd_exec.run(cmd, raiseOnError=False)
             if ret["code"] != 0:
                 logger.error(
-                    "%s cannot be umounted. " "A running process can be keeping it bussy: %s",
+                    "%s cannot be umounted. A running process can be keeping it bussy: %s",
                     directory,
                     str(ret["reterr"]),
                 )
