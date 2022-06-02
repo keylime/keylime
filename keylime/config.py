@@ -151,9 +151,6 @@ TPM_DATA_PCR = 16
 # the size of the bootstrap key for AES-GCM 256bit
 BOOTSTRAP_KEY_SIZE = 32
 
-# choose between cfssl or openssl for creating CA certificates
-CA_IMPL = get_config().get("general", "ca_implementation", fallback="openssl")
-
 CRL_PORT = 38080
 
 # Enable DB debugging via environment variable DEBUG_DB

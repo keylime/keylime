@@ -6,13 +6,11 @@
 
 # Configure the installer here
 KEYLIME_GIT=https://github.com/keylime/keylime.git
-GOLANG_SRC=https://dl.google.com/go
 TPM2TSS_GIT=https://github.com/tpm2-software/tpm2-tss.git
 TPM2TOOLS_GIT=https://github.com/tpm2-software/tpm2-tools.git
 TPM2SIM_SRC=http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/download
 KEYLIME_VER="master"
 TPM4720_VER="master"
-GOLANG_VER="1.13.1"
 TPM2TSS_VER="3.2.x"
 TPM2TOOLS_VER="5.1.X"
 
@@ -22,11 +20,9 @@ MIN_PYSETUPTOOLS_VERSION="0.7"
 MIN_PYTORNADO_VERSION="4.3"
 MIN_PYZMQ_VERSION="14.4"
 MIN_PYCRYPTOGRAPHY_VERSION="2.1.4"
-MIN_GO_VERSION="1.11.13"
 
 # default variables
 CENTOS7_TSS_FLAGS=
-GOPKG=
 NEED_BUILD_TOOLS=0
 NEED_PYTHON_DIR=0
 PYTHON_PIPS=
@@ -125,12 +121,10 @@ case "$ID" in
             PYTHON_DEPS+=" efivar-devel"
         fi
         BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
-        GOPKG="golang"
         if [[ ${VERSION_ID} -ge 30 ]] ; then
         # if fedora 30 or greater, then using TPM2 tool packages
             TPM2_TOOLS_PKGS="tpm2-tools tpm2-tss tss2"
             NEED_BUILD_TOOLS=0
-            HAS_GO_PKG=1
         else
             NEED_BUILD_TOOLS=1
         fi
@@ -144,7 +138,6 @@ esac
 # Command line params
 STUB=0
 KEYLIME_DIR=
-OPENSSL=1
 TARBALL=0
 TPM_SOCKET=0
 while getopts ":shctkmp:" opt; do
@@ -157,7 +150,6 @@ while getopts ":shctkmp:" opt; do
                 KEYLIME_DIR=`pwd`"/$KEYLIME_DIR"
             fi
             ;;
-        c) OPENSSL=0 ;;
         t) TARBALL=1 ;;
         m) ;;
         s) TPM_SOCKET=1 NEED_BUILD_TOOLS=1 ;;
@@ -165,7 +157,6 @@ while getopts ":shctkmp:" opt; do
             echo "Usage: $0 [option...]"
             echo "Options:"
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
-            echo $'-c \t\t\t\t Use CFSSL (vs. OpenSSL). NOTE: OpenSSL does not support revocation'
             echo $'-t \t\t\t\t Create tarball with keylime_agent'
             echo $'-m \t\t\t\t Use modern TPM 2.0 libraries; this is the default'
             echo $'-s \t\t\t\t Install & use a Software TPM emulator (development only)'
@@ -283,114 +274,6 @@ fi
 
 
 echo "INFO: Using Keylime directory: $KEYLIME_DIR"
-
-
-# OpenSSL or cfssl?
-if [[ "$OPENSSL" -eq "0" ]] ; then
-    # Pull in correct PATH under sudo (mainly for secure_path)
-    if [[ -r "/etc/profile.d/go.sh" ]]; then
-        source "/etc/profile.d/go.sh"
-    fi
-
-    if [[ "$HAS_GO_PKG" -eq "1" ]] ; then
-        $PACKAGE_MGR install -y $GOPKG
-        if [[ $? > 0 ]] ; then
-            echo "ERROR: Package(s) failed to install properly!"
-            exit 1
-        fi
-    fi
-
-    if [[ ! `command -v go` ]] ; then
-        # Install golang (if not already)
-        echo
-        echo "=================================================================================="
-        echo $'\t\t\tInstalling golang (for cfssl)'
-        echo "=================================================================================="
-
-        # Where should golang's root be?
-        # NOTE: If this is changed, golang requires GOROOT to be set!
-        GO_INSTALL_TARGET="/usr/local"
-
-        # Don't risk clobbering anything if there are traces of golang already on the system
-        if [[ -d "$GO_INSTALL_TARGET/go" ]] ; then
-            # They have an install (just not on PATH?)
-            echo "The '$GO_INSTALL_TARGET/go' directory already exists.  Aborting installation attempt."
-            exit 1
-        fi
-
-        # Figure out which version of golang to download
-        PLATFORM_STR=$( uname -s )-$( uname -m )
-        case "$PLATFORM_STR" in
-            Linux-x86_64) GOFILE_STR="go$GOLANG_VER.linux-amd64.tar.gz" ;;
-            Linux-i686) GOFILE_STR="go$GOLANG_VER.linux-386.tar.gz" ;;
-            Linux-i386) GOFILE_STR="go$GOLANG_VER.linux-386.tar.gz" ;;
-            Darwin-x86_64) GOFILE_STR="go$GOLANG_VER.darwin-amd64.tar.gz" ;;
-            *)
-                echo "ERROR: Cannot install golang for your platform ($PLATFORM_STR)!"
-                echo "Please manually install golang $MIN_GO_VERSION or higher."
-                exit 1
-                ;;
-        esac
-
-        # Download and unpack/install golang
-        TMPFILE=`mktemp -t go.XXXXXXXXXX.tar.gz` || exit 1
-        wget "$GOLANG_SRC/$GOFILE_STR" -O $TMPFILE
-        if [[ $? -ne 0 ]] ; then
-            echo "ERROR: Failed to download golang!"
-            exit 1
-        fi
-        tar -C "$GO_INSTALL_TARGET" -xzf $TMPFILE
-
-        # Set up working directory and env vars (+persistence)
-        mkdir -p $HOME/go
-        export GOPATH=$HOME/go
-        export PATH=$PATH:$GO_INSTALL_TARGET/go/bin:$GOPATH/bin:/usr/local/bin
-        {
-            echo $'\n# Golang-related settings'
-            echo 'export GOPATH=$HOME/go'
-            echo "export PATH=\$PATH:$GO_INSTALL_TARGET/go/bin:\$GOPATH/bin:/usr/local/bin"
-        } >> "$HOME/.bashrc"
-        if [[ -d "/etc/profile.d" ]]; then
-            {
-                echo $'\n# Golang-related settings'
-                echo "export PATH=\$PATH:$GO_INSTALL_TARGET/go/bin:/usr/local/bin"
-            } >> "/etc/profile.d/go.sh"
-        fi
-    fi
-
-    if [[ -z "$GOPATH" ]] ; then
-        # GOPATH is not set up correctly
-        echo "ERROR: GOPATH is not set up correctly!  This is required for cfssl."
-        echo "Do you want to setup a default GOPATH with the following:"
-        echo " mkdir -p $HOME/go && echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc && source $HOME/.bashrc"
-        read -r -p "Proceed? [y/N] " resp
-        case "$resp" in
-            [yY]) mkdir -p $HOME/go && echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc && source $HOME/.bashrc ;;
-            *) exit 1 ;;
-        esac
-    fi
-
-    # Ensure Go installed meets min requirements
-    go_ver=$(go version | cut -d" " -f3 | sed "s/go//")
-    if ! $(version_checker "$MIN_GO_VERSION" "$go_ver"); then
-        confirm_force_install "ERROR: Minimum Go version is $MIN_GO_VERSION, but $go_ver is installed!" || exit 1
-    fi
-
-    if [[ ! `command -v cfssl` ]] ; then
-        # Install cfssl (if not already)
-        echo
-        echo "=================================================================================="
-        echo $'\t\t\t\tInstalling cfssl'
-        echo "=================================================================================="
-        go get -v -u github.com/cloudflare/cfssl/cmd/cfssl
-        if [[ $? -ne 0 ]] ; then
-            echo "ERROR: Failed to install cfssl!"
-            exit 1
-        fi
-        install -c $GOPATH/bin/cfssl /usr/local/bin/cfssl
-    fi
-fi
-
 
 # Prepare to build TPM libraries
 if [[ "$NEED_BUILD_TOOLS" -eq "1" ]] ; then
@@ -536,14 +419,6 @@ if [ ! -d "/var/lib/keylime/tpm_cert_store" ]; then
 else
   echo "Updating existing cert store"
   cp -n $KEYLIME_DIR/tpm_cert_store/* /var/lib/keylime/tpm_cert_store/
-fi
-
-if [[ "$OPENSSL" -eq "0" ]] ; then
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\tSwitching config to cfssl'
-    echo "=================================================================================="
-    sed -i 's/ca_implementation = openssl/ca_implementation = cfssl/' /etc/keylime.conf
 fi
 
 # Run agent packager (tarball)
