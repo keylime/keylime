@@ -9,9 +9,10 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import Encoding, load_pem_private_key
 from cryptography.x509.oid import NameOID
 
-from keylime import config, keylime_logging
+from keylime import config
 
 
 def mk_cert_valid(cert_req, days=365):
@@ -176,8 +177,21 @@ def mk_signed_cert(cacert, ca_privkey, name, serialnum):
     return cert, privkey
 
 
-def gencrl(_, a, b):
-    del a, b
-    logger = keylime_logging.init_logging("ca_impl_openssl")
-    logger.warning("CRL creation with openssl is not supported")
-    return b""
+def gencrl(serials, cert: str, ca_pk: str):
+    ca_cert = x509.load_pem_x509_certificate(cert.encode())
+    priv_key = load_pem_private_key(ca_pk.encode(), None, backend=default_backend())
+    date_now = datetime.datetime.now(datetime.timezone.utc)
+
+    builder = x509.CertificateRevocationListBuilder()
+    builder = builder.issuer_name(ca_cert.issuer)
+    builder = builder.last_update(date_now)
+    builder = builder.next_update(date_now)
+
+    for serial in serials:
+        cert = x509.RevokedCertificateBuilder()
+        cert = cert.serial_number(int(serial))
+        cert = cert.revocation_date(date_now)
+        builder = builder.add_revoked_certificate(cert.build())
+
+    crl = builder.sign(private_key=priv_key, algorithm=hashes.SHA256(), backend=default_backend())
+    return crl.public_bytes(encoding=Encoding.DER)
