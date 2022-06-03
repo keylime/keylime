@@ -1472,6 +1472,7 @@ class tpm(tpm_abstract.AbstractTPM):
         The output is the result of parsing and applying other conveniences."""
         with tempfile.NamedTemporaryFile() as log_bin_file:
             log_bin_file.write(log_bin)
+            log_bin_file.seek(0)
             log_bin_filename = log_bin_file.name
             retDict_tpm2 = self.__run(["tpm2_eventlog", "--eventlog-version=2", log_bin_filename])
         log_parsed_strs = retDict_tpm2["retout"]
