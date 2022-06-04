@@ -4,6 +4,7 @@ Copyright 2017 Massachusetts Institute of Technology.
 """
 
 import base64
+import binascii
 import codecs
 import collections
 import hashlib
@@ -1465,39 +1466,66 @@ class tpm(tpm_abstract.AbstractTPM):
                 except Exception:
                     pass
 
-    def parse_binary_bootlog(self, log_bin: bytes) -> typing.Optional[dict]:
+    def parse_binary_bootlog(self, log_bin: bytes) -> typing.Tuple[Failure, typing.Optional[dict]]:
         """Parse and enrich a BIOS boot log
 
         The input is the binary log.
         The output is the result of parsing and applying other conveniences."""
+        failure = Failure(Component.MEASURED_BOOT, ["parser"])
         with tempfile.NamedTemporaryFile() as log_bin_file:
             log_bin_file.write(log_bin)
             log_bin_file.seek(0)
             log_bin_filename = log_bin_file.name
-            retDict_tpm2 = self.__run(["tpm2_eventlog", "--eventlog-version=2", log_bin_filename])
+            try:
+                retDict_tpm2 = self.__run(["tpm2_eventlog", "--eventlog-version=2", log_bin_filename])
+            except Exception:
+                failure.add_event("tpm2_eventlog", "running tpm2_eventlog failed", True)
+                return failure, None
         log_parsed_strs = retDict_tpm2["retout"]
+        if len(retDict_tpm2["reterr"]) > 0:
+            failure.add_event(
+                "tpm2_eventlog.warning",
+                {"context": "tpm2_eventlog exited with warnings", "data": str(retDict_tpm2["reterr"])},
+                True,
+            )
+            return failure, None
         log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False, logger=logger)
         if log_parsed_data is None:
-            return None
+            failure.add_event("yaml", "yaml output of tpm2_eventlog could not be parsed!", True)
+            return failure, None
         # pylint: disable=import-outside-toplevel
         try:
             from keylime import tpm_bootlog_enrich
         except Exception as e:
             logger.error("Could not load tpm_bootlog_enrich (which depends on %s): %s", config.LIBEFIVAR, str(e))
-            return None
+            failure.add_event(
+                "bootlog_enrich",
+                f"Could not load tpm_bootlog_enrich (which depends on {config.LIBEFIVAR}): {str(e)}",
+                True,
+            )
+            return failure, None
         # pylint: enable=import-outside-toplevel
         tpm_bootlog_enrich.enrich(log_parsed_data)
         tpm.__stringify_pcr_keys(log_parsed_data)
         tpm.__add_boot_aggregate(log_parsed_data)
-        return log_parsed_data
+        return failure, log_parsed_data
 
-    def _parse_mb_bootlog(self, log_b64: str) -> dict:
+    def _parse_mb_bootlog(self, log_b64: str) -> typing.Tuple[Failure, typing.Optional[dict]]:
         """Parse and enrich a BIOS boot log
 
         The input is the base64 encoding of a binary log.
         The output is the result of parsing and applying other conveniences."""
-        log_bin = base64.b64decode(log_b64, validate=True)
-        return self.parse_binary_bootlog(log_bin)
+        failure = Failure(Component.MEASURED_BOOT, ["parser"])
+        try:
+            log_bin = base64.b64decode(log_b64, validate=True)
+            failure_mb, result = self.parse_binary_bootlog(log_bin)
+            if failure_mb:
+                failure.merge(failure_mb)
+                result = None
+        except binascii.Error:
+            failure.add_event("log.base64decode", "Measured boot log could not be decoded", True)
+            result = None
+        return failure, result
 
     def parse_mb_bootlog(
         self, mb_measurement_list: str, hash_alg: algorithms.Hash
@@ -1510,9 +1538,9 @@ class tpm(tpm_abstract.AbstractTPM):
         """
         failure = Failure(Component.MEASURED_BOOT, ["parser"])
         if mb_measurement_list:
-            # TODO add tagging for _parse_mb_bootlog
-            mb_measurement_data = self._parse_mb_bootlog(mb_measurement_list)
+            failure_mb, mb_measurement_data = self._parse_mb_bootlog(mb_measurement_list)
             if not mb_measurement_data:
+                failure.merge(failure_mb)
                 logger.error("Unable to parse measured boot event log. Check previous messages for a reason for error.")
                 return {}, None, {}, failure
             log_pcrs = mb_measurement_data.get("pcrs")
