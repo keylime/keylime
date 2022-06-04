@@ -812,6 +812,10 @@ async def invoke_get_quote(agent, need_pubkey):
 
         except Exception as e:
             logger.exception(e)
+            failure.add_event(
+                "exception", {"context": "Agent caused the verifier to throw an exception", "data": str(e)}, False
+            )
+            asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
 
 
 async def invoke_provide_v(agent):
@@ -1021,6 +1025,10 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
     except Exception as e:
         logger.error("Polling thread error: %s", e)
         logger.exception(e)
+        failure.add_event(
+            "exception", {"context": "Agent caused the verifier to throw an exception", "data": str(e)}, False
+        )
+        await process_agent(agent, states.FAILED, failure)
 
 
 async def activate_agents(verifier_id, verifier_ip, verifier_port, mtls_options):

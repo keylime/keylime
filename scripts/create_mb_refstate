@@ -137,7 +137,7 @@ def main():
     args = parser.parse_args()
     log_bin = args.eventlog_file.read()
     tpm = tpm_main.tpm()
-    log_data = tpm.parse_binary_bootlog(log_bin)
+    _, log_data = tpm.parse_binary_bootlog(log_bin)
     events = log_data["events"]
     mb_refstate = {
         "scrtm_and_bios": [
