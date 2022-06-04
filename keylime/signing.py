@@ -30,7 +30,13 @@ def verify_signature_from_file(key_file, filename, sig_file, file_description):
     with open(filename, "rb") as file_f:
         file = file_f.read()
 
-    if verify_signature(key, sig, file):
+    verified = False
+    try:
+        verified = verify_signature(key, sig, file)
+    except Exception as e:
+        logger.warning("Unable to verify signature: %s", e)
+
+    if verified:
         logger.debug("%s passed signature verification", file_description.capitalize())
     else:
         raise Exception(
