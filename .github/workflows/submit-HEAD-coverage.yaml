@@ -23,19 +23,19 @@ jobs:
         MAX_DURATION: 120
         SLEEP_DELAY: 20
     - name: List downloaded files
-      run: ls
+      run: ls coverage*
     - name: Upload coverage.unittests.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@v2
       with:
-        files: scripts/coverage.unittests.xml
+        files: coverage.unittests.xml
         flags: unittests
     - name: Upload coverage.testsuite.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@v2
       with:
-        files: scripts/coverage.testsuite.xml
+        files: coverage.testsuite.xml
         flags: testsuite
     - name: Upload coverage.packit.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@v2
       with:
-        files: scripts/coverage.packit.xml
+        files: coverage.packit.xml
         flags: packit-e2e
