@@ -901,7 +901,7 @@ class TestRestful(unittest.TestCase):
 
         # Kill the Python agent and launch the Rust agent!
         kill_cloudagent()
-        launch_cloudagent(agent="rust")
+        self.assertTrue(launch_cloudagent(agent="rust"))
 
     @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
     def test_071_agent_keys_pubkey_get(self):
