@@ -40,6 +40,6 @@ jobs:
     - name: Install build dependencies
       run: sudo dnf -y install swig
     - name: Install Python dependencies
-      run: python3 -m pip install tox
+      run: sudo dnf -y install python3.6 tox
     - name: Run lints
-      run: tox -vv -epylint
+      run: tox -vv -e 'pylint,pylint36'

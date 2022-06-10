@@ -115,7 +115,7 @@ def generate_mtls_context(
         context = ssl.create_default_context(ssl_purpose)
         context.check_hostname = False  # We do not use hostnames as part of our authentication
         if sys.version_info >= (3, 7):
-            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            context.minimum_version = ssl.TLSVersion.TLSv1_2  # pylint: disable=E1101
         else:
             context.options &= ~ssl.OP_NO_TLSv1_2
         context.load_verify_locations(cafile=ca_path)

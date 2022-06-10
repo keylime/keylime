@@ -72,9 +72,9 @@ def stop_broker():
         logger.info("Stopping revocation notifier...")
         broker_proc.terminate()
         broker_proc.join(5)
-        if broker_proc.is_alive():
+        if broker_proc.is_alive() and sys.version_info >= (3, 7):
             logger.debug("Killing revocation notifier because it did not terminate after 5 seconds...")
-            broker_proc.kill()
+            broker_proc.kill()  # pylint: disable=E1101
 
 
 def notify(tosend):
