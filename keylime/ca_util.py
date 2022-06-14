@@ -1,22 +1,18 @@
-#!/usr/bin/python3
+"""Tools for creating a CA cert and signed server certs.
 
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2017 Massachusetts Institute of Technology.
-
-Tools for creating a CA cert and signed server certs.
 Divined from http://svn.osafoundation.org/m2crypto/trunk/tests/test_x509.py
 The mk_temporary_xxx calls return a NamedTemporaryFile with certs.
-Usage ;
-   # Create a temporary CA cert and it's private key
-   cacert, cakey = mk_temporary_cacert()
-   # Create a temporary server cert+key, signed by the CA
-   server_cert = mk_temporary_cert(cacert.name, cakey.name, '*.server.co.uk')
+Usage:
+  # Create a temporary CA cert and it's private key
+  cacert, cakey = mk_temporary_cacert()
+  # Create a temporary server cert+key, signed by the CA
+  server_cert = mk_temporary_cert(cacert.name, cakey.name, '*.server.co.uk')
 
-protips
-# openssl verify -CAfile cacert.crt cacert.crt cert.crt
-# openssl x509 -in cert.crt -noout -text
-# openssl x509 -in cacert.crt -noout -text
+Protips:
+  # openssl verify -CAfile cacert.crt cacert.crt cert.crt
+  # openssl x509 -in cert.crt -noout -text
+  # openssl x509 -in cacert.crt -noout -text
+
 """
 
 import argparse

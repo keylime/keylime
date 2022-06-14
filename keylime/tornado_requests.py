@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2017 Massachusetts Institute of Technology.
-"""
-
 import ssl
 
 from tornado import httpclient

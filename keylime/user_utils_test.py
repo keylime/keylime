@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2022 IBM Corporation
-"""
-
 import unittest
 
 from keylime import user_utils

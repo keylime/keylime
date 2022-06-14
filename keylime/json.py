@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2021 Sergio Correia (scorreia@redhat.com), Red Hat, Inc.
-"""
-
 import json as json_module
 from typing import IO, Any, Dict, List, Union
 

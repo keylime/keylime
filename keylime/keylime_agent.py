@@ -1,10 +1,3 @@
-#!/usr/bin/python3
-
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2017 Massachusetts Institute of Technology.
-"""
-
 import asyncio
 import base64
 import configparser

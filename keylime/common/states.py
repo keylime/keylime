@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2020 Kaifeng Wang
-"""
-
 from keylime.common import exception
 
 ######################

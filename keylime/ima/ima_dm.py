@@ -1,10 +1,9 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2022 Thore Sommer
+"""Parser and validator for device mapper IMA events
 
-Parser and validator for device mapper IMA events
-- https://www.kernel.org/doc/html/v5.15/admin-guide/device-mapper/dm-ima.html
+  - https://www.kernel.org/doc/html/v5.15/admin-guide/device-mapper/dm-ima.html
+
 """
+
 import pickle
 import re
 import sys

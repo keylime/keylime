@@ -1,10 +1,3 @@
-#!/usr/bin/python3
-
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2020 Michael Peters (mpeters@redhat.com), Red Hat, Inc.
-"""
-
 import os
 
 import alembic.config

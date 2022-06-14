@@ -1,8 +1,3 @@
-/*
-* SPDX-License-Identifier: Apache-2.0
-* Copyright 2017 Massachusetts Institute of Technology.
-*/
-
 'use strict';
 let API_VERSION=2;
 let MAX_TERM_LEN=100;

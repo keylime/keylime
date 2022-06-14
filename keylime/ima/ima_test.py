@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2021 IBM Corporation
-"""
-
 import tempfile
 import unittest
 

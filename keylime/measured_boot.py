@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright (c) 2021 IBM Corp.
-"""
-
 import argparse
 import json
 import sys

@@ -1,11 +1,10 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2021 Thore Sommer
+"""AST with parser and validator for IMA ASCII entries.
 
-AST with parser and validator for IMA ASCII entries.
 Implements the templates (modes) and types as defined in:
-- https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_template.c
-- https://www.kernel.org/doc/html/v5.12/security/IMA-templates.html
+
+  - https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_template.c
+  - https://www.kernel.org/doc/html/v5.12/security/IMA-templates.html
+
 """
 
 import abc

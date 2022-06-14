@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
-"""
-
 from sqlalchemy import Column, Integer, LargeBinary, PickleType, String, Text, schema
 from sqlalchemy.ext.declarative import declarative_base
 
