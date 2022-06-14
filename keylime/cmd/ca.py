@@ -1,10 +1,3 @@
-#!/usr/bin/python3
-
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2017 Massachusetts Institute of Technology.
-"""
-
 from keylime import ca_util, keylime_logging
 
 logger = keylime_logging.init_logging("ca-util")

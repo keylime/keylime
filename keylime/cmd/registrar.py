@@ -1,10 +1,3 @@
-#!/usr/bin/python3
-
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2017 Massachusetts Institute of Technology.
-"""
-
 import keylime.cmd.migrations_apply
 from keylime import config, keylime_logging, registrar_common
 

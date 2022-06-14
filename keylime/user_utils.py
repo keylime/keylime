@@ -1,10 +1,3 @@
-#!/usr/bin/python3
-
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2022 IBM Corporation
-"""
-
 import grp
 import os
 import pwd

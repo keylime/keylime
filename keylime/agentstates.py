@@ -1,9 +1,3 @@
-#!/usr/bin/python3
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2021 IBM Corporation
-"""
-
 import threading
 
 from keylime.common.algorithms import Hash

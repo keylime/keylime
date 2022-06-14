@@ -1,9 +1,3 @@
-#!/usr/bin/python3
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2017 Massachusetts Institute of Technology.
-"""
-
 import argparse
 import codecs
 import itertools

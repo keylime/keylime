@@ -1,4 +1,5 @@
 """Validators module."""
+
 import re
 
 

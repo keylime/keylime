@@ -1,9 +1,7 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2021 Thore Sommer
+"""Tagging of failure events that might cause revocation in Keylime.
 
-Tagging of failure events that might cause revocation in Keylime.
 """
+
 import ast
 import enum
 import functools

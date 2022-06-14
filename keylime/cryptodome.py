@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2017 Massachusetts Institute of Technology.
-"""
-
 import base64
 
 from Cryptodome.Cipher import AES, PKCS1_OAEP

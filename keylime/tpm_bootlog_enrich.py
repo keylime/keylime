@@ -1,9 +1,3 @@
-#!/usr/bin/python3
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2017 Massachusetts Institute of Technology.
-"""
-
 # important notice: this file was temporarly added to keylime in order to cover the gap
 # left by some additiomal features still not available on Intel's tpm2-tools. There is
 # an ongoing effort to add the aforementioned features to their toolkit and when this

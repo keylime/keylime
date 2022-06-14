@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2020 Luke Hinds (lhinds@redhat.com), Red Hat, Inc.
-"""
-
 import os
 from configparser import NoOptionError
 
