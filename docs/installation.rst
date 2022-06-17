@@ -74,15 +74,6 @@ You can then start the various components using commands::
     keylime_registrar
     keylime_agent
 
-WebApp
-~~~~~~
-
-The web application can be started with the command `keylime_webapp`. If using
-Vagrant, port 443 will be forwarded from the guest to port 8443 on the host.
-
-This will result in the web application being available on url:
-
-https://localhost:8443/webapp/
 
 Rust Cloud agent
 ~~~~~~~~~~~~~~~

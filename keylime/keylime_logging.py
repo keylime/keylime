@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict
 from keylime import config
 
 LOG_TO_FILE = ["registrar", "provider_registrar", "cloudverifier"]
-LOG_TO_STREAM = ["tenant_webapp"]
+LOG_TO_STREAM = []
 LOGDIR = os.getenv("KEYLIME_LOGDIR", "/var/log/keylime")
 # not clear that this works right.  console logging may not work
 LOGSTREAM = os.path.join(LOGDIR, "keylime-stream.log")

@@ -20,8 +20,7 @@ remotely attest machines not under their own full control (such as a consumer of
 hybrid cloud or a remote Edge / IoT device in an insecure physical tamper prone
 location.)
 
-Keylime can be driven with a CLI application, web front end, and a set of
-RESTful APIs.
+Keylime can be driven with a CLI application and a set of RESTful APIs.
 
 Keylime consists of three main components; The Verifier, Registrar and the
 Agent.
@@ -281,7 +280,7 @@ the agent starts up properly, then you can proceed.
 ### Provisioning
 
 To kick everything off you need to tell keylime to provision a machine. This can be
-done either with the keylime tenant or webapp.
+done with the keylime tenant.
 
 #### Provisioning with keylime_tenant
 
@@ -302,15 +301,6 @@ To stop keylime from requesting attestations:
 For additional advanced options for the tenant utility run:
 
 `keylime_tenant -h`
-
-#### Provisioning with keylime_webapp
-
-There is also a WebApp GUI interface for the tenant, available by
-running `keylime_webapp`.  Next, simply navigate to the WebApp in
-your web browser (https://localhost/webapp/ by default, as specified in `/etc/keylime.conf`).
-
-Note that the webapp must be run on the same machine as the tenant, since it
-uses its keys for TLS authentication in `/var/lib/keylime/`.
 
 ### Using keylime CA
 
