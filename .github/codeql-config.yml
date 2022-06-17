@@ -1,4 +1,2 @@
 paths:
   - keylime
-paths-ignore:
-  - keylime/tenant_webapp.py # The webapp is currently mostly unused and introduces too much false positives

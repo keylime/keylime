@@ -49,9 +49,6 @@ class Tenant:
     registrar_port = None
     registrar_data = None
 
-    webapp_ip = None
-    webapp_port = None
-
     api_version = None
 
     uuid_service_generate_locally = None
@@ -87,9 +84,6 @@ class Tenant:
         self.verifier_port = config.get("tenant", "cloudverifier_port")
         self.registrar_ip = config.get("tenant", "registrar_ip")
         self.registrar_port = config.get("tenant", "registrar_port")
-        self.webapp_port = config.getint("webapp", "webapp_port")
-        self.webapp_ip = config.get("webapp", "webapp_ip")
-
         self.api_version = keylime_api_version.current_version()
 
         (

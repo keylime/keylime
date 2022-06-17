@@ -198,9 +198,6 @@ within `/etc/keylime.conf`, you can then use `default` as follows::
 
   `keylime_tenant -v 127.0.0.1 -t neptune -f /root/excludes.txt --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --allowlist default --exclude default`
 
-The allowlist can also be uploaded using the WebApp:
-
-.. image:: /images/allowlist_ui.png
 
 How can I test this?
 --------------------
