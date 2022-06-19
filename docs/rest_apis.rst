@@ -31,12 +31,12 @@ By default the CV CA is used, but the CA certificate (`cacert.crt`) needs to be 
 
 Registrar, tenant and verifier can configure this CA separately using the `agent_mtls_*` options.
 
-RESTful API for Keylime (v2.0)
+RESTful API for Keylime (v2.1)
 ----------------------------
 Keylime API is versioned. More information can be found here: https://github.com/keylime/enhancements/blob/master/45_api_versioning.md
 
 .. warning::
-    API version 1.0 will no longer be supported starting with Keylime 6.4.0.
+    API version 1.0 will no longer be officially supported starting with Keylime 6.4.0.
 
 General responses
 ~~~~~~~~~~~~~~~~~~~
@@ -53,7 +53,7 @@ General responses
 Cloud verifier (CV)
 ~~~~~~~~~~~~~~~~~~~
 
-.. http:get::  /v2.0/agents/{agent_id:UUID}
+.. http:get::  /v2.1/agents/{agent_id:UUID}
 
     Get status of agent `agent_id` from CV
 
@@ -123,7 +123,7 @@ Cloud verifier (CV)
     :>json string last_event_id: ID of the last revocation event. Might be `null`.
 
 
-.. http:post::  /v2.0/agents/{agent_id:UUID}
+.. http:post::  /v2.1/agents/{agent_id:UUID}
 
     Add new agent `instance_id` to CV.
 
@@ -176,7 +176,7 @@ Cloud verifier (CV)
     :<json list[string] accept_tpm_signing_algs: Accepted TPM signing algorithms.
     :<json string supported_version: supported API version of the agent. `v` prefix must not be included.
 
-.. http:delete::  /v2.0/agents/{agent_id:UUID}
+.. http:delete::  /v2.1/agents/{agent_id:UUID}
 
     Terminate instance `agent_id`.
 
@@ -191,11 +191,11 @@ Cloud verifier (CV)
         }
 
 
-.. http:put::  /v2.0/agents/{agent_id:UUID}/reactivate
+.. http:put::  /v2.1/agents/{agent_id:UUID}/reactivate
 
     Start agent `agent_id` (for an already bootstrapped `agent_id` node)
 
-.. http:put::  /v2.0/agents/{agent_id:UUID}/stop
+.. http:put::  /v2.1/agents/{agent_id:UUID}/stop
 
     Stop cv polling on `agent_id`, but don’t delete (for an already started `agent_id`).
     This will make the agent verification fail.
@@ -203,7 +203,7 @@ Cloud verifier (CV)
 Cloud Agent
 ~~~~~~~~~~~
 
-.. http:get::  /v2.0/keys/pubkey
+.. http:get::  /v2.1/keys/pubkey
 
     Retrieves agents public key.
 
@@ -239,7 +239,7 @@ Cloud Agent
 
     :>json string supported_version: The latest version the agent supports.
 
-.. http:post::  /v2.0/keys/vkey
+.. http:post::  /v2.1/keys/vkey
 
     Send `v_key` to node.
 
@@ -253,7 +253,7 @@ Cloud Agent
 
     :<json string encrypted_key: V key encrypted with agents public key base64 encoded.
 
-.. http:post::  /v2.0/keys/ukey
+.. http:post::  /v2.1/keys/ukey
 
     Send `u_key` to node (with optional payload)
 
@@ -271,7 +271,7 @@ Cloud Agent
     :<json string encrypted_key: U key encrypted with agents public key base64 encoded
     :<json string payload: (optional) payload encrypted with K key base64 encoded.
 
-.. http:get::  /v2.0/keys/verify
+.. http:get::  /v2.1/keys/verify
 
     Get confirmation of bootstrap key derivation
 
@@ -279,7 +279,7 @@ Cloud Agent
 
     .. sourcecode::
 
-        /v2.0/keys/verify?challenge=1234567890ABCDEFHIJ
+        /v2.1/keys/verify?challenge=1234567890ABCDEFHIJ
 
     :param string challenge: 20 character random string with [a-Z,0-9] as symbols.
 
@@ -296,7 +296,7 @@ Cloud Agent
         }
     :>json string hmac: hmac with K key as key and the challenge
 
-.. http:get::  /v2.0/quotes/integrity
+.. http:get::  /v2.1/quotes/integrity
 
     Get integrity quote from node
 
@@ -304,11 +304,10 @@ Cloud Agent
 
     .. sourcecode:: bash
 
-      /v2.0/quotes/integrity?nonce=1234567890ABCDEFHIJ&mask=0x408000&vmask=0x808000&partial=0
+      /v2.1/quotes/integrity?nonce=1234567890ABCDEFHIJ&mask=0x10401&partial=0
 
     :param string nonce: 20 character random string with [a-Z,0-9] as symbols.
     :param string mask: Mask for what PCRs from the TPM are included in the quote.
-    :param string vmask: Mask for what PCRs from the TPM are included in the quote.
     :param string partial: Is either "0" or "1". If set to "1" the public key is excluded in the response.
     :param string ima_ml_entry: (optional) Line offset of the IMA entry list. If not present, 0 is assumed.
 
@@ -325,16 +324,26 @@ Cloud Agent
             "enc_alg": "rsa",
             "sign_alg": "rsassa",
             "pubkey": "-----BEGIN PUBLIC KEY----- (...) -----END PUBLIC KEY-----\n"
+            "boottime": 123456,
+            "ima_measurement_list": "10 367a111b682553da5340f977001689db8366056a ima-ng sha256:94c0ac6d0ff747d8f1ca7fac89101a141f3e8f6a2c710717b477a026422766d6 boot_aggregate\n",
+            "ima_measurement_list_entry": 0,
+            "mb_measurement_list": "AAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACEAAABTcGVjIElEIEV2ZW50MDMAAAAAAAACAAIBAAAACwAgAAAAAAAACAAAAAEAAAALAJailtIk8oXGe [....]"
           }
         }
 
     :>json string quote: TPM integrity quote
+    :>json string hash_alg: Used hash algorithm used in the quote (e.g. sha1, sha256, sha512).
+    :>json string enc_alg: Encryption algorithm used in the quote (ecc, rsa).
+    :>json string sign_alg: Signing algorthm used in the quote (rsassa, rsapss, ecdsa, ecdaa or ecschnorr).
+    :>json string pubkey: PEM encoded public portion of the NK (digest is measured into PCR 16).
+    :>json int boottime: Seconds since the system booted
     :>json string ima_measurement_list: (optional) IMA entry list. Is included if `IMA_PCR` (10) is included in the mask
-    :>json string ima_measurement_list_entry: (optional) Starting line offset of the IMA entry list returned
+    :>json int ima_measurement_list_entry: (optional) Starting line offset of the IMA entry list returned
     :>json string mb_measurement_list: (optional) UEFI Eventlog list base64 encoded. Is included if PCR 0 is included in the mask
 
     **Quote format**:
     The quote field contains the quote, the signature and the PCR values that make up the quote.
+
     .. sourcecode::
 
         QUOTE_DATA := rTPM_QUOTE:TPM_SIG:TPM_PCRS
@@ -343,7 +352,7 @@ Cloud Agent
         TPM_PCRS   := base64(tpm2_pcrs) // Can hold more that 8 PCR entries. This is a data structure generated by tpm2_quote
 
 
-.. http:get::  /v2.0/quotes/identity
+.. http:get::  /v2.1/quotes/identity
 
     Get identity quote from node
 
@@ -351,7 +360,7 @@ Cloud Agent
 
     .. sourcecode:: bash
 
-      /v2.0/quotes/identity?nonce=1234567890ABCDEFHIJ
+      /v2.1/quotes/identity?nonce=1234567890ABCDEFHIJ
 
     :param string nonce: 20 character random string with [a-Z,0-9] as symbols.
 
@@ -368,17 +377,21 @@ Cloud Agent
             "enc_alg": "rsa",
             "sign_alg": "rsassa",
             "pubkey": "-----BEGIN PUBLIC KEY----- (...) -----END PUBLIC KEY-----\n"
+            "boottime": 123456
           }
         }
 
-    :>json string quoute: Identity quote from the TPM
-
-
+    :>json string quote: See `quotes/integrity`
+    :>json string hash_alg: See `quotes/integrity`
+    :>json string enc_alg: See `quotes/integrity`
+    :>json string sign_alg: See `quotes/integrity`
+    :>json string pubkey: See `quotes/integrity`
+    :>json int boottime: See `quotes/integrity`
 
 Cloud Registrar
 ~~~~~~~~~~~~~~~
 
-.. http:get::  /v2.0/agents/
+.. http:get::  /v2.1/agents/
 
     Get ordered list of registered agents
 
@@ -399,7 +412,7 @@ Cloud Registrar
         }
 
 
-.. http:get::  /v2.0/agents/{agent_id:UUID}
+.. http:get::  /v2.1/agents/{agent_id:UUID}
 
     Get EK certificate, AIK and optinal contact ip and port of agent `agent_id`.
 
@@ -429,7 +442,7 @@ Cloud Registrar
     :>json integer port: Port for contacting the agent. Might be `null`.
 
 
-.. http:post::  /v2.0/agents/{agent_id:UUID}
+.. http:post::  /v2.1/agents/{agent_id:UUID}
 
     Add agent `agent_id` to registrar.
 
@@ -467,7 +480,7 @@ Cloud Registrar
     :>json string blob: base64 encoded blob containing the `aik_tpm` name and a challenge. Is encrypted with `ek_tpm`.
 
 
-.. http:delete::  /v2.0/agents/{agent_id:UUID}
+.. http:delete::  /v2.1/agents/{agent_id:UUID}
 
     Remove agent `agent_id` from registrar.
 
@@ -482,7 +495,7 @@ Cloud Registrar
         }
 
 
-.. http:put::  /v2.0/agents/{agent_id:UUID}/activate
+.. http:put::  /v2.1/agents/{agent_id:UUID}/activate
 
     Activate physical agent `agent_id`
 
@@ -497,7 +510,7 @@ Cloud Registrar
 
     :<json string auth_tag: hmac containing the challenge from `blob` and the `agent_id`.
 
-.. http:put::  /v2.0/agents/{agent_id:UUID}/vactivate
+.. http:put::  /v2.1/agents/{agent_id:UUID}/vactivate
 
     Activate virtual (vTPM) agent `agent_id`
 
@@ -512,19 +525,19 @@ Cloud Registrar
 Tenant WebApp
 ~~~~~~~~~~~~~
 
-.. http:get::  /v2.0/agents/
+.. http:get::  /v2.1/agents/
 
     Get ordered list of registered agents
 
-.. http:get::  /v2.0/agents/{agent_id:UUID}
+.. http:get::  /v2.1/agents/{agent_id:UUID}
 
     Get list of registered agents
 
-.. http:put::  /v2.0/agents/{agent_id:UUID}
+.. http:put::  /v2.1/agents/{agent_id:UUID}
 
     Start agent `agent_id` (For an already bootstrapped `agent_id` agent)
 
-.. http:post::  /v2.0/agents/{agent_id:UUID}
+.. http:post::  /v2.1/agents/{agent_id:UUID}
 
     Add agent `agent_id` to registrar
 
@@ -544,11 +557,11 @@ Tenant WebApp
         “include_dir_name” : string,
       }
 
-.. http:get::  /v2.0/logs/
+.. http:get::  /v2.1/logs/
 
           Get terminal log data
 
-.. http:get::  /v2.0/logs/{logType:string}
+.. http:get::  /v2.1/logs/{logType:string}
 
           Get terminal log data for given logType
 
@@ -562,12 +575,22 @@ Tenant WebApp
 
           .. sourcecode:: bash
 
-            /v2.0/logs/tenant?pos=#
+            /v2.1/logs/tenant?pos=#
 
 
 Changelog
 ---------
 Changes between the different API versions.
+
+Changes from v2.0 to v2.1
+~~~~~~~~~~~~~~~~~~~~~~~~~
+API version 2.1 was first implemented in Keylime 6.4.0.
+
+ * Added `ak_tpm` field to `POST /v2.1/agents/{agent_id:UUID}` in cloud verifier.
+ * Added `mtls_cert` field to `POST /v2.1/agents/{agent_id:UUID}` in cloud verifier.
+ * Removed `vmask` parameter from
+
+This removed the requirement for the verifier to connect to the registrar.
 
 Changes from v1.0 to v2.0
 ~~~~~~~~~~~~~~~~~~~~~~~~~
