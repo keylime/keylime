@@ -10,6 +10,7 @@ from multiprocessing import Process
 import tornado.ioloop
 import tornado.web
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
 from keylime import api_version as keylime_api_version
@@ -81,7 +82,6 @@ def _from_db_obj(agent_db_obj):
         "tpm_policy",
         "meta_data",
         "mb_refstate",
-        "allowlist",
         "ima_sign_verification_keys",
         "revocation_key",
         "accept_tpm_hash_algs",
@@ -114,6 +114,7 @@ def _from_db_obj(agent_db_obj):
 def verifier_db_delete_agent(session, agent_id):
     get_AgentAttestStates().delete_by_agent_id(agent_id)
     session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
+    session.query(VerifierAllowlist).filter_by(name=agent_id).delete()
     session.commit()
 
 
@@ -270,7 +271,12 @@ class AgentsHandler(BaseHandler):
                 return
 
             try:
-                agent = session.query(VerfierMain).filter_by(agent_id=agent_id).one_or_none()
+                agent = (
+                    session.query(VerfierMain)
+                    .options(joinedload(VerfierMain.ima_policy))
+                    .filter_by(agent_id=agent_id)
+                    .one_or_none()
+                )
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error: %s", e)
 
@@ -285,9 +291,14 @@ class AgentsHandler(BaseHandler):
                 agent_list = None
 
                 if ("verifier" in rest_params) and (rest_params["verifier"] != ""):
-                    agent_list = session.query(VerfierMain).filter_by(verifier_id=rest_params["verifier"]).all()
+                    agent_list = (
+                        session.query(VerfierMain)
+                        .options(joinedload(VerfierMain.ima_policy))
+                        .filter_by(verifier_id=rest_params["verifier"])
+                        .all()
+                    )
                 else:
-                    agent_list = session.query(VerfierMain).all()
+                    agent_list = session.query(VerfierMain).options(joinedload(VerfierMain.ima_policy)).all()
 
                 json_response = {}
                 for agent in agent_list:
@@ -418,7 +429,17 @@ class AgentsHandler(BaseHandler):
                     json_body = json.loads(self.request.body)
 
                     # Handle allowlists/IMA policies
+
+                    # How each pair of inputs should be handled:
+                    # - No name, no policy: use default empty policy
+                    # - Name, no policy: fetch existing policy from DB
+                    # - No name, policy: store policy using agent UUID as name
+                    # - Name, policy: store policy using name
+
+                    ima_policy_name = json_body.get("ima_policy_name")
                     ima_policy_bundle = json.loads(json_body.get("ima_policy_bundle"))
+
+                    # Get policy from payload if present
                     if ima_policy_bundle:
                         try:
                             allowlist = ima.unbundle_ima_policy(
@@ -433,11 +454,58 @@ class AgentsHandler(BaseHandler):
                             logger.warning(e.message)
                             return
                     else:
-                        # Read legacy allowlist if present in payload
                         ima_policy = json_body.get("allowlist", None)
-                        if not ima_policy:
-                            logger.info("Allowlist data not provided with request! Using default allowlist.")
-                            ima_policy = json.dumps(ima.process_ima_policy(ima.EMPTY_ALLOWLIST, []))
+
+                    if ima_policy_name:
+                        # Find whether an allowlist with the provided name already exists
+                        try:
+                            ima_policy_stored = (
+                                session.query(VerifierAllowlist).filter_by(name=ima_policy_name).one_or_none()
+                            )
+                        except SQLAlchemyError as e:
+                            logger.error("SQLAlchemy Error: %s", e)
+                            raise
+
+                        # Don't allow owerwriting existing IMA policies
+                        if ima_policy and ima_policy_stored:
+                            web_util.echo_json_response(
+                                self, 409, f"Allowlist with name {ima_policy_name} already exists"
+                            )
+                            logger.warning("Allowlist with name %s already exists", ima_policy_name)
+                            return
+
+                    if not ima_policy_name and not ima_policy:
+                        logger.info("Allowlist data not provided with request! Using default empty allowlist.")
+                        ima_policy = json.dumps(ima.process_ima_policy(ima.EMPTY_ALLOWLIST, []))
+
+                    if ima_policy:
+                        is_valid, err_msg = cloud_verifier_common.validate_ima_policy_data(ima_policy)
+                        if not is_valid:
+                            web_util.echo_json_response(self, 400, err_msg)
+                            logger.warning(err_msg)
+                            return
+
+                        ima_policy_db_format = {}
+                        if not ima_policy_name:
+                            ima_policy_name = agent_id
+                        ima_policy_db_format["name"] = ima_policy_name
+                        ima_policy_db_format["ima_policy"] = ima_policy
+                        try:
+                            # Add the IMA policy to the database
+                            ima_policy_stored = VerifierAllowlist(**ima_policy_db_format)
+                            session.add(ima_policy_stored)
+                            session.commit()
+                        except SQLAlchemyError as e:
+                            logger.error("SQLAlchemy Error: %s", e)
+                            raise
+                    else:
+                        # If an allowlist exists in the database, we're done. If not, return an error code
+                        if not ima_policy_stored:
+                            web_util.echo_json_response(
+                                self, 404, f"Could not find IMA policy with name {ima_policy_name}!"
+                            )
+                            logger.warning("Could not find IMA policy with name %s", ima_policy_name)
+                            return
 
                     agent_data = {}
                     agent_data["v"] = json_body["v"]
@@ -447,7 +515,6 @@ class AgentsHandler(BaseHandler):
                     agent_data["public_key"] = ""
                     agent_data["tpm_policy"] = json_body["tpm_policy"]
                     agent_data["meta_data"] = json_body["metadata"]
-                    agent_data["allowlist"] = ima_policy
                     agent_data["mb_refstate"] = json_body["mb_refstate"]
                     agent_data["ima_sign_verification_keys"] = json_body["ima_sign_verification_keys"]
                     agent_data["revocation_key"] = json_body["revocation_key"]
@@ -478,12 +545,6 @@ class AgentsHandler(BaseHandler):
                         web_util.echo_json_response(self, 400, "mTLS certificate for agent is required!")
                         return
 
-                    is_valid, err_msg = cloud_verifier_common.validate_agent_data(agent_data)
-                    if not is_valid:
-                        web_util.echo_json_response(self, 400, err_msg)
-                        logger.warning(err_msg)
-                        return
-
                     try:
                         new_agent_count = session.query(VerfierMain).filter_by(agent_id=agent_id).count()
                     except SQLAlchemyError as e:
@@ -498,7 +559,7 @@ class AgentsHandler(BaseHandler):
                     else:
                         try:
                             # Add the agent and data
-                            session.add(VerfierMain(**agent_data))
+                            session.add(VerfierMain(**agent_data, ima_policy=ima_policy_stored))
                             session.commit()
                         except SQLAlchemyError as e:
                             logger.error("SQLAlchemy Error: %s", e)
@@ -726,21 +787,33 @@ class AllowlistHandler(BaseHandler):
             logger.warning("POST returning 400 response. Expected non zero content length.")
             return
 
-        allowlist = {}
+        ima_policy_db_format = {}
         json_body = json.loads(self.request.body)
-        allowlist["name"] = allowlist_name
+        ima_policy_db_format["name"] = allowlist_name
+
+        ima_policy_bundle = json.loads(json_body.get("ima_policy_bundle"))
+        if ima_policy_bundle:
+            try:
+                allowlist = ima.unbundle_ima_policy(
+                    ima_policy_bundle,
+                    verify=config.getboolean("cloud_verifier", "require_allow_list_signatures", fallback=False),
+                )
+                ima_policy = json.dumps(ima.process_ima_policy(allowlist, ima_policy_bundle["excllist"]))
+            except ima.SignatureValidationError as e:
+                web_util.echo_json_response(self, e.code, e.message)
+                logger.warning(e.message)
+                return
+            ima_policy_db_format["ima_policy"] = ima_policy
+
         tpm_policy = json_body.get("tpm_policy")
         if tpm_policy:
-            allowlist["tpm_policy"] = tpm_policy
-        ima_policy = json_body.get("ima_policy")
-        if ima_policy:
-            allowlist["ima_policy"] = ima_policy
+            ima_policy_db_format["tpm_policy"] = tpm_policy
 
         session = get_session()
         # don't allow overwritting
         try:
-            al_count = session.query(VerifierAllowlist).filter_by(name=allowlist_name).count()
-            if al_count > 0:
+            ima_policy_count = session.query(VerifierAllowlist).filter_by(name=allowlist_name).count()
+            if ima_policy_count > 0:
                 web_util.echo_json_response(self, 409, f"Allowlist with name {allowlist_name} already exists")
                 logger.warning("Allowlist with name %s already exists", allowlist_name)
                 return
@@ -750,7 +823,7 @@ class AllowlistHandler(BaseHandler):
 
         try:
             # Add the agent and data
-            session.add(VerifierAllowlist(**allowlist))
+            session.add(VerifierAllowlist(**ima_policy_db_format))
             session.commit()
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error: %s", e)
@@ -766,7 +839,7 @@ class AllowlistHandler(BaseHandler):
         raise NotImplementedError()
 
 
-async def invoke_get_quote(agent, need_pubkey):
+async def invoke_get_quote(agent, ima_policy, need_pubkey):
     failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
         raise Exception("agent deleted while being processed")
@@ -815,7 +888,9 @@ async def invoke_get_quote(agent, need_pubkey):
             if "provide_V" not in agent:
                 agent["provide_V"] = True
             agentAttestState = get_AgentAttestStates().get_by_agent_id(agent["agent_id"])
-            failure = cloud_verifier_common.process_quote_response(agent, json_response["results"], agentAttestState)
+            failure = cloud_verifier_common.process_quote_response(
+                agent, ima_policy, json_response["results"], agentAttestState
+            )
             if not failure:
                 if agent["provide_V"]:
                     asyncio.ensure_future(process_agent(agent, states.PROVIDE_V))
@@ -950,7 +1025,12 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
     try:  # pylint: disable=R1702
         main_agent_operational_state = agent["operational_state"]
         try:
-            stored_agent = session.query(VerfierMain).filter_by(agent_id=str(agent["agent_id"])).first()
+            stored_agent = (
+                session.query(VerfierMain)
+                .options(joinedload(VerfierMain.ima_policy))
+                .filter_by(agent_id=str(agent["agent_id"]))
+                .first()
+            )
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error: %s", e)
 
@@ -1005,6 +1085,9 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error: %s", e)
 
+        # Load agent's IMA policy
+        ima_policy = stored_agent.ima_policy
+
         # If agent was in a failed state we check if we either stop polling
         # or just add it again to the event loop
         if new_operational_state in [states.FAILED, states.INVALID_QUOTE]:
@@ -1012,14 +1095,14 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 logger.warning("Agent %s failed, stopping polling", agent["agent_id"])
                 return
 
-            await invoke_get_quote(agent, False)
+            await invoke_get_quote(agent, ima_policy, False)
             return
 
         # if new, get a quote
         if main_agent_operational_state == states.START and new_operational_state == states.GET_QUOTE:
             agent["num_retries"] = 0
             agent["operational_state"] = states.GET_QUOTE
-            await invoke_get_quote(agent, True)
+            await invoke_get_quote(agent, ima_policy, True)
             return
 
         if main_agent_operational_state == states.GET_QUOTE and new_operational_state == states.PROVIDE_V:
@@ -1036,11 +1119,11 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
             interval = config.getfloat("cloud_verifier", "quote_interval")
             agent["operational_state"] = states.GET_QUOTE
             if interval == 0:
-                await invoke_get_quote(agent, False)
+                await invoke_get_quote(agent, ima_policy, False)
             else:
                 logger.debug("Setting up callback to check again in %f seconds", interval)
                 # set up a call back to check again
-                cb = functools.partial(invoke_get_quote, agent, False)
+                cb = functools.partial(invoke_get_quote, agent, ima_policy, False)
                 pending = tornado.ioloop.IOLoop.current().call_later(interval, cb)
                 agent["pending_event"] = pending
             return
@@ -1062,7 +1145,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 await process_agent(agent, states.FAILED, failure)
             else:
                 agent["operational_state"] = states.GET_QUOTE
-                cb = functools.partial(invoke_get_quote, agent, True)
+                cb = functools.partial(invoke_get_quote, agent, ima_policy, True)
                 agent["num_retries"] += 1
                 next_retry = retry.retry_time(exponential_backoff, interval, agent["num_retries"], logger)
                 logger.info(

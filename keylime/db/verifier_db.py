@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, LargeBinary, PickleType, String, Text, schema
+from sqlalchemy import Column, ForeignKey, Integer, LargeBinary, PickleType, String, Text, schema
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 
 from keylime.json import JSONPickler
 
@@ -24,7 +25,8 @@ class VerfierMain(Base):
     public_key = Column(String(500))
     tpm_policy = Column(JSONPickleType(pickler=JSONPickler))
     meta_data = Column(String(200))
-    allowlist = Column(Text().with_variant(Text(429400000), "mysql"))
+    ima_policy = relationship("VerifierAllowlist", back_populates="agent", uselist=False)
+    ima_policy_id = Column(Integer, ForeignKey("allowlists.id"))
     ima_sign_verification_keys = Column(Text().with_variant(Text(429400000), "mysql"))
     mb_refstate = Column(Text().with_variant(Text(429400000), "mysql"))
     revocation_key = Column(String(2800))
@@ -51,6 +53,7 @@ class VerifierAllowlist(Base):
     __tablename__ = "allowlists"
     __table_args__ = (schema.UniqueConstraint("name", name="uniq_allowlists0name"),)
     id = Column(Integer, primary_key=True)
+    agent = relationship("VerfierMain", back_populates="ima_policy")
     name = Column(String(255), nullable=False)
     tpm_policy = Column(Text())
     ima_policy = Column(Text().with_variant(Text(429400000), "mysql"))
