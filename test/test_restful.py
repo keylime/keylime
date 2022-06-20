@@ -641,7 +641,7 @@ class TestRestful(unittest.TestCase):
         data = {
             "name": "test-allowlist",
             "tpm_policy": json.dumps(self.tpm_policy),
-            "ima_policy": json.dumps(self.allowlist),
+            "ima_policy_bundle": json.dumps(self.ima_policy_bundle),
         }
 
         cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
@@ -673,7 +673,14 @@ class TestRestful(unittest.TestCase):
         results = json_response["results"]
         self.assertEqual(results["name"], "test-allowlist")
         self.assertEqual(results["tpm_policy"], json.dumps(self.tpm_policy))
-        self.assertEqual(results["ima_policy"], json.dumps(self.allowlist))
+        self.assertEqual(
+            results["ima_policy"],
+            json.dumps(
+                ima.process_ima_policy(
+                    ima.unbundle_ima_policy(self.ima_policy_bundle, False), self.ima_policy_bundle["excllist"]
+                )
+            ),
+        )
 
     def test_027_cv_allowlist_delete(self):
         """Test CV's DELETE /allowlists/{name} Interface"""
