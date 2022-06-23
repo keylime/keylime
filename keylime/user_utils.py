@@ -73,6 +73,19 @@ def change_uidgid(user_and_group):
         except (OSError, PermissionError) as e:
             raise RuntimeError(f"Could not set gid to {gid}: {e}") from e
 
+    if uid is not None and gid is not None:
+        try:
+            passwd = pwd.getpwuid(uid)
+            username = passwd.pw_name
+        except KeyError as e:
+            raise ValueError(f"Could not resolve user {uid}: {e}") from e
+
+        try:
+            groups = os.getgrouplist(username, gid)
+            os.setgroups(groups)
+        except (OSError, PermissionError) as e:
+            raise RuntimeError(f"Could not set group list to {groups}: {e}") from e
+
     if uid is not None:
         try:
             os.setuid(uid)
