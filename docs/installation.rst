@@ -98,15 +98,12 @@ following command line options are available::
     Usage: ./installer.sh [option...]
     Options:
     -k              Download Keylime (stub installer mode)
-    -o              Use OpenSSL instead of CFSSL
     -t              Create tarball with keylime_agent
     -m              Use modern TPM 2.0 libraries (vs. TPM 1.2)
     -s              Install TPM in socket/simulator mode (vs. chardev)
     -p PATH         Use PATH as Keylime path
     -h              This help info
 
-Note that CFSSL is required if you want to support revocation. As noted above, do not use
-the TPM emulator option `-s` in production systems.
 
 Docker - Deployment
 --------------------
@@ -220,13 +217,6 @@ You're finally ready to install Keylime::
 
     sudo python setup.py install
 
-
-Optional Requirements
-~~~~~~~~~~~~~~~~~~~~~
-
-If you want to support revocation, you also need to have cfssl installed and in your
-path on the tenant agent.  It can be obtained from `here <https://github.com/cloudflare/cfssl>`_.  You
-will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc/keylime.conf`.
 
 Database support
 ---------------------

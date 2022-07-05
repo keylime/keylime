@@ -30,7 +30,7 @@ for opt in "$@"; do
   esac
 done
 
-while getopts ":cuhs:" opt; do
+while getopts ":cuh:" opt; do
     case $opt in
         c)
             COVERAGE=1
@@ -43,19 +43,11 @@ while getopts ":cuhs:" opt; do
             UMODE_OPT="--user"
             export KEYLIME_TEST=True
             ;;
-        s)
-            CA_IMP="$OPTARG"
-            case $CA_IMP in
-                (openssl|cfssl) ;; # OK
-                (*) printf >&2 "Invalid: CA Implementation \"$CA_IMP\". Options are openssl or cfssl \n"; exit 1;;
-                esac
-            ;;
         h)
             echo "Usage: $0 [option...]"
             echo "Options:"
             echo $'-c \t\t Run Coverage scans'
             echo $'-u \t\t Run in user (non-root) mode'
-            echo $'-s ssl \t\t Select CA implementation (openssl|cfssl)'
             echo $'-h \t\t This help info'
             exit
             ;;
@@ -122,11 +114,6 @@ if [ ! -f "/etc/keylime.conf" ]; then
         cp -n $KEYLIME_DIR/keylime.conf /etc/keylime.conf
         echo -e "Setting require_ek_cert to False"
         sed -i 's/require_ek_cert = True/require_ek_cert = False/g' /etc/keylime.conf
-        if [ "$CA_IMP" == "cfssl" ]; then
-            echo -e "Setting CA Implementation to CFSSL"
-            sed -i 's/ca_implementation = openssl/ca_implementation = cfssl/g' /etc/keylime.conf
-            $PACKAGE_MGR install -y golang
-        fi
     fi
 fi
 
