@@ -93,7 +93,6 @@ The following command line options are available using `installer.sh` script:
 Usage: ./installer.sh [option...]
 Options:
 -k              Download Keylime (stub installer mode)
--c              Use CFSSL (vs. OpenSSL). Note: OpenSSL does not support revocation
 -t              Create tarball with keylime_agent
 -m              Use modern TPM 2.0 libraries (vs. TPM 1.2)
 -s              Install & use a Software TPM emulator (development only)
@@ -104,8 +103,6 @@ Options:
 Should you not have the Keylime repository on your local machine, you can
 use the `-k` flag which will download the software. In this case, all you need
 is the `installer.sh` script locally.
-
-Note that CFSSL is required if you want to support revocation. As noted above, do not use the TPM emulator option `-s` in production systems.
 
 #### Installer Distribution coverage
 
@@ -204,12 +201,6 @@ You're finally ready to install keylime!
 ```bash
 sudo python3 -m pip install . -r requirements.txt
 ```
-
-#### Optional Requirements
-
-If you want to support revocation, you also need to have cfssl installed and in your
-path on the tenant agent. It can be obtained from https://github.com/cloudflare/cfssl. 
-You will also need to set ca_implementation to "cfssl" instead of "openssl" in `/etc/keylime.conf`.
 
 ## Making sure your TPM is ready for keylime
 
