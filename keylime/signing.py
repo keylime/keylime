@@ -25,13 +25,7 @@ def verify_signature_from_file(key_file, filename, sig_file, file_description):
     with open(filename, "rb") as file_f:
         file = file_f.read()
 
-    verified = False
-    try:
-        verified = verify_signature(key, sig, file)
-    except Exception as e:
-        logger.warning("Unable to verify signature: %s", e)
-
-    if verified:
+    if verify_signature(key, sig, file):
         logger.debug("%s passed signature verification", file_description.capitalize())
     else:
         raise Exception(
@@ -48,37 +42,44 @@ def verify_signature(key, sig, file):
     # Inspect the public key to determine what kind of key it is.
     key_header = key.decode("utf-8").split("\n")[0].strip()
 
-    # PGP
-    if key_header == "-----BEGIN PGP PUBLIC KEY BLOCK-----":
-        gpg = gnupg.GPG()
-        logger.debug("Importing GPG key")
-        gpg_imported = gpg.import_keys(key.decode("utf-8"))
-        if gpg_imported.count == 1:  # pylint: disable=E1101
-            logger.debug("GPG key successfully imported")
+    verified = False
+
+    try:
+        # PGP
+        if key_header == "-----BEGIN PGP PUBLIC KEY BLOCK-----":
+            gpg = gnupg.GPG()
+            logger.debug("Importing GPG key")
+            gpg_imported = gpg.import_keys(key.decode("utf-8"))
+            if gpg_imported.count == 1:  # pylint: disable=E1101
+                logger.debug("GPG key successfully imported")
+            else:
+                raise Exception("Unable to import GPG key")
+
+            # The Python PGP library won't let you read a signature from memory, hence this hack.
+            with tempfile.NamedTemporaryFile() as temp_sig:
+                temp_sig.write(sig)
+                temp_sig.flush()
+                verified = gpg.verify_data(temp_sig.name, file)
+
+        # OpenSSL
+        elif key_header == "-----BEGIN PUBLIC KEY-----":
+            logger.debug("Importing ECDSA key")
+            pubkey = load_pem_public_key(key)
+
+            if isinstance(pubkey, ec.EllipticCurvePublicKey):
+                logger.debug("EC public key successfully imported, verifying signature...")
+                try:
+                    pubkey.verify(sig, file, ec.ECDSA(hashes.SHA256()))
+                    verified = True
+                except InvalidSignature:
+                    verified = False
+            else:
+                raise Exception(f"Unsupported public key algorithm: {type(pubkey)}")
         else:
-            raise Exception("Unable to import GPG key")
+            raise Exception("Unrecognized key type!")
 
-        # The Python PGP library won't let you read a signature from memory, hence this hack.
-        with tempfile.NamedTemporaryFile() as temp_sig:
-            temp_sig.write(sig)
-            temp_sig.flush()
-            verified = gpg.verify_data(temp_sig.name, file)
-
-    # OpenSSL
-    elif key_header == "-----BEGIN PUBLIC KEY-----":
-        logger.debug("Importing ECDSA key")
-        pubkey = load_pem_public_key(key)
-
-        if isinstance(pubkey, ec.EllipticCurvePublicKey):
-            logger.debug("EC public key successfully imported, verifying signature...")
-            try:
-                pubkey.verify(sig, file, ec.ECDSA(hashes.SHA256()))
-                verified = True
-            except InvalidSignature:
-                verified = False
-        else:
-            raise Exception(f"Unsupported public key algorithm: {type(pubkey)}")
-    else:
-        raise Exception("Unrecognized key type!")
+    except Exception as e:
+        logger.warning("Unable to verify signature: %s", e)
+        verified = False
 
     return verified
