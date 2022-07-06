@@ -130,16 +130,18 @@ class Name(Type):
         return self.name
 
     def struct(self) -> bytes:
+        name_bytes = self.name.encode("utf-8")
+
         # The old "n" option is fixed length.
         if self.legacy:
             return struct.pack(
-                f"{len(self.name)}sB{TCG_EVENT_NAME_LEN_MAX - len(self.name)}s",
-                self.name.encode("utf-8"),
+                f"{len(name_bytes)}sB{TCG_EVENT_NAME_LEN_MAX - len(name_bytes)}s",
+                name_bytes,
                 NULL_BYTE,
-                bytearray(TCG_EVENT_NAME_LEN_MAX - len(self.name)),
+                bytearray(TCG_EVENT_NAME_LEN_MAX - len(name_bytes)),
             )
 
-        return struct.pack(f"<I{len(self.name)}sB", len(self.name) + 1, self.name.encode("utf-8"), NULL_BYTE)
+        return struct.pack(f"<I{len(name_bytes)}sB", len(name_bytes) + 1, name_bytes, NULL_BYTE)
 
 
 class Digest:
