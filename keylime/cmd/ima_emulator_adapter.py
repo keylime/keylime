@@ -24,7 +24,10 @@ def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=Non
             search_val = codecs.decode(search_val.encode("utf-8"), "hex")
 
         for line in lines:
-            line = line.strip()
+            # remove only the newline character, as there can be the
+            # space as the delimiter character followed by an empty
+            # field at the end
+            line = line.strip("\n")
             position += 1
 
             entry = ast.Entry(line, None, ima_hash_alg=ima_hash_alg, pcr_hash_alg=pcr_hash_alg)
