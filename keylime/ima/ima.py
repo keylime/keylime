@@ -305,7 +305,10 @@ def _process_measurement_list(
         found_pcr = running_hash == pcrval_bytes
 
     for linenum, line in enumerate(lines):
-        line = line.strip()
+        # remove only the newline character, as there can be the space
+        # as the delimiter character followed by an empty field at the
+        # end
+        line = line.strip("\n")
         if line == "":
             continue
 

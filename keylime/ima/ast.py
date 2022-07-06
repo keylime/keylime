@@ -210,7 +210,7 @@ class Ima(Mode):
     path: Name
 
     def __init__(self, data: str):
-        tokens = data.split()
+        tokens = data.split(" ", maxsplit=1)
         if len(tokens) != 2:
             raise ParserError()
         self.digest = Digest(tokens[0], legacy=True)
@@ -232,9 +232,9 @@ class ImaNg(Mode):
     path: Name
 
     def __init__(self, data: str):
-        tokens = data.split()
+        tokens = data.split(" ", maxsplit=1)
         if len(tokens) != 2:
-            raise ParserError(f"Cannot create ImaSig expected 2 tokens got: {len(tokens)}.")
+            raise ParserError(f"Cannot create ImaNg expected 2 tokens got: {len(tokens)}.")
         self.digest = Digest(tokens[0])
         self.path = Name(tokens[1])
 
@@ -255,26 +255,20 @@ class ImaSig(Mode):
     signature: Optional[Signature] = None
 
     def __init__(self, data: str):
-        tokens = data.split(maxsplit=4)
-        num_tokens = len(tokens)
-        if num_tokens == 2:
-            self.digest = Digest(tokens[0])
-            self.path = Name(tokens[1])
-        elif num_tokens <= 1:
-            raise ParserError(f"Cannot create ImaSig expected 2 or 3 tokens got: {len(tokens)}.")
-        else:
-            self.digest = Digest(tokens[0])
-            signature = self.create_signature(tokens[-1])
-            if signature:
-                self.signature = signature
-                if num_tokens == 3:
-                    self.path = Name(tokens[1])
-                else:
-                    # first part of data is digest , last is signature, in between is path
-                    self.path = Name(data.split(maxsplit=1)[1].rsplit(maxsplit=1)[0])
-            else:
-                # first part is data, last part is path
-                self.path = Name(data.split(maxsplit=1)[1])
+        # There are always 3 fields in a valid entry, because:
+        #
+        # - n-ng does not contain a space character, as it is escaped to an
+        #   underscore ("_"):
+        #   https://elixir.bootlin.com/linux/v5.18/source/security/integrity/ima/ima_template_lib.c#L55
+        # - the last field could be an empty string but a delimiter (" ") should
+        #   still present:
+        #   https://elixir.bootlin.com/linux/v5.18/source/security/integrity/ima/ima_fs.c#L244
+        tokens = data.split(" ", maxsplit=2)
+        if len(tokens) != 3:
+            raise ParserError(f"Cannot create ImaSig expected 3 tokens got: {len(tokens)}.")
+        self.digest = Digest(tokens[0])
+        self.path = Name(tokens[1])
+        self.signature = self.create_signature(tokens[2])
 
     @staticmethod
     def create_signature(hexstring: str) -> Optional[Signature]:
@@ -309,7 +303,15 @@ class ImaBuf(Mode):
     data: Buffer
 
     def __init__(self, data: str):
-        tokens = data.split(maxsplit=5)
+        # There are always 3 fields in a valid entry, because:
+        #
+        # - n-ng does not contain a space character, as it is escaped to an
+        #   underscore ("_"):
+        #   https://elixir.bootlin.com/linux/v5.18/source/security/integrity/ima/ima_template_lib.c#L55
+        # - the last field could be an empty string but a delimiter (" ") should
+        #   still present:
+        #   https://elixir.bootlin.com/linux/v5.18/source/security/integrity/ima/ima_fs.c#L244
+        tokens = data.split(" ", maxsplit=2)
         if len(tokens) != 3:
             raise ParserError(f"Cannot create ImaBuf expected 3 tokens got: {len(tokens)}.")
         self.digest = Digest(tokens[0])
@@ -354,7 +356,7 @@ class Entry:
         self._validator = validator
         self._ima_hash_alg = ima_hash_alg
         self._pcr_hash_alg = pcr_hash_alg
-        tokens = data.split(maxsplit=3)
+        tokens = data.split(" ", maxsplit=3)
         if len(tokens) != 4:
             raise ParserError(f"Cannot create Entry expected 4 tokens got: {len(tokens)}.")
         self.pcr = tokens[0]
