@@ -35,6 +35,11 @@
      - /functional/db-mysql-sanity-on-localhost
      - /functional/tenant-allowlist-sanity
      - /functional/measured-boot-swtpm-sanity
+     # now set zeromq as a default revocation notifier and test it
+     - /setup/configure_default_revocation_notifier/zeromq
+     - /functional/basic-attestation-on-localhost
+     # now set revocation notifier back to agent
+     - /setup/configure_default_revocation_notifier/agent
      - /upstream/run_keylime_tests
      - /setup/generate_coverage_report
 
