@@ -2,7 +2,7 @@
 
 [![Slack CNCF chat](https://img.shields.io/badge/Chat-CNCF%20Slack-informational)](https://cloud-native.slack.com/archives/C01ARE2QUTZ)
 
-![keylime](doc/keylime.png?raw=true "Title")
+![keylime](docs/old/keylime.png?raw=true "Title")
 
 Keylime is an open-source scalable trust system harnessing TPM Technology.
 
