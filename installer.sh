@@ -76,7 +76,7 @@ case "$ID" in
         esac
     ;;
 
-    rhel | centos)
+    centos)
         case "${VERSION_ID}" in
             7*)
                 echo "${ID} ${VERSION_ID} selected."
@@ -104,7 +104,43 @@ case "$ID" in
                 #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools" TODO: still on 3.1.1 tpm2_tools
                 NEED_BUILD_TOOLS=1
                 NEED_PYTHON_DIR=1
-                POWERTOOLS="--enablerepo=PowerTools install autoconf-archive"
+		POWERTOOLS="--enablerepo=PowerTools install autoconf-archive"
+            ;;
+	     *)
+                echo "Version ${VERSION_ID} of ${ID} not supported"
+                exit 1
+        esac
+    ;;
+
+    rhel) 
+	case "${VERSION_ID}" in
+            7*)
+                echo "${ID} ${VERSION_ID} selected."
+                PACKAGE_MGR=$(command -v yum)
+                NEED_EPEL=1
+                PYTHON_PREIN="python36 python36-devel python36-setuptools python36-pip git wget patch openssl"
+                PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python36-cryptography python36-requests python36-zmq yaml-cpp-devel python3-psutil python3-alembic"
+                if [ "$(uname -m)" = "x86_64" ]; then
+                    PYTHON_DEPS+=" efivar-libs"
+                fi
+                BUILD_TOOLS="openssl-devel file libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
+                NEED_BUILD_TOOLS=1
+                CENTOS7_TSS_FLAGS="--enable-esapi=no --disable-doxygen-doc"
+            ;;
+            8*)
+                echo "${ID} ${VERSION_ID} selected."
+                PACKAGE_MGR=$(command -v dnf)
+                NEED_EPEL=1
+                PYTHON_PREIN="python3 python3-devel python3-setuptools python3-pip"
+                PYTHON_DEPS="gcc gcc-c++ openssl-devel python3-yaml python3-requests swig python3-cryptography wget git python3-tornado python3-zmq python3-gpg python3-psutil"
+                if [ "$(uname -m)" = "x86_64" ]; then
+                    PYTHON_DEPS+=" efivar-libs"
+                fi
+                BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel libuuid-devel json-c-devel autoconf-archive"
+                #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools" TODO: still on 3.1.1 tpm2_tools
+                NEED_BUILD_TOOLS=1
+                NEED_PYTHON_DIR=1
+		POWERTOOLS="config-manager --set-enabled rhui-codeready-builder-for-rhel-8-x86_64-rhui-source-rpms"
             ;;
             *)
                 echo "Version ${VERSION_ID} of ${ID} not supported"
@@ -285,18 +321,18 @@ if [[ "$NEED_BUILD_TOOLS" -eq "1" ]] ; then
     TMPDIR=`mktemp -d` || exit 1
     echo "INFO: Using temp tpm directory: $TMPDIR"
 
-    $PACKAGE_MGR -y install $BUILD_TOOLS
-    if [[ $? > 0 ]] ; then
-        echo "ERROR: Package(s) failed to install properly!"
-        exit 1
-    fi
-
     if [[ -n "${POWERTOOLS}" ]] ; then
     	$PACKAGE_MGR -y $POWERTOOLS
     	if [[ $? > 0 ]] ; then
         	echo "ERROR: Package(s) failed to install properly!"
         	exit 1
     	fi
+    fi
+
+    $PACKAGE_MGR -y install $BUILD_TOOLS
+    if [[ $? > 0 ]] ; then
+        echo "ERROR: Package(s) failed to install properly!"
+        exit 1
     fi
 
     mkdir -p $TMPDIR/tpm
