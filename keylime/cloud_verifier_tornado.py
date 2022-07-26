@@ -581,7 +581,7 @@ class AgentsHandler(BaseHandler):
             if "reactivate" in rest_params:
                 if not isinstance(agent, dict):
                     agent = _from_db_obj(agent)
-                if agent["mtls_cert"]:
+                if agent["mtls_cert"] and agent["mtls_cert"] != "disabled":
                     agent["ssl_context"] = web_util.generate_agent_mtls_context(agent["mtls_cert"], mtls_options)
                 agent["operational_state"] = states.START
                 asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
@@ -928,7 +928,7 @@ async def notify_error(agent, msgtype="revocation", event=None):
             for agent_db_obj in agents:
                 if agent_db_obj.agent_id != agent["agent_id"]:
                     agent = _from_db_obj(agent_db_obj)
-                    if agent["mtls_cert"]:
+                    if agent["mtls_cert"] and agent["mtls_cert"] != "disabled":
                         agent["ssl_context"] = web_util.generate_agent_mtls_context(agent["mtls_cert"], mtls_options)
                 func = functools.partial(invoke_notify_error, agent, tosend)
                 futures.append(await loop.run_in_executor(pool, func))
@@ -1118,7 +1118,7 @@ async def activate_agents(verifier_id, verifier_ip, verifier_port):
             agent.verifier_ip = verifier_ip
             agent.verifier_host = verifier_port
             agent_run = _from_db_obj(agent)
-            if agent_run["mtls_cert"]:
+            if agent_run["mtls_cert"] and agent_run["mtls_cert"] != "disabled":
                 agent_run["ssl_context"] = web_util.generate_agent_mtls_context(agent_run["mtls_cert"], mtls_options)
             if agent.operational_state == states.START:
                 asyncio.ensure_future(process_agent(agent_run, states.GET_QUOTE))
