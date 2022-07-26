@@ -60,7 +60,6 @@ exclude_db = {
     "provide_V": True,
     "num_retries": 0,
     "pending_event": None,
-    "first_verified": False,
     # the following 3 items are updated to VerifierDB only when the AgentState is stored
     "boottime": "",
     "ima_pcrs": [],
@@ -99,6 +98,7 @@ def _from_db_obj(agent_db_obj):
         "supported_version",
         "mtls_cert",
         "ak_tpm",
+        "attestation_count",
     ]
     agent_dict = {}
     for field in fields:
@@ -471,6 +471,7 @@ class AgentsHandler(BaseHandler):
                     )
                     agent_data["verifier_ip"] = config.get("cloud_verifier", "cloudverifier_ip")
                     agent_data["verifier_port"] = config.get("cloud_verifier", "cloudverifier_port")
+                    agent_data["attestation_count"] = 0
 
                     # TODO: Always error for v1.0 version after initial upgrade
                     if agent_data["mtls_cert"] is None and agent_data["supported_version"] != "1.0":
@@ -1054,7 +1055,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                     "Agent %s was not reachable for quote in %d tries, setting state to FAILED", agent["agent_id"], maxr
                 )
                 failure.add_event("not_reachable", "agent was not reachable from verifier", False)
-                if agent["first_verified"]:  # only notify on previously good agents
+                if agent["attestation_count"] > 0:  # only notify on previously good agents
                     await notify_error(agent, msgtype="comm_error", event=failure.highest_severity_event)
                 else:
                     logger.debug("Communication error for new agent. No notification will be sent")
