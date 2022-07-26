@@ -166,9 +166,7 @@ def process_quote_response(agent, json_response, agentAttestState) -> Failure:
     failure.merge(quote_validation_failure)
 
     if not failure:
-        # set a flag so that we know that the agent was verified once.
-        # we only issue notifications for agents that were at some point good
-        agent["first_verified"] = True
+        agent["attestation_count"] += 1
 
         # has public key changed? if so, clear out b64_encrypted_V, it is no longer valid
         if received_public_key != agent.get("public_key", ""):
@@ -258,6 +256,7 @@ def process_get_status(agent):
         "verifier_port": agent.verifier_port,
         "severity_level": agent.severity_level,
         "last_event_id": agent.last_event_id,
+        "attestation_count": agent.attestation_count,
     }
     return response
 
