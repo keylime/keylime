@@ -99,6 +99,7 @@ def _from_db_obj(agent_db_obj):
         "mtls_cert",
         "ak_tpm",
         "attestation_count",
+        "tpm_clockinfo",
     ]
     agent_dict = {}
     for field in fields:
