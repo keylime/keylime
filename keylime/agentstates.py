@@ -1,8 +1,46 @@
+import sys
 import threading
 
 from keylime.common.algorithms import Hash
 from keylime.ima.ast import get_FF_HASH, get_START_HASH
 from keylime.ima.file_signatures import ImaKeyrings
+
+if sys.version_info >= (3, 7):
+    from dataclasses import dataclass
+else:
+    from keylime.backport_dataclasses import dataclass
+
+
+@dataclass
+class TPMClockInfo:
+    clock: int
+    resetcount: int
+    restartcount: int
+    safe: int
+
+    @classmethod
+    def from_dict(cls, data) -> "TPMClockInfo":
+        dclki = {}
+        if "clockInfo" in data:
+            dclki = data["clockInfo"]
+
+        if "clock" in data:
+            dclki = data
+
+        return cls(
+            clock=dclki.get("clock", 0),
+            resetcount=dclki.get("resetCount", 0),
+            restartcount=dclki.get("restartCount", 0),
+            safe=dclki.get("safe", 1),
+        )
+
+    def to_dict(self):
+        data = {}
+        data["clock"] = self.clock
+        data["resetCount"] = self.resetcount
+        data["restartCount"] = self.restartcount
+        data["safe"] = self.safe
+        return data
 
 
 class TPMState:
@@ -56,6 +94,7 @@ class AgentAttestState:
         self.agent_id = agent_id
         self.next_ima_ml_entry = 0
         self.set_boottime(0)
+        self.tpm_clockinfo = TPMClockInfo(clock=0, resetcount=0, restartcount=0, safe=1)
 
         self.tpm_state = TPMState()
         self.ima_pcrs = set()
@@ -122,6 +161,14 @@ class AgentAttestState:
     def set_boottime(self, boottime):
         """Set the boottime of the system"""
         self.boottime = boottime
+
+    def get_tpm_clockinfo(self):
+        """Return the clock info extracted from a TPM quote"""
+        return self.tpm_clockinfo
+
+    def set_tpm_clockinfo(self, tpm_clockinfo):
+        """Set the clock info with information extracted from a TPM quote"""
+        self.tpm_clockinfo = tpm_clockinfo
 
     def is_expected_boottime(self, boottime):
         """Check whether the given boottime is the expected boottime"""

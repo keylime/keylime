@@ -40,7 +40,17 @@ from pathlib import Path
 import dbus
 from cryptography.hazmat.primitives import serialization
 
-from keylime import api_version, config, crypto, fs_util, json, secure_mount, tenant, tornado_requests
+from keylime import (
+    api_version,
+    cloud_verifier_common,
+    config,
+    crypto,
+    fs_util,
+    json,
+    secure_mount,
+    tenant,
+    tornado_requests,
+)
 from keylime.cmd import user_data_encrypt
 from keylime.common import algorithms
 from keylime.ima import ima
@@ -573,9 +583,11 @@ class TestRestful(unittest.TestCase):
         self.assertIn("quote", json_response["results"], "Malformed response body!")
         self.assertIn("pubkey", json_response["results"], "Malformed response body!")
 
+        agentAttestState = cloud_verifier_common.get_AgentAttestStates().get_by_agent_id(tenant_templ.agent_uuid)
+
         # Check the quote identity
         failure = tpm_instance.check_quote(
-            tenant_templ.agent_uuid,
+            agentAttestState,
             nonce,
             json_response["results"]["pubkey"],
             json_response["results"]["quote"],
@@ -853,8 +865,10 @@ class TestRestful(unittest.TestCase):
         quote = json_response["results"]["quote"]
         hash_alg = algorithms.Hash(json_response["results"]["hash_alg"])
 
+        agentAttestState = cloud_verifier_common.get_AgentAttestStates().get_by_agent_id(tenant_templ.agent_uuid)
+
         failure = tpm_instance.check_quote(
-            tenant_templ.agent_uuid, nonce, public_key, quote, aik_tpm, self.tpm_policy, hash_alg=hash_alg
+            agentAttestState, nonce, public_key, quote, aik_tpm, self.tpm_policy, hash_alg=hash_alg
         )
         self.assertTrue(not failure)
 

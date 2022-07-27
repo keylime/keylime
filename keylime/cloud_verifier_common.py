@@ -3,7 +3,7 @@ import base64
 import time
 
 from keylime import config, crypto, json, keylime_logging
-from keylime.agentstates import AgentAttestStates
+from keylime.agentstates import AgentAttestStates, TPMClockInfo
 from keylime.common import algorithms, validators
 from keylime.failure import Component, Failure
 from keylime.ima import file_signatures
@@ -148,6 +148,9 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
     tenant_keyring = file_signatures.ImaKeyring.from_string(agent["ima_sign_verification_keys"])
     ima_keyrings.set_tenant_keyring(tenant_keyring)
 
+    if "tpm_clockinfo" in agent:
+        agentAttestState.set_tpm_clockinfo(TPMClockInfo.from_dict(agent["tpm_clockinfo"]))
+
     quote_validation_failure = get_tpm_instance().check_quote(
         agentAttestState,
         agent["nonce"],
@@ -167,6 +170,8 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
 
     if not failure:
         agent["attestation_count"] += 1
+
+        agent["tpm_clockinfo"] = agentAttestState.get_tpm_clockinfo().to_dict()
 
         # has public key changed? if so, clear out b64_encrypted_V, it is no longer valid
         if received_public_key != agent.get("public_key", ""):

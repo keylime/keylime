@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from packaging.version import Version
 
 from keylime import cmd_exec, config, keylime_logging, secure_mount, tpm_ek_ca
+from keylime.agentstates import TPMClockInfo
 from keylime.common import algorithms, retry
 from keylime.failure import Component, Failure
 from keylime.tpm import tpm2_objects, tpm_abstract
@@ -1051,6 +1052,64 @@ class tpm(tpm_abstract.AbstractTPM):
         retDict = self.__run(command, lock=False)
         return retDict
 
+    def __tpm2_printquote(self, quoteFile):
+        command = ["tpm2_print", "-t", "TPMS_ATTEST", quoteFile]
+        retDict = self.__run(command, lock=False)
+        return retDict
+
+    def _tpm2_printquote(self, quote, compressed):
+        """Get TPM timestamp info from quote
+        :param quote: quote data in the format 'r<b64-compressed-quoteblob>:<b64-compressed-sigblob>:<b64-compressed-pcrblob>
+        :param compressed: if the quote data is compressed with zlib or not
+        :returns: Returns the 'retout' from running tpm2_print and True in case of success, None and False in case of error.
+        This function throws an Exception on bad input.
+        """
+
+        if quote[0] != "r":
+            raise Exception(f"Invalid quote type {quote[0]}")
+        quote = quote[1:]
+
+        quote_tokens = quote.split(":")
+        if len(quote_tokens) < 3:
+            raise Exception(f"Quote is not compound! {quote}")
+
+        quoteblob = base64.b64decode(quote_tokens[0])
+
+        if compressed:
+            logger.warning("Decompressing quote data which is unsafe!")
+            quoteblob = zlib.decompress(quoteblob)
+
+        qfd = -1
+        quoteFile = None
+
+        try:
+            # write out quote
+            qfd, qtemp = tempfile.mkstemp()
+            with open(qtemp, "wb") as quoteFile:
+                quoteFile.write(quoteblob)
+
+            retDict = self.__tpm2_printquote(quoteFile.name)
+            retout = retDict["retout"]
+            reterr = retDict["reterr"]
+            code = retDict["code"]
+        except Exception as e:
+            logger.error("Error printing quote: %s", str(e))
+            logger.exception(e)
+            return None, False
+        finally:
+            for fd in [qfd]:
+                if fd >= 0:
+                    os.close(fd)
+            for fi in [quoteFile]:
+                if fi is not None:
+                    os.remove(fi.name)
+
+        if len(retout) < 1 or code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
+            logger.error("Failed to print quote info, output: %s", reterr)
+            return None, False
+
+        return retout, True
+
     def _tpm2_checkquote(self, aikTpmFromRegistrar, quote, nonce, hash_alg, compressed):
         """Write the files from data returned from tpm2_quote for running tpm2_checkquote
         :param aikTpmFromRegistrar: AIK used to generate the quote and is needed for verifying it now.
@@ -1157,13 +1216,26 @@ class tpm(tpm_abstract.AbstractTPM):
         if hash_alg is None:
             hash_alg = self.defaults["hash"]
 
+        # First and foremost, the quote needs to be validated
         retout, success = self._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, hash_alg, compressed)
         if not success:
             # If the quote validation fails we will skip all other steps therefore this failure is irrecoverable.
             failure.add_event(
-                "quote_validation", {"message": "Quote validation using tpm2-tools", "data": retout}, False
+                "quote_validation", {"message": "Quote data validation using tpm2-tools", "data": retout}, False
             )
             return failure
+
+        # Only after validating the quote, the TPM clock information can be extracted from it.
+        clock_failure, current_clock_info = self.check_quote_timing(agentAttestState.get_tpm_clockinfo(), quote)
+        if clock_failure:
+            failure.add_event(
+                "quote_validation",
+                {"message": "Validation of clockinfo from quote using tpm2-tools", "data": clock_failure},
+                False,
+            )
+            return failure
+        if current_clock_info:
+            agentAttestState.set_tpm_clockinfo(current_clock_info)
 
         pcrs = []
         jsonout = config.yaml_to_dict(retout, logger=logger)
@@ -1199,6 +1271,44 @@ class tpm(tpm_abstract.AbstractTPM):
             mb_refstate,
             hash_alg,
         )
+
+    def check_quote_timing(self, previous_clockinfo, quote):
+        # Sanity check quote clock information
+
+        current_clockinfo = None
+
+        retout, success = self._tpm2_printquote(quote, False)
+        if not success:
+            return "tpm2_print failed with " + str(retout), current_clockinfo
+
+        tpm_data_str_dict = config.yaml_to_dict(retout, add_newlines=False, logger=logger)
+        if tpm_data_str_dict is None:
+            return "yaml output of tpm2_print could not be parsed!", current_clockinfo
+
+        tentative_current_clockinfo = TPMClockInfo.from_dict(tpm_data_str_dict)
+
+        resetdiff = tentative_current_clockinfo.resetcount - previous_clockinfo.resetcount
+        restartdiff = tentative_current_clockinfo.restartcount - previous_clockinfo.restartcount
+
+        if resetdiff < 0:
+            return "resetCount value decreased on TPM between two consecutive quotes", current_clockinfo
+
+        if restartdiff < 0:
+            return "restartCount value decreased on TPM between two consecutive quotes", current_clockinfo
+
+        if tentative_current_clockinfo.safe != 1:
+            return "clock safe flag is disabled", current_clockinfo
+
+        if not (resetdiff and restartdiff):
+            if tentative_current_clockinfo.clock - previous_clockinfo.clock <= 0:
+                return (
+                    "clock timestamp did issued by TPM did not increase between two consecutive quotes",
+                    current_clockinfo,
+                )
+
+            current_clockinfo = tentative_current_clockinfo
+
+        return None, current_clockinfo
 
     def sim_extend(self, hashval_1, hashval_0=None, hash_alg=None):
         # simulate extending a PCR value by performing TPM-specific extend procedure

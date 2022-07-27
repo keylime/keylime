@@ -47,6 +47,7 @@ class VerfierMain(Base):
     ak_tpm = Column(String(500))
     mtls_cert = Column(String(2048), nullable=True)
     attestation_count = Column(Integer)
+    tpm_clockinfo = Column(JSONPickleType(pickler=JSONPickler))
 
 
 class VerifierAllowlist(Base):
