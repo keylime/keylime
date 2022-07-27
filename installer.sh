@@ -104,14 +104,14 @@ case "$ID" in
                 #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools" TODO: still on 3.1.1 tpm2_tools
                 NEED_BUILD_TOOLS=1
                 NEED_PYTHON_DIR=1
-		if test "$ID" = centos; then
-			POWERTOOLS="--enablerepo=PowerTools"
-		else
-			POWERTOOLS="config-manager --set-enabled rhui-codeready-builder-for-rhel-8-x86_64-rhui-source-rpms"
-		fi 
+                if test "$ID" = centos; then
+                   POWERTOOLS="--enablerepo=PowerTools"
+                else
+                   POWERTOOLS="config-manager --set-enabled rhui-codeready-builder-for-rhel-8-x86_64-rhui-source-rpms"
+                fi 
 
             ;;
-	     *)
+            *)
                 echo "Version ${VERSION_ID} of ${ID} not supported"
                 exit 1
         esac
@@ -184,11 +184,11 @@ echo "==========================================================================
 echo $'\t\t\tInstalling python & crypto libs'
 echo "=================================================================================="
 if [[ "$NEED_EPEL" -eq "1" ]] ; then
-	$PACKAGE_MGR -y install epel-release
-	if [[ $? > 0 ]] ; then
-    	echo "ERROR: EPEL package failed to install properly!"
-    	exit 1
-	fi
+    $PACKAGE_MGR -y install epel-release
+    if [[ $? > 0 ]] ; then
+        echo "ERROR: EPEL package failed to install properly!"
+        exit 1
+    fi
 fi
 
 $PACKAGE_MGR install -y $PYTHON_PREIN
@@ -291,11 +291,11 @@ if [[ "$NEED_BUILD_TOOLS" -eq "1" ]] ; then
     echo "INFO: Using temp tpm directory: $TMPDIR"
 
     if [[ -n "${POWERTOOLS}" ]] ; then
-    	$PACKAGE_MGR -y $POWERTOOLS
-    	if [[ $? > 0 ]] ; then
-        	echo "ERROR: Package(s) failed to install properly!"
-        	exit 1
-    	fi
+        $PACKAGE_MGR -y $POWERTOOLS
+        if [[ $? > 0 ]] ; then
+            echo "ERROR: Package(s) failed to install properly!"
+            exit 1
+        fi
     fi
 
     $PACKAGE_MGR -y install $BUILD_TOOLS
