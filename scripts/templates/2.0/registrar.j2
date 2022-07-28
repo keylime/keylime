@@ -1,0 +1,82 @@
+# Keylime registrar configuration
+[registrar]
+
+# The configuration file version number
+version = {{ registrar.version }}
+
+# The registrar server IP address and port
+ip = {{ registrar.ip }}
+port = {{ registrar.port }}
+tls_port = {{ registrar.tls_port }}
+
+# The 'tls_dir' option define the directory where the keys and certificates are
+# stored.
+#
+# If set as 'generate', automatically generate a CA, keys, and certificates for
+# the registrar server in the /var/lib/keylime/reg_ca directory, if not present.
+#
+# The 'server_key', 'server_cert', and 'trusted_client_ca' options should all be
+# set with the 'default' keyword when 'generate' keyword is set for 'tls_dir'.
+#
+# If set as 'default', share the files with the verifier by using the
+# 'var/lib/keylime/cv_ca' directory, which should contain the files indicated by
+# the 'server_key', 'server_cert', and 'trusted_client_ca' options.
+tls_dir = {{ registrar.tls_dir }}
+
+# The name of the file containing the Keylime registrar server private key.
+# The file should be stored in the directory set in the 'tls_dir' option.
+# This private key is used to serve the Keylime registrar REST API
+#
+# If set as 'default', the 'server-private.pem' value is used.
+server_key = {{ registrar.server_key }}
+
+# Set the password used to encrypt the private key file.
+# If 'tls_dir = generate', this password will also be used to protect the
+# generated CA private key.
+# If left empty, the private key will not be encrypted.
+server_key_password = {{ registrar.server_key_password }}
+
+# The name of the file containing the Keylime registrar server certificate.
+# The file should be stored in the directory set in the 'tls_dir' option.
+#
+# If set as 'default', the 'server-cert.crt' value is used.
+server_cert = {{ registrar.server_cert }}
+
+# The list of trusted client CA certificates.
+# The files in the list should be stored in the directory set in the 'tls_dir'
+# option.
+#
+# If set as 'default', the value is set as '[cacert.crt]'
+trusted_client_ca = {{ registrar.trusted_client_ca }}
+
+# Database URL Configuration
+# See this document https://keylime-docs.readthedocs.io/en/latest/installation.html#database-support
+# for instructions on using different database configurations.
+#
+# An example of database_url value for using sqlite:
+#   sqlite:////var/lib/keylime/reg_data.sqlite
+# An example of database_url value for using mysql:
+#   mysql+pymysql://keylime:keylime@keylime_db:[port]/registrar?charset=utf8
+#
+# If set as 'sqlite' keyword, will use the configuration set by the file located
+# at "/var/lib/keylime/reg_data.sqlite".
+database_url = {{ registrar.database_url }}
+
+# Limits for DB connection pool size in sqlalchemy
+# (https://docs.sqlalchemy.org/en/14/core/pooling.html#api-documentation-available-pool-implementations)
+database_pool_sz_ovfl = {{ registrar.database_pool_sz_ovfl }}
+
+# Whether to automatically update the DB schema using alembic
+auto_migrate_db = {{ registrar.auto_migrate_db }}
+
+# The file to use for SQLite persistence of provider hypervisor data.
+prov_db_filename: {{ registrar.prov_db_filename }}
+
+# Destination for log output, in addition to console. If left empty, the log
+# output will only be printed to console (recommended for containers to avoid
+# filling data storage). The accepted values are:
+# 'file': The log output will also be written to a file named after the
+#         component in '/var/log/keylime/registrar.log'
+# 'stream': The log output will be written to a common file in
+#           'var/log/keylime/keylime-stream.log'
+log_destination = {{ registrar.log_destination }}
