@@ -1,0 +1,196 @@
+# Keylime verifier configuration
+[verifier]
+
+# Unique identifier for the each verifier instances.
+uuid = {{ verifier.uuid }}
+
+# The verifier server IP address and port
+ip = {{ verifier.ip }}
+port = {{ verifier.port }}
+
+# The address and port of registrar server that the verifier communicates with
+registrar_ip = {{ verifier.registrar_ip }}
+registrar_port = {{ verifier.registrar_port }}
+
+# Enable mTLS communication between agent, verifier and tenant.
+# Details on why setting it to "False" is generally considered insecure can be found
+# on https://github.com/keylime/keylime/security/advisories/GHSA-2m39-75g9-ff5r
+enable_agent_mtls = {{ verifier.enable_agent_mtls }}
+
+# The 'tls_dir' option define the directory where the keys and certificates are
+# stored.
+#
+# If set as 'generate', automatically generate a CA, keys, and certificates for
+# the client and the server in the /var/lib/keylime/cv_ca directory, if not
+# present.
+#
+# The 'server_key', 'server_cert', 'client_key', 'client_cert',
+# 'trusted_client_ca', and 'trusted_server_ca' options should all be set with
+# the 'default' keyword when 'generate' keyword is set for 'tls_dir'.
+#
+# If set as 'default', the 'var/lib/keylime/cv_ca' directory is used, which
+# should contain the files indicated by  the 'server_key', 'server_cert',
+# 'client_key', 'client_cert', 'trusted_client_ca', and 'trusted_server_ca'
+# options.
+tls_dir = {{ verifier.tls_dir }}
+
+# The name of the file containing the Keylime verifier server private key.
+# The file should be stored in the directory set in the 'tls_dir' option.
+# This private key is used to serve the Keylime verifier REST API
+#
+# If set as 'default', the 'server-private.pem' value is used.
+server_key = {{ verifier.server_key }}
+
+# Set the password used to encrypt the server private key file.
+# If 'tls_dir = generate', this password will also be used to protect the
+# generated CA private key.
+# If left empty, the private key will not be encrypted.
+server_key_password = {{ verifier.server_key_password }}
+
+# The name of the file containing the Keylime verifier server certificate.
+# The file should be stored in the directory set in the 'tls_dir' option.
+#
+# If set as 'default', the 'server-cert.crt' value is used.
+server_cert = {{ verifier.server_cert }}
+
+# The list of trusted client CA certificates.
+# The files in the list should be stored in the directory set in the 'tls_dir'
+# option.
+#
+# If set as 'default', the value is set as '[cacert.crt]'
+trusted_client_ca = {{ verifier.trusted_client_ca }}
+
+# The name of the file containing the Keylime verifier client private key.
+# The file should be stored in the directory set in the 'tls_dir' option.
+# This private key is used by the Keylime verifier to connect to the other
+# services using TLS.
+#
+# If set as 'default', the 'client-private.pem' value is used.
+client_key = {{ verifier.client_key }}
+
+# Set the password used to encrypt the client private key file.
+# If 'tls_dir = generate', this password will also be used to protect the
+# generated CA private key.
+# If left empty, the private key will not be encrypted.
+client_key_password = {{ verifier.client_key_password }}
+
+# The name of the file containing the Keylime verifier client certificate.
+# The file should be stored in the directory set in the 'tls_dir' option.
+# This certificate is used by the Keylime verifier to connect to the other
+# services using TLS.
+#
+# If set as 'default', the 'client-cert.crt' value is used.
+client_cert = {{ verifier.client_cert }}
+
+# The list of trusted server CA certificates.
+# The files in the list should be stored in the directory set in the 'tls_dir'
+# option.
+#
+# If set as 'default', the value is set as '[cacert.crt]'
+trusted_server_ca = {{ verifier.trusted_server_ca }}
+
+# Database URL Configuration
+# See this document https://keylime-docs.readthedocs.io/en/latest/installation.html#database-support
+# for instructions on using different database configurations.
+#
+# An example of database_url value for using sqlite:
+#   sqlite:////var/lib/keylime/cv_data.sqlite
+# An example of database_url value for using mysql:
+#   mysql+pymysql://keylime:keylime@keylime_db:[port]/verifier?charset=utf8
+#
+# If set as 'sqlite' keyword, will use the configuration set by the file located
+# at "/var/lib/keylime/cv_data.sqlite".
+database_url = {{ verifier.database_url }}
+
+# Limits for DB connection pool size in sqlalchemy
+# (https://docs.sqlalchemy.org/en/14/core/pooling.html#api-documentation-available-pool-implementations)
+database_pool_sz_ovfl = {{ verifier.database_pool_sz_ovfl }}
+
+# Whether to automatically update the DB schema using alembic
+auto_migrate_db = {{ verifier.auto_migrate_db }}
+
+# The number of worker processes to use for the cloud verifier.
+# Set to "0" to create one worker per processor.
+num_workers = {{ verifier.num_workers }}
+
+# Wether or not to use an exponantial backoff algorithm for retries.
+exponential_backoff = {{ verifier.exponential_backoff }}
+
+# Either how long to wait between failed attempts to connect to a cloud agent
+# in seconds, or the base for the exponential backoff algorithm.
+# Floating point values accepted here.
+retry_interval = {{ verifier.retry_interval }}
+
+# Number of retries to connect to an agent before giving up. Must be an integer.
+max_retries = {{ verifier.max_retries }}
+
+# Time between integrity measurement checks, in seconds.  If set to "0", checks
+# will done as fast as possible.  Floating point values accepted here.
+quote_interval = {{ verifier.quote_interval }}
+
+# The verifier limits the size of upload payloads (allowlists) which defaults to
+# 100MB (104857600 bytes). This setting can be raised (or lowered) based on the
+# size of the actual payloads
+max_upload_size = {{ verifier.max_upload_size }}
+
+# The name of the boot attestation policy to use in comparing a measured boot event log
+# with a measured boot reference state.
+# A policy is a Python object that `isinstance` of `keylime.elchecking.policies.Policy`
+# and was registered by calling `keylime.elchecking.policies.register`.
+# The keylime agent extracts the measured boot event log.
+# The verifier client specifies the measured boot reference state to use;
+# this is specified independently for each agent.
+# Depending on the policy, the same reference state may be usable with multiple agents.
+# The `accept-all` policy ignores the reference state and approves every log.
+measured_boot_policy_name = {{ verifier.measured_boot_policy_name }}
+
+# Severity labels for revocation events strictly ordered from least severity to
+# highest severtiy.
+severity_labels = {{ verifier.severity_labels }}
+
+# Severity policy that matches different event_ids to the severity label.
+# The rules are evaluated from the beginning of the list and the first match is
+# used. The event_id can also be a regex. Default policy assigns the highest
+# severity to all events.
+severity_policy = {{ verifier.severity_policy }}
+
+# If files are already opened when IMA tries to measure them this causes
+# a time of measure, time of use (ToMToU) error entry.
+# By default we ignore those entries and only print a warning.
+# Set to False to treat ToMToU entries as errors.
+ignore_tomtou_errors = {{ verifier.ignore_tomtou_errors }}
+
+
+[revocations]
+
+# List of revocation notification methods to enable.
+#
+# Available methods are:
+#
+# "agent": Deliver notification directly to the agent via the REST
+# protocol.
+#
+# "zeromq": Enable the ZeroMQ based revocation notification method;
+# zmq_ip and zmq_port options must be set. Currently this only works if you are
+# using keylime-CA.
+#
+# "webhook": Send notification via webhook. The endpoint URL must be
+# configured with 'webhook_url' option. This can be used to notify other
+# systems that do not have a Keylime agent running.
+enabled_revocation_notifications = {{ verifier.enabled_revocation_notifications }}
+
+# The binding address and port of the revocation notifier service via ZeroMQ.
+zmq_ip = {{ verifier.zmq_ip }}
+zmq_port = {{ verifier.zmq_port }}
+
+# Webhook url for revocation notifications.
+webhook_url = {{ verifier.webhook_url }}
+
+# Destination for log output, in addition to console. If left empty, the log
+# output will only be printed to console (recommended for containers to avoid
+# filling data storage). The accepted values are:
+# 'file': The log output will also be written to a file named after the
+#         component in '/var/log/keylime/verifier.log'
+# 'stream': The log output will be written to a common file in
+#           'var/log/keylime/keylime-stream.log'
+log_destination = {{ verifier.log_destination }}
