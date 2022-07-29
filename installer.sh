@@ -100,11 +100,16 @@ case "$ID" in
                 if [ "$(uname -m)" = "x86_64" ]; then
                     PYTHON_DEPS+=" efivar-libs"
                 fi
-                BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel libuuid-devel json-c-devel"
+                BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel libuuid-devel json-c-devel autoconf-archive"
                 #TPM2_TOOLS_PKGS="tpm2-tss tpm2-tools" TODO: still on 3.1.1 tpm2_tools
                 NEED_BUILD_TOOLS=1
                 NEED_PYTHON_DIR=1
-                POWERTOOLS="--enablerepo=PowerTools install autoconf-archive"
+                if test "$ID" = centos; then
+                    POWERTOOLS="--enablerepo=PowerTools"
+                else
+                    POWERTOOLS="config-manager --set-enabled rhui-codeready-builder-for-rhel-8-x86_64-rhui-source-rpms"
+                fi 
+
             ;;
             *)
                 echo "Version ${VERSION_ID} of ${ID} not supported"
@@ -179,11 +184,11 @@ echo "==========================================================================
 echo $'\t\t\tInstalling python & crypto libs'
 echo "=================================================================================="
 if [[ "$NEED_EPEL" -eq "1" ]] ; then
-	$PACKAGE_MGR -y install epel-release
-	if [[ $? > 0 ]] ; then
-    	echo "ERROR: EPEL package failed to install properly!"
-    	exit 1
-	fi
+    $PACKAGE_MGR -y install epel-release
+    if [[ $? > 0 ]] ; then
+        echo "ERROR: EPEL package failed to install properly!"
+        exit 1
+    fi
 fi
 
 $PACKAGE_MGR install -y $PYTHON_PREIN
@@ -285,18 +290,18 @@ if [[ "$NEED_BUILD_TOOLS" -eq "1" ]] ; then
     TMPDIR=`mktemp -d` || exit 1
     echo "INFO: Using temp tpm directory: $TMPDIR"
 
+    if [[ -n "${POWERTOOLS}" ]] ; then
+        $PACKAGE_MGR -y $POWERTOOLS
+        if [[ $? > 0 ]] ; then
+            echo "ERROR: Package(s) failed to install properly!"
+            exit 1
+        fi
+    fi
+
     $PACKAGE_MGR -y install $BUILD_TOOLS
     if [[ $? > 0 ]] ; then
         echo "ERROR: Package(s) failed to install properly!"
         exit 1
-    fi
-
-    if [[ -n "${POWERTOOLS}" ]] ; then
-    	$PACKAGE_MGR -y $POWERTOOLS
-    	if [[ $? > 0 ]] ; then
-        	echo "ERROR: Package(s) failed to install properly!"
-        	exit 1
-    	fi
     fi
 
     mkdir -p $TMPDIR/tpm
