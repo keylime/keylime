@@ -6,8 +6,17 @@ from typing import Any, Callable, Dict
 
 from keylime import config
 
-LOG_TO_FILE = ["registrar", "provider_registrar", "cloudverifier"]
+LOG_TO_FILE = []
 LOG_TO_STREAM = []
+for svc in ["registrar", "cloud_verifier"]:
+    logdest = config.get(svc, "log_destination", fallback="")
+
+    if logdest == "file":
+        LOG_TO_FILE.append(svc)
+
+    if logdest == "stream":
+        LOG_TO_STREAM.append(svc)
+
 LOGDIR = os.getenv("KEYLIME_LOGDIR", "/var/log/keylime")
 # not clear that this works right.  console logging may not work
 LOGSTREAM = os.path.join(LOGDIR, "keylime-stream.log")
