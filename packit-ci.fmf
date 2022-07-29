@@ -34,6 +34,7 @@
      - /functional/ek-cert-use-ek_handle-custom-ca_certs
      - /functional/install-rpm-with-ima-signature
      - /functional/keylime_tenant-commands-on-localhost
+     - /functional/keylime_tenant-ima-signature-sanity
      - /functional/tpm_policy-sanity-on-localhost
      - /functional/db-postgresql-sanity-on-localhost
      - /functional/db-mariadb-sanity-on-localhost
