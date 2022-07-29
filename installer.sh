@@ -105,9 +105,9 @@ case "$ID" in
                 NEED_BUILD_TOOLS=1
                 NEED_PYTHON_DIR=1
                 if test "$ID" = centos; then
-                   POWERTOOLS="--enablerepo=PowerTools"
+                    POWERTOOLS="--enablerepo=PowerTools"
                 else
-                   POWERTOOLS="config-manager --set-enabled rhui-codeready-builder-for-rhel-8-x86_64-rhui-source-rpms"
+                    POWERTOOLS="config-manager --set-enabled rhui-codeready-builder-for-rhel-8-x86_64-rhui-source-rpms"
                 fi 
 
             ;;
