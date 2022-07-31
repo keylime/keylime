@@ -35,9 +35,32 @@ fi
 
 if [ $# -lt 1 ]
 then
-    echo "Usage:  `basename $0` list.txt [hash-algo]" >&2
+    echo "No arguments provided" >&2
+    echo "Usage:  `basename $0` -o [filename] -h [hash-algo]" >&2
     exit $NOARGS;
 fi
+
+ALGO=sha1sum
+
+while getopts ":o:h:" opt; do
+    case $opt in
+        o)
+            OUTPUT=$(readlink -f $OPTARG)
+            rm -f $OUTPUT
+            ;;
+        h)
+            ALGO=$OPTARG
+            ;;
+    esac
+done
+
+if [ ! "$OUTPUT" ]
+then
+    echo "Missing argument for -o" >&2;
+    echo "Usage: $0 -o [filename] -h [hash-algo]" >&2;
+    exit 1
+fi
+
 
 # Where to look for initramfs image
 INITRAMFS_LOC="/boot/"
@@ -46,16 +69,6 @@ if [ -d "/ostree" ]; then
     loc=$(grep -E "/ostree/[^/]([^/]*)" -o /proc/cmdline | head -n 1 | cut -d / -f 3)
     INITRAMFS_LOC="/boot/ostree/${loc}/"
 fi
-
-if [ $# -eq 2 ]
-then
-    ALGO=$2
-else
-    ALGO=sha1sum
-fi
-
-OUTPUT=$(readlink -f $1)
-rm -f $OUTPUT
 
 
 echo "Writing allowlist to $OUTPUT with $ALGO..."
