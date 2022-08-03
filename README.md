@@ -42,9 +42,9 @@ in this repository `keylime`. The agent is currently undergoing a port to the
 [Rust programming language](https://www.rust-lang.org), with this work taking
 place in the [rust-keylime repository](https://github.com/keylime/rust-keylime).
 
-The decision was made to port the agent to Rust, as rust is a low level
+The decision was made to port the agent to Rust, as rust is a low-level
 performant systems language designed with security as a central tenet, by means
-of the rust compilers ownership model.
+of the rust compiler's ownership model.
 
 When the rust agent work is complete, the rust-keylime agent will become the
 recommended ongoing agent within Keylime. Until then the Python agent is
@@ -84,11 +84,14 @@ A hardware TPM should always be used when real secrets and trust is required.
 
 ## Installation
 
-### Installer script
+### Automated
+
+#### Using installer script
 
 Keylimes installer requires Python 3.6 or greater.
 
-The following command line options are available using `installer.sh` script:
+The following command line options are available using 
+[installer.sh](https://github.com/keylime/keylime/blob/master/installer.sh) script:
 
 ```
 Usage: ./installer.sh [option...]
@@ -114,7 +117,7 @@ is the `installer.sh` script locally.
 | Fedora        | 32 / 33 / 34  | Package Install |
 | Ubuntu        | 19 LTS / 20   | Compiled        |
 
-### Ansible
+#### Ansible
 
 Ansible roles are available to deploy keylime for use with a hardware TPM or a software TPM emulator. 
 Please proceed to the [Keylime Ansible
@@ -125,7 +128,7 @@ Repository](https://github.com/keylime/ansible-keylime-tpm-emulator).
 | WARNING: The "Keylime Ansible TPM Emulator" role uses a software TPM, which is considered cryptographically insecure. It should only be used for development or testing and **NOT** in production!|
 | --- |
 
-### Docker (Development Only)
+#### Docker (Development Only)
 
 keylime and related emulators can also be deployed using Docker.
 Since this docker configuration currently uses a TPM emulator,
@@ -219,7 +222,7 @@ info from the driver using:
 `sudo find /sys -name tpm0`
 
 Several results may be returned, but the duplicates are just symlinks to one
-location.  Go to one of the returned paths, for example, /sys/class/misc/tpm0.  Now
+location.  Go to one of the returned paths, for example, `/sys/class/misc/tpm0`.  Now
 change to the device directory.  Here you can find some information from the TPM like
 the current pcr values and sometimes the public EK is available.  It will also report
 two important state values: active and enabled.  To use keylime, both of these must
@@ -229,12 +232,14 @@ then activate and finally reboot again.  It is also possible that you may need t
 assert physical presence (see manual for your system on how to do this) in order to
 accomplish these actions in your BIOS.
 
-If your system shows enabled and activated, you can next check the "owned"
-status in the /sys directory.  Keylime can take a system that is not owned (i.e., owned = 0)
-and take control of it.  Keylime can also take a system that is already owned,
-provided that you know the owner password and that keylime or another trusted
-computing system that relies upon tpm4720 previously took ownership.  If you know
-the owner password, you can set the option tpm_ownerpassword in keylime.conf to this known value.
+If your system shows enabled and active, you can next check the "owned" status
+in the /sys directory. The [sysfs ABI](https://www.kernel.org/doc/Documentation/ABI/stable/sysfs-class-tpm) lists
+where the kernel populates these entries. Keylime can take a system that is not
+owned (i.e., owned = 0) and take control of it.  Keylime can also take a system
+that is already owned, provided that you know the owner password and that
+keylime or another trusted computing system that relies upon tpm4720 previously
+took ownership.  If you know the owner password, you can set the option
+`tpm_ownerpassword` in `keylime.conf` to this known value.
 
 ## Usage
 
