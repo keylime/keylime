@@ -1497,6 +1497,8 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
     args = parser.parse_args(argv[1:])
 
     # Make sure argument dependencies are enforced
+    if args.ima_exclude and not args.allowlist:
+        parser.error("--exclude cannot be used without an --allowlist")
     if args.allowlist and args.allowlist_url:
         parser.error("--allowlist and --allowlist-url cannot be specified at the same time")
     if args.allowlist_url and not (args.allowlist_sig or args.allowlist_sig_url or args.allowlist_checksum):
