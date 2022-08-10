@@ -5,8 +5,6 @@ from keylime import ca_util
 from keylime import config as common
 from keylime import keylime_logging, secure_mount, tornado_requests
 
-# read the config file
-config = common.get_config()
 logger = keylime_logging.init_logging("update_crl")
 
 
@@ -16,7 +14,7 @@ def execute(json_revocation):
 
     secdir = secure_mount.mount()
 
-    cert_path = config.get("cloud_agent", "revocation_cert")
+    cert_path = common.get("agent", "revocation_cert")
     if cert_path == "default":
         cert_path = os.path.join(secdir, "unzipped", "RevocationNotifier-cert.crt")
     else:

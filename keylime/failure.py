@@ -2,7 +2,6 @@
 
 """
 
-import ast
 import enum
 import functools
 import re
@@ -183,14 +182,14 @@ def _eval_severity_config() -> Tuple[List[Callable[[str], Optional[SeverityLabel
     Generates the list of rules to match a event_id against.
     """
 
-    labels_list = ast.literal_eval(config.get("cloud_verifier", "severity_labels"))
+    labels_list = config.getlist("verifier", "severity_labels")
     labels = {}
     for label, level in zip(labels_list, range(0, len(labels_list))):
         labels[label] = SeverityLabel(label, level)
 
     label_max = labels[labels_list[-1]]
 
-    policies = ast.literal_eval(config.get("cloud_verifier", "severity_policy"))
+    policies = config.getlist("verifier", "severity_policy")
     rules = []
     for policy in policies:
         # TODO validate regex

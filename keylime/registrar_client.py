@@ -1,81 +1,30 @@
 import logging
-import os
 import sys
 
 from keylime import api_version as keylime_api_version
-from keylime import config, crypto, json, keylime_logging
+from keylime import crypto, json, keylime_logging
 from keylime.requests_client import RequestsClient
 
 logger = keylime_logging.init_logging("registrar_client")
-tls_cert_info = ()
-ca_cert = False
-tls_enabled = False
 api_version = keylime_api_version.current_version()
 
 
-def init_client_tls(section):
-    global tls_cert_info
-    global tls_enabled
-    global ca_cert
+def getData(registrar_ip, registrar_port, agent_id, tls_context):
+    """
+    Get the agent data from the registrar.
 
-    # make this reentrant
-    if tls_cert_info:
-        return
+    This is called by the tenant code
 
-    if not config.getboolean("general", "enable_tls"):
-        logger.warning("Warning: TLS is currently disabled, AIKs may not be authentic.")
-        return
-
-    logger.warning("TLS is enabled.")
-    tls_enabled = True
-
-    logger.info("Setting up client TLS...")
-    tls_dir = config.get(section, "registrar_tls_dir")
-
-    ca_cert = config.get(section, "registrar_ca_cert")
-    my_cert = config.get(section, "registrar_my_cert")
-    my_priv_key = config.get(section, "registrar_private_key")
-
-    if tls_dir == "default":
-        tls_dir = "reg_ca"
-        ca_cert = "cacert.crt"
-        my_cert = "client-cert.crt"
-        my_priv_key = "client-private.pem"
-
-    if tls_dir == "CV":
-        tls_dir = "cv_ca"
-        ca_cert = "cacert.crt"
-        my_cert = "client-cert.crt"
-        my_priv_key = "client-private.pem"
-
-    # this is relative path, convert to absolute in WORK_DIR
-    if tls_dir[0] != "/":
-        tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
-
-    if not os.path.isabs(ca_cert):
-        ca_cert = os.path.join(tls_dir, ca_cert)
-
-    if os.path.isabs(my_cert):
-        tls_cert = my_cert
-    else:
-        tls_cert = os.path.join(tls_dir, my_cert)
-    if os.path.isabs(my_priv_key):
-        tls_priv_key = my_priv_key
-    else:
-        tls_priv_key = os.path.join(tls_dir, my_priv_key)
-
-    tls_cert_info = (tls_cert, tls_priv_key)
-
-
-def getData(registrar_ip, registrar_port, agent_id):
+    :returns: JSON structure containing the agent data
+    """
     # make absolutely sure you don't ask for data that contains AIK keys unauthenticated
-    if not tls_enabled:
+    if not tls_context:
         raise Exception("It is unsafe to use this interface to query AIKs without server-authenticated TLS.")
 
     response = None
     try:
-        client = RequestsClient(f"{registrar_ip}:{registrar_port}", tls_enabled, ignore_hostname=True)
-        response = client.get(f"/v{api_version}/agents/{agent_id}", cert=tls_cert_info, verify=ca_cert)
+        client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context, ignore_hostname=True)
+        response = client.get(f"/v{api_version}/agents/{agent_id}")
         response_body = response.json()
 
         if response.status_code == 404:
@@ -132,6 +81,14 @@ def getData(registrar_ip, registrar_port, agent_id):
 def doRegisterAgent(
     registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_tpm, mtls_cert=None, contact_ip=None, contact_port=None
 ):
+    """
+    Register the agent with the registrar
+
+    This is called by the agent code
+
+    :returns: base64 encoded blob containing the aik_tpm name and a challenge. Is encrypted with ek_tpm.
+    """
+
     data = {
         "ekcert": ekcert,
         "aik_tpm": aik_tpm,
@@ -142,6 +99,7 @@ def doRegisterAgent(
     if mtls_cert is not None:
         data["mtls_cert"] = mtls_cert
     else:
+        data["mtls_cert"] = "disabled"
         logger.error("Most actions require the agent to have mTLS enabled, but no cert was provided!")
     if contact_ip is not None:
         data["ip"] = contact_ip
@@ -150,10 +108,12 @@ def doRegisterAgent(
 
     response = None
     try:
-        client = RequestsClient(f"{registrar_ip}:{registrar_port}", tls_enabled, ignore_hostname=True)
-        response = client.post(
-            f"/v{api_version}/agents/{agent_id}", cert=tls_cert_info, data=json.dumps(data), verify=ca_cert
-        )
+        # The agent accesses the registrar without mTLS, meaning without client
+        # certificate
+        # TODO the registrar could be accessed using TLS, but without client
+        # certificate verification. Currently it is accessed without TLS at all
+        client = RequestsClient(f"{registrar_ip}:{registrar_port}", False)
+        response = client.post(f"/v{api_version}/agents/{agent_id}", data=json.dumps(data))
         response_body = response.json()
 
         if response.status_code != 200:
@@ -183,12 +143,27 @@ def doRegisterAgent(
 
 
 def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
+    """
+    Activate the agent with the registrar
+
+    Contact the registrar to inform the agent has the derived key
+
+    This is called by the agent code
+
+    :returns:
+    """
     data = {
         "auth_tag": crypto.do_hmac(key, agent_id),
     }
-    client = RequestsClient(f"{registrar_ip}:{registrar_port}", tls_enabled, ignore_hostname=True)
+
+    # The agent accesses the registrar without mTLS, meaning without client
+    # certificate
+    # TODO the registrar could be accessed using TLS, but without client
+    # certificate verification. Currently it is accessed without TLS at all
+    client = RequestsClient(f"{registrar_ip}:{registrar_port}", False)
     response = client.put(
-        f"/v{api_version}/agents/{agent_id}/activate", cert=tls_cert_info, data=json.dumps(data), verify=ca_cert
+        f"/v{api_version}/agents/{agent_id}/activate",
+        data=json.dumps(data),
     )
     response_body = response.json()
 
@@ -201,9 +176,17 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
     return False
 
 
-def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
-    client = RequestsClient(f"{registrar_ip}:{registrar_port}", tls_enabled, ignore_hostname=True)
-    response = client.delete(f"/v{api_version}/agents/{agent_id}", cert=tls_cert_info, verify=ca_cert)
+def doRegistrarDelete(registrar_ip, registrar_port, agent_id, tls_context):
+    """
+    Delete the given agent from the registrar.
+
+    This is called by the tenant code
+
+    :returns: The request response body
+    """
+
+    client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context, ignore_hostname=True)
+    response = client.delete(f"/v{api_version}/agents/{agent_id}")
     response_body = response.json()
 
     if response.status_code == 200:
@@ -215,9 +198,16 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id):
     return response_body
 
 
-def doRegistrarList(registrar_ip, registrar_port):
-    client = RequestsClient(f"{registrar_ip}:{registrar_port}", tls_enabled, ignore_hostname=True)
-    response = client.get(f"/v{api_version}/agents/", cert=tls_cert_info, verify=ca_cert)
+def doRegistrarList(registrar_ip, registrar_port, tls_context):
+    """
+    Get the list of registered agents from the registrar.
+
+    This is called by the tenant code
+
+    :returns: The request response body
+    """
+    client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context, ignore_hostname=True)
+    response = client.get(f"/v{api_version}/agents/")
     response_body = response.json()
 
     if response.status_code != 200:

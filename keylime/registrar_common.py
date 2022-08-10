@@ -69,6 +69,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 logger.error("GET received an invalid agent ID: %s", agent_id)
                 return
 
+            agent = None
             try:
                 agent = session.query(RegistrarMain).filter_by(agent_id=agent_id).first()
             except SQLAlchemyError as e:
@@ -338,7 +339,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
             # Check for mTLS cert
             mtls_cert = json_body.get("mtls_cert", None)
-            if mtls_cert is None:
+            if mtls_cert is None or mtls_cert == "disabled":
                 logger.warning("Agent %s did not send a mTLS certificate. Most operations will not work!", agent_id)
 
             # Add values to database
@@ -490,7 +491,7 @@ def start(host, tlsport, port):
 
     # Set up the protected registrar server
     protected_server = RegistrarServer((host, tlsport), ProtectedHandler)
-    context, _ = web_util.init_mtls(section="registrar", generatedir="reg_ca", logger=logger)
+    context = web_util.init_mtls("registrar", logger=logger)
     if context is not None:
         protected_server.socket = context.wrap_socket(protected_server.socket, server_side=True)
     thread_protected_server = threading.Thread(target=protected_server.serve_forever)

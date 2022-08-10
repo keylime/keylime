@@ -10,9 +10,9 @@ def main():
         keylime.cmd.migrations_apply.apply("registrar")
 
     registrar_common.start(
-        config.get("registrar", "registrar_ip"),
-        config.getint("registrar", "registrar_tls_port"),
-        config.getint("registrar", "registrar_port"),
+        config.get("registrar", "ip"),
+        config.getint("registrar", "tls_port"),
+        config.getint("registrar", "port"),
     )
 
 
