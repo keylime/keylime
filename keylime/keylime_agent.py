@@ -104,7 +104,7 @@ class Handler(BaseHTTPRequestHandler):
         # If agent pubkey requested
         elif "keys" in rest_params and rest_params["keys"] == "pubkey":
             response = {}
-            response["pubkey"] = self.server.rsapublickey_exportable
+            response["pubkey"] = self.server.publickey_exportable
 
             web_util.echo_json_response(self, 200, "Success", response)
             logger.info("GET pubkey returning 200 response.")
@@ -139,7 +139,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             hash_alg = tpm_instance.defaults["hash"]
-            quote = tpm_instance.create_quote(nonce, self.server.rsapublickey_exportable, pcrmask, hash_alg)
+            quote = tpm_instance.create_quote(nonce, self.server.publickey_exportable, pcrmask, hash_alg)
             imaMask = pcrmask
 
             # Allow for a partial quote response (without pubkey)
@@ -159,7 +159,7 @@ class Handler(BaseHTTPRequestHandler):
                     "hash_alg": hash_alg,
                     "enc_alg": enc_alg,
                     "sign_alg": sign_alg,
-                    "pubkey": self.server.rsapublickey_exportable,
+                    "pubkey": self.server.publickey_exportable,
                 }
 
             response["boottime"] = self.server.boottime
@@ -240,7 +240,7 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             b64_encrypted_key = json_body["encrypted_key"]
-            decrypted_key = crypto.rsa_decrypt(self.server.rsaprivatekey, base64.b64decode(b64_encrypted_key))
+            decrypted_key = crypto.rsa_decrypt(self.server.private_key, base64.b64decode(b64_encrypted_key))
         except (ValueError, KeyError, TypeError) as e:
             logger.warning("POST returning 400 response, could not parse body data: %s", e)
             web_util.echo_json_response(self, 400, "content is invalid")
@@ -290,14 +290,14 @@ class Handler(BaseHTTPRequestHandler):
         tomeasure = self.server.K
 
         # if we have a good key, now attempt to write out the encrypted payload
-        dec_path = os.path.join(secdir, config.get("cloud_agent", "dec_payload_file"))
+        dec_path = os.path.join(secdir, config.get("agent", "dec_payload_file"))
         enc_path = os.path.join(config.WORK_DIR, "encrypted_payload")
 
         dec_payload = None
         enc_payload = None
         if self.server.payload is not None:
             if not self.server.mtls_cert_enabled and not config.getboolean(
-                "cloud_agent", "enable_insecure_payload", fallback=False
+                "agent", "enable_insecure_payload", fallback=False
             ):
                 logger.warning(
                     'agent mTLS is disabled, and unless "enable_insecure_payload" is set to "True", payloads cannot be deployed'
@@ -330,13 +330,13 @@ class Handler(BaseHTTPRequestHandler):
             tomeasure = tomeasure + dec_payload
             # see if payload is a zip
             zfio = io.BytesIO(dec_payload)
-            if config.getboolean("cloud_agent", "extract_payload_zip") and zipfile.is_zipfile(zfio):
+            if config.getboolean("agent", "extract_payload_zip") and zipfile.is_zipfile(zfio):
                 logger.info("Decrypting and unzipping payload to %s/unzipped", secdir)
                 with zipfile.ZipFile(zfio, "r") as f:
                     f.extractall(os.path.join(secdir, "unzipped"))
 
                 # run an included script if one has been provided
-                initscript = config.get("cloud_agent", "payload_script")
+                initscript = config.get("agent", "payload_script")
                 if initscript != "":
 
                     def initthread():
@@ -367,7 +367,7 @@ class Handler(BaseHTTPRequestHandler):
             zfio.close()
 
         # now extend a measurement of the payload and key if there was one
-        pcr = config.getint("cloud_agent", "measure_payload_pcr")
+        pcr = config.getint("agent", "measure_payload_pcr")
         if 0 < pcr < 24:
             logger.info("extending measurement of payload into PCR %s", pcr)
             measured = tpm_instance.hashdigest(tomeasure)
@@ -394,13 +394,14 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
     u_set = set()
     v_set = set()
 
-    rsaprivatekey = None
-    rsapublickey = None
-    rsapublickey_exportable = None
-    mtls_cert_path = None
-    rsakey_path = None
+    private_key = None
+    private_key_path = None
+    public_key = None
+    publickey_exportable = None
+    cert = None
+    cert_path = None
     mtls_cert_enabled = False
-    mtls_cert = None
+    trusted_ca = None
     revocation_cert_path = None
     done = threading.Event()
     auth_tag = None
@@ -417,56 +418,56 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         # Find the locations for the U/V transport and mTLS key and certificate.
         # They are either relative to secdir (/var/lib/keylime/secure) or absolute paths.
         secdir = secure_mount.mount()
-        keyname = config.get("cloud_agent", "rsa_keyname")
-        if not os.path.isabs(keyname):
-            keyname = os.path.join(secdir, keyname)
+
+        # Get server TLS files from configuration file
+        (cert_path, key_path, trusted_ca), _ = web_util.get_tls_options("agent", logger=logger)
 
         # read or generate the key depending on configuration
-        if os.path.isfile(keyname):
+        if os.path.isfile(key_path):
             # read in private key
-            logger.info("Using existing key in %s", keyname)
-            with open(keyname, "rb") as f:
-                rsa_key = crypto.rsa_import_privkey(f.read())
+            logger.info("Using existing key in %s", key_path)
+            with open(key_path, "rb") as f:
+                private_key = crypto.rsa_import_privkey(f.read())
         else:
             logger.info("Key for U/V transport and mTLS certificate not found, generating a new one")
-            rsa_key = crypto.rsa_generate(2048)
-            with open(keyname, "wb") as f:
-                f.write(crypto.rsa_export_privkey(rsa_key))
+            private_key = crypto.rsa_generate(2048)
+            with open(key_path, "wb") as f:
+                f.write(crypto.rsa_export_privkey(private_key))
 
-        self.rsakey_path = keyname
-        self.rsaprivatekey = rsa_key
-        self.rsapublickey_exportable = crypto.rsa_export_pubkey(self.rsaprivatekey)
+        self.private_key_path = key_path
+        self.private_key = private_key
+        self.publickey_exportable = crypto.rsa_export_pubkey(self.private_key)
 
-        self.mtls_cert_enabled = config.getboolean("cloud_agent", "mtls_cert_enabled", fallback=False)
+        self.mtls_cert_enabled = config.getboolean("agent", "enable_agent_mtls", fallback=False)
         if self.mtls_cert_enabled:
-            certname = config.get("cloud_agent", "mtls_cert")
-
-            if not os.path.isabs(certname):
-                certname = os.path.join(secdir, certname)
-
-            if os.path.isfile(certname):
-                logger.info("Using existing mTLS cert in %s", certname)
-                with open(certname, "rb") as f:
-                    mtls_cert = x509.load_pem_x509_certificate(f.read(), backend=default_backend())
+            if os.path.isfile(cert_path):
+                logger.info("Using existing mTLS cert in %s", cert_path)
+                with open(cert_path, "rb") as f:
+                    cert = x509.load_pem_x509_certificate(f.read(), backend=default_backend())
             else:
                 logger.info("No mTLS certificate found, generating a new one")
                 agent_ips = [server_address[0]]
                 if contact_ip is not None:
                     agent_ips.append(contact_ip)
-                with open(certname, "wb") as f:
+                with open(cert_path, "wb") as f:
                     # By default generate a TLS certificate valid for 5 years
                     valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=(360 * 5))
-                    mtls_cert = crypto.generate_selfsigned_cert(agent_uuid, rsa_key, valid_util, agent_ips)
-                    f.write(mtls_cert.public_bytes(serialization.Encoding.PEM))
+                    cert = crypto.generate_selfsigned_cert(agent_uuid, private_key, valid_util, agent_ips)
+                    f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-            self.mtls_cert_path = certname
-            self.mtls_cert = mtls_cert
+            if not trusted_ca:
+                logger.warning("No certificates provided in 'trusted_client_ca'")
+
+            self.trusted_ca = trusted_ca
+            self.cert_path = cert_path
+            self.cert = cert.public_bytes(serialization.Encoding.PEM)
         else:
-            self.mtls_cert_path = None
-            self.mtls_cert = None
+            self.tls_options = None
+            self.cert_path = None
+            self.cert = "disabled"
             logger.info("WARNING: mTLS disabled, Tenant and Verifier will reach out to agent via HTTP")
 
-        self.revocation_cert_path = config.get("cloud_agent", "revocation_cert")
+        self.revocation_cert_path = config.get("agent", "revocation_cert")
         if self.revocation_cert_path == "default":
             self.revocation_cert_path = os.path.join(secdir, "unzipped/RevocationNotifier-cert.crt")
         elif self.revocation_cert_path[0] != "/":
@@ -479,7 +480,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
             logger.info("Existing U loaded from TPM NVRAM")
             self.add_U(nvram_u)
         http.server.HTTPServer.__init__(self, server_address, RequestHandlerClass)
-        self.enc_keyname = config.get("cloud_agent", "enc_keyname")
+        self.enc_keyname = config.get("agent", "enc_keyname")
         self.agent_uuid = agent_uuid
         self.ima_log_file = ima_log_file
         self.tpm_log_file_data = tpm_log_file_data
@@ -568,13 +569,9 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
 
 # Execute revocation action
 def perform_actions(revocation):
-    actionlist = []
-
     # load the actions from inside the keylime module
-    actionlisttxt = config.get("cloud_agent", "revocation_actions")
-    if actionlisttxt.strip() != "":
-        actionlist = actionlisttxt.split(",")
-        actionlist = [f"revocation_actions.{i}" % i for i in actionlist]
+    actionlist = config.getlist("agent", "revocation_actions")
+    actionlist = [f"revocation_actions.{i}" % i for i in actionlist]
 
     # load actions from unzipped
     secdir = secure_mount.mount()
@@ -610,19 +607,13 @@ def revocation_listener():
     This configures and starts the revocation listener. It is designed to be started in a separate process.
     """
 
-    if config.has_option("cloud_agent", "listen_notifications"):
-        if not config.getboolean("cloud_agent", "listen_notifications"):
-            return
-
-    # keep old typo "listen_notfications" around for a few versions
-    if config.has_option("cloud_agent", "listen_notfications"):
-        logger.warning('Option typo "listen_notfications" is deprecated. Please use "listen_notifications" instead.')
-        if not config.getboolean("cloud_agent", "listen_notfications"):
+    if config.has_option("agent", "enable_revocation_notifications"):
+        if not config.getboolean("agent", "enable_revocation_notifications"):
             return
 
     secdir = secure_mount.mount()
 
-    cert_path = config.get("cloud_agent", "revocation_cert")
+    cert_path = config.get("agent", "revocation_cert")
     if cert_path == "default":
         cert_path = os.path.join(secdir, "unzipped/RevocationNotifier-cert.crt")
     elif cert_path[0] != "/":
@@ -658,7 +649,7 @@ def main():
         with open(config.MEASUREDBOOT_ML, "rb") as tpm_log_file:
             tpm_log_file_data = base64.b64encode(tpm_log_file.read())
 
-    if config.get("cloud_agent", "agent_uuid") == "dmidecode":
+    if config.get("agent", "uuid") == "dmidecode":
         if os.getuid() != 0:
             raise RuntimeError("agent_uuid is configured to use dmidecode, but current process is not running as root.")
         cmd = ["which", "dmidecode"]
@@ -672,7 +663,7 @@ def main():
     # Now that operations requiring root privileges are done, drop privileges
     # if 'run_as' is available in the configuration.
     if os.getuid() == 0:
-        run_as = config.get("cloud_agent", "run_as", fallback="")
+        run_as = config.get("agent", "run_as", fallback="")
         if run_as != "":
             user_utils.chown(secdir, run_as)
             user_utils.change_uidgid(run_as)
@@ -684,16 +675,17 @@ def main():
 
     instance_tpm = tpm()
     # get params for initialization
-    registrar_ip = config.get("cloud_agent", "registrar_ip")
-    registrar_port = config.get("cloud_agent", "registrar_port")
+    registrar_ip = config.get("agent", "registrar_ip")
+    registrar_port = config.get("agent", "registrar_port")
 
     # get params for the verifier to contact the agent
     contact_ip = os.getenv("KEYLIME_AGENT_CONTACT_IP", None)
-    if contact_ip is None and config.has_option("cloud_agent", "agent_contact_ip"):
-        contact_ip = config.get("cloud_agent", "agent_contact_ip")
+    if contact_ip is None and config.has_option("agent", "contact_ip"):
+        contact_ip = config.get("agent", "contact_ip")
+
     contact_port = os.getenv("KEYLIME_AGENT_CONTACT_PORT", None)
-    if contact_port is None and config.has_option("cloud_agent", "agent_contact_port"):
-        contact_port = config.get("cloud_agent", "agent_contact_port", fallback="invalid")
+    if contact_port is None and config.has_option("agent", "contact_port"):
+        contact_port = config.get("agent", "contact_port", fallback="invalid")
 
     # change dir to working dir
     fs_util.ch_dir(config.WORK_DIR)
@@ -703,7 +695,7 @@ def main():
 
     # initialize tpm
     (ekcert, ek_tpm, aik_tpm) = instance_tpm.tpm_init(
-        self_activate=False, config_pw=config.get("cloud_agent", "tpm_ownerpassword")
+        self_activate=False, config_pw=config.get("agent", "tpm_ownerpassword")
     )  # this tells initialize not to self activate the AIK
 
     # Warn if kernel version is <5.10 and another algorithm than SHA1 is used,
@@ -722,7 +714,7 @@ def main():
 
     # now we need the UUID
     try:
-        agent_uuid = config.get("cloud_agent", "agent_uuid")
+        agent_uuid = config.get("agent", "uuid")
     except configparser.NoOptionError:
         agent_uuid = None
     if agent_uuid == "hash_ek":
@@ -758,20 +750,18 @@ def main():
 
     logger.info("Agent UUID: %s", agent_uuid)
 
-    serveraddr = (config.get("cloud_agent", "cloudagent_ip"), config.getint("cloud_agent", "cloudagent_port"))
-
-    keylime_ca = config.get("cloud_agent", "keylime_ca")
-    if keylime_ca == "default":
-        keylime_ca = os.path.join(config.WORK_DIR, "cv_ca", "cacert.crt")
+    serveraddr = (config.get("agent", "ip"), config.getint("agent", "port"))
 
     server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, contact_ip, ima_log_file, tpm_log_file_data)
     if server.mtls_cert_enabled:
-        context = web_util.generate_mtls_context(server.mtls_cert_path, server.rsakey_path, keylime_ca, logger=logger)
+        context = web_util.generate_tls_context(
+            server.cert_path, server.private_key_path, server.trusted_ca, logger=logger
+        )
         server.socket = context.wrap_socket(server.socket, server_side=True)
     else:
         if (
-            not config.getboolean("cloud_agent", "enable_insecure_payload", fallback=False)
-            and config.get("cloud_agent", "payload_script") != ""
+            not config.getboolean("agent", "enable_insecure_payload", fallback=False)
+            and config.get("agent", "payload_script") != ""
         ):
             raise RuntimeError(
                 "agent mTLS is disabled, while a tenant can instruct the agent to execute code on the node. "
@@ -781,12 +771,16 @@ def main():
     serverthread = threading.Thread(target=server.serve_forever, daemon=True)
 
     # register it and get back a blob
-    mtls_cert = "disabled"
-    if server.mtls_cert:
-        mtls_cert = server.mtls_cert.public_bytes(serialization.Encoding.PEM)
-
     keyblob = registrar_client.doRegisterAgent(
-        registrar_ip, registrar_port, agent_uuid, ek_tpm, ekcert, aik_tpm, mtls_cert, contact_ip, contact_port
+        registrar_ip,
+        registrar_port,
+        agent_uuid,
+        ek_tpm,
+        ekcert,
+        aik_tpm,
+        mtls_cert=server.cert,
+        contact_ip=contact_ip,
+        contact_port=contact_port,
     )
 
     if keyblob is None:

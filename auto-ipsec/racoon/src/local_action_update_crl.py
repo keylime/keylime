@@ -25,7 +25,7 @@ async def execute(json_revocation):
 
     secdir = secure_mount.mount()
 
-    cert_path = config.get("cloud_agent", "revocation_cert")
+    cert_path = common.get("agent", "revocation_cert")
     if cert_path == "default":
         cert_path = "%s/unzipped/RevocationNotifier-cert.crt" % (secdir)
     else:

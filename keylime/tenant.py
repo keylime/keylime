@@ -15,7 +15,7 @@ import requests
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 
 from keylime import api_version as keylime_api_version
-from keylime import ca_util, config, crypto, keylime_logging, measured_boot, registrar_client, signing
+from keylime import ca_util, config, crypto, keylime_logging, measured_boot, registrar_client, signing, web_util
 from keylime.agentstates import AgentAttestState
 from keylime.cmd import user_data_encrypt
 from keylime.common import algorithms, retry, states, validators
@@ -38,12 +38,12 @@ class Tenant:
 
     config = None
 
-    cloudverifier_ip = None
-    cloudverifier_port = None
+    verifier_ip = None
+    verifier_port = None
 
-    cloudagent_ip = None
+    agent_ip = None
     cv_cloudagent_ip = None
-    cloudagent_port = None
+    agent_port = None
 
     registrar_ip = None
     registrar_port = None
@@ -71,6 +71,19 @@ class Tenant:
     mb_refstate = None
     supported_version = None
 
+    client_cert = None
+    client_key = None
+    trusted_server_ca = False
+    enable_agent_mtls = False
+    verify_server_cert = False
+    verify_custom = None
+
+    # Context with the trusted CA certificates from the configuration
+    tls_context = None
+
+    # Context with the agent's mTLS certificate
+    agent_tls_context = None
+
     payload = None
 
     tpm_instance = tpm()
@@ -79,84 +92,57 @@ class Tenant:
         """Set up required values and TLS"""
         self.nonce = None
         self.agent_ip = None
-        self.verifier_id = None
         self.agent_port = None
-        self.verifier_ip = config.get("tenant", "cloudverifier_ip")
-        self.verifier_port = config.get("tenant", "cloudverifier_port")
+        self.verifier_id = None
+        self.verifier_ip = config.get("tenant", "verifier_ip")
+        self.verifier_port = config.get("tenant", "verifier_port")
         self.registrar_ip = config.get("tenant", "registrar_ip")
         self.registrar_port = config.get("tenant", "registrar_port")
         self.api_version = keylime_api_version.current_version()
+        self.enable_agent_mtls = config.getboolean("tenant", "enable_agent_mtls")
 
-        (
-            (self.my_cert, self.my_priv_key),
-            (self.my_agent_cert, self.my_agent_priv_key),
-            self.verifier_ca_cert,
-        ) = Tenant.get_tls_context()
-        self.cert = (self.my_cert, self.my_priv_key)
-        self.agent_cert = (self.my_agent_cert, self.my_agent_priv_key)
-        if config.getboolean("general", "enable_tls"):
-            self.tls_cv_enabled = True
-        else:
-            self.tls_cv_enabled = False
-            self.cert = ""
+        logger.info("Setting up client TLS...")
+        (cert, key, trusted_ca), verify_server_cert = web_util.get_tls_options("tenant", is_client=True, logger=logger)
+
+        if not self.enable_agent_mtls:
             logger.warning(
-                "Warning: TLS is currently disabled, keys will be sent in the clear! This should only be used for testing."
+                "Warning: agent mTLS is currently disabled, keys will be sent in the clear! This should only be used for testing."
             )
-        self.tls_agent_enabled = True
-        self.verify_custom = None
+        else:
+            if not verify_server_cert:
+                logger.warning(
+                    "Warning: agent mTLS is enabled, but server certificate verification is disabled as 'trusted_server_ca' option is set to 'all'. This should only be used for testing."
+                )
+            else:
+                if not os.path.isfile(cert):
+                    logger.warning("Could not find file %s provided in 'client_cert'", cert)
+                if not os.path.isfile(key):
+                    logger.warning("Could not find file %s provided in 'client_key'", key)
+
+                if not trusted_ca:
+                    logger.warning("No certificates provided in 'trusted_server_ca'")
+                else:
+                    self.client_cert = cert
+                    self.client_key = key
+                    self.verify_server_cert = verify_server_cert
+                    self.trusted_server_ca = trusted_ca
+
+                    self.tls_context = web_util.generate_tls_context(
+                        cert, key, trusted_ca, verify_server_cert, is_client=True, logger=logger
+                    )
+
+                    logger.info("TLS is enabled.")
 
     @property
     def verifier_base_url(self):
         return f"{self.verifier_ip}:{self.verifier_port}"
 
-    @staticmethod
-    def get_tls_context():
-        """Generate certifcate naming and path
-
-        Returns:
-            string -- my_cert (client_cert), my_priv_key (client private key)
-        """
-        verifier_ca_cert = config.get("tenant", "ca_cert")
-        my_cert = config.get("tenant", "my_cert")
-        my_priv_key = config.get("tenant", "private_key")
-        tls_dir = config.get("tenant", "tls_dir")
-
-        if tls_dir == "default":
-            verifier_ca_cert = "cacert.crt"
-            my_cert = "client-cert.crt"
-            my_priv_key = "client-private.pem"
-            tls_dir = "cv_ca"
-
-        if tls_dir[0] != "/":
-            tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
-
-        logger.info("Setting up client TLS in %s", tls_dir)
-        verifier_ca_cert = os.path.join(tls_dir, verifier_ca_cert)
-        my_cert = os.path.join(tls_dir, my_cert)
-        my_priv_key = os.path.join(tls_dir, my_priv_key)
-
-        tls_context = (my_cert, my_priv_key)
-
-        agent_mtls_context = (None, None)
-        # Check for user defined CA to connect to agent
-        agent_mtls_cert_enabled = config.getboolean("tenant", "agent_mtls_cert_enabled", fallback=False)
-
-        if agent_mtls_cert_enabled:
-            agent_mtls_cert = config.get("cloud_verifier", "agent_mtls_cert", fallback=None)
-            agent_mtls_private_key = config.get("cloud_verifier", "agent_mtls_private_key", fallback=None)
-            agent_mtls_context = tls_context
-            if agent_mtls_cert != "CV":
-                agent_mtls_context = (agent_mtls_cert, agent_mtls_private_key)
-
-        return tls_context, agent_mtls_context, verifier_ca_cert
-
     def process_allowlist(self, args):
         # Set up PCR values
-        tpm_policy = config.get("tenant", "tpm_policy")
         if "tpm_policy" in args and args["tpm_policy"] is not None:
             tpm_policy = args["tpm_policy"]
-        self.tpm_policy = TPM_Utilities.readPolicy(tpm_policy)
-        logger.info("TPM PCR Mask from policy is %s", self.tpm_policy["mask"])
+            self.tpm_policy = TPM_Utilities.readPolicy(tpm_policy)
+            logger.info("TPM PCR Mask from policy is %s", self.tpm_policy["mask"])
 
         if len(args.get("ima_sign_verification_keys")) > 0:
             # Auto-enable IMA (or-bit mask)
@@ -192,8 +178,6 @@ class Tenant:
         excl_data = None
         if "ima_exclude" in args and args["ima_exclude"] is not None:
             if isinstance(args["ima_exclude"], str):
-                if args["ima_exclude"] == "default":
-                    args["ima_exclude"] = config.get("tenant", "ima_excludelist")
                 excl_data = ima.read_excllist(args["ima_exclude"])
             elif isinstance(args["ima_exclude"], list):
                 excl_data = args["ima_exclude"]
@@ -250,8 +234,9 @@ class Tenant:
         if "agent_port" in args and args["agent_port"] is not None:
             self.agent_port = args["agent_port"]
 
-        registrar_client.init_client_tls("tenant")
-        self.registrar_data = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid)
+        self.registrar_data = registrar_client.getData(
+            self.registrar_ip, self.registrar_port, self.agent_uuid, self.tls_context
+        )
 
         if self.registrar_data is None:
             raise UserError(f"Agent ${self.agent_uuid} data not found in the Registrar.")
@@ -266,10 +251,6 @@ class Tenant:
 
             if self.agent_port is None and self.registrar_data["port"] is not None:
                 self.agent_port = self.registrar_data["port"]
-
-        # If no agent port was found try to use the default from the config file
-        if self.agent_port is None:
-            self.agent_port = config.get("cloud_agent", "cloudagent_port")
 
         # Check if a contact ip and port for the agent was found
         if self.agent_ip is None:
@@ -287,22 +268,34 @@ class Tenant:
             else:
                 # Try to connect to the agent to get supported version
                 if self.registrar_data["mtls_cert"] == "disabled":
-                    self.tls_agent_enabled = False
-                    self.verify_custom = False
+                    self.enable_agent_mtls = False
                     logger.warning(
                         "Warning: mTLS for agents is disabled: the identity of each node will be based on the properties of the TPM only. "
                         "Unless you have strict control of your network, it is strongly advised that remote code execution should be disabled, "
                         'by setting "payload_script=" and "extract_payload_zip=False" under "[cloud_agent]"'
                     )
+                    tls_context = None
                 else:
+                    # Store the agent self-signed certificate as a string
                     self.verify_custom = self.registrar_data["mtls_cert"]
+
+                    if not self.agent_tls_context:
+                        self.agent_tls_context = web_util.generate_tls_context(
+                            self.client_cert,
+                            self.client_key,
+                            self.trusted_server_ca,
+                            self.verify_server_cert,
+                            is_client=True,
+                            ca_cert_string=self.verify_custom,
+                            logger=logger,
+                        )
+                    tls_context = self.agent_tls_context
 
                 with RequestsClient(
                     f"{self.agent_ip}:{self.agent_port}",
-                    tls_enabled=self.tls_agent_enabled,
-                    cert=self.agent_cert,
+                    tls_enabled=True,
+                    tls_context=tls_context,
                     ignore_hostname=True,
-                    verify_custom=self.verify_custom,
                 ) as get_version:
                     res = get_version.get("/version")
                     if res and res.status_code == 200:
@@ -342,9 +335,9 @@ class Tenant:
             args["ca_dir_pw"] = None
 
         # Set up accepted algorithms
-        self.accept_tpm_hash_algs = config.get("tenant", "accept_tpm_hash_algs").split(",")
-        self.accept_tpm_encryption_algs = config.get("tenant", "accept_tpm_encryption_algs").split(",")
-        self.accept_tpm_signing_algs = config.get("tenant", "accept_tpm_signing_algs").split(",")
+        self.accept_tpm_hash_algs = config.getlist("tenant", "accept_tpm_hash_algs")
+        self.accept_tpm_encryption_algs = config.getlist("tenant", "accept_tpm_encryption_algs")
+        self.accept_tpm_signing_algs = config.getlist("tenant", "accept_tpm_signing_algs")
 
         self.process_allowlist(args)
 
@@ -476,10 +469,10 @@ class Tenant:
             self.metadata = {"cert_serial": serial, "subject": subject}
             self.payload = ret["ciphertext"]
 
-        if self.payload is not None and len(self.payload) > config.getint("tenant", "max_payload_size"):
-            raise UserError(
-                f"Payload size {len(self.payload)} exceeds max size {config.getint('tenant', 'max_payload_size')}"
-            )
+        if self.payload is not None:
+            max_payload_size = config.getint("tenant", "max_payload_size")
+            if len(self.payload) > max_payload_size:
+                raise UserError(f"Payload size {len(self.payload)} exceeds max size {max_payload_size}")
 
     def enforce_pcrs(self, policy_pcrs, protected_pcrs, pcr_use):
         policy_pcrs = list(self.tpm_policy.keys())
@@ -539,7 +532,6 @@ class Tenant:
         Returns:
             [type] -- [description]
         """
-        registrar_client.init_client_tls("tenant")
         if self.registrar_data is None:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
@@ -619,7 +611,7 @@ class Tenant:
         return True
 
     def do_cv(self):
-        """Initiaite v, agent_id and ip and initiate the cloudinit sequence"""
+        """Initiate v, agent_id and ip and initiate the cloudinit sequence"""
         b64_v = base64.b64encode(self.V).decode("utf-8")
         logger.debug("b64_v: %s", b64_v)
         data = {
@@ -641,12 +633,10 @@ class Tenant:
             "supported_version": self.supported_version,
         }
         json_message = json.dumps(data)
-        do_cv = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
+        do_cv = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
         response = do_cv.post(
             (f"/v{self.api_version}/agents/{self.agent_uuid}"),
             data=json_message,
-            cert=self.cert,
-            verify=self.verifier_ca_cert,
         )
 
         if response.status_code == 503:
@@ -676,11 +666,9 @@ class Tenant:
     def do_cvstatus(self):
         """Perform operational state look up for agent on the verifier"""
 
-        do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
+        do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
 
-        response = do_cvstatus.get(
-            (f"/v{self.api_version}/agents/{self.agent_uuid}"), cert=self.cert, verify=self.verifier_ca_cert
-        )
+        response = do_cvstatus.get((f"/v{self.api_version}/agents/{self.agent_uuid}"))
 
         if response.status_code == 503:
             logger.error(
@@ -725,13 +713,13 @@ class Tenant:
     def do_cvlist(self):
         """List all agent statuses in cloudverifier"""
 
-        do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
+        do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+
         verifier_id = ""
         if self.verifier_id is not None:
             verifier_id = self.verifier_id
-        response = do_cvstatus.get(
-            (f"/v{self.api_version}/agents/?verifier={verifier_id}"), cert=self.cert, verify=self.verifier_ca_cert
-        )
+
+        response = do_cvstatus.get(f"/v{self.api_version}/agents/?verifier={verifier_id}")
 
         if response.status_code == 503:
             logger.error(
@@ -770,16 +758,13 @@ class Tenant:
     def do_cvbulkinfo(self):
         """Perform operational state look up for agent"""
 
-        do_cvstatus = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
+        do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
 
         verifier_id = ""
         if self.verifier_id is not None:
             verifier_id = self.verifier_id
-        response = do_cvstatus.get(
-            (f"/v{self.api_version}/agents/?bulk={True}&verifier={verifier_id}"),
-            cert=self.cert,
-            verify=self.verifier_ca_cert,
-        )
+
+        response = do_cvstatus.get(f"/v{self.api_version}/agents/?bulk={True}&verifier={verifier_id}")
 
         if response.status_code == 503:
             logger.error(
@@ -834,10 +819,8 @@ class Tenant:
             self.verifier_ip = cvresponse["results"][self.agent_uuid]["verifier_ip"]
             self.verifier_port = cvresponse["results"][self.agent_uuid]["verifier_port"]
 
-        do_cvdelete = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
-        response = do_cvdelete.delete(
-            (f"/v{self.api_version}/agents/{self.agent_uuid}"), cert=self.cert, verify=self.verifier_ca_cert
-        )
+        do_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        response = do_cvdelete.delete(f"/v{self.api_version}/agents/{self.agent_uuid}")
 
         response = response.json()
 
@@ -854,10 +837,10 @@ class Tenant:
         if response["code"] == 202:
             deleted = False
             for _ in range(12):
-                get_cvdelete = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
-                response = get_cvdelete.get(
-                    (f"/v{self.api_version}/agents/{self.agent_uuid}"), cert=self.cert, verify=self.verifier_ca_cert
+                get_cvdelete = RequestsClient(
+                    self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True
                 )
+                response = get_cvdelete.get(f"/v{self.api_version}/agents/{self.agent_uuid}")
 
                 if response.status_code == 404:
                     deleted = True
@@ -876,8 +859,7 @@ class Tenant:
         return response
 
     def do_regstatus(self):
-        registrar_client.init_client_tls("tenant")
-        agent_info = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid)
+        agent_info = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid, self.tls_context)
 
         if not agent_info:
             logger.info(
@@ -908,8 +890,9 @@ class Tenant:
 
     def do_reglist(self):
         """List agents from Registrar"""
-        registrar_client.init_client_tls("tenant")
-        response = registrar_client.doRegistrarList(self.registrar_ip, self.registrar_port)
+        response = registrar_client.doRegistrarList(
+            self.registrar_ip, self.registrar_port, tls_context=self.tls_context
+        )
 
         logger.info(
             "From registrar %s port %s retrieved %s", self.registrar_ip, self.registrar_port, json.dumps(response)
@@ -918,8 +901,9 @@ class Tenant:
 
     def do_regdelete(self):
         """Delete agent from Registrar"""
-        registrar_client.init_client_tls("tenant")
-        response = registrar_client.doRegistrarDelete(self.registrar_ip, self.registrar_port, self.agent_uuid)
+        response = registrar_client.doRegistrarDelete(
+            self.registrar_ip, self.registrar_port, self.agent_uuid, tls_context=self.tls_context
+        )
 
         return response
 
@@ -968,12 +952,12 @@ class Tenant:
             self.verifier_ip = agent_json["results"][self.agent_uuid]["verifier_ip"]
             self.verifier_port = agent_json["results"][self.agent_uuid]["verifier_port"]
 
-        do_cvreactivate = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
+        do_cvreactivate = RequestsClient(
+            self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True
+        )
         response = do_cvreactivate.put(
             f"/v{self.api_version}/agents/{self.agent_uuid}/reactivate",
             data=b"",
-            cert=self.cert,
-            verify=self.verifier_ca_cert,
         )
 
         if response.status_code == 503:
@@ -998,9 +982,8 @@ class Tenant:
     def do_cvstop(self):
         """Stop declared active agent"""
         params = f"/v{self.api_version}/agents/{self.agent_uuid}/stop"
-        do_cvstop = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
-        response = do_cvstop.put(params, cert=self.cert, data=b"", verify=self.verifier_ca_cert)
-
+        do_cvstop = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        response = do_cvstop.put(params, data=b"")
         if response.status_code == 503:
             logger.error(
                 "Cannot connect to Verifier at %s with Port %s. Connection refused.",
@@ -1034,13 +1017,12 @@ class Tenant:
                 params = f"/v{self.supported_version}/quotes/identity?nonce=%s" % (self.nonce)
                 cloudagent_base_url = f"{self.agent_ip}:{self.agent_port}"
 
-                if self.registrar_data["mtls_cert"]:
+                if self.registrar_data and self.registrar_data["mtls_cert"]:
                     with RequestsClient(
                         cloudagent_base_url,
-                        tls_enabled=self.tls_agent_enabled,
+                        self.enable_agent_mtls,
+                        tls_context=self.agent_tls_context,
                         ignore_hostname=True,
-                        cert=self.agent_cert,
-                        verify_custom=self.verify_custom,
                     ) as do_quote:
                         response = do_quote.get(params)
                 else:
@@ -1094,20 +1076,20 @@ class Tenant:
         hash_alg = response_body["results"]["hash_alg"]
         logger.debug("Agent_quote received hash algorithm: %s", hash_alg)
         if not algorithms.is_accepted(
-            hash_alg, config.get("tenant", "accept_tpm_hash_algs").split(",")
+            hash_alg, config.getlist("tenant", "accept_tpm_hash_algs")
         ) or not algorithms.Hash.is_recognized(hash_alg):
             raise UserError(f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}")
 
         # Ensure enc_alg is in accept_tpm_encryption_algs list
         enc_alg = response_body["results"]["enc_alg"]
         logger.debug("Agent_quote received encryption algorithm: %s", enc_alg)
-        if not algorithms.is_accepted(enc_alg, config.get("tenant", "accept_tpm_encryption_algs").split(",")):
+        if not algorithms.is_accepted(enc_alg, config.getlist("tenant", "accept_tpm_encryption_algs")):
             raise UserError(f"TPM Quote is using an unaccepted encryption algorithm: {enc_alg}")
 
         # Ensure sign_alg is in accept_tpm_encryption_algs list
         sign_alg = response_body["results"]["sign_alg"]
         logger.debug("Agent_quote received signing algorithm: %s", sign_alg)
-        if not algorithms.is_accepted(sign_alg, config.get("tenant", "accept_tpm_signing_algs").split(",")):
+        if not algorithms.is_accepted(sign_alg, config.getlist("tenant", "accept_tpm_signing_algs")):
             raise UserError(f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}")
 
         if not self.validate_tpm_quote(public_key, quote, algorithms.Hash(hash_alg)):
@@ -1129,13 +1111,12 @@ class Tenant:
         params = f"/v{self.supported_version}/keys/ukey"
         cloudagent_base_url = f"{self.agent_ip}:{self.agent_port}"
 
-        if self.registrar_data["mtls_cert"]:
+        if self.registrar_data and self.registrar_data["mtls_cert"]:
             with RequestsClient(
                 cloudagent_base_url,
-                tls_enabled=self.tls_agent_enabled,
+                self.enable_agent_mtls,
+                tls_context=self.agent_tls_context,
                 ignore_hostname=True,
-                cert=self.agent_cert,
-                verify_custom=self.verify_custom,
             ) as post_ukey:
                 response = post_ukey.post(params, json=data)
         else:
@@ -1168,13 +1149,12 @@ class Tenant:
             try:
                 cloudagent_base_url = f"{self.agent_ip}:{self.agent_port}"
 
-                if self.registrar_data["mtls_cert"]:
+                if self.registrar_data and self.registrar_data["mtls_cert"]:
                     with RequestsClient(
                         cloudagent_base_url,
                         tls_enabled=True,
+                        tls_context=self.agent_tls_context,
                         ignore_hostname=True,
-                        cert=self.agent_cert,
-                        verify_custom=self.registrar_data["mtls_cert"],
                     ) as do_verify:
                         response = do_verify.get(f"/v{self.supported_version}/keys/verify?challenge={challenge}")
                 else:
@@ -1249,27 +1229,21 @@ class Tenant:
         self.process_allowlist(args)
         data = {"tpm_policy": json.dumps(self.tpm_policy), "ima_policy_bundle": json.dumps(self.allowlist)}
         body = json.dumps(data)
-        cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
+        cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
         response = cv_client.post(
             f"/v{self.api_version}/allowlists/{self.ima_policy_name}",
             data=body,
-            cert=self.cert,
-            verify=self.verifier_ca_cert,
         )
         Tenant._print_json_response(response)
 
     def do_delete_allowlist(self, name):
-        cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
-        response = cv_client.delete(
-            f"/v{self.api_version}/allowlists/{name}", cert=self.cert, verify=self.verifier_ca_cert
-        )
+        cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        response = cv_client.delete(f"/v{self.api_version}/allowlists/{name}")
         Tenant._print_json_response(response)
 
-    def do_show_allowlist(self, name):
-        cv_client = RequestsClient(self.verifier_base_url, self.tls_cv_enabled, ignore_hostname=True)
-        response = cv_client.get(
-            f"/v{self.api_version}/allowlists/{name}", cert=self.cert, verify=self.verifier_ca_cert
-        )
+    def do_show_allowlist(self, name):  # pylint: disable=unused-argument
+        cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        response = cv_client.get(f"/v{self.api_version}/allowlists/{name}")
         print(f"Show allowlist command response: {response.status_code}.")
         Tenant._print_json_response(response)
 

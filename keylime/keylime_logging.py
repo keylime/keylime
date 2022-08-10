@@ -8,7 +8,7 @@ from keylime import config
 
 LOG_TO_FILE = []
 LOG_TO_STREAM = []
-for svc in ["registrar", "cloud_verifier"]:
+for svc in ["registrar", "verifier"]:
     logdest = config.get(svc, "log_destination", fallback="")
 
     if logdest == "file":
@@ -21,7 +21,7 @@ LOGDIR = os.getenv("KEYLIME_LOGDIR", "/var/log/keylime")
 # not clear that this works right.  console logging may not work
 LOGSTREAM = os.path.join(LOGDIR, "keylime-stream.log")
 
-logging_config.fileConfig(config.get_config())
+logging_config.fileConfig(config.get_config("logging"))
 
 
 def set_log_func(loglevel: int, logger: Logger) -> Callable[..., None]:

@@ -20,15 +20,7 @@ _SOCKET_PATH = "/var/run/keylime/keylime.verifier.ipc"
 
 # return the revocation notification methods for cloud verifier
 def get_notifiers():
-    notifiers = set(config.get("cloud_verifier", "revocation_notifiers", fallback="").split(","))
-    if ("zeromq" not in notifiers) and config.getboolean("cloud_verifier", "revocation_notifier", fallback=False):
-        logger.warning("Warning: 'revocation_notifier' option is deprecated; use 'revocation_notifiers'")
-        notifiers.add("zeromq")
-    if ("webhook" not in notifiers) and config.getboolean(
-        "cloud_verifier", "revocation_notifier_webhook", fallback=False
-    ):
-        logger.warning("Warning: 'revocation_notifier_webhook' option is deprecated; use 'revocation_notifiers'")
-        notifiers.add("webhook")
+    notifiers = set(config.getlist("verifier", "enabled_revocation_notifications", section="revocations"))
     return notifiers.intersection({"zeromq", "webhook", "agent"})
 
 
@@ -37,7 +29,7 @@ def start_broker():
     try:
         import zmq  # pylint: disable=import-outside-toplevel
     except ImportError as error:
-        raise Exception("install PyZMQ for 'revocation_notifier' option") from error
+        raise Exception("install PyZMQ for 'zeromq' in 'enabled_revocation_notifications' option") from error
 
     def worker():
         # do not receive signals form the parent process
@@ -61,8 +53,8 @@ def start_broker():
         # Socket facing services
         backend = context.socket(zmq.PUB)
         backend.bind(
-            f"tcp://{config.get('cloud_verifier', 'revocation_notifier_ip')}:"
-            f"{config.getint('cloud_verifier', 'revocation_notifier_port')}"
+            f"tcp://{config.get('verifier', 'zmq_ip', section='revocations')}:"
+            f"{config.getint('verifier', 'zmq_port', section='revocations')}"
         )
         try:
             zmq.device(zmq.FORWARDER, frontend, backend)
@@ -92,7 +84,7 @@ def notify(tosend):
     try:
         import zmq  # pylint: disable=import-outside-toplevel
     except ImportError as error:
-        raise Exception("install PyZMQ for 'revocation_notifier' option") from error
+        raise Exception("install PyZMQ for 'zeromq' in 'revocation_notifier' option") from error
 
     # python-requests internally uses either simplejson (preferred) or
     # the built-in json module, and when it is using the built-in one,
@@ -108,13 +100,13 @@ def notify(tosend):
         time.sleep(0.2)
         # now send it out via 0mq
         logger.info("Sending revocation event to listening nodes...")
-        for i in range(config.getint("cloud_verifier", "max_retries")):
+        for i in range(config.getint("verifier", "max_retries")):
             try:
                 mysock.send_string(json.dumps(tosend))
                 break
             except Exception as e:
-                interval = config.getfloat("cloud_verifier", "retry_interval")
-                exponential_backoff = config.getboolean("cloud_verifier", "exponential_backoff")
+                interval = config.getfloat("verifier", "retry_interval")
+                exponential_backoff = config.getboolean("verifier", "exponential_backoff")
                 next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
                 logger.debug(
                     "Unable to publish revocation message %d times, trying again in %f seconds: %s", i, next_retry, e
@@ -128,7 +120,7 @@ def notify(tosend):
 
 
 def notify_webhook(tosend):
-    url = config.get("cloud_verifier", "webhook_url", fallback="")
+    url = config.get("verifier", "webhook_url", section="revocations", fallback="")
     # Check if a url was specified
     if url == "":
         return
@@ -138,11 +130,11 @@ def notify_webhook(tosend):
     tosend = json.bytes_to_str(tosend)
 
     def worker_webhook(tosend, url):
-        interval = config.getfloat("cloud_verifier", "retry_interval")
-        exponential_backoff = config.getboolean("cloud_verifier", "exponential_backoff")
+        interval = config.getfloat("verifier", "retry_interval")
+        exponential_backoff = config.getboolean("verifier", "exponential_backoff")
         session = requests.session()
         logger.info("Sending revocation event via webhook...")
-        for i in range(config.getint("cloud_verifier", "max_retries")):
+        for i in range(config.getint("verifier", "max_retries")):
             next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
             try:
                 response = session.post(url, json=tosend, timeout=5)
@@ -199,14 +191,11 @@ def process_revocation(revocation, callback, cert_path):
 
 
 def await_notifications(callback, revocation_cert_path):
-    # keep old typo "listen_notfications" around for a few versions
-    assert config.getboolean("cloud_agent", "listen_notifications", fallback=False) or config.getboolean(
-        "cloud_agent", "listen_notfications", fallback=False
-    )
+    assert config.getboolean("agent", "enable_revocation_notifications", fallback=False)
     try:
         import zmq  # pylint: disable=import-outside-toplevel
     except ImportError as error:
-        raise Exception("install PyZMQ for 'listen_notifications' option") from error
+        raise Exception("install PyZMQ for 'zeromq' in 'enable_revocation_notifications' option") from error
 
     if revocation_cert_path is None:
         raise Exception("must specify revocation_cert_path")
@@ -215,14 +204,14 @@ def await_notifications(callback, revocation_cert_path):
     mysock = context.socket(zmq.SUB)
     mysock.setsockopt(zmq.SUBSCRIBE, b"")
     mysock.connect(
-        f"tcp://{config.get('general', 'receive_revocation_ip')}:"
-        f"{config.getint('general', 'receive_revocation_port')}"
+        f"tcp://{config.get('agent', 'revocation_notification_ip')}:"
+        f"{config.getint('agent', 'revocation_notification_port')}"
     )
 
     logger.info(
         "Waiting for revocation messages on 0mq %s:%s",
-        config.get("general", "receive_revocation_ip"),
-        config.getint("general", "receive_revocation_port"),
+        config.get("agent", "revocation_notification_ip"),
+        config.getint("agent", "revocation_notification_port"),
     )
 
     while True:

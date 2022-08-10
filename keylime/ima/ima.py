@@ -455,9 +455,6 @@ def read_allowlist(alist=None, checksum="", al_sig_file=None, al_key_file=None):
         alist_bytes = json.dumps(copy.deepcopy(EMPTY_ALLOWLIST)).encode()
 
     elif isinstance(alist, str):
-        if alist == "default":
-            alist = config.get("tenant", "ima_allowlist")
-
         # Purposefully die if path doesn't exist
         with open(alist, "rb") as alist_f:
             logger.debug("Loading allowlist from %s", alist)
@@ -598,9 +595,6 @@ def canonicalize_allowlist(alist_bytes, checksum=""):
 
 
 def read_excllist(exclude_path=None):
-    if exclude_path is None:
-        exclude_path = config.get("tenant", "ima_excludelist")
-
     excl_list = []
     if os.path.exists(exclude_path):
         with open(exclude_path, encoding="utf-8") as f:
