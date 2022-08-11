@@ -428,86 +428,6 @@ class AgentsHandler(BaseHandler):
                     logger.warning("POST returning 400 response. Expected non zero content length.")
                 else:
                     json_body = json.loads(self.request.body)
-
-                    # Handle allowlists/IMA policies
-
-                    # How each pair of inputs should be handled:
-                    # - No name, no policy: use default empty policy
-                    # - Name, no policy: fetch existing policy from DB
-                    # - No name, policy: store policy using agent UUID as name
-                    # - Name, policy: store policy using name
-
-                    ima_policy_name = json_body.get("ima_policy_name")
-                    ima_policy_bundle = json.loads(json_body.get("ima_policy_bundle"))
-
-                    # Get policy from payload if present
-                    if ima_policy_bundle:
-                        try:
-                            allowlist = ima.unbundle_ima_policy(
-                                ima_policy_bundle,
-                                verify=config.getboolean(
-                                    "cloud_verifier", "require_allow_list_signatures", fallback=False
-                                ),
-                            )
-                            ima_policy = json.dumps(ima.process_ima_policy(allowlist, ima_policy_bundle["excllist"]))
-                        except ima.SignatureValidationError as e:
-                            web_util.echo_json_response(self, e.code, e.message)
-                            logger.warning(e.message)
-                            return
-                    else:
-                        ima_policy = json_body.get("allowlist", None)
-
-                    if ima_policy_name:
-                        # Find whether an allowlist with the provided name already exists
-                        try:
-                            ima_policy_stored = (
-                                session.query(VerifierAllowlist).filter_by(name=ima_policy_name).one_or_none()
-                            )
-                        except SQLAlchemyError as e:
-                            logger.error("SQLAlchemy Error: %s", e)
-                            raise
-
-                        # Don't allow owerwriting existing IMA policies
-                        if ima_policy and ima_policy_stored:
-                            web_util.echo_json_response(
-                                self, 409, f"Allowlist with name {ima_policy_name} already exists"
-                            )
-                            logger.warning("Allowlist with name %s already exists", ima_policy_name)
-                            return
-
-                    if not ima_policy_name and not ima_policy:
-                        logger.info("Allowlist data not provided with request! Using default empty allowlist.")
-                        ima_policy = json.dumps(ima.process_ima_policy(ima.EMPTY_ALLOWLIST, []))
-
-                    if ima_policy:
-                        is_valid, err_msg = cloud_verifier_common.validate_ima_policy_data(ima_policy)
-                        if not is_valid:
-                            web_util.echo_json_response(self, 400, err_msg)
-                            logger.warning(err_msg)
-                            return
-
-                        ima_policy_db_format = {}
-                        if not ima_policy_name:
-                            ima_policy_name = agent_id
-                        ima_policy_db_format["name"] = ima_policy_name
-                        ima_policy_db_format["ima_policy"] = ima_policy
-                        try:
-                            # Add the IMA policy to the database
-                            ima_policy_stored = VerifierAllowlist(**ima_policy_db_format)
-                            session.add(ima_policy_stored)
-                            session.commit()
-                        except SQLAlchemyError as e:
-                            logger.error("SQLAlchemy Error: %s", e)
-                            raise
-                    else:
-                        # If an allowlist exists in the database, we're done. If not, return an error code
-                        if not ima_policy_stored:
-                            web_util.echo_json_response(
-                                self, 404, f"Could not find IMA policy with name {ima_policy_name}!"
-                            )
-                            logger.warning("Could not find IMA policy with name %s", ima_policy_name)
-                            return
-
                     agent_data = {}
                     agent_data["v"] = json_body["v"]
                     agent_data["ip"] = json_body["cloudagent_ip"]
@@ -546,45 +466,123 @@ class AgentsHandler(BaseHandler):
                         web_util.echo_json_response(self, 400, "mTLS certificate for agent is required!")
                         return
 
+                    # Handle allowlists/IMA policies
+
+                    # How each pair of inputs should be handled:
+                    # - No name, no policy: use default empty policy using agent UUID as name
+                    # - Name, no policy: fetch existing policy from DB
+                    # - No name, policy: store policy using agent UUID as name
+                    # - Name, policy: store policy using name
+
+                    ima_policy_name = json_body.get("ima_policy_name")
+                    ima_policy_bundle = json.loads(json_body.get("ima_policy_bundle"))
+
+                    # Get policy from payload if present
+                    if ima_policy_bundle:
+                        try:
+                            allowlist = ima.unbundle_ima_policy(
+                                ima_policy_bundle,
+                                verify=config.getboolean(
+                                    "cloud_verifier", "require_allow_list_signatures", fallback=False
+                                ),
+                            )
+                            ima_policy = json.dumps(ima.process_ima_policy(allowlist, ima_policy_bundle["excllist"]))
+                        except ima.SignatureValidationError as e:
+                            web_util.echo_json_response(self, e.code, e.message)
+                            logger.warning(e.message)
+                            return
+                    else:
+                        ima_policy = json_body.get("allowlist", None)
+
+                    if ima_policy_name:
+                        try:
+                            ima_policy_stored = (
+                                session.query(VerifierAllowlist).filter_by(name=ima_policy_name).one_or_none()
+                            )
+                        except SQLAlchemyError as e:
+                            logger.error("SQLAlchemy Error: %s", e)
+                            raise
+
+                        # Prevent overwriting existing IMA policies with name provided in request
+                        if ima_policy and ima_policy_stored:
+                            web_util.echo_json_response(
+                                self, 409, f"Allowlist with name {ima_policy_name} already exists"
+                            )
+                            logger.warning("Allowlist with name %s already exists", ima_policy_name)
+                            return
+
+                        # Return an error code if the named allowlist does not exist in the database
+                        if not ima_policy and not ima_policy_stored:
+                            web_util.echo_json_response(
+                                self, 404, f"Could not find IMA policy with name {ima_policy_name}!"
+                            )
+                            logger.warning("Could not find IMA policy with name %s", ima_policy_name)
+                            return
+
+                    # Prevent overwriting existing agents with UUID provided in request
                     try:
                         new_agent_count = session.query(VerfierMain).filter_by(agent_id=agent_id).count()
                     except SQLAlchemyError as e:
                         logger.error("SQLAlchemy Error: %s", e)
                         raise e
 
-                    # don't allow overwriting
-
                     if new_agent_count > 0:
                         web_util.echo_json_response(self, 409, f"Agent of uuid {agent_id} already exists")
                         logger.warning("Agent of uuid %s already exists", agent_id)
-                    else:
+                        return
+
+                    # Write IMA policy to database if needed
+                    if not ima_policy_name and not ima_policy:
+                        logger.info("Allowlist data not provided with request! Using default empty allowlist.")
+                        ima_policy = json.dumps(ima.process_ima_policy(ima.EMPTY_ALLOWLIST, []))
+
+                    if ima_policy:
+                        is_valid, err_msg = cloud_verifier_common.validate_ima_policy_data(ima_policy)
+                        if not is_valid:
+                            web_util.echo_json_response(self, 400, err_msg)
+                            logger.warning(err_msg)
+                            return
+
+                        ima_policy_db_format = {}
+                        if not ima_policy_name:
+                            ima_policy_name = agent_id
+                        ima_policy_db_format["name"] = ima_policy_name
+                        ima_policy_db_format["ima_policy"] = ima_policy
                         try:
-                            # Add the agent and data
-                            session.add(VerfierMain(**agent_data, ima_policy=ima_policy_stored))
+                            ima_policy_stored = VerifierAllowlist(**ima_policy_db_format)
+                            session.add(ima_policy_stored)
                             session.commit()
                         except SQLAlchemyError as e:
                             logger.error("SQLAlchemy Error: %s", e)
-                            raise e
+                            raise
 
-                        # add default fields that are ephemeral
-                        for key, val in exclude_db.items():
-                            agent_data[key] = val
+                    # Write the agent to the database, attaching associated stored policy
+                    try:
+                        session.add(VerfierMain(**agent_data, ima_policy=ima_policy_stored))
+                        session.commit()
+                    except SQLAlchemyError as e:
+                        logger.error("SQLAlchemy Error: %s", e)
+                        raise e
 
-                        # Prepare SSLContext for mTLS connections
-                        agent_mtls_cert_enabled = config.getboolean(
-                            "cloud_verifier", "agent_mtls_cert_enabled", fallback=False
-                        )
-                        mtls_cert = agent_data["mtls_cert"]
-                        agent_data["ssl_context"] = None
-                        if agent_mtls_cert_enabled and mtls_cert:
-                            agent_data["ssl_context"] = web_util.generate_agent_mtls_context(mtls_cert, mtls_options)
+                    # add default fields that are ephemeral
+                    for key, val in exclude_db.items():
+                        agent_data[key] = val
 
-                        if agent_data["ssl_context"] is None:
-                            logger.warning("Connecting to agent without mTLS: %s", agent_id)
+                    # Prepare SSLContext for mTLS connections
+                    agent_mtls_cert_enabled = config.getboolean(
+                        "cloud_verifier", "agent_mtls_cert_enabled", fallback=False
+                    )
+                    mtls_cert = agent_data["mtls_cert"]
+                    agent_data["ssl_context"] = None
+                    if agent_mtls_cert_enabled and mtls_cert:
+                        agent_data["ssl_context"] = web_util.generate_agent_mtls_context(mtls_cert, mtls_options)
 
-                        asyncio.ensure_future(process_agent(agent_data, states.GET_QUOTE))
-                        web_util.echo_json_response(self, 200, "Success")
-                        logger.info("POST returning 200 response for adding agent id: %s", agent_id)
+                    if agent_data["ssl_context"] is None:
+                        logger.warning("Connecting to agent without mTLS: %s", agent_id)
+
+                    asyncio.ensure_future(process_agent(agent_data, states.GET_QUOTE))
+                    web_util.echo_json_response(self, 200, "Success")
+                    logger.info("POST returning 200 response for adding agent id: %s", agent_id)
             else:
                 web_util.echo_json_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
