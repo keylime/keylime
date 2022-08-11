@@ -380,10 +380,10 @@ class TestRestful(unittest.TestCase):
 
         # Set up allowlist bundles. Use invalid exclusion list regex for bad bundle.
         cls.ima_policy_bundle = ima.read_allowlist()
-        cls.ima_policy_bundle["excllist"] = base64.b64encode(json.dumps([]).encode()).decode()
+        cls.ima_policy_bundle["excllist"] = []
 
         cls.bad_ima_policy_bundle = ima.read_allowlist()
-        cls.bad_ima_policy_bundle["excllist"] = base64.b64encode(json.dumps(["*"]).encode()).decode()
+        cls.bad_ima_policy_bundle["excllist"] = ["*"]
 
     def setUp(self):
         """Nothing to set up before each test"""
