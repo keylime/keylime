@@ -37,6 +37,7 @@ var/
 MANIFEST
 AUTHORS
 ChangeLog
+config/
 
 # Installer logs
 pip-log.txt
