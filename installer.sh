@@ -401,17 +401,31 @@ if [[ "$NEED_PYTHON_DIR" -eq "1" ]] ; then
 fi
 python3 -m pip install . -r requirements.txt
 
-if [[ -f "/etc/keylime.conf" ]] ; then
-    if [[ $(diff -N "/etc/keylime.conf" "keylime.conf") ]] ; then
-        echo "Modified keylime.conf found in /etc/, creating /etc/keylime.conf.new instead"
-        cp keylime.conf /etc/keylime.conf.new
-        chmod 600 /etc/keylime.conf.new
+echo
+echo "=================================================================================="
+echo $'\t\t\t\tBuild and install configuration'
+echo "=================================================================================="
+
+mkdir -p /etc/keylime
+mkdir -p config
+pushd scripts
+python3 convert_config.py --input ../keylime.conf --out ../config
+popd
+
+for comp in "agent" "verifier" "tenant" "registrar" "ca" "logging"; do
+    mkdir -p /etc/keylime/$comp.conf.d
+    if [[ -f "/etc/keylime/$comp.conf" ]] ; then
+        if [[ $(diff -N "/etc/keylime/$comp.conf" "config/$comp.conf") ]] ; then
+            echo "Modified $comp.conf found in /etc/keylime, creating /etc/keylime/$comp.conf.new instead"
+            cp "config/$comp.conf" "/etc/keylime/$comp.conf.new"
+            chmod 600 /etc/keylime/$comp.conf.new
+        fi
+    else
+        echo "Installing $comp.conf to /etc/keylime"
+        cp -n "config/$comp.conf" "/etc/keylime/"
+        chmod 600 "/etc/keylime/$comp.conf"
     fi
-else
-    echo "Installing keylime.conf to /etc/"
-    cp -n keylime.conf /etc/
-    chmod 600 /etc/keylime.conf
-fi
+done
 
 echo
 echo "=================================================================================="
@@ -452,7 +466,7 @@ if [[ "$TPM_SOCKET" -eq "1" ]] ; then
     echo "=================================================================================="
 
     # disable ek cert checking
-    sed -i 's/require_ek_cert = True/require_ek_cert = False/' /etc/keylime.conf
+    sed -i 's/require_ek_cert = True/require_ek_cert = False/' /etc/keylime/tenant.conf
 else
     # Warn that we don't use abrmd anymore.
     echo "=================================================================================="
