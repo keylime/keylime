@@ -50,6 +50,7 @@ from keylime import (
     secure_mount,
     tenant,
     tornado_requests,
+    web_util,
 )
 from keylime.cmd import user_data_encrypt
 from keylime.common import algorithms
@@ -107,13 +108,6 @@ mtls_cert = None
 keyblob = None
 ek_tpm = None
 aik_tpm = None
-
-# Set up mTLS
-my_cert = config.get("tenant", "my_cert")
-my_priv_key = config.get("tenant", "private_key")
-cert = (my_cert, my_priv_key)
-tls_enabled = True
-
 
 # Like os.remove, but ignore file DNE exceptions
 def fileRemove(path):
@@ -173,20 +167,21 @@ def setUpModule():
     # Make the Tenant do a lot of set-up work for us
     global tenant_templ
     tenant_templ = tenant.Tenant()
-    tenant_templ.agent_uuid = config.get("cloud_agent", "agent_uuid")
-    tenant_templ.cloudagent_ip = "localhost"
-    tenant_templ.cloudagent_port = config.get("cloud_agent", "cloudagent_port")
-    tenant_templ.verifier_ip = config.get("cloud_verifier", "cloudverifier_ip")
-    tenant_templ.verifier_port = config.get("cloud_verifier", "cloudverifier_port")
-    tenant_templ.registrar_ip = config.get("registrar", "registrar_ip")
-    tenant_templ.registrar_boot_port = config.get("registrar", "registrar_port")
-    tenant_templ.registrar_tls_boot_port = config.get("registrar", "registrar_tls_port")
+    tenant_templ.agent_uuid = config.get("agent", "uuid")
+    tenant_templ.agent_ip = "localhost"
+    tenant_templ.agent_port = config.get("agent", "port")
+    tenant_templ.verifier_ip = config.get("verifier", "ip")
+    tenant_templ.verifier_port = config.get("verifier", "port")
+    tenant_templ.registrar_ip = config.get("registrar", "ip")
+    tenant_templ.registrar_boot_port = config.get("registrar", "port")
+    tenant_templ.registrar_tls_boot_port = config.get("registrar", "tls_port")
     tenant_templ.registrar_base_url = f"{tenant_templ.registrar_ip}:{tenant_templ.registrar_boot_port}"
     tenant_templ.registrar_base_tls_url = f"{tenant_templ.registrar_ip}:{tenant_templ.registrar_tls_boot_port}"
-    tenant_templ.agent_base_url = f"{tenant_templ.cloudagent_ip}:{tenant_templ.cloudagent_port}"
+    tenant_templ.agent_base_url = f"{tenant_templ.agent_ip}:{tenant_templ.agent_port}"
     tenant_templ.supported_version = "2.0"
     # Set up TLS
-    tenant_templ.cert, tenant_templ.agent_cert, _ = tenant_templ.get_tls_context()
+    # Note: the constructor reads the configuration file and initializes the key
+    # and certificate
 
 
 # Destroy everything on teardown
@@ -372,7 +367,7 @@ class TestRestful(unittest.TestCase):
         cls.auth_tag = crypto.do_hmac(cls.K, tenant_templ.agent_uuid)
 
         # Prepare policies for agent
-        cls.tpm_policy = config.get("tenant", "tpm_policy")
+        cls.tpm_policy = '{"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}'
         cls.tpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.tpm_policy)
 
         # Allow targeting a specific API version (default latest)
@@ -416,7 +411,7 @@ class TestRestful(unittest.TestCase):
 
         # Initialize the TPM with AIK
         (ekcert, ek_tpm, aik_tpm) = tpm_instance.tpm_init(
-            self_activate=False, config_pw=config.get("cloud_agent", "tpm_ownerpassword")
+            self_activate=False, config_pw=config.get("agent", "tpm_ownerpassword")
         )
 
         # Handle emulated TPMs
@@ -431,9 +426,9 @@ class TestRestful(unittest.TestCase):
         if ekcert is None or ekcert == "emulator":
             data["ek_tpm"] = ek_tpm
 
-        test_010_reg_agent_post = RequestsClient(tenant_templ.registrar_base_url, tls_enabled=False)
+        test_010_reg_agent_post = RequestsClient(tenant_templ.registrar_base_url, False)
         response = test_010_reg_agent_post.post(
-            f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", data=json.dumps(data), cert="", verify=False
+            f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", data=json.dumps(data), verify=False
         )
 
         self.assertEqual(response.status_code, 200, "Non-successful Registrar agent Add return code!")
@@ -455,11 +450,10 @@ class TestRestful(unittest.TestCase):
         data = {
             "auth_tag": crypto.do_hmac(key, tenant_templ.agent_uuid),
         }
-        test_011_reg_agent_activate_put = RequestsClient(tenant_templ.registrar_base_url, tls_enabled=False)
+        test_011_reg_agent_activate_put = RequestsClient(tenant_templ.registrar_base_url, False)
         response = test_011_reg_agent_activate_put.put(
             f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}/activate",
             data=json.dumps(data),
-            cert="",
             verify=False,
         )
 
@@ -471,8 +465,11 @@ class TestRestful(unittest.TestCase):
 
     def test_013_reg_agents_get(self):
         """Test registrar's GET /agents Interface"""
-        test_013_reg_agents_get = RequestsClient(tenant_templ.registrar_base_tls_url, tls_enabled=True)
-        response = test_013_reg_agents_get.get(f"/v{self.api_version}/agents/", cert=tenant_templ.cert, verify=False)
+
+        test_013_reg_agents_get = RequestsClient(
+            tenant_templ.registrar_base_tls_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+        )
+        response = test_013_reg_agents_get.get(f"/v{self.api_version}/agents/", verify=True)
 
         self.assertEqual(response.status_code, 200, "Non-successful Registrar agent List return code!")
         json_response = response.json()
@@ -486,10 +483,18 @@ class TestRestful(unittest.TestCase):
 
     def test_014_reg_agent_get(self):
         """Test registrar's GET /agents/{UUID} Interface"""
-        test_014_reg_agent_get = RequestsClient(tenant_templ.registrar_base_tls_url, tls_enabled=True)
-        response = test_014_reg_agent_get.get(
-            f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", cert=tenant_templ.cert, verify=False
+        test_014_reg_agent_get = RequestsClient(
+            tenant_templ.registrar_base_tls_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
         )
+
+        num_retries = 10
+        while num_retries > 0:
+            response = test_014_reg_agent_get.get(f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", verify=True)
+            if response.status_code != 200:
+                num_retries -= 1
+                time.sleep(3)
+            else:
+                break
 
         self.assertEqual(response.status_code, 200, "Non-successful Registrar agent return code!")
         json_response = response.json()
@@ -508,12 +513,25 @@ class TestRestful(unittest.TestCase):
         mtls_cert = json_response["results"]["mtls_cert"]
         aik_tpm = json_response["results"]["aik_tpm"]
 
+        # Create context to communicate with the agent
+        tenant_templ.agent_tls_context = web_util.generate_tls_context(
+            tenant_templ.client_cert,
+            tenant_templ.client_key,
+            tenant_templ.trusted_server_ca,
+            tenant_templ.client_key_password,
+            True,
+            is_client=True,
+            ca_cert_string=mtls_cert,
+        )
+
     def test_015_reg_agent_delete(self):
 
         """Test registrar's DELETE /agents/{UUID} Interface"""
-        test_015_reg_agent_delete = RequestsClient(tenant_templ.registrar_base_tls_url, tls_enabled=True)
+        test_015_reg_agent_delete = RequestsClient(
+            tenant_templ.registrar_base_tls_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+        )
         response = test_015_reg_agent_delete.delete(
-            f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", cert=tenant_templ.cert, verify=False
+            f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", verify=True
         )
 
         self.assertEqual(response.status_code, 200, "Non-successful Registrar Delete return code!")
@@ -524,18 +542,22 @@ class TestRestful(unittest.TestCase):
 
     # Agent Setup Testset
 
-    def test_020_agent_keys_pubkey_get(self):
-        """Test agent's GET /keys/pubkey Interface"""
-
+    def test_020_reg_agent_get(self):
         # We want a real cloud agent to communicate with!
         launch_cloudagent()
+        # We need to refresh the aik value we've stored in case it changed
+        self.test_014_reg_agent_get()
+
+    def test_021_agent_keys_pubkey_get(self):
+        """Test agent's GET /keys/pubkey Interface"""
+
         test_020_agent_keys_pubkey_get = RequestsClient(
-            tenant_templ.agent_base_url, tls_enabled=True, ignore_hostname=True
+            tenant_templ.agent_base_url, True, ignore_hostname=True, tls_context=tenant_templ.agent_tls_context
         )
+
         response = test_020_agent_keys_pubkey_get.get(
             f"/v{self.api_version}/keys/pubkey",
-            cert=tenant_templ.agent_cert,
-            verify=False,  # TODO: use agent certificate
+            verify=True,
         )
 
         self.assertEqual(response.status_code, 200, "Non-successful Agent pubkey return code!")
@@ -549,10 +571,6 @@ class TestRestful(unittest.TestCase):
         public_key = json_response["results"]["pubkey"]
         self.assertNotEqual(public_key, None, "Malformed response body!")
 
-    def test_021_reg_agent_get(self):
-        # We need to refresh the aik value we've stored in case it changed
-        self.test_014_reg_agent_get()
-
     def test_022_agent_quotes_identity_get(self):
         """Test agent's GET /quotes/identity Interface"""
         self.assertIsNotNone(aik_tpm, "Required value not set.  Previous step may have failed?")
@@ -562,13 +580,10 @@ class TestRestful(unittest.TestCase):
         numretries = config.getint("tenant", "max_retries")
         while numretries >= 0:
             test_022_agent_quotes_identity_get = RequestsClient(
-                tenant_templ.agent_base_url, tls_enabled=True, ignore_hostname=True
+                tenant_templ.agent_base_url, True, ignore_hostname=True, tls_context=tenant_templ.agent_tls_context
             )
             response = test_022_agent_quotes_identity_get.get(
-                f"/v{self.api_version}/quotes/identity?nonce={nonce}",
-                data=None,
-                cert=tenant_templ.agent_cert,
-                verify=False,  # TODO: use agent certificate
+                f"/v{self.api_version}/quotes/identity?nonce={nonce}", data=None, verify=True
             )
 
             if response.status_code == 200:
@@ -609,9 +624,11 @@ class TestRestful(unittest.TestCase):
         b64_encrypted_V = base64.b64encode(encrypted_V)
         data = {"encrypted_key": b64_encrypted_V}
 
-        test_023_agent_keys_vkey_post = RequestsClient(tenant_templ.agent_base_url, tls_enabled=False)
+        test_023_agent_keys_vkey_post = RequestsClient(
+            tenant_templ.agent_base_url, True, tls_context=tenant_templ.agent_tls_context, ignore_hostname=True
+        )
         response = test_023_agent_keys_vkey_post.post(
-            f"/v{self.api_version}/keys/vkey", data=json.dumps(data), cert="", verify=False
+            f"/v{self.api_version}/keys/vkey", data=json.dumps(data), verify=True
         )
 
         self.assertEqual(response.status_code, 200, "Non-successful Agent vkey post return code!")
@@ -633,13 +650,10 @@ class TestRestful(unittest.TestCase):
         data = {"encrypted_key": b64_encrypted_u, "auth_tag": self.auth_tag, "payload": self.payload}
 
         test_024_agent_keys_ukey_post = RequestsClient(
-            tenant_templ.agent_base_url, tls_enabled=True, ignore_hostname=True
+            tenant_templ.agent_base_url, True, ignore_hostname=True, tls_context=tenant_templ.agent_tls_context
         )
         response = test_024_agent_keys_ukey_post.post(
-            f"/v{self.api_version}/keys/ukey",
-            data=json.dumps(data),
-            cert=tenant_templ.agent_cert,
-            verify=False,  # TODO: use agent certificate
+            f"/v{self.api_version}/keys/ukey", data=json.dumps(data), verify=True
         )
 
         self.assertEqual(response.status_code, 200, "Non-successful Agent ukey post return code!")
@@ -656,12 +670,13 @@ class TestRestful(unittest.TestCase):
             "ima_policy_bundle": json.dumps(self.ima_policy_bundle),
         }
 
-        cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        cv_client = RequestsClient(
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+        )
         response = cv_client.post(
             f"/v{self.api_version}/allowlists/test-allowlist",
             data=json.dumps(data),
-            cert=tenant_templ.cert,
-            verify=False,
+            verify=True,
         )
 
         self.assertEqual(response.status_code, 201, "Non-successful CV allowlist Post return code!")
@@ -672,10 +687,10 @@ class TestRestful(unittest.TestCase):
 
     def test_026_cv_allowlist_get(self):
         """Test CV's GET /allowlists/{name} Interface"""
-        cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
-        response = cv_client.get(
-            f"/v{self.api_version}/allowlists/test-allowlist", cert=tenant_templ.cert, verify=False
+        cv_client = RequestsClient(
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
         )
+        response = cv_client.get(f"/v{self.api_version}/allowlists/test-allowlist", verify=True)
 
         self.assertEqual(response.status_code, 200, "Non-successful CV allowlist Post return code!")
         json_response = response.json()
@@ -696,10 +711,10 @@ class TestRestful(unittest.TestCase):
 
     def test_027_cv_allowlist_delete(self):
         """Test CV's DELETE /allowlists/{name} Interface"""
-        cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
-        response = cv_client.delete(
-            f"/v{self.api_version}/allowlists/test-allowlist", cert=tenant_templ.cert, verify=False
+        cv_client = RequestsClient(
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
         )
+        response = cv_client.delete(f"/v{self.api_version}/allowlists/test-allowlist", verify=True)
 
         self.assertEqual(response.status_code, 204, "Non-successful CV allowlist Delete return code!")
 
@@ -712,28 +727,29 @@ class TestRestful(unittest.TestCase):
         b64_v = base64.b64encode(self.V)
         data = {
             "v": b64_v,
-            "cloudagent_ip": tenant_templ.cloudagent_ip,
-            "cloudagent_port": tenant_templ.cloudagent_port,
+            "cloudagent_ip": tenant_templ.agent_ip,
+            "cloudagent_port": tenant_templ.agent_port,
             "tpm_policy": json.dumps(self.tpm_policy),
             "ima_policy_bundle": json.dumps(self.ima_policy_bundle),
             "ima_sign_verification_keys": "",
             "mb_refstate": None,
             "metadata": json.dumps(self.metadata),
             "revocation_key": self.revocation_key,
-            "accept_tpm_hash_algs": config.get("tenant", "accept_tpm_hash_algs").split(","),
-            "accept_tpm_encryption_algs": config.get("tenant", "accept_tpm_encryption_algs").split(","),
-            "accept_tpm_signing_algs": config.get("tenant", "accept_tpm_signing_algs").split(","),
+            "accept_tpm_hash_algs": config.getlist("tenant", "accept_tpm_hash_algs"),
+            "accept_tpm_encryption_algs": config.getlist("tenant", "accept_tpm_encryption_algs"),
+            "accept_tpm_signing_algs": config.getlist("tenant", "accept_tpm_signing_algs"),
             "supported_version": tenant_templ.supported_version,
             "ak_tpm": aik_tpm,
             "mtls_cert": mtls_cert,
         }
 
-        test_030_cv_agent_post = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        test_030_cv_agent_post = RequestsClient(
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+        )
         response = test_030_cv_agent_post.post(
             f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}",
             data=json.dumps(data),
-            cert=tenant_templ.cert,
-            verify=False,
+            verify=True,
         )
 
         self.assertEqual(response.status_code, 200, "Non-successful CV agent Post return code!")
@@ -748,9 +764,11 @@ class TestRestful(unittest.TestCase):
     def test_031_cv_agent_put(self):
         """Test CV's PUT /agents/{UUID} Interface"""
         # TODO: this should actually test PUT functionality (e.g., make agent fail and then PUT back up)
-        test_031_cv_agent_put = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        test_031_cv_agent_put = RequestsClient(
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+        )
         response = test_031_cv_agent_put.put(
-            f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", data=b"", cert=tenant_templ.cert, verify=False
+            f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", data=b"", verify=True
         )
         self.assertEqual(response.status_code, 200, "Non-successful CV agent Post return code!")
         json_response = response.json()
@@ -760,8 +778,10 @@ class TestRestful(unittest.TestCase):
 
     def test_032_cv_agents_get(self):
         """Test CV's GET /agents Interface"""
-        test_032_cv_agents_get = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
-        response = test_032_cv_agents_get.get(f"/v{self.api_version}/agents/", cert=tenant_templ.cert, verify=False)
+        test_032_cv_agents_get = RequestsClient(
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+        )
+        response = test_032_cv_agents_get.get(f"/v{self.api_version}/agents/", verify=True)
 
         self.assertEqual(response.status_code, 200, "Non-successful CV agent List return code!")
         json_response = response.json()
@@ -775,10 +795,10 @@ class TestRestful(unittest.TestCase):
 
     def test_033_cv_agent_get(self):
         """Test CV's GET /agents/{UUID} Interface"""
-        test_033_cv_agent_get = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
-        response = test_033_cv_agent_get.get(
-            f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", cert=tenant_templ.cert, verify=False
+        test_033_cv_agent_get = RequestsClient(
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
         )
+        response = test_033_cv_agent_get.get(f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", verify=True)
 
         self.assertEqual(response.status_code, 200, "Non-successful CV agent return code!")
         json_response = response.json()
@@ -801,25 +821,26 @@ class TestRestful(unittest.TestCase):
         data = {
             "v": b64_v,
             "mb_refstate": None,
-            "cloudagent_ip": tenant_templ.cloudagent_ip,
-            "cloudagent_port": tenant_templ.cloudagent_port,
+            "cloudagent_ip": tenant_templ.agent_ip,
+            "cloudagent_port": tenant_templ.agent_port,
             "tpm_policy": json.dumps(self.tpm_policy),
             "ima_policy_bundle": json.dumps(self.bad_ima_policy_bundle),
             "ima_sign_verification_keys": "",
             "metadata": json.dumps(self.metadata),
             "revocation_key": self.revocation_key,
-            "accept_tpm_hash_algs": config.get("tenant", "accept_tpm_hash_algs").split(","),
-            "accept_tpm_encryption_algs": config.get("tenant", "accept_tpm_encryption_algs").split(","),
-            "accept_tpm_signing_algs": config.get("tenant", "accept_tpm_signing_algs").split(","),
+            "accept_tpm_hash_algs": config.getlist("tenant", "accept_tpm_hash_algs"),
+            "accept_tpm_encryption_algs": config.getlist("tenant", "accept_tpm_encryption_algs"),
+            "accept_tpm_signing_algs": config.getlist("tenant", "accept_tpm_signing_algs"),
             "supported_version": tenant_templ.supported_version,
         }
 
-        client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        client = RequestsClient(
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+        )
         response = client.post(
             f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}",
-            cert=tenant_templ.cert,
             data=json.dumps(data),
-            verify=False,
+            verify=True,
         )
 
         self.assertEqual(response.status_code, 400, "Successful CV agent Post return code!")
@@ -830,10 +851,8 @@ class TestRestful(unittest.TestCase):
 
     def test_035_test_delete_in_use_allowlist(self):
         """Test CV's DELETE /allowlists/{name} Interface with an in-use allowlist (should return non-successful status code)"""
-        cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
-        response = cv_client.delete(
-            f"/v{self.api_version}/allowlists/{tenant_templ.agent_uuid}", cert=tenant_templ.cert, verify=False
-        )
+        cv_client = RequestsClient(tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context)
+        response = cv_client.delete(f"/v{self.api_version}/allowlists/{tenant_templ.agent_uuid}", verify=True)
 
         self.assertEqual(
             response.status_code, 409, "Unexpected status code for CV allowlist Delete of in-use allowlist!"
@@ -854,12 +873,10 @@ class TestRestful(unittest.TestCase):
             partial = "0"
 
         test_040_agent_quotes_integrity_get = RequestsClient(
-            tenant_templ.agent_base_url, tls_enabled=True, ignore_hostname=True
+            tenant_templ.agent_base_url, True, ignore_hostname=True, tls_context=tenant_templ.agent_tls_context
         )
         response = test_040_agent_quotes_integrity_get.get(
-            f"/v{self.api_version}/quotes/integrity?nonce={nonce}&mask={mask}&partial={partial}",
-            cert=tenant_templ.agent_cert,
-            verify=False,  # TODO: use agent certificate
+            f"/v{self.api_version}/quotes/integrity?nonce={nonce}&mask={mask}&partial={partial}", verify=True
         )
 
         self.assertEqual(response.status_code, 200, "Non-successful Agent Integrity Get return code!")
@@ -912,9 +929,11 @@ class TestRestful(unittest.TestCase):
     def test_050_cv_agent_delete(self):
         """Test CV's DELETE /agents/{UUID} Interface"""
         time.sleep(5)
-        test_050_cv_agent_delete = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        test_050_cv_agent_delete = RequestsClient(
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+        )
         response = test_050_cv_agent_delete.delete(
-            f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", cert=tenant_templ.cert, verify=False
+            f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", verify=True
         )
 
         self.assertEqual(response.status_code, 202, "Non-successful CV agent Delete return code!")
@@ -925,8 +944,10 @@ class TestRestful(unittest.TestCase):
 
     def test_060_cv_version_get(self):
         """Test CV's GET /version Interface"""
-        cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
-        response = cv_client.get("/version", cert=tenant_templ.cert, verify=False)
+        cv_client = RequestsClient(
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+        )
+        response = cv_client.get("/version", verify=True)
 
         self.assertEqual(response.status_code, 200, "Non-successful CV allowlist Post return code!")
         json_response = response.json()
@@ -954,12 +975,12 @@ class TestRestful(unittest.TestCase):
         # will not invoke the Python agent unless there is no agent already
         # running.
         launch_cloudagent(agent="rust")
-        self.test_020_agent_keys_pubkey_get()
+        self.test_021_agent_keys_pubkey_get()
 
     @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
     def test_072_reg_agent_get(self):
         launch_cloudagent(agent="rust")
-        self.test_021_reg_agent_get()
+        self.test_020_reg_agent_get()
 
     @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
     def test_073_agent_quotes_identity_get(self):
