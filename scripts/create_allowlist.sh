@@ -42,6 +42,14 @@ fi
 
 ALGO=sha1sum
 
+ALGO_LIST=("sha1sum" "sha256sum" "sha512sum")
+
+valid_algo() {
+        local algo=$1
+
+        [[ " ${ALGO_LIST[@]} " =~ " ${algo} " ]]
+}
+
 while getopts ":o:h:" opt; do
     case $opt in
         o)
@@ -49,7 +57,12 @@ while getopts ":o:h:" opt; do
             rm -f $OUTPUT
             ;;
         h)
-            ALGO=$OPTARG
+            if valid_algo $OPTARG; then
+                ALGO=$OPTARG
+            else
+                echo "Invalid hash function argument: use sha1sum, sha256sum, or sha512sum"
+                exit 1
+            fi
             ;;
     esac
 done
