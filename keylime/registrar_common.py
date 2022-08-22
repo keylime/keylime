@@ -8,13 +8,11 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
-from cryptography.hazmat.backends import default_backend
-from cryptography.x509 import load_der_x509_certificate
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
 
 from keylime import api_version as keylime_api_version
-from keylime import crypto, json, keylime_logging, web_util
+from keylime import cert_utils, crypto, json, keylime_logging, web_util
 from keylime.common import validators
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.registrar_db import RegistrarMain
@@ -261,13 +259,9 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 # Note, we don't validate the EKCert here, other than the implicit
                 #  "is it a valid x509 cert" check. So it's still untrusted.
                 # This will be validated by the tenant.
-                ek509 = load_der_x509_certificate(
-                    base64.b64decode(ekcert),
-                    backend=default_backend(),
-                )
                 ek_tpm = base64.b64encode(
                     tpm2_objects.ek_low_tpm2b_public_from_pubkey(
-                        ek509.public_key(),
+                        cert_utils.read_x509_der_cert_pubkey(base64.b64decode(ekcert))
                     )
                 ).decode()
 
