@@ -14,3 +14,6 @@ packaging>=20.0 #BSD
 psutil>=5.4.2 # BSD
 # Note that lark was renamed from lark-parser with 1.0.0 release
 lark>=1.0.0 # MIT
+# pyasn1 is used to read the EK cert, due to issue #944.
+pyasn1>=0.4.2 # BSD
+pyasn1-modules>=0.2.1 # BSD
