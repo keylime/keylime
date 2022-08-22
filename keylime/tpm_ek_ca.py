@@ -22,7 +22,7 @@ def check_tpm_cert_store():
 
 
 def cert_loader():
-    file_list = glob.glob(os.path.join(os.getcwd(), tpm_cert_store + "*.pem"))
+    file_list = glob.glob(os.path.join(tpm_cert_store, "*.pem"))
     my_trusted_certs = []
     for file_path in file_list:
         with open(file_path, encoding="utf-8") as f_input:
