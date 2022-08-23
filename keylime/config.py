@@ -350,8 +350,6 @@ IMA_PCR = 10
 # PCR 14: MokList, MokListX, and MokSBState
 MEASUREDBOOT_PCRS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15]
 MEASUREDBOOT_ML = "/sys/kernel/security/tpm0/binary_bios_measurements"
-MEASUREDBOOT_IMPORTS = get_config("verifier").get("verifier", "measured_boot_imports", fallback="").split(",")
-MEASUREDBOOT_POLICYNAME = get_config("verifier").get("verifier", "measured_boot_policy_name", fallback="accept-all")
 
 LIBEFIVAR = "libefivar.so.1"  # formerly "/usr/lib/x86_64-linux-gnu/libefivar.so"
 
