@@ -40,7 +40,7 @@ def get_policy(mb_refstate_str):
         mb_refstate_data = None
 
     if mb_refstate_data:
-        mb_policy_name = config.MEASUREDBOOT_POLICYNAME
+        mb_policy_name = config.get("verifier", "measured_boot_policy_name", fallback="accept-all")
         # pylint: disable=import-outside-toplevel
         from keylime.elchecking import policies as eventlog_policies
 

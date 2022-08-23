@@ -103,7 +103,7 @@ def evaluate(policy_name: str, refstate: RefState, eventlog: tests.Data) -> str:
     return tester.why_not({}, eventlog)
 
 
-imports = config.MEASUREDBOOT_IMPORTS
+imports = config.get("verifier", "measured_boot_imports", fallback="")
 # print(f'importing {imports!r}, __package__={__package__!r}')
 for imp in imports:
     if imp:

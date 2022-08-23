@@ -1275,9 +1275,10 @@ def main():
     cloudverifier_id = config.get("verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
 
     # Check if measured boot was configured correctly
-    if policies.get_policy(config.MEASUREDBOOT_POLICYNAME) is None:
-        logger.error('Measued boot policy "%s" could not be found!', config.MEASUREDBOOT_POLICYNAME)
-        raise Exception(f'Measued boot policy "{config.MEASUREDBOOT_POLICYNAME}" could not be found!')
+    mb_policy_name = config.get("verifier", "measured_boot_policy_name", fallback="accept-all")
+    if mb_policy_name and policies.get_policy(mb_policy_name) is None:
+        logger.error('Measured boot policy "%s" could not be found!', mb_policy_name)
+        raise Exception(f'Measued boot policy "{mb_policy_name}" could not be found!')
 
     # allow tornado's max upload size to be configurable
     max_upload_size = None
