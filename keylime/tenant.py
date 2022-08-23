@@ -145,8 +145,11 @@ class Tenant:
         # Set up PCR values
         if "tpm_policy" in args and args["tpm_policy"] is not None:
             tpm_policy = args["tpm_policy"]
-            self.tpm_policy = TPM_Utilities.readPolicy(tpm_policy)
-            logger.info("TPM PCR Mask from policy is %s", self.tpm_policy["mask"])
+        else:
+            # Use default empty TPM policy
+            tpm_policy = "{}"
+        self.tpm_policy = TPM_Utilities.readPolicy(tpm_policy)
+        logger.info("TPM PCR Mask from policy is %s", self.tpm_policy["mask"])
 
         if len(args.get("ima_sign_verification_keys")) > 0:
             # Auto-enable IMA (or-bit mask)
