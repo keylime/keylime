@@ -70,7 +70,8 @@ if TEST_MODE:
     )
     DISABLE_EK_CERT_CHECK_EMULATOR = True
     MOUNT_SECURE = False
-    WORK_DIR = os.getcwd()
+    # Different default WORK_DIR in TEST_MODE
+    WORK_DIR = os.getenv("KEYLIME_DIR", os.getcwd())
 
 # Config files can be merged together, reading from the system to the
 # user.
