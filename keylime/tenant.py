@@ -662,7 +662,7 @@ class Tenant:
 
         if response.status_code == 409:
             # this is a conflict, need to update or delete it
-            logger.error("Agent %s already existed at CV. Please use delete or update.", self.agent_uuid)
+            Tenant._print_json_response(response)
             sys.exit()
         elif response.status_code != 200:
             keylime_logging.log_http_response(logger, logging.ERROR, response.json())

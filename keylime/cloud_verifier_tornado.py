@@ -509,7 +509,9 @@ class AgentsHandler(BaseHandler):
                         # Prevent overwriting existing IMA policies with name provided in request
                         if ima_policy and ima_policy_stored:
                             web_util.echo_json_response(
-                                self, 409, f"Allowlist with name {ima_policy_name} already exists"
+                                self,
+                                409,
+                                f"Allowlist with name {ima_policy_name} already exists. Please use a different name or delete the allowlist from the verifier.",
                             )
                             logger.warning("Allowlist with name %s already exists", ima_policy_name)
                             return
@@ -530,7 +532,11 @@ class AgentsHandler(BaseHandler):
                         raise e
 
                     if new_agent_count > 0:
-                        web_util.echo_json_response(self, 409, f"Agent of uuid {agent_id} already exists")
+                        web_util.echo_json_response(
+                            self,
+                            409,
+                            f"Agent of uuid {agent_id} already exists. Please use delete or update.",
+                        )
                         logger.warning("Agent of uuid %s already exists", agent_id)
                         return
 
@@ -739,7 +745,7 @@ class AllowlistHandler(BaseHandler):
 
         session = get_session()
         try:
-            session.query(VerifierAllowlist).filter_by(name=allowlist_name).one()
+            ima_policy = session.query(VerifierAllowlist).filter_by(name=allowlist_name).one()
         except NoResultFound:
             web_util.echo_json_response(self, 404, f"Allowlist {allowlist_name} not found")
             return
@@ -747,6 +753,19 @@ class AllowlistHandler(BaseHandler):
             logger.error("SQLAlchemy Error: %s", e)
             web_util.echo_json_response(self, 500, "Failed to get allowlist")
             raise
+
+        try:
+            agent = session.query(VerfierMain).filter_by(ima_policy_id=ima_policy.id).one_or_none()
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error: %s", e)
+            raise
+        if agent is not None:
+            web_util.echo_json_response(
+                self,
+                409,
+                f"Can't delete allowlist as it's currently in use by agent {agent.agent_id}",
+            )
+            return
 
         try:
             session.query(VerifierAllowlist).filter_by(name=allowlist_name).delete()
