@@ -32,14 +32,14 @@ def rsa_import_pubkey(pubkey):
         return serialization.load_pem_public_key(pubkey.encode("utf-8"), backend=default_backend())
 
 
-def rsa_import_privkey(privkey):
+def rsa_import_privkey(privkey, password=None):
     """Import a private key
     We try / except this, as its possible that `privkey` can arrive as either str or bytes.
     """
     try:
-        return serialization.load_pem_private_key(privkey, password=None, backend=default_backend())
+        return serialization.load_pem_private_key(privkey, password, backend=default_backend())
     except Exception:
-        return serialization.load_pem_private_key(privkey.encode("utf-8"), password=None, backend=default_backend())
+        return serialization.load_pem_private_key(privkey.encode("utf-8"), password, backend=default_backend())
 
 
 def x509_import_pubkey(pubkey):
@@ -94,12 +94,20 @@ def rsa_export_pubkey(private_key):
     )
 
 
-def rsa_export_privkey(private_key):
+def rsa_export_privkey(private_key, password=None):
     """export private key"""
+
+    if not password:
+        return private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+
     return private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption(),
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.BestAvailableEncryption(password.encode("utf-8")),
     )
 
 

@@ -73,6 +73,7 @@ class Tenant:
 
     client_cert = None
     client_key = None
+    client_key_password = None
     trusted_server_ca = False
     enable_agent_mtls = False
     verify_server_cert = False
@@ -102,7 +103,9 @@ class Tenant:
         self.enable_agent_mtls = config.getboolean("tenant", "enable_agent_mtls")
 
         logger.info("Setting up client TLS...")
-        (cert, key, trusted_ca), verify_server_cert = web_util.get_tls_options("tenant", is_client=True, logger=logger)
+        (cert, key, trusted_ca, key_password), verify_server_cert = web_util.get_tls_options(
+            "tenant", is_client=True, logger=logger
+        )
 
         if not self.enable_agent_mtls:
             logger.warning(
@@ -124,11 +127,12 @@ class Tenant:
                 else:
                     self.client_cert = cert
                     self.client_key = key
+                    self.client_key_password = key_password
                     self.verify_server_cert = verify_server_cert
                     self.trusted_server_ca = trusted_ca
 
                     self.tls_context = web_util.generate_tls_context(
-                        cert, key, trusted_ca, verify_server_cert, is_client=True, logger=logger
+                        cert, key, trusted_ca, key_password, verify_server_cert, is_client=True, logger=logger
                     )
 
                     logger.info("TLS is enabled.")
@@ -284,6 +288,7 @@ class Tenant:
                             self.client_cert,
                             self.client_key,
                             self.trusted_server_ca,
+                            self.client_key_password,
                             self.verify_server_cert,
                             is_client=True,
                             ca_cert_string=self.verify_custom,
