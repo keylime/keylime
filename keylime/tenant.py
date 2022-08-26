@@ -570,6 +570,7 @@ class Tenant:
             logger.warning(
                 "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!"
             )
+            return True
 
         # check EK cert and make sure it matches EK
         if not self.check_ek(self.registrar_data["ekcert"]):
