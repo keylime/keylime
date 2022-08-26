@@ -34,8 +34,8 @@ if ! getent passwd keylime >/dev/null; then
             keylime
 fi
 
-echo "Change /etc/keylime.conf to enable privilege dropping for the agent"
-sed -i "s/run_as =/run_as = keylime:tss/g" /etc/keylime.conf
+echo "Change /etc/keylime/agent.conf to enable privilege dropping for the agent"
+sed -i "s/^run_as =.*/run_as = keylime:tss/g" /etc/keylime/agent.conf
 
 echo "Changing files to be owned by the keylime user"
 # Create all directories required if not there
@@ -43,7 +43,7 @@ mkdir -p /var/lib/keylime
 mkdir -p /var/log/keylime
 mkdir -p /var/run/keylime
 
-chown keylime:keylime /etc/keylime.conf
+chown keylime:keylime -R /etc/keylime
 chown keylime:keylime -R /var/lib/keylime
 chown keylime:keylime -R /var/log/keylime
 chown keylime:keylime -R /var/run/keylime
