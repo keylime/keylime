@@ -69,7 +69,7 @@ def setpassword(pw):
     global_password = pw
 
 
-def cmd_mkcert(workingdir, name):
+def cmd_mkcert(workingdir, name, password=None):
     cwd = os.getcwd()
     try:
         fs_util.ch_dir(workingdir)
@@ -82,11 +82,18 @@ def cmd_mkcert(workingdir, name):
         with open(f"{name}-cert.crt", "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-        priv[0][name] = pk.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
+        if password:
+            priv[0][name] = pk.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.BestAvailableEncryption(password.encode("utf-8")),
+            )
+        else:
+            priv[0][name] = pk.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
 
         # increment serial number after successful creation
         priv[0]["lastserial"] += 1

@@ -396,6 +396,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
 
     private_key = None
     private_key_path = None
+    private_key_password = None
     public_key = None
     publickey_exportable = None
     cert = None
@@ -420,19 +421,19 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
         secdir = secure_mount.mount()
 
         # Get server TLS files from configuration file
-        (cert_path, key_path, trusted_ca), _ = web_util.get_tls_options("agent", logger=logger)
+        (cert_path, key_path, trusted_ca, key_password), _ = web_util.get_tls_options("agent", logger=logger)
 
         # read or generate the key depending on configuration
         if os.path.isfile(key_path):
             # read in private key
             logger.info("Using existing key in %s", key_path)
             with open(key_path, "rb") as f:
-                private_key = crypto.rsa_import_privkey(f.read())
+                private_key = crypto.rsa_import_privkey(f.read(), password=key_password)
         else:
             logger.info("Key for U/V transport and mTLS certificate not found, generating a new one")
             private_key = crypto.rsa_generate(2048)
             with open(key_path, "wb") as f:
-                f.write(crypto.rsa_export_privkey(private_key))
+                f.write(crypto.rsa_export_privkey(private_key, password=key_password))
 
         self.private_key_path = key_path
         self.private_key = private_key
@@ -755,7 +756,11 @@ def main():
     server = CloudAgentHTTPServer(serveraddr, Handler, agent_uuid, contact_ip, ima_log_file, tpm_log_file_data)
     if server.mtls_cert_enabled:
         context = web_util.generate_tls_context(
-            server.cert_path, server.private_key_path, server.trusted_ca, logger=logger
+            server.cert_path,
+            server.private_key_path,
+            server.trusted_ca,
+            private_key_password=server.private_key_password,
+            logger=logger,
         )
         server.socket = context.wrap_socket(server.socket, server_side=True)
     else:
