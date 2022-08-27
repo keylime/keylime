@@ -590,7 +590,7 @@ class AgentsHandler(BaseHandler):
                     agent_mtls_cert_enabled = config.getboolean("verifier", "enable_agent_mtls", fallback=False)
                     mtls_cert = agent_data["mtls_cert"]
                     agent_data["ssl_context"] = None
-                    if agent_mtls_cert_enabled and mtls_cert:
+                    if agent_mtls_cert_enabled and mtls_cert and mtls_cert != "disabled":
                         agent_data["ssl_context"] = web_util.generate_agent_tls_context(
                             "verifier", agent_data["mtls_cert"], logger=logger
                         )

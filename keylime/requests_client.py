@@ -12,7 +12,7 @@ class RequestsClient:
 
         self.session = requests.Session()
 
-        if ignore_hostname or tls_enabled:
+        if tls_enabled:
             self.session.mount("http://", HostNameIgnoreAdapter(tls_context, ignore_hostname))
             self.session.mount("https://", HostNameIgnoreAdapter(tls_context, ignore_hostname))
 

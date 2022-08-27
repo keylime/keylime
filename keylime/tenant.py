@@ -301,7 +301,7 @@ class Tenant:
 
                 with RequestsClient(
                     f"{self.agent_ip}:{self.agent_port}",
-                    tls_enabled=True,
+                    tls_enabled=self.enable_agent_mtls,
                     tls_context=tls_context,
                     ignore_hostname=True,
                 ) as get_version:
@@ -1026,7 +1026,7 @@ class Tenant:
                 params = f"/v{self.supported_version}/quotes/identity?nonce=%s" % (self.nonce)
                 cloudagent_base_url = f"{self.agent_ip}:{self.agent_port}"
 
-                if self.registrar_data and self.registrar_data["mtls_cert"]:
+                if self.enable_agent_mtls and self.registrar_data and self.registrar_data["mtls_cert"]:
                     with RequestsClient(
                         cloudagent_base_url,
                         self.enable_agent_mtls,
@@ -1120,7 +1120,7 @@ class Tenant:
         params = f"/v{self.supported_version}/keys/ukey"
         cloudagent_base_url = f"{self.agent_ip}:{self.agent_port}"
 
-        if self.registrar_data and self.registrar_data["mtls_cert"]:
+        if self.enable_agent_mtls and self.registrar_data and self.registrar_data["mtls_cert"]:
             with RequestsClient(
                 cloudagent_base_url,
                 self.enable_agent_mtls,
@@ -1161,7 +1161,7 @@ class Tenant:
                 if self.registrar_data and self.registrar_data["mtls_cert"]:
                     with RequestsClient(
                         cloudagent_base_url,
-                        tls_enabled=True,
+                        self.enable_agent_mtls,
                         tls_context=self.agent_tls_context,
                         ignore_hostname=True,
                     ) as do_verify:
