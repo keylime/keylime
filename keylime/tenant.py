@@ -279,7 +279,7 @@ class Tenant:
                     logger.warning(
                         "Warning: mTLS for agents is disabled: the identity of each node will be based on the properties of the TPM only. "
                         "Unless you have strict control of your network, it is strongly advised that remote code execution should be disabled, "
-                        'by setting "payload_script=" and "extract_payload_zip=False" under "[cloud_agent]"'
+                        'by setting "payload_script=" and "extract_payload_zip=False" under "[agent]" in agent configuration file.'
                     )
                     tls_context = None
                 else:
