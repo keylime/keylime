@@ -104,19 +104,6 @@ if [[ ! -d "$KEYLIME_DIR/test" || ! -d "$KEYLIME_DIR/keylime" ]] ; then
     exit 1
 fi
 
-# Copy keyline.conf into place
-if [ ! -f "/etc/keylime.conf" ]; then
-    if [ "$USER_MODE" == "1" ]; then
-        echo -e "keylime.conf cannot be copied as a non-root user, please copy keylime.conf to etc/ and restart script"
-        exit 1
-    else
-        echo -e "Copying keylime.conf into /etc/keylime.conf"
-        cp -n $KEYLIME_DIR/keylime.conf /etc/keylime.conf
-        echo -e "Setting require_ek_cert to False"
-        sed -i 's/require_ek_cert = True/require_ek_cert = False/g' /etc/keylime.conf
-    fi
-fi
-
 # Set correct dependencies
 # Fedora
 if [ $PACKAGE_MGR = "dnf" ]; then
@@ -170,6 +157,31 @@ echo $'\t\t\tInstalling Keylime'
 echo "=================================================================================="
 cd $KEYLIME_DIR
 python3 -m pip install . -r requirements.txt
+
+echo "=================================================================================="
+echo $'\t\t\tInstalling configuration'
+echo "=================================================================================="
+# Copy keylime.conf into place
+if [ ! -f "/etc/keylime.conf" ]; then
+    if [ "$USER_MODE" == "1" ]; then
+        echo -e "keylime.conf cannot be copied as a non-root user, please copy keylime.conf to etc/ and restart script"
+        exit 1
+    else
+        echo -e "Copying keylime.conf into /etc/keylime.conf"
+        cp -n $KEYLIME_DIR/keylime.conf /etc/keylime.conf
+        echo -e "Setting require_ek_cert to False"
+        sed -i 's/require_ek_cert = True/require_ek_cert = False/g' /etc/keylime.conf
+    fi
+fi
+
+mkdir -p /etc/keylime
+python3 $KEYLIME_DIR/scripts/convert_config.py \
+    --input $KEYLIME_DIR/keylime.conf \
+    --out /etc/keylime \
+    --templates $KEYLIME_DIR/scripts/templates
+
+echo -e "Setting require_ek_cert to False"
+sed -i 's/require_ek_cert = True/require_ek_cert = False/g' /etc/keylime/tenant.conf
 
 echo "=================================================================================="
 echo $'\t\t\tRunning Unit Tests'
