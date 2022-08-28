@@ -596,7 +596,7 @@ def canonicalize_allowlist(alist_bytes, checksum=""):
 
 def read_excllist(exclude_path=None):
     excl_list = []
-    if os.path.exists(exclude_path):
+    if exclude_path and os.path.exists(exclude_path):
         with open(exclude_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
