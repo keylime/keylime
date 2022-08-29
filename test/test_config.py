@@ -10,9 +10,15 @@ CONFIG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "data/confi
 
 class TestConfig(unittest.TestCase):
     def setUp(self):
+        """Dummy setup so that the tearDown() is executed"""
+        # See the following documentation:
+        # https://docs.python.org/3/library/unittest.html#unittest.TestCase.tearDown
+        return
+
+    def tearDown(self):
         """The config module should be reloaded."""
         # Because we can alter global state, we should reload the
-        # config module before every test
+        # config module after every test
         importlib.reload(config)
 
     def test_default_config_files(self):
