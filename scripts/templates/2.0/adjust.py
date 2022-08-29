@@ -109,24 +109,6 @@ def adjust(config, mapping):
                 config["registrar"][o] = "default"
                 print(f"[registrar] Replaced option '{o}' with 'default' as " f"'tls_dir' is set as 'generate'")
 
-    # Heuristic changes, assuming testing configuration to run locally:
-
-    # If the agent's 'trusted_client_ca' is set as 'default' and the verifier's
-    # 'tls_dir' is set as 'generate', assume the user is trying to run locally
-    # and set the agent's 'trusted_client_ca' to point to the default location
-    # where the verifier generates the CA certificate
-    #
-    # Note: 'default' in 'trusted_client_ca' for the agent means
-    # '/var/lib/keylime/secure/cacert.crt', which means the user has to copy the
-    # CA certificate to this location if they want to use 'default'
-    if config["agent"]["trusted_client_ca"] == "default":
-        if config["verifier"]["tls_dir"] == "generate":
-            config["agent"]["trusted_client_ca"] = "['/var/lib/keylime/cv_ca/cacert.crt']"
-            print(
-                f"[agent] For option 'trusted_client_ca', replaced 'default' with "
-                f"'{config['agent']['trusted_client_ca']}'"
-            )
-
     # If the tenant's 'trusted_server_ca' is set as 'default' and both the
     # verifier's and registrar's 'tls_dir' are set as 'generate', assume the
     # user is trying to run locally and set the tenant's 'trusted_server_ca' to
