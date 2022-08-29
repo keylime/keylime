@@ -122,6 +122,7 @@ def verifier_db_delete_agent(session, agent_id):
 def store_attestation_state(agentAttestState):
     # Only store if IMA log was evaluated
     if agentAttestState.get_ima_pcrs():
+        agent_id = agentAttestState.agent_id
         session = get_session()
         try:
             update_agent = session.query(VerfierMain).get(agentAttestState.get_agent_id())
@@ -135,10 +136,10 @@ def store_attestation_state(agentAttestState):
             try:
                 session.add(update_agent)
             except SQLAlchemyError as e:
-                logger.error("SQLAlchemy Error on storing attestation state: %s", e)
+                logger.error("SQLAlchemy Error on storing attestation state for agent %s: %s", agent_id, e)
             session.commit()
         except SQLAlchemyError as e:
-            logger.error("SQLAlchemy Error on storing attestation state: %s", e)
+            logger.error("SQLAlchemy Error on storing attestation state for agent %s: %s", agent_id, e)
 
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -279,7 +280,7 @@ class AgentsHandler(BaseHandler):
                     .one_or_none()
                 )
             except SQLAlchemyError as e:
-                logger.error("SQLAlchemy Error: %s", e)
+                logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
 
             if agent is not None:
                 response = cloud_verifier_common.process_get_status(agent)
@@ -354,7 +355,7 @@ class AgentsHandler(BaseHandler):
         try:
             agent = session.query(VerfierMain).filter_by(agent_id=agent_id).first()
         except SQLAlchemyError as e:
-            logger.error("SQLAlchemy Error: %s", e)
+            logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
 
         if agent is None:
             web_util.echo_json_response(self, 404, "agent id not found")
@@ -384,12 +385,12 @@ class AgentsHandler(BaseHandler):
                 try:
                     session.add(update_agent)
                 except SQLAlchemyError as e:
-                    logger.error("SQLAlchemy Error: %s", e)
+                    logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
                 session.commit()
                 web_util.echo_json_response(self, 202, "Accepted")
                 logger.info("DELETE returning 202 response for agent id: %s", agent_id)
             except SQLAlchemyError as e:
-                logger.error("SQLAlchemy Error: %s", e)
+                logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
 
     def post(self):
         """This method handles the POST requests to add agents to the Cloud Verifier.
@@ -500,7 +501,7 @@ class AgentsHandler(BaseHandler):
                                 session.query(VerifierAllowlist).filter_by(name=ima_policy_name).one_or_none()
                             )
                         except SQLAlchemyError as e:
-                            logger.error("SQLAlchemy Error: %s", e)
+                            logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
                             raise
 
                         # Prevent overwriting existing IMA policies with name provided in request
@@ -523,7 +524,7 @@ class AgentsHandler(BaseHandler):
                     try:
                         new_agent_count = session.query(VerfierMain).filter_by(agent_id=agent_id).count()
                     except SQLAlchemyError as e:
-                        logger.error("SQLAlchemy Error: %s", e)
+                        logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
                         raise e
 
                     if new_agent_count > 0:
@@ -561,7 +562,7 @@ class AgentsHandler(BaseHandler):
                         session.add(VerfierMain(**agent_data, ima_policy=ima_policy_stored))
                         session.commit()
                     except SQLAlchemyError as e:
-                        logger.error("SQLAlchemy Error: %s", e)
+                        logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
                         raise e
 
                     # add default fields that are ephemeral
@@ -631,7 +632,7 @@ class AgentsHandler(BaseHandler):
                 )
                 agent = session.query(VerfierMain).filter_by(agent_id=agent_id, verifier_id=verifier_id).one()
             except SQLAlchemyError as e:
-                logger.error("SQLAlchemy Error: %s", e)
+                logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
                 raise e
 
             if agent is None:
@@ -1031,7 +1032,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 .first()
             )
         except SQLAlchemyError as e:
-            logger.error("SQLAlchemy Error: %s", e)
+            logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
 
         # if the user did terminated this agent
         if stored_agent.operational_state == states.TERMINATED:
@@ -1082,7 +1083,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
             session.query(VerfierMain).filter_by(agent_id=agent_db["agent_id"]).update(agent_db)
             session.commit()
         except SQLAlchemyError as e:
-            logger.error("SQLAlchemy Error: %s", e)
+            logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
 
         # Load agent's IMA policy
         ima_policy = stored_agent.ima_policy
@@ -1120,7 +1121,9 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
             if interval == 0:
                 await invoke_get_quote(agent, ima_policy, False)
             else:
-                logger.debug("Setting up callback to check again in %f seconds", interval)
+                logger.debug(
+                    "Setting up callback to check agent ID %s again in %f seconds", agent["agent_id"], interval
+                )
                 # set up a call back to check again
                 cb = functools.partial(invoke_get_quote, agent, ima_policy, False)
                 pending = tornado.ioloop.IOLoop.current().call_later(interval, cb)
@@ -1184,7 +1187,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
         raise Exception("nothing should ever fall out of this!")
 
     except Exception as e:
-        logger.error("Polling thread error: %s", e)
+        logger.error("Polling thread error for agent ID %s: %s", agent["agent_id"], e)
         logger.exception(e)
         failure.add_event(
             "exception", {"context": "Agent caused the verifier to throw an exception", "data": str(e)}, False

@@ -36,8 +36,10 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
     failure = Failure(Component.QUOTE_VALIDATION)
     received_public_key = None
     quote = None
+    agent_id = None
     # in case of failure in response content do not continue
     try:
+        agent_id = agent["agent_id"]
         received_public_key = json_response.get("pubkey", None)
         quote = json_response["quote"]
 
@@ -46,15 +48,20 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
         mb_measurement_list = json_response.get("mb_measurement_list", None)
         boottime = json_response.get("boottime", 0)
 
-        logger.debug("received quote:      %s", quote)
-        logger.debug("for nonce:           %s", agent["nonce"])
-        logger.debug("received public key: %s", received_public_key)
-        logger.debug("received ima_measurement_list    %s", (ima_measurement_list is not None))
-        logger.debug("received ima_measurement_list_entry: %d", ima_measurement_list_entry)
-        logger.debug("received boottime: %s", boottime)
-        logger.debug("received boot log    %s", (mb_measurement_list is not None))
+        logger.debug(
+            "received data for agent %s, quote: %s, nonce: %s, public key(b64): %s, ima_measurement_list: %s, ima_measurement_list_entry: %s, measured_boot_log: %s, boottime: %s",
+            agent_id,
+            quote,
+            agent["nonce"],
+            base64.b64encode(str(received_public_key).encode("ascii")).decode("ascii"),
+            (ima_measurement_list is not None),
+            ima_measurement_list_entry,
+            (mb_measurement_list is not None),
+            boottime,
+        )
+
     except Exception as e:
-        failure.add_event("invalid_data", {"message": "parsing agents get quote respone failed", "data": e}, False)
+        failure.add_event("invalid_data", {"message": "parsing agent get quote respone failed", "data": e}, False)
         return failure
 
     # TODO: Are those separate failures?
@@ -67,9 +74,14 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
     # if no public key provided, then ensure we have cached it
     if received_public_key is None:
         if agent.get("public_key", "") == "" or agent.get("b64_encrypted_V", "") == "":
-            logger.error("agent did not provide public key and no key or encrypted_v was cached at CV")
+            logger.error("agent %s did not provide public key and no key or encrypted_v was cached at CV", agent_id)
             failure.add_event(
-                "no_pubkey", "agent did not provide public key and no key or encrypted_v was cached at CV", False
+                "no_pubkey",
+                {
+                    "message": "agent did not provide public key and no key or encrypted_v was cached at CV",
+                    "data": received_public_key,
+                },
+                False,
             )
             return failure
         agent["provide_V"] = False
@@ -88,7 +100,7 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
     if not algorithms.is_accepted(hash_alg, agent["accept_tpm_hash_algs"]) or not algorithms.Hash.is_recognized(
         hash_alg
     ):
-        logger.error("TPM Quote is using an unaccepted hash algorithm: %s", hash_alg)
+        logger.error("TPM Quote for agent %s is using an unaccepted hash algorithm: %s", agent_id, hash_alg)
         failure.add_event(
             "invalid_hash_alg",
             {"message": f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}", "data": hash_alg},
@@ -98,7 +110,7 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
 
     # Ensure enc_alg is in accept_tpm_encryption_algs list
     if not algorithms.is_accepted(enc_alg, agent["accept_tpm_encryption_algs"]):
-        logger.error("TPM Quote is using an unaccepted encryption algorithm: %s", enc_alg)
+        logger.error("TPM Quote for agent %s is using an unaccepted encryption algorithm: %s", agent_id, enc_alg)
         failure.add_event(
             "invalid_enc_alg",
             {"message": f"TPM Quote is using an unaccepted encryption algorithm: {enc_alg}", "data": enc_alg},
@@ -108,7 +120,7 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
 
     # Ensure sign_alg is in accept_tpm_encryption_algs list
     if not algorithms.is_accepted(sign_alg, agent["accept_tpm_signing_algs"]):
-        logger.error("TPM Quote is using an unaccepted signing algorithm: %s", sign_alg)
+        logger.error("TPM Quote for agent %s is using an unaccepted signing algorithm: %s", agent_id, sign_alg)
         failure.add_event(
             "invalid_sign_alg",
             {"message": f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}", "data": {sign_alg}},
@@ -122,7 +134,8 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
         # If we requested a particular entry number then the agent must return either
         # starting at 0 (handled above) or with the requested number.
         logger.error(
-            "Agent did not respond with requested next IMA measurement list entry %s but started at %s",
+            "Agent %s did not respond with requested next IMA measurement list entry %s but started at %s",
+            agent_id,
             agentAttestState.get_next_ima_ml_entry(),
             ima_measurement_list_entry,
         )
@@ -221,6 +234,7 @@ def prepare_get_quote(agent):
 
 
 def process_get_status(agent):
+    agent_id = agent.agent_id
     allowlist_json = json.loads(agent.ima_policy.ima_policy)
     if isinstance(allowlist_json, dict) and "allowlist" in allowlist_json:
         al_len = len(allowlist_json["allowlist"])
@@ -231,11 +245,12 @@ def process_get_status(agent):
         mb_refstate = json.loads(agent.mb_refstate)
     except Exception as e:
         logger.warning(
-            'Non-fatal problem ocurred while attempting to evaluate agent attribute "mb_refstate" (%s). Will just consider the value of this attribute to be "None"',
+            'Non-fatal problem ocurred while attempting to evaluate agent %s attribute "mb_refstate" (%s). Will just consider the value of this attribute to be "None"',
+            agent_id,
             e.args,
         )
         mb_refstate = None
-        logger.debug('The contents of the agent attribute "mb_refstate" are %s', agent.mb_refstate)
+        logger.debug('The contents of the agent %s attribute "mb_refstate" are %s', agent_id, agent.mb_refstate)
 
     if isinstance(mb_refstate, dict) and "mb_refstate" in mb_refstate:
         mb_refstate_len = len(mb_refstate["mb_refstate"])

@@ -1212,6 +1212,8 @@ class tpm(tpm_abstract.AbstractTPM):
         if allowlist is None:
             allowlist = {}
 
+        agent_id = agentAttestState.agent_id
+
         failure = Failure(Component.QUOTE_VALIDATION)
         if hash_alg is None:
             hash_alg = self.defaults["hash"]
@@ -1255,7 +1257,9 @@ class tpm(tpm_abstract.AbstractTPM):
 
         if len(pcrs) == 0:
             logger.warning(
-                "Quote does not contain any PCRs. Make sure that the TPM supports %s PCR banks", str(hash_alg)
+                "Quote for agent %s does not contain any PCRs. Make sure that the TPM supports %s PCR banks",
+                agent_id,
+                str(hash_alg),
             )
 
         return self.check_pcrs(
