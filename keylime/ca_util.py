@@ -82,18 +82,13 @@ def cmd_mkcert(workingdir, name, password=None):
         with open(f"{name}-cert.crt", "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-        if password:
-            priv[0][name] = pk.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.BestAvailableEncryption(password.encode("utf-8")),
-            )
-        else:
-            priv[0][name] = pk.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
+        priv[0][name] = pk.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.BestAvailableEncryption(password.encode("utf-8"))
+            if password
+            else serialization.NoEncryption(),
+        )
 
         # increment serial number after successful creation
         priv[0]["lastserial"] += 1
