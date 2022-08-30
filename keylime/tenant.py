@@ -111,31 +111,35 @@ class Tenant:
             logger.warning(
                 "Warning: agent mTLS is currently disabled, keys will be sent in the clear! This should only be used for testing."
             )
+
+        if not verify_server_cert:
+            logger.warning(
+                "Warning: server certificate verification is disabled as 'trusted_server_ca' option is set to 'all'. This should only be used for testing."
+            )
+
+        if not trusted_ca:
+            logger.warning("No certificates provided in 'trusted_server_ca'")
+
+        if cert and not os.path.isfile(cert):
+            logger.warning("Could not find file %s provided in 'client_cert'", cert)
+
+        if key and not os.path.isfile(key):
+            logger.warning("Could not find file %s provided in 'client_key'", key)
+
+        if all([(cert and os.path.isfile(cert)), (key and os.path.isfile(key))]):
+            self.client_cert = cert
+            self.client_key = key
+            self.client_key_password = key_password
+            self.verify_server_cert = verify_server_cert
+            self.trusted_server_ca = trusted_ca
+
+            self.tls_context = web_util.generate_tls_context(
+                cert, key, trusted_ca, key_password, verify_server_cert, is_client=True, logger=logger
+            )
+
+            logger.info("TLS is enabled.")
         else:
-            if not verify_server_cert:
-                logger.warning(
-                    "Warning: agent mTLS is enabled, but server certificate verification is disabled as 'trusted_server_ca' option is set to 'all'. This should only be used for testing."
-                )
-            else:
-                if not os.path.isfile(cert):
-                    logger.warning("Could not find file %s provided in 'client_cert'", cert)
-                if not os.path.isfile(key):
-                    logger.warning("Could not find file %s provided in 'client_key'", key)
-
-                if not trusted_ca:
-                    logger.warning("No certificates provided in 'trusted_server_ca'")
-                else:
-                    self.client_cert = cert
-                    self.client_key = key
-                    self.client_key_password = key_password
-                    self.verify_server_cert = verify_server_cert
-                    self.trusted_server_ca = trusted_ca
-
-                    self.tls_context = web_util.generate_tls_context(
-                        cert, key, trusted_ca, key_password, verify_server_cert, is_client=True, logger=logger
-                    )
-
-                    logger.info("TLS is enabled.")
+            logger.warning("TLS is disabled.")
 
     @property
     def verifier_base_url(self):
