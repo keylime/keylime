@@ -144,6 +144,14 @@ max_upload_size = {{ verifier.max_upload_size }}
 # The `accept-all` policy ignores the reference state and approves every log.
 measured_boot_policy_name = {{ verifier.measured_boot_policy_name }}
 
+# This is a list of Python modules to dynamically load, for example to register
+# additional boot attestation policies.
+# Empty strings in the list are ignored.
+# A module here may be relative, in which case it is interpreted
+# relative to the keylime.elchecking package.
+# The default value for this config item is the empty list.
+measured_boot_imports = {{ verifier.measured_boot_imports }}
+
 # Severity labels for revocation events strictly ordered from least severity to
 # highest severtiy.
 severity_labels = {{ verifier.severity_labels }}

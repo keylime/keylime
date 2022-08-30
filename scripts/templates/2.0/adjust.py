@@ -35,7 +35,13 @@ def adjust(config, mapping):
                 "trusted_client_ca",
                 "revocation_actions",
             ],
-            "verifier": ["enabled_revocation_notifications", "trusted_server_ca", "severity_labels", "severity_policy"],
+            "verifier": [
+                "enabled_revocation_notifications",
+                "trusted_server_ca",
+                "severity_labels",
+                "severity_policy",
+                "measured_boot_imports",
+            ],
             "tenant": [
                 "trusted_server_ca",
                 "accept_tpm_hash_algs",

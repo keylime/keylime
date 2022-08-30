@@ -309,6 +309,11 @@
                 "option": "measured_boot_policy_name",
                 "default": "accept-all"
             },
+            "measured_boot_imports": {
+                "section": "cloud_verifier",
+                "option": "measured_boot_imports",
+                "default": "[]"
+            },
             "severity_labels": {
                 "section": "cloud_verifier",
                 "option": "severity_labels",
