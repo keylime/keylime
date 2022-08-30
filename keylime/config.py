@@ -251,12 +251,7 @@ def getlist(component, option, section=None):
         try:
             l = ast.literal_eval(read)
             if isinstance(l, list):
-                stripped = []
-                for s in l:
-                    if isinstance(s, str):
-                        s = s.strip()
-                    stripped.append(s)
-                return stripped
+                return [i.strip() if isinstance(i, str) else i for i in l]
             raise Exception(
                 f"Config option '{option}' in section '{section}' " f"'of component {component} should be a list"
             )
