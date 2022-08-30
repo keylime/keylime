@@ -1247,10 +1247,9 @@ async def activate_agents(verifier_id, verifier_ip, verifier_port):
             agent.verifier_host = verifier_port
             agent_run = _from_db_obj(agent)
             if agent_run["mtls_cert"] and agent_run["mtls_cert"] != "disabled":
-                if not agent_run["ssl_context"]:
-                    agent_run["ssl_context"] = web_util.generate_agent_tls_context(
-                        "verifier", agent_run["mtls_cert"], logger=logger
-                    )
+                agent_run["ssl_context"] = web_util.generate_agent_tls_context(
+                    "verifier", agent_run["mtls_cert"], logger=logger
+                )
 
             if agent.operational_state == states.START:
                 asyncio.ensure_future(process_agent(agent_run, states.GET_QUOTE))
