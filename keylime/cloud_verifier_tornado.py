@@ -1269,9 +1269,9 @@ def main():
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
-    cloudverifier_port = config.get("verifier", "port")
-    cloudverifier_host = config.get("verifier", "ip")
-    cloudverifier_id = config.get("verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
+    verifier_port = config.get("verifier", "port")
+    verifier_host = config.get("verifier", "ip")
+    verifier_id = config.get("verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
 
     # Check if measured boot was configured correctly
     mb_policy_name = config.get("verifier", "measured_boot_policy_name", fallback="accept-all")
@@ -1303,7 +1303,7 @@ def main():
         agent_ids = session.query(VerfierMain.agent_id).all()
         logger.info("Agent ids in db loaded from file: %s", agent_ids)
 
-    logger.info("Starting Cloud Verifier (tornado) on port %s, use <Ctrl-C> to stop", cloudverifier_port)
+    logger.info("Starting Cloud Verifier (tornado) on port %s, use <Ctrl-C> to stop", verifier_port)
 
     # print out API versions we support
     keylime_api_version.log_api_versions(logger)
@@ -1320,7 +1320,7 @@ def main():
         ]
     )
 
-    sockets = tornado.netutil.bind_sockets(int(cloudverifier_port), address=cloudverifier_host)
+    sockets = tornado.netutil.bind_sockets(int(verifier_port), address=verifier_host)
 
     def server_process(task_id):
         logger.info("Starting server of process %s", task_id)
@@ -1349,7 +1349,7 @@ def main():
         server.start()
         if task_id == 0:
             # Reactivate agents
-            asyncio.ensure_future(activate_agents(cloudverifier_id, cloudverifier_host, cloudverifier_port))
+            asyncio.ensure_future(activate_agents(verifier_id, verifier_host, verifier_port))
         tornado.ioloop.IOLoop.current().start()
         logger.debug("Server %s stopped.", task_id)
         sys.exit(0)
