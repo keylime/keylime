@@ -38,8 +38,7 @@ def get_tls_dir(component):
             tls_dir = secure_mount.get_secdir()
     else:
         # if it is relative path, convert to absolute in WORK_DIR
-        if tls_dir[0] != "/":
-            tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
+        tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
 
     return tls_dir
 
@@ -123,8 +122,7 @@ def init_tls_dir(component, logger=None):
             )
     else:
         # if it is relative path, convert to absolute in WORK_DIR
-        if tls_dir[0] != "/":
-            tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
+        tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
 
     return tls_dir
 
@@ -254,12 +252,7 @@ def get_tls_options(component, is_client=False, logger=None):
         trusted_ca = []
     else:
         trusted_ca = config.getlist(component, ca_option)
-        absolute_ca = []
-        for ca in trusted_ca:
-            if not os.path.isabs(ca):
-                ca = os.path.join(tls_dir, ca)
-            absolute_ca.append(ca)
-        trusted_ca = absolute_ca
+        trusted_ca = list(os.path.abspath(os.path.join(tls_dir, ca)) for ca in trusted_ca)
 
     cert = config.get(component, f"{role}_cert")
     if not cert:
@@ -271,8 +264,7 @@ def get_tls_options(component, is_client=False, logger=None):
         if logger:
             logger.info("Using default %s_cert option for %s", role, component)
     else:
-        if not os.path.isabs(cert):
-            cert = os.path.abspath(os.path.join(tls_dir, cert))
+        cert = os.path.abspath(os.path.join(tls_dir, cert))
 
     key = config.get(component, f"{role}_key")
     if not key:
@@ -284,8 +276,7 @@ def get_tls_options(component, is_client=False, logger=None):
         if logger:
             logger.info("Using default %s_key option for %s", role, component)
     else:
-        if not os.path.isabs(key):
-            key = os.path.join(tls_dir, key)
+        key = os.path.join(tls_dir, key)
 
     password = config.get(component, f"{role}_key_password")
     if not password:
