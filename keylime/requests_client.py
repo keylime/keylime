@@ -66,9 +66,6 @@ class HostNameIgnoreAdapter(HTTPAdapter):
     It is required because in most cases we don't know the hostname during certificate generation.
     """
 
-    _tls_context = None
-    _ignore_hostname = False
-
     def __init__(self, tls_context, ignore_hostname, *args, **kwargs):
         self._tls_context = tls_context
         self._ignore_hostname = ignore_hostname
