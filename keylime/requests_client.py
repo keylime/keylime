@@ -4,7 +4,7 @@ from requests.packages.urllib3.poolmanager import PoolManager  # pylint: disable
 
 
 class RequestsClient:
-    def __init__(self, base_url, tls_enabled, tls_context=None, ignore_hostname=False, **kwargs):
+    def __init__(self, base_url, tls_enabled, tls_context=None, ignore_hostname=True, **kwargs):
         if tls_enabled:
             self.base_url = f"https://{base_url}"
         else:
@@ -73,22 +73,13 @@ class HostNameIgnoreAdapter(HTTPAdapter):
         super().__init__(*args, **kwargs)
 
     def init_poolmanager(self, connections, maxsize, block=requests.adapters.DEFAULT_POOLBLOCK, **pool_kwargs):
-        if self._ignore_hostname and self._tls_context:
-            self.poolmanager = PoolManager(
-                num_pools=connections,
-                maxsize=maxsize,
-                block=block,
-                strict=True,
-                assert_hostname=False,
-                ssl_context=self._tls_context,
-                **pool_kwargs,
-            )
-        else:
-            self.poolmanager = PoolManager(
-                num_pools=connections,
-                maxsize=maxsize,
-                block=block,
-                strict=True,
-                ssl_context=self._tls_context,
-                **pool_kwargs,
-            )
+        assert_hostname = False if self._ignore_hostname and self._tls_context else None
+        self.poolmanager = PoolManager(
+            num_pools=connections,
+            maxsize=maxsize,
+            block=block,
+            strict=True,
+            assert_hostname=assert_hostname,
+            ssl_context=self._tls_context,
+            **pool_kwargs,
+        )
