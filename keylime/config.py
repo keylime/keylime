@@ -263,29 +263,6 @@ def getlist(component, option, section=None):
     raise Exception(f"Could not find option '{option}' in section '{section}' of component '{component}'")
 
 
-def getdict(component, option, section=None):
-    if not section:
-        section = component
-
-    read = get_config(component).get(section, option)
-
-    if read:
-        try:
-            d = ast.literal_eval(read)
-            if isinstance(d, dict):
-                return d
-
-            raise Exception(
-                f"Config option '{option}' in section '{section}' of component '{component}' should be a dictionary"
-            )
-        except Exception as e:
-            raise Exception(
-                f"Failed to get dictionary from config for component '{component}', section '{section}', option '{option}'"
-            ) from e
-
-    raise Exception(f"Could not find option '{option}' in section '{section}' of component '{component}'")
-
-
 def get(component, option, section=None, fallback=""):
     if not section:
         section = component
