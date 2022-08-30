@@ -475,8 +475,16 @@ class AgentsHandler(BaseHandler):
                     agent_data["attestation_count"] = 0
                     agent_data["last_received_quote"] = 0
 
+                    agent_mtls_cert_enabled = config.getboolean("verifier", "enable_agent_mtls", fallback=False)
+
                     # TODO: Always error for v1.0 version after initial upgrade
-                    if agent_data["mtls_cert"] is None and agent_data["supported_version"] != "1.0":
+                    if all(
+                        [
+                            agent_data["supported_version"] != "1.0",
+                            agent_mtls_cert_enabled,
+                            (agent_data["mtls_cert"] is None or agent_data["mtls_cert"] == "disabled"),
+                        ]
+                    ):
                         web_util.echo_json_response(self, 400, "mTLS certificate for agent is required!")
                         return
 
@@ -587,10 +595,8 @@ class AgentsHandler(BaseHandler):
                         agent_data[key] = val
 
                     # Prepare SSLContext for mTLS connections
-                    agent_mtls_cert_enabled = config.getboolean("verifier", "enable_agent_mtls", fallback=False)
-                    mtls_cert = agent_data["mtls_cert"]
                     agent_data["ssl_context"] = None
-                    if agent_mtls_cert_enabled and mtls_cert and mtls_cert != "disabled":
+                    if agent_mtls_cert_enabled:
                         agent_data["ssl_context"] = web_util.generate_agent_tls_context(
                             "verifier", agent_data["mtls_cert"], logger=logger
                         )
