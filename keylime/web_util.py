@@ -14,7 +14,7 @@ from keylime import api_version as keylime_api_version
 from keylime import ca_util, config, json
 
 
-def init_mtls(section="cloud_verifier", generatedir="cv_ca", logger=None):
+def init_mtls(section="cloud_verifier", generatedir="cv_ca", logger=None, generate_context=True):
     """
     Generates mTLS SSLContext for either the cloud verifier or the registrar.
     """
@@ -97,8 +97,10 @@ def init_mtls(section="cloud_verifier", generatedir="cv_ca", logger=None):
     check_client_cert = config.has_option(section, "check_client_cert") and config.getboolean(
         section, "check_client_cert"
     )
-    context = generate_mtls_context(my_cert, my_priv_key, ca_path, check_client_cert, my_key_pw, logger=logger)
-
+    if generate_context:
+        context = generate_mtls_context(my_cert, my_priv_key, ca_path, check_client_cert, my_key_pw, logger=logger)
+    else:
+        context = None
     return context, (my_cert, my_priv_key, my_key_pw)
 
 
