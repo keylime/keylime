@@ -1549,7 +1549,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
 
         if args.allowlist_url:
             logger.info("Downloading Allowlist from %s", args.allowlist_url)
-            response = requests.get(args.allowlist_url, allow_redirects=False)
+            response = requests.get(args.allowlist_url, timeout=60, allow_redirects=False)
             if response.status_code == 200:
                 args.allowlist = write_to_namedtempfile(response.content, delete_tmp_files)
                 logger.debug("Allowlist temporarily saved in %s", args.allowlist)
@@ -1560,7 +1560,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
 
         if args.allowlist_sig_url:
             logger.info("Downloading Allowlist signature from %s", args.allowlist_sig_url)
-            response = requests.get(args.allowlist_sig_url, allow_redirects=False)
+            response = requests.get(args.allowlist_sig_url, timeout=60, allow_redirects=False)
             if response.status_code == 200:
                 args.allowlist_sig = write_to_namedtempfile(response.content, delete_tmp_files)
                 logger.debug("Allowlist signature temporarily saved in %s", args.allowlist_sig)
@@ -1587,7 +1587,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
         for i, key_url in enumerate(args.ima_sign_verification_key_urls):
 
             logger.info("Downloading key from %s", key_url)
-            response = requests.get(key_url, allow_redirects=False)
+            response = requests.get(key_url, timeout=60, allow_redirects=False)
             if response.status_code == 200:
                 key_file = write_to_namedtempfile(response.content, delete_tmp_files)
                 args.ima_sign_verification_keys.append(key_file)
@@ -1604,7 +1604,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
                 raise UserError(f"A gpg key is missing for key signature URL '{keysig_url}'")
 
             logger.info("Downloading key signature from %s", keysig_url)
-            response = requests.get(keysig_url, allow_redirects=False)
+            response = requests.get(keysig_url, timeout=60, allow_redirects=False)
             if response.status_code == 200:
                 keysig_file = write_to_namedtempfile(response.content, delete_tmp_files)
                 logger.debug("Key signature temporarily saved in %s", keysig_file)
