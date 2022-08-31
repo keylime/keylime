@@ -467,7 +467,7 @@ class TestRestful(unittest.TestCase):
         """Test registrar's GET /agents Interface"""
 
         test_013_reg_agents_get = RequestsClient(
-            tenant_templ.registrar_base_tls_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+            tenant_templ.registrar_base_tls_url, True, tls_context=tenant_templ.tls_context
         )
         response = test_013_reg_agents_get.get(f"/v{self.api_version}/agents/", verify=True)
 
@@ -484,7 +484,7 @@ class TestRestful(unittest.TestCase):
     def test_014_reg_agent_get(self):
         """Test registrar's GET /agents/{UUID} Interface"""
         test_014_reg_agent_get = RequestsClient(
-            tenant_templ.registrar_base_tls_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+            tenant_templ.registrar_base_tls_url, True, tls_context=tenant_templ.tls_context
         )
 
         num_retries = 10
@@ -528,7 +528,7 @@ class TestRestful(unittest.TestCase):
 
         """Test registrar's DELETE /agents/{UUID} Interface"""
         test_015_reg_agent_delete = RequestsClient(
-            tenant_templ.registrar_base_tls_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+            tenant_templ.registrar_base_tls_url, True, tls_context=tenant_templ.tls_context
         )
         response = test_015_reg_agent_delete.delete(
             f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", verify=True
@@ -552,7 +552,7 @@ class TestRestful(unittest.TestCase):
         """Test agent's GET /keys/pubkey Interface"""
 
         test_020_agent_keys_pubkey_get = RequestsClient(
-            tenant_templ.agent_base_url, True, ignore_hostname=True, tls_context=tenant_templ.agent_tls_context
+            tenant_templ.agent_base_url, True, tls_context=tenant_templ.agent_tls_context
         )
 
         response = test_020_agent_keys_pubkey_get.get(
@@ -580,7 +580,7 @@ class TestRestful(unittest.TestCase):
         numretries = config.getint("tenant", "max_retries")
         while numretries >= 0:
             test_022_agent_quotes_identity_get = RequestsClient(
-                tenant_templ.agent_base_url, True, ignore_hostname=True, tls_context=tenant_templ.agent_tls_context
+                tenant_templ.agent_base_url, True, tls_context=tenant_templ.agent_tls_context
             )
             response = test_022_agent_quotes_identity_get.get(
                 f"/v{self.api_version}/quotes/identity?nonce={nonce}", data=None, verify=True
@@ -625,7 +625,7 @@ class TestRestful(unittest.TestCase):
         data = {"encrypted_key": b64_encrypted_V}
 
         test_023_agent_keys_vkey_post = RequestsClient(
-            tenant_templ.agent_base_url, True, tls_context=tenant_templ.agent_tls_context, ignore_hostname=True
+            tenant_templ.agent_base_url, True, tls_context=tenant_templ.agent_tls_context
         )
         response = test_023_agent_keys_vkey_post.post(
             f"/v{self.api_version}/keys/vkey", data=json.dumps(data), verify=True
@@ -650,7 +650,7 @@ class TestRestful(unittest.TestCase):
         data = {"encrypted_key": b64_encrypted_u, "auth_tag": self.auth_tag, "payload": self.payload}
 
         test_024_agent_keys_ukey_post = RequestsClient(
-            tenant_templ.agent_base_url, True, ignore_hostname=True, tls_context=tenant_templ.agent_tls_context
+            tenant_templ.agent_base_url, True, tls_context=tenant_templ.agent_tls_context
         )
         response = test_024_agent_keys_ukey_post.post(
             f"/v{self.api_version}/keys/ukey", data=json.dumps(data), verify=True
@@ -670,9 +670,7 @@ class TestRestful(unittest.TestCase):
             "ima_policy_bundle": json.dumps(self.ima_policy_bundle),
         }
 
-        cv_client = RequestsClient(
-            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
-        )
+        cv_client = RequestsClient(tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context)
         response = cv_client.post(
             f"/v{self.api_version}/allowlists/test-allowlist",
             data=json.dumps(data),
@@ -687,9 +685,7 @@ class TestRestful(unittest.TestCase):
 
     def test_026_cv_allowlist_get(self):
         """Test CV's GET /allowlists/{name} Interface"""
-        cv_client = RequestsClient(
-            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
-        )
+        cv_client = RequestsClient(tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context)
         response = cv_client.get(f"/v{self.api_version}/allowlists/test-allowlist", verify=True)
 
         self.assertEqual(response.status_code, 200, "Non-successful CV allowlist Post return code!")
@@ -711,9 +707,7 @@ class TestRestful(unittest.TestCase):
 
     def test_027_cv_allowlist_delete(self):
         """Test CV's DELETE /allowlists/{name} Interface"""
-        cv_client = RequestsClient(
-            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
-        )
+        cv_client = RequestsClient(tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context)
         response = cv_client.delete(f"/v{self.api_version}/allowlists/test-allowlist", verify=True)
 
         self.assertEqual(response.status_code, 204, "Non-successful CV allowlist Delete return code!")
@@ -744,7 +738,7 @@ class TestRestful(unittest.TestCase):
         }
 
         test_030_cv_agent_post = RequestsClient(
-            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context
         )
         response = test_030_cv_agent_post.post(
             f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}",
@@ -765,7 +759,7 @@ class TestRestful(unittest.TestCase):
         """Test CV's PUT /agents/{UUID} Interface"""
         # TODO: this should actually test PUT functionality (e.g., make agent fail and then PUT back up)
         test_031_cv_agent_put = RequestsClient(
-            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context
         )
         response = test_031_cv_agent_put.put(
             f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", data=b"", verify=True
@@ -779,7 +773,7 @@ class TestRestful(unittest.TestCase):
     def test_032_cv_agents_get(self):
         """Test CV's GET /agents Interface"""
         test_032_cv_agents_get = RequestsClient(
-            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context
         )
         response = test_032_cv_agents_get.get(f"/v{self.api_version}/agents/", verify=True)
 
@@ -796,7 +790,7 @@ class TestRestful(unittest.TestCase):
     def test_033_cv_agent_get(self):
         """Test CV's GET /agents/{UUID} Interface"""
         test_033_cv_agent_get = RequestsClient(
-            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context
         )
         response = test_033_cv_agent_get.get(f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", verify=True)
 
@@ -834,9 +828,7 @@ class TestRestful(unittest.TestCase):
             "supported_version": tenant_templ.supported_version,
         }
 
-        client = RequestsClient(
-            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
-        )
+        client = RequestsClient(tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context)
         response = client.post(
             f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}",
             data=json.dumps(data),
@@ -873,7 +865,7 @@ class TestRestful(unittest.TestCase):
             partial = "0"
 
         test_040_agent_quotes_integrity_get = RequestsClient(
-            tenant_templ.agent_base_url, True, ignore_hostname=True, tls_context=tenant_templ.agent_tls_context
+            tenant_templ.agent_base_url, True, tls_context=tenant_templ.agent_tls_context
         )
         response = test_040_agent_quotes_integrity_get.get(
             f"/v{self.api_version}/quotes/integrity?nonce={nonce}&mask={mask}&partial={partial}", verify=True
@@ -930,7 +922,7 @@ class TestRestful(unittest.TestCase):
         """Test CV's DELETE /agents/{UUID} Interface"""
         time.sleep(5)
         test_050_cv_agent_delete = RequestsClient(
-            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
+            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context
         )
         response = test_050_cv_agent_delete.delete(
             f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", verify=True
@@ -944,9 +936,7 @@ class TestRestful(unittest.TestCase):
 
     def test_060_cv_version_get(self):
         """Test CV's GET /version Interface"""
-        cv_client = RequestsClient(
-            tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context, ignore_hostname=True
-        )
+        cv_client = RequestsClient(tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context)
         response = cv_client.get("/version", verify=True)
 
         self.assertEqual(response.status_code, 200, "Non-successful CV allowlist Post return code!")

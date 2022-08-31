@@ -307,7 +307,6 @@ class Tenant:
                     f"{self.agent_ip}:{self.agent_port}",
                     tls_enabled=self.enable_agent_mtls,
                     tls_context=tls_context,
-                    ignore_hostname=True,
                 ) as get_version:
                     res = get_version.get("/version")
                     if res and res.status_code == 200:
@@ -646,7 +645,7 @@ class Tenant:
             "supported_version": self.supported_version,
         }
         json_message = json.dumps(data)
-        do_cv = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        do_cv = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cv.post(
             (f"/v{self.api_version}/agents/{self.agent_uuid}"),
             data=json_message,
@@ -679,7 +678,7 @@ class Tenant:
     def do_cvstatus(self):
         """Perform operational state look up for agent on the verifier"""
 
-        do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
 
         response = do_cvstatus.get((f"/v{self.api_version}/agents/{self.agent_uuid}"))
 
@@ -726,7 +725,7 @@ class Tenant:
     def do_cvlist(self):
         """List all agent statuses in cloudverifier"""
 
-        do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
 
         verifier_id = ""
         if self.verifier_id is not None:
@@ -771,7 +770,7 @@ class Tenant:
     def do_cvbulkinfo(self):
         """Perform operational state look up for agent"""
 
-        do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
 
         verifier_id = ""
         if self.verifier_id is not None:
@@ -832,7 +831,7 @@ class Tenant:
             self.verifier_ip = cvresponse["results"][self.agent_uuid]["verifier_ip"]
             self.verifier_port = cvresponse["results"][self.agent_uuid]["verifier_port"]
 
-        do_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        do_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvdelete.delete(f"/v{self.api_version}/agents/{self.agent_uuid}")
 
         response = response.json()
@@ -850,9 +849,7 @@ class Tenant:
         if response["code"] == 202:
             deleted = False
             for _ in range(12):
-                get_cvdelete = RequestsClient(
-                    self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True
-                )
+                get_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
                 response = get_cvdelete.get(f"/v{self.api_version}/agents/{self.agent_uuid}")
 
                 if response.status_code == 404:
@@ -965,9 +962,7 @@ class Tenant:
             self.verifier_ip = agent_json["results"][self.agent_uuid]["verifier_ip"]
             self.verifier_port = agent_json["results"][self.agent_uuid]["verifier_port"]
 
-        do_cvreactivate = RequestsClient(
-            self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True
-        )
+        do_cvreactivate = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvreactivate.put(
             f"/v{self.api_version}/agents/{self.agent_uuid}/reactivate",
             data=b"",
@@ -995,7 +990,7 @@ class Tenant:
     def do_cvstop(self):
         """Stop declared active agent"""
         params = f"/v{self.api_version}/agents/{self.agent_uuid}/stop"
-        do_cvstop = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        do_cvstop = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvstop.put(params, data=b"")
         if response.status_code == 503:
             logger.error(
@@ -1035,7 +1030,6 @@ class Tenant:
                         cloudagent_base_url,
                         self.enable_agent_mtls,
                         tls_context=self.agent_tls_context,
-                        ignore_hostname=True,
                     ) as do_quote:
                         response = do_quote.get(params)
                 else:
@@ -1129,7 +1123,6 @@ class Tenant:
                 cloudagent_base_url,
                 self.enable_agent_mtls,
                 tls_context=self.agent_tls_context,
-                ignore_hostname=True,
             ) as post_ukey:
                 response = post_ukey.post(params, json=data)
         else:
@@ -1167,7 +1160,6 @@ class Tenant:
                         cloudagent_base_url,
                         self.enable_agent_mtls,
                         tls_context=self.agent_tls_context,
-                        ignore_hostname=True,
                     ) as do_verify:
                         response = do_verify.get(f"/v{self.supported_version}/keys/verify?challenge={challenge}")
                 else:
@@ -1242,7 +1234,7 @@ class Tenant:
         self.process_allowlist(args)
         data = {"tpm_policy": json.dumps(self.tpm_policy), "ima_policy_bundle": json.dumps(self.allowlist)}
         body = json.dumps(data)
-        cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.post(
             f"/v{self.api_version}/allowlists/{self.ima_policy_name}",
             data=body,
@@ -1250,12 +1242,12 @@ class Tenant:
         Tenant._print_json_response(response)
 
     def do_delete_allowlist(self, name):
-        cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.delete(f"/v{self.api_version}/allowlists/{name}")
         Tenant._print_json_response(response)
 
     def do_show_allowlist(self, name):  # pylint: disable=unused-argument
-        cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context, ignore_hostname=True)
+        cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.get(f"/v{self.api_version}/allowlists/{name}")
         print(f"Show allowlist command response: {response.status_code}.")
         Tenant._print_json_response(response)
