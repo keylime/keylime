@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, LargeBinary, PickleType, String, Text, schema
+from sqlalchemy import Column, Float, ForeignKey, Integer, LargeBinary, PickleType, String, Text, schema
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -47,6 +47,7 @@ class VerfierMain(Base):
     ak_tpm = Column(String(500))
     mtls_cert = Column(String(2048), nullable=True)
     attestation_count = Column(Integer)
+    last_received_quote = Column(Float)
     tpm_clockinfo = Column(JSONPickleType(pickler=JSONPickler))
 
 
