@@ -99,6 +99,7 @@ def _from_db_obj(agent_db_obj):
         "mtls_cert",
         "ak_tpm",
         "attestation_count",
+        "last_received_quote",
         "tpm_clockinfo",
     ]
     agent_dict = {}
@@ -461,6 +462,7 @@ class AgentsHandler(BaseHandler):
                     agent_data["verifier_ip"] = config.get("cloud_verifier", "cloudverifier_ip")
                     agent_data["verifier_port"] = config.get("cloud_verifier", "cloudverifier_port")
                     agent_data["attestation_count"] = 0
+                    agent_data["last_received_quote"] = 0
 
                     # TODO: Always error for v1.0 version after initial upgrade
                     if agent_data["mtls_cert"] is None and agent_data["supported_version"] != "1.0":
