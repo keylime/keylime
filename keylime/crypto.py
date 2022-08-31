@@ -59,11 +59,15 @@ def get_public_key(private_key):
     return public_key
 
 
-def rsa_sign(key, message):
+def rsa_sign(key, message, paddingt="internal"):
     """RSA sign message"""
-    signature = key.sign(
-        message, padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH), hashes.SHA256()
-    )
+    if paddingt == "internal":
+        _padding = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH)
+
+    if paddingt == "default":
+        _padding = padding.PKCS1v15()
+
+    signature = key.sign(message, _padding, hashes.SHA256())
     return base64.b64encode(signature)
 
 
