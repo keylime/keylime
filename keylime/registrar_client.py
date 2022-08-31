@@ -23,7 +23,7 @@ def getData(registrar_ip, registrar_port, agent_id, tls_context):
 
     response = None
     try:
-        client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context, ignore_hostname=True)
+        client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context)
         response = client.get(f"/v{api_version}/agents/{agent_id}")
         response_body = response.json()
 
@@ -185,7 +185,7 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id, tls_context):
     :returns: The request response body
     """
 
-    client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context, ignore_hostname=True)
+    client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context)
     response = client.delete(f"/v{api_version}/agents/{agent_id}")
     response_body = response.json()
 
@@ -206,7 +206,7 @@ def doRegistrarList(registrar_ip, registrar_port, tls_context):
 
     :returns: The request response body
     """
-    client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context, ignore_hostname=True)
+    client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context)
     response = client.get(f"/v{api_version}/agents/")
     response_body = response.json()
 
