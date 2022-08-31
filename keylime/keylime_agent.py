@@ -672,9 +672,6 @@ def main():
         else:
             logger.warning("Cannot drop privileges since 'run_as' is empty or missing in keylime.conf agent section.")
 
-    # Instanitate TPM class
-
-    instance_tpm = tpm()
     # get params for initialization
     registrar_ip = config.get("agent", "registrar_ip")
     registrar_port = config.get("agent", "registrar_port")
@@ -695,22 +692,22 @@ def main():
     os.umask(0o077)
 
     # initialize tpm
-    (ekcert, ek_tpm, aik_tpm) = instance_tpm.tpm_init(
+    (ekcert, ek_tpm, aik_tpm) = tpm_instance.tpm_init(
         self_activate=False, config_pw=config.get("agent", "tpm_ownerpassword")
     )  # this tells initialize not to self activate the AIK
 
     # Warn if kernel version is <5.10 and another algorithm than SHA1 is used,
     # because otherwise IMA will not work
     kernel_version = tuple(platform.release().split("-")[0].split("."))
-    if tuple(map(int, kernel_version)) < (5, 10, 0) and instance_tpm.defaults["hash"] != algorithms.Hash.SHA1:
+    if tuple(map(int, kernel_version)) < (5, 10, 0) and tpm_instance.defaults["hash"] != algorithms.Hash.SHA1:
         logger.warning(
             "IMA attestation only works on kernel versions <5.10 with SHA1 as hash algorithm. "
             'Even if ascii_runtime_measurements shows "%s" as the '
             "algorithm, it might be just padding zeros",
-            (instance_tpm.defaults["hash"]),
+            (tpm_instance.defaults["hash"]),
         )
 
-    if ekcert is None and instance_tpm.is_emulator():
+    if ekcert is None and tpm_instance.is_emulator():
         ekcert = "emulator"
 
     # now we need the UUID
@@ -789,21 +786,21 @@ def main():
     )
 
     if keyblob is None:
-        instance_tpm.flush_keys()
+        tpm_instance.flush_keys()
         raise Exception("Registration failed")
 
     # get the ephemeral registrar key
-    key = instance_tpm.activate_identity(keyblob)
+    key = tpm_instance.activate_identity(keyblob)
 
     if key is None:
-        instance_tpm.flush_keys()
+        tpm_instance.flush_keys()
         raise Exception("Activation failed")
 
     # tell the registrar server we know the key
     retval = registrar_client.doActivateAgent(registrar_ip, registrar_port, agent_uuid, key)
 
     if not retval:
-        instance_tpm.flush_keys()
+        tpm_instance.flush_keys()
         raise Exception("Registration failed on activate")
 
     # Start revocation listener in a new process to not interfere with tornado
@@ -831,7 +828,7 @@ def main():
         logger.debug("Revocation notifier stopped...")
         secure_mount.umount()
         logger.debug("Umounting directories...")
-        instance_tpm.flush_keys()
+        tpm_instance.flush_keys()
         logger.debug("Flushed keys successfully")
         sys.exit(0)
 
