@@ -37,7 +37,7 @@ from keylime.elchecking import policies
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Failure
 from keylime.ima import ima
 
-logger = keylime_logging.init_logging("cloudverifier")
+logger = keylime_logging.init_logging("verifier")
 
 
 try:

@@ -6,17 +6,8 @@ from typing import Any, Callable, Dict
 
 from keylime import config
 
-LOG_TO_FILE = []
-LOG_TO_STREAM = []
-for svc in ["registrar", "verifier"]:
-    logdest = config.get(svc, "log_destination", fallback="")
-
-    if logdest == "file":
-        LOG_TO_FILE.append(svc)
-
-    if logdest == "stream":
-        LOG_TO_STREAM.append(svc)
-
+LOG_TO_FILE = set()
+LOG_TO_STREAM = set()
 LOGDIR = os.getenv("KEYLIME_LOGDIR", "/var/log/keylime")
 # not clear that this works right.  console logging may not work
 LOGSTREAM = os.path.join(LOGDIR, "keylime-stream.log")
@@ -59,6 +50,14 @@ def log_http_response(logger: Logger, loglevel: int, response_body: Dict[str, An
 
 
 def init_logging(loggername: str) -> Logger:
+
+    if loggername in ("verifier", "registrar"):
+        logdest = config.get(loggername, "log_destination", fallback="")
+        if logdest == "file":
+            LOG_TO_FILE.add(loggername)
+        if logdest == "stream":
+            LOG_TO_STREAM.add(loggername)
+
     logger = logging.getLogger(f"keylime.{loggername}")
     logging.getLogger("requests").setLevel(logging.WARNING)
     mainlogger = logging.getLogger("keylime")

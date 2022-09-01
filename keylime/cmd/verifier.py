@@ -1,7 +1,7 @@
 import keylime.cmd.migrations_apply
 from keylime import cloud_verifier_tornado, config, keylime_logging
 
-logger = keylime_logging.init_logging("cloudverifier")
+logger = keylime_logging.init_logging("verifier")
 
 
 def main():
