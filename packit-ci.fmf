@@ -4,6 +4,7 @@
 
   context:
     swtpm: yes
+    agent: python
 
   prepare:
     how: shell
@@ -81,6 +82,7 @@
 
   context:
     swtpm: yes
+    agent: python
 
   prepare:
     how: shell
