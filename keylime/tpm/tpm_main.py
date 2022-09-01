@@ -52,19 +52,19 @@ class tpm(tpm_abstract.AbstractTPM):
 
         self.__get_tpm2_tools()
 
-        # We don't know which algs the TPM supports yet
-        self.supported["encrypt"] = set()
-        self.supported["hash"] = set()
-        self.supported["sign"] = set()
-
-        # Grab which default algs the config requested
-        defaultHash = config.get("agent", "tpm_hash_alg")
-        defaultEncrypt = config.get("agent", "tpm_encryption_alg")
-        defaultSign = config.get("agent", "tpm_signing_alg")
-
-        ek_handle = config.get("agent", "ek_handle")
-
         if self.need_hw_tpm:
+            # We don't know which algs the TPM supports yet
+            self.supported["encrypt"] = set()
+            self.supported["hash"] = set()
+            self.supported["sign"] = set()
+
+            # Grab which default algs the config requested
+            defaultHash = config.get("agent", "tpm_hash_alg")
+            defaultEncrypt = config.get("agent", "tpm_encryption_alg")
+            defaultSign = config.get("agent", "tpm_signing_alg")
+
+            ek_handle = config.get("agent", "ek_handle")
+
             if ek_handle == "generate":
                 # Start up the TPM
                 self.__startup_tpm()
@@ -85,14 +85,11 @@ class tpm(tpm_abstract.AbstractTPM):
             enabled_pcrs = self.__get_pcrs()
             if not enabled_pcrs.get(str(defaultHash)):
                 raise Exception(f"No PCR banks enabled for hash algorithm specified: {defaultHash}")
-        else:
-            # Assume their defaults are sane?
-            pass
 
-        self.defaults["hash"] = algorithms.Hash(defaultHash)
-        self.defaults["encrypt"] = defaultEncrypt
-        self.defaults["sign"] = defaultSign
-        self.defaults["ek_handle"] = ek_handle
+            self.defaults["hash"] = algorithms.Hash(defaultHash)
+            self.defaults["encrypt"] = defaultEncrypt
+            self.defaults["sign"] = defaultSign
+            self.defaults["ek_handle"] = ek_handle
 
     def __get_tpm2_tools(self):
         retDict = self.__run(["tpm2_startup", "--version"])
