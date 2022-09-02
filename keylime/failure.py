@@ -7,7 +7,7 @@ import functools
 import re
 from typing import Any, Callable, Dict, List, Optional, Pattern, Tuple, Union
 
-from keylime import config, json, keylime_logging
+from keylime import json, keylime_logging
 
 logger = keylime_logging.init_logging("failure")
 
@@ -177,19 +177,31 @@ class Failure:
         return not self.recoverable or len(self.events) > 0
 
 
-def _eval_severity_config() -> Tuple[List[Callable[[str], Optional[SeverityLabel]]], SeverityLabel]:
+def _eval_severity_config(
+    severity_labels=None, severity_policy=None
+) -> Tuple[List[Callable[[str], Optional[SeverityLabel]]], SeverityLabel]:
     """
     Generates the list of rules to match a event_id against.
     """
 
-    labels_list = config.getlist("verifier", "severity_labels")
+    if severity_labels:
+        labels_list = severity_labels
+    else:
+        # Default labels from lowest to highest severity
+        labels_list = ["info", "notice", "warning", "error", "critical", "alert", "emergency"]
+
+    if severity_policy:
+        policies = severity_policy
+    else:
+        # The default policy assigns the highest severity to all events
+        policies = [{"event_id": ".*", "severity_label": labels_list[-1]}]
+
     labels = {}
     for label, level in zip(labels_list, range(0, len(labels_list))):
         labels[label] = SeverityLabel(label, level)
 
     label_max = labels[labels_list[-1]]
 
-    policies = config.getlist("verifier", "severity_policy")
     rules = []
     for policy in policies:
         # TODO validate regex
@@ -211,6 +223,26 @@ def _eval_severity_config() -> Tuple[List[Callable[[str], Optional[SeverityLabel
 
 # Only evaluate the policy once on module load
 SEVERITY_RULES, MAX_SEVERITY_LABEL = _eval_severity_config()
+
+
+def set_severity_config(severity_labels, severity_policy):
+    """
+    Set a custom severity configuration
+    """
+
+    if not severity_labels:
+        raise Exception("Empty severity_labels provided to set_severity_config()")
+
+    if not severity_policy:
+        raise Exception("Empty severity_policy provided to set_severity_config()")
+
+    global SEVERITY_RULES, MAX_SEVERITY_LABEL
+
+    SEVERITY_RULES, MAX_SEVERITY_LABEL = _eval_severity_config(
+        severity_labels=severity_labels, severity_policy=severity_policy
+    )
+
+    logger.info("Severity configuration set")
 
 
 def _severity_match(event_id: str) -> SeverityLabel:
