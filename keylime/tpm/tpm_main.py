@@ -52,45 +52,6 @@ class tpm(tpm_abstract.AbstractTPM):
 
         self.__get_tpm2_tools()
 
-        if self.need_hw_tpm:
-            # We don't know which algs the TPM supports yet
-            self.supported["encrypt"] = set()
-            self.supported["hash"] = set()
-            self.supported["sign"] = set()
-
-            # Grab which default algs the config requested
-            defaultHash = config.get("agent", "tpm_hash_alg")
-            defaultEncrypt = config.get("agent", "tpm_encryption_alg")
-            defaultSign = config.get("agent", "tpm_signing_alg")
-
-            ek_handle = config.get("agent", "ek_handle")
-
-            if ek_handle == "generate":
-                # Start up the TPM
-                self.__startup_tpm()
-
-            # Figure out which algorithms the TPM supports
-            self.__get_tpm_algorithms()
-
-            # Ensure TPM supports the defaults requested
-            if defaultHash not in self.supported["hash"]:
-                raise Exception(f"Unsupported hash algorithm specified: {str(defaultHash)}!")
-
-            if defaultEncrypt not in self.supported["encrypt"]:
-                raise Exception(f"Unsupported encryption algorithm specified: {str(defaultEncrypt)}!")
-
-            if defaultSign not in self.supported["sign"]:
-                raise Exception(f"Unsupported signing algorithm specified: {str(defaultSign)}!")
-
-            enabled_pcrs = self.__get_pcrs()
-            if not enabled_pcrs.get(str(defaultHash)):
-                raise Exception(f"No PCR banks enabled for hash algorithm specified: {defaultHash}")
-
-            self.defaults["hash"] = algorithms.Hash(defaultHash)
-            self.defaults["encrypt"] = defaultEncrypt
-            self.defaults["sign"] = defaultSign
-            self.defaults["ek_handle"] = ek_handle
-
     def __get_tpm2_tools(self):
         retDict = self.__run(["tpm2_startup", "--version"])
 
@@ -903,6 +864,44 @@ class tpm(tpm_abstract.AbstractTPM):
     def tpm_init(self, self_activate=False, config_pw=None):
         # this was called tpm_initialize.init before
         self.warn_emulator()
+
+        self.defaults["ek_handle"] = config.get("agent", "ek_handle")
+
+        if self.need_hw_tpm:
+            # We don't know which algs the TPM supports yet
+            self.supported["encrypt"] = set()
+            self.supported["hash"] = set()
+            self.supported["sign"] = set()
+
+            # Grab which default algs the config requested
+            defaultHash = config.get("agent", "tpm_hash_alg")
+            defaultEncrypt = config.get("agent", "tpm_encryption_alg")
+            defaultSign = config.get("agent", "tpm_signing_alg")
+
+            if self.defaults["ek_handle"] == "generate":
+                # Start up the TPM
+                self.__startup_tpm()
+
+            # Figure out which algorithms the TPM supports
+            self.__get_tpm_algorithms()
+
+            # Ensure TPM supports the defaults requested
+            if defaultHash not in self.supported["hash"]:
+                raise Exception(f"Unsupported hash algorithm specified: {str(defaultHash)}!")
+
+            if defaultEncrypt not in self.supported["encrypt"]:
+                raise Exception(f"Unsupported encryption algorithm specified: {str(defaultEncrypt)}!")
+
+            if defaultSign not in self.supported["sign"]:
+                raise Exception(f"Unsupported signing algorithm specified: {str(defaultSign)}!")
+
+            enabled_pcrs = self.__get_pcrs()
+            if not enabled_pcrs.get(str(defaultHash)):
+                raise Exception(f"No PCR banks enabled for hash algorithm specified: {defaultHash}")
+
+            self.defaults["hash"] = algorithms.Hash(defaultHash)
+            self.defaults["encrypt"] = defaultEncrypt
+            self.defaults["sign"] = defaultSign
 
         if self.defaults["ek_handle"] == "generate":
             self.__take_ownership(config_pw)
