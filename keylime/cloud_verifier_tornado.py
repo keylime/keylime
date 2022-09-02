@@ -34,11 +34,12 @@ from keylime.common import retry, states, validators
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist
 from keylime.elchecking import policies
-from keylime.failure import MAX_SEVERITY_LABEL, Component, Failure
+from keylime.failure import MAX_SEVERITY_LABEL, Component, Failure, set_severity_config
 from keylime.ima import ima
 
 logger = keylime_logging.init_logging("verifier")
 
+set_severity_config(config.getlist("verifier", "severity_labels"), config.getlist("verifier", "severity_policy"))
 
 try:
     engine = DBEngineManager().make_engine("cloud_verifier")
