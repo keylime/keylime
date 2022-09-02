@@ -87,12 +87,12 @@ CONFIG_FILES = {
 # Paths to directories in which options can be overriden using configuration
 # snippets
 CONFIG_SNIPPETS_DIRS = {
-    "agent": ["/etc/keylime/agent.conf.d", "/usr/etc/keylime/agent.conf.d"],
-    "verifier": ["/etc/keylime/verifier.conf.d", "/usr/etc/keylime/verifier.conf.d"],
-    "tenant": ["/etc/keylime/tenant.conf.d", "/usr/etc/keylime/tenant.conf.d"],
-    "registrar": ["/etc/keylime/registrar.conf.d", "/usr/etc/keylime/registrar.conf.d"],
-    "ca": ["/etc/keylime/ca.conf.d", "/usr/etc/keylime/ca.conf.d"],
-    "logging": ["/etc/keylime/logging.conf.d", "/usr/etc/keylime/logging.conf.d"],
+    "agent": ["/usr/etc/keylime/agent.conf.d", "/etc/keylime/agent.conf.d"],
+    "verifier": ["/usr/etc/keylime/verifier.conf.d", "/etc/keylime/verifier.conf.d"],
+    "tenant": ["/usr/etc/keylime/tenant.conf.d", "/etc/keylime/tenant.conf.d"],
+    "registrar": ["/usr/etc/keylime/registrar.conf.d", "/etc/keylime/registrar.conf.d"],
+    "ca": ["/usr/etc/keylime/ca.conf.d", "/etc/keylime/ca.conf.d"],
+    "logging": ["/usr/etc/keylime/logging.conf.d", "/etc/keylime/logging.conf.d"],
 }
 
 CONFIG_ENV = {
