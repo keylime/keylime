@@ -294,6 +294,11 @@
                 "option": "max_retries",
                 "default": "5"
             },
+            "request_timeout": {
+                "section": "cloud_verifier",
+                "option": "request_timeout",
+                "default": "60.0"
+            },
             "quote_interval": {
                 "section": "cloud_verifier",
                 "option": "quote_interval",
