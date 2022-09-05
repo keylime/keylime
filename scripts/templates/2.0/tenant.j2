@@ -86,6 +86,9 @@ retry_interval = {{ tenant.retry_interval }}
 # Integer number of retries to communicate with the TPM before giving up.
 max_retries = {{ tenant.max_retries }}
 
+# Request timeout in seconds.
+request_timeout = {{ tenant.request_timeout }}
+
 # Tell the tenant whether to require an EK certificate from the TPM.
 # If set to False the tenant will ignore EK certificates entirely.
 #

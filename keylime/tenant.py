@@ -79,6 +79,8 @@ class Tenant:
     verify_server_cert = False
     verify_custom = None
 
+    request_timeout = None
+
     # Context with the trusted CA certificates from the configuration
     tls_context = None
 
@@ -101,6 +103,7 @@ class Tenant:
         self.registrar_port = config.get("tenant", "registrar_port")
         self.api_version = keylime_api_version.current_version()
         self.enable_agent_mtls = config.getboolean("tenant", "enable_agent_mtls")
+        self.request_timeout = config.getint("tenant", "request_timeout", fallback=60)
 
         logger.info("Setting up client TLS...")
         (cert, key, trusted_ca, key_password), verify_server_cert = web_util.get_tls_options(
@@ -647,8 +650,7 @@ class Tenant:
         json_message = json.dumps(data)
         do_cv = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cv.post(
-            (f"/v{self.api_version}/agents/{self.agent_uuid}"),
-            data=json_message,
+            (f"/v{self.api_version}/agents/{self.agent_uuid}"), data=json_message, timeout=self.request_timeout
         )
 
         if response.status_code == 503:
@@ -680,7 +682,7 @@ class Tenant:
 
         do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
 
-        response = do_cvstatus.get((f"/v{self.api_version}/agents/{self.agent_uuid}"))
+        response = do_cvstatus.get((f"/v{self.api_version}/agents/{self.agent_uuid}"), timeout=self.request_timeout)
 
         if response.status_code == 503:
             logger.error(
@@ -731,7 +733,7 @@ class Tenant:
         if self.verifier_id is not None:
             verifier_id = self.verifier_id
 
-        response = do_cvstatus.get(f"/v{self.api_version}/agents/?verifier={verifier_id}")
+        response = do_cvstatus.get(f"/v{self.api_version}/agents/?verifier={verifier_id}", timeout=self.request_timeout)
 
         if response.status_code == 503:
             logger.error(
@@ -776,7 +778,9 @@ class Tenant:
         if self.verifier_id is not None:
             verifier_id = self.verifier_id
 
-        response = do_cvstatus.get(f"/v{self.api_version}/agents/?bulk={True}&verifier={verifier_id}")
+        response = do_cvstatus.get(
+            f"/v{self.api_version}/agents/?bulk={True}&verifier={verifier_id}", timeout=self.request_timeout
+        )
 
         if response.status_code == 503:
             logger.error(
@@ -832,7 +836,7 @@ class Tenant:
             self.verifier_port = cvresponse["results"][self.agent_uuid]["verifier_port"]
 
         do_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = do_cvdelete.delete(f"/v{self.api_version}/agents/{self.agent_uuid}")
+        response = do_cvdelete.delete(f"/v{self.api_version}/agents/{self.agent_uuid}", timeout=self.request_timeout)
 
         response = response.json()
 
@@ -850,7 +854,9 @@ class Tenant:
             deleted = False
             for _ in range(12):
                 get_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-                response = get_cvdelete.get(f"/v{self.api_version}/agents/{self.agent_uuid}")
+                response = get_cvdelete.get(
+                    f"/v{self.api_version}/agents/{self.agent_uuid}", timeout=self.request_timeout
+                )
 
                 if response.status_code == 404:
                     deleted = True
@@ -966,6 +972,7 @@ class Tenant:
         response = do_cvreactivate.put(
             f"/v{self.api_version}/agents/{self.agent_uuid}/reactivate",
             data=b"",
+            timeout=self.request_timeout,
         )
 
         if response.status_code == 503:
@@ -991,7 +998,7 @@ class Tenant:
         """Stop declared active agent"""
         params = f"/v{self.api_version}/agents/{self.agent_uuid}/stop"
         do_cvstop = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = do_cvstop.put(params, data=b"")
+        response = do_cvstop.put(params, data=b"", timeout=self.request_timeout)
         if response.status_code == 503:
             logger.error(
                 "Cannot connect to Verifier at %s with Port %s. Connection refused.",
@@ -1031,11 +1038,11 @@ class Tenant:
                         self.enable_agent_mtls,
                         tls_context=self.agent_tls_context,
                     ) as do_quote:
-                        response = do_quote.get(params)
+                        response = do_quote.get(params, timeout=self.request_timeout)
                 else:
                     logger.warning("Connecting to agent without using mTLS!")
                     do_quote = RequestsClient(cloudagent_base_url, tls_enabled=False)
-                    response = do_quote.get(params)
+                    response = do_quote.get(params, timeout=self.request_timeout)
 
                 print(response)
                 response_body = response.json()
@@ -1124,11 +1131,11 @@ class Tenant:
                 self.enable_agent_mtls,
                 tls_context=self.agent_tls_context,
             ) as post_ukey:
-                response = post_ukey.post(params, json=data)
+                response = post_ukey.post(params, json=data, timeout=self.request_timeout)
         else:
             logger.warning("Connecting to agent without using mTLS!")
             post_ukey = RequestsClient(cloudagent_base_url, tls_enabled=False)
-            response = post_ukey.post(params, json=data)
+            response = post_ukey.post(params, json=data, timeout=self.request_timeout)
 
         if response.status_code == 503:
             logger.error(
@@ -1161,11 +1168,16 @@ class Tenant:
                         self.enable_agent_mtls,
                         tls_context=self.agent_tls_context,
                     ) as do_verify:
-                        response = do_verify.get(f"/v{self.supported_version}/keys/verify?challenge={challenge}")
+                        response = do_verify.get(
+                            f"/v{self.supported_version}/keys/verify?challenge={challenge}",
+                            timeout=self.request_timeout,
+                        )
                 else:
                     logger.warning("Connecting to agent without using mTLS!")
                     do_verify = RequestsClient(cloudagent_base_url, tls_enabled=False)
-                    response = do_verify.get(f"/v{self.supported_version}/keys/verify?challenge={challenge}")
+                    response = do_verify.get(
+                        f"/v{self.supported_version}/keys/verify?challenge={challenge}", timeout=self.request_timeout
+                    )
 
                 response_body = response.json()
             except Exception as e:
@@ -1236,19 +1248,18 @@ class Tenant:
         body = json.dumps(data)
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.post(
-            f"/v{self.api_version}/allowlists/{self.ima_policy_name}",
-            data=body,
+            f"/v{self.api_version}/allowlists/{self.ima_policy_name}", data=body, timeout=self.request_timeout
         )
         Tenant._print_json_response(response)
 
     def do_delete_allowlist(self, name):
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = cv_client.delete(f"/v{self.api_version}/allowlists/{name}")
+        response = cv_client.delete(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
         Tenant._print_json_response(response)
 
     def do_show_allowlist(self, name):  # pylint: disable=unused-argument
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = cv_client.get(f"/v{self.api_version}/allowlists/{name}")
+        response = cv_client.get(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
         print(f"Show allowlist command response: {response.status_code}.")
         Tenant._print_json_response(response)
 
@@ -1528,7 +1539,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
 
         if args.allowlist_url:
             logger.info("Downloading Allowlist from %s", args.allowlist_url)
-            response = requests.get(args.allowlist_url, timeout=60, allow_redirects=False)
+            response = requests.get(args.allowlist_url, timeout=mytenant.request_timeout, allow_redirects=False)
             if response.status_code == 200:
                 args.allowlist = write_to_namedtempfile(response.content, delete_tmp_files)
                 logger.debug("Allowlist temporarily saved in %s", args.allowlist)
@@ -1539,7 +1550,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
 
         if args.allowlist_sig_url:
             logger.info("Downloading Allowlist signature from %s", args.allowlist_sig_url)
-            response = requests.get(args.allowlist_sig_url, timeout=60, allow_redirects=False)
+            response = requests.get(args.allowlist_sig_url, timeout=mytenant.request_timeout, allow_redirects=False)
             if response.status_code == 200:
                 args.allowlist_sig = write_to_namedtempfile(response.content, delete_tmp_files)
                 logger.debug("Allowlist signature temporarily saved in %s", args.allowlist_sig)
@@ -1566,7 +1577,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
         for i, key_url in enumerate(args.ima_sign_verification_key_urls):
 
             logger.info("Downloading key from %s", key_url)
-            response = requests.get(key_url, timeout=60, allow_redirects=False)
+            response = requests.get(key_url, timeout=mytenant.request_timeout, allow_redirects=False)
             if response.status_code == 200:
                 key_file = write_to_namedtempfile(response.content, delete_tmp_files)
                 args.ima_sign_verification_keys.append(key_file)
@@ -1583,7 +1594,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
                 raise UserError(f"A gpg key is missing for key signature URL '{keysig_url}'")
 
             logger.info("Downloading key signature from %s", keysig_url)
-            response = requests.get(keysig_url, timeout=60, allow_redirects=False)
+            response = requests.get(keysig_url, timeout=mytenant.request_timeout, allow_redirects=False)
             if response.status_code == 200:
                 keysig_file = write_to_namedtempfile(response.content, delete_tmp_files)
                 logger.debug("Key signature temporarily saved in %s", keysig_file)
