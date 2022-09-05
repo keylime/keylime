@@ -5,7 +5,7 @@ from tornado import httpclient
 from keylime import json
 
 
-async def request(method, url, params=None, data=None, context=None, headers=None):
+async def request(method, url, params=None, data=None, context=None, headers=None, timeout=60.0):
 
     http_client = httpclient.AsyncHTTPClient()
     if params is not None and len(list(params.keys())) > 0:
@@ -26,7 +26,14 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
             headers["Content-Type"] = "application/json"
 
     try:
-        req = httpclient.HTTPRequest(url=url, method=method, ssl_options=context, body=data, headers=headers)
+        req = httpclient.HTTPRequest(
+            url=url,
+            method=method,
+            ssl_options=context,
+            body=data,
+            headers=headers,
+            request_timeout=timeout,
+        )
         response = await http_client.fetch(req)
 
     except httpclient.HTTPError as e:

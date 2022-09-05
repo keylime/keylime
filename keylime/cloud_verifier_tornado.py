@@ -880,7 +880,7 @@ class AllowlistHandler(BaseHandler):
         raise NotImplementedError()
 
 
-async def invoke_get_quote(agent, ima_policy, need_pubkey):
+async def invoke_get_quote(agent, ima_policy, need_pubkey, timeout=60.0):
     failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
         raise Exception("agent deleted while being processed")
@@ -898,6 +898,7 @@ async def invoke_get_quote(agent, ima_policy, need_pubkey):
             f"?nonce={params['nonce']}&mask={params['mask']}"
             f"&partial={partial_req}&ima_ml_entry={params['ima_ml_entry']}",
             context=agent["ssl_context"],
+            timeout=timeout,
         )
     else:
         res = tornado_requests.request(
@@ -905,6 +906,7 @@ async def invoke_get_quote(agent, ima_policy, need_pubkey):
             f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/quotes/integrity"
             f"?nonce={params['nonce']}&mask={params['mask']}"
             f"&partial={partial_req}&ima_ml_entry={params['ima_ml_entry']}",
+            timeout=timeout,
         )
     response = await res
 
@@ -951,7 +953,7 @@ async def invoke_get_quote(agent, ima_policy, need_pubkey):
             asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
 
 
-async def invoke_provide_v(agent):
+async def invoke_provide_v(agent, timeout=60.0):
     failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
         raise Exception("Agent deleted while being processed")
@@ -969,10 +971,14 @@ async def invoke_provide_v(agent):
             f"https://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/keys/vkey",
             data=v_json_message,
             context=agent["ssl_context"],
+            timeout=timeout,
         )
     else:
         res = tornado_requests.request(
-            "POST", f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/keys/vkey", data=v_json_message
+            "POST",
+            f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/keys/vkey",
+            data=v_json_message,
+            timeout=timeout,
         )
 
     response = await res
@@ -993,7 +999,7 @@ async def invoke_provide_v(agent):
         asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
 
 
-async def invoke_notify_error(agent, tosend):
+async def invoke_notify_error(agent, tosend, timeout=60.0):
     if agent is None:
         logger.warning("Agent deleted while being processed")
         return
@@ -1002,10 +1008,12 @@ async def invoke_notify_error(agent, tosend):
     }
     if agent["ssl_context"]:
         kwargs["context"] = agent["ssl_context"]
+
     res = tornado_requests.request(
         "POST",
         f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/notifications/revocation",
         **kwargs,
+        timeout=timeout,
     )
     response = await res
 
@@ -1022,7 +1030,7 @@ async def invoke_notify_error(agent, tosend):
         )
 
 
-async def notify_error(agent, msgtype="revocation", event=None):
+async def notify_error(agent, msgtype="revocation", event=None, timeout=60.0):
     notifiers = revocation_notifier.get_notifiers()
     if len(notifiers) == 0:
         return
@@ -1047,7 +1055,7 @@ async def notify_error(agent, msgtype="revocation", event=None):
                         agent["ssl_context"] = web_util.generate_agent_tls_context(
                             "verifier", agent["mtls_cert"], logger=logger
                         )
-                func = functools.partial(invoke_notify_error, agent, tosend)
+                func = functools.partial(invoke_notify_error, agent, tosend, timeout=timeout)
                 futures.append(await loop.run_in_executor(pool, func))
             # Wait for all tasks complete in 60 seconds
             try:
@@ -1098,6 +1106,9 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 tornado.ioloop.IOLoop.current().remove_timeout(agent["pending_event"])
             return
 
+        # Get request timeout from configuration file
+        timeout = config.getfloat("verifier", "request_timeout", fallback=60.0)
+
         # If failed during processing, log regardless and drop it on the floor
         # The administration application (tenant) can GET the status and act accordingly (delete/retry/etc).
         if new_operational_state in (states.FAILED, states.INVALID_QUOTE):
@@ -1110,7 +1121,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
 
                 # issue notification for invalid quotes
                 if new_operational_state == states.INVALID_QUOTE:
-                    await notify_error(agent, event=failure.highest_severity_event)
+                    await notify_error(agent, event=failure.highest_severity_event, timeout=timeout)
 
                 # When the failure is irrecoverable we stop polling the agent
                 if not failure.recoverable or failure.highest_severity == MAX_SEVERITY_LABEL:
@@ -1144,14 +1155,14 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 logger.warning("Agent %s failed, stopping polling", agent["agent_id"])
                 return
 
-            await invoke_get_quote(agent, ima_policy, False)
+            await invoke_get_quote(agent, ima_policy, False, timeout=timeout)
             return
 
         # if new, get a quote
         if main_agent_operational_state == states.START and new_operational_state == states.GET_QUOTE:
             agent["num_retries"] = 0
             agent["operational_state"] = states.GET_QUOTE
-            await invoke_get_quote(agent, ima_policy, True)
+            await invoke_get_quote(agent, ima_policy, True, timeout=timeout)
             return
 
         if main_agent_operational_state == states.GET_QUOTE and new_operational_state == states.PROVIDE_V:
@@ -1168,13 +1179,13 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
             interval = config.getfloat("verifier", "quote_interval")
             agent["operational_state"] = states.GET_QUOTE
             if interval == 0:
-                await invoke_get_quote(agent, ima_policy, False)
+                await invoke_get_quote(agent, ima_policy, False, timeout=timeout)
             else:
                 logger.debug(
                     "Setting up callback to check agent ID %s again in %f seconds", agent["agent_id"], interval
                 )
                 # set up a call back to check again
-                cb = functools.partial(invoke_get_quote, agent, ima_policy, False)
+                cb = functools.partial(invoke_get_quote, agent, ima_policy, False, timeout=timeout)
                 pending = tornado.ioloop.IOLoop.current().call_later(interval, cb)
                 agent["pending_event"] = pending
             return
@@ -1190,13 +1201,15 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 )
                 failure.add_event("not_reachable", "agent was not reachable from verifier", False)
                 if agent["attestation_count"] > 0:  # only notify on previously good agents
-                    await notify_error(agent, msgtype="comm_error", event=failure.highest_severity_event)
+                    await notify_error(
+                        agent, msgtype="comm_error", event=failure.highest_severity_event, timeout=timeout
+                    )
                 else:
                     logger.debug("Communication error for new agent. No notification will be sent")
                 await process_agent(agent, states.FAILED, failure)
             else:
                 agent["operational_state"] = states.GET_QUOTE
-                cb = functools.partial(invoke_get_quote, agent, ima_policy, True)
+                cb = functools.partial(invoke_get_quote, agent, ima_policy, True, timeout=timeout)
                 agent["num_retries"] += 1
                 next_retry = retry.retry_time(exponential_backoff, interval, agent["num_retries"], logger)
                 logger.info(
@@ -1217,7 +1230,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                     maxr,
                 )
                 failure.add_event("not_reachable_v", "agent was not reachable to provide V", False)
-                await notify_error(agent, msgtype="comm_error", event=failure.highest_severity_event)
+                await notify_error(agent, msgtype="comm_error", event=failure.highest_severity_event, timeout=timeout)
                 await process_agent(agent, states.FAILED, failure)
             else:
                 agent["operational_state"] = states.PROVIDE_V

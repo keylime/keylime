@@ -133,6 +133,9 @@ quote_interval = {{ verifier.quote_interval }}
 # size of the actual payloads
 max_upload_size = {{ verifier.max_upload_size }}
 
+# Timeout in seconds for requests made to agents
+request_timeout = {{ verifier.request_timeout }}
+
 # The name of the boot attestation policy to use in comparing a measured boot event log
 # with a measured boot reference state.
 # A policy is a Python object that `isinstance` of `keylime.elchecking.policies.Policy`
