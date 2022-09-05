@@ -284,7 +284,7 @@ def getboolean(component, option, section=None, fallback=False):
     return get_config(component).getboolean(section, option, fallback=fallback)
 
 
-def getfloat(component, option, section=None, fallback=-1):
+def getfloat(component, option, section=None, fallback=-1.0):
     if not section:
         section = component
 
