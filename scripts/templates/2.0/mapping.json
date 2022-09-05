@@ -456,6 +456,11 @@
                 "option": "max_retries",
                 "default": "5"
             },
+            "request_timeout": {
+                "section": "tenant",
+                "option": "request_timeout",
+                "default": "60"
+            },
             "require_ek_cert": {
                 "section": "tenant",
                 "option": "require_ek_cert",
