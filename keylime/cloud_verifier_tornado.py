@@ -1026,6 +1026,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
     session = get_session()
     try:  # pylint: disable=R1702
         main_agent_operational_state = agent["operational_state"]
+        stored_agent = None
         try:
             stored_agent = (
                 session.query(VerfierMain)
@@ -1035,6 +1036,13 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
             )
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
+
+        # if the stored agent could not be recovered from the database, stop polling
+        if not stored_agent:
+            logger.warning("Unable to retrieve agent %s from database. Stopping polling", agent["agent_id"])
+            if agent["pending_event"] is not None:
+                tornado.ioloop.IOLoop.current().remove_timeout(agent["pending_event"])
+            return
 
         # if the user did terminated this agent
         if stored_agent.operational_state == states.TERMINATED:
