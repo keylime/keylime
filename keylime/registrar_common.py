@@ -72,7 +72,8 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
             try:
                 agent = session.query(RegistrarMain).filter_by(agent_id=agent_id).first()
             except SQLAlchemyError as e:
-                logger.error("SQLAlchemy Error: %s", e)
+                logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
+                return
 
             if agent is None:
                 web_util.echo_json_response(self, 404, f"agent {agent_id} not found")
