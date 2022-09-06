@@ -25,6 +25,7 @@ from keylime import (
 )
 from keylime.agentstates import AgentAttestStates
 from keylime.common import retry, states, validators
+from keylime.da import record
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist
 from keylime.elchecking import policies
@@ -41,6 +42,14 @@ try:
     engine = DBEngineManager().make_engine("cloud_verifier")
 except SQLAlchemyError as err:
     logger.error("Error creating SQL engine or session: %s", err)
+    sys.exit(1)
+
+try:
+    rmc = record.get_record_mgt_class(config.get("cloud_verifier", "durable_attestation_import", fallback=""))(
+        "cloud_verifier"
+    )
+except record.RecordManagementException as rme:
+    logger.error("Error initializing Durable Attestation: %s", rme)
     sys.exit(1)
 
 
@@ -890,6 +899,8 @@ async def invoke_get_quote(agent, ima_policy, need_pubkey):
             if "provide_V" not in agent:
                 agent["provide_V"] = True
             agentAttestState = get_AgentAttestStates().get_by_agent_id(agent["agent_id"])
+            rmc.record_create(agent, json_response, ima_policy)
+
             failure = cloud_verifier_common.process_quote_response(
                 agent, ima_policy, json_response["results"], agentAttestState
             )
