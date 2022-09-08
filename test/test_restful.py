@@ -828,6 +828,17 @@ class TestRestful(unittest.TestCase):
         json_response = response.json()
         self.assertIn("results", json_response, "Malformed response body!")
 
+    def test_035_test_delete_in_use_allowlist(self):
+        """Test CV's DELETE /allowlists/{name} Interface with an in-use allowlist (should return non-successful status code)"""
+        cv_client = RequestsClient(tenant_templ.verifier_base_url, tls_enabled)
+        response = cv_client.delete(
+            f"/v{self.api_version}/allowlists/{tenant_templ.agent_uuid}", cert=tenant_templ.cert, verify=False
+        )
+
+        self.assertEqual(
+            response.status_code, 409, "Unexpected status code for CV allowlist Delete of in-use allowlist!"
+        )
+
     # Agent Poll Testset
 
     def test_040_agent_quotes_integrity_get(self):
