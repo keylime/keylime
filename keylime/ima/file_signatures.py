@@ -50,6 +50,7 @@ class HashAlgo(enum.IntEnum):
 
 
 # Streebog is supported by evmctl
+# pylint: disable=E1101
 @utils.register_interface(hashes.HashAlgorithm)
 class MyStreebog256:
     """Basic class for Streebog256"""
@@ -59,6 +60,7 @@ class MyStreebog256:
     block_size = 64
 
 
+# pylint: disable=E1101
 @utils.register_interface(hashes.HashAlgorithm)
 class MyStreebog512:
     """Basic class for Streebog512"""
