@@ -181,7 +181,7 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
     )  # TODO: change this to always False after initial update
     failure.merge(quote_validation_failure)
 
-    agent["last_received_quote"] = time.time()
+    agent["last_received_quote"] = int(time.time())
 
     if not failure:
         agent["attestation_count"] += 1
