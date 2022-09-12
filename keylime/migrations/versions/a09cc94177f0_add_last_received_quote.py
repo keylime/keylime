@@ -32,7 +32,7 @@ def downgrade_registrar():
 
 
 def upgrade_cloud_verifier():
-    op.add_column("verifiermain", sa.Column("last_received_quote", sa.Float, nullable=True))
+    op.add_column("verifiermain", sa.Column("last_received_quote", sa.Integer(), nullable=True))
 
 
 def downgrade_cloud_verifier():
