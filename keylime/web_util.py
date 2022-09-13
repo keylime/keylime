@@ -73,23 +73,6 @@ def init_tls_dir(component, logger=None):
         tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, generatedir))
         ca_path = os.path.join(tls_dir, "cacert.crt")
 
-        if os.path.exists(ca_path):
-            if logger:
-                logger.info("Existing CA certificate found in %s, not generating a new one", tls_dir)
-            return tls_dir
-
-        for option in options:
-            value = config.get(component, option)
-            if value != "default":
-                raise Exception(f"To use tls_dir=generate, the following options must be set to 'default': {options}")
-
-        if logger:
-            logger.info("Generating new CA, keys, and certificates in %s", tls_dir)
-            logger.info("use keylime_ca -d %s to manage this CA", tls_dir)
-
-        if not os.path.exists(tls_dir):
-            os.makedirs(tls_dir, 0o700)
-
         password = config.get(component, "server_key_password")
         if not password:
             password = None
@@ -100,18 +83,53 @@ def init_tls_dir(component, logger=None):
             password = str(password)
 
         ca_util.setpassword(password)
-        ca_util.cmd_init(tls_dir)
-        ca_util.cmd_mkcert(tls_dir, "server", password=password)
 
+        if os.path.exists(ca_path):
+            if logger:
+                logger.info("Existing CA certificate found in %s, not generating a new one", tls_dir)
+        else:
+            if logger:
+                logger.info("Generating new CA, keys, and certificates in %s", tls_dir)
+                logger.info("use keylime_ca -d %s to manage this CA", tls_dir)
+
+            if not os.path.exists(tls_dir):
+                os.makedirs(tls_dir, 0o700)
+
+            ca_util.cmd_init(tls_dir)
+
+        # Check if all options are set as "default"
+        for option in options:
+            value = config.get(component, option)
+            if value != "default":
+                raise Exception(f"To use tls_dir=generate, the following options must be set to 'default': {options}")
+
+        server_key_path = os.path.join(tls_dir, "server-private.pem")
+        server_cert_path = os.path.join(tls_dir, "server-cert.crt")
+
+        # The server key and certificate are already present, do not generate new ones
+        if os.path.exists(server_key_path) and os.path.exists(server_cert_path):
+            if logger:
+                logger.debug("Existing server certificate and key found in %s, not generating a new ones", tls_dir)
+        else:
+            ca_util.cmd_mkcert(tls_dir, "server", password=password)
+
+        # For the verifier, generate client key and certificate if not present
         if component == "verifier":
-            password = config.get(component, "client_key_password")
-            if not password:
-                password = None
-            else:
-                password = str(password)
+            client_key_path = os.path.join(tls_dir, "client-private.pem")
+            client_cert_path = os.path.join(tls_dir, "client-cert.crt")
 
-            # The verifier also needs client key/certificate to access the agent
-            ca_util.cmd_mkcert(tls_dir, "client", password=password)
+            # The client key and certificate are already present, do not generate new ones
+            if os.path.exists(client_key_path) and os.path.exists(client_cert_path):
+                if logger:
+                    logger.debug("Existing client certificate and key found in %s, not generating a new ones", tls_dir)
+            else:
+                password = config.get(component, "client_key_password")
+                if not password:
+                    password = None
+                else:
+                    password = str(password)
+
+                ca_util.cmd_mkcert(tls_dir, "client", password=password)
 
     elif tls_dir == "default":
         # Use the keys/certificates generated for the verifier
