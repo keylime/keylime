@@ -1,6 +1,10 @@
 # Keylime CA configuration
 [ca]
 
+# The keystore password
+# This password is used to protect the generated CA private key.
+password = {{ ca.password }}
+
 # The configuration file version number
 version = {{ ca.version }}
 

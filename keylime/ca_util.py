@@ -64,8 +64,12 @@ def load_cert_by_path(cert_path):
 
 def setpassword(pw):
     global global_password
-    if len(pw) == 0:
+    if not pw:
+        pw = getpass.getpass("Please enter the password to decrypt your keystore: ")
+
+    if not pw:
         raise Exception("You must specify a password!")
+
     global_password = pw
 
 

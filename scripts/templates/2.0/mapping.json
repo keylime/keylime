@@ -560,6 +560,11 @@
                 "option": "version",
                 "default": "2.0"
             },
+            "password": {
+                "section": "verifier",
+                "option": "private_key_pw",
+                "default": "default"
+            },
             "cert_country": {
                 "section": "ca",
                 "option": "cert_country",

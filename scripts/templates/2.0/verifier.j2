@@ -41,9 +41,9 @@ tls_dir = {{ verifier.tls_dir }}
 # If set as 'default', the 'server-private.pem' value is used.
 server_key = {{ verifier.server_key }}
 
-# Set the password used to encrypt the server private key file.
+# Set the password used to decrypt the server private key file.
 # If 'tls_dir = generate', this password will also be used to protect the
-# generated CA private key.
+# generated server private key.
 # If left empty, the private key will not be encrypted.
 server_key_password = {{ verifier.server_key_password }}
 
@@ -68,9 +68,9 @@ trusted_client_ca = {{ verifier.trusted_client_ca }}
 # If set as 'default', the 'client-private.pem' value is used.
 client_key = {{ verifier.client_key }}
 
-# Set the password used to encrypt the client private key file.
+# Set the password used to decrypt the client private key file.
 # If 'tls_dir = generate', this password will also be used to protect the
-# generated CA private key.
+# generated client private key.
 # If left empty, the private key will not be encrypted.
 client_key_password = {{ verifier.client_key_password }}
 
