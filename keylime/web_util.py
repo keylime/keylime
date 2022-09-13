@@ -73,16 +73,14 @@ def init_tls_dir(component, logger=None):
         tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, generatedir))
         ca_path = os.path.join(tls_dir, "cacert.crt")
 
-        password = config.get(component, "server_key_password")
-        if not password:
-            password = None
-        elif password == "default":
-            if logger:
-                logger.warning("Using 'default' server_key_password option for %s", component)
-        else:
-            password = str(password)
+        key_store_pw = config.get("ca", "password")
+        if key_store_pw:
+            if key_store_pw == "default":
+                if logger:
+                    logger.warning("Using 'default' password option from CA configuration file")
+            key_store_pw = str(key_store_pw)
 
-        ca_util.setpassword(password)
+        ca_util.setpassword(key_store_pw)
 
         if os.path.exists(ca_path):
             if logger:
@@ -111,7 +109,10 @@ def init_tls_dir(component, logger=None):
             if logger:
                 logger.debug("Existing server certificate and key found in %s, not generating a new ones", tls_dir)
         else:
-            ca_util.cmd_mkcert(tls_dir, "server", password=password)
+            server_key_pw = config.get(component, "server_key_password")
+            if server_key_pw:
+                server_key_pw = str(server_key_pw)
+            ca_util.cmd_mkcert(tls_dir, "server", password=server_key_pw)
 
         # For the verifier, generate client key and certificate if not present
         if component == "verifier":
@@ -123,13 +124,10 @@ def init_tls_dir(component, logger=None):
                 if logger:
                     logger.debug("Existing client certificate and key found in %s, not generating a new ones", tls_dir)
             else:
-                password = config.get(component, "client_key_password")
-                if not password:
-                    password = None
-                else:
-                    password = str(password)
-
-                ca_util.cmd_mkcert(tls_dir, "client", password=password)
+                client_key_pw = config.get(component, "client_key_password")
+                if client_key_pw:
+                    client_key_pw = str(client_key_pw)
+                ca_util.cmd_mkcert(tls_dir, "client", password=client_key_pw)
 
     elif tls_dir == "default":
         # Use the keys/certificates generated for the verifier

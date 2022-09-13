@@ -30,9 +30,9 @@ tls_dir = {{ registrar.tls_dir }}
 # If set as 'default', the 'server-private.pem' value is used.
 server_key = {{ registrar.server_key }}
 
-# Set the password used to encrypt the private key file.
+# Set the password used to decrypt the private key file.
 # If 'tls_dir = generate', this password will also be used to protect the
-# generated CA private key.
+# generated server private key.
 # If left empty, the private key will not be encrypted.
 server_key_password = {{ registrar.server_key_password }}
 
