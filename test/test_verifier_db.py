@@ -62,13 +62,13 @@ class TestVerfierDB(unittest.TestCase):
         self.session.add(VerfierMain(**test_data, ima_policy=allowlist))
         self.session.commit()
 
-    def test_add_allowlist(self):
+    def test_01_add_allowlist(self):
         allowlist = self.session.query(VerifierAllowlist).filter_by(name="test-allowlist").one()
         self.assertEqual(allowlist.name, "test-allowlist")
         self.assertEqual(allowlist.tpm_policy, test_allowlist_data["tpm_policy"])
         self.assertEqual(allowlist.ima_policy, test_allowlist_data["ima_policy"])
 
-    def test_add_agent(self):
+    def test_02_add_agent(self):
         agent = (
             self.session.query(VerfierMain)
             .options(joinedload(VerfierMain.ima_policy))
@@ -94,15 +94,15 @@ class TestVerfierDB(unittest.TestCase):
         self.assertEqual(agent.verifier_ip, "127.0.0.1")
         self.assertEqual(agent.verifier_port, 8881)
 
-    def test_count_agents(self):
+    def test_03_count_agents(self):
         agent = self.session.query(VerfierMain.agent_id).count()
         self.assertEqual(agent, 1)
 
-    def test_serialize_agent_uuids(self):
+    def test_04_serialize_agent_uuids(self):
         uuids = self.session.query(VerfierMain.agent_id).all()
         self.assertEqual(json.dumps(uuids), f'[["{agent_id}"]]')
 
-    def test_set_operation_state(self):
+    def test_05_set_operation_state(self):
         self.session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update(
             {"operational_state": TENANT_FAILED}
         )
@@ -110,7 +110,7 @@ class TestVerfierDB(unittest.TestCase):
         agent = self.session.query(VerfierMain).filter_by(agent_id=agent_id).first()
         self.assertEqual(agent.operational_state, 10)
 
-    def test_set_verifier_ip_port(self):
+    def test_06_set_verifier_ip_port(self):
         self.session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update({"verifier_ip": "127.0.0.2"})
         self.session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update({"verifier_port": 8882})
         self.session.commit()
@@ -118,14 +118,24 @@ class TestVerfierDB(unittest.TestCase):
         self.assertEqual(agent.verifier_ip, "127.0.0.2")
         self.assertEqual(agent.verifier_port, 8882)
 
-    def test_delete_agent(self):
+    def test_07_delete_agent(self):
         agent = self.session.query(VerfierMain).filter_by(agent_id=agent_id).first()
         self.session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
         self.session.commit()
         agent = self.session.query(VerfierMain).filter_by(agent_id=agent_id).first()
         self.assertIsNone(agent)
 
-    def test_delete_allowlist(self):
+    def test_08_delete_allowlist(self):
+        # can't delete allowlists attached to agents
+        with self.assertRaises(Exception) as context:
+            self.session.query(VerifierAllowlist).filter_by(name="test-allowlist").delete()
+        self.assertTrue("FOREIGN KEY constraint failed" in str(context.exception))
+
+        # unassign this allowlist from the agent
+        agent = self.session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+        agent.ima_policy_id = None
+        self.session.commit()
+        # now delete
         self.session.query(VerifierAllowlist).filter_by(name="test-allowlist").delete()
         self.session.commit()
         allowlist = self.session.query(VerifierAllowlist).filter_by(name="test-allowlist").first()
