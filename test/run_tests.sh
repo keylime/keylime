@@ -146,8 +146,23 @@ echo "==========================================================================
 pip3 install $UMODE_OPT -r $KEYLIME_DIR/test/test-requirements.txt
 if [ "$RUST_TEST" == 1 ]
 then
-    git clone https://github.com/keylime/rust-keylime.git $KEYLIME_DIR/../rust-keylime
-    cargo build --manifest-path $KEYLIME_DIR/../rust-keylime/Cargo.toml --bin keylime_agent
+    if [[ ! -d "$KEYLIME_DIR/../rust-keylime" ]]; then
+        git clone https://github.com/keylime/rust-keylime.git $KEYLIME_DIR/../rust-keylime
+    fi
+    pushd $KEYLIME_DIR/../rust-keylime && make
+    if [ "$USER_MODE" == "1" ]; then
+        echo -e "The rust agent cannot be installed as a non-root user, please re-run as root"
+        exit 1
+    else
+        make install
+
+        echo -e "Setting run_as to empty to run as root (due to permission issues accessing CA certificate)"
+        sed -i 's/^run_as =.*$/run_as =/g' /etc/keylime-agent.conf
+
+        echo -e "Setting tpm_ownerpassword as keylime"
+        sed -i 's/^tpm_ownerpassword =.*$/tpm_ownerpassword = keylime/g' /etc/keylime-agent.conf
+    fi
+    popd
 fi
 
 # Install Keylime
