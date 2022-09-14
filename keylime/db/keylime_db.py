@@ -1,13 +1,23 @@
 import os
 from configparser import NoOptionError
+from sqlite3 import Connection as SQLite3Connection
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from keylime import config, keylime_logging
 
 logger = keylime_logging.init_logging("keylime_db")
+
+# make sure referential integrity is working for SQLite
+@event.listens_for(Engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, _):
+    if isinstance(dbapi_connection, SQLite3Connection):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 class DBEngineManager:

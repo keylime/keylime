@@ -6,15 +6,12 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Process
-from sqlite3 import Connection as SQLite3Connection
 
 import tornado.httpserver
 import tornado.ioloop
 import tornado.netutil
 import tornado.process
 import tornado.web
-from sqlalchemy import event as saEvent
-from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
@@ -46,14 +43,6 @@ try:
 except SQLAlchemyError as err:
     logger.error("Error creating SQL engine or session: %s", err)
     sys.exit(1)
-
-
-@saEvent.listens_for(Engine, "connect")
-def set_sqlite_pragma(dbapi_connection, _):
-    if isinstance(dbapi_connection, SQLite3Connection):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
 
 
 def get_session():
