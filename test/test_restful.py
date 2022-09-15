@@ -1016,6 +1016,10 @@ class TestRestful(unittest.TestCase):
     def test_076_agent_quotes_integrity_get(self):
         self.test_040_agent_quotes_integrity_get()
 
+    @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
+    async def test_077_agent_keys_verify_get(self):
+        await self.test_041_agent_keys_verify_get()
+
     def tearDown(self):
         """Nothing to bring down after each test"""
         return
