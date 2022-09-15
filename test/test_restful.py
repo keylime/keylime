@@ -191,6 +191,9 @@ def tearDownModule():
     kill_cloudverifier()
     kill_registrar()
 
+    # Run tpm2_clear to allow other processes to use the TPM
+    subprocess.run("tpm2_clear", stdout=subprocess.PIPE, check=False)
+
 
 def launch_cloudverifier():
     """Start up the cloud verifier"""
@@ -259,6 +262,7 @@ def launch_cloudagent(agent="python"):
         agent_path = "keylime_agent"
     elif agent == "rust":
         agent_path = f"{PACKAGE_ROOT}/../rust-keylime/target/debug/keylime_agent"
+        script_env["RUST_LOG"] = "keylime_agent=debug"
     else:
         agent_path = "echo"
     if agent_process is None:
@@ -323,9 +327,6 @@ def kill_cloudagent():
     agent_process.wait()
     agent_process = None
 
-    # Run tpm2_clear to allow other processes to use the TPM
-    subprocess.run("tpm2_clear", stdout=subprocess.PIPE, check=False)
-
 
 def services_running():
     if reg_process.poll() is None and cv_process.poll() is None:
@@ -367,7 +368,7 @@ class TestRestful(unittest.TestCase):
         cls.auth_tag = crypto.do_hmac(cls.K, tenant_templ.agent_uuid)
 
         # Prepare policies for agent
-        cls.tpm_policy = '{"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}'
+        cls.tpm_policy = "{}"
         cls.tpm_policy = tpm_abstract.TPM_Utilities.readPolicy(cls.tpm_policy)
 
         # Allow targeting a specific API version (default latest)
@@ -540,22 +541,38 @@ class TestRestful(unittest.TestCase):
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
 
+        # The deletion is not immediate, check if the agent was actually deleted
+        numretries = config.getint("tenant", "max_retries")
+        deleted = False
+        while numretries >= 0:
+            response = test_015_reg_agent_delete.get(
+                f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", verify=True
+            )
+
+            if response.status_code == 404:
+                deleted = True
+                break
+            numretries -= 1
+            time.sleep(config.getint("tenant", "retry_interval"))
+
+        self.assertTrue(deleted)
+
     # Agent Setup Testset
 
     def test_020_reg_agent_get(self):
         # We want a real cloud agent to communicate with!
-        launch_cloudagent()
+        self.assertTrue(launch_cloudagent())
         # We need to refresh the aik value we've stored in case it changed
         self.test_014_reg_agent_get()
 
     def test_021_agent_keys_pubkey_get(self):
         """Test agent's GET /keys/pubkey Interface"""
 
-        test_020_agent_keys_pubkey_get = RequestsClient(
+        test_021_agent_keys_pubkey_get = RequestsClient(
             tenant_templ.agent_base_url, True, tls_context=tenant_templ.agent_tls_context
         )
 
-        response = test_020_agent_keys_pubkey_get.get(
+        response = test_021_agent_keys_pubkey_get.get(
             f"/v{self.api_version}/keys/pubkey",
             verify=True,
         )
@@ -647,14 +664,16 @@ class TestRestful(unittest.TestCase):
 
         encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key), self.U)
         b64_encrypted_u = base64.b64encode(encrypted_U)
-        data = {"encrypted_key": b64_encrypted_u, "auth_tag": self.auth_tag, "payload": self.payload}
+        data = {
+            "encrypted_key": b64_encrypted_u.decode("utf-8"),
+            "auth_tag": self.auth_tag,
+            "payload": self.payload.decode("utf-8") if self.payload else None,
+        }
 
         test_024_agent_keys_ukey_post = RequestsClient(
             tenant_templ.agent_base_url, True, tls_context=tenant_templ.agent_tls_context
         )
-        response = test_024_agent_keys_ukey_post.post(
-            f"/v{self.api_version}/keys/ukey", data=json.dumps(data), verify=True
-        )
+        response = test_024_agent_keys_ukey_post.post(f"/v{self.api_version}/keys/ukey", json=data, verify=True)
 
         self.assertEqual(response.status_code, 200, "Non-successful Agent ukey post return code!")
         json_response = response.json()
@@ -920,7 +939,6 @@ class TestRestful(unittest.TestCase):
 
     def test_050_cv_agent_delete(self):
         """Test CV's DELETE /agents/{UUID} Interface"""
-        time.sleep(5)
         test_050_cv_agent_delete = RequestsClient(
             tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context
         )
@@ -933,6 +951,18 @@ class TestRestful(unittest.TestCase):
 
         # Ensure response is well-formed
         self.assertIn("results", json_response, "Malformed response body!")
+
+        # The deletion is not immediate, check if the agent was actually deleted
+        numretries = config.getint("tenant", "max_retries")
+        while numretries >= 0:
+            response = test_050_cv_agent_delete.get(
+                f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", verify=True
+            )
+
+            if response.status_code == 404:
+                break
+            numretries -= 1
+            time.sleep(config.getint("tenant", "retry_interval"))
 
     def test_060_cv_version_get(self):
         """Test CV's GET /version Interface"""
@@ -955,47 +985,35 @@ class TestRestful(unittest.TestCase):
 
         # Kill the Python agent and launch the Rust agent!
         kill_cloudagent()
+        self.test_015_reg_agent_delete()
         self.assertTrue(launch_cloudagent(agent="rust"))
 
     @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
-    def test_071_agent_keys_pubkey_get(self):
-        # NOTE: launch_cloudagent(), which starts the Python cloud agent, is
-        # invoked during this test. However, this shouldn't conflict with the
-        # Rust agent - it was already set up in 070, and launch_cloudagent()
-        # will not invoke the Python agent unless there is no agent already
-        # running.
-        launch_cloudagent(agent="rust")
+    def test_071_reg_agent_get(self):
+        self.test_014_reg_agent_get()
+
+    @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
+    def test_072_agent_keys_pubkey_get(self):
         self.test_021_agent_keys_pubkey_get()
 
     @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
-    def test_072_reg_agent_get(self):
-        launch_cloudagent(agent="rust")
-        self.test_020_reg_agent_get()
-
-    @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
     def test_073_agent_quotes_identity_get(self):
-        launch_cloudagent(agent="rust")
         self.test_022_agent_quotes_identity_get()
 
-    @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
+    # @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
+    @unittest.skip("Testing of agent's POST /keys/vkey disabled!  (spawned CV should do this already)")
     def test_074_agent_keys_vkey_post(self):
-        launch_cloudagent(agent="rust")
         self.test_023_agent_keys_vkey_post()
 
     # @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
     @unittest.skip(
-        "Testing of Rust agent's POST /keys/ukey disabled! (Rust agent's API endpoint is broken due to a workaround, see https://github.com/keylime/rust-keylime/issues/306)"
+        "Testing of Rust agent's POST /keys/ukey disabled! (Rust agent's API endpoint does not return JSON, see https://github.com/keylime/rust-keylime/issues/447)"
     )
     def test_075_agent_keys_ukey_post(self):
-        launch_cloudagent(agent="rust")
         self.test_024_agent_keys_ukey_post()
 
-    # @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
-    @unittest.skip(
-        "Testing of Rust agent's GET /quote/integrity disabled! (Rust agent's API endpoint is broken, see https://github.com/keylime/rust-keylime/issues/285)"
-    )
+    @unittest.skipIf(SKIP_RUST_TEST, "Testing against rust-keylime is disabled!")
     def test_076_agent_quotes_integrity_get(self):
-        launch_cloudagent(agent="rust")
         self.test_040_agent_quotes_integrity_get()
 
     def tearDown(self):
