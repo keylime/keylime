@@ -1,7 +1,7 @@
 # Keylime
 
 [![Slack CNCF chat](https://img.shields.io/badge/Chat-CNCF%20Slack-informational)](https://cloud-native.slack.com/archives/C01ARE2QUTZ)
-[![Docs Status](https://readthedocs.org/projects/keylime-docs/badge/?version=latest)](https://keylime-docs.readthedocs.io/en/latest/?badge=latest)
+[![Docs Status](https://readthedocs.org/projects/keylime/badge/?version=latest)](https://keylime.readthedocs.io/en/latest/?badge=latest)
 
 ![keylime](docs/keylime.png?raw=true "Title")
 
