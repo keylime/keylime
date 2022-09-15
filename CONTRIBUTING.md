@@ -9,7 +9,7 @@ to make via an [issue](https://github.com/keylime/keylime/issues) or email to th
    outlining the fix or feature.
 2. Fork the keylime repository to your own github account and clone it locally.
 3. Hack on your changes.
-4. Update the README.md or documentation in [keylime-docs](https://github.com/keylime/keylime-docs)
+4. Update the README.md or documentation in the `docs/` directory
    with details of changes to any interface, this includes new environment
    variables, exposed ports, useful file locations, CLI parameters and
    new or changed configuration values.
