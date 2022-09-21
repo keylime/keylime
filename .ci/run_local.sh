@@ -16,7 +16,7 @@ docker pull ${tpmimage}:${tpmtag}
 echo -e "Running Keylime's test suite"
 
 container_id=$(mktemp)
-docker run --detach --user root --env KEYLIME_TEST='true' \
+docker run --detach --user root --env KEYLIME_TEST='true' --env RUST_TEST=1\
     -v $REPO:/root/keylime:Z \
     --mount type=tmpfs,destination=/var/lib/keylime/,tmpfs-mode=1770 \
     -it ${tpmimage}:${tpmtag} >> ${container_id}
