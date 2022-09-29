@@ -3,7 +3,7 @@ import enum
 import json
 import struct
 
-from cryptography import utils, x509
+from cryptography import x509
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import hashes, serialization
@@ -50,9 +50,7 @@ class HashAlgo(enum.IntEnum):
 
 
 # Streebog is supported by evmctl
-# pylint: disable=E1101
-@utils.register_interface(hashes.HashAlgorithm)
-class MyStreebog256:
+class MyStreebog256(hashes.HashAlgorithm):
     """Basic class for Streebog256"""
 
     name = "streebog256"
@@ -60,9 +58,7 @@ class MyStreebog256:
     block_size = 64
 
 
-# pylint: disable=E1101
-@utils.register_interface(hashes.HashAlgorithm)
-class MyStreebog512:
+class MyStreebog512(hashes.HashAlgorithm):
     """Basic class for Streebog512"""
 
     name = "streebog512"
