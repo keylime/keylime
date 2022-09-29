@@ -15,11 +15,11 @@ import requests
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 
 from keylime import api_version as keylime_api_version
-from keylime import ca_util, config, crypto, keylime_logging, measured_boot, registrar_client, signing, web_util
+from keylime import ca_util, config, crypto, keylime_logging, registrar_client, signing, web_util
 from keylime.agentstates import AgentAttestState
+from keylime.cli import options, policies
 from keylime.cmd import user_data_encrypt
 from keylime.common import algorithms, retry, states, validators
-from keylime.ima import file_signatures, ima
 from keylime.requests_client import RequestsClient
 from keylime.tpm import tpm2_objects
 from keylime.tpm.tpm_abstract import TPM_Utilities
@@ -148,94 +148,6 @@ class Tenant:
     def verifier_base_url(self):
         return f"{self.verifier_ip}:{self.verifier_port}"
 
-    def process_allowlist(self, args):
-        # Set up PCR values
-        if "tpm_policy" in args and args["tpm_policy"] is not None:
-            tpm_policy = args["tpm_policy"]
-        else:
-            # Use default empty TPM policy
-            tpm_policy = "{}"
-        self.tpm_policy = TPM_Utilities.readPolicy(tpm_policy)
-        logger.info("TPM PCR Mask from policy is %s", self.tpm_policy["mask"])
-
-        if len(args.get("ima_sign_verification_keys")) > 0:
-            # Auto-enable IMA (or-bit mask)
-            self.tpm_policy["mask"] = hex(int(self.tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
-
-            # Add all IMA file signing verification keys to a keyring
-            tenant_keyring = file_signatures.ImaKeyring()
-            for filename in args["ima_sign_verification_keys"]:
-                pubkey, keyidv2 = file_signatures.get_pubkey_from_file(filename)
-                if not pubkey:
-                    raise UserError(f"File '{filename}' is not a file with a key")
-                tenant_keyring.add_pubkey(pubkey, keyidv2)
-            self.ima_sign_verification_keys = tenant_keyring.to_string()
-
-        # Read command-line path string allowlist
-        al_data = None
-
-        if "allowlist" in args and args["allowlist"] is not None:
-
-            self.enforce_pcrs(list(self.tpm_policy.keys()), [config.IMA_PCR], "IMA")
-
-            # Auto-enable IMA (or-bit mask)
-            self.tpm_policy["mask"] = hex(int(self.tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
-
-            try:
-                al_data = ima.read_allowlist(
-                    args["allowlist"], args["allowlist_checksum"], args["allowlist_sig"], args["allowlist_sig_key"]
-                )
-            except Exception as ima_e:
-                raise UserError(str(ima_e)) from ima_e
-
-        # Read command-line path string IMA exclude list
-        excl_data = None
-        if "ima_exclude" in args and args["ima_exclude"] is not None:
-            if isinstance(args["ima_exclude"], str):
-                excl_data = ima.read_excllist(args["ima_exclude"])
-            elif isinstance(args["ima_exclude"], list):
-                excl_data = args["ima_exclude"]
-            else:
-                raise UserError("Invalid exclude list provided")
-
-        # Set up IMA
-        if TPM_Utilities.check_mask(self.tpm_policy["mask"], config.IMA_PCR):
-            # Process allowlists
-            al_data["excllist"] = excl_data
-            self.allowlist = al_data
-
-        # Store allowlist name
-        if "allowlist_name" in args and args["allowlist_name"] is not None:
-            self.ima_policy_name = args["allowlist_name"]
-            # Auto-enable IMA (or-bit mask)
-            self.tpm_policy["mask"] = hex(int(self.tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
-
-        # Read command-line path string TPM event log (measured boot) reference state
-        mb_refstate_data = None
-        if "mb_refstate" in args and args["mb_refstate"] is not None:
-
-            self.enforce_pcrs(list(self.tpm_policy.keys()), config.MEASUREDBOOT_PCRS, "measured boot")
-
-            # Auto-enable TPM event log mesured boot (or-bit mask)
-            for _pcr in config.MEASUREDBOOT_PCRS:
-                self.tpm_policy["mask"] = hex(int(self.tpm_policy["mask"], 0) | (1 << _pcr))
-
-            logger.info(
-                "TPM PCR Mask automatically modified is %s to include IMA/Event log PCRs", self.tpm_policy["mask"]
-            )
-
-            if isinstance(args["mb_refstate"], str):
-                if args["mb_refstate"] == "default":
-                    args["mb_refstate"] = config.get("tenant", "mb_refstate")
-                mb_refstate_data = measured_boot.read_mb_refstate(args["mb_refstate"])
-            else:
-                raise UserError("Invalid measured boot reference state (intended state) provided")
-
-        # Set up measured boot (TPM event log) reference state
-        if TPM_Utilities.check_mask(self.tpm_policy["mask"], config.MEASUREDBOOT_PCRS[2]):
-            # Process measured boot reference state
-            self.mb_refstate = mb_refstate_data
-
     def init_add(self, args):
         """Set up required values. Command line options can overwrite these config values
 
@@ -353,7 +265,13 @@ class Tenant:
         self.accept_tpm_encryption_algs = config.getlist("tenant", "accept_tpm_encryption_algs")
         self.accept_tpm_signing_algs = config.getlist("tenant", "accept_tpm_signing_algs")
 
-        self.process_allowlist(args)
+        (
+            self.tpm_policy,
+            self.mb_refstate,
+            self.ima_policy_name,
+            self.ima_sign_verification_keys,
+            self.allowlist,
+        ) = policies.process_allowlist(args)
 
         # if none
         if args["file"] is None and args["keyfile"] is None and args["ca_dir"] is None:
@@ -487,19 +405,6 @@ class Tenant:
             max_payload_size = config.getint("tenant", "max_payload_size")
             if len(self.payload) > max_payload_size:
                 raise UserError(f"Payload size {len(self.payload)} exceeds max size {max_payload_size}")
-
-    def enforce_pcrs(self, policy_pcrs, protected_pcrs, pcr_use):
-        policy_pcrs = list(self.tpm_policy.keys())
-        policy_pcrs.remove("mask")
-
-        for _pcr in policy_pcrs:
-            if int(_pcr) in protected_pcrs:
-                logger.error(
-                    'WARNING: PCR %s is specified in "tpm_policy", but will in fact be used by %s. Please remove it from policy',
-                    _pcr,
-                    pcr_use,
-                )
-                sys.exit(1)
 
     def preloop(self):
         """encrypt the agent UUID as a check for delivering the correct key"""
@@ -1243,7 +1148,14 @@ class Tenant:
         if "allowlist_name" not in args or not args["allowlist_name"]:
             raise UserError("allowlist_name is required to add an allowlist")
 
-        self.process_allowlist(args)
+        (
+            self.tpm_policy,
+            self.mb_refstate,
+            self.ima_policy_name,
+            self.ima_sign_verification_keys,
+            self.allowlist,
+        ) = policies.process_allowlist(args)
+
         data = {"tpm_policy": json.dumps(self.tpm_policy), "ima_policy_bundle": json.dumps(self.allowlist)}
         body = json.dumps(data)
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
@@ -1486,27 +1398,9 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
 
     args = parser.parse_args(argv[1:])
 
-    # Make sure argument dependencies are enforced
-    if args.ima_exclude and not args.allowlist:
-        parser.error("--exclude cannot be used without an --allowlist")
-    if args.allowlist and args.allowlist_url:
-        parser.error("--allowlist and --allowlist-url cannot be specified at the same time")
-    if args.allowlist_url and not (args.allowlist_sig or args.allowlist_sig_url or args.allowlist_checksum):
-        parser.error(
-            "--allowlist-url must have either --allowlist-sig, --allowlist-sig-url or --allowlist-checksum to verifier integrity"
-        )
-    if args.allowlist_sig and not (args.allowlist_url or args.allowlist):
-        parser.error("--allowlist-sig must have either --allowlist or --allowlist-url")
-    if args.allowlist_sig_url and not (args.allowlist_url or args.allowlist):
-        parser.error("--allowlist-sig-url must have either --allowlist or --allowlist-url")
-    if args.allowlist_checksum and not (args.allowlist_url or args.allowlist):
-        parser.error("--allowlist-checksum must have either --allowlist or --allowlist-url")
-    if args.allowlist_sig and not args.allowlist_sig_key:
-        parser.error("--allowlist-sig must also have --allowlist-sig-key")
-    if args.allowlist_sig_url and not args.allowlist_sig_key:
-        parser.error("--allowlist-sig-url must also have --allowlist-sig-key")
-    if args.allowlist_sig_key and not (args.allowlist_sig or args.allowlist_sig_url):
-        parser.error("--allowlist-sig-key must have either --allowlist-sig or --allowlist-sig-url")
+    argerr, argerrmsg = options.get_opts_error(args)
+    if argerr:
+        parser.error(argerrmsg)
 
     mytenant = Tenant()
 
