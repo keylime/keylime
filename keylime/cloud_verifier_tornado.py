@@ -921,7 +921,7 @@ async def invoke_get_quote(agent, ima_policy, need_pubkey, timeout=60.0):
                 agent["provide_V"] = True
             agentAttestState = get_AgentAttestStates().get_by_agent_id(agent["agent_id"])
             failure = cloud_verifier_common.process_quote_response(
-                agent, ima_policy, json_response["results"], agentAttestState
+                agent, ima_policy.ima_policy, json_response["results"], agentAttestState
             )
             if not failure:
                 if agent["provide_V"]:

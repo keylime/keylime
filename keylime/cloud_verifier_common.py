@@ -172,7 +172,7 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
         agent["ak_tpm"],
         agent["tpm_policy"],
         ima_measurement_list,
-        ima_policy.ima_policy,
+        ima_policy,
         algorithms.Hash(hash_alg),
         ima_keyrings,
         mb_measurement_list,
