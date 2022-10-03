@@ -109,7 +109,7 @@ Docker - Deployment
 --------------------
 
 The verifier, registrar and tenant can also be deployed using Docker images.
-Keylime's offical images can be found `here <https://github.com/orgs/keylime/packages>`_.
+Keylime's official images can be found `here <https://quay.io/organization/keylime>`_.
 Those are automatically generated for every commit and release.
 
 For building those images locally see
