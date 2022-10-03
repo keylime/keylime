@@ -128,16 +128,25 @@ Repository](https://github.com/keylime/ansible-keylime-tpm-emulator).
 | WARNING: The "Keylime Ansible TPM Emulator" role uses a software TPM, which is considered cryptographically insecure. It should only be used for development or testing and **NOT** in production!|
 | --- |
 
-#### Docker (Development Only)
 
-keylime and related emulators can also be deployed using Docker.
-Since this docker configuration currently uses a TPM emulator,
+#### Docker (Production)
+The verifier, registrar and tenant can be deployed using Docker images.
+Keylime's official images can be found [here](https://quay.io/organization/keylime).
+Those are automatically generated for every commit and release.
+
+For building those images locally see 
+[here](https://github.com/keylime/keylime/blob/master/docker/release/build_locally.sh>).
+
+#### Docker (Development)
+
+Keylime and related emulators can also be run using Docker for development.
+Since this Docker configuration currently uses a TPM emulator,
 it should only be used for development or testing and NOT in production.
 
 Please see either the 
 [Dockerfiles](https://github.com/keylime/keylime/tree/master/docker) or our
 [local CI script](https://github.com/keylime/keylime/blob/master/.ci/run_local.sh)
-which will automate the build and pull of keylime.
+which will automate the build and pull of Keylime.
 
 ### Manual
 
