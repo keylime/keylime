@@ -5,6 +5,7 @@ on: [pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
+    continue-on-error: true
     name: Submit code coverage from Packit tests
     defaults:
       run:
