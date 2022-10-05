@@ -21,7 +21,7 @@ Make sure that you have UPX for binary compression.  On ubuntu: `apt-get install
 Ensure that you have the tools needed to install keylime normally (see section above). On Ubuntu:
 `apt-get install -y python-dev python-setuptools python-tornado python-zmq`.  Now pull in the rest of the python dependencies with `sudo python setup.py install`
 
-Now you can run `make_agent_bundle.sh` in the keylime directory.  The single binary will appear inside the dist folder.  You can distribute this file along with keylime.conf and run the agent service without any other Keylime dependencies.  It will look for the conf file in /etc/ first and then in the same directory as the keylime_agent binary.
+Now you can run `make_agent_bundle.sh` in the keylime directory.  The single binary will appear inside the dist folder.  You can distribute this file along with agent.conf, ca.conf, logging.conf, and run the agent service without any other Keylime dependencies.  It will look for the conf file in /etc/ first and then in the same directory as the keylime_agent binary.
 
 ## Notes
 
