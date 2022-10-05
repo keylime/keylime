@@ -673,7 +673,7 @@ def main():
             user_utils.change_uidgid(run_as)
             logger.info("Dropped privileges to %s", run_as)
         else:
-            logger.warning("Cannot drop privileges since 'run_as' is empty or missing in keylime.conf agent section.")
+            logger.warning("Cannot drop privileges since 'run_as' is empty or missing in agent.conf agent section.")
 
     # get params for initialization
     registrar_ip = config.get("agent", "registrar_ip")
