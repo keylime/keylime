@@ -228,3 +228,43 @@ SQLite is configured as default (`database_url = sqlite`) where the databases ar
 Starting with Keylime version 6.4.0 only supports SQLAlchemy's URL format to allow a more flexible configuration.
 The format for the supported databases can be found in the SQLAlchemy
 `engine configuration documentation <https://docs.sqlalchemy.org/en/14/core/engines.html#database-urls>`_.
+
+Each database is configured within `/etc/verifier.conf` for the keylime_verifier
+and `/etc/registrar.conf` for the keylime_registrar by setting the `database_url`
+option.
+
+The following illustrates examples for SQLite and PostgreSQL::
+
+SQLite
+~~~~~~
+
+To use the default location for SQLite, the `database_url` option can be set
+with the `sqlite` keyword as follows::
+
+    database_utl = sqlite
+
+A custom file location can be set as follows:
+
+    database_url = sqlite:////some/custom/path/file.sqlite
+
+PostgreSQL
+~~~~~~~~~~
+
+For PostgreSQL you will need to install the database first and set up a user
+account
+
+The database URL format for posgresql is::
+
+    postgresql://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]
+
+For example for the following values::
+
+    username = keylime
+    password = allyourbase
+    host = localhost
+    port = 5432
+    database_name = keylime_db
+
+The resulting URL would be::
+
+    database_url = posgresql://keylime:allyourbase@localhost:5432/keylime_db
