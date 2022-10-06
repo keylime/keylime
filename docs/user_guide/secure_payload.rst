@@ -117,10 +117,6 @@ malicious things.  So, revocation actions are for other well-behaving Agents in
 the system to take action against the revoked Agent.  For example, by revoking
 its certificate as described above or firewalling it from the network, etc.
 
-There are several revocation actions implemented in Keylime that you can look at
-to get an idea of how to write your own.  See the files starting with `local_action`
-in https://github.com/keylime/keylime/tree/master/auto-ipsec/libreswan/src
-
 There are some conventions to specifying revocation actions. As described above,
 their names must start with `local_action` to be executed. They also must be
 listed (without `.py` extensions) in a comma separated list in a file called
