@@ -8,12 +8,7 @@ Ansible Keylime Roles
 ---------------------
 
 An Ansible role to deploy `Keylime <https://github.com/keylime/keylime>`_
-, alongside the `Keylime Rust cloud agent <https://github.com/keylime/rust-keylime>`_
-
-.. warning::
-    Please note that the Rust cloud agent is still under early stages of development.
-    Those wishing to test drive Keylimes functionality should use the existing
-    Python based cloud agent `keylime_agent` until later notice.
+, alongside the `Keylime Rust agent <https://github.com/keylime/rust-keylime>`_
 
 This role deploys Keylime for use with a Hardware TPM.
 
@@ -75,22 +70,19 @@ You can then start the various components using commands::
     keylime_agent
 
 
-Rust Cloud agent
+Rust agent
 ~~~~~~~~~~~~~~~
+.. info::
+    The Rust agent is the official agent for Keylime and replaces the Python implementation.
+    For the rust agent a different configuration file is used (by default `/etc/keylime/agent.conf`)
+    which is **not** interchangeable with the old Python configuration.
 
-To start the rust cloud agent, navigate to it's repository directory and use
-cargo to run::
-
-    [root@localhost rust-keylime]# RUST_LOG=keylime_agent=trace cargo run
-        Finished dev [unoptimized + debuginfo] target(s) in 0.28s
-        Running `target/debug/keylime_agent`
-        INFO  keylime_agent > Starting server...
-        INFO  keylime_agent > Listening on http://127.0.0.1:1337
+Installation instructions can be found in the `README.md <https://github.com/keylime/rust-keylime>`_ for the Rust agent.
 
 Keylime Bash installer
 ----------------------
 
-Keylime requires Python 3.7 for dataclasses support.
+Keylime requires Python 3.6 or greater.
 
 Installation can be performed via an automated shell script, `installer.sh`. The
 following command line options are available::
@@ -99,8 +91,8 @@ following command line options are available::
     Options:
     -k              Download Keylime (stub installer mode)
     -t              Create tarball with keylime_agent
-    -m              Use modern TPM 2.0 libraries (vs. TPM 1.2)
-    -s              Install TPM in socket/simulator mode (vs. chardev)
+    -m              Use modern TPM 2.0 libraries; this is the default
+    -s              Install & use a Software TPM emulator (development only)
     -p PATH         Use PATH as Keylime path
     -h              This help info
 
@@ -132,7 +124,7 @@ which will automate the build and pull of Keylime.
 Manual
 ------
 
-Keylime requires Python 3.7 or newer to work properly out of the box because older versions do not support dataclasses.
+Keylime requires Python 3.6 or greater.
 
 Python-based prerequisites
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -152,7 +144,10 @@ The following Python packages are required:
 * python-gnupg>=0.4.6
 * packaging>=16.0
 * psutil>=5.4.2
-
+* lark>=1.0.0
+* pyasn1>=0.4.2
+* pyasn1-modules>=0.2.1
+* jinja2>=3.0.0
 
 The current list of required packages can be found `here <https://github.com/keylime/keylime/blob/master/requirements.txt>`_.
 
@@ -221,45 +216,15 @@ You're finally ready to install Keylime::
 Database support
 ---------------------
 
-Keylime supports the following databases::
+Keylime supports the following databases:
 
 * SQLite
 * PostgreSQL
 * MySQL
-* Oracle
-* Microsoft SQL Server
+* MariaDB
 
-SQLite is supported as default.
+SQLite is configured as default (`database_url = sqlite`) where the databases are stored under `/var/lib/keylime`.
 
-Each database is configured within `/etc/keylime.conf` for both the keylime_verifier
-and keylime_registrar databases.
-
-SQLite
-~~~~~~
-
-The following illustrates examples for SQLite and PostgreSQL::
-
-    database_drivername = sqlite
-    database_username = ''
-    database_password = ''
-    database_host = ''
-    database_port = ''
-    database_name = cv_data.sqlite
-    database_query = ''
-
-PostgreSQL
-~~~~~~~~~~
-
-For PostgreSQL you will need to install the database first and set up a user
-account::
-
-    database_drivername = postgresql
-    database_username = keylime
-    database_password = allyourbase
-    database_host = localhost
-    database_port = 5432
-    database_name = keylime_db
-    database_query = ''
-
-For details on other platforms, please refer to the SQLAlchemy documentation
-on `engine configuration <https://docs.sqlalchemy.org/en/13/core/engines.html>`_.
+Starting with Keylime version 6.4.0 only supports SQLAlchemy's URL format to allow a more flexible configuration.
+The format for the supported databased can be found in the SQLAlchemy
+`engine configuration documentation <https://docs.sqlalchemy.org/en/14/core/engines.html#database-urls>`_.
