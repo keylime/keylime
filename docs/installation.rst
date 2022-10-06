@@ -72,7 +72,7 @@ You can then start the various components using commands::
 
 Rust agent
 ~~~~~~~~~~~~~~~
-.. info::
+.. note::
     The Rust agent is the official agent for Keylime and replaces the Python implementation.
     For the rust agent a different configuration file is used (by default `/etc/keylime/agent.conf`)
     which is **not** interchangeable with the old Python configuration.
@@ -226,5 +226,5 @@ Keylime supports the following databases:
 SQLite is configured as default (`database_url = sqlite`) where the databases are stored under `/var/lib/keylime`.
 
 Starting with Keylime version 6.4.0 only supports SQLAlchemy's URL format to allow a more flexible configuration.
-The format for the supported databased can be found in the SQLAlchemy
+The format for the supported databases can be found in the SQLAlchemy
 `engine configuration documentation <https://docs.sqlalchemy.org/en/14/core/engines.html#database-urls>`_.
