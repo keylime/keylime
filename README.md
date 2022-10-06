@@ -361,7 +361,7 @@ CRL.  To enable this feature, run:
 
 The revocation key will be automatically created by the tenant the first time
 you use the CA with keylime.  Currently the CRL is only written back to the CA
-directory, unless IPsec configuration is being used (see [Additional Reading](#additional-reading)).
+directory.
 
 ## Systemd service support
 
@@ -425,9 +425,6 @@ Please, see [TESTING.md](TESTING.md) for details.
 * See the HotCloud 2018 paper: [docs/old/hotcloud18.pdf](https://github.com/keylime/keylime/blob/master/docs/old/hotcloud18.pdf)
 * Details about Keylime REST API: [docs/old/keylime RESTful API.docx](https://github.com/keylime/keylime/raw/master/docs/old/keylime%20RESTful%20API.docx)
 * [Bundling a portable Cloud Agent](https://github.com/keylime/keylime/blob/master/docs/old/cloud-agent-tarball-notes.md) - Create portable tarball of Cloud Agent, for usage on systems without python and other dependencies.
-* IPsec Configurations
-  * [IPsec with Libreswan](auto-ipsec/libreswan) - Configuring Keylime with a Libreswan backend for IPsec functionality.
-  * [IPsec with Racoon](auto-ipsec/racoon) - Configuring Keylime with a Racoon backend for IPsec functionality.
 * [Demo files](demo/) - Some pre-packaged demos to show off what Keylime can do.
 * [IMA stub service](ima_stub_service/) - Allows you to test IMA and keylime on a machine without a TPM.  Service keeps emulated TPM synchronized with IMA.
 
