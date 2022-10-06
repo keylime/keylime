@@ -38,18 +38,19 @@ with secrets stored within an encrypted payload released once trust is establish
 ### Rust based Keylime Agent
 
 The verifier, registrar, and agent are all developed in Python and situated
-in this repository `keylime`. The agent is currently undergoing a port to the
-[Rust programming language](https://www.rust-lang.org), with this work taking
-place in the [rust-keylime repository](https://github.com/keylime/rust-keylime).
+in this repository `keylime`. The agent was ported to the
+[Rust programming language](https://www.rust-lang.org). The code can be found 
+in the [rust-keylime repository](https://github.com/keylime/rust-keylime).
 
 The decision was made to port the agent to Rust, as rust is a low-level
 performant systems language designed with security as a central tenet, by means
 of the rust compiler's ownership model.
 
-When the rust agent work is complete, the rust-keylime agent will become the
-recommended ongoing agent within Keylime. Until then the Python agent is
-fully functioning and available to use as a remote monitoring system to interact
-with the keylime verifier and registrar.
+Starting with the 0.1.0 release of the Rust based Keylime agent, this agent is now the official agent.
+
+| IMPORTANT: The Python version is deprecated and will be removed with the next major version (7.0.0)! |
+|------------------------------------------------------------------------------------------------------|
+
 
 ### TPM Support
 

@@ -634,6 +634,9 @@ def revocation_listener():
 
 
 def main():
+    logger.warning("IMPORTANT: The Python agent is deprecated and will be removed with the next major release (7.0.0)!")
+    logger.warning("           Please migrate to the Rust based agent: https://github.com/keylime/rust-keylime/")
+
     for ML in [config.MEASUREDBOOT_ML, config.IMA_ML]:
         if not os.access(ML, os.F_OK):
             logger.warning(
