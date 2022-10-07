@@ -25,13 +25,15 @@ For Python Coverage support (pip install coverage), set env COVERAGE_FILE and:
     * coverage run --parallel-mode test_restful.py
 """
 import base64
+import configparser
 import datetime
-import errno
 import os
+import re
 import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -40,6 +42,62 @@ from pathlib import Path
 import dbus
 from cryptography.hazmat.primitives import serialization
 
+import keylime.cmd.convert_config as convert
+
+env = os.environ.copy()
+
+# The whole setup of the temporary directory and configurations must happen
+# before loading 'config', otherwise the environment variables will not be set
+# on 'config' load time, making it to not find the files and raising exceptions.
+
+remove_temp_dir = False
+temp_dir = env.get("KEYLIME_TEMP_DIR")
+if not temp_dir:
+    # If not defined, create a new temporary directory
+    temp_dir = tempfile.mkdtemp()
+    remove_temp_dir = True
+
+# Custom imports
+PACKAGE_ROOT = Path(__file__).parents[1]
+KEYLIME_SRC = f"{PACKAGE_ROOT}/keylime"
+sys.path.append(KEYLIME_SRC)
+
+COMPONENTS = ["agent", "verifier", "tenant", "registrar", "ca", "logging"]
+
+# Create keylime dir
+if "KEYLIME_DIR" not in env:
+    keylime_dir = os.path.join(temp_dir, "keylime_dir")
+    os.mkdir(keylime_dir)
+    os.environ["KEYLIME_DIR"] = keylime_dir
+else:
+    keylime_dir = env.get("KEYLIME_DIR")
+
+if "KEYLIME_CONF_DIR" not in env:
+    # Create config dir
+    conf_dir = os.path.join(temp_dir, "conf")
+    os.mkdir(conf_dir)
+
+    # Generate configuration files
+    old_config = configparser.RawConfigParser()
+    templates_dir = os.path.join(PACKAGE_ROOT, "templates")
+    conf = convert.process_versions(COMPONENTS, templates_dir, old_config)
+
+    # Override configuration values
+    conf["agent"]["uuid"] = "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"
+    conf["tenant"]["require_ek_cert"] = "False"
+
+    # Output files
+    convert.output(COMPONENTS, conf, templates_dir, conf_dir)
+
+    # Override configuration files using environment variables
+    os.environ["KEYLIME_AGENT_CONFIG"] = os.path.join(conf_dir, "agent.conf")
+    os.environ["KEYLIME_VERIFIER_CONFIG"] = os.path.join(conf_dir, "verifier.conf")
+    os.environ["KEYLIME_REGISTRAR_CONFIG"] = os.path.join(conf_dir, "registrar.conf")
+    os.environ["KEYLIME_TENANT_CONFIG"] = os.path.join(conf_dir, "tenant.conf")
+    os.environ["KEYLIME_CA_CONFIG"] = os.path.join(conf_dir, "ca.conf")
+    os.environ["KEYLIME_LOGGING_CONFIG"] = os.path.join(conf_dir, "logging.conf")
+
+# pylint: disable=wrong-import-position
 from keylime import (
     api_version,
     cloud_verifier_common,
@@ -65,16 +123,6 @@ if "COVERAGE_FILE" in os.environ:
         FORK_ARGS += ["--rcfile=" + os.environ["COVERAGE_DIR"] + "/.coveragerc"]
 else:
     FORK_ARGS = ["python3"]
-
-# Custom imports
-PACKAGE_ROOT = Path(__file__).parents[1]
-KEYLIME_DIR = f"{PACKAGE_ROOT}/keylime"
-sys.path.append(KEYLIME_DIR)
-
-# Custom imports
-# PACKAGE_ROOT = Path(__file__).parents[1]
-# CODE_ROOT = (f"{PACKAGE_ROOT}/keylime/")
-# sys.path.insert(0, CODE_ROOT)
 
 # Will be used to communicate with the TPM
 tpm_instance = None
@@ -109,20 +157,9 @@ keyblob = None
 ek_tpm = None
 aik_tpm = None
 
-# Like os.remove, but ignore file DNE exceptions
-def fileRemove(path):
-    try:
-        os.remove(path)
-    except OSError as e:
-        # Ignore if file does not exist
-        if e.errno != errno.ENOENT:
-            raise
-
-
 # Boring setup stuff
 def setUpModule():
     try:
-        env = os.environ.copy()
         env["PATH"] = env["PATH"] + ":/usr/local/bin"
         # Run init_tpm_server and tpm_serverd (start fresh)
         with subprocess.Popen(["init_tpm_server"], shell=False, env=env) as its:
@@ -150,14 +187,8 @@ def setUpModule():
     except Exception:
         print("Non systemd agent detected, no tpm2-abrmd restart required.")
 
-    try:
-        # Start with a clean slate for this test
-        fileRemove(config.WORK_DIR + "/tpmdata.yaml")
-        fileRemove(config.WORK_DIR + "/cv_data.sqlite")
-        fileRemove(config.WORK_DIR + "/reg_data.sqlite")
-        shutil.rmtree(config.WORK_DIR + "/cv_ca", True)
-    except Exception:
-        print("WARNING: Cleanup of TPM files failed!")
+    global script_env
+    script_env = os.environ.copy()
 
     # CV must be run first to create CA and certs!
     launch_cloudverifier()
@@ -193,6 +224,9 @@ def tearDownModule():
 
     # Run tpm2_clear to allow other processes to use the TPM
     subprocess.run("tpm2_clear", stdout=subprocess.PIPE, check=False)
+
+    if remove_temp_dir:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def launch_cloudverifier():
@@ -261,11 +295,66 @@ def launch_cloudagent(agent="python"):
     if agent == "python":
         agent_path = "keylime_agent"
     elif agent == "rust":
-        agent_path = f"{PACKAGE_ROOT}/../rust-keylime/target/debug/keylime_agent"
+        agent_path = script_env.get("KEYLIME_RUST_AGENT")
+        agent_config = script_env.get("KEYLIME_RUST_CONF")
+
+        if not agent_config:
+            if os.path.exists("../../rust-keylime/keylime-agent.conf"):
+                conf_path = os.path.abspath("../../rust-keylime/keylime-agent.conf")
+                sys.stdout.write(f"\n'KEYLIME_RUST_CONF' not set, using copy of {conf_path}")
+
+                # Replace uuid and tpm_ownerpassword options to make it work
+                # with the rest of the test
+                s = ""
+                with open(conf_path, "r", encoding="utf-8") as f:
+                    s = f.read()
+
+                s = re.sub(r"^uuid =.*$", 'uuid = "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"', s, flags=re.M)
+                s = re.sub(r"^tpm_ownerpassword =.*$", 'tpm_ownerpassword = "keylime"', s, flags=re.M)
+
+                agent_config = os.path.join(temp_dir, "conf/rust-agent.conf")
+                with open(agent_config, "w", encoding="utf-8") as f:
+                    f.write(s)
+
+            else:
+                sys.stdout.write(
+                    "\nPath to Rust agent config not set in env var 'KEYLIME_RUST_CONF'. Set it or try running run_tests.sh"
+                )
+                return False
+
+        if not agent_path:
+            if os.path.exists("../../rust-keylime/target/debug/keylime_agent"):
+                agent_path = os.path.abspath("../../rust-keylime/target/debug/keylime_agent")
+                sys.stdout.write(f"\n'KEYLIME_RUST_AGENT' not set, using {agent_path}")
+            else:
+                sys.stdout.write(
+                    "\nPath to Rust agent binary not set in env var 'KEYLIME_RUST_AGENT'. Set it or try running run_tests.sh"
+                )
+                return False
+
         script_env["RUST_LOG"] = "keylime_agent=debug"
+        script_env["KEYLIME_AGENT_CONFIG"] = agent_config
     else:
         agent_path = "echo"
     if agent_process is None:
+
+        # In case the run_as option is set, change files ownership to allow
+        # dropping privileges
+        run_as = config.get("agent", "run_as").strip('" ')
+        if run_as:
+            sys.stdout.write(f"\nrun_as option is set, changing owner of {keylime_dir} to {run_as}")
+            params = run_as.split(":")
+            if len(params) != 2:
+                raise Exception("run_as option in agent.conf is in wrong format. Expected 'user:group'")
+            user = params[0].strip()
+            group = params[1].strip()
+
+            # Recursively change ownership
+            for dirpath, _, filenames in os.walk(temp_dir):
+                shutil.chown(dirpath, user=user, group=group)
+                for filename in filenames:
+                    shutil.chown(os.path.join(dirpath, filename), user=user, group=group)
+
         agent_process = subprocess.Popen(  # pylint: disable=subprocess-popen-preexec-fn,consider-using-with
             agent_path,
             shell=False,

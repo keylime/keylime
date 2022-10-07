@@ -8,7 +8,7 @@
 alias python='/usr/bin/python3'
 
 # Find Keylime directory. It's one directory above the location of this script
-KEYLIME_DIR=$(realpath "$(dirname "$(readlink -f "$0")")/../")
+KEYLIME_SRC=$(realpath "$(dirname "$(readlink -f "$0")")/../")
 
 # Get list of tests in the test directory
 TEST_LIST=`ls | grep "^test_.*\.py$"`
@@ -88,7 +88,7 @@ esac
 
 # Permissions-related sanity checking
 if [[ "$USER_MODE" -eq "0" && $EUID -ne 0 ]]; then
-   echo "This script must be run as root in order to call apt-get and install python dependencies.  Use -u for user mode." 1>&2
+   echo "This script must be run as root in order to install dependencies.  Use -u for user mode." 1>&2
    exit 1
 fi
 
@@ -99,8 +99,8 @@ fi
 
 
 # Keylime directory validity check
-if [[ ! -d "$KEYLIME_DIR/test" || ! -d "$KEYLIME_DIR/keylime" ]] ; then
-    echo "ERROR: Invalid keylime directory at $KEYLIME_DIR"
+if [[ ! -d "$KEYLIME_SRC/test" || ! -d "$KEYLIME_SRC/keylime" ]] ; then
+    echo "ERROR: Invalid keylime directory at $KEYLIME_SRC"
     exit 1
 fi
 
@@ -109,18 +109,30 @@ fi
 if [ $PACKAGE_MGR = "dnf" ]; then
     PYTHON_PREIN="python3 openssl"
     PYTHON_DEPS="python3-pip python3-dbus"
+    RUST_DEPS="cargo rust openssl-devel libarchive-devel tpm2-tss-devel clang-devel gcc"
+    # Drop default features no not require zeromq nor support legacy revocation actions
+    RUST_PARAMS="--no-default-features"
 # RHEL / CentOS etc
 elif [ $PACKAGE_MGR = "yum" ]; then
     PYTHON_PREIN="epel-release python36 openssl"
     PYTHON_DEPS="python36-pip python36-dbus"
+    RUST_DEPS="cargo rust openssl-devel libarchive-devel tpm2-tss-devel clang-devel gcc"
+    # Drop default features no not require zeromq nor support legacy revocation actions
+    RUST_PARAMS="--no-default-features"
 # Ubuntu / Debian
 elif [ $PACKAGE_MGR = "apt-get" ]; then
     PYTHON_PREIN="python3 openssl"
     PYTHON_DEPS="python3-pip python3-dbus"
+    RUST_DEPS="cargo rustc librust-openssl-dev libarchive-dev libtss2-dev clang libclang-dev gcc"
+    # Drop default features no not require zeromq nor support legacy revocation actions
+    RUST_PARAMS="--no-default-features"
 # SUSE
 elif [ $PACKAGE_MGR = "zypper" ]; then
     PYTHON_PREIN="python3 openssl"
     PYTHON_DEPS="python3-pip python3-dbus"
+    RUST_DEPS="cargo rust openssl-devel libarchive-devel tpm2-0-tss-devel clang-devel gcc"
+    # Drop default features no not require zeromq nor support legacy revocation actions
+    RUST_PARAMS="--no-default-features"
 else
     echo "No recognized package manager found on this system!" 1>&2
     exit 1
@@ -138,30 +150,67 @@ echo "==========================================================================
 $PACKAGE_MGR install -y $PYTHON_PREIN
 $PACKAGE_MGR install -y $PYTHON_DEPS
 
+echo
+echo "=================================================================================="
+echo $'\t\t\tCreate and activate virtual environment'
+echo "=================================================================================="
+if [[ ! -d /tmp/keylime_test ]]; then
+    python3 -m venv --system-site-packages /tmp/keylime_test
+fi
+
+source /tmp/keylime_test/bin/activate
+
+pip install --upgrade pip
+
+# Deactivate virtual environment on exit
+trap deactivate EXIT
+
 # Install test dependencies
 echo
 echo "=================================================================================="
 echo $'\t\t\tInstalling test requirements'
 echo "=================================================================================="
-pip3 install $UMODE_OPT -r $KEYLIME_DIR/test/test-requirements.txt
-if [ "$RUST_TEST" == 1 ]
-then
-    if [[ ! -d "$KEYLIME_DIR/../rust-keylime" ]]; then
-        git clone https://github.com/keylime/rust-keylime.git $KEYLIME_DIR/../rust-keylime
-    fi
-    pushd $KEYLIME_DIR/../rust-keylime && make
+pip3 install $UMODE_OPT -r $KEYLIME_SRC/test/test-requirements.txt
+
+KEYLIME_TEMP_DIR=`mktemp -d`
+if [[ ! "$KEYLIME_TEMP_DIR" || ! -d "$KEYLIME_TEMP_DIR" ]]; then
+    echo "Could not create temp dir"
+    exit 1
+fi
+
+export KEYLIME_TEMP_DIR=$KEYLIME_TEMP_DIR
+
+if [ "$RUST_TEST" == 1 ]; then
     if [ "$USER_MODE" == "1" ]; then
-        echo -e "The rust agent cannot be installed as a non-root user, please re-run as root"
+        echo -e "The rust dependencies cannot be installed as a non-root user, please re-run as root"
         exit 1
     else
-        make install
-
-        echo -e "Setting run_as to empty to run as root (due to permission issues accessing CA certificate)"
-        sed -i 's/^run_as =.*$/run_as =/g' /etc/keylime-agent.conf
-
-        echo -e "Setting tpm_ownerpassword as keylime"
-        sed -i 's/^tpm_ownerpassword =.*$/tpm_ownerpassword = keylime/g' /etc/keylime-agent.conf
+        $PACKAGE_MGR install -y $RUST_DEPS
     fi
+
+    if [[ ! -d "$KEYLIME_SRC/../rust-keylime" ]]; then
+        git clone https://github.com/keylime/rust-keylime.git $KEYLIME_SRC/../rust-keylime
+    fi
+
+    pushd $KEYLIME_SRC/../rust-keylime && cargo build $RUST_PARAMS
+
+    export KEYLIME_RUST_AGENT="$(pwd)/target/debug/keylime_agent"
+
+    if [[ ! -f $KEYLIME_RUST_AGENT ]]; then
+        echo -e "Failed to compile rust agent. Check if all dependencies are installed: $RUST_DEPS"
+        exit 1
+    fi
+
+    export KEYLIME_RUST_CONF=$KEYLIME_TEMP_DIR/keylime-agent.conf
+
+    cp keylime-agent.conf $KEYLIME_RUST_CONF
+
+    echo -e "Setting tpm_ownerpassword as keylime"
+    sed -i 's/^tpm_ownerpassword =.*$/tpm_ownerpassword = "keylime"/g' $KEYLIME_RUST_CONF
+
+    echo -e "Setting agent uuid"
+    sed -i 's/^uuid =.*$/uuid = "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"/g' $KEYLIME_RUST_CONF
+
     popd
 fi
 
@@ -170,33 +219,36 @@ echo
 echo "=================================================================================="
 echo $'\t\t\tInstalling Keylime'
 echo "=================================================================================="
-cd $KEYLIME_DIR
-python3 -m pip install . -r requirements.txt
+cd $KEYLIME_SRC
+pip install . -r requirements.txt
 
 echo "=================================================================================="
-echo $'\t\t\tInstalling configuration'
+echo $'\t\t\tGenerating configuration'
 echo "=================================================================================="
-# Copy keylime.conf into place
-if [ ! -f "/etc/keylime.conf" ]; then
-    if [ "$USER_MODE" == "1" ]; then
-        echo -e "keylime.conf cannot be copied as a non-root user, please copy keylime.conf to etc/ and restart script"
-        exit 1
-    else
-        echo -e "Copying keylime.conf into /etc/keylime.conf"
-        cp -n $KEYLIME_DIR/keylime.conf /etc/keylime.conf
-        echo -e "Setting require_ek_cert to False"
-        sed -i 's/require_ek_cert = True/require_ek_cert = False/g' /etc/keylime.conf
-    fi
-fi
-
-mkdir -p /etc/keylime
-python3 $KEYLIME_DIR/scripts/convert_config.py \
-    --input $KEYLIME_DIR/keylime.conf \
-    --out /etc/keylime \
-    --templates $KEYLIME_DIR/scripts/templates
+export KEYLIME_CONF_DIR=$KEYLIME_TEMP_DIR/conf
+mkdir -p $KEYLIME_CONF_DIR
+python3 -m keylime.cmd.convert_config \
+    --defaults \
+    --out  $KEYLIME_CONF_DIR\
+    --templates $KEYLIME_SRC/templates
 
 echo -e "Setting require_ek_cert to False"
-sed -i 's/require_ek_cert = True/require_ek_cert = False/g' /etc/keylime/tenant.conf
+sed -i 's/require_ek_cert = True/require_ek_cert = False/g' $KEYLIME_CONF_DIR/tenant.conf
+
+echo -e "Setting agent uuid"
+sed -i 's/^uuid =.*$/uuid = d432fbb3-d2f1-4a97-9ef7-75bd81c00000/g' $KEYLIME_CONF_DIR/agent.conf
+
+echo -e "Setting tpm_ownerpassword as keylime"
+sed -i 's/^tpm_ownerpassword =.*$/tpm_ownerpassword = "keylime"/g' $KEYLIME_CONF_DIR/agent.conf
+
+export KEYLIME_AGENT_CONFIG=$KEYLIME_CONF_DIR/agent.conf
+export KEYLIME_VERIFIER_CONFIG=$KEYLIME_CONF_DIR/verifier.conf
+export KEYLIME_REGISTRAR_CONFIG=$KEYLIME_CONF_DIR/registrar.conf
+export KEYLIME_TENANT_CONFIG=$KEYLIME_CONF_DIR/tenant.conf
+export KEYLIME_CA_CONFIG=$KEYLIME_CONF_DIR/ca.conf
+export KEYLIME_LOGGING_CONFIG=$KEYLIME_CONF_DIR/logging.conf
+
+export KEYLIME_DIR=$KEYLIME_TEMP_DIR/keylime_dir
 
 echo "=================================================================================="
 echo $'\t\t\tRunning Unit Tests'
@@ -204,14 +256,14 @@ echo "==========================================================================
 # Run separate unit tests
 python3 -m unittest discover -s keylime -p '*_test.py' -v
 if [ $? -ne 0 ]; then
-	echo "Error: Unit tests failed"
-	exit 1
+    echo "Error: Unit tests failed"
+    exit 1
 fi
 
 # Run the tests as necessary
 if [[ "$COVERAGE" -eq "1" ]] ; then
     # Coverage config file
-    echo -e "[run]\nsource = $KEYLIME_DIR/keylime\nomit = /usr/local/lib/,\"*/test/*\",$KEYLIME_DIR/keylime/test.py" > $COVERAGE_DIR/.coveragerc
+    echo -e "[run]\nsource = $KEYLIME_SRC/keylime\nomit = /usr/local/lib/,\"*/test/*\",$KEYLIME_SRC/keylime/test.py" > $COVERAGE_DIR/.coveragerc
 
     echo
     echo "=================================================================================="
@@ -230,6 +282,7 @@ if [[ "$COVERAGE" -eq "1" ]] ; then
     coverage report
     coverage html
     popd 1>/dev/null
+    result=0
 else
     # Do generic testing with no coverage
     echo
@@ -237,5 +290,23 @@ else
     echo $'\t\t\tBegin Testing Phase'
     echo "=================================================================================="
     green -vv
-    exit $?
+    result=$?
 fi
+
+echo "=================================================================================="
+echo $'\t\t\tCleanup'
+echo "=================================================================================="
+# The generated files can be kept by setting the environment variable KEEP_TMP_FILES=1
+if [[ ! "$KEEP_TMP_FILES" -eq "1" ]]; then
+    if [[ $(findmnt -M "$KEYLIME_TEMP_DIR/keylime_dir/secure") ]]; then
+        echo -e "Umount $KEYLIME_TEMP_DIR/keylime_dir/secure"
+        umount "$KEYLIME_TEMP_DIR/keylime_dir/secure"
+    fi
+
+    echo -e "Removing $KEYLIME_TEMP_DIR"
+    rm -rf $KEYLIME_TEMP_DIR
+else
+    echo -e "Not removing $KEYLIME_TEMP_DIR as KEEP_TMP_FILES == 1"
+fi
+
+exit $result
