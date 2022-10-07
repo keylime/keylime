@@ -89,11 +89,11 @@ def adjust(config, mapping):  # pylint: disable=unused-argument
                     f"'{value}' as python type, trying manual splitting"
                 )
 
-                # Eliminate leading and trailing brackets if present
-                v = value.strip("[]").split(",")
+                # Eliminate surrounding spaces and brackets, if present
+                v = value.strip("[ ]").split(",")
 
-                # Eliminate surrounding blank space from each element
-                map(lambda x: x.strip(), v)
+                # Eliminate surrounding quotes and blank spaces from each element
+                v = map(lambda x: x.strip(' "'), v)
 
                 # Remove empty strings
                 v = list(filter(lambda x: (x != ""), v))
