@@ -126,6 +126,7 @@ class TestConfig(unittest.TestCase):
     def test_env_overrides_all(self):
         """Test that using an env var to set config ignore other files"""
 
+        env_bkp = os.environ["KEYLIME_AGENT_CONFIG"]
         os.environ["KEYLIME_AGENT_CONFIG"] = os.path.join(CONFIG_DIR, "agent.conf")
 
         # Reload the configuration to use the set environment variable on setup
@@ -137,7 +138,7 @@ class TestConfig(unittest.TestCase):
         self.assertRaises(Exception, c.get, "agent", "attribute_3")
 
         # Unset the variable to not affect other tests
-        os.environ["KEYLIME_AGENT_CONFIG"] = ""
+        os.environ["KEYLIME_AGENT_CONFIG"] = env_bkp
 
     def test_get(self) -> None:
         """Sanity test for config.get()"""
