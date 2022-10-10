@@ -12,8 +12,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
 
 from keylime import api_version as keylime_api_version
-from keylime import cert_utils, crypto, json, keylime_logging, web_util
+from keylime import cert_utils, config, crypto, json, keylime_logging, web_util
 from keylime.common import validators
+from keylime.da import record
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.registrar_db import RegistrarMain
 from keylime.tpm import tpm2_objects
@@ -26,6 +27,14 @@ try:
     engine = DBEngineManager().make_engine("registrar")
 except SQLAlchemyError as err:
     logger.error("Error creating SQL engine: %s", err)
+    sys.exit(1)
+
+try:
+    rmc = record.get_record_mgt_class(config.get("registrar", "durable_attestation_import", fallback=""))
+    if rmc:
+        rmc = rmc("registrar")
+except record.RecordManagementException as rme:
+    logger.error("Error initializing Durable Attestation: %s", rme)
     sys.exit(1)
 
 
@@ -360,6 +369,14 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error: %s", e)
                 raise
+
+            if rmc:
+                try:
+                    rmc.record_create(d, None, None)
+
+                except Exception as e:
+                    logger.error("Durable Attestation Error: %s", e)
+                    raise
 
             response = {
                 "blob": blob,

@@ -4,7 +4,7 @@ from keylime import config, keylime_logging, measured_boot
 from keylime.ima import file_signatures, ima
 from keylime.tpm.tpm_abstract import TPM_Utilities
 
-logger = keylime_logging.init_logging("cli_opts")
+logger = keylime_logging.init_logging("cli.policies")
 
 
 class UserError(Exception):
