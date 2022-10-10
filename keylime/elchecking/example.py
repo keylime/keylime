@@ -240,6 +240,17 @@ class Example(policies.Policy):
         vd_shim_test = tests.OnceTest(tests.AcceptAll())
         vd_authority.set("50ab5d60-46e0-0043-abb6-3dd810dd8b23", "Shim", vd_shim_test)
         vd_authority.set("605dab50-e046-4300-abb6-3dd810dd8b23", "Shim", vd_shim_test)
+        # Because we validate the MokList, we do not check if the kernel should trust those keys.
+        vd_authority.set(
+            "605dab50-e046-4300-abb6-3dd810dd8b23",
+            "MokListTrusted",
+            tests.OnceTest(
+                tests.Or(
+                    tests.FieldTest("Enabled", tests.StringEqual("Yes")),
+                    tests.FieldTest("Enabled", tests.StringEqual("No")),
+                )
+            ),
+        )
 
         # A list of allowed digests for firmware from device driver appears
         # in PCR2, event type EV_EFI_BOOT_SERVICES_DRIVER. Here we will just
@@ -272,6 +283,10 @@ class Example(policies.Policy):
                 tests.And(
                     tests.FieldTest("Event", tests.FieldTest("String", tests.StringEqual("MokListX"))),
                     tests.DigestsTest(digests_strip0x(refstate["mokxdig"])),
+                ),
+                tests.And(
+                    tests.FieldTest("Event", tests.FieldTest("String", tests.StringEqual("MokListTrusted"))),
+                    tests.OnceTest(tests.AcceptAll()),
                 ),
             ),
         )
