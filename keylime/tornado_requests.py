@@ -1,4 +1,5 @@
 import ssl
+
 from tornado import httpclient
 
 from keylime import json
