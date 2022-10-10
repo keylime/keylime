@@ -39,7 +39,6 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
     except httpclient.HTTPError as e:
         if e.response is None:
             return TornadoResponse(500, str(e))
-
         return TornadoResponse(e.response.code, e.response.body)
     except ConnectionError as e:
         return TornadoResponse(599, f"Connection error: {str(e)}")
@@ -47,8 +46,10 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
         return TornadoResponse(599, f"SSL connection error: {str(e)}")
     except OSError as e:
         return TornadoResponse(599, f"TCP/IP Connection error: {str(e)}")
+    except Exception as e:
+        return TornadoResponse(599, f"General communication failure: {str(e)}")
     if response is None:
-        return None
+        return TornadoResponse(599, "Unspecified failure in tornado (empty http response)")
     return TornadoResponse(response.code, response.body)
 
 
