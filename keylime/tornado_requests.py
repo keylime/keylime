@@ -1,5 +1,4 @@
 import ssl
-import asyncio
 from tornado import httpclient
 
 from keylime import json
@@ -49,7 +48,7 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
     except Exception as e:
         return TornadoResponse(599, f"General communication failure: {str(e)}")
     if response is None:
-        return TornadoResponse(599, f"Unspecified failure in tornado (empty http response)")
+        return TornadoResponse(599, "Unspecified failure in tornado (empty http response)")
     return TornadoResponse(response.code, response.body)
 
 
