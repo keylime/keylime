@@ -176,7 +176,7 @@ class Dispatcher(Test):
         self.key_names = key_names
         self.tests = {}
 
-    def set(self, key_vals: typing.Tuple[str, ...], test: Test) -> None:
+    def set(self, key_vals: typing.Tuple[typing.Union[int, str], ...], test: Test) -> None:
         """Set the test for the given value tuple"""
         if len(key_vals) != len(self.key_names):
             raise Exception(f"{key_vals!a} does not match length of {self.key_names}")
