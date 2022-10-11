@@ -1,7 +1,10 @@
+import base64
+import json
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 from keylime import config, keylime_logging, measured_boot
+from keylime.cmd import convert_runtime_policy
 from keylime.ima import file_signatures, ima
 from keylime.tpm.tpm_abstract import TPM_Utilities
 
@@ -10,17 +13,19 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import TypedDict
 
-# Dictionary specification for parameter to process_allowlist()
+# Dictionary specification for parameter to process_policy()
 class ArgsType(TypedDict):
     tpm_policy: Optional[str]
     mask: str
     ima_sign_verification_keys: List[str]
     allowlist: str
     allowlist_name: str
-    allowlist_sig: Optional[str]
-    allowlist_sig_key: Optional[str]
-    allowlist_checksum: str
     ima_exclude: str
+    runtime_policy: str
+    runtime_policy_name: str
+    runtime_policy_sig: Optional[str]
+    runtime_policy_sig_key: Optional[str]
+    runtime_policy_checksum: str
     mb_refstate: Optional[str]
 
 
@@ -45,12 +50,14 @@ def enforce_pcrs(tpm_policy: Dict[str, Any], protected_pcrs: List[int], pcr_use:
             sys.exit(1)
 
 
-def process_allowlist(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, Optional[str], Dict[str, Any]]:
+def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, Optional[str], str, str, str]:
     tpm_policy_str = "{}"
-    ima_policy_name = ""
+    runtime_policy_name = ""
     mb_refstate = None
-    ima_sign_verification_keys: Optional[str] = None
-    allowlist = {}
+    ima_sign_verification_keys: Optional[str] = ""
+    runtime_policy = ""
+    runtime_policy_key = ""
+    runtime_policy_sig = ""
 
     # Set up PCR values
     if "tpm_policy" in args and args["tpm_policy"] is not None:
@@ -62,6 +69,11 @@ def process_allowlist(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], st
     if len(args["ima_sign_verification_keys"]) > 0:
         # Auto-enable IMA (or-bit mask)
         tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
+
+        logger.warning(
+            "WARNING: Verification key support in the Keylime tenant is deprecated. Provide "
+            "verification keys as part of a runtime policy instead."
+        )
 
         # Add all IMA file signing verification keys to a keyring
         tenant_keyring = file_signatures.ImaKeyring()
@@ -75,10 +87,41 @@ def process_allowlist(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], st
             tenant_keyring.add_pubkey(pubkey, keyidv2)
         ima_sign_verification_keys = tenant_keyring.to_string()
 
-    # Read command-line path string allowlist
-    al_data: Dict[str, List[str]] = {"excllist": []}
-
+    # Read command-line path string legacy policy and warn about deprecation.
     if "allowlist" in args and args["allowlist"] is not None:
+        logger.warning(
+            "WARNING: --allowlist is deprecated."
+            "Keylime has implemented support for a unified policy format, and will no longer accept separate allow/exclude lists in the near future."
+            "A conversion script to upgrade legacy allow/exclude lists to the new format is available under keylime/cmd/convert_runtime_policy.py."
+        )
+
+        enforce_pcrs(tpm_policy, [config.IMA_PCR], "IMA")
+
+        # Auto-enable IMA (or-bit mask)
+        tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
+
+        # Pass exclusion list to conversion script, if provided
+        excl_path = None
+        if "ima_exclude" in args and args["ima_exclude"] is not None:
+            excl_path = args["ima_exclude"]
+
+        # Convert legacy allow/exclude lists to IMA policy and encode as base64
+        runtime_policy_dict = convert_runtime_policy.convert_legacy_allowlist(args["allowlist"])
+        runtime_policy_raw = json.dumps(
+            convert_runtime_policy.update_runtime_policy(runtime_policy_dict, excl_path)
+        ).encode()
+        runtime_policy = base64.b64encode(runtime_policy_raw).decode()
+
+    # Warn about `--exclude` deprecation regardless of other args
+    if "ima_exclude" in args and args["ima_exclude"] is not None:
+        logger.warning(
+            "WARNING: --exclude is deprecated."
+            "Keylime has implemented support for a unified policy format, and will no longer accept separate allow/exclude lists in the near future."
+            "A conversion script to upgrade legacy allow/exclude lists to the new format is available under keylime/cmd/convert_runtime_policy.py."
+        )
+
+    # Read command-line path string IMA policy
+    if "runtime_policy" in args and args["runtime_policy"] is not None:
 
         enforce_pcrs(tpm_policy, [config.IMA_PCR], "IMA")
 
@@ -86,31 +129,27 @@ def process_allowlist(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], st
         tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
 
         try:
-            al_data = ima.read_allowlist(
-                args["allowlist"], args["allowlist_checksum"], args["allowlist_sig"], args["allowlist_sig_key"]
+            runtime_policy_bytes, runtime_policy_key_bytes, runtime_policy_sig_bytes = ima.read_runtime_policy(
+                args["runtime_policy"],
+                args["runtime_policy_checksum"],
+                args["runtime_policy_sig"],
+                args["runtime_policy_sig_key"],
             )
+            runtime_policy = base64.b64encode(runtime_policy_bytes).decode()
+            runtime_policy_key = base64.b64encode(runtime_policy_key_bytes).decode()
+            runtime_policy_sig = base64.b64encode(runtime_policy_sig_bytes).decode()
         except Exception as ima_e:
             raise UserError(str(ima_e)) from ima_e
 
-    # Read command-line path string IMA exclude list
-    excl_data = []
-    if "ima_exclude" in args and args["ima_exclude"] is not None:
-        if isinstance(args["ima_exclude"], str):
-            excl_data = ima.read_excllist(args["ima_exclude"])
-        elif isinstance(args["ima_exclude"], list):
-            excl_data = args["ima_exclude"]
-        else:
-            raise UserError("Invalid exclude list provided")
-
-    # Set up IMA
-    if TPM_Utilities.check_mask(tpm_policy["mask"], config.IMA_PCR):
-        # Process allowlists
-        al_data["excllist"] = excl_data
-        allowlist = al_data
-
     # Store allowlist name
     if "allowlist_name" in args and args["allowlist_name"] is not None:
-        ima_policy_name = args["allowlist_name"]
+        runtime_policy_name = args["allowlist_name"]
+        # Auto-enable IMA (or-bit mask)
+        tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
+
+    # Store IMA policy name
+    if "runtime_policy_name" in args and args["runtime_policy_name"] is not None:
+        runtime_policy_name = args["runtime_policy_name"]
         # Auto-enable IMA (or-bit mask)
         tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
 
@@ -138,4 +177,12 @@ def process_allowlist(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], st
         # Process measured boot reference state
         mb_refstate = mb_refstate_data
 
-    return tpm_policy, mb_refstate, ima_policy_name, ima_sign_verification_keys, allowlist
+    return (
+        tpm_policy,
+        mb_refstate,
+        runtime_policy_name,
+        ima_sign_verification_keys,
+        runtime_policy,
+        runtime_policy_key,
+        runtime_policy_sig,
+    )

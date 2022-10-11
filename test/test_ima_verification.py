@@ -3,8 +3,8 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2020 IBM Corporation
 """
 
-import base64
 import codecs
+import copy
 import hashlib
 import os
 import unittest
@@ -15,11 +15,11 @@ from keylime.ima import file_signatures, ima
 
 # BEGIN TEST DATA
 
-ALLOWLIST = {
+RUNTIME_POLICY_TEST = {
     "meta": {
-        "version": 6,
+        "version": 1,
     },
-    "hashes": {
+    "digests": {
         "boot_aggregate": ["e4cb9f5709c88376b5fc3743cd88e76b9aae8f3d992d845678de5215edb31216"],
         "/lib/modules/5.4.48-openpower1/kernel/drivers/usb/common/usb-common.ko": [
             "f1125b940480d20ad841d26d5ea253edc0704b5ec1548c891edf212cb1a9365e"
@@ -31,31 +31,31 @@ ALLOWLIST = {
         "/usr/bin/zmore": ["b8ae0b8dd04a5935cd8165aa2260cd11b658bd71629bdb52256a675a1f73907b"],
         "/usr/bin/zless": ["233ad3a8e77c63a7d9a56063ec2cad1eafa58850"],
     },
+    "excludes": [],
     "keyrings": {
         ".ima": ["a7d52aaa18c23d2d9bb2abb4308c0eeee67387a42259f4a6b1a42257065f3d5a"],
     },
-    "ima": {"dm_policy": None},
-}
-
-ALLOWLIST_EMPTY = {
-    "meta": {
-        "version": 1,
-    },
-    "hashes": {},
+    "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1", "dm_policy": None},
+    "ima-buf": {},
+    "verification-keys": "",
 }
 
 # Allowlist with different hashes
-ALLOWLIST_WRONG = {
+RUNTIME_POLICY_WRONG = {
     "meta": {
         "version": 1,
     },
-    "hashes": {
+    "digests": {
         "/usr/bin/dd": ["bad05d13792292e202dbf69a6f1b07bc8a02f01424db8489ba7bb7d43c0290ef"],
         "/usr/bin/zmore": ["bad00b8dd04a5935cd8165aa2260cd11b658bd71629bdb52256a675a1f73907b"],
     },
+    "excludes": [],
+    "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1", "dm_policy": None},
+    "ima-buf": {},
+    "verification-keys": "",
 }
 
-EXCLUDELIST = [
+EXCLUDES = [
     "boot_aggregate",
     "/lib/modules/5.4.48-openpower1/kernel/drivers/usb/common/usb-common.ko",
     "/lib/modules/5.4.48-openpower1/kernel/drivers/gpu/drm/drm_panel_orientation_quirks.ko",
@@ -63,6 +63,12 @@ EXCLUDELIST = [
     "/usr/bin/zmore",
     "/usr/bin/zless",
 ]
+
+RUNTIME_POLICY_WITH_EXCLUDES = copy.deepcopy(RUNTIME_POLICY_TEST)
+RUNTIME_POLICY_WITH_EXCLUDES["excludes"] = EXCLUDES
+
+RUNTIME_POLICY_WRONG_WITH_EXCLUDES = copy.deepcopy(RUNTIME_POLICY_WRONG)
+RUNTIME_POLICY_WRONG_WITH_EXCLUDES["excludes"] = EXCLUDES
 
 MEASUREMENTS = (
     "10 0c8a706a75a5689c1e168f0a573a3cbec33061b5 ima-sig sha256:e4cb9f5709c88376b5fc3743cd88e76b9aae8f3d992d845678de5215edb31216 boot_aggregate \n"
@@ -90,20 +96,16 @@ class TestIMAVerification(unittest.TestCase):
     def test_measurment_verification(self):
         """Test IMA measurement list verification"""
         lines = MEASUREMENTS.splitlines()
-        lists_map = ima.process_ima_policy(ALLOWLIST, [])
-        lists_map_empty = ima.process_ima_policy(ALLOWLIST_EMPTY, [])
 
         _, failure = ima.process_measurement_list(AgentAttestState("1"), lines)
         self.assertTrue(not failure, "Validation should always work when no allowlist and no keyring is specified")
 
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines, lists_map)
-        self.assertTrue(not failure)
         # test with list with JSON
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines, json.dumps(lists_map))
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines, RUNTIME_POLICY_TEST)
         self.assertTrue(not failure)
 
         # No files are in the allowlist -> this should fail
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines, lists_map_empty)
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines, ima.EMPTY_RUNTIME_POLICY)
         self.assertTrue(failure)
 
     def test_signature_verification(self):
@@ -141,12 +143,11 @@ class TestIMAVerification(unittest.TestCase):
 
     def test_ima_buf_verification(self):
         """The verification of ima-buf entries supporting keys loaded onto keyrings"""
-        list_map = ima.process_ima_policy(ALLOWLIST, [])
         ima_keyrings = file_signatures.ImaKeyrings()
 
         self.assertTrue(
             ima.process_measurement_list(
-                AgentAttestState("1"), KEYRINGS.splitlines(), json.dumps(list_map), ima_keyrings=ima_keyrings
+                AgentAttestState("1"), KEYRINGS.splitlines(), RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings
             )
             is not None
         )
@@ -176,17 +177,11 @@ class TestIMAVerification(unittest.TestCase):
     def test_mixed_verfication(self):
         """Test verification using allowlist and keys"""
 
-        lists_map = ima.process_ima_policy(ALLOWLIST, [])
-        lists_map_wrong = ima.process_ima_policy(ALLOWLIST_WRONG, [])
-        lists_map_empty = ima.process_ima_policy(ALLOWLIST_EMPTY, [])
-        lists_map_exclude = ima.process_ima_policy(ALLOWLIST, EXCLUDELIST)
-        lists_map_exclude_wrong = ima.process_ima_policy(ALLOWLIST_WRONG, EXCLUDELIST)
-
         ima_keyrings = file_signatures.ImaKeyrings()
         empty_keyring = file_signatures.ImaKeyring()
 
         # every entry is covered by the allowlist and there's no keyring -> this should pass
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), COMBINED.splitlines(), json.dumps(lists_map))
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), COMBINED.splitlines(), RUNTIME_POLICY_TEST)
         self.assertTrue(not failure)
 
         curdir = os.path.dirname(os.path.abspath(__file__))
@@ -213,45 +208,43 @@ class TestIMAVerification(unittest.TestCase):
 
         # all entries are either covered by allow list or by signature verification -> this should pass
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), COMBINED.splitlines(), json.dumps(lists_map), ima_keyrings=ima_keyrings
+            AgentAttestState("1"), COMBINED.splitlines(), RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings
         )
         self.assertTrue(not failure)
 
         # the signature is valid but the hash in the allowlist is wrong -> this should fail
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), SIGNATURES.splitlines(), json.dumps(lists_map_wrong), ima_keyrings=ima_keyrings
+            AgentAttestState("1"), SIGNATURES.splitlines(), RUNTIME_POLICY_WRONG, ima_keyrings=ima_keyrings
         )
         self.assertTrue(failure)
 
         # the signature is valid and the file is not in the allowlist -> this should pass
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), SIGNATURES.splitlines(), json.dumps(lists_map_empty), ima_keyrings=ima_keyrings
+            AgentAttestState("1"), SIGNATURES.splitlines(), ima.EMPTY_RUNTIME_POLICY, ima_keyrings=ima_keyrings
         )
         self.assertTrue(not failure)
 
         # the signature is invalid but the correct hash is in the allowlist -> this should fail
         ima_keyrings.set_tenant_keyring(empty_keyring)
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), SIGNATURES.splitlines(), json.dumps(lists_map), ima_keyrings=ima_keyrings
+            AgentAttestState("1"), SIGNATURES.splitlines(), RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings
         )
         self.assertTrue(failure)
 
         # the file has no signature but the hash is correct -> this should pass
-        _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), MEASUREMENTS.splitlines(), json.dumps(lists_map)
-        )
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), MEASUREMENTS.splitlines(), RUNTIME_POLICY_TEST)
         self.assertTrue(not failure)
 
         # All files are in the exclude list but hashes are invalid -> this should pass
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), MEASUREMENTS.splitlines(), json.dumps(lists_map_exclude_wrong)
+            AgentAttestState("1"), MEASUREMENTS.splitlines(), RUNTIME_POLICY_WRONG_WITH_EXCLUDES
         )
         self.assertTrue(not failure)
 
         # All files are in the exclude list and their signatures are invalid -> this should pass
         ima_keyrings.set_tenant_keyring(tenant_keyring)
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), SIGNATURES.splitlines(), json.dumps(lists_map_exclude), ima_keyrings=ima_keyrings
+            AgentAttestState("1"), SIGNATURES.splitlines(), RUNTIME_POLICY_WITH_EXCLUDES, ima_keyrings=ima_keyrings
         )
         self.assertTrue(not failure)
 
@@ -259,7 +252,7 @@ class TestIMAVerification(unittest.TestCase):
         _, failure = ima.process_measurement_list(
             AgentAttestState("1"),
             MEASUREMENTS.splitlines(),
-            json.dumps(lists_map_exclude_wrong),
+            RUNTIME_POLICY_WRONG_WITH_EXCLUDES,
             ima_keyrings=ima_keyrings,
         )
         self.assertTrue(not failure)
@@ -268,112 +261,103 @@ class TestIMAVerification(unittest.TestCase):
         """Test reading and processing of the IMA allow-list"""
 
         curdir = os.path.dirname(os.path.abspath(__file__))
-        allowlist_file = os.path.join(curdir, "data", "ima-allowlist-short.txt")
-        allowlist_sig = os.path.join(curdir, "data", "ima-allowlist-short.sig")
-        allowlist_bad_sig = os.path.join(curdir, "data", "ima-allowlist-bad.sig")
-        allowlist_gpg_key = os.path.join(curdir, "data", "gpg-sig.pub")
-        allowlist_checksum = "6b010e359bbcebafb9b3e5010c302c94d29e249f86ae6293339506041aeebd41"
+        allowlist_file = os.path.join(curdir, "data", "runtime-policy-test.json")
+        allowlist_sig = os.path.join(curdir, "data", "runtime-policy-test.sig")
+        allowlist_bad_sig = os.path.join(curdir, "data", "runtime-policy-bad.sig")
+        allowlist_ecdsa_key = os.path.join(curdir, "data", "ecdsa-sig-key.pub")
+        allowlist_checksum = "64608ceb82d6d6459e8ac5ffd19865d670d1fe99417e10f20446de5d125bc4ab"
         allowlist_bad_checksum = "4c143670836f96535d9e617359b4d87c59e89e633e2773b4d7feae97f561b3dc"
 
         # simple read, no fancy verification
-        al_bundle = ima.read_allowlist(allowlist_file)
-        self.assertIsNotNone(al_bundle, "IMA policy bundle data is present")
-        self.assertIsNotNone(al_bundle.get("ima_policy", None), "AllowList data is present in bundle")
-
-        # unbundle and test output
-        al_data = ima.unbundle_ima_policy(al_bundle, verify=False)
-        self.assertIsNotNone(al_data["meta"], "AllowList metadata is present")
-        self.assertEqual(al_data["meta"]["version"], 5, "AllowList metadata version is correct")
+        runtime_policy, _, _ = ima.read_runtime_policy(allowlist_file)
+        runtime_policy = json.loads(runtime_policy)
+        self.assertIsNotNone(runtime_policy, "Runtime policy data is present")
+        self.assertIsNotNone(runtime_policy["meta"], "Runtime policy metadata is present")
+        self.assertEqual(runtime_policy["meta"]["version"], 1, "Runtime policy metadata version is correct")
         self.assertEqual(
-            al_data["meta"]["generator"],
-            ima.IMA_POLICY_GENERATOR.LegacyAllowList,
-            "AllowList metadata generator is correct",
+            runtime_policy["meta"]["generator"],
+            ima.RUNTIME_POLICY_GENERATOR.CompatibleAllowList,
+            "Runtime policy metadata generator is correct",
         )
-
-        self.assertIsNotNone(al_data["meta"].get("checksum", None), "AllowList checksum is present")
-        self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
-        self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
+        self.assertIsNotNone(runtime_policy["digests"], "Runtime policy digests are present")
+        self.assertEqual(len(runtime_policy["digests"]), 21, "Runtime policy hashes are correct length")
         self.assertEqual(
-            al_data["hashes"]["/boot/grub2/i386-pc/testload.mod"][0],
+            runtime_policy["digests"]["/boot/grub2/i386-pc/testload.mod"][0],
             "68e1d012e3f193dcde955e6ffbbc80e22b0f8778",
-            "AllowList sample hash is correct",
+            "Runtime policy sample hash is correct",
         )
-        self.assertIsNotNone(al_data["keyrings"], "AllowList keyrings are present")
-        self.assertEqual(len(al_data["keyrings"]), 1, "AllowList keyrings are correct length")
+        self.assertIsNotNone(runtime_policy["keyrings"], "Runtime policy keyrings are present")
+        self.assertEqual(len(runtime_policy["keyrings"]), 1, "Runtime policy keyrings are correct length")
         self.assertEqual(
-            al_data["keyrings"][".ima"][0],
+            runtime_policy["keyrings"][".ima"][0],
             "a7d52aaa18c23d2d9bb2abb4308c0eeee67387a42259f4a6b1a42257065f3d5a",
-            "AllowList sample keyring is correct",
+            "Runtime policy sample keyring is correct",
         )
 
         # validate checksum
-        al_bundle = ima.read_allowlist(allowlist_file, allowlist_checksum)
-        self.assertIsNotNone(al_bundle, "IMA policy bundle data is present")
-        self.assertIsNotNone(al_bundle.get("ima_policy", None), "AllowList data is present in bundle")
-        self.assertIsNotNone(al_bundle.get("checksum", None), "AllowList checksum is present in bundle")
-
-        # unbundle and test output
-        al_data = ima.unbundle_ima_policy(al_bundle, verify=False)
-        self.assertEqual(al_data["meta"]["checksum"], allowlist_checksum, "AllowList metadata correct checksum")
-        self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
-        self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
+        runtime_policy, _, _ = ima.read_runtime_policy(allowlist_file, allowlist_checksum)
+        runtime_policy = json.loads(runtime_policy)
+        self.assertIsNotNone(runtime_policy, "Runtime policy data is present")
+        self.assertIsNotNone(runtime_policy["digests"], "Runtime policy hashes are present")
+        self.assertEqual(len(runtime_policy["digests"]), 21, "Runtime policy hashes are correct length")
         self.assertEqual(
-            al_data["hashes"]["/boot/grub2/i386-pc/testload.mod"][0],
+            runtime_policy["digests"]["/boot/grub2/i386-pc/testload.mod"][0],
             "68e1d012e3f193dcde955e6ffbbc80e22b0f8778",
-            "AllowList sample hash is correct",
+            "Runtime policy sample hash is correct",
         )
 
         # test with a bad checksum
         with self.assertRaises(Exception) as bad_checksum_context:
-            ima.read_allowlist(allowlist_file, allowlist_bad_checksum)
-        self.assertIn("Checksum of allowlist does not match", str(bad_checksum_context.exception))
+            ima.read_runtime_policy(allowlist_file, allowlist_bad_checksum)
+        self.assertIn("Checksum of runtime policy does not match", str(bad_checksum_context.exception))
 
-        # validate GPG signature
-        al_bundle = ima.read_allowlist(allowlist_file, None, allowlist_sig, allowlist_gpg_key)
-        self.assertIsNotNone(al_bundle, "IMA policy bundle data is present")
-        self.assertIsNotNone(al_bundle.get("ima_policy", None), "AllowList data is present in bundle")
-        self.assertIsNotNone(al_bundle.get("key", None), "AllowList signing key is present in bundle")
-        self.assertIsNotNone(al_bundle.get("sig", None), "AllowList signature is present in bundle")
-
-        # unbundle and test output
-        al_data = ima.unbundle_ima_policy(al_bundle, verify=True)
-        self.assertIsNotNone(al_data["meta"].get("checksum", None), "AllowList checksum is present")
-        self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
-        self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
+        # validate signature (tenant side)
+        runtime_policy, runtime_policy_key, runtime_policy_sig = ima.read_runtime_policy(
+            allowlist_file, None, allowlist_sig, allowlist_ecdsa_key
+        )
+        runtime_policy = json.loads(runtime_policy)
+        self.assertIsNotNone(runtime_policy, "Runtime policy data is present")
+        self.assertIsNotNone(runtime_policy_key, "Runtime policy signing key is present")
+        self.assertIsNotNone(runtime_policy_sig, "Runtime policy signature is present")
+        self.assertIsNotNone(runtime_policy["digests"], "Runtime policy hashes are present")
+        self.assertEqual(len(runtime_policy["digests"]), 21, "Runtime policy hashes are correct length")
         self.assertEqual(
-            al_data["hashes"]["/boot/grub2/i386-pc/testload.mod"][0],
+            runtime_policy["digests"]["/boot/grub2/i386-pc/testload.mod"][0],
             "68e1d012e3f193dcde955e6ffbbc80e22b0f8778",
-            "AllowList sample hash is correct",
+            "Runtime policy sample hash is correct",
         )
 
-        # test with a bad GPG sig (tenant-side)
+        # test with a bad sig (tenant-side)
         with self.assertRaises(Exception) as bad_sig_context:
-            ima.read_allowlist(allowlist_file, None, allowlist_bad_sig, allowlist_gpg_key)
-        self.assertIn("Allowlist signature verification failed", str(bad_sig_context.exception))
+            ima.read_runtime_policy(allowlist_file, None, allowlist_bad_sig, allowlist_ecdsa_key)
+        self.assertIn("Runtime policy failed detached signature verification!", str(bad_sig_context.exception))
 
-        # test with a bad GPG sig (verifier-side)
+        # validate signature (verifier side)
+        runtime_policy, runtime_policy_key, runtime_policy_sig = ima.read_runtime_policy(
+            allowlist_file, None, allowlist_sig, allowlist_ecdsa_key
+        )
+        ima.verify_runtime_policy(runtime_policy, runtime_policy_key, runtime_policy_sig)
+
+        # test with a bad sig (verifier-side)
         with open(allowlist_bad_sig, "rb") as bad_sig_f:
             bad_sig_raw = bad_sig_f.read()
-        al_bundle["sig"] = base64.b64encode(bad_sig_raw).decode()
-        with self.assertRaises(ima.SignatureValidationError) as bad_sig_context:
-            ima.unbundle_ima_policy(al_bundle, verify=True)
-        self.assertIn("Signature verification for allowlist failed!", str(bad_sig_context.exception.message))
+        with self.assertRaises(ima.ImaValidationError) as bad_sig_context:
+            ima.verify_runtime_policy(runtime_policy, runtime_policy_key, bad_sig_raw)
+        self.assertIn("Runtime policy failed detached signature verification!", bad_sig_context.exception.message)
+        self.assertEqual(bad_sig_context.exception.code, 401)
 
         # validate everything together
-        al_bundle = ima.read_allowlist(allowlist_file, allowlist_checksum, allowlist_sig, allowlist_gpg_key)
-        self.assertIsNotNone(al_bundle, "IMA policy bundle data is present")
-        self.assertIsNotNone(al_bundle.get("ima_policy", None), "AllowList data is present in bundle")
-        self.assertIsNotNone(al_bundle.get("checksum", None), "AllowList checksum is present in bundle")
-        self.assertIsNotNone(al_bundle.get("key", None), "AllowList signing key is present in bundle")
-        self.assertIsNotNone(al_bundle.get("sig", None), "AllowList signature is present in bundle")
-
-        # unbundle and test output
-        al_data = ima.unbundle_ima_policy(al_bundle, verify=True)
-        self.assertEqual(al_data["meta"]["checksum"], allowlist_checksum, "AllowList metadata correct checksum")
-        self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
-        self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
+        runtime_policy, runtime_policy_key, runtime_policy_sig = ima.read_runtime_policy(
+            allowlist_file, allowlist_checksum, allowlist_sig, allowlist_ecdsa_key
+        )
+        runtime_policy = json.loads(runtime_policy)
+        self.assertIsNotNone(runtime_policy, "Runtime policy data is present")
+        self.assertIsNotNone(runtime_policy_key, "Runtime policy signing key is present")
+        self.assertIsNotNone(runtime_policy_sig, "Runtime policy signature is present")
+        self.assertIsNotNone(runtime_policy["digests"], "Runtime policy hashes are present")
+        self.assertEqual(len(runtime_policy["digests"]), 21, "Runtime policy hashes are correct length")
         self.assertEqual(
-            al_data["hashes"]["/boot/grub2/i386-pc/testload.mod"][0],
+            runtime_policy["digests"]["/boot/grub2/i386-pc/testload.mod"][0],
             "68e1d012e3f193dcde955e6ffbbc80e22b0f8778",
-            "AllowList sample hash is correct",
+            "Runtime policy sample hash is correct",
         )

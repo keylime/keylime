@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import functools
 import os
 import signal
@@ -547,49 +548,34 @@ class AgentsHandler(BaseHandler):
                     # - No name, policy: store policy using agent UUID as name
                     # - Name, policy: store policy using name
 
-                    ima_policy_name = json_body.get("ima_policy_name")
-                    ima_policy_bundle = json.loads(json_body.get("ima_policy_bundle", "{}"))
+                    runtime_policy_name = json_body.get("runtime_policy_name")
+                    runtime_policy = base64.b64decode(json_body.get("runtime_policy")).decode()
 
-                    # Get policy from payload if present
-                    if ima_policy_bundle:
+                    if runtime_policy_name:
                         try:
-                            allowlist = ima.unbundle_ima_policy(
-                                ima_policy_bundle,
-                                verify=config.getboolean("verifier", "require_allow_list_signatures", fallback=False),
-                            )
-                            ima_policy = json.dumps(ima.process_ima_policy(allowlist, ima_policy_bundle["excllist"]))
-                        except ima.SignatureValidationError as e:
-                            web_util.echo_json_response(self, e.code, e.message)
-                            logger.warning(e.message)
-                            return
-                    else:
-                        ima_policy = json_body.get("allowlist", None)
-
-                    if ima_policy_name:
-                        try:
-                            ima_policy_stored = (
-                                session.query(VerifierAllowlist).filter_by(name=ima_policy_name).one_or_none()
+                            runtime_policy_stored = (
+                                session.query(VerifierAllowlist).filter_by(name=runtime_policy_name).one_or_none()
                             )
                         except SQLAlchemyError as e:
                             logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
                             raise
 
                         # Prevent overwriting existing IMA policies with name provided in request
-                        if ima_policy and ima_policy_stored:
+                        if runtime_policy and runtime_policy_stored:
                             web_util.echo_json_response(
                                 self,
                                 409,
-                                f"Allowlist with name {ima_policy_name} already exists. Please use a different name or delete the allowlist from the verifier.",
+                                f"IMA policy with name {runtime_policy_name} already exists. Please use a different name or delete the allowlist from the verifier.",
                             )
-                            logger.warning("Allowlist with name %s already exists", ima_policy_name)
+                            logger.warning("IMA policy with name %s already exists", runtime_policy_name)
                             return
 
                         # Return an error code if the named allowlist does not exist in the database
-                        if not ima_policy and not ima_policy_stored:
+                        if not runtime_policy and not runtime_policy_stored:
                             web_util.echo_json_response(
-                                self, 404, f"Could not find IMA policy with name {ima_policy_name}!"
+                                self, 404, f"Could not find IMA policy with name {runtime_policy_name}!"
                             )
-                            logger.warning("Could not find IMA policy with name %s", ima_policy_name)
+                            logger.warning("Could not find IMA policy with name %s", runtime_policy_name)
                             return
 
                     # Prevent overwriting existing agents with UUID provided in request
@@ -609,25 +595,43 @@ class AgentsHandler(BaseHandler):
                         return
 
                     # Write IMA policy to database if needed
-                    if not ima_policy_name and not ima_policy:
-                        logger.info("Allowlist data not provided with request! Using default empty allowlist.")
-                        ima_policy = json.dumps(ima.process_ima_policy(ima.EMPTY_ALLOWLIST, []))
+                    if not runtime_policy_name and not runtime_policy:
+                        logger.info("IMA policy data not provided with request! Using default empty IMA policy.")
+                        runtime_policy = json.dumps(ima.EMPTY_RUNTIME_POLICY)
 
-                    if ima_policy:
-                        err_msg = cloud_verifier_common.validate_ima_policy_data(ima_policy)
-                        if err_msg:
-                            web_util.echo_json_response(self, 400, err_msg)
-                            logger.warning(err_msg)
-                            return
+                    if runtime_policy:
+                        runtime_policy_sig = json_body.get("runtime_policy_sig")
+                        runtime_policy_key = json_body.get("runtime_policy_key")
 
-                        if not ima_policy_name:
-                            ima_policy_name = agent_id
+                        runtime_policy_key_bytes = None
+                        runtime_policy_sig_bytes = None
 
-                        ima_policy_db_format = ima.ima_policy_db_contents(ima_policy_name, ima_policy)
+                        if runtime_policy_key and runtime_policy_sig:
+                            runtime_policy_key_bytes = base64.b64decode(runtime_policy_key)
+                            runtime_policy_sig_bytes = base64.b64decode(runtime_policy_sig)
 
                         try:
-                            ima_policy_stored = (
-                                session.query(VerifierAllowlist).filter_by(name=ima_policy_name).one_or_none()
+                            ima.verify_runtime_policy(
+                                runtime_policy.encode(),
+                                runtime_policy_key_bytes,
+                                runtime_policy_sig_bytes,
+                                verify_sig=config.getboolean(
+                                    "verifier", "require_allow_list_signatures", fallback=False
+                                ),
+                            )
+                        except ima.ImaValidationError as e:
+                            web_util.echo_json_response(self, e.code, e.message)
+                            logger.warning(e.message)
+                            return
+
+                        if not runtime_policy_name:
+                            runtime_policy_name = agent_id
+
+                        runtime_policy_db_format = ima.runtime_policy_db_contents(runtime_policy_name, runtime_policy)
+
+                        try:
+                            runtime_policy_stored = (
+                                session.query(VerifierAllowlist).filter_by(name=runtime_policy_name).one_or_none()
                             )
                         except SQLAlchemyError as e:
                             logger.error(
@@ -635,9 +639,9 @@ class AgentsHandler(BaseHandler):
                             )
                             raise
                         try:
-                            if ima_policy_stored is None:
-                                ima_policy_stored = VerifierAllowlist(**ima_policy_db_format)
-                                session.add(ima_policy_stored)
+                            if runtime_policy_stored is None:
+                                runtime_policy_stored = VerifierAllowlist(**runtime_policy_db_format)
+                                session.add(runtime_policy_stored)
                                 session.commit()
                         except SQLAlchemyError as e:
                             logger.error("SQLAlchemy Error while updating ima policy for agent ID %s: %s", agent_id, e)
@@ -645,7 +649,7 @@ class AgentsHandler(BaseHandler):
 
                     # Write the agent to the database, attaching associated stored policy
                     try:
-                        session.add(VerfierMain(**agent_data, ima_policy=ima_policy_stored))
+                        session.add(VerfierMain(**agent_data, ima_policy=runtime_policy_stored))
                         session.commit()
                     except SQLAlchemyError as e:
                         logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
@@ -790,7 +794,7 @@ class AllowlistHandler(BaseHandler):
         try:
             allowlist = session.query(VerifierAllowlist).filter_by(name=allowlist_name).one()
         except NoResultFound:
-            web_util.echo_json_response(self, 404, f"Allowlist {allowlist_name} not found")
+            web_util.echo_json_response(self, 404, f"Runtime policy {allowlist_name} not found")
             return
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error: %s", e)
@@ -798,8 +802,9 @@ class AllowlistHandler(BaseHandler):
             raise
 
         response = {}
-        for field in ("name", "tpm_policy", "ima_policy"):
+        for field in ("name", "tpm_policy"):
             response[field] = getattr(allowlist, field, None)
+        response["runtime_policy"] = getattr(allowlist, "ima_policy", None)
         web_util.echo_json_response(self, 200, "Success", response)
 
     def delete(self):
@@ -824,9 +829,9 @@ class AllowlistHandler(BaseHandler):
 
         session = get_session()
         try:
-            ima_policy = session.query(VerifierAllowlist).filter_by(name=allowlist_name).one()
+            runtime_policy = session.query(VerifierAllowlist).filter_by(name=allowlist_name).one()
         except NoResultFound:
-            web_util.echo_json_response(self, 404, f"Allowlist {allowlist_name} not found")
+            web_util.echo_json_response(self, 404, f"Runtime policy {allowlist_name} not found")
             return
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error: %s", e)
@@ -834,7 +839,7 @@ class AllowlistHandler(BaseHandler):
             raise
 
         try:
-            agent = session.query(VerfierMain).filter_by(ima_policy_id=ima_policy.id).one_or_none()
+            agent = session.query(VerfierMain).filter_by(ima_policy_id=runtime_policy.id).one_or_none()
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error: %s", e)
             raise
@@ -877,8 +882,8 @@ class AllowlistHandler(BaseHandler):
         if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
             return
 
-        allowlist_name = rest_params["allowlists"]
-        if allowlist_name is None:
+        runtime_policy_name = rest_params["allowlists"]
+        if runtime_policy_name is None:
             web_util.echo_json_response(self, 400, "Invalid URL")
             return
 
@@ -888,34 +893,45 @@ class AllowlistHandler(BaseHandler):
             logger.warning("POST returning 400 response. Expected non zero content length.")
             return
 
-        ima_policy = "{}"
+        runtime_policy = "{}"
 
         json_body = json.loads(self.request.body)
 
-        ima_policy_bundle = json.loads(json_body.get("ima_policy_bundle"))
-        if ima_policy_bundle:
-            try:
-                allowlist = ima.unbundle_ima_policy(
-                    ima_policy_bundle,
-                    verify=config.getboolean("verifier", "require_allow_list_signatures", fallback=False),
-                )
-                ima_policy = json.dumps(ima.process_ima_policy(allowlist, ima_policy_bundle["excllist"]))
-            except ima.SignatureValidationError as e:
-                web_util.echo_json_response(self, e.code, e.message)
-                logger.warning(e.message)
-                return
+        runtime_policy = base64.b64decode(json_body.get("runtime_policy")).decode()
+
+        runtime_policy_key = json_body.get("runtime_policy_key")
+        runtime_policy_sig = json_body.get("runtime_policy_sig")
+
+        runtime_policy_key_bytes = None
+        runtime_policy_sig_bytes = None
+
+        if runtime_policy_key and runtime_policy_sig:
+            runtime_policy_key_bytes = base64.b64decode(runtime_policy_key)
+            runtime_policy_sig_bytes = base64.b64decode(runtime_policy_sig)
+
+        try:
+            ima.verify_runtime_policy(
+                runtime_policy.encode(),
+                runtime_policy_key_bytes,
+                runtime_policy_sig_bytes,
+                verify_sig=config.getboolean("verifier", "require_allow_list_signatures", fallback=False),
+            )
+        except ima.ImaValidationError as e:
+            web_util.echo_json_response(self, e.code, e.message)
+            logger.warning(e.message)
+            return
 
         tpm_policy = json_body.get("tpm_policy")
 
-        ima_policy_db_format = ima.ima_policy_db_contents(allowlist_name, ima_policy, tpm_policy)
+        runtime_policy_db_format = ima.runtime_policy_db_contents(runtime_policy_name, runtime_policy, tpm_policy)
 
         session = get_session()
         # don't allow overwritting
         try:
-            ima_policy_count = session.query(VerifierAllowlist).filter_by(name=allowlist_name).count()
-            if ima_policy_count > 0:
-                web_util.echo_json_response(self, 409, f"Allowlist with name {allowlist_name} already exists")
-                logger.warning("Allowlist with name %s already exists", allowlist_name)
+            runtime_policy_count = session.query(VerifierAllowlist).filter_by(name=runtime_policy_name).count()
+            if runtime_policy_count > 0:
+                web_util.echo_json_response(self, 409, f"Runtime policy with name {runtime_policy_name} already exists")
+                logger.warning("Runtime policy with name %s already exists", runtime_policy_name)
                 return
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error: %s", e)
@@ -923,7 +939,7 @@ class AllowlistHandler(BaseHandler):
 
         try:
             # Add the agent and data
-            session.add(VerifierAllowlist(**ima_policy_db_format))
+            session.add(VerifierAllowlist(**runtime_policy_db_format))
             session.commit()
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error: %s", e)
@@ -940,7 +956,7 @@ class AllowlistHandler(BaseHandler):
 
 
 async def invoke_get_quote(
-    agent: Dict[str, Any], ima_policy: VerifierAllowlist, need_pubkey: bool, timeout: float = 60.0
+    agent: Dict[str, Any], runtime_policy: VerifierAllowlist, need_pubkey: bool, timeout: float = 60.0
 ) -> None:
     failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
@@ -994,10 +1010,13 @@ async def invoke_get_quote(
             agentAttestState = get_AgentAttestStates().get_by_agent_id(agent["agent_id"])
 
             if rmc:
-                rmc.record_create(agent, json_response, ima_policy)
+                rmc.record_create(agent, json_response, runtime_policy)
 
             failure = cloud_verifier_common.process_quote_response(
-                agent, ima_policy, json_response["results"], agentAttestState
+                agent,
+                ima.deserialize_runtime_policy(runtime_policy),
+                json_response["results"],
+                agentAttestState,
             )
             if not failure:
                 if agent["provide_V"]:
@@ -1217,7 +1236,7 @@ async def process_agent(
             logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
 
         # Load agent's IMA policy
-        ima_policy = verifier_read_policy_from_cache(stored_agent)
+        runtime_policy = verifier_read_policy_from_cache(stored_agent)
 
         # If agent was in a failed state we check if we either stop polling
         # or just add it again to the event loop
@@ -1226,14 +1245,14 @@ async def process_agent(
                 logger.warning("Agent %s failed, stopping polling", agent["agent_id"])
                 return
 
-            await invoke_get_quote(agent, ima_policy, False, timeout=timeout)
+            await invoke_get_quote(agent, runtime_policy, False, timeout=timeout)
             return
 
         # if new, get a quote
         if main_agent_operational_state == states.START and new_operational_state == states.GET_QUOTE:
             agent["num_retries"] = 0
             agent["operational_state"] = states.GET_QUOTE
-            await invoke_get_quote(agent, ima_policy, True, timeout=timeout)
+            await invoke_get_quote(agent, runtime_policy, True, timeout=timeout)
             return
 
         if main_agent_operational_state == states.GET_QUOTE and new_operational_state == states.PROVIDE_V:
@@ -1250,7 +1269,7 @@ async def process_agent(
             interval = config.getfloat("verifier", "quote_interval")
             agent["operational_state"] = states.GET_QUOTE
             if interval == 0:
-                await invoke_get_quote(agent, ima_policy, False, timeout=timeout)
+                await invoke_get_quote(agent, runtime_policy, False, timeout=timeout)
             else:
                 logger.debug(
                     "Setting up callback to check agent ID %s again in %f seconds", agent["agent_id"], interval
@@ -1258,7 +1277,7 @@ async def process_agent(
 
                 # set up a call back to check again
                 async def cb():
-                    await invoke_get_quote(agent, ima_policy, False, timeout=timeout)
+                    await invoke_get_quote(agent, runtime_policy, False, timeout=timeout)
 
                 pending = tornado.ioloop.IOLoop.current().call_later(interval, cb)
                 agent["pending_event"] = pending
@@ -1285,7 +1304,7 @@ async def process_agent(
                 agent["operational_state"] = states.GET_QUOTE
 
                 async def cb_quote_retry():
-                    await invoke_get_quote(agent, ima_policy, True, timeout=timeout)
+                    await invoke_get_quote(agent, runtime_policy, True, timeout=timeout)
 
                 agent["num_retries"] += 1
                 next_retry = retry.retry_time(exponential_backoff, interval, agent["num_retries"], logger)

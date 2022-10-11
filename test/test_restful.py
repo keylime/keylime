@@ -432,8 +432,8 @@ class TestRestful(unittest.TestCase):
     metadata = {}
     allowlist = {}
     excllist = {}
-    ima_policy_bundle = {}
-    bad_ima_policy_bundle = {}
+    runtime_policy = {}
+    bad_runtime_policy = {}
     revocation_key = ""
     mb_refstate = None
     K = None
@@ -462,12 +462,14 @@ class TestRestful(unittest.TestCase):
         # Allow targeting a specific API version (default latest)
         cls.api_version = "2.0"
 
-        # Set up allowlist bundles. Use invalid exclusion list regex for bad bundle.
-        cls.ima_policy_bundle = ima.read_allowlist()
-        cls.ima_policy_bundle["excllist"] = []
+        # Set up runtime policies. Use invalid exclusion list regex for bad policy.
+        runtime_policy_raw, _, _ = ima.read_runtime_policy()
+        cls.runtime_policy = base64.b64encode(runtime_policy_raw).decode()
 
-        cls.bad_ima_policy_bundle = ima.read_allowlist()
-        cls.bad_ima_policy_bundle["excllist"] = ["*"]
+        bad_runtime_policy_raw, _, _ = ima.read_runtime_policy()
+        bad_runtime_policy_json = json.loads(bad_runtime_policy_raw)
+        bad_runtime_policy_json["excludes"] = ["*"]
+        cls.bad_runtime_policy = base64.b64encode(json.dumps(bad_runtime_policy_json).encode()).decode()
 
     def setUp(self):
         """Nothing to set up before each test"""
@@ -774,7 +776,7 @@ class TestRestful(unittest.TestCase):
         data = {
             "name": "test-allowlist",
             "tpm_policy": json.dumps(self.tpm_policy),
-            "ima_policy_bundle": json.dumps(self.ima_policy_bundle),
+            "runtime_policy": self.runtime_policy,
         }
 
         cv_client = RequestsClient(tenant_templ.verifier_base_url, True, tls_context=tenant_templ.tls_context)
@@ -804,12 +806,8 @@ class TestRestful(unittest.TestCase):
         self.assertEqual(results["name"], "test-allowlist")
         self.assertEqual(results["tpm_policy"], json.dumps(self.tpm_policy))
         self.assertEqual(
-            results["ima_policy"],
-            json.dumps(
-                ima.process_ima_policy(
-                    ima.unbundle_ima_policy(self.ima_policy_bundle, False), self.ima_policy_bundle["excllist"]
-                )
-            ),
+            results["runtime_policy"],
+            base64.b64decode(self.runtime_policy).decode(),
         )
 
     def test_027_cv_allowlist_delete(self):
@@ -831,7 +829,7 @@ class TestRestful(unittest.TestCase):
             "cloudagent_ip": tenant_templ.agent_ip,
             "cloudagent_port": tenant_templ.agent_port,
             "tpm_policy": json.dumps(self.tpm_policy),
-            "ima_policy_bundle": json.dumps(self.ima_policy_bundle),
+            "runtime_policy": self.runtime_policy,
             "ima_sign_verification_keys": "",
             "mb_refstate": None,
             "metadata": json.dumps(self.metadata),
@@ -925,7 +923,7 @@ class TestRestful(unittest.TestCase):
             "cloudagent_ip": tenant_templ.agent_ip,
             "cloudagent_port": tenant_templ.agent_port,
             "tpm_policy": json.dumps(self.tpm_policy),
-            "ima_policy_bundle": json.dumps(self.bad_ima_policy_bundle),
+            "runtime_policy": self.bad_runtime_policy,
             "ima_sign_verification_keys": "",
             "metadata": json.dumps(self.metadata),
             "revocation_key": self.revocation_key,
@@ -1034,7 +1032,7 @@ class TestRestful(unittest.TestCase):
             f"/v{self.api_version}/agents/{tenant_templ.agent_uuid}", verify=True
         )
 
-        self.assertEqual(response.status_code, 202, "Non-successful CV agent Delete return code!")
+        self.assertIn(response.status_code, [200, 202], "Non-successful CV agent Delete return code!")
         json_response = response.json()
 
         # Ensure response is well-formed

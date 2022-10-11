@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Union, cast
 
 from keylime import config, crypto, json, keylime_logging
 from keylime.agentstates import AgentAttestState, AgentAttestStates, TPMClockInfo
-from keylime.common import algorithms, validators
+from keylime.common import algorithms
 from keylime.db.verifier_db import VerfierMain
 from keylime.failure import Component, Event, Failure
 from keylime.ima import file_signatures
@@ -31,7 +31,7 @@ def get_AgentAttestStates() -> AgentAttestStates:
 
 
 def process_quote_response(
-    agent: Dict[str, Any], ima_policy, json_response, agentAttestState: AgentAttestState
+    agent: Dict[str, Any], runtime_policy, json_response, agentAttestState: AgentAttestState
 ) -> Failure:
     """Validates the response from the Cloud agent.
 
@@ -162,7 +162,17 @@ def process_quote_response(
     agentAttestState.set_boottime(boottime)
 
     ima_keyrings = agentAttestState.get_ima_keyrings()
-    tenant_keyring = file_signatures.ImaKeyring.from_string(agent["ima_sign_verification_keys"])
+
+    # If ima_sign_verification_keys was provided to agent by tenant directly,
+    # use that. Otherwise, find keyring in IMA policy.
+    # NOTE: the tenant option for ima_sign_verification_keys is deprecated, and
+    # will be phased out.
+    if agent["ima_sign_verification_keys"]:
+        verification_key_string = agent["ima_sign_verification_keys"]
+    else:
+        verification_key_string = runtime_policy["verification-keys"]
+
+    tenant_keyring = file_signatures.ImaKeyring.from_string(verification_key_string)
     ima_keyrings.set_tenant_keyring(tenant_keyring)
 
     if agent.get("tpm_clockinfo"):
@@ -176,7 +186,7 @@ def process_quote_response(
         agent["ak_tpm"],
         agent["tpm_policy"],
         ima_measurement_list,
-        ima_policy,
+        runtime_policy,
         algorithms.Hash(hash_alg),
         ima_keyrings,
         mb_measurement_list,
@@ -255,9 +265,9 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         )
         logger.debug('The contents of the agent %s attribute "mb_refstate" are %s', agent_id, agent.mb_refstate)
 
-    has_ima_policy = 0
+    has_runtime_policy = 0
     if agent.ima_policy.generator > 1:
-        has_ima_policy = 1
+        has_runtime_policy = 1
 
     response = {
         "operational_state": agent.operational_state,
@@ -267,7 +277,7 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         "tpm_policy": agent.tpm_policy,
         "meta_data": agent.meta_data,
         "has_mb_refstate": has_mb_refstate,
-        "has_ima_policy": has_ima_policy,
+        "has_runtime_policy": has_runtime_policy,
         "accept_tpm_hash_algs": agent.accept_tpm_hash_algs,
         "accept_tpm_encryption_algs": agent.accept_tpm_encryption_algs,
         "accept_tpm_signing_algs": agent.accept_tpm_signing_algs,
@@ -312,18 +322,3 @@ def prepare_error(agent: Dict[str, Any], msgtype: str = "revocation", event: Opt
     else:
         tosend["signature"] = b""
     return tosend
-
-
-def validate_ima_policy_data(ima_policy: Optional[str]) -> Optional[str]:
-    if ima_policy is None:
-        return "No ima_policy provided"
-
-    # validate that the allowlist is proper JSON
-    lists = json.loads(ima_policy)
-
-    # Validate that exclude list contains valid regular expressions
-    _, err_msg_from_validator = validators.valid_exclude_list(lists.get("exclude"))
-    if err_msg_from_validator:
-        err_msg_from_validator += " Exclude list regex is misformatted. Please correct the issue and try again."
-
-    return err_msg_from_validator

@@ -21,6 +21,7 @@ from keylime.agentstates import AgentAttestState, TPMClockInfo
 from keylime.common import algorithms, retry
 from keylime.common.algorithms import Hash
 from keylime.failure import Component, Failure
+from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyrings
 from keylime.tpm import tpm2_objects, tpm_abstract
 
@@ -1215,7 +1216,7 @@ class tpm(tpm_abstract.AbstractTPM):
         aikTpmFromRegistrar: str,
         tpm_policy: Optional[Union[str, Dict]] = None,
         ima_measurement_list: Optional[str] = None,
-        allowlist: Optional[Union[str, Dict[str, Any]]] = None,
+        runtime_policy: Optional[Dict[str, Any]] = None,
         hash_alg: Optional[Hash] = None,
         ima_keyrings: Optional[ImaKeyrings] = None,
         mb_measurement_list: Optional[str] = None,
@@ -1225,8 +1226,8 @@ class tpm(tpm_abstract.AbstractTPM):
         if tpm_policy is None:
             tpm_policy = {}
 
-        if allowlist is None:
-            allowlist = {}
+        if runtime_policy is None:
+            runtime_policy = ima.EMPTY_RUNTIME_POLICY
 
         agent_id = agentAttestState.agent_id
 
@@ -1287,7 +1288,7 @@ class tpm(tpm_abstract.AbstractTPM):
             data,
             False,
             ima_measurement_list,
-            allowlist,
+            runtime_policy,
             ima_keyrings,
             mb_measurement_list,
             mb_refstate,

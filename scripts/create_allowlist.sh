@@ -8,6 +8,8 @@
 INITRAMFS_TOOLS_GIT=https://salsa.debian.org/kernel-team/initramfs-tools.git
 INITRAMFS_TOOLS_VER="master"
 
+WORKING_DIR=$(readlink -f "$0")
+WORKING_DIR=$(dirname "$WORKING_DIR")
 
 # Grabs Debian's initramfs_tools from Git repo if no other options exist
 if [[ ! `command -v unmkinitramfs` && ! -x "/usr/lib/dracut/skipcpio" ]] ; then
@@ -127,6 +129,10 @@ do
 
     find -type f -exec $ALGO "./{}" \; | sed "s| \./\./| /|" >> $OUTPUT
 done
+
+# Convert to runtime policy
+echo "Converting created allowlist to Keylime runtime policy"
+python3 $WORKING_DIR/../keylime/cmd/convert_runtime_policy.py -a $OUTPUT -o $OUTPUT
 
 # Clean up
 rm -rf /tmp/ima

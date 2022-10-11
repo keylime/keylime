@@ -1,13 +1,9 @@
-import base64
 import codecs
 import copy
-import datetime
 import functools
 import hashlib
 import json
-import os
-import re
-from typing import Any, Dict, List, Optional, Pattern, Set, TextIO, Tuple, Type, Union, cast
+from typing import Any, Dict, List, Optional, Pattern, Set, TextIO, Tuple, Type
 
 from keylime import config, keylime_logging, signing
 from keylime.agentstates import AgentAttestState
@@ -20,42 +16,30 @@ from keylime.ima.file_signatures import ImaKeyrings
 logger = keylime_logging.init_logging("ima")
 
 
-# The version of the allowlist format that is supported by this keylime release
-ALLOWLIST_CURRENT_VERSION = 5
+# The version of the IMA policy format that is supported by this keylime release
+RUNTIME_POLICY_CURRENT_VERSION = 1
 
 
-class IMA_POLICY_GENERATOR:
+class RUNTIME_POLICY_GENERATOR:
     Unknown = 0
     EmptyAllowList = 1
     CompatibleAllowList = 2
     LegacyAllowList = 3
 
 
-# A correctly-formatted empty allowlist.
+# A correctly formatted empty IMA policy.
 #
-# IMA allowlists of versions older than 5 will not have the "log_hash_alg"
+# Older versions of Keylime allowlists did not have the "log_hash_alg"
 # parameter. Hard-coding it to "sha1" is perfectly fine, and the fact one
 # specifies a different algorithm on the kernel command line (e.g., ima_hash=sha256)
 # does not affect normal operation of Keylime, since it does not validate the
 # hash algorithm received from agent's IMA runtime measurements.
 # The only situation where this hard-coding would become a problem is if and when
 # the kernel maintainers decide to use a different algorithm for template-hash.
-EMPTY_ALLOWLIST = {
+EMPTY_RUNTIME_POLICY = {
     "meta": {
-        "version": ALLOWLIST_CURRENT_VERSION,
-        "generator": IMA_POLICY_GENERATOR.EmptyAllowList,
-        "checksum": "",
-    },
-    "release": 0,
-    "hashes": {},
-    "keyrings": {},
-    "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1"},
-}
-
-IMA_POLICY_CURRENT_VERSION = 1
-EMPTY_IMA_POLICY = {
-    "meta": {
-        "version": IMA_POLICY_CURRENT_VERSION,
+        "version": RUNTIME_POLICY_CURRENT_VERSION,
+        "generator": RUNTIME_POLICY_GENERATOR.EmptyAllowList,
     },
     "release": 0,
     "digests": {},
@@ -160,7 +144,7 @@ def _validate_ima_ng(
     allowlist: Optional[Dict[str, Any]],
     digest: ast.Digest,
     path: ast.Name,
-    hash_types: str = "hashes",
+    hash_types: str = "digests",
 ) -> Failure:
     failure = Failure(Component.IMA, ["validation", "ima-ng"])
     if allowlist is not None:
@@ -224,8 +208,8 @@ def _validate_ima_sig(
     # - the signature is valid and the file is also in the allowlist
     if (
         allowlist is not None
-        and allowlist.get("hashes") is not None
-        and ((allowlist["hashes"].get(path.name, None) is not None and valid_signature) or not valid_signature)
+        and allowlist.get("digests") is not None
+        and ((allowlist["digests"].get(path.name, None) is not None and valid_signature) or not valid_signature)
     ):
         # We use the normal ima_ng validator to validate hash
         return _validate_ima_ng(exclude_regex, allowlist, digest, path)
@@ -282,7 +266,7 @@ def _process_measurement_list(
     agentAttestState: AgentAttestState,
     lines: List[str],
     hash_alg: Hash,
-    lists: Optional[Union[str, Dict[str, Any]]] = None,
+    runtime_policy: Optional[Dict[str, Any]] = None,
     pcrval: Optional[str] = None,
     ima_keyrings: Optional[ImaKeyrings] = None,
     boot_aggregates: Optional[Dict[str, List[str]]] = None,
@@ -297,35 +281,30 @@ def _process_measurement_list(
     if pcrval is not None:
         pcrval_bytes = codecs.decode(pcrval.encode("utf-8"), "hex")
 
-    if lists is not None:
-        if isinstance(lists, str):
-            lists = json.loads(lists)
-            assert isinstance(lists, dict)
-        allow_list = lists["allowlist"]
-        exclude_list = lists["exclude"]
+    if runtime_policy is not None:
+        exclude_list = runtime_policy.get("excludes")
     else:
-        allow_list = None
         exclude_list = None
 
     ima_log_hash_alg = algorithms.Hash.SHA1
-    if allow_list is not None:
+    if runtime_policy is not None:
         try:
-            ima_log_hash_alg = algorithms.Hash(allow_list["ima"]["log_hash_alg"])
+            ima_log_hash_alg = algorithms.Hash(runtime_policy["ima"]["log_hash_alg"])
         except ValueError:
             logger.warning(
                 "Specified IMA log hash algorithm %s is not a valid algorithm! Defaulting to SHA1.",
-                allow_list["ima"]["log_hash_alg"],
+                runtime_policy["ima"]["log_hash_alg"],
             )
 
-    if boot_aggregates and allow_list:
-        if "boot_aggregate" not in allow_list["hashes"]:
-            allow_list["hashes"]["boot_aggregate"] = []
+    if boot_aggregates and runtime_policy:
+        if "boot_aggregate" not in runtime_policy["digests"]:
+            runtime_policy["digests"]["boot_aggregate"] = []
         for alg in boot_aggregates.keys():
             for val in boot_aggregates[alg]:
-                if val not in allow_list["hashes"]["boot_aggregate"]:
-                    allow_list["hashes"]["boot_aggregate"].append(val)
+                if val not in runtime_policy["digests"]["boot_aggregate"]:
+                    runtime_policy["digests"]["boot_aggregate"].append(val)
 
-    compiled_regex, err_msg = validators.valid_exclude_list(exclude_list)
+    exclude_list_compiled_regex, err_msg = validators.valid_exclude_list(exclude_list)
     if err_msg:
         # This should not happen as the exclude list has already been validated
         # by the verifier before acceping it. This is a safety net just in case.
@@ -334,8 +313,8 @@ def _process_measurement_list(
 
     # Setup device mapper validation
     dm_validator = None
-    if allow_list is not None:
-        dm_policy = allow_list["ima"]["dm_policy"]
+    if runtime_policy is not None:
+        dm_policy = runtime_policy["ima"]["dm_policy"]
 
         if dm_policy is not None:
             dm_validator = ima_dm.DmIMAValidator(dm_policy)
@@ -346,10 +325,12 @@ def _process_measurement_list(
 
     ima_validator = ast.Validator(
         {
-            ast.ImaSig: functools.partial(_validate_ima_sig, compiled_regex, ima_keyrings, allow_list),
-            ast.ImaNg: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
-            ast.Ima: functools.partial(_validate_ima_ng, compiled_regex, allow_list),
-            ast.ImaBuf: functools.partial(_validate_ima_buf, compiled_regex, allow_list, ima_keyrings, dm_validator),
+            ast.ImaSig: functools.partial(_validate_ima_sig, exclude_list_compiled_regex, ima_keyrings, runtime_policy),
+            ast.ImaNg: functools.partial(_validate_ima_ng, exclude_list_compiled_regex, runtime_policy),
+            ast.Ima: functools.partial(_validate_ima_ng, exclude_list_compiled_regex, runtime_policy),
+            ast.ImaBuf: functools.partial(
+                _validate_ima_buf, exclude_list_compiled_regex, runtime_policy, ima_keyrings, dm_validator
+            ),
         }
     )
 
@@ -414,7 +395,7 @@ def _process_measurement_list(
 def process_measurement_list(
     agentAttestState: AgentAttestState,
     lines: List[str],
-    lists: Optional[Union[str, Dict[str, Any]]] = None,
+    runtime_policy: Optional[Dict[str, Any]] = None,
     pcrval: Optional[str] = None,
     ima_keyrings: Optional[ImaKeyrings] = None,
     boot_aggregates: Optional[Dict[str, List[str]]] = None,
@@ -426,7 +407,7 @@ def process_measurement_list(
             agentAttestState,
             lines,
             hash_alg,
-            lists=lists,
+            runtime_policy=runtime_policy,
             pcrval=pcrval,
             ima_keyrings=ima_keyrings,
             boot_aggregates=boot_aggregates,
@@ -441,262 +422,146 @@ def process_measurement_list(
     return running_hash, failure
 
 
-def update_allowlist(allowlist: Dict[str, Any]) -> Dict[str, Any]:
-    """Update the allowlist to the latest version adding default values for missing fields"""
-    allowlist["meta"]["version"] = ALLOWLIST_CURRENT_VERSION
-
-    # version 2 added 'keyrings'
-    if "keyrings" not in allowlist:
-        allowlist["keyrings"] = {}
-    # version 3 added 'ima' map with 'ignored_keyrings'
-    if "ima" not in allowlist:
-        allowlist["ima"] = {}
-    if not "ignored_keyrings" in allowlist["ima"]:
-        allowlist["ima"]["ignored_keyrings"] = []
-    # version 4 added 'ima-buf'
-    if "ima-buf" not in allowlist:
-        allowlist["ima-buf"] = {}
-    # version 5 added 'log_hash_alg'
-    if not "log_hash_alg" in allowlist["ima"]:
-        allowlist["ima"]["log_hash_alg"] = "sha1"
-    # version 6 added 'dm_policy'
-    if "dm_policy" not in allowlist["ima"]:
-        allowlist["ima"]["dm_policy"] = None
-
-    return allowlist
-
-
-def process_ima_policy(allowlist: Dict[str, Any], exclude: List[str]) -> Dict[str, Any]:
-    # Pull in default config values if not specified
-    if allowlist is None:
-        allowlist = read_allowlist()
-    else:
-        allowlist = update_allowlist(allowlist)
-
-    if allowlist["ima"]["dm_policy"] is not None:
-        logger.info("IMA device mapper support is still experimental and might change in the future!")
-
-    if exclude is None:
-        exclude = read_excllist()
-
-    if allowlist["hashes"].get("boot_aggregate") is None:
-        logger.warning("No boot_aggregate value found in allowlist, adding an empty one")
-        allowlist["hashes"]["boot_aggregate"] = ["0" * 40, "0" * 64]
-
-    for excl in exclude:
-        # remove commented out lines
-        if excl.startswith("#"):
-            exclude.remove(excl)
-        # don't allow empty lines in exclude list, it will match everything
-        if excl == "":
-            exclude.remove(excl)
-
-    return {"allowlist": allowlist, "exclude": exclude}
-
-
-# Read allowlist files from disk, validate signatures and checksums, and prepare for sending.
-# Does not process exclusion lists.
-def read_allowlist(
+# Read IMA policy files from disk, validate signatures and checksums, and prepare for sending.
+def read_runtime_policy(
     alist: Optional[str] = None,
     checksum: Optional[str] = "",
     al_sig_file: Optional[str] = None,
     al_key_file: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> Tuple[bytes, bytes, bytes]:
 
     al_key = b""
     al_sig = b""
+    verify_signature = False
 
-    # If user only wants signatures then an allowlist is not required
+    # If user only wants signatures then a runtime policy is not required
     if alist is None or alist == "":
-        alist_bytes = json.dumps(copy.deepcopy(EMPTY_ALLOWLIST)).encode()
+        alist_bytes = json.dumps(copy.deepcopy(EMPTY_RUNTIME_POLICY)).encode()
 
     elif isinstance(alist, str):
-        # Purposefully die if path doesn't exist
         with open(alist, "rb") as alist_f:
-            logger.debug("Loading allowlist from %s", alist)
+            logger.debug("Loading runtime policy from %s", alist)
             alist_bytes = alist_f.read()
 
     else:
-        raise Exception("Invalid allowlist provided")
+        raise Exception("Invalid runtime policy provided")
 
-    # verify file signature if needed
+    # Load signatures/keys if needed
     if al_sig_file and al_key_file:
         logger.debug(
-            "Loading signature (%s) and key (%s) and checking against allowlist (%s)", al_sig_file, al_key_file, alist
+            "Loading key (%s) and signature (%s) checking against runtime policy (%s)", al_key_file, al_sig_file, alist
         )
+        verify_signature = True
         with open(al_key_file, "rb") as key_f:
             al_key = key_f.read()
         with open(al_sig_file, "rb") as sig_f:
             al_sig = sig_f.read()
-        if signing.verify_signature(al_key, al_sig, alist_bytes):
-            logger.debug("Allowlist passed signature verification")
-        else:
-            raise Exception(
-                f"Allowlist signature verification failed comparing allowlist ({alist}) against sig_file ({al_sig_file})"
-            )
+
+    # Verify runtime policy. This function checks for correct JSON formatting, and
+    # will also verify signatures if provided.
+    try:
+        verify_runtime_policy(alist_bytes, al_key, al_sig, verify_sig=verify_signature)
+    except ImaValidationError as error:
+        message = f"Validation for runtime policy {alist} failed! Error: {error.message}"
+        raise Exception(message) from error
 
     sha256 = hashlib.sha256()
     sha256.update(alist_bytes)
     calculated_checksum = sha256.hexdigest()
-    logger.debug("Loaded allowlist from %s with checksum %s", alist, calculated_checksum)
+    logger.debug("Loaded runtime policy from %s with checksum %s", alist, calculated_checksum)
 
     if checksum:
         if checksum == calculated_checksum:
-            logger.debug("Allowlist passed checksum validation")
+            logger.debug("Runtime policy passed checksum validation")
         else:
             raise Exception(
-                f"Checksum of allowlist does not match! Expected {checksum}, Calculated {calculated_checksum}"
+                f"Checksum of runtime policy does not match! Expected {checksum}, Calculated {calculated_checksum}"
             )
+
+    return alist_bytes, al_key, al_sig
+
+
+def runtime_policy_db_contents(runtime_policy_name: str, runtime_policy: str, tpm_policy: str = "") -> Dict[str, Any]:
+    """Assembles a runtime policy dictionary to be written on the database"""
+    runtime_policy_db_format: Dict[str, Any] = {}
+    runtime_policy_db_format["name"] = runtime_policy_name
+    # TODO: This was required to ensure e2e CI tests pass
+    if runtime_policy == "{}":
+        runtime_policy_db_format["ima_policy"] = None
     else:
-        logger.debug("Allowlist did not have a checksum provided, will add calculated checksum to bundle")
-        checksum = calculated_checksum
-    # Return artifacts as a JSON bundle, ready for sending
-    bundle = {
-        "ima_policy": base64.b64encode(alist_bytes).decode(),
-        "key": base64.b64encode(al_key).decode(),
-        "sig": base64.b64encode(al_sig).decode(),
-        "checksum": checksum,
-        "excllist": [],
-    }
+        runtime_policy_db_format["ima_policy"] = runtime_policy
+    runtime_policy_bytes = runtime_policy.encode()
+    runtime_policy_dict = deserialize_runtime_policy(runtime_policy)
+    if "meta" in runtime_policy_dict:
+        if "generator" in runtime_policy_dict["meta"]:
+            runtime_policy_db_format["generator"] = runtime_policy_dict["meta"]["generator"]
+        else:
+            runtime_policy_db_format["generator"] = RUNTIME_POLICY_GENERATOR.Unknown
+    if tpm_policy:
+        runtime_policy_db_format["tpm_policy"] = tpm_policy
 
-    return bundle
+    runtime_policy_db_format["checksum"] = hashlib.sha256(runtime_policy_bytes).hexdigest()
+
+    return runtime_policy_db_format
 
 
-class SignatureValidationError(Exception):
-    def __init__(self, message: str, code: int) -> None:
+class ImaValidationError(Exception):
+    def __init__(self, message: str, code: int):
         self.message = message
         self.code = code
         super().__init__(self.message)
 
 
-# Reads allowlist bundles sent to the verifier, validates them, and processes them. Returns an allowlist.
-def unbundle_ima_policy(allowlist_bundle: Dict[str, Any], verify: bool = True) -> Dict[str, Any]:
-    allowlist_raw = base64.b64decode(allowlist_bundle["ima_policy"])
+def verify_runtime_policy(
+    runtime_policy: bytes,
+    runtime_policy_key: Optional[bytes] = None,
+    runtime_policy_sig: Optional[bytes] = None,
+    verify_sig: Optional[bool] = True,
+) -> None:
+    """
+    Verify that a runtime policy is valid. If provided runtime policy has a detached signature, verify the signature.
+    """
 
-    # Verify allowlist signatures if set to enforce
-    if verify:
-        if not allowlist_bundle.get("sig"):
-            raise SignatureValidationError(
+    if runtime_policy is None:
+        raise ImaValidationError(
+            message="No IMA policy provided!",
+            code=400,
+        )
+
+    if verify_sig:
+        if not runtime_policy_sig:
+            raise ImaValidationError(
                 message="Verifier is enforcing signature validation, but no signature was provided.", code=405
             )
-        if not allowlist_bundle.get("key"):
-            raise SignatureValidationError(
+        if not runtime_policy_key:
+            raise ImaValidationError(
                 message="Verifier is enforcing signature validation, but no public key was provided.", code=405
             )
 
-        allowlist_sig = base64.b64decode(cast(bytes, allowlist_bundle.get("sig")))
-        allowlist_sig_key = base64.b64decode(cast(bytes, allowlist_bundle.get("key")))
+        if not signing.verify_signature(runtime_policy_key, runtime_policy_sig, runtime_policy):
+            raise ImaValidationError(message="Runtime policy failed detached signature verification!", code=401)
+        logger.info("Runtime policy passed detached signature verification")
 
-        if not signing.verify_signature(allowlist_sig_key, allowlist_sig, allowlist_raw):
-            raise SignatureValidationError(message="Signature verification for allowlist failed!", code=401)
-        logger.info("Allowlist signature validation passed.")
+    # validate that the allowlist is proper JSON
+    try:
+        lists = json.loads(runtime_policy)
+    except Exception as error:
+        raise ImaValidationError(message="Runtime policy is not valid JSON!", code=400) from error
 
-    return canonicalize_allowlist(allowlist_raw, allowlist_bundle["checksum"])
-
-
-# Manipulates allowlists into database-ready format.
-def canonicalize_allowlist(alist_bytes: bytes, checksum: str = "") -> Dict[str, Any]:
-    # if the first non-whitespace character in the file is '{' treat it as the new JSON format
-    alist_raw = alist_bytes.decode("utf-8")
-    p = re.compile(r"^\s*{")
-    if p.match(alist_raw):
-        logger.debug("Reading allow list as JSON format")
-        alist = json.loads(alist_raw)
-
-        # verify it's the current version
-        if "meta" in alist and "version" in alist["meta"]:
-            version = alist["meta"]["version"]
-            if int(version) <= ALLOWLIST_CURRENT_VERSION:
-                logger.debug("Allowlist has compatible version %s", version)
-            else:
-                # in the future we will support multiple versions and convert between them,
-                # but for now there is only one
-                raise Exception("Allowlist has unsupported version {version}")
-        else:
-            logger.debug("Allowlist does not specify a version. Assuming current version %s", ALLOWLIST_CURRENT_VERSION)
-
-        alist["meta"]["generator"] = IMA_POLICY_GENERATOR.CompatibleAllowList
-    else:
-        # convert legacy format into new structured format
-        logger.debug("Converting legacy allowlist format to JSON")
-
-        alist = copy.deepcopy(EMPTY_ALLOWLIST)
-        alist["meta"]["timestamp"] = str(datetime.datetime.now())
-        alist["meta"]["generator"] = IMA_POLICY_GENERATOR.LegacyAllowList
-        if checksum:
-            alist["meta"]["checksum"] = checksum
-
-        for line in alist_raw.splitlines():
-            line = line.strip()
-            if len(line) == 0:
-                continue
-
-            pieces = line.split(None, 1)
-            if not len(pieces) == 2:
-                logger.warning("Line in AllowList does not consist of hash and file path: %s", line)
-                continue
-
-            (checksum_hash, path) = pieces
-
-            if path.startswith("%keyring:"):
-                entrytype = "keyrings"
-                path = path[len("%keyring:") :]  # remove leading '%keyring:' from path to get keyring name
-            else:
-                entrytype = "hashes"
-
-            if path in alist[entrytype]:
-                alist[entrytype][path].append(checksum_hash)
-            else:
-                alist[entrytype][path] = [checksum_hash]
-
-    return update_allowlist(alist)
+    # Validate exclude list contains valid regular expressions
+    _, excl_err_msg = validators.valid_exclude_list(lists.get("exclude"))
+    if excl_err_msg:
+        raise ImaValidationError(
+            message=f"{excl_err_msg} Exclude list regex is misformatted. Please correct the issue and try again.",
+            code=400,
+        )
 
 
-def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: str = "") -> Dict[str, Any]:
-    """Assembles an ima policy dictionary to be written on the database"""
-    ima_policy_db_format: Dict[str, Any] = {}
-    ima_policy_db_format["name"] = ima_policy_name
+def deserialize_runtime_policy(runtime_policy: str) -> Dict[str, Any]:
+    """
+    Converts policies stored in the database to JSON (if applicable), for use in code.
+    """
 
-    # TODO: This was required to ensure e2e CI tests pass
-    if ima_policy == "{}":
-        ima_policy_db_format["ima_policy"] = None
-    else:
-        ima_policy_db_format["ima_policy"] = ima_policy
-
-    ima_policy_bytes = ima_policy.encode()
-    ima_policy_dict = json.loads(ima_policy)
-    if "allowlist" in ima_policy_dict:
-        if "meta" in ima_policy_dict["allowlist"]:
-            if "generator" in ima_policy_dict["allowlist"]["meta"]:
-                ima_policy_db_format["generator"] = ima_policy_dict["allowlist"]["meta"]["generator"]
-            else:
-                ima_policy_db_format["generator"] = IMA_POLICY_GENERATOR.Unknown
-
-            if "timestamp" in ima_policy_dict["allowlist"]["meta"]:
-                meta_timestamp = ima_policy_dict["allowlist"]["meta"]["timestamp"]
-                # If a unique timestamp, injected by the verifier, is found within the
-                # (potentially large) IMA policy string, remove it to ensure
-                # matching checksums for identical policies.
-                ima_policy_bytes = ima_policy.replace(meta_timestamp, "").encode()
-
-    if tpm_policy:
-        ima_policy_db_format["tpm_policy"] = tpm_policy
-
-    ima_policy_db_format["checksum"] = hashlib.sha256(ima_policy_bytes).hexdigest()
-
-    return ima_policy_db_format
-
-
-def read_excllist(exclude_path: Optional[str] = None) -> List[str]:
-    excl_list = []
-    if exclude_path and os.path.exists(exclude_path):
-        with open(exclude_path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("#") or len(line) == 0:
-                    continue
-                excl_list.append(line)
-
-        logger.debug("Loaded exclusion list from %s: %s", exclude_path, excl_list)
-
-    return excl_list
+    # TODO: Extract IMA policy JSON from DSSE envelope, if applicable.
+    runtime_policy_deserialized: Dict[str, Any] = json.loads(runtime_policy)
+    return runtime_policy_deserialized
