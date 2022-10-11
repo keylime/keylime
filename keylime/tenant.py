@@ -60,9 +60,11 @@ class Tenant:
 
     tpm_policy = None
     metadata = {}
-    allowlist = {}
-    ima_policy_name = ""
-    ima_sign_verification_keys: Optional[str] = None
+    runtime_policy = ""
+    runtime_policy_name = ""
+    runtime_policy_key = None
+    runtime_policy_sig = None
+    ima_sign_verification_keys: Optional[str] = ""
     revocation_key = ""
     accept_tpm_hash_algs = []
     accept_tpm_encryption_algs = []
@@ -270,10 +272,12 @@ class Tenant:
         (
             self.tpm_policy,
             self.mb_refstate,
-            self.ima_policy_name,
+            self.runtime_policy_name,
             self.ima_sign_verification_keys,
-            self.allowlist,
-        ) = policies.process_allowlist(args)
+            self.runtime_policy,
+            self.runtime_policy_key,
+            self.runtime_policy_sig,
+        ) = policies.process_policy(args)
 
         # if none
         if args["file"] is None and args["keyfile"] is None and args["ca_dir"] is None:
@@ -541,10 +545,12 @@ class Tenant:
             "cloudagent_ip": self.cv_cloudagent_ip,
             "cloudagent_port": self.agent_port,
             "tpm_policy": json.dumps(self.tpm_policy),
-            "ima_policy_bundle": json.dumps(self.allowlist),
-            "ima_policy_name": self.ima_policy_name,
+            "runtime_policy": self.runtime_policy,
+            "runtime_policy_name": self.runtime_policy_name,
+            "runtime_policy_key": self.runtime_policy_key,
+            "runtime_policy_sig": self.runtime_policy_sig,
             "mb_refstate": json.dumps(self.mb_refstate),
-            "ima_sign_verification_keys": json.dumps(self.ima_sign_verification_keys),
+            "ima_sign_verification_keys": self.ima_sign_verification_keys,
             "metadata": json.dumps(self.metadata),
             "revocation_key": self.revocation_key,
             "accept_tpm_hash_algs": self.accept_tpm_hash_algs,
@@ -1176,32 +1182,50 @@ class Tenant:
                 continue
             break
 
-    def do_add_allowlist(self, args):
-        if "allowlist_name" not in args or not args["allowlist_name"]:
-            raise UserError("allowlist_name is required to add an allowlist")
+    def do_add_runtime_policy(self, args):
+        if args.get("runtime_policy_name") is None:
+            if args.get("allowlist_name") is not None:
+                logger.warning(
+                    "WARNING: --allowlist-name is deprecated. Use --runtime-policy-name instead."
+                    "Keylime has implemented support for a unified policy format, and will no longer accept separate allow/exclude lists in the near future."
+                    "A conversion script to upgrade legacy allow/exclude lists to the new format is available under keylime/cmd/convert_runtime_policy.py."
+                )
+            else:
+                raise UserError("runtime_policy_name is required to add a runtime policy")
 
         (
             self.tpm_policy,
             self.mb_refstate,
-            self.ima_policy_name,
+            self.runtime_policy_name,
             self.ima_sign_verification_keys,
-            self.allowlist,
-        ) = policies.process_allowlist(args)
+            self.runtime_policy,
+            self.runtime_policy_key,
+            self.runtime_policy_sig,
+        ) = policies.process_policy(args)
 
-        data = {"tpm_policy": json.dumps(self.tpm_policy), "ima_policy_bundle": json.dumps(self.allowlist)}
+        data = {
+            "tpm_policy": json.dumps(self.tpm_policy),
+            "runtime_policy": self.runtime_policy,
+            "runtime_policy_key": self.runtime_policy_key,
+            "runtime_policy_sig": self.runtime_policy_sig,
+        }
         body = json.dumps(data)
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.post(
-            f"/v{self.api_version}/allowlists/{self.ima_policy_name}", data=body, timeout=self.request_timeout
+            f"/v{self.api_version}/allowlists/{self.runtime_policy_name}", data=body, timeout=self.request_timeout
         )
         Tenant._jsonify_response(response)
 
-    def do_delete_allowlist(self, name):
+    def do_delete_runtime_policy(self, name):
+        if not name:
+            raise UserError("--allowlist_name or --runtime_policy_name is required to delete a runtime policy")
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.delete(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
         Tenant._jsonify_response(response)
 
-    def do_show_allowlist(self, name):  # pylint: disable=unused-argument
+    def do_show_runtime_policy(self, name):  # pylint: disable=unused-argument
+        if not name:
+            raise UserError("--allowlist_name or --runtime_policy_name is required to show a runtime policy")
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.get(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
         print(f"Show allowlist command response: {response.status_code}.")
@@ -1250,7 +1274,7 @@ def main() -> None:
         default="add",
         help="valid commands are add,delete,update,"
         "regstatus,cvstatus,status,reglist,cvlist,reactivate,"
-        "regdelete,bulkinfo,addallowlist,showallowlist,deleteallowlist. defaults to add",
+        "regdelete,bulkinfo,addruntimepolicy,showruntimepolicy,deleteruntimepolicy. defaults to add",
     )
     parser.add_argument(
         "-t", "--targethost", action="store", dest="agent_ip", help="the IP address of the host to provision"
@@ -1317,7 +1341,18 @@ def main() -> None:
         help="Include additional files in provided directory in certificate zip file.  Must be specified with --cert",
     )
     parser.add_argument(
-        "--allowlist", action="store", dest="allowlist", default=None, help="Specify the file path of an allowlist"
+        "--allowlist",
+        action="store",
+        dest="allowlist",
+        default=None,
+        help="DEPRECATED: Migrate to runtime policies for continued functionality. Specify the file path of an allowlist",
+    )
+    parser.add_argument(
+        "--runtime-policy",
+        action="store",
+        dest="runtime_policy",
+        default=None,
+        help="Specify the file path of a runtime policy",
     )
     parser.add_argument(
         "--signature-verification-key",
@@ -1325,42 +1360,42 @@ def main() -> None:
         action="append",
         dest="ima_sign_verification_keys",
         default=[],
-        help="Specify an IMA file signature verification key",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify an IMA file signature verification key",
     )
     parser.add_argument(
         "--signature-verification-key-sig",
         action="append",
         dest="ima_sign_verification_key_sigs",
         default=[],
-        help="Specify the GPG signature file for an IMA file signature verification key; pair this option with --signature-verification-key",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the GPG signature file for an IMA file signature verification key; pair this option with --signature-verification-key",
     )
     parser.add_argument(
         "--signature-verification-key-sig-key",
         action="append",
         dest="ima_sign_verification_key_sig_keys",
         default=[],
-        help="Specify the GPG public key file use to validate the --signature-verification-key-sig; pair this option with --signature-verification-key",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the GPG public key file use to validate the --signature-verification-key-sig; pair this option with --signature-verification-key",
     )
     parser.add_argument(
         "--signature-verification-key-url",
         action="append",
         dest="ima_sign_verification_key_urls",
         default=[],
-        help="Specify the URL for a remote IMA file signature verification key",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the URL for a remote IMA file signature verification key",
     )
     parser.add_argument(
         "--signature-verification-key-sig-url",
         action="append",
         dest="ima_sign_verification_key_sig_urls",
         default=[],
-        help="Specify the URL for the remote GPG signature of a remote IMA file signature verification key; pair this option with --signature-verification-key-url",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the URL for the remote GPG signature of a remote IMA file signature verification key; pair this option with --signature-verification-key-url",
     )
     parser.add_argument(
         "--signature-verification-key-sig-url-key",
         action="append",
         dest="ima_sign_verification_key_sig_url_keys",
         default=[],
-        help="Specify the GPG public key file used to validate the --signature-verification-key-sig-url; pair this option with --signature-verification-key-url",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the GPG public key file used to validate the --signature-verification-key-sig-url; pair this option with --signature-verification-key-url",
     )
     parser.add_argument(
         "--mb_refstate",
@@ -1370,46 +1405,53 @@ def main() -> None:
         help="Specify the location of a measure boot reference state (intended state)",
     )
     parser.add_argument(
-        "--allowlist-checksum",
-        action="store",
-        dest="allowlist_checksum",
-        default=None,
-        help="Specify the SHA-256 checksum of an allowlist",
-    )
-    parser.add_argument(
-        "--allowlist-sig",
-        action="store",
-        dest="allowlist_sig",
-        default=None,
-        help="Specify the GPG signature file of an allowlist",
-    )
-    parser.add_argument(
-        "--allowlist-sig-key",
-        action="store",
-        dest="allowlist_sig_key",
-        default=None,
-        help="Specify the GPG public key file used to validate the --allowlist-sig or --allowlist-sig-url",
-    )
-    parser.add_argument(
         "--allowlist-url",
         action="store",
         dest="allowlist_url",
         default=None,
-        help="Specify the URL of a remote allowlist",
-    )
-    parser.add_argument(
-        "--allowlist-sig-url",
-        action="store",
-        dest="allowlist_sig_url",
-        default=None,
-        help="Specify the URL of the remote GPG signature file of an allowlist",
+        help="DEPRECATED: Migrate to runtime policies for continued functionality. Specify the URL of a remote allowlist",
     )
     parser.add_argument(
         "--exclude",
         action="store",
         dest="ima_exclude",
         default=None,
-        help="Specify the location of an IMA exclude list",
+        help="DEPRECATED: Migrate to runtime policies for continued functionality. Specify the location of an IMA exclude list",
+    )
+    parser.add_argument(
+        "--runtime-policy-checksum",
+        action="store",
+        dest="runtime_policy_checksum",
+        default=None,
+        help="Specify the SHA-256 checksum of a runtime policy",
+    )
+    parser.add_argument(
+        "--runtime-policy-sig",
+        action="store",
+        dest="runtime_policy_sig",
+        default=None,
+        help="Specify the signature file of a runtime policy",
+    )
+    parser.add_argument(
+        "--runtime-policy-sig-url",
+        action="store",
+        dest="runtime_policy_sig_url",
+        default=None,
+        help="Specify the URL of the remote signature file of a runtime policy",
+    )
+    parser.add_argument(
+        "--runtime-policy-sig-key",
+        action="store",
+        dest="runtime_policy_sig_key",
+        default=None,
+        help="Specify the public key file used to validate the --runtime-policy-sig or --runtime-policy-sig-url",
+    )
+    parser.add_argument(
+        "--runtime-policy-url",
+        action="store",
+        dest="runtime_policy_url",
+        default=None,
+        help="Specify the URL of a remote runtime policy",
     )
     parser.add_argument(
         "--tpm_policy",
@@ -1424,7 +1466,11 @@ def main() -> None:
         default=False,
         help="Block on cryptographically checked key derivation confirmation from the agent once it has been provisioned",
     )
-    parser.add_argument("--allowlist-name", help="The name of allowlist to operate with")
+    parser.add_argument(
+        "--allowlist-name",
+        help="DEPRECATED: Migrate to runtime policies for continued functionality. The name of allowlist to operate with",
+    )
+    parser.add_argument("--runtime-policy-name", help="The name of the runtime policy to operate with")
     parser.add_argument(
         "--supported-version",
         default=None,
@@ -1464,8 +1510,32 @@ def main() -> None:
         mytenant.registrar_port = args.registrar_port
 
     # we only need to fetch remote files if we are adding or updating
-    if args.command in ["add", "update", "addallowlist"]:
+    if args.command in ["add", "update", "addallowlist", "addruntimepolicy"]:
         delete_tmp_files = logger.level > logging.DEBUG  # delete tmp files unless in DEBUG mode
+
+        if args.runtime_policy_url:
+            logger.info("Downloading IMA policy from %s", args.runtime_policy_url)
+            response = requests.get(args.runtime_policy_url, timeout=mytenant.request_timeout, allow_redirects=False)
+            if response.status_code == 200:
+                args.runtime_policy = write_to_namedtempfile(response.content, delete_tmp_files)
+                logger.debug("IMA policy temporarily saved in %s", args.runtime_policy)
+            else:
+                raise Exception(
+                    f"Downloading IMA policy ({args.runtime_policy_url}) failed with status code {response.status_code}!"
+                )
+
+        if args.runtime_policy_sig_url:
+            logger.info("Downloading IMA policy signature from %s", args.runtime_policy_sig_url)
+            response = requests.get(
+                args.runtime_policy_sig_url, timeout=mytenant.request_timeout, allow_redirects=False
+            )
+            if response.status_code == 200:
+                args.runtime_policy_sig = write_to_namedtempfile(response.content, delete_tmp_files)
+                logger.debug("IMA policy signature temporarily saved in %s", args.runtime_policy_sig)
+            else:
+                raise Exception(
+                    f"Downloading IMA policy signature ({args.runtime_policy_sig_url}) failed with status code {response.status_code}!"
+                )
 
         if args.allowlist_url:
             logger.info("Downloading Allowlist from %s", args.allowlist_url)
@@ -1476,17 +1546,6 @@ def main() -> None:
             else:
                 raise Exception(
                     f"Downloading allowlist ({args.allowlist_url}) failed with status code {response.status_code}!"
-                )
-
-        if args.allowlist_sig_url:
-            logger.info("Downloading Allowlist signature from %s", args.allowlist_sig_url)
-            response = requests.get(args.allowlist_sig_url, timeout=mytenant.request_timeout, allow_redirects=False)
-            if response.status_code == 200:
-                args.allowlist_sig = write_to_namedtempfile(response.content, delete_tmp_files)
-                logger.debug("Allowlist signature temporarily saved in %s", args.allowlist_sig)
-            else:
-                raise Exception(
-                    f"Downloading allowlist signature ({args.allowlist_sig_url}) failed with status code {response.status_code}!"
                 )
 
         # verify all the local keys for which we have a signature file and a key to verify
@@ -1571,10 +1630,51 @@ def main() -> None:
     elif args.command == "regdelete":
         mytenant.do_regdelete()
     elif args.command == "addallowlist":
-        mytenant.do_add_allowlist(vars(args))
+        logger.warning(
+            "WARNING: -c addallowlist is deprecated. Use -c addruntimepolicy instead."
+            "Keylime has implemented support for a unified policy format, and will no longer accept separate allow/exclude lists in the near future."
+            "A conversion script to upgrade legacy allow/exclude lists to the new format is available under keylime/cmd/convert_runtime_policy.py."
+        )
+        mytenant.do_add_runtime_policy(vars(args))
     elif args.command == "showallowlist":
-        mytenant.do_show_allowlist(args.allowlist_name)
+        logger.warning(
+            "WARNING: -c showallowlist is deprecated. Use -c showruntimepolicy instead."
+            "Keylime has implemented support for a unified policy format, and will no longer accept separate allow/exclude lists in the near future."
+            "A conversion script to upgrade legacy allow/exclude lists to the new format is available under keylime/cmd/convert_runtime_policy.py."
+        )
+        if args.allowlist_name:
+            mytenant.do_show_runtime_policy(args.allowlist_name)
+        elif args.runtime_policy_name:
+            mytenant.do_show_runtime_policy(args.runtime_policy_name)
+        else:
+            mytenant.do_show_runtime_policy(None)
     elif args.command == "deleteallowlist":
-        mytenant.do_delete_allowlist(args.allowlist_name)
+        logger.warning(
+            "WARNING: -c deleteallowlist is deprecated. Use -c deleteruntimepolicy instead."
+            "Keylime has implemented support for a unified policy format, and will no longer accept separate allow/exclude lists in the near future."
+            "A conversion script to upgrade legacy allow/exclude lists to the new format is available under keylime/cmd/convert_runtime_policy.py."
+        )
+        if args.allowlist_name:
+            mytenant.do_delete_runtime_policy(args.allowlist_name)
+        elif args.runtime_policy_name:
+            mytenant.do_delete_runtime_policy(args.runtime_policy_name)
+        else:
+            mytenant.do_delete_runtime_policy(None)
+    elif args.command == "addruntimepolicy":
+        mytenant.do_add_runtime_policy(vars(args))
+    elif args.command == "showruntimepolicy":
+        if args.allowlist_name:
+            mytenant.do_show_runtime_policy(args.allowlist_name)
+        elif args.runtime_policy_name:
+            mytenant.do_show_runtime_policy(args.runtime_policy_name)
+        else:
+            mytenant.do_show_runtime_policy(None)
+    elif args.command == "deleteruntimepolicy":
+        if args.allowlist_name:
+            mytenant.do_delete_runtime_policy(args.allowlist_name)
+        elif args.runtime_policy_name:
+            mytenant.do_delete_runtime_policy(args.runtime_policy_name)
+        else:
+            mytenant.do_delete_runtime_policy(None)
     else:
         raise UserError(f"Invalid command specified: {args.command}")

@@ -73,7 +73,7 @@ Cloud verifier (CV)
             "vtpm_policy": "{\"23\": [\"ffffffffffffffffffffffffffffffffffffffff\", \"0000000000000000000000000000000000000000\"], \"15\": [\"0000000000000000000000000000000000000000\"], \"mask\": \"0x808000\"}",
             "meta_data": "{}",
             "has_mb_refstate": 0,
-            "has_ima_policy": 0,
+            "has_runtime_policy": 0,
             "accept_tpm_hash_algs": [
               "sha512",
               "sha384",
@@ -108,9 +108,8 @@ Cloud verifier (CV)
     :>json string tpm_policy: Static PCR policy and mask for TPM
     :>json string vtpm_policy: Static PCR policy and mask for vTPM
     :>json string meta_data: Metadata about the agent. Normally contains certificate information if a CA is used.
-    :>json int allowlist_len: Length of the allowlist.
-    :>json int mb_refstate_len: 1 if a measured boot refstate was provided via tenant, 0 otherwise.
-    :>json int mb_ima_policy: 1 if an IMA policy (allowlist and excludelist) was provided via tenant, 0 otherwise.
+    :>json int has_mb_refstate: 1 if a measured boot refstate was provided via tenant, 0 otherwise.
+    :>json int has_runtime_policy: 1 if a runtime policy (allowlist and excludelist) was provided via tenant, 0 otherwise.
     :>json list[string] accept_tpm_hash_algs: Accepted TPM hashing algorithms. sha1 must be enabled for IMA validation to work.
     :>json list[string] accept_tpm_encryption_algs: Accepted TPM encryption algorithms.
     :>json list[string] accept_tpm_signing_algs: Accepted TPM signing algorithms.
@@ -138,7 +137,9 @@ Cloud verifier (CV)
           "cloudagent_port": 9002,
           "tpm_policy": "{\"22\": [\"0000000000000000000000000000000000000001\", \"0000000000000000000000000000000000000000000000000000000000000001\", \"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001\", \"ffffffffffffffffffffffffffffffffffffffff\", \"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\", \"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"], \"15\": [\"0000000000000000000000000000000000000000\", \"0000000000000000000000000000000000000000000000000000000000000000\", \"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"], \"mask\": \"0x408000\"}",
           "vtpm_policy": "{\"23\": [\"ffffffffffffffffffffffffffffffffffffffff\", \"0000000000000000000000000000000000000000\"], \"15\": [\"0000000000000000000000000000000000000000\"], \"mask\": \"0x808000\"}",
-          "allowlist": "{}",
+          "runtime_policy": "",
+          "runtime_policy_sig": "",
+          "runtime_policy_key": "",
           "mb_refstate": "null",
           "ima_sign_verification_keys": "[]",
           "metadata": "{\"cert_serial\": 71906672046699268666356441515514540742724395900, \"subject\": \"/C=US/ST=MA/L=Lexington/O=MITLL/OU=53/CN=D432FBB3-D2F1-4A97-9EF7-75BD81C00000\"}",
@@ -167,7 +168,9 @@ Cloud verifier (CV)
     :<json string cloudagent_port: Agents contact port for the CV.
     :<json string tpm_policy: Static PCR policy and mask for TPM. Is a string encoded dictionary that also includes a `mask` for which PCRs should be included in a quote.
     :<json string vtpm_policy: Static PCR policy and mask for vTPM. Same as `tpm_policy`.
-    :<json string allowlist: Allowlist JSON object string encoded.
+    :<json string runtime_policy: Runtime policy JSON object, base64 encoded.
+    :<json string runtime_policy_sig: Optional runtime policy detached signature, base64-encoded. Must also provide `runtime_policy_key`.
+    :<json string runtime_policy_key: Optional runtime policy detached signature key, base64-encoded. Must also provide `runtime_policy_sig`.
     :<json string mb_refstate: Measured boot reference state policy.
     :<json string ima_sign_verification_keys: IMA signature verification public keyring JSON object string encoded.
     :<json string metadata: Metadata about the agent. Contains `cert_serial` and `subject` if a CA is used with the tenant.
@@ -200,6 +203,66 @@ Cloud verifier (CV)
 
     Stop cv polling on `agent_id`, but don’t delete (for an already started `agent_id`).
     This will make the agent verification fail.
+
+
+.. http:post::  /v2.1/allowlists/{runtime_policy_name:string}
+
+    Add new named IMA policy `runtime_policy_name` to CV.
+
+    **Example request**:
+
+    .. sourcecode:: json
+
+        {
+          "tpm_policy": "{\"22\": [\"0000000000000000000000000000000000000001\", \"0000000000000000000000000000000000000000000000000000000000000001\", \"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001\", \"ffffffffffffffffffffffffffffffffffffffff\", \"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\", \"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"], \"15\": [\"0000000000000000000000000000000000000000\", \"0000000000000000000000000000000000000000000000000000000000000000\", \"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"], \"mask\": \"0x408000\"}",
+          "runtime_policy": "",
+          "runtime_policy_sig": "",
+          "runtime_policy_key": "",
+        }
+
+    :<json string tpm_policy: Static PCR policy and mask for TPM. Is a string encoded dictionary that also includes a `mask` for which PCRs should be included in a quote.
+    :<json string runtime_policy: Runtime policy JSON object, base64 encoded.
+    :<json string runtime_policy_sig: Optional runtime policy detached signature, base64-encoded. Must also provide `runtime_policy_key`.
+    :<json string runtime_policy_key: Optional runtime policy detached signature key, base64-encoded. Must also provide `runtime_policy_sig`.
+
+
+.. http:get::  /v2.1/allowlists/{runtime_policy_name:string}
+
+    Retrieve named runtime policy `runtime_policy_name` from CV.
+
+    **Example response**:
+
+    .. sourcecode:: json
+
+        {
+          "code": 200,
+          "status": "Success",
+          "results": {
+            "name": "",
+            "tpm_policy": "{\"22\": [\"0000000000000000000000000000000000000001\", \"0000000000000000000000000000000000000000000000000000000000000001\", \"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001\", \"ffffffffffffffffffffffffffffffffffffffff\", \"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\", \"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"], \"15\": [\"0000000000000000000000000000000000000000\", \"0000000000000000000000000000000000000000000000000000000000000000\", \"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"], \"mask\": \"0x408000\"}",
+            "runtime_policy": "",
+          }
+        }
+
+    :<json string name: Name of the requested IMA policy.
+    :<json string tpm_policy: Static PCR policy and mask for TPM. Is a string encoded dictionary that also includes a `mask` for which PCRs should be included in a quote.
+    :<json string runtime_policy: Runtime policy JSON object, base64 encoded.
+
+
+.. http:delete::  /v2.1/allowlist/{runtime_policy_name:string}
+
+    Delete IMA policy `runtime_policy_name`.
+
+    **Example response**:
+
+    .. sourcecode:: json
+
+        {
+          "code": 200,
+          "status": "Success",
+          "results": {}
+        }
+
 
 Cloud Agent
 ~~~~~~~~~~~

@@ -18,26 +18,26 @@ policy formats are accepted.
 
 Example usage:
 
-To convert an allowlist and exclude list to an IMA policy at `keylime-policy.json`:
+To convert an allowlist and exclude list to a runtime policy at `keylime-policy.json`:
 
 ```
-python convert_ima_policy.py -a <allowlist path> -e <exclude list path> -o keylime-policy.json
+python convert_runtime_policy.py -a <allowlist path> -e <exclude list path> -o keylime-policy.json
 ```
 
 To convert an existing IMA policy to the latest version:
 
 ```
-python convert_ima_policy.py -i <ima policy path> -o keylime-policy.json
+python convert_runtime_policy.py -i <ima policy path> -o keylime-policy.json
 ```
 
 To view help and see all available options:
 
 ```
-python convert_ima_policy.py -h
+python convert_runtime_policy.py -h
 ```
 """
 
-# Creates an IMA policy from provided legacy allowlist.
+# Creates a runtime policy from provided legacy allowlist.
 def convert_legacy_allowlist(allowlist_path: str) -> PolicyDict:
     with open(allowlist_path, "r", encoding="utf8") as f:
         alist_raw = f.read()
@@ -45,28 +45,35 @@ def convert_legacy_allowlist(allowlist_path: str) -> PolicyDict:
     # Attempt to load JSON, and convert the appropriate format
     try:
         alist_json = json.loads(alist_raw)
-        print(f"{basename(allowlist_path)} appears to be JSON-formatted; converting to IMA policy")
-        ima_policy = _convert_json_allowlist(alist_json)
-    except Exception as _:
+        if alist_json.get("hashes"):
+            print(f"{basename(allowlist_path)} appears to be JSON-formatted; converting to IMA policy")
+            runtime_policy = _convert_json_allowlist(alist_json)
+        elif alist_json.get("digests"):
+            # This allowlist file is already a runtime policy; error out
+            raise Exception
+        else:
+            print(f"{basename(allowlist_path)} does not contain a valid digest list!")
+            assert False
+    except json.decoder.JSONDecodeError as _:
         print(
             f"{basename(allowlist_path)} is not JSON-formatted; attempting to convert to IMA policy from flat file format"
         )
-        ima_policy = _convert_flat_format_allowlist(alist_raw)
-    return ima_policy
+        runtime_policy = _convert_flat_format_allowlist(alist_raw)
+    return runtime_policy
 
 
 # Converts JSON-format allowlist to JSON-format IMA policy
 def _convert_json_allowlist(alist_json: PolicyDict) -> PolicyDict:
-    ima_policy: PolicyDict = copy.deepcopy(ima.EMPTY_IMA_POLICY)
-    ima_policy["meta"]["timestamp"] = str(datetime.datetime.now())
-    ima_policy["meta"]["generator"] = ima.IMA_POLICY_GENERATOR.LegacyAllowList
-    for key in ima_policy.keys():
+    runtime_policy: PolicyDict = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
+    runtime_policy["meta"]["timestamp"] = str(datetime.datetime.now())
+    runtime_policy["meta"]["generator"] = ima.RUNTIME_POLICY_GENERATOR.LegacyAllowList
+    for key in runtime_policy.keys():
         if key == "digests":
             digests = alist_json.get("hashes")
             if not digests:
                 print("Allowlist does not have a valid hash list!")
             else:
-                ima_policy[key] = alist_json["hashes"]
+                runtime_policy[key] = alist_json["hashes"]
         elif key == "meta":
             # Skip old metadata
             continue
@@ -75,15 +82,15 @@ def _convert_json_allowlist(alist_json: PolicyDict) -> PolicyDict:
             if not to_migrate:
                 print(f"IMA policy field '{key}' not found in allowlist; using default value")
             else:
-                ima_policy[key] = alist_json[key]
-    return ima_policy
+                runtime_policy[key] = alist_json[key]
+    return runtime_policy
 
 
 # Converts flat-format allowlist to JSON-format IMA policy
 def _convert_flat_format_allowlist(alist_raw: str) -> PolicyDict:
-    ima_policy: PolicyDict = copy.deepcopy(ima.EMPTY_IMA_POLICY)
-    ima_policy["meta"]["timestamp"] = str(datetime.datetime.now())
-    ima_policy["meta"]["generator"] = ima.IMA_POLICY_GENERATOR.LegacyAllowList
+    runtime_policy: PolicyDict = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
+    runtime_policy["meta"]["timestamp"] = str(datetime.datetime.now())
+    runtime_policy["meta"]["generator"] = ima.RUNTIME_POLICY_GENERATOR.LegacyAllowList
 
     lines = alist_raw.splitlines()
     for line_num, line in enumerate(lines):
@@ -104,24 +111,24 @@ def _convert_flat_format_allowlist(alist_raw: str) -> PolicyDict:
         else:
             entrytype = "digests"
 
-        if path in ima_policy[entrytype]:
-            ima_policy[entrytype][path].append(checksum_hash)
+        if path in runtime_policy[entrytype]:
+            runtime_policy[entrytype][path].append(checksum_hash)
         else:
-            ima_policy[entrytype][path] = [checksum_hash]
-    return ima_policy
+            runtime_policy[entrytype][path] = [checksum_hash]
+    return runtime_policy
 
 
 # Updates an existing IMA policy to the latest version, and adds any provided input
-def update_ima_policy(
+def update_runtime_policy(
     policy: PolicyDict, excludelist_path: Optional[str] = None, verification_keys: Optional[List[str]] = None
 ) -> PolicyDict:
-    if policy["meta"]["version"] < ima.IMA_POLICY_CURRENT_VERSION:
+    if policy["meta"]["version"] < ima.RUNTIME_POLICY_CURRENT_VERSION:
         print(
-            f"Provided policy has version {policy['meta']['version']}; latest policy has version {ima.IMA_POLICY_CURRENT_VERSION}. Updating to latest version."
+            f"Provided policy has version {policy['meta']['version']}; latest policy has version {ima.RUNTIME_POLICY_CURRENT_VERSION}. Updating to latest version."
         )
-        updated_policy: PolicyDict = copy.deepcopy(ima.EMPTY_IMA_POLICY)
+        updated_policy: PolicyDict = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
         updated_policy["meta"]["timestamp"] = str(datetime.datetime.now())
-        updated_policy["meta"]["generator"] = ima.IMA_POLICY_GENERATOR.CompatibleAllowList
+        updated_policy["meta"]["generator"] = ima.RUNTIME_POLICY_GENERATOR.CompatibleAllowList
         for key in updated_policy.keys():
             if key == "meta":
                 continue
@@ -143,10 +150,13 @@ def update_ima_policy(
 
     verification_key_list = None
     if verification_keys:
-        keyring = file_signatures.ImaKeyring().from_string(policy["ima_sign_verification_keys"])
-        if not keyring:
-            print("Could not create IMAKeyring from JSON")
+        if policy.get("verification-keys", None):
+            keyring = file_signatures.ImaKeyring().from_string(policy["verification-keys"])
+            if not keyring:
+                print("Could not create IMAKeyring from JSON")
         else:
+            keyring = file_signatures.ImaKeyring()
+        if keyring:
             for key in verification_keys:
                 try:
                     pubkey, keyidv2 = file_signatures.get_pubkey_from_file(key)
@@ -156,11 +166,11 @@ def update_ima_policy(
                         keyring.add_pubkey(pubkey, keyidv2)
                 except ValueError as e:
                     print(f"File '{key}' does not have a supported key: {e}")
-            verification_key_list = json.dumps(keyring.to_string())
+            verification_key_list = keyring.to_string()
 
     policy["excludes"] += excl_list
     if verification_key_list:
-        policy["verification-keys"].append(verification_key_list)
+        policy["verification-keys"] = verification_key_list
 
     return policy
 
@@ -169,7 +179,7 @@ def main() -> None:
 
     parser = ConversionParser()
     parser.add_argument("-a", "--allowlist", help="allowlist file location", action="store")
-    parser.add_argument("-i", "--ima_policy", help="IMA policy file location", action="store")
+    parser.add_argument("-i", "--runtime_policy", help="IMA policy file location", action="store")
     parser.add_argument("-e", "--excludelist", help="exclude list file location", action="store")
     parser.add_argument("-v", "--verification_keys", help="list of verification key paths", nargs="+", default=[])
     parser.add_argument("-o", "--output_file", help="Output file path", action="store")
@@ -180,11 +190,11 @@ def main() -> None:
         parser.exit()
 
     args = parser.parse_args()
-    if bool(args.allowlist) and bool(args.ima_policy):
+    if bool(args.allowlist) and bool(args.runtime_policy):
         print("Cannot provide both --allowlist and --ima-policy!")
         sys.exit(1)
-    elif not bool(args.allowlist) and not bool(args.ima_policy):
-        print("Either --allowlist or --ima_policy is required!")
+    elif not bool(args.allowlist) and not bool(args.runtime_policy):
+        print("Either --allowlist or --runtime_policy is required!")
         sys.exit(1)
     elif not args.output_file:
         print("An output file path (-o, --output_file) is required to write new policy!")
@@ -192,16 +202,18 @@ def main() -> None:
 
     if args.allowlist:
         policy = convert_legacy_allowlist(args.allowlist)
-    elif args.ima_policy:
-        with open(args.ima_policy, "r", encoding="utf8") as f:
+    elif args.runtime_policy:
+        with open(args.runtime_policy, "r", encoding="utf8") as f:
             policy = json.load(f)
         if not isinstance(policy, Dict):
-            print(f"The policy in file {args.ima_policy} must be a dictionary")
+            print(f"The policy in file {args.runtime_policy} must be a dictionary")
             sys.exit(1)
     else:
         assert False  # This cannot happen
 
-    policy_out = update_ima_policy(policy, excludelist_path=args.excludelist, verification_keys=args.verification_keys)
+    policy_out = update_runtime_policy(
+        policy, excludelist_path=args.excludelist, verification_keys=args.verification_keys
+    )
     with open(args.output_file, "wb") as f:
         f.write(json.dumps(policy_out).encode())
 

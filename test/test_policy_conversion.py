@@ -7,7 +7,7 @@ import json
 import tempfile
 import unittest
 
-from keylime.cmd import convert_ima_policy
+from keylime.cmd import convert_runtime_policy
 from keylime.ima import ima
 
 ALLOWLIST = {
@@ -49,18 +49,18 @@ class TestPolicyConversion(unittest.TestCase):
         with tempfile.NamedTemporaryFile() as tmp_allow:
             with open(tmp_allow.name, "w", encoding="utf8") as f:
                 f.write(json.dumps(ALLOWLIST))
-            created_ima_policy = convert_ima_policy.convert_legacy_allowlist(tmp_allow.name)
-        self.assertIsNotNone(created_ima_policy["digests"], "Created IMA policy has 'digests' field")
+            created_runtime_policy = convert_runtime_policy.convert_legacy_allowlist(tmp_allow.name)
+        self.assertIsNotNone(created_runtime_policy["digests"], "Created runtime policy has 'digests' field")
         self.assertEqual(
-            created_ima_policy["meta"]["version"], ima.IMA_POLICY_CURRENT_VERSION, "Metadata version is correct"
+            created_runtime_policy["meta"]["version"], ima.RUNTIME_POLICY_CURRENT_VERSION, "Metadata version is correct"
         )
         self.assertEqual(
-            created_ima_policy["meta"]["generator"],
-            ima.IMA_POLICY_GENERATOR.LegacyAllowList,
+            created_runtime_policy["meta"]["generator"],
+            ima.RUNTIME_POLICY_GENERATOR.LegacyAllowList,
             "Metadata generator is correct",
         )
         self.assertEqual(
-            created_ima_policy["digests"][
+            created_runtime_policy["digests"][
                 "/lib/modules/5.4.48-openpower1/kernel/drivers/gpu/drm/drm_panel_orientation_quirks.ko"
             ][0],
             "cd026b58efdf66658685430ff526490d54a430a3f0066a35ac26a8acab66c55d",
@@ -71,8 +71,8 @@ class TestPolicyConversion(unittest.TestCase):
             with open(tmp_exclude.name, "w", encoding="utf8") as f:
                 f.write(EXCLUDELIST)
 
-            updated_ima_policy = convert_ima_policy.update_ima_policy(
-                created_ima_policy, excludelist_path=tmp_exclude.name
+            updated_runtime_policy = convert_runtime_policy.update_runtime_policy(
+                created_runtime_policy, excludelist_path=tmp_exclude.name
             )
-        self.assertIsNotNone(created_ima_policy["excludes"], "Created IMA policy has 'excludes' field")
-        self.assertIn("/usr/bin/zmore", updated_ima_policy["excludes"], "Sample exclusion path is correct")
+        self.assertIsNotNone(created_runtime_policy["excludes"], "Created runtime policy has 'excludes' field")
+        self.assertIn("/usr/bin/zmore", updated_runtime_policy["excludes"], "Sample exclusion path is correct")

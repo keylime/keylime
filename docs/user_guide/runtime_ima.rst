@@ -83,12 +83,14 @@ will place the agent into a failed state. Likewise, if any files invoke the acti
 stated in `ima-policy` that are not matched in the allowlist, keylime will place
 the agent into a failed state.
 
-Generate an allowlist
+Allowlists are contained in Keylime runtime policies - see below for more details.
+
+Generate a runtime policy
 ~~~~~~~~~~~~~~~~~~~~~
 
-Keylime provides a script to generate allowlists from `initramfs`, but this is
+Keylime provides a script to generate runtime policies from `initramfs`, but this is
 only a guide. We encourage developers / users of Keylime to be creative and come
-up with their own process for securely creating and maintaining an allowlist.
+up with their own process for securely creating and maintaining runtime policies.
 
 The `create_allowlist.sh` script is `available here <https://github.com/keylime/keylime/blob/master/scripts/create_allowlist.sh>`_
 
@@ -99,15 +101,16 @@ Run the script as follows::
 With `[hash-algo]` being `sha1sum`, `sha256sum` (note, you need the OpenSSL app
 installed to have the shasum CLI applications available).
 
-This will then result in `allowlist.txt` being available for Agent provisioning.
+This will then result in `[filename]` being available for Agent provisioning.
 
 .. warning::
-    It’s best practice to create the allowlist in a secure environment. Ideally,
-    this should be on a fully encrypted, air gapped computer that is permanently
-    isolated from the Internet. Disable all network cards and sign the allowlist
-    hash to ensure no tampering occurs when transferring to other machines.
+    It’s best practice to create the runtime policy in a secure environment.
+    Ideally, this should be on a fully encrypted, air gapped computer that is
+    permanently isolated from the Internet. Disable all network cards and sign
+    the runtime policy hash to ensure no tampering occurs when transferring to other
+    machines.
 
-Alongside building an allowlist from `initramfs`, you could also generate good
+Alongside building a runtime policy from `initramfs`, you could also generate good
 hashes for your applications files or admin scripts that will run on the
 remotely attested machine.
 
@@ -120,6 +123,8 @@ those found in Perl. Note that this syntax is different from POSIX basic
 regular expressions. For example the `tmp` directory can be ignored using::
 
   /tmp/.*
+
+Exclude lists are present as part of the runtime policy format.
 
 Allowlist entries for keys
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -204,12 +209,6 @@ follows::
 
 .. note::
   If your agent is already registered, you can use `-c update`
-
-Should you prefer, you can set the values `allowlist` & `ima_excludelist`
-within `/etc/keylime.conf`, you can then use `default` as follows::
-
-  `keylime_tenant -v 127.0.0.1 -t neptune -f /root/excludes.txt --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --allowlist default --exclude default`
-
 
 How can I test this?
 --------------------

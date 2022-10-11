@@ -25,25 +25,33 @@ def extract_password(pwstring: str) -> str:
 
 
 def get_opts_error(args: Any) -> Tuple[bool, str]:
+    if args.command in ["addallowlist", "addruntimepolicy"] and not (
+        args.allowlist or args.allowlist_url or args.runtime_policy or args.runtime_policy_url
+    ):
+        return True, "--allowlist or --runtime_policy is required to add a runtime policy"
     if args.ima_exclude and not args.allowlist:
         return True, "--exclude cannot be used without an --allowlist"
     if args.allowlist and args.allowlist_url:
         return True, "--allowlist and --allowlist-url cannot be specified at the same time"
-    if args.allowlist_url and not (args.allowlist_sig or args.allowlist_sig_url or args.allowlist_checksum):
+    if args.runtime_policy and args.runtime_policy_url:
+        return True, "--runtime_policy and --runtime_policy-url cannot be specified at the same time"
+    if args.runtime_policy_url and not (
+        args.runtime_policy_sig or args.runtime_policy_sig_url or args.runtime_policy_checksum
+    ):
         return (
             True,
-            "--allowlist-url must have either --allowlist-sig, --allowlist-sig-url or --allowlist-checksum to verifier integrity",
+            "--runtime_policy-url must have either --runtime_policy-sig, --runtime_policy-sig-url or --runtime_policy-checksum to verifier integrity",
         )
-    if args.allowlist_sig and not (args.allowlist_url or args.allowlist):
-        return True, "--allowlist-sig must have either --allowlist or --allowlist-url"
-    if args.allowlist_sig_url and not (args.allowlist_url or args.allowlist):
-        return True, "--allowlist-sig-url must have either --allowlist or --allowlist-url"
-    if args.allowlist_checksum and not (args.allowlist_url or args.allowlist):
-        return True, "--allowlist-checksum must have either --allowlist or --allowlist-url"
-    if args.allowlist_sig and not args.allowlist_sig_key:
-        return True, "--allowlist-sig must also have --allowlist-sig-key"
-    if args.allowlist_sig_url and not args.allowlist_sig_key:
-        return True, "--allowlist-sig-url must also have --allowlist-sig-key"
-    if args.allowlist_sig_key and not (args.allowlist_sig or args.allowlist_sig_url):
-        return True, "--allowlist-sig-key must have either --allowlist-sig or --allowlist-sig-url"
+    if args.runtime_policy_sig and not (args.runtime_policy_url or args.runtime_policy):
+        return True, "--runtime_policy-sig must have either --runtime_policy or --runtime_policy-url"
+    if args.runtime_policy_sig_url and not (args.runtime_policy_url or args.runtime_policy):
+        return True, "--runtime_policy-sig-url must have either --runtime_policy or --runtime_policy-url"
+    if args.runtime_policy_checksum and not (args.runtime_policy_url or args.runtime_policy):
+        return True, "--runtime_policy-checksum must have either --runtime_policy or --runtime_policy-url"
+    if args.runtime_policy_sig and not args.runtime_policy_sig_key:
+        return True, "--runtime_policy-sig must also have --runtime_policy-sig-key"
+    if args.runtime_policy_sig_url and not args.runtime_policy_sig_key:
+        return True, "--runtime_policy-sig-url must also have --runtime_policy-sig-key"
+    if args.runtime_policy_sig_key and not (args.runtime_policy_sig or args.runtime_policy_sig_url):
+        return True, "--runtime_policy-sig-key must have either --runtime_policy-sig or --runtime_policy-sig-url"
     return False, ""
