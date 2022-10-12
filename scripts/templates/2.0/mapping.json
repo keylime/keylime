@@ -10,17 +10,17 @@
             "revocation_notification_ip": {
                 "section": "general",
                 "option": "receive_revocation_ip",
-                "default": "default"
+                "default": "127.0.0.1"
             },
             "revocation_notification_port": {
                 "section": "general",
                 "option": "receive_revocation_port",
-                "default": "default"
+                "default": "8992"
             },
             "uuid": {
                 "section": "cloud_agent",
                 "option": "agent_uuid",
-                "default": "generate"
+                "default": "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"
             },
             "ip": {
                 "section": "cloud_agent",
@@ -50,7 +50,7 @@
             "registrar_port": {
                 "section": "cloud_agent",
                 "option": "registrar_port",
-                "default": "9002"
+                "default": "8890"
             },
             "enable_agent_mtls": {
                 "section": "cloud_agent",
@@ -212,7 +212,7 @@
             "tls_dir": {
                 "section": "cloud_verifier",
                 "option": "tls_dir",
-                "default": "default"
+                "default": "generate"
             },
             "trusted_client_ca": {
                 "section": "cloud_verifier",
