@@ -28,6 +28,9 @@ tpm2-abrmd \
     --flush-all \
     --allow-root &
 
+# Create test user
+useradd -s /sbin/nologin -g tss keylime
+
 # Run tests
 if [ "$GITHUB_ACTIONS" == "true" ]
 then
