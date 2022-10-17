@@ -5,8 +5,8 @@ User Selected PCR Monitoring
     This page is still under development and not complete. It will be so until
     this warning is removed.
 
-Using use the `tpm_policy` feature in Keylime, it is possible to monitor a
-remote machine for any given PCR.
+Using the `tpm_policy` feature in Keylime, it is possible to monitor a remote
+machine for any given PCR.
 
 This can be used for Trusted Boot checks for both the `rhboot` shim loader and
 Trusted Grub 2.
@@ -21,11 +21,7 @@ How to use
 Select which PCRs you would like Keylime to measure, by using the `tpm2_pcrread` from the `tpm2-tools <https://github.com/tpm2-software/tpm2-tools>`_
 tool.
 
-Now you can set the PCR values as a JSON data structure in either the `keylime.conf` file::
-
-    tpm_policy = {"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}
-
-Or you can add a node to using `keylime_tenant`::
+Now you can set the PCR values as a JSON data structure using `keylime_tenant`::
 
     keylime_tenant -v 127.0.0.1 -t 127.0.0.1 -f /root/excludes.txt \
     --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 \

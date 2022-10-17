@@ -7,7 +7,7 @@
 
 FROM quay.io/fedora/fedora:34-x86_64
 MAINTAINER Luke Hinds <lhinds@redhat.com>
-LABEL version="1.1.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
+LABEL version="1.2.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
 # environment variables
 ARG BRANCH=master
@@ -78,7 +78,9 @@ RUN dnf makecache && \
 # Install cargo dependencies
 RUN cargo install cargo-tarpaulin
 
-# Move keylime.conf to expected location in /etc/
+# Install keylime
 RUN git clone https://github.com/keylime/keylime.git && \
   cd keylime && \
-  cp keylime.conf /etc/keylime.conf
+  ./installer.sh && \
+  dnf clean all && \
+  rm -rf /var/cache/dnf/*

@@ -3,6 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 """
 
+import configparser
 import os
 import sys
 
@@ -16,13 +17,14 @@ class keylime_build(build_py):
         # Generate the split configuration files, if not present
         setup_dir = os.path.dirname(os.path.abspath(__file__))
         config_dir = os.path.join(setup_dir, "config")
-        keylime_conf = os.path.join(setup_dir, "keylime.conf")
-        if not os.path.exists(config_dir) and os.path.exists(keylime_conf):
+        if not os.path.exists(config_dir):
             sys.path.append(setup_dir)
             import scripts.convert_config as convert  # pylint: disable=C0415
 
             os.mkdir(config_dir)
-            old_config = convert.get_config([[keylime_conf]])
+            # Empty configuration makes the scripts to use the default value for
+            # all options
+            old_config = configparser.RawConfigParser()
             templates_dir = os.path.join(setup_dir, "scripts/templates")
             config = convert.process_versions(templates_dir, old_config)
             # Empty components list makes the script to output the config for

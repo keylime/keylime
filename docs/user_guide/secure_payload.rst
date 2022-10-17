@@ -40,15 +40,15 @@ delivered to the Agent.  Once the Keylime protocol with the Tenant and Verifier
 has completed, the Keylime Agent will decrypt this file and place it in
 `/var/lib/keylime/secure/decrypted_payload` This is the default file name, but
 you can adjust the name of this file using the `dec_payload_file` option in
-`keylime.conf`.  You can also optionally specify a zip file as the file to be
-securely delivered.  If the `extract_payload_zip` option in `keylime.conf` is
+`agent.conf`.  You can also optionally specify a zip file as the file to be
+securely delivered.  If the `extract_payload_zip` option in `agent.conf` is
 set (which it is by default), then Keylime will automatically extract the zip
 file to `/var/lib/keylime/secure/unzipped`. Finally, Keylime can also execute a
 script contained in the zip file once it has been unzipped.  You can think of
 this as a very simple form of `cloud-init <https://cloudinit.readthedocs.io/>`_.
 By default this script is called `autorun.sh`. You can override this default
 with a different script name by adjusting the `payload_script` option in
-`keylime.conf`. Note also that this script must be contained in the encrypted
+`agent.conf`. Note also that this script must be contained in the encrypted
 zip file, from which it will be extraced and then placed in
 `/var/lib/keylime/secure/unzipped`.
 
@@ -57,7 +57,7 @@ itself are very sensitive, Keylime will only write those files to the
 memory-backed (and therefore non-persistent) `/var/lib/keylime/secure`
 directory. This is a bind-mounted tmpfs partition.  As such, depending on how
 large your payload is, you may need to increase the size of this mounted
-partition by adjusting the `secure_size` option in `keylime.conf`.
+partition by adjusting the `secure_size` option in `agent.conf`.
 
 This simple mode of operation is suitable for many situations where the secrets
 and other bootstrapping information are basic.  However, there are several
@@ -95,9 +95,9 @@ this key in the zip it sends to the Agent. This way Agents can validate the
 revocation notifications they receive from the verifier.
 
 By default all Keylime Agents listen for these revocation notifications (see
-the `listen_notifications` option in `keylime.conf`). Using the keys in the
-unzipped certificate package, Agents can check that the revocations are valid.
-Keylime Agents can also take actions in response to a valid revocation.
+the `enable_revocation_notifications` option in `agent.conf`). Using the keys in
+the unzipped certificate package, Agents can check that the revocations are
+valid. Keylime Agents can also take actions in response to a valid revocation.
 You can configure these actions by putting additional files into the delivered zip
 file using `--include`.
 
@@ -200,7 +200,7 @@ Within this script create an `execute` function:
         if event['type'] != 'revocation':
             return
 
-	json_meta = json.loads(event['meta_data'])
+        json_meta = json.loads(event['meta_data'])
         serial = json_meta['cert_serial']
 
         # load up my own cert

@@ -93,7 +93,7 @@ def adjust(config, mapping):
                 v = value.strip("[]").split(",")
 
                 # Eliminate surrounding blank space from each element
-                map(lambda x: x.strip(), v)
+                v = map(lambda x: x.strip(), v)
 
                 # Remove empty strings
                 v = list(filter(lambda x: (x != ""), v))

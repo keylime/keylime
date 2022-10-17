@@ -193,11 +193,6 @@ follows::
 .. note::
   If your agent is already registered, you can use `-c update`
 
-Should you prefer, you can set the values `allowlist` & `ima_excludelist`
-within `/etc/keylime.conf`, you can then use `default` as follows::
-
-  `keylime_tenant -v 127.0.0.1 -t neptune -f /root/excludes.txt --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --allowlist default --exclude default`
-
 
 How can I test this?
 --------------------

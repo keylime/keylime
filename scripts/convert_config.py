@@ -394,6 +394,15 @@ def main():
 
     parser.add_argument("--version", help="Target version for the output " "configuration files", default=None)
 
+    parser.add_argument(
+        "--defaults",
+        help="If provided, the input file and system installed "
+        "configuration files will be ignored, and the default "
+        "value will be used for all options.",
+        default=False,
+        action="store_true",
+    )
+
     args = parser.parse_args()
 
     if not os.path.exists(args.out):
@@ -413,11 +422,14 @@ def main():
 
     print(f"Using templates from directory {args.templates}")
 
-    # Get old configuration
-    old_config = get_config(args.input)
-    if not old_config:
-        # None of the provided files were parsed successfully
-        return
+    if args.defaults:
+        old_config = configparser.RawConfigParser()
+    else:
+        # Get old configuration
+        old_config = get_config(args.input)
+        if not old_config:
+            # None of the provided files were parsed successfully
+            return
 
     if args.mapping:
         if os.path.isfile(args.mapping):

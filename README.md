@@ -249,16 +249,66 @@ owned (i.e., owned = 0) and take control of it.  Keylime can also take a system
 that is already owned, provided that you know the owner password and that
 keylime or another trusted computing system that relies upon tpm4720 previously
 took ownership.  If you know the owner password, you can set the option
-`tpm_ownerpassword` in `keylime.conf` to this known value.
+`tpm_ownerpassword` in `/etc/keylime/agent.conf` to this known value.
 
 ## Usage
 
 ### Configuring keylime
 
-keylime puts its configuration in `/etc/keylime.conf`.  It will also take an alternate
-location for the config in the environment var `KEYLIME_CONFIG`.
+Keylime is configured by six separate files:
 
-This file is documented with comments and should be self-explanatory.
+- `/etc/keylime/agent.conf`: the keylime agent configuration file
+- `/etc/keylime/verifier.conf`: the keylime verifier configuration file
+- `/etc/keylime/registrar.conf`: the keylime registrar configuration file
+- `/etc/keylime/tenant.conf`: the keylime tenant configuration file
+- `/etc/keylime/ca.conf`: the shared CA configuration file
+- `/etc/keylime/logging.conf`: the shared logging configuration file
+
+The `ca.conf` and `logging.conf` are shared configuration files that need to be
+present regardless of the Keylime component installed.
+
+The other configuration files configures the respective component. For example,
+the `verifier.conf` file configures the keylime verifier. To run the keylime
+verifier, the machine needs the `/etc/keylime/verifier.conf` installed as well
+as the shared configuration files `/etc/keylime/ca.conf` and
+`/etc/keylime/logging.conf`.
+
+The used configuration file can be overriden by paths set by environment
+variables:
+
+- `KEYLIME_AGENT_CONFIG`: overrides the path to the agent configuration file
+- `KEYLIME_VERIFIER_CONFIG`: overrides the path to the verifier configuration file
+- `KEYLIME_REGISTRAR_CONFIG`: overrides the path to the registrar configuration file
+- `KEYLIME_TENANT_CONFIG`: overrides the path to the tenant configuration file
+- `KEYLIME_CA_CONFIG`: overrides the path to the CA configuration file
+- `KEYLIME_LOGGING_CONFIG`: overrides the path to the logging configuration file
+
+For each configuration file, it is possible to override configuration options by
+placing files containing configuration snippets in the respective
+`/etc/keylime/*.conf.d` directory.
+
+For example, to override the verifier `ip` option with the value `192.168.0.2`,
+it is possible to add a file containing a configuration snippet
+in`/etc/keylime/verifier.conf.d/99-my_ip_override.conf`. In this case containing:
+```
+[verifier]
+ip = 192.168.0.2
+```
+
+The snippet should contain the section (in this case `[verifier]`) and the
+options modified (in this case `ip`).
+
+The final configuration is the result of the values found in the base
+configuration file (e.g. `/etc/keylime/verifier.conf` for the verifier) with the
+snippets files found in the snippets directory applied (e.g.
+`/etc/keylime/verifier.conf.d` for the verifier)
+
+Keep in mind that the configuration processing applies the snippets files in
+lexicographic order, keeping the last value set.
+
+The recommended way to configure keylime is by using snippets in the
+`/etc/keylime/*.conf.d` directories instead of editing the default values in the
+base configuration file.
 
 ### Running keylime
 
@@ -297,7 +347,7 @@ As an example, the following command tells keylime to provision a new agent
 at 127.0.0.1 with UUID d432fbb3-d2f1-4a97-9ef7-75bd81c00000 and talk to a
 verifier at 127.0.0.1.  Finally it will encrypt a file called `filetosend`
 and send it to the agent allowing it to decrypt it only if the configured TPM
-policy (in `/etc/keylime.conf`) is satisfied:
+policy (in `/etc/keylime/agent.conf`) is satisfied:
 
 `keylime_tenant -c add -t 127.0.0.1 -v 127.0.0.1 -u D432fbb3-d2f1-4a97-9ef7-75bd81c00000 -f filetosend`
 
@@ -313,11 +363,11 @@ For additional advanced options for the tenant utility run:
 
 A simple certificate authority is available to use with keylime. You can interact
 with it using `keylime_ca` or `keylime_tenant`.  Options for configuring the
-certificates that `keylime_ca` creates are in `/etc/keylime.conf`.
+certificates that `keylime_ca` creates are in `/etc/keylime/ca.conf`.
 
 NOTE: This CA functionality is different than the TLS support for talking to
 the verifier or registrar (though it uses some of the same config options
-in `/etc/keylime.conf`).  This CA is for the Keylime Agents you provision and
+in `/etc/keylime/ca.conf`).  This CA is for the Keylime Agents you provision and
 you can use keylime to bootstrap the private keys into agents.
 
 To initialize a new certificate authority run:
@@ -348,9 +398,10 @@ option in `keylime_tenant` to do this.  This takes in the directory of the CA:
 
 `keylime_tenant -c add -t 127.0.0.1 -u d432fbb3-d2f1-4a97-9ef7-75bd81c00000 --cert /var/lib/keylime/ca`
 
-If you also have the option extract_payload_zip in `/etc/keylime.conf` set to `True` on
-the keylime agent, then it will automatically extract the zip containing an unprotected
-private key, public key, certificate and CA certificate to `/var/lib/keylime/secure/unzipped`.
+If you also have the option extract_payload_zip in `/etc/keylime/agent.conf` set
+to `True`, then the keylime agent will automatically extract the zip containing
+an unprotected private key, public key, certificate and CA certificate to
+`/var/lib/keylime/secure/unzipped`.
 
 If the keylime verifier option `revocation_notifier` is set to `True`, then
 the CV will sign a revocation message and send it over 0mq to any subscribers.  The

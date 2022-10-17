@@ -6,7 +6,7 @@ The Agent Monitor demo is designed to provide a way for agents to "phone home", 
 
 It consists of three parts: 
 * **autorun.sh**: This file is sent to the cloud agent, to be executed during provisioning 
-    * *__NOTE:__ Your keylime.conf file's ```cloud_agent.payload_script``` should be set to autorun.sh*
+    * *__NOTE:__ Your agent.conf file's ```agent.payload_script``` should be set to autorun.sh*
 * **tenant_agent_monitor.py**: The Agent Monitor server that listens for phone-home requests.  
     * Should be run on the **_same filesystem_** as the tenant (since it shares its CA certs) 
 * **tenant_agent_monitor.sh**: The script that the Agent Monitor executes each time it receives a phone-home (it is the 'action' portion of phoning home) 

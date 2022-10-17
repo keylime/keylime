@@ -48,8 +48,8 @@ Due to the fact that physical node-specific information can be encoded on the
 of information, a "measured boot policy" or `mb_policy` . This information is
 used to instruct the `keylime_verifier` on how to do the comparison (e.g.,
 using a regular expression, rather than a simple equality match). The policy
-name is specified in `keylime.conf`, under the `[cloud_verifier]` section of
-the file, with parameter named `measured_boot_policy_name`. The default value
+name is specified in `verifier.conf`, under the `[verifier]` section of the
+file, with parameter named `measured_boot_policy_name`. The default value
 for it is `accept-all`, meaning "just don't try to match the contents, just
 replay the log and make sure the values of PCRs [0-9] and [11-14] match".
 
@@ -130,5 +130,5 @@ tests are implemented.
 
 While an operator can attempt to write its own policy from scratch, it is
 recommended that one just copies `example.py` into `mypolicy.py`, change it as
-required and then just points to this new policy on `keylime.conf`
+required and then just points to this new policy on `verifier.conf`
 (`measured_boot_policy_name`) for its own use.

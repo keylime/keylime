@@ -409,7 +409,7 @@ echo "==========================================================================
 mkdir -p /etc/keylime
 mkdir -p config
 pushd scripts
-python3 convert_config.py --input ../keylime.conf --out ../config
+python3 convert_config.py --defaults --out ../config
 popd
 
 for comp in "agent" "verifier" "tenant" "registrar" "ca" "logging"; do

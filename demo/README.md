@@ -15,7 +15,7 @@ The bundle contains the following files:
 * **ima-policies/**: Additional IMA policy file examples, including the default TCB policy
 * **keyfile.txt**: Keyfile that decrypts the payload.enc and payload.txt files 
 * **autorun.sh**: This file is sent to the cloud agent, which will decrypt and mount the payload.enc 
-    * *__NOTE:__ Your keylime.conf file's ```cloud_agent.payload_script``` should be set to autorun.sh*
+    * *__NOTE:__ Your agent.conf file's ```agent.payload_script``` should be set to autorun.sh*
 * **payload.enc**: The target of the mount.sh script (LUKS encrypted payload), containing the "protected" website 
 * **payload.txt**: A simple encrypted payload to demonstrate the "Keyfile" payload type 
 * **payload/**: Directory containing the "unprotected" website 
