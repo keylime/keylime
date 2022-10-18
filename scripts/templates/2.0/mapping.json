@@ -20,7 +20,7 @@
             "uuid": {
                 "section": "cloud_agent",
                 "option": "agent_uuid",
-                "default": "generate"
+                "default": "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"
             },
             "ip": {
                 "section": "cloud_agent",
