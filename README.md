@@ -98,7 +98,6 @@ The following command line options are available using
 Usage: ./installer.sh [option...]
 Options:
 -k              Download Keylime (stub installer mode)
--t              Create tarball with keylime_agent
 -m              Use modern TPM 2.0 libraries (vs. TPM 1.2)
 -s              Install & use a Software TPM emulator (development only)
 -p PATH         Use PATH as Keylime path
@@ -424,7 +423,6 @@ Please, see [TESTING.md](TESTING.md) for details.
   * and the ACSAC presentation on keylime: [docs/old/llsrc-keylime-acsac-v6.pptx](https://github.com/keylime/keylime/raw/master/docs/old/llsrc-keylime-acsac-v6.pptx)
 * See the HotCloud 2018 paper: [docs/old/hotcloud18.pdf](https://github.com/keylime/keylime/blob/master/docs/old/hotcloud18.pdf)
 * Details about Keylime REST API: [docs/old/keylime RESTful API.docx](https://github.com/keylime/keylime/raw/master/docs/old/keylime%20RESTful%20API.docx)
-* [Bundling a portable Cloud Agent](https://github.com/keylime/keylime/blob/master/docs/old/cloud-agent-tarball-notes.md) - Create portable tarball of Cloud Agent, for usage on systems without python and other dependencies.
 * [Demo files](demo/) - Some pre-packaged demos to show off what Keylime can do.
 * [IMA stub service](ima_stub_service/) - Allows you to test IMA and keylime on a machine without a TPM.  Service keeps emulated TPM synchronized with IMA.
 
