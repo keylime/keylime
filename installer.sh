@@ -143,9 +143,8 @@ esac
 # Command line params
 STUB=0
 KEYLIME_DIR=
-TARBALL=0
 TPM_SOCKET=0
-while getopts ":shctkmp:" opt; do
+while getopts ":shckmp:" opt; do
     case $opt in
         k) STUB=1 ;;
         p)
@@ -155,14 +154,12 @@ while getopts ":shctkmp:" opt; do
                 KEYLIME_DIR=`pwd`"/$KEYLIME_DIR"
             fi
             ;;
-        t) TARBALL=1 ;;
         m) ;;
         s) TPM_SOCKET=1 NEED_BUILD_TOOLS=1 ;;
         h)
             echo "Usage: $0 [option...]"
             echo "Options:"
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
-            echo $'-t \t\t\t\t Create tarball with keylime_agent'
             echo $'-m \t\t\t\t Use modern TPM 2.0 libraries; this is the default'
             echo $'-s \t\t\t\t Install & use a Software TPM emulator (development only)'
             echo $'-p PATH \t\t\t Use PATH as Keylime path'
@@ -438,16 +435,6 @@ if [ ! -d "/var/lib/keylime/tpm_cert_store" ]; then
 else
   echo "Updating existing cert store"
   cp -n $KEYLIME_DIR/tpm_cert_store/* /var/lib/keylime/tpm_cert_store/
-fi
-
-# Run agent packager (tarball)
-if [[ "$TARBALL" -eq "1" ]] ; then
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\t\tGenerate agent tarball'
-    echo "=================================================================================="
-    cd $KEYLIME_DIR/keylime
-    ./make_agent_bundle_tarball.sh ""
 fi
 
 # don't start the emulator until after keylime is installed

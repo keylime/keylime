@@ -90,7 +90,6 @@ following command line options are available::
     Usage: ./installer.sh [option...]
     Options:
     -k              Download Keylime (stub installer mode)
-    -t              Create tarball with keylime_agent
     -m              Use modern TPM 2.0 libraries; this is the default
     -s              Install & use a Software TPM emulator (development only)
     -p PATH         Use PATH as Keylime path
