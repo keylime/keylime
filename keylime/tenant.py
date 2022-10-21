@@ -324,7 +324,7 @@ class Tenant:
                 else:
                     raise UserError("Invalid file payload provided")
             else:
-                with open(args["file"], encoding="utf-8") as f:
+                with open(args["file"], 'rb') as f:
                     contents = f.read()
             ret = user_data_encrypt.encrypt(contents)
             self.K = ret["k"]
