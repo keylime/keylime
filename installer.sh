@@ -418,9 +418,7 @@ echo "==========================================================================
 
 mkdir -p /etc/keylime
 mkdir -p config
-pushd scripts
-python3 convert_config.py --input ../keylime.conf --out ../config
-popd
+python3 -m keylime.cmd.convert_config --defaults --out config --templates templates
 
 for comp in "agent" "verifier" "tenant" "registrar" "ca" "logging"; do
     mkdir -p /etc/keylime/$comp.conf.d
@@ -436,6 +434,10 @@ for comp in "agent" "verifier" "tenant" "registrar" "ca" "logging"; do
         chmod 600 "/etc/keylime/$comp.conf"
     fi
 done
+
+# Install templates for configuration upgrades
+mkdir -p /usr/share/keylime/
+cp -r templates /usr/share/keylime/templates
 
 echo
 echo "=================================================================================="

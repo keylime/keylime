@@ -1,6 +1,9 @@
 # Keylime verifier configuration
 [verifier]
 
+# The configuration file version number
+version = {{ verifier.version }}
+
 # Unique identifier for the each verifier instances.
 uuid = {{ verifier.uuid }}
 
@@ -227,11 +230,11 @@ signed_attributes = {{ verifier.signed_attributes }}
 # "webhook": Send notification via webhook. The endpoint URL must be
 # configured with 'webhook_url' option. This can be used to notify other
 # systems that do not have a Keylime agent running.
-enabled_revocation_notifications = {{ verifier.enabled_revocation_notifications }}
+enabled_revocation_notifications = {{ revocations.enabled_revocation_notifications }}
 
 # The binding address and port of the revocation notifier service via ZeroMQ.
-zmq_ip = {{ verifier.zmq_ip }}
-zmq_port = {{ verifier.zmq_port }}
+zmq_ip = {{ revocations.zmq_ip }}
+zmq_port = {{ revocations.zmq_port }}
 
 # Webhook url for revocation notifications.
-webhook_url = {{ verifier.webhook_url }}
+webhook_url = {{ revocations.webhook_url }}

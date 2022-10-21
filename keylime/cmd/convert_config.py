@@ -17,6 +17,11 @@
  dictionary should match the template file names without the extension (e.g.
  for the agent component, the key should be "agent" and the template file name
  should be "agent.j2").
+ * "subcomponents": A dictionary which maps sections names without a version
+ number to the main section name which has the version number. The idea is that
+ only the main section contains the version number for the entire file (e.g. the
+ "verifier" section in the "verifier.conf" file) which will be inherited by the
+ subcomponents.
 
  For each component in the "components" dictionary, the value is a dictionary
  which keys are the option names in the new configuration files and the value is
@@ -24,10 +29,10 @@
  configuration file. For each option name the value is a dictionary with the
  following fields:
 
- * "section": The section from the old configuration file format
- * "option": The name of the option in the old configuration file format
+ * "section": The section from the old configuration file
+ * "option": The name of the option in the old configuration file
  * "default" The default value to use in case the option is missing in the
- provided configuration file
+ old configuration file
 
  All values are treated as strings.
 
@@ -60,6 +65,9 @@
                  "default": "default_value",
              }
          }
+     },
+     "subcomponents" {
+        "another_section": "some_section"
      }
  }
 
@@ -73,6 +81,7 @@
 import argparse
 import configparser
 import importlib.util
+import itertools
 import json
 import os
 
@@ -82,12 +91,34 @@ from keylime.common.version import str_to_version
 
 COMPONENTS = ["agent", "verifier", "tenant", "registrar", "ca", "logging"]
 
-# Config files can be merged together, reading from the system to the
-# user.
-CONFIG_FILES = ["/usr/etc/keylime.conf", "/etc/keylime.conf", os.path.expanduser("~/.config/keylime.conf")]
+CONFIG_DIRS = ["/usr/etc/keylime", "/etc/keylime"]
+
+# Old configuration files (before versioning was introduced)
+OLD_CONFIG_FILES = ["/usr/etc/keylime.conf", "/etc/keylime.conf"]
+
+# Configuration files
+CONFIG_FILES = [os.path.join(d, f"{c}.conf") for d, c in itertools.product(CONFIG_DIRS, COMPONENTS)]
 
 if "KEYLIME_CONFIG" in os.environ:
     CONFIG_FILES.insert(0, os.environ["KEYLIME_CONFIG"])
+
+if "KEYLIME_AGENT_CONFIG" in os.environ:
+    CONFIG_FILES.insert(0, os.environ["KEYLIME_AGENT_CONFIG"])
+
+if "KEYLIME_VERIFIER_CONFIG" in os.environ:
+    CONFIG_FILES.insert(0, os.environ["KEYLIME_VERIFIER_CONFIG"])
+
+if "KEYLIME_REGISTRAR_CONFIG" in os.environ:
+    CONFIG_FILES.insert(0, os.environ["KEYLIME_REGISTRAR_CONFIG"])
+
+if "KEYLIME_TENANT_CONFIG" in os.environ:
+    CONFIG_FILES.insert(0, os.environ["KEYLIME_TENANT_CONFIG"])
+
+if "KEYLIME_CA_CONFIG" in os.environ:
+    CONFIG_FILES.insert(0, os.environ["KEYLIME_CA_CONFIG"])
+
+if "KEYLIME_LOGGING_CONFIG" in os.environ:
+    CONFIG_FILES.insert(0, os.environ["KEYLIME_LOGGING_CONFIG"])
 
 
 def get_config(config_files):
@@ -98,18 +129,29 @@ def get_config(config_files):
     flat = [s for ss in config_files for s in ss]
     if not flat:
         print(f"No input provided: using {CONFIG_FILES} as input")
-        config_files = CONFIG_FILES
+        config_files = list(x for x in CONFIG_FILES if os.path.exists(x))
     else:
-        config_files = list(set(flat))
+        config_files = list(x for x in set(flat) if os.path.exists(x))
+        if not config_files:
+            raise Exception(f"None of the provided files in {set(flat)} exist")
 
-    if not any(os.path.exists(c) for c in config_files):
-        print(f"Could not find any file of the files in {config_files}. " "Please set input file using --input option.")
-        return None
+    if not config_files:
+        # The configuration files doesn't exist, try old file
+        print("Could not find configuration files, trying to find old configuration")
+        config_files = list(x for x in OLD_CONFIG_FILES if os.path.exists(x))
 
     config = configparser.RawConfigParser()
-    # Validate that at least one config file is present
-    config_files = config.read(config_files)
-    print(f"Successfully read configuration from {config_files}")
+    if not config_files:
+        print("Could not find configuration files in default locations. Using default values for all options")
+    else:
+        # Validate that at least one config file was successfully read
+        read_files = config.read(config_files)
+        if read_files:
+            print(f"Successfully read configuration from {read_files}")
+        else:
+            raise Exception(
+                f"Could not parse any configuration from {config_files}, please check the files syntax and permissions"
+            )
 
     return config
 
@@ -134,7 +176,7 @@ def output_component(component, config, template, outfile):
 
 def output(components, config, templates, outdir):
     """
-    Output the requested files
+    Output the requested files using a template
     """
 
     flat = [s for ss in components for s in ss]
@@ -149,13 +191,13 @@ def output(components, config, templates, outdir):
                 print(f"Unknown component {c}, skipping")
         components = list(clean.intersection(COMPONENTS))
 
-    version = config["version"]
-    version_dir = os.path.join(templates, version)
-    if not os.path.isdir(version_dir):
-        raise Exception(f"Could not find directory {version_dir}")
-
     # Check that there are templates for all components
     for component in components:
+        version = config[component]["version"]
+        version_dir = os.path.join(templates, version)
+        if not os.path.isdir(version_dir):
+            raise Exception(f"Could not find directory {version_dir}")
+
         t = os.path.join(version_dir, f"{component}.j2")
         if not os.path.exists(t):
             raise Exception(f"Template file {t} not found")
@@ -166,7 +208,7 @@ def output(components, config, templates, outdir):
         output_component(component, config, t, o)
 
 
-def process_mapping(old_config, templates, mapping_file, debug=False):
+def process_mapping(old_config, templates, mapping_file, debug=False, target=None):
     """
     Apply the transformations from the provided mapping file to the
     configuration dictionary
@@ -184,7 +226,9 @@ def process_mapping(old_config, templates, mapping_file, debug=False):
     if not mapping["components"]:
         raise Exception('Malformed mapping: no "components" set')
 
-    print(f"Applying mapping from file {mapping_file} version {mapping['version']}")
+    new_version = str_to_version(mapping["version"])
+    if not new_version:
+        raise Exception(f"Invalid version number in mapping: {mapping['version']}")
 
     # Search for the directory containing the templates for the version set in
     # the mapping
@@ -195,14 +239,50 @@ def process_mapping(old_config, templates, mapping_file, debug=False):
             f"Could not find directory {version_dir} for version " f"{mapping['version']} set in {mapping_file}"
         )
 
-    new = {}
+    print(f"Applying mapping from file {mapping_file} version {mapping['version']}")
 
-    # Set the new configuration version
-    new["version"] = mapping["version"]
+    new = configparser.RawConfigParser()
 
     for component in mapping["components"].keys():
+
+        if component in old_config:
+            if component in mapping["subcomponents"].keys():
+                # If the component is a subcomponent, use the version from the
+                # component
+                version_component = mapping["subcomponents"][component]
+            else:
+                version_component = component
+
+            # If the configuration file does not contain a version number, assume it is
+            # in the old format and use the minimum possible version
+            try:
+                found_version = old_config.get(version_component, "version")
+                old_version = str_to_version(found_version)
+
+                if not old_version:
+                    raise Exception("Invalid version number found in old configuration")
+
+            except (configparser.NoOptionError, configparser.NoSectionError):
+                print(f"No version found in old configuration for {component}, using '1.0'")
+                old_version = (1, 0)
+        else:
+            # If the old_version does not contain the component from the
+            # mapping, use the minimum version to use defaults
+            old_version = (1, 0)
+
+        # Skip versions lower than the current version
+        if old_version >= new_version:
+            new[component] = dict(old_config[component])
+            continue
+
+        # Stop if the version reached the target
+        if target:
+            if old_version >= target:
+                new[component] = dict(old_config[component])
+                continue
+
         # Create a new dictionary for each component
-        new[component] = {}
+        new.add_section(component)
         m = mapping["components"][component]
 
         for option in m.keys():
@@ -213,7 +293,7 @@ def process_mapping(old_config, templates, mapping_file, debug=False):
             #     "default": value to use in case the option is missing
             info = m[option]
             try:
-                new[component][option] = old_config[info["section"]][info["option"]]
+                new[component][option] = old_config.get(info["section"], info["option"])
             except Exception as e:
                 print(f"[{component}] {e} not found: Using default value \"{info['default']}\" for \"{option}\"")
                 new[component][option] = info["default"]
@@ -242,7 +322,10 @@ def process_mapping(old_config, templates, mapping_file, debug=False):
             print(f"Failed while running adjustment from {adjust_script}: {e}")
 
     if debug:
-        print(json.dumps(new, indent=4))
+        out = {}
+        for s in new.sections():
+            out[s] = dict(new.items(s))
+        print(json.dumps(out, indent=4))
 
     return new
 
@@ -275,43 +358,23 @@ def process_versions(templates, old_config, target_version=None, debug=False):
 
     new = {}
 
-    # If the configuration file does not contain a version number, assume it is
-    # in the old format and use the minimum possible version
-    try:
-        old_version = str_to_version(old_config.get("version", "1.0"))
-
-        if not old_version:
-            raise Exception("Invalid version number found in old configuration")
-
-    except (configparser.NoOptionError, configparser.NoSectionError):
-        print("No version found in old configuration, using '1.0'")
-        old_version = (1, 0)
-
     for version in versions:
-        # Skip versions lower than the current version
-        if old_version >= version:
-            continue
-
-        # Stop if the version reached the target
-        if target:
-            if old_version >= target:
-                break
-
         # Find the mapping file for the version and apply
         p = os.path.join(templates, f"{version[0]}.{version[1]}")
         if os.path.isdir(p):
             m = os.path.join(p, "mapping.json")
             if os.path.isfile(m):
                 # Apply transformation for the mapping
-                new = process_mapping(old_config, templates, m, debug)
+                new = process_mapping(old_config, templates, m, debug=debug, target=target)
                 old_config = new
-                old_version = str_to_version(new["version"])
-                if not old_version:
-                    raise Exception(f"Invalid version number '{new['version']}'" f"in {m}")
             else:
                 raise Exception(f"Could not find mapping {m}")
         else:
             raise Exception(f"Could not find directory {p}")
+
+        if target:
+            if version >= target:
+                break
 
     return new
 
@@ -349,7 +412,7 @@ def main():
     )
 
     parser.add_argument(
-        "--out", help="Output directory where to put the " "generated files. Default is current directory", default="."
+        "--out", help="Output directory where to put the generated files. Default is current directory", default="."
     )
 
     parser.add_argument(
@@ -370,11 +433,11 @@ def main():
         "--templates",
         help="Path to the directory containing "
         "the templates for the configuration files. If not "
-        'provided "./templates" is used',
-        default="./templates",
+        'provided "/usr/share/keylime/templates" is used',
+        default="/usr/share/keylime/templates",
     )
 
-    parser.add_argument("--version", help="Target version for the output " "configuration files", default=None)
+    parser.add_argument("--version", help="Target version for the output configuration files", default=None)
 
     parser.add_argument(
         "--defaults",
@@ -409,9 +472,6 @@ def main():
     else:
         # Get old configuration
         old_config = get_config(args.input)
-        if not old_config:
-            # None of the provided files were parsed successfully
-            return
 
     if args.mapping:
         if os.path.isfile(args.mapping):
