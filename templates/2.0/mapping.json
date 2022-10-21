@@ -3,7 +3,7 @@
     "components": {
         "agent": {
             "version": {
-                "section": "cloud_agent",
+                "section": "agent",
                 "option": "version",
                 "default": "2.0"
             },
@@ -180,7 +180,7 @@
         },
         "verifier": {
             "version": {
-                "section": "cloud_verifier",
+                "section": "verifier",
                 "option": "version",
                 "default": "2.0"
             },
@@ -339,30 +339,10 @@
                 "option": "require_allow_list_signatures",
                 "default": "True"
             },
-            "enabled_revocation_notifications": {
-                "section": "cloud_verifier",
-                "option": "revocation_notifiers",
-                "default": "[agent]"
-            },
-            "zmq_ip": {
-                "section": "cloud_verifier",
-                "option": "revocation_notifier_ip",
-                "default": "127.0.0.1"
-            },
-            "zmq_port": {
-                "section": "cloud_verifier",
-                "option": "revocation_notifier_port",
-                "default": "8992"
-            },
-            "webhook_url": {
-                "section": "cloud_verifier",
-                "option": "webhook_url",
-                "default": ""
-            },
             "durable_attestation_import" : {
                 "section": "cloud_verifier",
                 "option": "durable_attestation_import",
-                "default": ""                
+                "default": ""
             },
             "persistent_store_url" : {
                 "section": "cloud_verifier",
@@ -402,6 +382,28 @@
             "signed_attributes" : {
                 "section": "cloud_verifier",
                 "option": "signed_attributes",
+                "default": ""
+            }
+        },
+        "revocations": {
+            "enabled_revocation_notifications": {
+                "section": "cloud_verifier",
+                "option": "revocation_notifiers",
+                "default": "[agent]"
+            },
+            "zmq_ip": {
+                "section": "cloud_verifier",
+                "option": "revocation_notifier_ip",
+                "default": "127.0.0.1"
+            },
+            "zmq_port": {
+                "section": "cloud_verifier",
+                "option": "revocation_notifier_port",
+                "default": "8992"
+            },
+            "webhook_url": {
+                "section": "cloud_verifier",
+                "option": "webhook_url",
                 "default": ""
             }
         },
@@ -628,11 +630,11 @@
                 "option": "transparency_log_sign_algo",
                 "default": "sha256"
             },
-	        "signed_attributes" : {
-	             "section": "registrar",
+            "signed_attributes" : {
+                 "section": "registrar",
                	 "option": "signed_attributes",
-		    "default": "ek_tpm,aik_tpm,ekcert"
-	        }
+            "default": "ek_tpm,aik_tpm,ekcert"
+            }
         },
         "ca": {
             "version": {
@@ -701,77 +703,101 @@
                 "section": "logging",
                 "option": "version",
                 "default": "2.0"
-            },
-            "loggers_keys": {
+            }
+        },
+        "loggers": {
+            "keys": {
                 "section": "loggers",
                 "option": "keys",
                 "default": "root,keylime"
-            },
-            "handlers_keys": {
+            }
+        },
+        "handlers": {
+            "keys": {
                 "section": "handlers",
                 "option": "keys",
                 "default": "consoleHandler"
-            },
-            "formatters_keys": {
+            }
+        },
+        "formatters": {
+            "keys": {
                 "section": "formatters",
                 "option": "keys",
                 "default": "formatter"
-            },
-            "formatter_formatter_format": {
+            }
+        },
+        "formatter_formatter": {
+            "format": {
                 "section": "formatter_formatter",
                 "option": "format",
                 "default": "%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s"
             },
-            "formatter_formatter_datefmt": {
+            "datefmt": {
                 "section": "formatter_formatter",
                 "option": "datefmt",
                 "default": "%Y-%m-%d %H:%M:%S"
-            },
-            "logger_root_level": {
+            }
+        },
+        "logger_root": {
+            "level": {
                 "section": "logger_root",
                 "option": "level",
                 "default": "INFO"
             },
-            "logger_root_handlers": {
+            "handlers": {
                 "section": "logger_root",
                 "option": "handlers",
                 "default": "consoleHandler"
-            },
-            "handler_consoleHandler_class": {
+            }
+        },
+        "handler_consoleHandler": {
+            "class": {
                 "section": "handler_consoleHandler",
                 "option": "class",
                 "default": "StreamHandler"
             },
-            "handler_consoleHandler_level": {
+            "level": {
                 "section": "handler_consoleHandler",
                 "option": "level",
                 "default": "INFO"
             },
-            "handler_consoleHandler_formatter": {
+            "formatter": {
                 "section": "handler_consoleHandler",
                 "option": "formatter",
                 "default": "formatter"
             },
-            "handler_consoleHandler_args": {
+            "args": {
                 "section": "handler_consoleHandler",
                 "option": "args",
                 "default": "(sys.stdout,)"
-            },
-            "logger_keylime_level": {
+            }
+        },
+        "logger_keylime": {
+            "level": {
                 "section": "logger_keylime",
                 "option": "level",
                 "default": "INFO"
             },
-            "logger_keylime_qualname": {
+            "qualname": {
                 "section": "logger_keylime",
                 "option": "qualname",
                 "default": "keylime"
             },
-            "logger_keylime_handlers": {
+            "handlers": {
                 "section": "logger_keylime",
                 "option": "handlers",
                 "default": ""
             }
         }
+    },
+    "subcomponents": {
+        "revocations": "verifier",
+        "loggers": "logging",
+        "handlers": "logging",
+        "formatters": "logging",
+        "formatter_formatter": "logging",
+        "logger_root": "logging",
+        "handler_consoleHandler": "logging",
+        "logger_keylime": "logging"
     }
 }
