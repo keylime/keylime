@@ -14,6 +14,10 @@ dont_measure fsmagic=0x73636673
 dont_measure fsmagic=0xf97cff8c
 # CGROUP_SUPER_MAGIC
 dont_measure fsmagic=0x27e0eb
+# OVERLAYFS_MAGIC
+# when containers are used we almost always want to ignore them
+dont_measure fsmagic=0x794c7630
+# Don't measure log, audit or tmp files
 dont_measure obj_type=var_log_t
 dont_measure obj_type=auditd_log_t
 dont_measure obj_type=tmp_t

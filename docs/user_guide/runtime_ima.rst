@@ -12,7 +12,7 @@ system, the file is situated in `/etc/ima/ima-policy`.
 
 For configuration of your IMA policy, please refer to the `IMA Documentation <https://github.com/torvalds/linux/blob/6f0d349d922ba44e4348a17a78ea51b7135965b1/Documentation/ABI/testing/ima_policy>`_
 
-Within Keylime we use the following for demonstration::
+Within Keylime we use the following for demonstration (found in `demo/ima-policies/ima-policy-keylime`):
 
   # PROC_SUPER_MAGIC
   dont_measure fsmagic=0x9fa0
@@ -26,13 +26,25 @@ Within Keylime we use the following for demonstration::
   dont_measure fsmagic=0x858458f6
   # SECURITYFS_MAGIC
   dont_measure fsmagic=0x73636673
+  # SELINUX_MAGIC
+  dont_measure fsmagic=0xf97cff8c
+  # CGROUP_SUPER_MAGIC
+  dont_measure fsmagic=0x27e0eb
+  # OVERLAYFS_MAGIC
+  # when containers are used we almost always want to ignore them
+  dont_measure fsmagic=0x794c7630
+  # Don't measure log, audit or tmp files
+  dont_measure obj_type=var_log_t
+  dont_measure obj_type=auditd_log_t
+  dont_measure obj_type=tmp_t
   # MEASUREMENTS
   measure func=BPRM_CHECK
   measure func=FILE_MMAP mask=MAY_EXEC
   measure func=MODULE_CHECK uid=0
 
-This default policy measures all executables in `bprm_check`, all files `mmapped`
-executable in `file_mmap` and module checks.
+This default policy measures all executables in `bprm_check` and all files `mmapped`
+executable in `file_mmap` and module checks and skips several irrelevant files
+(logs, audit, tmp, etc).
 
 Once your `ima-policy` is in place, reboot your machine (or even better have it
 present in your image for first boot).
