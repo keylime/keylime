@@ -75,6 +75,7 @@ def setpassword(pw):
 
 def cmd_mkcert(workingdir, name, password=None):
     cwd = os.getcwd()
+    mask = os.umask(0o037)
     try:
         fs_util.ch_dir(workingdir)
         priv = read_private()
@@ -83,7 +84,7 @@ def cmd_mkcert(workingdir, name, password=None):
 
         cert, pk = ca_impl.mk_signed_cert(cacert, ca_pk, name, priv[0]["lastserial"] + 1)
 
-        with open(f"{name}-cert.crt", "wb") as f:
+        with os.fdopen(os.open(f"{name}-cert.crt", os.O_WRONLY | os.O_CREAT, 0o640), "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
 
         priv[0][name] = pk.private_bytes(
@@ -99,10 +100,10 @@ def cmd_mkcert(workingdir, name, password=None):
 
         write_private(priv)
 
-        with os.fdopen(os.open(f"{name}-private.pem", os.O_WRONLY | os.O_CREAT, 0o600), "wb") as f:
+        with os.fdopen(os.open(f"{name}-private.pem", os.O_WRONLY | os.O_CREAT, 0o640), "wb") as f:
             f.write(priv[0][name])
 
-        with os.fdopen(os.open(f"{name}-public.pem", os.O_WRONLY | os.O_CREAT, 0o600), "wb") as f:
+        with os.fdopen(os.open(f"{name}-public.pem", os.O_WRONLY | os.O_CREAT, 0o640), "wb") as f:
             f.write(
                 pk.public_key().public_bytes(
                     encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -122,11 +123,13 @@ def cmd_mkcert(workingdir, name, password=None):
     except crypto_exceptions.InvalidSignature:
         logger.error("ERROR: Cert does not validate against CA")
     finally:
+        os.umask(mask)
         os.chdir(cwd)
 
 
 def cmd_init(workingdir):
     cwd = os.getcwd()
+    mask = os.umask(0o037)
     try:
         fs_util.ch_dir(workingdir)
 
@@ -155,7 +158,7 @@ def cmd_init(workingdir):
 
         write_private(priv)
 
-        with os.fdopen(os.open("ca-public.pem", os.O_WRONLY | os.O_CREAT, 0o600), "wb") as f:
+        with os.fdopen(os.open("ca-public.pem", os.O_WRONLY | os.O_CREAT, 0o640), "wb") as f:
             f.write(
                 ca_pk.public_key().public_bytes(
                     encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -188,6 +191,7 @@ def cmd_init(workingdir):
         logger.error("ERROR: Cert does not self validate")
     finally:
         os.chdir(cwd)
+        os.umask(mask)
 
 
 def cmd_certpkg(workingdir, name, insecure=False):
@@ -457,8 +461,10 @@ def write_private(inp):
     ciphertext = crypto.encrypt(priv_encoded, key)
     towrite = {"salt": salt, "priv": ciphertext}
 
-    with os.fdopen(os.open("private.yml", os.O_WRONLY | os.O_CREAT, 0o600), "w", encoding="utf-8") as f:
+    mask = os.umask(0o037)
+    with os.fdopen(os.open("private.yml", os.O_WRONLY | os.O_CREAT, 0o640), "w", encoding="utf-8") as f:
         yaml.dump(towrite, f, Dumper=SafeDumper)
+    os.umask(mask)
 
 
 def read_private(warn=False):
