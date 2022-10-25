@@ -26,10 +26,8 @@ class keylime_build(build_py):
             # all options
             old_config = configparser.RawConfigParser()
             templates_dir = os.path.join(setup_dir, "templates")
-            config = convert.process_versions(templates_dir, old_config)
-            # Empty components list makes the script to output the config for
-            # all components
-            convert.output([], config, templates_dir, config_dir)
+            config = convert.process_versions(convert.COMPONENTS, templates_dir, old_config)
+            convert.output(convert.COMPONENTS, config, templates_dir, config_dir)
 
         build_py.run(self)
 
