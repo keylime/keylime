@@ -1238,7 +1238,9 @@ class tpm(tpm_abstract.AbstractTPM):
             return failure
 
         # Only after validating the quote, the TPM clock information can be extracted from it.
-        clock_failure, current_clock_info = self.check_quote_timing(agentAttestState.get_tpm_clockinfo(), quote)
+        clock_failure, current_clock_info = self.check_quote_timing(
+            agentAttestState.get_tpm_clockinfo(), quote, compressed
+        )
         if clock_failure:
             failure.add_event(
                 "quote_validation",
@@ -1286,12 +1288,12 @@ class tpm(tpm_abstract.AbstractTPM):
             hash_alg,
         )
 
-    def check_quote_timing(self, previous_clockinfo, quote):
+    def check_quote_timing(self, previous_clockinfo, quote, compressed):
         # Sanity check quote clock information
 
         current_clockinfo = None
 
-        retout, success = self._tpm2_printquote(quote, False)
+        retout, success = self._tpm2_printquote(quote, compressed)
         if not success:
             return "tpm2_print failed with " + str(retout), current_clockinfo
 
