@@ -4,9 +4,12 @@ Copyright 2022 Red Hat, Inc.
 """
 
 import base64
+import os
 import unittest
 
-from keylime import cert_utils
+from keylime import cert_utils, tpm_ek_ca
+
+CERT_STORE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tpm_cert_store"))
 
 
 class Cert_Utils_Test(unittest.TestCase):
@@ -67,3 +70,9 @@ rTJ1x4NA2ZtQMYyT29Yy1UlkjocAaXL5u0m3Hvz/////////////////////////////////////
             except Exception:
                 self.fail("read_x509_der_cert_pubkey() is not expected to raise an exception here")
             self.assertIsNotNone(pubkey)
+
+    def test_tpm_cert_store(self):
+        tpm_ek_ca.check_tpm_cert_store(CERT_STORE_DIR)
+        my_trusted_certs = tpm_ek_ca.cert_loader(CERT_STORE_DIR)
+
+        self.assertNotEqual(len(my_trusted_certs), 0)

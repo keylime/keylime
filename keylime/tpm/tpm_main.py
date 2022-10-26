@@ -795,7 +795,7 @@ class tpm(tpm_abstract.AbstractTPM):
             )
 
             trusted_certs = tpm_ek_ca.cert_loader()
-            for cert in trusted_certs:
+            for _, cert in trusted_certs.items():
                 signcert = x509.load_pem_x509_certificate(
                     data=cert.encode(),
                     backend=default_backend(),
