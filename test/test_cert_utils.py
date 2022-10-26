@@ -7,17 +7,16 @@ import base64
 import os
 import unittest
 
+import cryptography
+
 from keylime import cert_utils, tpm_ek_ca
 
 CERT_STORE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tpm_cert_store"))
 
-
-class Cert_Utils_Test(unittest.TestCase):
-    def test_read_x509_der_cert_pubkey(self):
-        # The certificate listed in issue #944, from Nuvoton. It fails to
-        # be parsed by python-cryptography with the following error:
-        # ValueError: error parsing asn1 value: ParseError { kind: InvalidSetOrdering, location: ["RawCertificate::tbs_cert", "TbsCertificate::issuer", "0", "2"] }
-        nuvoton_ecdsa_sha256_der = """\
+# The certificate listed in issue #944, from Nuvoton. It fails to
+# be parsed by python-cryptography with the following error:
+# ValueError: error parsing asn1 value: ParseError { kind: InvalidSetOrdering, location: ["RawCertificate::tbs_cert", "TbsCertificate::issuer", "0", "2"] }
+nuvoton_ecdsa_sha256_der = """\
 MIICBjCCAaygAwIBAgIIP5MvnZk8FrswCgYIKoZIzj0EAwIwVTFTMB8GA1UEAxMYTnV2b3RvbiBU
 UE0gUm9vdCBDQSAyMTEwMCUGA1UEChMeTnV2b3RvbiBUZWNobm9sb2d5IENvcnBvcmF0aW9uMAkG
 A1UEBhMCVFcwHhcNMTUxMDE5MDQzMjAwWhcNMzUxMDE1MDQzMjAwWjBVMVMwHwYDVQQDExhOdXZv
@@ -29,10 +28,10 @@ ajW+9zAfBgNVHSMEGDAWgBSfu3mqD1JieL7RUJKacXHpajW+9zAKBggqhkjOPQQDAgNIADBFAiEA
 /jiywhOKpiMOUnTfDmXsXfDFokhKVNTXB6Xtqm7J8L4CICjT3/Y+rrSnf8zrBXqWeHDh8Wi41+w2
 ppq6Ev9orZFI
 """
-        # This cert from STMicroelectronics presents a different issue when
-        # parsed by python-cryptography:
-        # ValueError: error parsing asn1 value: ParseError { kind: ExtraData }
-        st_sha256_with_rsa_der = """\
+# This cert from STMicroelectronics presents a different issue when
+# parsed by python-cryptography:
+# ValueError: error parsing asn1 value: ParseError { kind: ExtraData }
+st_sha256_with_rsa_der = """\
 MIIEjTCCA3WgAwIBAgIUTL0P5h7nYu2yjVCyaPw1hv89XoIwDQYJKoZIhvcNAQELBQAwVTELMAkG
 A1UEBhMCQ0gxHjAcBgNVBAoTFVNUTWljcm9lbGVjdHJvbmljcyBOVjEmMCQGA1UEAxMdU1RNIFRQ
 TSBFSyBJbnRlcm1lZGlhdGUgQ0EgMDUwHhcNMTgwNzExMDAwMDAwWhcNMjgwNzExMDAwMDAwWjAA
@@ -63,16 +62,84 @@ rTJ1x4NA2ZtQMYyT29Yy1UlkjocAaXL5u0m3Hvz/////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////
 /////w==
 """
-        certs = [nuvoton_ecdsa_sha256_der, st_sha256_with_rsa_der]
-        for c in certs:
-            try:
-                pubkey = cert_utils.read_x509_der_cert_pubkey(base64.b64decode(c))
-            except Exception:
-                self.fail("read_x509_der_cert_pubkey() is not expected to raise an exception here")
-            self.assertIsNotNone(pubkey)
 
+st_ecdsa_sha256_der = """\
+MIIDAzCCAqmgAwIBAgIUIymn2ai+UaVx1bM26/wU7I+sJd8wCgYIKoZIzj0EAwIwVjELMAkGA1UE
+BhMCQ0gxHjAcBgNVBAoTFVNUTWljcm9lbGVjdHJvbmljcyBOVjEnMCUGA1UEAxMeU1RNIFRQTSBF
+Q0MgSW50ZXJtZWRpYXRlIENBIDAxMB4XDTE4MDcyNjAwMDAwMFoXDTI4MDcyNjAwMDAwMFowADBZ
+MBMGByqGSM49AgEGCCqGSM49AwEHA0IABBsTz5y2cedVZxG/GsbXQ9bL6EQylWNjx1b/SSp2EHlN
+aJjtn43iz2zb+qot2UOhQIwPxS5hMCXhasw4XsFXgnijggGpMIIBpTAfBgNVHSMEGDAWgBR+uDbO
++9+KY3H/czP5utcUYWyWyzBCBgNVHSAEOzA5MDcGBFUdIAAwLzAtBggrBgEFBQcCARYhaHR0cDov
+L3d3dy5zdC5jb20vVFBNL3JlcG9zaXRvcnkvMFkGA1UdEQEB/wRPME2kSzBJMRYwFAYFZ4EFAgEM
+C2lkOjUzNTQ0RDIwMRcwFQYFZ4EFAgIMDFNUMzNIVFBIQUhCNDEWMBQGBWeBBQIDDAtpZDowMDQ5
+MDAwNDBmBgNVHQkEXzBdMBYGBWeBBQIQMQ0wCwwDMi4wAgEAAgF0MEMGBWeBBQISMTowOAIBAAEB
+/6ADCgEBoQMKAQCiAwoBAKMQMA4WAzMuMQoBBAoBAgEB/6QPMA0WBTE0MC0yCgECAQEAMAwGA1Ud
+EwEB/wQCMAAwEAYDVR0lBAkwBwYFZ4EFCAEwDgYDVR0PAQH/BAQDAgMIMEsGCCsGAQUFBwEBBD8w
+PTA7BggrBgEFBQcwAoYvaHR0cDovL3NlY3VyZS5nbG9iYWxzaWduLmNvbS9zdG10cG1lY2NpbnQw
+MS5jcnQwCgYIKoZIzj0EAwIDSAAwRQIgcNiZkn7poyk6J8Y1Cnwz4nV7YGPb5pBesBg6bk9n6KIC
+IQCE/jkHb/aPP/T3GtfLNHAdHL4JnofAbsDEuLQxAseeZA==
+"""
+
+
+def has_strict_x509_parsing():
+    """Indicates whether python-cryptography has strict x509 parsing."""
+
+    # Major release where python-cryptography started being strict
+    # when parsing x509 certificates.
+    PYCRYPTO_STRICT_X509_MAJOR = 35
+    return int(cryptography.__version__.split(".", maxsplit=1)[0]) >= PYCRYPTO_STRICT_X509_MAJOR
+
+
+def expectedFailureIf(condition):
+    """The test is marked as an expectedFailure if the condition is satisfied."""
+
+    def wrapper(func):
+        if condition:
+            return unittest.expectedFailure(func)
+        return func
+
+    return wrapper
+
+
+class Cert_Utils_Test(unittest.TestCase):
     def test_tpm_cert_store(self):
         tpm_ek_ca.check_tpm_cert_store(CERT_STORE_DIR)
         my_trusted_certs = tpm_ek_ca.cert_loader(CERT_STORE_DIR)
 
         self.assertNotEqual(len(my_trusted_certs), 0)
+
+    def test_cert_store_certs(self):
+        my_trusted_certs = tpm_ek_ca.cert_loader(CERT_STORE_DIR)
+        for fname, pem_cert in my_trusted_certs.items():
+            try:
+                cert = cert_utils.x509_pem_cert(pem_cert)
+            except Exception as e:
+                self.fail(f"Failed to load certificate {fname}: {e}")
+            self.assertIsNotNone(cert)
+
+    def test_verify_ek(self):
+        tests = [
+            {"cert": st_sha256_with_rsa_der, "expected": True},  # RSA, signed by STM_RSA_05I.pem.
+            {"cert": st_ecdsa_sha256_der, "expected": True},  # ECC, signed by STM_ECC_01I.pem.
+        ]
+        for t in tests:
+            self.assertEqual(
+                cert_utils.verify_ek(base64.b64decode(t["cert"]), CERT_STORE_DIR),
+                t["expected"],
+                msg=f"Test failed for cert {t['cert']}; expected: {t['expected']}",
+            )
+
+    @expectedFailureIf(has_strict_x509_parsing())
+    def test_verify_ek_expected_failures(self):
+        # The following certificates are not compliant, and will fail the
+        # signature verification with python-cryptography, even though they
+        # should validate. Marking as expected failure for now.
+        tests = [
+            {"cert": nuvoton_ecdsa_sha256_der, "expected": True},  # ECC, signed by NUVO_2110.pem.
+        ]
+        for t in tests:
+            self.assertEqual(
+                cert_utils.verify_ek(base64.b64decode(t["cert"]), CERT_STORE_DIR),
+                t["expected"],
+                msg=f"Test failed for cert {t['cert']}; expected: {t['expected']}",
+            )

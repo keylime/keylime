@@ -261,11 +261,8 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 # Note, we don't validate the EKCert here, other than the implicit
                 #  "is it a valid x509 cert" check. So it's still untrusted.
                 # This will be validated by the tenant.
-                ek_tpm = base64.b64encode(
-                    tpm2_objects.ek_low_tpm2b_public_from_pubkey(
-                        cert_utils.read_x509_der_cert_pubkey(base64.b64decode(ekcert))
-                    )
-                ).decode()
+                cert = cert_utils.x509_der_cert(base64.b64decode(ekcert))
+                ek_tpm = base64.b64encode(tpm2_objects.ek_low_tpm2b_public_from_pubkey(cert.public_key())).decode()
 
             aik_attrs = tpm2_objects.get_tpm2b_public_object_attributes(
                 base64.b64decode(aik_tpm),
