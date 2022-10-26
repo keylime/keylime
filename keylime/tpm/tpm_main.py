@@ -12,14 +12,10 @@ import time
 import typing
 import zlib
 
-from cryptography import exceptions as crypto_exceptions
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization as crypto_serialization
-from cryptography.hazmat.primitives.asymmetric import padding
 from packaging.version import Version
 
-from keylime import cmd_exec, config, keylime_logging, secure_mount, tpm_ek_ca
+from keylime import cert_utils, cmd_exec, config, keylime_logging, secure_mount
 from keylime.agentstates import TPMClockInfo
 from keylime.common import algorithms, retry
 from keylime.failure import Component, Failure
@@ -785,46 +781,7 @@ class tpm(tpm_abstract.AbstractTPM):
         :param ekcert: The Endorsement Key certificate in DER format
         :returns: True if the certificate can be verified, false otherwise
         """
-        # openssl x509 -inform der -in certificate.cer -out certificate.pem
-        try:
-            tpm_ek_ca.check_tpm_cert_store()
-
-            ek509 = x509.load_der_x509_certificate(
-                data=ekcert,
-                backend=default_backend(),
-            )
-
-            trusted_certs = tpm_ek_ca.cert_loader()
-            for _, cert in trusted_certs.items():
-                signcert = x509.load_pem_x509_certificate(
-                    data=cert.encode(),
-                    backend=default_backend(),
-                )
-
-                if ek509.issuer.rfc4514_string() != signcert.subject.rfc4514_string():
-                    continue
-
-                try:
-                    signcert.public_key().verify(
-                        ek509.signature,
-                        ek509.tbs_certificate_bytes,
-                        padding.PKCS1v15(),
-                        ek509.signature_hash_algorithm,
-                    )
-                except crypto_exceptions.InvalidSignature:
-                    continue
-
-                logger.debug("EK cert matched cert: %s", cert)
-                return True
-        except Exception as e:
-            # Log the exception so we don't lose the raw message
-            logger.exception(e)
-            raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?").with_traceback(
-                sys.exc_info()[2]
-            )
-
-        logger.error("No Root CA matched EK Certificate")
-        return False
+        return cert_utils.verify_ek(ekcert)
 
     def get_tpm_manufacturer(self, output=None):
         vendorStr = None
