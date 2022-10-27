@@ -189,11 +189,7 @@ def encrypt(plaintext, key):
         plaintext = b""
     iv = generate_random_key(aes_block_size)
     encryptor = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend()).encryptor()
-    # The following try/except captures both str and bytes
-    try:
-        cipher_text = encryptor.update(plaintext.encode("ascii")) + encryptor.finalize()
-    except Exception:
-        cipher_text = encryptor.update(plaintext) + encryptor.finalize()
+    cipher_text = encryptor.update(plaintext) + encryptor.finalize()
     return base64.b64encode(iv + cipher_text + encryptor.tag)
 
 

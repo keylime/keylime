@@ -458,7 +458,7 @@ def write_private(inp):
 
     priv_encoded = yaml.dump(priv, Dumper=SafeDumper)
     key = crypto.kdf(global_password, salt)
-    ciphertext = crypto.encrypt(priv_encoded, key)
+    ciphertext = crypto.encrypt(priv_encoded.encode("utf-8"), key)
     towrite = {"salt": salt, "priv": ciphertext}
 
     mask = os.umask(0o037)

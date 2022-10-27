@@ -357,8 +357,7 @@ class TestRestful(unittest.TestCase):
     def setUpClass(cls):
         """Prepare the keys and payload to give to the CV"""
         contents = "random garbage to test as payload"
-        # contents = contents.encode('utf-8')
-        ret = user_data_encrypt.encrypt(contents)
+        ret = user_data_encrypt.encrypt(contents.encode("utf-8"))
         cls.K = ret["k"]
         cls.U = ret["u"]
         cls.V = ret["v"]
