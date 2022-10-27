@@ -191,7 +191,7 @@ def output(components: List[str], config: RawConfigParser, templates: str, outdi
 
     # Check that there are templates for all components
     for component in components:
-        version = config[component]["version"]
+        version = config[component]["version"].strip('" ')
         version_dir = os.path.join(templates, version)
         if not os.path.isdir(version_dir):
             raise Exception(f"Could not find directory {version_dir}")
