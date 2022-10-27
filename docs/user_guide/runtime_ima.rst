@@ -90,11 +90,11 @@ Keylime provides a script to generate allowlists from `initramfs`, but this is
 only a guide. We encourage developers / users of Keylime to be creative and come
 up with their own process for securely creating and maintaining an allowlist.
 
-The `create_allowlist.sh` script is `available here <https://github.com/keylime/python-keylime/blob/master/keylime/create_allowlist.sh>`_
+The `create_allowlist.sh` script is `available here <https://github.com/keylime/keylime/blob/master/scripts/create_allowlist.sh>`_
 
 Run the script as follows::
 
-  # create_allowlist.sh  allowlist.txt [hash-algo]
+  # create_allowlist.sh -o [filename] -h [hash-algo]
 
 With `[hash-algo]` being `sha1sum`, `sha256sum` (note, you need the OpenSSL app
 installed to have the shasum CLI applications available).
