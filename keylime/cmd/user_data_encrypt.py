@@ -16,10 +16,8 @@ def encrypt(contents):
     u = crypto.strbitxor(k, v)
     ciphertext = crypto.encrypt(contents, k)
 
-    try:
-        recovered = crypto.decrypt(ciphertext, k).decode("utf-8")
-    except UnicodeDecodeError:
-        recovered = crypto.decrypt(ciphertext, k)
+    # Try decrypting to check encrypted content
+    recovered = crypto.decrypt(ciphertext, k)
 
     if recovered != contents:
         raise Exception("Test decryption failed")
@@ -36,7 +34,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
         print(f"ERROR: File %s not found. {infile}")
         usage()
 
-    with open(infile, encoding="utf-8") as f:
+    with open(infile, "rb") as f:
         contents = f.read()
 
     ret = encrypt(contents)
