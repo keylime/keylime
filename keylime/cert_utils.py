@@ -1,4 +1,6 @@
 import io
+import os.path
+import subprocess
 import sys
 
 from cryptography import exceptions as crypto_exceptions
@@ -102,3 +104,40 @@ def verify_ek(ekcert, tpm_cert_store=config.get("tenant", "tpm_cert_store")):
 
     logger.error("No Root CA matched EK Certificate")
     return False
+
+
+def verify_ek_script(script, env, cwd):
+    if script is None:
+        logger.warning("External check script (%s) not specified", script)
+        return False
+
+    script_path = os.path.abspath(script)
+    if not os.path.isfile(script_path):
+        if cwd is None or not os.path.isfile(os.path.abspath(os.path.join(cwd, script))):
+            logger.warning("External check script (%s) not found; please make sure its path is correct", script)
+            return False
+        script_path = os.path.abspath(os.path.join(cwd, script))
+
+    try:
+        proc = subprocess.run(
+            [script_path],
+            env=env,
+            shell=False,
+            cwd=cwd,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            check=False,
+        )
+        if proc.returncode != 0:
+            errmsg = ""
+            if proc.stdout is not None:
+                errmsg = proc.stdout.decode("utf-8")
+            logger.error("External check script failed to validate EK: %s", errmsg)
+            return False
+        logger.debug("External check script successfully to validated EK")
+        if proc.stdout is not None:
+            logger.info("ek_check output: %s", proc.stdout.decode("utf-8"))
+    except subprocess.CalledProcessError as e:
+        logger.error("Error while trying to run external check script to validate EK: %s", e)
+        return False
+    return True

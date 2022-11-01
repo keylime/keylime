@@ -1,0 +1,98 @@
+#!/bin/sh
+
+# This script can be used as the `ek_check_script' (tenant configuration),
+# to attempt to verify a provided EK_CERT via env var using openssl.
+
+# EK             - contains a PEM-encoded version of the public EK
+# EK_CERT        - contains a base64 DER-encoded EK certificate if one is
+#                  available.
+# PROVKEYS       - contains a json document containing EK, EKcert, and AIK
+#                  from the provider. EK and AIK are in PEM format. The
+#                  EKcert is in base64-encoded DER format
+# TPM_CERT_STORE - contains the path of the TPM certificate store.
+EK=${EK:-}
+EK_CERT=${EK_CERT:-}
+PROVKEYS=${PROVKEYS:-}
+
+EK_VERIFICATION_LOG=${EK_VERIFICATION_LOG:-/var/log/keylime/ek-verification.log}
+LOG="${EK_VERIFICATION_LOG}"
+
+# Setting log fallback in case we cannot write to the specified file.
+touch "${LOG}" 2>/dev/null || LOG=/dev/stderr
+
+log() {
+  _stderr=${2:-}
+  echo "[$(date)] ${1}" >&2 >> "${LOG}"
+  [ -n "${_stderr}" ] && [ "${LOG}" != '/dev/stderr' ] && echo "${1}" >&2
+}
+
+die() {
+  log "ERROR: ${1}" _
+  exit 1
+}
+
+command -v openssl >/dev/null \
+  || die "openssl CLI was not found in the PATH; please make sure it is installed"
+
+[ -n "${EK_CERT}" ] || die "EK_CERT was not provided as an env var"
+
+# Cert store directory. If one is not provided via TPM_CERT_STORE env var,
+# we start by attempting to read tenant.conf.
+CERT_STORE=${TPM_CERT_STORE:-}
+
+if [ -z "${CERT_STORE}" ]; then
+  KEYLIME_CONFIG_DIR=${KEYLIME_CONFIG_DIR:-/etc/keylime}
+  [ -d "${KEYLIME_CONFIG_DIR}" ] \
+    || die "KEYLIME_CONFIG_DIR (${KEYLIME_CONFIG_DIR}) does not seem to exist"
+
+  if [ -r "${KEYLIME_CONFIG_DIR}"/tenant.conf ]; then
+    CERT_STORE="$(grep -w ^tpm_cert_store "${KEYLIME_CONFIG_DIR}"/tenant.conf \
+                  | tail -1 | cut -d'=' -f2 | tr -d "[:blank:]")"
+  fi
+
+  # Next we try to read any snippets in tenant.conf.d/
+  if [ -d "${KEYLIME_CONFIG_DIR}"/tenant.conf.d ]; then
+    for _s in "${KEYLIME_CONFIG_DIR}"/tenant.conf.d/*.conf; do
+      [ -e "${_s}" ] || continue
+      _store="$(grep -w ^tpm_cert_store "${_s}" \
+                | tail -1 | cut -d'=' -f2 | tr -d "[:blank:]")"
+      [ -n "${_store}" ] && CERT_STORE="${_store}"
+    done
+  fi
+fi
+
+[ -n "${CERT_STORE}" ] \
+  || die "It was not possible to determine the TPM cert store dir from tenant.conf or tenant.conf.d/ snippets"
+[ -d "${CERT_STORE}" ] \
+  || die "TPM cert store is not a valid directory (${CERT_STORE})"
+
+EK_VERIFICATION_TMPDIR=
+ek_verification_cleanup() {
+  [ -d "${EK_VERIFICATION_TMPDIR}" ] || return 0
+  rm -rf "${EK_VERIFICATION_TMPDIR}"
+}
+trap ek_verification_cleanup EXIT
+
+mkdir -p "${TMPDIR:-/tmp}"
+EK_VERIFICATION_TMPDIR="$(mktemp -d)" || \
+  die "Creating a temp dir for EK verification failed"
+
+EK_CERT_FILE_DER="${EK_VERIFICATION_TMPDIR}"/ek.der
+EK_CERT_FILE_PEM="${EK_VERIFICATION_TMPDIR}"/ek.pem
+
+printf '%s' "${EK_CERT}" > "${EK_CERT_FILE_DER}".b64
+base64 -d "${EK_CERT_FILE_DER}".b64 > "${EK_CERT_FILE_DER}"
+openssl x509 -inform der -in "${EK_CERT_FILE_DER}" > "${EK_CERT_FILE_PEM}"
+
+for c in "${CERT_STORE}"/*.pem; do
+  [ -e "${c}" ] || continue
+  log "Checking if ${c} is the issuer of EK cert..."
+  if openssl verify -partial_chain -CAfile "${c}" "${EK_CERT_FILE_PEM}" \
+                                           >>"${LOG}" 2>>"${LOG}"; then
+    log "${EK_CERT} successfully verified by $(basename "${c}")" _
+    exit 0
+  fi
+done
+
+die "EK signature did not match certificates from TPM cert store"
+# vim:set ts=2 sw=2 et:
