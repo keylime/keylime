@@ -34,6 +34,7 @@
      - /functional/ek-cert-use-ek_check_script
      - /functional/ek-cert-use-ek_handle-custom-ca_certs
      - /functional/install-rpm-with-ima-signature
+     - /functional/keylime-non-default-ports
      - /functional/keylime_tenant-commands-on-localhost
      - /functional/keylime_tenant-ima-signature-sanity
      - /functional/tpm_policy-sanity-on-localhost
@@ -41,6 +42,7 @@
      - /functional/db-mariadb-sanity-on-localhost
      - /functional/db-mysql-sanity-on-localhost
      - /functional/tenant-allowlist-sanity
+     - /functional/use-multiple-ima-sign-verification-keys
      - /functional/measured-boot-swtpm-sanity
      # now set zeromq as a default revocation notifier and test it
      - /setup/configure_default_revocation_notifier/zeromq
