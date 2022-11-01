@@ -29,11 +29,15 @@ COLON_BYTE = ord(":")
 
 
 def get_START_HASH(hash_alg: Hash) -> bytes:
-    return codecs.decode(b"0" * (hash_alg.get_size() // 4), "hex")
+    hsize = hash_alg.get_size()
+    assert hsize is not None
+    return codecs.decode(b"0" * (hsize // 4), "hex")
 
 
 def get_FF_HASH(hash_alg: Hash) -> bytes:
-    return codecs.decode(b"f" * (hash_alg.get_size() // 4), "hex")
+    hsize = hash_alg.get_size()
+    assert hsize is not None
+    return codecs.decode(b"f" * (hsize // 4), "hex")
 
 
 class Validator:
@@ -332,7 +336,7 @@ class Entry:
 
     pcr: str
     ima_template_hash: bytes
-    pcr_template_hash: Optional[bytes]
+    pcr_template_hash: bytes
     mode: Mode
     _bytes: bytes
     _validator: Optional[Validator]
@@ -370,7 +374,9 @@ class Entry:
             raise ParserError(f"No parser for mode {tokens[2]} implemented.")
         self.mode = mode(tokens[3])
         self._bytes = self.mode.bytes()
-        self.pcr_template_hash = self._pcr_hash_alg.hash(self._bytes)
+        pcr_hash_alg_ = self._pcr_hash_alg.hash(self._bytes)
+        assert pcr_hash_alg_ is not None
+        self.pcr_template_hash = pcr_hash_alg_
         # Set correct hash for time of measure, time of use (ToMToU) errors
         # and if a file is already opened for write.
         # https://elixir.bootlin.com/linux/v5.12.12/source/security/integrity/ima/ima_main.c#L101

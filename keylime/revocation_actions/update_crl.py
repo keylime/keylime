@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 
@@ -33,7 +34,9 @@ def execute(json_revocation):
     updated = False
     for _ in range(10):
         logger.debug("Getting updated CRL from %s", dist_path)
-        response = tornado_requests.request("GET", dist_path, None, None, None)
+        response = asyncio.get_event_loop().run_until_complete(
+            tornado_requests.request("GET", dist_path, None, None, None)
+        )
         if response.status_code != 200:
             logger.warning("Unable to get updated CRL from %s.  Code %d", dist_path, response.status_code)
             time.sleep(1)

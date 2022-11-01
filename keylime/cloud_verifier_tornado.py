@@ -12,6 +12,7 @@ import tornado.ioloop
 import tornado.netutil
 import tornado.process
 import tornado.web
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, noload
 from sqlalchemy.orm.exc import NoResultFound
@@ -563,6 +564,7 @@ class AgentsHandler(BaseHandler):
                         logger.info("Allowlist data not provided with request! Using default empty allowlist.")
                         ima_policy = json.dumps(ima.process_ima_policy(ima.EMPTY_ALLOWLIST, []))
 
+                    ima_policy_stored = None
                     if ima_policy:
                         is_valid, err_msg = cloud_verifier_common.validate_ima_policy_data(ima_policy)
                         if not is_valid:
@@ -1123,8 +1125,10 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
         # The administration application (tenant) can GET the status and act accordingly (delete/retry/etc).
         if new_operational_state in (states.FAILED, states.INVALID_QUOTE):
             assert failure, "States FAILED and INVALID QUOTE should only be reached with a failure message"
+            assert failure.highest_severity
 
             if agent.get("severity_level") is None or agent["severity_level"] < failure.highest_severity.severity:
+                assert failure.highest_severity_event
                 agent["severity_level"] = failure.highest_severity.severity
                 agent["last_event_id"] = failure.highest_severity_event.event_id
                 agent["operational_state"] = new_operational_state
@@ -1194,8 +1198,11 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 logger.debug(
                     "Setting up callback to check agent ID %s again in %f seconds", agent["agent_id"], interval
                 )
+
                 # set up a call back to check again
-                cb = functools.partial(invoke_get_quote, agent, ima_policy, False, timeout=timeout)
+                async def cb():
+                    await invoke_get_quote(agent, ima_policy, False, timeout=timeout)
+
                 pending = tornado.ioloop.IOLoop.current().call_later(interval, cb)
                 agent["pending_event"] = pending
             return
@@ -1219,7 +1226,10 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 await process_agent(agent, states.FAILED, failure)
             else:
                 agent["operational_state"] = states.GET_QUOTE
-                cb = functools.partial(invoke_get_quote, agent, ima_policy, True, timeout=timeout)
+
+                async def cb_quote_retry():
+                    await invoke_get_quote(agent, ima_policy, True, timeout=timeout)
+
                 agent["num_retries"] += 1
                 next_retry = retry.retry_time(exponential_backoff, interval, agent["num_retries"], logger)
                 logger.info(
@@ -1229,7 +1239,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                     maxr,
                     next_retry,
                 )
-                tornado.ioloop.IOLoop.current().call_later(next_retry, cb)
+                tornado.ioloop.IOLoop.current().call_later(next_retry, cb_quote_retry)
             return
 
         if main_agent_operational_state == states.PROVIDE_V and new_operational_state == states.PROVIDE_V_RETRY:
@@ -1244,7 +1254,10 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                 await process_agent(agent, states.FAILED, failure)
             else:
                 agent["operational_state"] = states.PROVIDE_V
-                cb = functools.partial(invoke_provide_v, agent)
+
+                async def cb_vprov_retry():
+                    await invoke_provide_v(agent)
+
                 agent["num_retries"] += 1
                 next_retry = retry.retry_time(exponential_backoff, interval, agent["num_retries"], logger)
                 logger.info(
@@ -1254,7 +1267,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
                     maxr,
                     next_retry,
                 )
-                tornado.ioloop.IOLoop.current().call_later(next_retry, cb)
+                tornado.ioloop.IOLoop.current().call_later(next_retry, cb_vprov_retry)
             return
         raise Exception("nothing should ever fall out of this!")
 
@@ -1354,6 +1367,7 @@ def main():
 
     def server_process(task_id):
         logger.info("Starting server of process %s", task_id)
+        assert isinstance(engine, Engine)
         engine.dispose()
         server = tornado.httpserver.HTTPServer(app, ssl_options=ssl_ctx, max_buffer_size=max_upload_size)
         server.add_sockets(sockets)

@@ -78,7 +78,7 @@ def process_allowlist(args):
         ima_sign_verification_keys = tenant_keyring.to_string()
 
     # Read command-line path string allowlist
-    al_data = None
+    al_data = {"excllist": []}
 
     if "allowlist" in args and args["allowlist"] is not None:
 
@@ -95,7 +95,7 @@ def process_allowlist(args):
             raise UserError(str(ima_e)) from ima_e
 
     # Read command-line path string IMA exclude list
-    excl_data = None
+    excl_data = []
     if "ima_exclude" in args and args["ima_exclude"] is not None:
         if isinstance(args["ima_exclude"], str):
             excl_data = ima.read_excllist(args["ima_exclude"])

@@ -61,7 +61,7 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
         )
 
     except Exception as e:
-        failure.add_event("invalid_data", {"message": "parsing agent get quote respone failed", "data": e}, False)
+        failure.add_event("invalid_data", {"message": "parsing agent get quote respone failed", "data": str(e)}, False)
         return failure
 
     # TODO: Are those separate failures?
@@ -123,7 +123,7 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
         logger.error("TPM Quote for agent %s is using an unaccepted signing algorithm: %s", agent_id, sign_alg)
         failure.add_event(
             "invalid_sign_alg",
-            {"message": f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}", "data": {sign_alg}},
+            {"message": f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}", "data": sign_alg},
             False,
         )
         return failure
@@ -301,7 +301,7 @@ def prepare_error(agent, msgtype="revocation", event=None):
         tosend["signature"] = crypto.rsa_sign(signing_key, tosend["msg"])
 
     else:
-        tosend["signature"] = "none"
+        tosend["signature"] = b""
     return tosend
 
 
@@ -313,8 +313,14 @@ def validate_ima_policy_data(agent_data):
     lists = json.loads(agent_data)
 
     # Validate exlude list contains valid regular expressions
-    is_valid, _, err_msg = validators.valid_exclude_list(lists.get("exclude"))
+    is_valid, _, err_msg_from_validator = validators.valid_exclude_list(lists.get("exclude"))
     if not is_valid:
-        err_msg += " Exclude list regex is misformatted. Please correct the issue and try again."
+        if err_msg_from_validator is not None:
+            err_msg_base = err_msg_from_validator + " "
+        else:
+            err_msg_base = ""
+        err_msg = err_msg_base + "Exclude list regex is misformatted. Please correct the issue and try again."
+    else:
+        err_msg = err_msg_from_validator
 
     return is_valid, err_msg

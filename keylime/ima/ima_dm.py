@@ -189,12 +189,13 @@ class DmIMAValidator:
             return failure
 
         # Check if the table hash is consistent
+        assert device_state.active_table_hash is not None
         if device_state.active_table_hash != event.active_table_hash:
             failure.add_event(
                 "active_table_mismatch",
                 {
-                    "got": event.active_table_hash,
-                    "expected": device_state.active_table_hash,
+                    "got": event.active_table_hash.hash.decode(),
+                    "expected": device_state.active_table_hash.hash.decode(),
                     "context": "resume does not match the table",
                 },
                 True,
@@ -272,7 +273,7 @@ class DmIMAValidator:
                 used_policy_name = policy_name
                 break
 
-        if used_policy_name is None:
+        if used_policy is None or used_policy_name is None:
             failure.add_event("no_matching_policy", "No policy found", True)
             return failure
 
@@ -293,7 +294,7 @@ class DmIMAValidator:
         # Check "num_targets"
         # Note that we get actually could get multiple lines, but this does not happen for our use cases so we
         # treat it as a failure.
-        if event.device_metadata.num_targets != len(event.targets) or used_policy["table_load"][entry] != len(
+        if event.device_metadata.num_targets != len(event.targets) or used_policy["table_load"]["num_targets"] != len(
             event.targets
         ):
             failure.add_event("num_targets_mismatch", "lengths are not consistent", True)
@@ -392,7 +393,7 @@ def _check_attr(attr: Optional[Union[int, str, bool]], reference_value: Optional
     if reference_value is None:
         return True
 
-    if attr is None and reference_value is not None:
+    if attr is None:
         return False
 
     if isinstance(reference_value, bool):

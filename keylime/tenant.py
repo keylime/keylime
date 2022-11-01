@@ -46,16 +46,16 @@ class Tenant:
 
     registrar_ip = None
     registrar_port = None
-    registrar_data = None
+    registrar_data = {}
 
     api_version = None
 
     uuid_service_generate_locally = None
-    agent_uuid = None
+    agent_uuid = ""
 
-    K = None
-    V = None
-    U = None
+    K = b""
+    V = b""
+    U = b""
     auth_tag = None
 
     tpm_policy = None
@@ -502,11 +502,15 @@ class Tenant:
         # now we need to exec the script with the ek and ek cert in vars
         env = os.environ.copy()
         env["AGENT_UUID"] = self.agent_uuid
-        env["EK"] = tpm2_objects.pubkey_from_tpm2b_public(
-            base64.b64decode(self.registrar_data["ek_tpm"]),
-        ).public_bytes(
-            crypto_serialization.Encoding.PEM,
-            crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
+        env["EK"] = (
+            tpm2_objects.pubkey_from_tpm2b_public(
+                base64.b64decode(self.registrar_data["ek_tpm"]),
+            )
+            .public_bytes(
+                crypto_serialization.Encoding.PEM,
+                crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+            .decode()
         )
         env["EK_TPM"] = self.registrar_data["ek_tpm"]
         if self.registrar_data["ekcert"] is not None:
@@ -775,7 +779,7 @@ class Tenant:
             logger.info("Agent %s deleted from the CV", self.agent_uuid)
             return response
 
-        keylime_logging.log_http_response(logger, logging.ERROR, response)
+        keylime_logging.log_http_response(logger, logging.ERROR, response_json)
         return response
 
     def do_regstatus(self):
@@ -955,7 +959,7 @@ class Tenant:
                 response_json = Tenant._jsonify_response(response, print_response=True, raise_except=True)
 
             except Exception as e:
-                if response.status_code in (503, 504):
+                if response is None or response.status_code in (503, 504):
                     numtries += 1
                     maxr = config.getint("tenant", "max_retries")
                     if numtries >= maxr:
@@ -985,7 +989,7 @@ class Tenant:
             raise UserError(f"Status command response: {response.status_code} Unexpected response from Cloud Agent.")
 
         if "results" not in response_json:
-            raise UserError(f"Error: unexpected http response body from Cloud Agent: {str(response.status)}")
+            raise UserError(f"Error: unexpected http response body from Cloud Agent: {response.status_code}")
 
         quote = response_json["results"]["quote"]
         logger.debug("Agent_quote received quote: %s", quote)
@@ -1185,7 +1189,7 @@ class Tenant:
         except ValueError as e:
             if raise_except:
                 raise ValueError("Unable to convert response to JSON format") from e
-            json_response = "{}"
+            json_response = {}
 
         if print_response:
             print(json_response)

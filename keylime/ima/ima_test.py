@@ -18,6 +18,8 @@ class TestIMA(unittest.TestCase):
                 ml, nth_entry, num_entries = ima.read_measurement_list(ima_log_file, 2)
                 self.assertEqual(num_entries, 3)
                 self.assertEqual(nth_entry, 2)
+                self.assertIsNotNone(ml)
+                assert ml is not None  # redundant but it makes type-checking happy
                 self.assertTrue(ml.startswith("2-entry"))
 
                 # Request the 3rd entry, which is not available yet, thus we get an empty list
@@ -31,6 +33,8 @@ class TestIMA(unittest.TestCase):
                 ml, nth_entry, num_entries = ima.read_measurement_list(ima_log_file, 4)
                 self.assertEqual(num_entries, 3)
                 self.assertEqual(nth_entry, 0)
+                self.assertIsNotNone(ml)
+                assert ml is not None  # redundant but it makes type-checking happy
                 self.assertTrue(ml.startswith("0-entry"))
 
 

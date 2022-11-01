@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
 from cryptography.x509.extensions import ExtensionNotFound
+from cryptography.x509 import oid
 
 from keylime import keylime_logging
 
@@ -148,9 +149,9 @@ class ImaKeyring:
         for pubkey in self.ringv2.values():
             try:
                 pubbytes = pubkey.public_bytes(encoding=serialization.Encoding.DER, format=fmt)
+                lst.append(pubbytes)
             except Exception as ex:
                 logger.error("Could not serialize key: %s", str(ex))
-            lst.append(pubbytes)
 
         obj["pubkeys"] = [base64.b64encode(pubkey).decode("ascii") for pubkey in lst]
         obj["keyids"] = list(self.ringv2.keys())
