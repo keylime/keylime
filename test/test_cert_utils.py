@@ -143,3 +143,35 @@ class Cert_Utils_Test(unittest.TestCase):
                 t["expected"],
                 msg=f"Test failed for cert {t['cert']}; expected: {t['expected']}",
             )
+
+    def test_verify_ek_script(self):
+        # We will be using `nuvoton_ecdsa_sha256_der', which is signed by
+        # NUVO_2110.pem but fails verification when using python-cryptography
+        # as it is a malformed cert -- it is the same one we use in
+        # test_verify_ek_expected_failures().
+        # With an external script `ek_script_check' that uses openssl, the
+        # validation works.
+        cert = nuvoton_ecdsa_sha256_der.replace("\n", "")
+
+        self.assertFalse(cert_utils.verify_ek_script(None, None, None))
+        self.assertFalse(cert_utils.verify_ek_script("/foo/bar", None, None))
+
+        script = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts", "ek-openssl-verify"))
+        # Testing ek-openssl-verify script, but without specifying the
+        # EK_CERT env var.
+        self.assertFalse(cert_utils.verify_ek_script(script, None, None))
+
+        # Now let's specify the EK_CERT.
+        env = os.environ.copy()
+        env["EK_CERT"] = cert
+        env["TPM_CERT_STORE"] = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tpm_cert_store"))
+        self.assertTrue(cert_utils.verify_ek_script(script, env, None))
+
+        # Now, let us specify the ek_check_script with a relative path.
+        script = "ek-openssl-verify"
+        cwd = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
+        self.assertTrue(cert_utils.verify_ek_script(script, env, cwd))
+
+        # And now we try a bad TPM cert store.
+        env["TPM_CERT_STORE"] = "/some/bad/directory"
+        self.assertFalse(cert_utils.verify_ek_script(script, env, cwd))

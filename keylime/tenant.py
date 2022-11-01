@@ -5,7 +5,6 @@ import io
 import json
 import logging
 import os
-import subprocess
 import sys
 import tempfile
 import time
@@ -15,7 +14,7 @@ import requests
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 
 from keylime import api_version as keylime_api_version
-from keylime import ca_util, config, crypto, keylime_logging, registrar_client, signing, web_util
+from keylime import ca_util, cert_utils, config, crypto, keylime_logging, registrar_client, signing, web_util
 from keylime.agentstates import AgentAttestState
 from keylime.cli import options, policies
 from keylime.cmd import user_data_encrypt
@@ -516,19 +515,11 @@ class Tenant:
             env["EK_CERT"] = ""
 
         env["PROVKEYS"] = json.dumps(self.registrar_data.get("provider_keys", {}))
-        with subprocess.Popen(
-            script, env=env, shell=True, cwd=config.WORK_DIR, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-        ) as proc:
-            retval = proc.wait()
-            if retval != 0:
-                raise UserError("External check script failed to validate EK")
-            logger.debug("External check script successfully to validated EK")
-            while True:
-                line = proc.stdout.readline().decode()
-                if line == "":
-                    break
-                logger.debug("ek_check output: %s", line.strip())
-        return True
+
+        # Define the TPM cert store for the external script.
+        env["TPM_CERT_STORE"] = config.get("tenant", "tpm_cert_store")
+
+        return cert_utils.verify_ek_script(script, env, config.WORK_DIR)
 
     def do_cvadd(self):
         """Initiate v, agent_id and ip and initiate the cloudinit sequence"""

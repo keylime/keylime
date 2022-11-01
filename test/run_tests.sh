@@ -107,19 +107,19 @@ fi
 # Set correct dependencies
 # Fedora
 if [ $PACKAGE_MGR = "dnf" ]; then
-    PYTHON_PREIN="python3"
+    PYTHON_PREIN="python3 openssl"
     PYTHON_DEPS="python3-pip python3-dbus"
 # RHEL / CentOS etc
 elif [ $PACKAGE_MGR = "yum" ]; then
-    PYTHON_PREIN="epel-release python36"
+    PYTHON_PREIN="epel-release python36 openssl"
     PYTHON_DEPS="python36-pip python36-dbus"
 # Ubuntu / Debian
 elif [ $PACKAGE_MGR = "apt-get" ]; then
-    PYTHON_PREIN="python3"
+    PYTHON_PREIN="python3 openssl"
     PYTHON_DEPS="python3-pip python3-dbus"
 # SUSE
 elif [ $PACKAGE_MGR = "zypper" ]; then
-    PYTHON_PREIN="python3"
+    PYTHON_PREIN="python3 openssl"
     PYTHON_DEPS="python3-pip python3-dbus"
 else
     echo "No recognized package manager found on this system!" 1>&2
