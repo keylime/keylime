@@ -565,7 +565,9 @@ class AgentsHandler(BaseHandler):
                         ima_policy_db_format["name"] = ima_policy_name
                         ima_policy_db_format["ima_policy"] = ima_policy
                         try:
-                            ima_policy_stored = session.query(VerifierAllowlist).filter_by(name=ima_policy_name).one_or_none()
+                            ima_policy_stored = (
+                                session.query(VerifierAllowlist).filter_by(name=ima_policy_name).one_or_none()
+                            )
                             if ima_policy_stored is None:
                                 ima_policy_stored = VerifierAllowlist(**ima_policy_db_format)
                                 session.add(ima_policy_stored)
