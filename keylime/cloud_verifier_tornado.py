@@ -401,7 +401,9 @@ class AgentsHandler(BaseHandler):
         agents requests require a json block sent in the body
         """
         session = get_session()
-        try:
+        # TODO: exception handling needs fixing
+        # Maybe handle exceptions with if/else if/else blocks ... simple and avoids nesting
+        try:  # pylint: disable=too-many-nested-blocks
             rest_params = web_util.get_restful_params(self.request.uri)
             if rest_params is None:
                 web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
