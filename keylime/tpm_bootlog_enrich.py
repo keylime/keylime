@@ -46,14 +46,14 @@ yaml.add_representer(hexint, representer)
 efivarlib_functions = CDLL(config.LIBEFIVAR)
 
 
-def getDevicePath(b):
-    ret = efivarlib_functions.efidp_format_device_path(0, 0, b, len(b))
+def getDevicePath(b, l):
+    ret = efivarlib_functions.efidp_format_device_path(0, 0, b, l)
     if ret < 0:
         raise Exception(f"getDevicePath: efidp_format_device_path({b}) returned {ret}")
 
     s = create_string_buffer(ret + 1)
 
-    ret = efivarlib_functions.efidp_format_device_path(s, ret + 1, b, len(b))
+    ret = efivarlib_functions.efidp_format_device_path(s, ret + 1, b, l)
     if ret < 0:
         raise Exception(f"getDevicePath: efidp_format_device_path({b}) returned {ret}")
 
@@ -174,7 +174,7 @@ def getVar(event, b):
                     c = w.decode("utf-16", errors="ignore")
                     description += c
                 r["Description"] = description
-                devicePath = getDevicePath(b[i:])
+                devicePath = getDevicePath(b[i:], len(b[i:]))
                 r["DevicePath"] = devicePath
                 return r
     return None
@@ -184,10 +184,11 @@ def enrich_device_path(d: dict) -> None:
     if isinstance(d.get("DevicePath"), str):
         try:
             b = bytes.fromhex(d["DevicePath"])
+            l = int(d["LengthOfDevicePath"])
         except Exception:
             return
         try:
-            p = getDevicePath(b)
+            p = getDevicePath(b, l)
         # Deal with garbage devicePath
         except Exception:
             return
