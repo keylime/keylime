@@ -530,7 +530,7 @@ class Tenant:
                 logger.debug("ek_check output: %s", line.strip())
         return True
 
-    def do_cv(self):
+    def do_cvadd(self):
         """Initiate v, agent_id and ip and initiate the cloudinit sequence"""
         b64_v = base64.b64encode(self.V).decode("utf-8")
         logger.debug("b64_v: %s", b64_v)
@@ -569,12 +569,14 @@ class Tenant:
             logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
             sys.exit()
 
+        response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
+
         if response.status_code == 409:
             # this is a conflict, need to update or delete it
-            Tenant._print_json_response(response)
+            print(response_json)
             sys.exit()
         elif response.status_code != 200:
-            keylime_logging.log_http_response(logger, logging.ERROR, response.json())
+            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
             logger.error(
                 "POST command response: %s Unexpected response from Cloud Verifier: %s",
                 response.status_code,
@@ -589,16 +591,18 @@ class Tenant:
 
         response = do_cvstatus.get((f"/v{self.api_version}/agents/{self.agent_uuid}"), timeout=self.request_timeout)
 
+        response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
+
         if response.status_code == 503:
             logger.error(
                 "Cannot connect to Verifier at %s with Port %s. Connection refused.",
                 self.verifier_ip,
                 self.verifier_port,
             )
-            return response.json()
+            return response_json
         if response.status_code == 504:
             logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
-            return response.json()
+            return response_json
         if response.status_code == 404:
             logger.info(
                 "Verifier at %s with Port %s does not have agent %s.",
@@ -606,19 +610,18 @@ class Tenant:
                 self.verifier_port,
                 self.agent_uuid,
             )
-            return response.json()
+            return response_json
+
         if response.status_code == 200:
-            response = response.json()
+            res = response_json.pop("results")
+            response_json["results"] = {self.agent_uuid: res}
 
-            res = response.pop("results")
-            response["results"] = {self.agent_uuid: res}
+            operational_state = states.state_to_str(response_json["results"][self.agent_uuid]["operational_state"])
+            response_json["results"][self.agent_uuid]["operational_state"] = operational_state
 
-            operational_state = states.state_to_str(response["results"][self.agent_uuid]["operational_state"])
-            response["results"][self.agent_uuid]["operational_state"] = operational_state
+            logger.info("Agent Info:\n%s", json.dumps(response_json["results"]))
 
-            logger.info("Agent Info:\n%s", json.dumps(response["results"]))
-
-            return response
+            return response_json
 
         logger.info(
             "Status command response: %s. Unexpected response from Cloud Verifier %s on port %s. %s",
@@ -627,7 +630,7 @@ class Tenant:
             self.verifier_port,
             str(response),
         )
-        return response
+        return response_json
 
     def do_cvlist(self):
         """List all agent statuses in cloudverifier"""
@@ -640,16 +643,18 @@ class Tenant:
 
         response = do_cvstatus.get(f"/v{self.api_version}/agents/?verifier={verifier_id}", timeout=self.request_timeout)
 
+        response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
+
         if response.status_code == 503:
             logger.error(
                 "Cannot connect to Verifier at %s with Port %s. Connection refused.",
                 self.verifier_ip,
                 self.verifier_port,
             )
-            return response.json()
+            return response_json
         if response.status_code == 504:
             logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
-            return response.json()
+            return response_json
         if response.status_code == 404:
             logger.info(
                 "Verifier at %s with Port %s does not have agent %s.",
@@ -657,11 +662,10 @@ class Tenant:
                 self.verifier_port,
                 self.agent_uuid,
             )
-            return response.json()
+            return response_json
         if response.status_code == 200:
-            response = response.json()
 
-            logger.info('From verifier %s port %s retrieved: "%s"', self.verifier_ip, self.verifier_port, response)
+            logger.info('From verifier %s port %s retrieved: "%s"', self.verifier_ip, self.verifier_port, response_json)
 
             return response
 
@@ -687,16 +691,18 @@ class Tenant:
             f"/v{self.api_version}/agents/?bulk={True}&verifier={verifier_id}", timeout=self.request_timeout
         )
 
+        response_json = Tenant._jsonify_response(response, print_response=False)
+
         if response.status_code == 503:
             logger.error(
                 "Cannot connect to Verifier at %s with Port %s. Connection refused.",
                 self.verifier_ip,
                 self.verifier_port,
             )
-            return response.json()
+            return response_json
         if response.status_code == 504:
             logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
-            return response.json()
+            return response_json
         if response.status_code == 404:
             logger.info(
                 "Verifier at %s with Port %s does not have agent %s.",
@@ -704,26 +710,25 @@ class Tenant:
                 self.verifier_port,
                 self.agent_uuid,
             )
-            return response.json()
+            return response_json
         if response.status_code == 200:
-            response = response.json()
 
-            for agent in response["results"].keys():
-                response["results"][agent]["operational_state"] = states.state_to_str(
-                    response["results"][agent]["operational_state"]
+            for agent in response_json["results"].keys():
+                response_json["results"][agent]["operational_state"] = states.state_to_str(
+                    response_json["results"][agent]["operational_state"]
                 )
-            logger.info("Bulk Agent Info:\n%s", json.dumps(response["results"]))
+            logger.info("Bulk Agent Info:\n%s", json.dumps(response_json["results"]))
 
-            return response
+            return response_json
 
         logger.info(
-            "Status command response: %s. Unexpected response from Cloud Verifier %s on port %s. %s",
+            "Bulk Status command response: %s. Unexpected response from Cloud Verifier %s on port %s. %s",
             response.status_code,
             self.verifier_ip,
             self.verifier_port,
             str(response),
         )
-        return response
+        return response_json
 
     def do_cvdelete(self, verifier_check=True):
         """Delete agent from Verifier."""
@@ -743,19 +748,19 @@ class Tenant:
         do_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvdelete.delete(f"/v{self.api_version}/agents/{self.agent_uuid}", timeout=self.request_timeout)
 
-        response = response.json()
+        response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
 
-        if response["code"] == 503:
+        if response_json["code"] == 503:
             logger.error(
                 "Cannot connect to Verifier at %s with Port %s. Connection refused.",
                 self.verifier_ip,
                 self.verifier_port,
             )
             return response
-        if response["code"] == 504:
+        if response_json["code"] == 504:
             logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
             return response
-        if response["code"] == 202:
+        if response_json["code"] == 202:
             deleted = False
             for _ in range(12):
                 get_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
@@ -763,16 +768,19 @@ class Tenant:
                     f"/v{self.api_version}/agents/{self.agent_uuid}", timeout=self.request_timeout
                 )
 
+                response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
+
                 if response.status_code == 404:
                     deleted = True
                     break
                 time.sleep(0.4)
             if deleted:
                 logger.info("Agent %s deleted from the CV", self.agent_uuid)
-                return response.json()
+                return response_json
             logger.error("Timed out waiting for delete of agent %s to complete at CV", self.agent_uuid)
-            return response.json()
-        if response["code"] == 200:
+            return response_json
+
+        if response_json["code"] == 200:
             logger.info("Agent %s deleted from the CV", self.agent_uuid)
             return response
 
@@ -880,30 +888,32 @@ class Tenant:
             timeout=self.request_timeout,
         )
 
+        response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
+
         if response.status_code == 503:
             logger.error(
                 "Cannot connect to Verifier at %s with Port %s. Connection refused.",
                 self.verifier_ip,
                 self.verifier_port,
             )
-            return response.json()
+            return response_json
         if response.status_code == 504:
             logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
-            return response.json()
+            return response_json
         if response.status_code == 200:
             logger.info("Agent %s re-activated", self.agent_uuid)
-            return response.json()
+            return response_json
 
-        response_body = response.json()
-        keylime_logging.log_http_response(logger, logging.ERROR, response_body)
-        logger.error("Update command response: %s Unexpected response from Cloud Verifier.", response.status_code)
-        return response.json()
+        keylime_logging.log_http_response(logger, logging.ERROR, response_json)
+        logger.error("Reactivate command response: %s Unexpected response from Cloud Verifier.", response.status_code)
+        return response_json
 
     def do_cvstop(self):
         """Stop declared active agent"""
         params = f"/v{self.api_version}/agents/{self.agent_uuid}/stop"
         do_cvstop = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvstop.put(params, data=b"", timeout=self.request_timeout)
+
         if response.status_code == 503:
             logger.error(
                 "Cannot connect to Verifier at %s with Port %s. Connection refused.",
@@ -915,9 +925,11 @@ class Tenant:
             logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
             sys.exit()
 
-        response_body = response.json()
+        response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
+
         if response.status_code != 200:
-            keylime_logging.log_http_response(logger, logging.ERROR, response_body)
+            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
+            logger.error("Stop command response: %s Unexpected response from Cloud Verifier.", response.status_code)
         else:
             logger.info("Agent %s stopped", self.agent_uuid)
 
@@ -949,8 +961,7 @@ class Tenant:
                     do_quote = RequestsClient(cloudagent_base_url, tls_enabled=False)
                     response = do_quote.get(params, timeout=self.request_timeout)
 
-                print(response)
-                response_body = response.json()
+                response_json = Tenant._jsonify_response(response, print_response=True, raise_except=True)
 
             except Exception as e:
                 if response.status_code in (503, 504):
@@ -982,17 +993,17 @@ class Tenant:
         if response is not None and response.status_code != 200:
             raise UserError(f"Status command response: {response.status_code} Unexpected response from Cloud Agent.")
 
-        if "results" not in response_body:
+        if "results" not in response_json:
             raise UserError(f"Error: unexpected http response body from Cloud Agent: {str(response.status)}")
 
-        quote = response_body["results"]["quote"]
+        quote = response_json["results"]["quote"]
         logger.debug("Agent_quote received quote: %s", quote)
 
-        public_key = response_body["results"]["pubkey"]
+        public_key = response_json["results"]["pubkey"]
         logger.debug("Agent_quote received public key: %s", public_key)
 
         # Ensure hash_alg is in accept_tpm_hash_algs list
-        hash_alg = response_body["results"]["hash_alg"]
+        hash_alg = response_json["results"]["hash_alg"]
         logger.debug("Agent_quote received hash algorithm: %s", hash_alg)
         if not algorithms.is_accepted(
             hash_alg, config.getlist("tenant", "accept_tpm_hash_algs")
@@ -1000,13 +1011,13 @@ class Tenant:
             raise UserError(f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}")
 
         # Ensure enc_alg is in accept_tpm_encryption_algs list
-        enc_alg = response_body["results"]["enc_alg"]
+        enc_alg = response_json["results"]["enc_alg"]
         logger.debug("Agent_quote received encryption algorithm: %s", enc_alg)
         if not algorithms.is_accepted(enc_alg, config.getlist("tenant", "accept_tpm_encryption_algs")):
             raise UserError(f"TPM Quote is using an unaccepted encryption algorithm: {enc_alg}")
 
         # Ensure sign_alg is in accept_tpm_encryption_algs list
-        sign_alg = response_body["results"]["sign_alg"]
+        sign_alg = response_json["results"]["sign_alg"]
         logger.debug("Agent_quote received signing algorithm: %s", sign_alg)
         if not algorithms.is_accepted(sign_alg, config.getlist("tenant", "accept_tpm_signing_algs")):
             raise UserError(f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}")
@@ -1052,7 +1063,7 @@ class Tenant:
             sys.exit()
 
         if response.status_code != 200:
-            keylime_logging.log_http_response(logger, logging.ERROR, response_body)
+            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
             raise UserError(
                 f"Posting of Encrypted U to the Cloud Agent failed with response code {response.status_code} ({response.text})"
             )
@@ -1084,7 +1095,8 @@ class Tenant:
                         f"/v{self.supported_version}/keys/verify?challenge={challenge}", timeout=self.request_timeout
                     )
 
-                response_body = response.json()
+                response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
+
             except Exception as e:
                 if response is not None and response.status_code in (503, 504):
                     numtries += 1
@@ -1110,11 +1122,11 @@ class Tenant:
                 self.do_cvstop()
                 raise e
             if response.status_code == 200:
-                if "results" not in response_body or "hmac" not in response_body["results"]:
+                if "results" not in response_json or "hmac" not in response_json["results"]:
                     logger.critical("Error: unexpected http response body from Cloud Agent: %s", response.status_code)
                     self.do_cvstop()
                     break
-                mac = response_body["results"]["hmac"]
+                mac = response_json["results"]["hmac"]
 
                 ex_mac = crypto.do_hmac(self.K, challenge)
 
@@ -1124,7 +1136,7 @@ class Tenant:
                     logger.error("Key derivation failed")
                     self.do_cvstop()
             else:
-                keylime_logging.log_http_response(logger, logging.ERROR, response_body)
+                keylime_logging.log_http_response(logger, logging.ERROR, response_json)
                 numtries += 1
                 maxr = config.getint("tenant", "max_retries")
                 if numtries >= maxr:
@@ -1162,26 +1174,31 @@ class Tenant:
         response = cv_client.post(
             f"/v{self.api_version}/allowlists/{self.ima_policy_name}", data=body, timeout=self.request_timeout
         )
-        Tenant._print_json_response(response)
+        Tenant._jsonify_response(response)
 
     def do_delete_allowlist(self, name):
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.delete(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
-        Tenant._print_json_response(response)
+        Tenant._jsonify_response(response)
 
     def do_show_allowlist(self, name):  # pylint: disable=unused-argument
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.get(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
         print(f"Show allowlist command response: {response.status_code}.")
-        Tenant._print_json_response(response)
+        Tenant._jsonify_response(response)
 
     @staticmethod
-    def _print_json_response(response):
+    def _jsonify_response(response, print_response=True, raise_except=False):
         try:
             json_response = response.json()
-        except ValueError:
+        except ValueError as e:
+            if raise_except:
+                raise ValueError("Unable to convert response to JSON format") from e
             json_response = "{}"
-        print(json_response)
+
+        if print_response:
+            print(json_response)
+        return json_response
 
 
 def write_to_namedtempfile(data, delete_tmp_files):
@@ -1505,7 +1522,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
         mytenant.init_add(vars(args))
         mytenant.preloop()
         mytenant.do_quote()
-        mytenant.do_cv()
+        mytenant.do_cvadd()
         if args.verify:
             mytenant.do_verify()
     elif args.command == "update":
@@ -1513,7 +1530,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
         mytenant.do_cvdelete(args.verifier_check)
         mytenant.preloop()
         mytenant.do_quote()
-        mytenant.do_cv()
+        mytenant.do_cvadd()
         if args.verify:
             mytenant.do_verify()
     elif args.command == "delete":
