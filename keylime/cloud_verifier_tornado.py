@@ -487,7 +487,7 @@ class AgentsHandler(BaseHandler):
                     # - Name, policy: store policy using name
 
                     ima_policy_name = json_body.get("ima_policy_name")
-                    ima_policy_bundle = json.loads(json_body.get("ima_policy_bundle"))
+                    ima_policy_bundle = json.loads(json_body.get("ima_policy_bundle", "{}"))
 
                     # Get policy from payload if present
                     if ima_policy_bundle:
