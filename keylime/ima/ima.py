@@ -299,9 +299,11 @@ def _process_measurement_list(
 
     # Iterative attestation may send us no log [len(lines) == 1]; compare last know PCR 10 state
     # against current PCR state.
-    # Since IMA log append and PCR extend is not atomic, we may get a quote that does not yet take
-    # into account the next appended measurement's [len(lines) == 2] PCR extension.
-    if not found_pcr and len(lines) <= 2:
+    # Since IMA's append to the log and PCR extend as well as Keylime's retrieval of the quote, reading
+    # of PCR 10 and retrieval of the log are not atomic, we may get a quote that does not yet take into
+    # account the next-appended measurements' [len(lines) >= 2] PCR extension(s). In fact, the value of
+    # the PCR may lag the log by several entries.
+    if not found_pcr:
         found_pcr = running_hash == pcrval_bytes
 
     for linenum, line in enumerate(lines):
