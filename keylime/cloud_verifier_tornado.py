@@ -401,7 +401,9 @@ class AgentsHandler(BaseHandler):
         agents requests require a json block sent in the body
         """
         session = get_session()
-        try:
+        # TODO: exception handling needs fixing
+        # Maybe handle exceptions with if/else if/else blocks ... simple and avoids nesting
+        try:  # pylint: disable=too-many-nested-blocks
             rest_params = web_util.get_restful_params(self.request.uri)
             if rest_params is None:
                 web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
@@ -565,11 +567,21 @@ class AgentsHandler(BaseHandler):
                         ima_policy_db_format["name"] = ima_policy_name
                         ima_policy_db_format["ima_policy"] = ima_policy
                         try:
-                            ima_policy_stored = VerifierAllowlist(**ima_policy_db_format)
-                            session.add(ima_policy_stored)
-                            session.commit()
+                            ima_policy_stored = (
+                                session.query(VerifierAllowlist).filter_by(name=ima_policy_name).one_or_none()
+                            )
                         except SQLAlchemyError as e:
-                            logger.error("SQLAlchemy Error: %s", e)
+                            logger.error(
+                                "SQLAlchemy Error while retrieving stored ima policy for agent ID %s: %s", agent_id, e
+                            )
+                            raise
+                        try:
+                            if ima_policy_stored is None:
+                                ima_policy_stored = VerifierAllowlist(**ima_policy_db_format)
+                                session.add(ima_policy_stored)
+                                session.commit()
+                        except SQLAlchemyError as e:
+                            logger.error("SQLAlchemy Error while updating ima policy for agent ID %s: %s", agent_id, e)
                             raise
 
                     # Write the agent to the database, attaching associated stored policy
