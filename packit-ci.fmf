@@ -11,6 +11,7 @@
     script:
      - rm -f /etc/yum.repos.d/tag-repository.repo
      - ln -s $(pwd) /var/tmp/keylime_sources
+     - systemctl disable --now dnf-makecache.service || true
 
   discover:
     how: fmf
@@ -91,6 +92,7 @@
     script:
      - rm -f /etc/yum.repos.d/tag-repository.repo
      - ln -s $(pwd) /var/tmp/keylime_sources
+     - systemctl disable --now dnf-makecache.service || true
 
   discover:
     how: fmf
