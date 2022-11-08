@@ -65,7 +65,12 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
         position[pcr_hash_alg] = 0
 
     for pcr_hash_alg in dict(position):
-        pcr_val = tpm_instance.readPCR(config.IMA_PCR, pcr_hash_alg)
+        try:
+            pcr_val = tpm_instance.readPCR(config.IMA_PCR, pcr_hash_alg)
+        except Exception as ex:
+            print(f"Error: {ex}")
+            sys.exit(1)
+
         if codecs.decode(pcr_val.encode("utf-8"), "hex") != ast.get_START_HASH(pcr_hash_alg):
             print(
                 f"Warning: IMA PCR is not empty for hash algorithm {pcr_hash_alg}, "
