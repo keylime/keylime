@@ -52,7 +52,7 @@ chown keylime:keylime -R /var/run/keylime
 chmod 664 /etc/systemd/system/keylime_agent.service
 chmod 664 /etc/systemd/system/keylime_registrar.service
 chmod 664 /etc/systemd/system/keylime_verifier.service
-chmod 666 /etc/systemd/system/keylime_agent_secure.mount
+chmod 664 /etc/systemd/system/keylime_agent_secure.mount
 
 chmod 700 /var/run/keylime
 
