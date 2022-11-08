@@ -1358,7 +1358,7 @@ class tpm(tpm_abstract.AbstractTPM):
         if jsonout is None:
             raise Exception("Could not read YAML output of tpm2_pcrread.")
 
-        if hash_alg not in jsonout:
+        if not jsonout.get(hash_alg):
             raise Exception(f"Invalid hashing algorithm '{hash_alg}' for reading PCR number {pcrval}.")
 
         # alg_size = Hash_Algorithms.get_hash_size(hash_alg)/4
