@@ -42,7 +42,7 @@ def normalize_version(v):
     v = v.strip("/")
     base_version = version.parse(v).base_version
     # if the base version is a single number, get the latest minor version
-    if not "." in base_version:
+    if "." not in base_version:
         latest_minor = latest_minor_version(base_version)
         if latest_minor != "0":
             return latest_minor
@@ -50,11 +50,15 @@ def normalize_version(v):
 
 
 def major(v):
-    return version.parse(str(v)).major
+    version_ = version.parse(str(v))
+    assert isinstance(version_, version.Version)
+    return version_.major
 
 
 def minor(v):
-    return version.parse(str(v)).minor
+    version_ = version.parse(str(v))
+    assert isinstance(version_, version.Version)
+    return version_.minor
 
 
 def log_api_versions(logger):

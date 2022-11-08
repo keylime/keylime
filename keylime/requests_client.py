@@ -1,5 +1,5 @@
 import requests
-from requests.adapters import HTTPAdapter
+from requests.adapters import DEFAULT_POOLBLOCK, HTTPAdapter
 from requests.packages.urllib3.poolmanager import PoolManager  # pylint: disable=import-error
 
 
@@ -72,7 +72,7 @@ class HostNameIgnoreAdapter(HTTPAdapter):
 
         super().__init__(*args, **kwargs)
 
-    def init_poolmanager(self, connections, maxsize, block=requests.adapters.DEFAULT_POOLBLOCK, **pool_kwargs):
+    def init_poolmanager(self, connections, maxsize, block=DEFAULT_POOLBLOCK, **pool_kwargs):
         assert_hostname = False if self._ignore_hostname and self._tls_context else None
         self.poolmanager = PoolManager(
             num_pools=connections,

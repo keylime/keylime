@@ -183,10 +183,10 @@ def gencrl(serials, cert: str, ca_pk: str):
     builder = builder.next_update(date_now)
 
     for serial in serials:
-        cert = x509.RevokedCertificateBuilder()
-        cert = cert.serial_number(int(serial))
-        cert = cert.revocation_date(date_now)
-        builder = builder.add_revoked_certificate(cert.build())
+        cert_builder = x509.RevokedCertificateBuilder()
+        cert_builder = cert_builder.serial_number(int(serial))
+        cert_builder = cert_builder.revocation_date(date_now)
+        builder = builder.add_revoked_certificate(cert_builder.build())
 
     crl = builder.sign(private_key=priv_key, algorithm=hashes.SHA256(), backend=default_backend())
     return crl.public_bytes(encoding=Encoding.DER)

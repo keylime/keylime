@@ -80,8 +80,8 @@ def change_uidgid(user_and_group):
         except KeyError as e:
             raise ValueError(f"Could not resolve user {uid}: {e}") from e
 
+        groups = os.getgrouplist(username, gid)
         try:
-            groups = os.getgrouplist(username, gid)
             os.setgroups(groups)
         except (OSError, PermissionError) as e:
             raise RuntimeError(f"Could not set group list to {groups}: {e}") from e

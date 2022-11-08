@@ -14,3 +14,14 @@ include = '\.pyi?$'
 [tool.isort]
 profile = "black"
 line_length = 120
+
+[tool.pyright]
+include = ["keylime"]
+ignore = [
+    "keylime/backport_dataclasses.py",
+    "keylime/keylime_agent.py",
+    "keylime/elchecking/",
+    "keylime/migrations/versions/",
+    "keylime/test/"
+]
+reportMissingImports = false

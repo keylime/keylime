@@ -52,6 +52,7 @@ def verify_signature(key, sig, file):
                 ctx = gpg.Context(home_dir=gpg_homedir)
                 try:
                     logger.debug("Importing GPG key")
+                    assert callable(ctx.key_import)
                     result = ctx.key_import(key)
                 except Exception as e:
                     raise Exception("Unable to import GPG key") from e

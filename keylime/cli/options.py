@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from keylime import keylime_logging
 
 logger = keylime_logging.init_logging("cli_opts")
@@ -7,7 +9,7 @@ class UserError(Exception):
     pass
 
 
-def get_opts_error(args):
+def get_opts_error(args) -> Tuple[bool, str]:
     if args.ima_exclude and not args.allowlist:
         return True, "--exclude cannot be used without an --allowlist"
     if args.allowlist and args.allowlist_url:
@@ -29,4 +31,4 @@ def get_opts_error(args):
         return True, "--allowlist-sig-url must also have --allowlist-sig-key"
     if args.allowlist_sig_key and not (args.allowlist_sig or args.allowlist_sig_url):
         return True, "--allowlist-sig-key must have either --allowlist-sig or --allowlist-sig-url"
-    return False, None
+    return False, ""

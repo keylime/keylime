@@ -25,9 +25,14 @@ logger = logging.getLogger("alembic.env")
 # gather section names referring to different
 # databases.  These are named "engine1", "engine2"
 # in the sample .ini file.
-db_names = context.get_x_argument(as_dictionary=True).get("db")
-if not db_names:
-    db_names = config.get_main_option("databases")
+db_names = ""
+db_names_ = context.get_x_argument(as_dictionary=True).get("db")
+if db_names_:
+    db_names = db_names_
+else:
+    db_names_ = config.get_main_option("databases")
+    if db_names_:
+        db_names = db_names_
 
 # add your model's MetaData objects here
 # for 'autogenerate' support.  These must be set
