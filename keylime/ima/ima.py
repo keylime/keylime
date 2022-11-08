@@ -40,6 +40,20 @@ EMPTY_ALLOWLIST = {
     "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1"},
 }
 
+IMA_POLICY_CURRENT_VERSION = 1
+EMPTY_IMA_POLICY = {
+    "meta": {
+        "version": IMA_POLICY_CURRENT_VERSION,
+    },
+    "release": 0,
+    "digests": {},
+    "excludes": [],
+    "keyrings": {},
+    "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1", "dm_policy": None},
+    "ima-buf": {},
+    "verification-keys": "",
+}
+
 
 class IMAMeasurementList:
     """IMAMeasurementList models the IMA measurement lists's last known
