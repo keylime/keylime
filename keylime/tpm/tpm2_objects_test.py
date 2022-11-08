@@ -2,6 +2,7 @@ import base64
 import unittest
 
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.x509 import load_der_x509_certificate
 
 from keylime.tpm.tpm2_objects import (
@@ -99,7 +100,9 @@ class TestTpm2Objects(unittest.TestCase):
             "OFx6eb/QB1+oAZewW2wRrwO4MQ=="
         )
         test_rsa_cert = load_der_x509_certificate(test_rsa_cert, backend=default_backend())
-        new_rsa_obj = ek_low_tpm2b_public_from_pubkey(test_rsa_cert.public_key())
+        test_rsa_pubkey = test_rsa_cert.public_key()
+        assert isinstance(test_rsa_pubkey, rsa.RSAPublicKey)
+        new_rsa_obj = ek_low_tpm2b_public_from_pubkey(test_rsa_pubkey)
         self.assertEqual(new_rsa_obj.hex(), correct_rsa_obj.hex())
 
     def test_tpm2b_public_from_pubkey_ec(self):
@@ -127,7 +130,9 @@ class TestTpm2Objects(unittest.TestCase):
             "wGqmoOwgqQSByVBrADgEVHlhS9J2tJQNMQ=="
         )
         test_ec_cert = load_der_x509_certificate(test_ec_cert, backend=default_backend())
-        new_ec_obj = ek_low_tpm2b_public_from_pubkey(test_ec_cert.public_key())
+        test_ec_pubkey = test_ec_cert.public_key()
+        assert isinstance(test_ec_pubkey, ec.EllipticCurvePublicKey)
+        new_ec_obj = ek_low_tpm2b_public_from_pubkey(test_ec_pubkey)
         self.assertEqual(new_ec_obj.hex(), correct_ec_obj.hex())
 
     def test_pubkey_from_tpm2b_public_rsa(self):
@@ -168,7 +173,9 @@ class TestTpm2Objects(unittest.TestCase):
             "OFx6eb/QB1+oAZewW2wRrwO4MQ=="
         )
         new_rsa_pubkey = pubkey_from_tpm2b_public(correct_rsa_obj)
+        assert isinstance(new_rsa_pubkey, rsa.RSAPublicKey)
         correct_rsa_pubkey = test_rsa_cert.public_key()
+        assert isinstance(correct_rsa_pubkey, rsa.RSAPublicKey)
         new_rsa_pubkey_n = new_rsa_pubkey.public_numbers()
         correct_rsa_pubkey_n = correct_rsa_pubkey.public_numbers()
         self.assertEqual(new_rsa_pubkey.key_size, correct_rsa_pubkey.key_size)
@@ -190,6 +197,7 @@ class TestTpm2Objects(unittest.TestCase):
                 "dde753"
             )
         )
+        assert isinstance(new_rsa_pubkey, rsa.RSAPublicKey)
         new_rsa_pubkey_n = new_rsa_pubkey.public_numbers()
 
         self.assertEqual(new_rsa_pubkey.key_size, 2048)
@@ -234,7 +242,10 @@ class TestTpm2Objects(unittest.TestCase):
         )
         test_ec_cert = load_der_x509_certificate(test_ec_cert, backend=default_backend())
         new_ec_pubkey = pubkey_from_tpm2b_public(correct_ec_obj)
+        assert isinstance(new_ec_pubkey, ec.EllipticCurvePublicKey)
+
         correct_ec_pubkey = test_ec_cert.public_key()
+        assert isinstance(correct_ec_pubkey, ec.EllipticCurvePublicKey)
         new_ec_pubkey_n = new_ec_pubkey.public_numbers()
         correct_ec_pubkey_n = correct_ec_pubkey.public_numbers()
         self.assertEqual(new_ec_pubkey_n.curve.name, correct_ec_pubkey_n.curve.name)
@@ -249,6 +260,7 @@ class TestTpm2Objects(unittest.TestCase):
                 "b53e348bc916b43a015e6ceefd947d685e59ff65357499f2c4788cba"
             )
         )
+        assert isinstance(new_ec_pubkey, ec.EllipticCurvePublicKey)
         new_ec_pubkey_n = new_ec_pubkey.public_numbers()
 
         self.assertEqual(new_ec_pubkey_n.curve.name, "secp256r1")

@@ -42,7 +42,9 @@ from cryptography import exceptions as crypto_exceptions
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.x509.extensions import ExtensionNotFound
+from cryptography.x509.general_name import UniformResourceIdentifier
 
 from keylime import ca_impl_openssl as ca_impl
 from keylime import cmd_exec, config, crypto, fs_util, json, keylime_logging, revocation_notifier
@@ -112,6 +114,8 @@ def cmd_mkcert(workingdir, name, password=None):
 
         cc = load_cert_by_path(f"{name}-cert.crt")
         pubkey = cacert.public_key()
+        assert isinstance(pubkey, rsa.RSAPublicKey)
+        assert cc.signature_hash_algorithm is not None
         pubkey.verify(
             cc.signature,
             cc.tbs_certificate_bytes,
@@ -179,6 +183,8 @@ def cmd_init(workingdir):
         # Sanity checks...
         cac = load_cert_by_path("cacert.crt")
         pubkey = cacert.public_key()
+        assert isinstance(pubkey, rsa.RSAPublicKey)
+        assert cac.signature_hash_algorithm is not None
         pubkey.verify(
             cac.signature,
             cac.tbs_certificate_bytes,
@@ -274,9 +280,9 @@ def get_crl_distpoint(cert_path):
         crl_distpoints = cert_obj.extensions.get_extension_for_class(x509.CRLDistributionPoints).value
         for dstpnt in crl_distpoints:
             for point in dstpnt.full_name:
-                if isinstance(point, x509.general_name.UniformResourceIdentifier):
+                if isinstance(point, UniformResourceIdentifier):
                     return point.value
-    except x509.extensions.ExtensionNotFound:
+    except ExtensionNotFound:
         pass
 
     logger.info("No CRL distribution points in %s", cert_path)
@@ -436,6 +442,7 @@ class CRLHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         logger.info("GET invoked from %s with uri: %s", str(self.client_address), self.path)
 
+        assert isinstance(self.server, ThreadedCRLServer)
         if self.server.published_crl is None:
             self.send_response(404)
             self.end_headers()
@@ -486,7 +493,7 @@ def read_private(warn=False):
         # file doesn't exist, just invent a salt
         logger.warning("Private certificate data %s does not exist yet.", os.path.abspath("private.yml"))
         logger.warning("Keylime will attempt to load private certificate data again when it is needed.")
-    return {"revoked_keys": []}, base64.b64encode(crypto.generate_random_key()).decode()
+    return {"revoked_keys": [], "ca": b""}, base64.b64encode(crypto.generate_random_key()).decode()
 
 
 def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
