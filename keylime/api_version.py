@@ -50,15 +50,15 @@ def normalize_version(v):
 
 
 def major(v):
-    version_ = version.parse(str(v))
-    assert isinstance(version_, version.Version)
-    return version_.major
+    v_obj = version.parse(str(v))
+    assert isinstance(v_obj, version.Version)
+    return v_obj.major
 
 
 def minor(v):
-    version_ = version.parse(str(v))
-    assert isinstance(version_, version.Version)
-    return version_.minor
+    v_obj = version.parse(str(v))
+    assert isinstance(v_obj, version.Version)
+    return v_obj.minor
 
 
 def log_api_versions(logger):
