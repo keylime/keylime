@@ -77,6 +77,7 @@ def verify_ek(ekcert, tpm_cert_store=config.get("tenant", "tpm_cert_store")):
             signcert_pubkey = signcert.public_key()
             try:
                 if isinstance(signcert_pubkey, RSAPublicKey):
+                    assert ek509.signature_hash_algorithm is not None
                     signcert_pubkey.verify(
                         ek509.signature,
                         ek509.tbs_certificate_bytes,
@@ -84,6 +85,7 @@ def verify_ek(ekcert, tpm_cert_store=config.get("tenant", "tpm_cert_store")):
                         ek509.signature_hash_algorithm,
                     )
                 elif isinstance(signcert_pubkey, EllipticCurvePublicKey):
+                    assert ek509.signature_hash_algorithm is not None
                     signcert_pubkey.verify(
                         ek509.signature,
                         ek509.tbs_certificate_bytes,

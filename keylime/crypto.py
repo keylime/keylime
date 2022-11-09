@@ -7,15 +7,14 @@ import secrets
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import List, Optional
 
-import cryptography.hazmat.primitives.asymmetric
-
 # Crypto implementation using python cryptography package
 from cryptography import exceptions, x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric.padding import MGF1, OAEP
 from cryptography.hazmat.primitives.asymmetric.rsa import generate_private_key
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.ciphers import AEADEncryptionContext, Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.x509.oid import NameOID
 
@@ -64,8 +63,10 @@ def rsa_sign(key, message, paddingt="internal"):
     if paddingt == "internal":
         _padding = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH)
 
-    if paddingt == "default":
+    elif paddingt == "default":
         _padding = padding.PKCS1v15()
+    else:
+        raise ValueError
 
     signature = key.sign(message, _padding, hashes.SHA256())
     return base64.b64encode(signature)
@@ -107,11 +108,12 @@ def rsa_export_privkey(private_key, password=None):
 
 
 def rsa_encrypt(key, message):
+
     """RSA encrypt message"""
     return key.encrypt(
         bytes(message),
-        cryptography.hazmat.primitives.asymmetric.padding.OAEP(
-            mgf=cryptography.hazmat.primitives.asymmetric.padding.MGF1(algorithm=hashes.SHA1()),
+        OAEP(
+            mgf=MGF1(algorithm=hashes.SHA1()),
             algorithm=hashes.SHA1(),
             label=None,
         ),
@@ -122,8 +124,8 @@ def rsa_decrypt(key, ciphertext):
     """RSA decrypt message"""
     return key.decrypt(
         ciphertext,
-        cryptography.hazmat.primitives.asymmetric.padding.OAEP(
-            mgf=cryptography.hazmat.primitives.asymmetric.padding.MGF1(algorithm=hashes.SHA1()),
+        OAEP(
+            mgf=MGF1(algorithm=hashes.SHA1()),
             algorithm=hashes.SHA1(),
             label=None,
         ),
@@ -190,6 +192,7 @@ def encrypt(plaintext, key):
     iv = generate_random_key(aes_block_size)
     encryptor = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend()).encryptor()
     cipher_text = encryptor.update(plaintext) + encryptor.finalize()
+    assert isinstance(encryptor, AEADEncryptionContext)
     return base64.b64encode(iv + cipher_text + encryptor.tag)
 
 

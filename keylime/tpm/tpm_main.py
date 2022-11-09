@@ -60,7 +60,9 @@ class tpm(tpm_abstract.AbstractTPM):
             )
 
         # Extract the `version="x.x.x"` from tools
-        version_str = re.search(r'version="([^"]+)"', output).group(1)
+        version_str_ = re.search(r'version="([^"]+)"', output)
+        assert version_str_ is not None
+        version_str = version_str_.group(1)
         # Extract the full semver release number.
         self.tools_version = version_str.split("-")
 
@@ -89,7 +91,7 @@ class tpm(tpm_abstract.AbstractTPM):
     def __get_tpm_algorithms(self):
         if self.tools_version == "3.2":
             retDict = self.__run(["tpm2_getcap", "-c", "algorithms"])
-        elif self.tools_version in ["4.0", "4.2", "5.4"]:
+        else:
             retDict = self.__run(["tpm2_getcap", "algorithms"])
 
         output = config.convert(retDict["retout"])
@@ -123,7 +125,7 @@ class tpm(tpm_abstract.AbstractTPM):
         """Gets which PCRs are enabled with which hash algorithm"""
         if self.tools_version == "3.2":
             retDict = self.__run(["tpm2_getcap", "-c", "pcrs"])
-        elif self.tools_version in ["4.0", "4.2", "5.4"]:
+        else:
             retDict = self.__run(["tpm2_getcap", "pcrs"])
 
         output = config.convert(retDict["retout"])
@@ -218,7 +220,7 @@ class tpm(tpm_abstract.AbstractTPM):
             logger.info("Flushing old ek handle: %s", hex(current_handle))
             if self.tools_version == "3.2":
                 retDict = self.__run(["tpm2_getcap", "-c", "handles-persistent"], raiseOnError=False)
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 retDict = self.__run(["tpm2_getcap", "handles-persistent"], raiseOnError=False)
             output = retDict["retout"]
             reterr = retDict["reterr"]
@@ -232,7 +234,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 if self.tools_version == "3.2":
                     cmd = ["tpm2_evictcontrol", "-A", "o", "-H", hex(current_handle), "-P", owner_pw]
                     retDict = self.__run(cmd, raiseOnError=False)
-                elif self.tools_version in ["4.0", "4.2", "5.4"]:
+                else:
                     cmd = ["tpm2_evictcontrol", "-C", "o", "-c", hex(current_handle), "-P", owner_pw]
                     retDict = self.__run(cmd, raiseOnError=False)
                 output = retDict["retout"]
@@ -316,7 +318,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
             if self.tools_version == "3.2":
                 handle = int(0x81010007)
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 handle = None
                 retyaml = config.yaml_to_dict(output, logger=logger)
                 if retyaml is None:
@@ -342,7 +344,7 @@ class tpm(tpm_abstract.AbstractTPM):
             if self.tools_version == "3.2":
                 cmd = ["tpm2_readpublic", "-H", hex(ek_handle), "-o", tmppath.name, "-f", "tss"]
                 retDict = self.__run(cmd, raiseOnError=False, outputpaths=tmppath.name)
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 cmd = ["tpm2_readpublic", "-c", hex(ek_handle), "-o", tmppath.name, "-f", "tss"]
                 retDict = self.__run(cmd, raiseOnError=False, outputpaths=tmppath.name)
 
@@ -370,7 +372,7 @@ class tpm(tpm_abstract.AbstractTPM):
         if self.tools_version == "3.2":
             retDict = self.__run(["tpm2_takeownership", "-c"], raiseOnError=False)
             retDict = self.__run(["tpm2_takeownership", "-o", owner_pw, "-e", owner_pw], raiseOnError=False)
-        elif self.tools_version in ["4.0", "4.2", "5.4"]:
+        else:
             retDict = self.__run(["tpm2_changeauth", "-c", "o", owner_pw], raiseOnError=False)
             retDict = self.__run(["tpm2_changeauth", "-c", "e", owner_pw], raiseOnError=False)
 
@@ -382,7 +384,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     ["tpm2_takeownership", "-o", owner_pw, "-e", owner_pw, "-O", owner_pw, "-E", owner_pw],
                     raiseOnError=False,
                 )
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 retDict = self.__run(["tpm2_changeauth", "-c", "o", "-p", owner_pw, owner_pw], raiseOnError=False)
                 retDict = self.__run(["tpm2_changeauth", "-c", "e", "-p", owner_pw, owner_pw], raiseOnError=False)
 
@@ -405,7 +407,7 @@ class tpm(tpm_abstract.AbstractTPM):
             if self.tools_version == "3.2":
                 cmd = ["tpm2_readpublic", "-H", hex(handle), "-o", tmppath.name]
                 retDict = self.__run(cmd, raiseOnError=False, outputpaths=tmppath.name)
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 cmd = ["tpm2_readpublic", "-c", hex(handle), "-o", tmppath.name]
                 retDict = self.__run(cmd, raiseOnError=False, outputpaths=tmppath.name)
 
@@ -428,12 +430,12 @@ class tpm(tpm_abstract.AbstractTPM):
         owner_pw = self.get_tpm_metadata("owner_pw")
 
         # clear out old handle before starting again (give idempotence)
-        if self.get_tpm_metadata("aik_handle") is not None:
-            aik_handle = self.get_tpm_metadata("aik_handle")
+        aik_handle = self.get_tpm_metadata("aik_handle")
+        if aik_handle is not None:
             if self.tools_version == "3.2":
                 logger.info("Flushing old ak handle: %s", hex(aik_handle))
                 retDict = self.__run(["tpm2_getcap", "-c", "handles-persistent"], raiseOnError=False)
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 logger.info("Flushing old ak handle: %s", aik_handle)
                 retDict = self.__run(["tpm2_getcap", "handles-persistent"], raiseOnError=False)
             output = config.convert(retDict["retout"])
@@ -452,13 +454,14 @@ class tpm(tpm_abstract.AbstractTPM):
             outjson = config.yaml_to_dict(output, logger=logger)
             if self.tools_version == "3.2":
                 evict_it = outjson is not None and aik_handle in outjson
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 evict_it = os.path.exists(aik_handle)
+
             if evict_it:
                 if self.tools_version == "3.2":
                     cmd = ["tpm2_evictcontrol", "-A", "o", "-H", hex(aik_handle), "-P", owner_pw]
                     retDict = self.__run(cmd, raiseOnError=False)
-                elif self.tools_version in ["4.0", "4.2", "5.4"]:
+                else:
                     cmd = ["tpm2_evictcontrol", "-C", "o", "-c", aik_handle, "-P", owner_pw]
                     retDict = self.__run(cmd, raiseOnError=False)
                     os.remove(aik_handle)
@@ -472,7 +475,7 @@ class tpm(tpm_abstract.AbstractTPM):
                         logger.info(
                             "Failed to flush old ak handle: %s.  Code %s: %s", hex(aik_handle), str(code), str(reterr)
                         )
-                    elif self.tools_version in ["4.0", "4.2", "5.4"]:
+                    else:
                         logger.info(
                             "Failed to flush old ak handle: %s.  Code %s: %s", aik_handle, str(code), str(reterr)
                         )
@@ -490,6 +493,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
         aik_pw = tpm_abstract.TPM_Utilities.random_password(20)
         # make a temp file for the output
+        secfd = 0
         with tempfile.NamedTemporaryFile() as akpubfile:
             secpath = ""
             if self.tools_version in ["4.0", "4.2", "5.4"]:
@@ -519,7 +523,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     "-o",
                     owner_pw,
                 ]
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 command = [
                     "tpm2_createak",
                     "-C",
@@ -569,7 +573,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
             # get and persist the pem (not returned by tpm2_getpubak)
             self._set_tpm_metadata("aik_handle", handle)
-        elif self.tools_version in ["4.0", "4.2", "5.4"]:
+        else:
             if "loaded-key" not in jsonout:
                 raise Exception("tpm2_createak failed to create aik: return " + str(reterr))
 
@@ -588,9 +592,9 @@ class tpm(tpm_abstract.AbstractTPM):
         logger.debug("Flushing keys from TPM...")
         if self.tools_version == "3.2":
             retDict = self.__run(["tpm2_getcap", "-c", "handles-persistent"])
-        elif self.tools_version in ["4.0", "4.2", "5.4"]:
+        else:
             retDict = self.__run(["tpm2_getcap", "handles-persistent"])
-        # retout = retDict['retout']
+
         retout = config.convert(retDict["retout"])
         errout = config.convert(retDict["reterr"])
         code = retDict["code"]
@@ -614,7 +618,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 logger.debug("Flushing key handle %s", hex(key))
                 if self.tools_version == "3.2":
                     self.__run(["tpm2_evictcontrol", "-A", "o", "-H", hex(key), "-P", owner_pw], raiseOnError=False)
-                elif self.tools_version in ["4.0", "4.2", "5.4"]:
+                else:
                     self.__run(["tpm2_evictcontrol", "-C", "o", "-c", hex(key), "-P", owner_pw], raiseOnError=False)
         # Make sure that all transient objects are flushed
         self.__run(["tpm2_flushcontext", "-t"], lock=False, raiseOnError=False)
@@ -693,6 +697,9 @@ class tpm(tpm_abstract.AbstractTPM):
         aik_keyhandle = self.get_tpm_metadata("aik_handle")
         ek_keyhandle = self.get_tpm_metadata("ek_handle")
 
+        assert aik_keyhandle is not None
+        assert ek_keyhandle is not None
+
         keyblobFile = None
         secpath = None
         secfd = -1
@@ -731,7 +738,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     owner_pw,
                 ]
                 retDict = self.__run(command, outputpaths=secpath)
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 self.__run(["tpm2_startauthsession", "--policy-session", "-S", sesspath])
                 self.__run(["tpm2_policysecret", "-S", sesspath, "-c", "0x4000000B", owner_pw])
                 command = [
@@ -905,6 +912,8 @@ class tpm(tpm_abstract.AbstractTPM):
             keyhandle = self.get_tpm_metadata("aik_handle")
             aik_pw = self.get_tpm_metadata("aik_pw")
 
+            assert keyhandle is not None
+
             if pcrmask is None:
                 pcrmask = tpm_abstract.AbstractTPM.EMPTYMASK
 
@@ -940,7 +949,7 @@ class tpm(tpm_abstract.AbstractTPM):
                         "-P",
                         aik_pw,
                     ]
-                elif self.tools_version in ["4.0", "4.2", "5.4"]:
+                else:
                     command = [
                         "tpm2_quote",
                         "-c",
@@ -960,6 +969,7 @@ class tpm(tpm_abstract.AbstractTPM):
                         "-p",
                         aik_pw,
                     ]
+
                 retDict = self.__run(command, lock=False, outputpaths=[quotepath.name, sigpath.name, pcrpath.name])
                 # Make sure that all transient objects are flushed
                 self.__run(["tpm2_flushcontext", "-t"], lock=False, raiseOnError=False)
@@ -1001,7 +1011,8 @@ class tpm(tpm_abstract.AbstractTPM):
                 "-q",
                 nonce,
             ]
-        elif self.tools_version in ["4.0", "4.2", "5.4"]:
+        else:
+            # versions >= 4.0
             command = [
                 "tpm2_checkquote",
                 "-u",
@@ -1017,6 +1028,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 "-q",
                 nonce,
             ]
+
         retDict = self.__run(command, lock=False)
         return retDict
 
@@ -1291,12 +1303,14 @@ class tpm(tpm_abstract.AbstractTPM):
             hashval_0 = self.START_HASH(hash_alg)
 
         # compute expected value  H(0|H(data))
-        extendedval = self.hashdigest(
-            codecs.decode(hashval_0, "hex_codec")
-            + codecs.decode(self.hashdigest(hashval_1.encode("utf-8"), hash_alg), "hex_codec"),
+        hdata = self.hashdigest(hashval_1.encode("utf-8"), hash_alg)
+        assert hdata is not None
+        hext = self.hashdigest(
+            codecs.decode(hashval_0, "hex_codec") + codecs.decode(hdata, "hex_codec"),
             hash_alg,
-        ).lower()
-        return extendedval
+        )
+        assert hext is not None
+        return hext.lower()
 
     def extendPCR(self, pcrval, hashval, hash_alg=None, lock=True):
         if hash_alg is None:
@@ -1309,7 +1323,7 @@ class tpm(tpm_abstract.AbstractTPM):
             hash_alg = self.defaults["hash"]
         if self.tools_version == "3.2":
             output = config.convert(self.__run("tpm2_pcrlist")["retout"])
-        elif self.tools_version in ["4.0", "4.2", "5.4"]:
+        else:
             output = config.convert(self.__run("tpm2_pcrread")["retout"])
 
         jsonout = config.yaml_to_dict(output, logger=logger)
@@ -1373,7 +1387,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     ["tpm2_nvwrite", "-x", "0x1500018", "-a", "0x40000001", "-P", owner_pw, keyFile.name],
                     raiseOnError=False,
                 )
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 self.__run(
                     [
                         "tpm2_nvdefine",
@@ -1403,8 +1417,9 @@ class tpm(tpm_abstract.AbstractTPM):
             # Check for RSA EK cert in NVRAM (and get length)
             if self.tools_version == "3.2":
                 retDict = self.__run("tpm2_nvlist", raiseOnError=False)
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 retDict = self.__run("tpm2_nvreadpublic", raiseOnError=False)
+
             output = retDict["retout"]
             reterr = retDict["reterr"]
             code = retDict["code"]
@@ -1430,7 +1445,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     raiseOnError=False,
                     outputpaths=nvpath.name,
                 )
-            elif self.tools_version in ["4.0", "4.2", "5.4"]:
+            else:
                 retDict = self.__run(
                     ["tpm2_nvread", "0x1c00002", "-s", ekcert_size, "-o", nvpath.name],
                     raiseOnError=False,
@@ -1463,7 +1478,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 ],
                 raiseOnError=False,
             )
-        elif self.tools_version in ["4.0", "4.2", "5.4"]:
+        else:
             retDict = self.__run(
                 ["tpm2_nvread", "0x1500018", "-C", "0x40000001", "-s", str(config.BOOTSTRAP_KEY_SIZE), "-P", owner_pw],
                 raiseOnError=False,

@@ -8,6 +8,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -262,7 +263,9 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 #  "is it a valid x509 cert" check. So it's still untrusted.
                 # This will be validated by the tenant.
                 cert = cert_utils.x509_der_cert(base64.b64decode(ekcert))
-                ek_tpm = base64.b64encode(tpm2_objects.ek_low_tpm2b_public_from_pubkey(cert.public_key())).decode()
+                pubkey = cert.public_key()
+                assert isinstance(pubkey, (rsa.RSAPublicKey, ec.EllipticCurvePublicKey))
+                ek_tpm = base64.b64encode(tpm2_objects.ek_low_tpm2b_public_from_pubkey(pubkey)).decode()
 
             aik_attrs = tpm2_objects.get_tpm2b_public_object_attributes(
                 base64.b64decode(aik_tpm),
@@ -278,11 +281,17 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 return
 
             # try to encrypt the AIK
-            (blob, key) = initialize_tpm.encryptAIK(
+            aik_enc = initialize_tpm.encryptAIK(
                 agent_id,
                 base64.b64decode(ek_tpm),
                 base64.b64decode(aik_tpm),
             )
+            if aik_enc is not None:
+                (blob, key) = aik_enc
+            else:
+                logger.warning("Agent %s failed encrypting AIK", agent_id)
+                web_util.echo_json_response(self, 400, "Error: failed encrypting AK")
+                return
 
             # special behavior if we've registered this uuid before
             regcount = 1
