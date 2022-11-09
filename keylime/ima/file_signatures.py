@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.asymmetric import ec, padding
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
+from cryptography.x509.extensions import ExtensionNotFound
 
 from keylime import keylime_logging
 
@@ -392,15 +393,18 @@ def _get_pubkey_from_pem_private_key(filedata, backend):
 
 
 def _get_keyidv2_from_cert(cert):
-    """Get the keyidv2 from the cert's Subject Key Identifier"""
-    if not cert.extensions:
-        return None
+    """Get the keyidv2 from the cert's Subject Key Identifier (SKID) if available."""
+    if cert.extensions:
+        try:
+            skid = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_KEY_IDENTIFIER)
+            if skid and skid.value and len(skid.value.digest) >= 4:
+                keyidv2 = int.from_bytes(skid.value.digest[-4:], "big")
+                logger.debug("Extracted keyidv2 from cert: 0x%08x", keyidv2)
+                return keyidv2
+        except ExtensionNotFound:
+            pass
 
-    skid = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_KEY_IDENTIFIER)
-    if skid and skid.value and len(skid.value.digest) >= 4:
-        keyidv2 = int.from_bytes(skid.value.digest[-4:], "big")
-        logger.debug("Extracted keyidv2 from cert: 0x%08x", keyidv2)
-        return keyidv2
+    logger.warning("Certificate doesn't have a Subject Key Identifier; keyidv2 will be derived from public key")
     return None
 
 
