@@ -85,16 +85,17 @@ class TestTPM(unittest.TestCase):
     # we cannot predict the output on the test system, so this test merely
     # ensures that the call to get_tpm_manufacturer succeeds.
     def test_get_tpm_manufacturer(self):
+        """TPM sanity test"""
         self.tpm.get_tpm_manufacturer()
 
-    # test the challenges in the list `tpm_manufacturer_tests`
     def test_get_tpm_manufacturer_challenges(self):
+        """Test the challenges in the list `tpm_manufacturer_tests`"""
         for test in tpm_manufacturer_tests:
             response = self.tpm.get_tpm_manufacturer(output=test["challenge"])
             self.assertEqual(test["response"], response)
 
-    # test parsing binary measured boot event log
     def test_parse_mb_bootlog(self):
+        """Test parsing binary measured boot event log"""
         # Use the file that triggered https://github.com/keylime/keylime/issues/1153
         mb_log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "data/mb_log.b64"))
         with open(mb_log_path, encoding="utf-8") as f:
