@@ -1,8 +1,12 @@
 import os
 import unittest
 
+from packaging.version import Version
+
 from keylime.common.algorithms import Hash
 from keylime.tpm.tpm_main import tpm
+
+TPM2TOOLS_VERSION = Version(tpm().tools_version)
 
 # ############################################################
 # list of input challenges for get_tpm_manufacturer function
@@ -94,6 +98,7 @@ class TestTPM(unittest.TestCase):
             response = self.tpm.get_tpm_manufacturer(output=test["challenge"])
             self.assertEqual(test["response"], response)
 
+    @unittest.skipIf(TPM2TOOLS_VERSION < Version("4.2"), "tpm_eventlog is not available")
     def test_parse_mb_bootlog(self):
         """Test parsing binary measured boot event log"""
         # Use the file that triggered https://github.com/keylime/keylime/issues/1153
