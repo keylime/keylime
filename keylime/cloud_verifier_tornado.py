@@ -13,7 +13,7 @@ import tornado.netutil
 import tornado.process
 import tornado.web
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, noload
 from sqlalchemy.orm.exc import NoResultFound
 
 from keylime import api_version as keylime_api_version
@@ -278,7 +278,10 @@ class AgentsHandler(BaseHandler):
             try:
                 agent = (
                     session.query(VerfierMain)
-                    .options(joinedload(VerfierMain.ima_policy))
+                    # "noload" will be temporarily used here as way to address a
+                    # scalability problem. This will be replaced with a finer-grained
+                    # joinedload (only a few columns) in the future
+                    .options(noload(VerfierMain.ima_policy))
                     .filter_by(agent_id=agent_id)
                     .one_or_none()
                 )
@@ -298,12 +301,18 @@ class AgentsHandler(BaseHandler):
                 if ("verifier" in rest_params) and (rest_params["verifier"] != ""):
                     agent_list = (
                         session.query(VerfierMain)
-                        .options(joinedload(VerfierMain.ima_policy))
+                        # "noload" will be temporarily used here as way to address a
+                        # scalability problem. This will be replaced with a finer-grained
+                        # joinedload (only a few columns) in the future
+                        .options(noload(VerfierMain.ima_policy))
                         .filter_by(verifier_id=rest_params["verifier"])
                         .all()
                     )
                 else:
-                    agent_list = session.query(VerfierMain).options(joinedload(VerfierMain.ima_policy)).all()
+                    # "noload" will be temporarily used here as way to address a
+                    # scalability problem. This will be replaced with a finer-grained
+                    # joinedload (only a few columns) in the future
+                    agent_list = session.query(VerfierMain).options(noload(VerfierMain.ima_policy)).all()
 
                 json_response = {}
                 for agent in agent_list:

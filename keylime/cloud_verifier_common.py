@@ -237,27 +237,20 @@ def prepare_get_quote(agent):
 
 def process_get_status(agent):
     agent_id = agent.agent_id
-    allowlist_json = json.loads(agent.ima_policy.ima_policy)
-    if isinstance(allowlist_json, dict) and "allowlist" in allowlist_json:
-        al_len = len(allowlist_json["allowlist"])
-    else:
-        al_len = 0
 
+    has_mb_refstate = 0
     try:
         mb_refstate = json.loads(agent.mb_refstate)
+        if mb_refstate and mb_refstate.keys():
+            has_mb_refstate = 1
     except Exception as e:
         logger.warning(
-            'Non-fatal problem ocurred while attempting to evaluate agent %s attribute "mb_refstate" (%s). Will just consider the value of this attribute to be "None"',
+            'Non-fatal problem ocurred while attempting to evaluate agent %s attribute "mb_refstate" (%s). Will just consider the value of this attribute as empty',
             agent_id,
             e.args,
         )
-        mb_refstate = None
         logger.debug('The contents of the agent %s attribute "mb_refstate" are %s', agent_id, agent.mb_refstate)
 
-    if isinstance(mb_refstate, dict) and "mb_refstate" in mb_refstate:
-        mb_refstate_len = len(mb_refstate["mb_refstate"])
-    else:
-        mb_refstate_len = 0
     response = {
         "operational_state": agent.operational_state,
         "v": agent.v,
@@ -265,8 +258,7 @@ def process_get_status(agent):
         "port": agent.port,
         "tpm_policy": agent.tpm_policy,
         "meta_data": agent.meta_data,
-        "allowlist_len": al_len,
-        "mb_refstate_len": mb_refstate_len,
+        "has_mb_refstate": has_mb_refstate,
         "accept_tpm_hash_algs": agent.accept_tpm_hash_algs,
         "accept_tpm_encryption_algs": agent.accept_tpm_encryption_algs,
         "accept_tpm_signing_algs": agent.accept_tpm_signing_algs,
