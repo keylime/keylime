@@ -69,7 +69,7 @@ function do_GitHub_API_call() {
 
     while [ -z "${VALUE}" -o \( -n "${EXP_VALUE}" -a "${VALUE}" != "${EXP_VALUE}" \) ] && [ ${DURATION} -lt ${MAX_DURATION} ]; do
         if [ "$URL" != "-" ]; then  # when URL='-', we reuse data downloaded previously
-            curl -s -H "Accept: application/vnd.github.v3+json" "$URL" &> ${TMPFILE}
+            curl --retry 5 -s -H "Accept: application/vnd.github.v3+json" "$URL" &> ${TMPFILE}
         fi
         VALUE=$( cat ${TMPFILE} | jq "${JQ_REF}" | sed 's/"//g' )
         if [ -z "${VALUE}" ] || [ -n "${EXP_VALUE}" -a "${VALUE}" != "${EXP_VALUE}" ]; then
@@ -137,11 +137,11 @@ fi
 # now we have TF_ARTIFACTS_URL so we can proceed with the download
 echo "TF_ARTIFACTS_URL=${TF_ARTIFACTS_URL}"
 
-TF_TESTLOG=$( curl -s ${TF_ARTIFACTS_URL}/results.xml | egrep -o "${TF_ARTIFACTS_URL}.*${TF_TEST_OUTPUT}" )
+TF_TESTLOG=$( curl --retry 5 ${TF_ARTIFACTS_URL}/results.xml | egrep -o "${TF_ARTIFACTS_URL}.*${TF_TEST_OUTPUT}" )
 echo "TF_TESTLOG=${TF_TESTLOG}"
 
 # parse the URL of coverage XML file on WEBDRIVE_URL and download it
-curl -s "${TF_TESTLOG}" &> ${TMPFILE}
+curl --retry 5 -s "${TF_TESTLOG}" &> ${TMPFILE}
 for REPORT in coverage.packit.xml coverage.testsuite.xml coverage.unittests.xml; do
     COVERAGE_URL=$( grep "$REPORT report is available at" ${TMPFILE} | egrep -o "${WEBDRIVE_URL}.*\.xml" )
     echo "COVERAGE_URL=${COVERAGE_URL}"
@@ -152,6 +152,6 @@ for REPORT in coverage.packit.xml coverage.testsuite.xml coverage.unittests.xml;
     fi
 
     # download the file
-    curl -L -O ${COVERAGE_URL}
+    curl --retry 5 -L -O ${COVERAGE_URL}
 done
 rm ${TMPFILE}
