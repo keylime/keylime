@@ -12,6 +12,8 @@ import json
 import re
 import sys
 
+from packaging.version import Version
+
 from keylime.tpm import tpm_main
 
 
@@ -124,6 +126,12 @@ def get_mok(events):
 
 
 def main():
+    tpm = tpm_main.tpm()
+
+    if Version(tpm.tools_version) < Version("4.2"):
+        print(f"tpm2_eventlog is not available: tpm2-tools version {tpm.tools_version} < 4.2")
+        sys.exit(1)
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "eventlog_file",
@@ -136,7 +144,6 @@ def main():
     )
     args = parser.parse_args()
     log_bin = args.eventlog_file.read()
-    tpm = tpm_main.tpm()
 
     failure, log_data = tpm.parse_binary_bootlog(log_bin)
     if failure or not log_data:
