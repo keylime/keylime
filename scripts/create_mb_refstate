@@ -137,8 +137,17 @@ def main():
     args = parser.parse_args()
     log_bin = args.eventlog_file.read()
     tpm = tpm_main.tpm()
-    _, log_data = tpm.parse_binary_bootlog(log_bin)
-    events = log_data["events"]
+
+    failure, log_data = tpm.parse_binary_bootlog(log_bin)
+    if failure or not log_data:
+        print(f"Parsing of binary boot measurements failed with: {list(map(lambda x: x.context, failure.events))}")
+        sys.exit(1)
+
+    events = log_data.get("events")
+    if not events:
+        print("No events found on binary boot measurements log")
+        sys.exit(1)
+
     mb_refstate = {
         "scrtm_and_bios": [
             {
