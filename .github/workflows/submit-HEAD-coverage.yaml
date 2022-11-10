@@ -18,7 +18,7 @@ jobs:
       env:
         TESTING_FARM_API_TOKEN: ${{ secrets.TESTING_FARM_API_TOKEN }}
     - name: Find PR Packit tests to finish and download coverage.xml file
-      run: grep -q 'tests passed' tt_output && sleep 10 && scripts/download_packit_coverage.sh --testing-farm-log tt_output
+      run: grep -q 'tests passed' tt_output && sleep 20 && scripts/download_packit_coverage.sh --testing-farm-log tt_output
       env:
         MAX_DURATION: 120
         SLEEP_DELAY: 20
