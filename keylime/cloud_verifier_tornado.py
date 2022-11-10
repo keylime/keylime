@@ -15,7 +15,7 @@ import tornado.process
 import tornado.web
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, noload
 from sqlalchemy.orm.exc import NoResultFound
 
 from keylime import api_version as keylime_api_version
@@ -29,6 +29,7 @@ from keylime import (
     web_util,
 )
 from keylime.agentstates import AgentAttestState, AgentAttestStates
+from keylime.allowlistdbproxy import AllowlistDBProxy
 from keylime.common import retry, states, validators
 from keylime.da import record
 from keylime.db.keylime_db import DBEngineManager, SessionManager
@@ -62,6 +63,9 @@ def get_session() -> Session:
 
 def get_AgentAttestStates() -> AgentAttestStates:
     return AgentAttestStates.get_instance()
+
+
+AllowlistDBProxy.create_instance(get_session())
 
 
 # The "exclude_db" dict values are removed from the response before adding the dict to the DB
@@ -1112,12 +1116,14 @@ async def process_agent(
         main_agent_operational_state = agent["operational_state"]
         stored_agent = None
         try:
+            # Never load the ima_policy as part of loading VerifierMain
             stored_agent = (
                 session.query(VerfierMain)
-                .options(joinedload(VerfierMain.ima_policy))
+                .options(noload(VerfierMain.ima_policy))
                 .filter_by(agent_id=str(agent["agent_id"]))
                 .first()
             )
+            assert not stored_agent.ima_policy
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
 
@@ -1184,8 +1190,14 @@ async def process_agent(
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
 
+        allowlist_id = stored_agent.ima_policy_id
+        allowlist_entry = AllowlistDBProxy.get_instance().get_allowlist(allowlist_id)
+        if not allowlist_entry:
+            logger.error("Could not get an allowlist for agent %s", stored_agent.agent_id)
+            return
+
         # Load agent's IMA policy
-        ima_policy = stored_agent.ima_policy
+        ima_policy = allowlist_entry.verifier_allowlist
 
         # If agent was in a failed state we check if we either stop polling
         # or just add it again to the event loop
