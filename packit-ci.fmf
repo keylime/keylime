@@ -40,6 +40,7 @@
      - /functional/keylime_tenant-commands-on-localhost
      - /functional/keylime_tenant-ima-signature-sanity
      - /functional/tpm_policy-sanity-on-localhost
+     - /functional/tpm-issuer-cert-using-ecc
      - /functional/db-postgresql-sanity-on-localhost
      - /functional/db-mariadb-sanity-on-localhost
      - /functional/db-mysql-sanity-on-localhost
