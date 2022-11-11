@@ -161,7 +161,7 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
     tenant_keyring = file_signatures.ImaKeyring.from_string(agent["ima_sign_verification_keys"])
     ima_keyrings.set_tenant_keyring(tenant_keyring)
 
-    if "tpm_clockinfo" in agent:
+    if agent.get("tpm_clockinfo"):
         agentAttestState.set_tpm_clockinfo(TPMClockInfo.from_dict(agent["tpm_clockinfo"]))
 
     quote_validation_failure = get_tpm_instance().check_quote(
