@@ -289,7 +289,8 @@ class tpm(tpm_abstract.AbstractTPM):
                     "-P",
                     owner_pw,
                 ]
-            elif self.tools_version == "4.2":
+            else:
+                # version 4.2 or later
                 command = [
                     "tpm2_createek",
                     "-c",
