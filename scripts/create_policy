@@ -10,7 +10,7 @@ import sys
 from cryptography import x509
 from cryptography.hazmat import backends
 
-from keylime.ima import ima
+from keylime.ima import file_signatures, ima
 
 IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
 IGNORED_KEYRINGS = []
@@ -131,6 +131,35 @@ def process_ima_buf_in_measurement_list(
     return keyrings_map, ima_buf_map, ret
 
 
+def process_signature_verification_keys(verification_keys, policy):
+    """Add the given keys (x509 certificates) to keyring"""
+
+    verification_key_list = None
+    if verification_keys:
+        if policy.get("verification-keys"):
+            keyring = file_signatures.ImaKeyring().from_string(policy["verification-keys"])
+            if not keyring:
+                print("Could not create IMAKeyring from JSON")
+        else:
+            keyring = file_signatures.ImaKeyring()
+        if keyring:
+            for key in verification_keys:
+                try:
+                    pubkey, keyidv2 = file_signatures.get_pubkey_from_file(key)
+                    if not pubkey:
+                        print(f"File '{key}' is not a file with a key")
+                    else:
+                        keyring.add_pubkey(pubkey, keyidv2)
+                except ValueError as e:
+                    print(f"File '{key}' does not have a supported key: {e}")
+            verification_key_list = keyring.to_string()
+
+    if verification_key_list:
+        policy["verification-keys"] = verification_key_list
+
+    return policy
+
+
 def main(argv):
     """main"""
     parser = argparse.ArgumentParser(argv[0])
@@ -179,7 +208,17 @@ def main(argv):
     parser.add_argument(
         "--no-hashes", action="store_true", dest="no_hashes", help="Do not add any hashes to the policy"
     )
-    args = parser.parse_args(argv[1:])
+    parser.add_argument(
+        "-A",
+        "--add-ima-signature-verification-key",
+        action="append",
+        dest="ima_signature_keys",
+        default=[],
+        help="Add the given IMA signature verification key to the Keylime-internal 'tenant_keyring'; "
+        "the key should be an x509 certificate in DER or PEM format but may also be a public or private key file; "
+        "this option may be passed multiple times",
+    )
+    args = parser.parse_args()
 
     policy = ima.EMPTY_RUNTIME_POLICY
     policy["ima"]["ignored_keyrings"] = args.ignored_keyrings
@@ -227,6 +266,8 @@ def main(argv):
 
     if ret:
         sys.exit(ret)
+
+    policy = process_signature_verification_keys(args.ima_signature_keys, policy)
 
     jsonpolicy = json.dumps(policy)
     if args.output:
