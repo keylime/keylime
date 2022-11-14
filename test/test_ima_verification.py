@@ -281,7 +281,8 @@ class TestIMAVerification(unittest.TestCase):
         self.assertEqual(
             al_data["meta"]["generator"], "keylime-legacy-format-upgrade", "AllowList metadata generator is correct"
         )
-        self.assertNotIn("checksum", al_data["meta"], "AllowList metadata no checksum")
+
+        self.assertIsNotNone(al_data["meta"].get("checksum", None), "AllowList checksum is present")
         self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
         self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
         self.assertEqual(
@@ -328,7 +329,7 @@ class TestIMAVerification(unittest.TestCase):
 
         # unbundle and test output
         al_data = ima.unbundle_ima_policy(al_bundle, verify=True)
-        self.assertNotIn("checksum", al_data["meta"], "AllowList metadata no checksum")
+        self.assertIsNotNone(al_data["meta"].get("checksum", None), "AllowList checksum is present")
         self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")
         self.assertEqual(len(al_data["hashes"]), 21, "AllowList hashes are correct length")
         self.assertEqual(

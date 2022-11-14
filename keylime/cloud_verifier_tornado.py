@@ -580,11 +580,11 @@ class AgentsHandler(BaseHandler):
                             logger.warning(err_msg)
                             return
 
-                        ima_policy_db_format = {}
                         if not ima_policy_name:
                             ima_policy_name = agent_id
-                        ima_policy_db_format["name"] = ima_policy_name
-                        ima_policy_db_format["ima_policy"] = ima_policy
+
+                        ima_policy_db_format = ima.ima_policy_db_contents(ima_policy_name, ima_policy)
+
                         try:
                             ima_policy_stored = (
                                 session.query(VerifierAllowlist).filter_by(name=ima_policy_name).one_or_none()
@@ -848,9 +848,9 @@ class AllowlistHandler(BaseHandler):
             logger.warning("POST returning 400 response. Expected non zero content length.")
             return
 
-        ima_policy_db_format = {}
+        ima_policy = "{}"
+
         json_body = json.loads(self.request.body)
-        ima_policy_db_format["name"] = allowlist_name
 
         ima_policy_bundle = json.loads(json_body.get("ima_policy_bundle"))
         if ima_policy_bundle:
@@ -864,11 +864,10 @@ class AllowlistHandler(BaseHandler):
                 web_util.echo_json_response(self, e.code, e.message)
                 logger.warning(e.message)
                 return
-            ima_policy_db_format["ima_policy"] = ima_policy
 
         tpm_policy = json_body.get("tpm_policy")
-        if tpm_policy:
-            ima_policy_db_format["tpm_policy"] = tpm_policy
+
+        ima_policy_db_format = ima.ima_policy_db_contents(allowlist_name, ima_policy, tpm_policy)
 
         session = get_session()
         # don't allow overwritting
