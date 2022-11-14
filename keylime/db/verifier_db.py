@@ -57,5 +57,6 @@ class VerifierAllowlist(Base):
     id = Column(Integer, primary_key=True)
     agent = relationship("VerfierMain", back_populates="ima_policy")
     name = Column(String(255), nullable=False)
+    checksum = Column(String(128))
     tpm_policy = Column(Text())
     ima_policy = Column(Text().with_variant(Text(429400000), "mysql"))

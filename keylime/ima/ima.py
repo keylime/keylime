@@ -33,6 +33,7 @@ ALLOWLIST_CURRENT_VERSION = 5
 EMPTY_ALLOWLIST = {
     "meta": {
         "version": ALLOWLIST_CURRENT_VERSION,
+        "checksum": "1ab36a57ad793caba756b01fc142f296cbfc3d24088fe6d66448f3bb6ebadeee",
     },
     "release": 0,
     "hashes": {},
@@ -507,7 +508,9 @@ def read_allowlist(alist=None, checksum="", al_sig_file=None, al_key_file=None):
             raise Exception(
                 f"Checksum of allowlist does not match! Expected {checksum}, Calculated {calculated_checksum}"
             )
-
+    else:
+        logger.debug("Allowlist did not have a checksum provided, will add calculated checksum to bundle")
+        checksum = calculated_checksum
     # Return artifacts as a JSON bundle, ready for sending
     bundle = {
         "ima_policy": base64.b64encode(alist_bytes).decode(),
@@ -608,6 +611,30 @@ def canonicalize_allowlist(alist_bytes, checksum=""):
     alist = update_allowlist(alist)
 
     return alist
+
+
+def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: str = "") -> dict:
+    """Assembles an ima policy dictionary to be written on the database"""
+    ima_policy_db_format = {}
+    ima_policy_db_format["name"] = ima_policy_name
+    # TODO: This was required to ensure e2e CI tests pass
+    if ima_policy == "{}":
+        ima_policy_db_format["ima_policy"] = None
+    else:
+        ima_policy_db_format["ima_policy"] = ima_policy
+    ima_policy = json.loads(ima_policy)
+    if "allowlist" in ima_policy:
+        if "meta" in ima_policy["allowlist"]:
+            if "checksum" in ima_policy["allowlist"]["meta"]:
+                ima_policy_db_format["checksum"] = ima_policy["allowlist"]["meta"]["checksum"]
+            else:
+                alist_bytes = json.dumps(copy.deepcopy(EMPTY_ALLOWLIST)).encode()
+                sha256 = hashlib.sha256()
+                sha256.update(alist_bytes)
+                ima_policy_db_format["checksum"] = sha256.hexdigest()
+    if tpm_policy:
+        ima_policy_db_format["tpm_policy"] = tpm_policy
+    return ima_policy_db_format
 
 
 def read_excllist(exclude_path=None):
