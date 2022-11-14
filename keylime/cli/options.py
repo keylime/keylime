@@ -1,12 +1,27 @@
+import os
 from typing import Tuple
 
 from keylime import keylime_logging
 
-logger = keylime_logging.init_logging("cli_opts")
+logger = keylime_logging.init_logging("cli.options")
 
 
 class UserError(Exception):
     pass
+
+
+def extract_password(pwstring):
+    # First we check if "pwstring" points to a file on the fs which contains the pw
+    pwstring = os.path.expanduser(pwstring)
+    if os.path.exists(pwstring):
+        with open(pwstring, encoding="utf-8") as fp:
+            pwstring = fp.read().strip()
+    # Second, check if "pwstring" is an environment variable defined to hold the pw
+    if pwstring in os.environ:
+        pwstring = os.environ[pwstring]
+
+    # Finally, just return the contents of the (potentially modified) pwstring
+    return pwstring
 
 
 def get_opts_error(args) -> Tuple[bool, str]:

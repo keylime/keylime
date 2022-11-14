@@ -171,6 +171,45 @@ severity_policy = {{ verifier.severity_policy }}
 # Set to False to treat ToMToU entries as errors.
 ignore_tomtou_errors = {{ verifier.ignore_tomtou_errors }}
 
+# Durable Attestation is currently marked as an experimental feature
+# In order to enable Durable Attestation, an "adapter" for a Persistent data Store 
+# (time-series like database) needs to be specified. Some example adapters can be 
+# found under "da/examples" so, for instance 
+#      "durable_attestation_import = keylime.da.examples.redis.py"
+# could be used to interact with a Redis (Persistent data Store)
+durable_attestation_import = {{ verifier.durable_attestation_import }}
+
+# If an adapter for Durable Attestation was specified, then the URL for a Persistent Store
+# needs to be specified here. A second optional URL could be specified, for a 
+# Rekor Transparency Log. A third additional URL could be specified, pointing to a 
+# Time Stamp Authority (TSA), compatible with RFC3161. Additionally, one might need to 
+# specify a path containing certificates required by the stores or TSA. Continuing with 
+# the above example, the following values could be assigned to the parameters: 
+#      "persistent_store_url=redis://127.0.0.1:6379?db=10&password=/root/redis.auth&prefix=myda"
+#      "transparency_log_url=http://127.0.0.1:3000"
+#      "time_stamp_authority_url=http://127.0.0.1:2020"
+#      "time_stamp_authority_certs_path=~/mycerts/tsa_cert1.pem"
+persistent_store_url = {{ verifier.persistent_store_url }}
+transparency_log_url = {{ verifier.transparency_log_url }}
+time_stamp_authority_url = {{ verifier.time_stamp_authority_url }}
+time_stamp_authority_certs_path = {{ verifier.time_stamp_authority_certs_path }}
+
+# If Durable Attestation was enabled, which requires a Persistent Store URL 
+# to be specified, the two following parameters control the format and enconding
+# of the stored attestation artifacts (defaults "json" for format and "" for encoding)
+persistent_store_format = {{ verifier.persistent_store_format }}
+persistent_store_encoding = {{ verifier.persistent_store_encoding }}
+
+# If Durable Attestation was enabled with a Transparency Log URL was specified,
+# the digest algorithm for signatures is controlled by this parameter (default "sha256")
+transparency_log_sign_algo = {{ verifier.transparency_log_sign_algo }}
+
+# If Durable Attestation was enabled with a Transparency Log URL was specified,
+# a keylime administrator can specify some agent attributes (including attestation
+# artifacts, such as quotes and logs) to be signed by the verifier. The use of "all"
+# will result in the whole "package" (agent + artifacts) being signed and leaving it empty
+# will mean no signing should be done.
+signed_attributes = {{ verifier.signed_attributes }}
 
 [revocations]
 
