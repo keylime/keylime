@@ -1182,7 +1182,7 @@ class Tenant:
                 continue
             break
 
-    def do_add_runtime_policy(self, args):
+    def __convert_runtime_policy(self, args):
         if args.get("runtime_policy_name") is None:
             if args.get("allowlist_name") is not None:
                 logger.warning(
@@ -1209,9 +1209,22 @@ class Tenant:
             "runtime_policy_key": self.runtime_policy_key,
             "runtime_policy_sig": self.runtime_policy_sig,
         }
-        body = json.dumps(data)
+        return json.dumps(data)
+
+    def do_add_runtime_policy(self, args):
+        body = self.__convert_runtime_policy(args)
+
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.post(
+            f"/v{self.api_version}/allowlists/{self.runtime_policy_name}", data=body, timeout=self.request_timeout
+        )
+        Tenant._jsonify_response(response)
+
+    def do_update_runtime_policy(self, args) -> None:
+        body = self.__convert_runtime_policy(args)
+
+        cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
+        response = cv_client.put(
             f"/v{self.api_version}/allowlists/{self.runtime_policy_name}", data=body, timeout=self.request_timeout
         )
         Tenant._jsonify_response(response)
@@ -1274,7 +1287,8 @@ def main() -> None:
         default="add",
         help="valid commands are add,delete,update,"
         "regstatus,cvstatus,status,reglist,cvlist,reactivate,"
-        "regdelete,bulkinfo,addruntimepolicy,showruntimepolicy,deleteruntimepolicy. defaults to add",
+        "regdelete,bulkinfo,addruntimepolicy,showruntimepolicy,"
+        "deleteruntimepolicy,updateruntimepolicy. defaults to add",
     )
     parser.add_argument(
         "-t", "--targethost", action="store", dest="agent_ip", help="the IP address of the host to provision"
@@ -1510,7 +1524,7 @@ def main() -> None:
         mytenant.registrar_port = args.registrar_port
 
     # we only need to fetch remote files if we are adding or updating
-    if args.command in ["add", "update", "addallowlist", "addruntimepolicy"]:
+    if args.command in ["add", "update", "addallowlist", "addruntimepolicy", "updateruntimepolicy"]:
         delete_tmp_files = logger.level > logging.DEBUG  # delete tmp files unless in DEBUG mode
 
         if args.runtime_policy_url:
@@ -1676,5 +1690,7 @@ def main() -> None:
             mytenant.do_delete_runtime_policy(args.runtime_policy_name)
         else:
             mytenant.do_delete_runtime_policy(None)
+    elif args.command == "updateruntimepolicy":
+        mytenant.do_update_runtime_policy(vars(args))
     else:
         raise UserError(f"Invalid command specified: {args.command}")
