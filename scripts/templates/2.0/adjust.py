@@ -52,7 +52,7 @@ def adjust(config, mapping):
         }
     }
 
-    for component in replace["components"].keys():
+    for component in replace["components"]:
         options = replace["components"][component]
         # For each option
         for option in options.keys():
@@ -65,7 +65,7 @@ def adjust(config, mapping):
                     config[component][option] = values[to_replace]
                     print(f'[{component}] In "{option}", replaced "{to_replace}" ' f'with "{values[to_replace]}"')
 
-    for component in tolist["components"].keys():
+    for component in tolist["components"]:
         for option in tolist["components"][component]:
             # Get raw string value
             value = config[component][option]
