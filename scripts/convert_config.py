@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
 
-import argparse
-import configparser
-import importlib.util
-import json
-import os
-import re
-
-from jinja2 import Template
-
 """
  This script parses the content of a configuration file and use the data to
  replace the values in templates to generate new configuration files.  The
@@ -78,6 +69,15 @@ from jinja2 import Template
  versions of the configuration, allowing the user to easily convert from a
  version of the configuration file to the next.
 """
+
+import argparse
+import configparser
+import importlib.util
+import json
+import os
+import re
+
+from jinja2 import Template
 
 COMPONENTS = ["agent", "verifier", "tenant", "registrar", "ca", "logging"]
 
