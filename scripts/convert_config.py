@@ -113,12 +113,12 @@ def get_config(config_files):
     return config
 
 
-def output_component(component, config, template, output):
+def output_component(component, config, template, outfile):
     """
     Output the configuration file for a component
     """
 
-    print(f"Writing {component} configuration to {output}")
+    print(f"Writing {component} configuration to {outfile}")
 
     with open(template, "r") as tf:
         t = tf.read()
@@ -127,7 +127,7 @@ def output_component(component, config, template, output):
 
         r = j2.render(config)
 
-        with open(output, "w") as o:
+        with open(outfile, "w") as o:
             print(r, file=o)
 
 
