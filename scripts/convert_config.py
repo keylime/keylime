@@ -106,13 +106,13 @@ def get_config(config_files):
     if not any(os.path.exists(c) for c in config_files):
         print(f"Could not find any file of the files in {config_files}. " "Please set input file using --input option.")
         return None
-    else:
-        config = configparser.RawConfigParser()
-        # Validate that at least one config file is present
-        config_files = config.read(config_files)
-        print(f"Successfully read configuration from {config_files}")
 
-        return config
+    config = configparser.RawConfigParser()
+    # Validate that at least one config file is present
+    config_files = config.read(config_files)
+    print(f"Successfully read configuration from {config_files}")
+
+    return config
 
 
 def output_component(component, config, template, output):
