@@ -120,14 +120,14 @@ def output_component(component, config, template, outfile):
 
     print(f"Writing {component} configuration to {outfile}")
 
-    with open(template, "r") as tf:
+    with open(template, "r", encoding="utf-8") as tf:
         t = tf.read()
 
         j2 = Template(t)
 
         r = j2.render(config)
 
-        with open(outfile, "w") as o:
+        with open(outfile, "w", encoding="utf-8") as o:
             print(r, file=o)
 
 
@@ -171,7 +171,7 @@ def process_mapping(old_config, templates, mapping_file, debug=False):
     configuration dictionary
     """
 
-    with open(mapping_file, "r") as f:
+    with open(mapping_file, "r", encoding="utf-8") as f:
         try:
             mapping = json.loads(f.read())
         except Exception as e:
