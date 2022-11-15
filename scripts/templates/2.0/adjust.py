@@ -1,7 +1,7 @@
 import ast
 
 
-def adjust(config, mapping):
+def adjust(config, mapping):  # pylint: disable=unused-argument
     """
     Process the configuration intermediary representation adjusting some of the
     values following changes to the configuration files semantics.
