@@ -8,19 +8,18 @@ class TestValidRegex(unittest.TestCase):
 
     def test_none(self):
         """Check that None is a valid regex."""
-        self.assertEqual(validators.valid_regex(None), (True, None, None))
+        self.assertEqual(validators.valid_regex(None), (None, None))
 
     def test_valid(self):
         """Check a well formed regex."""
         value = validators.valid_regex(r"a.*")
-        self.assertTrue(value[0])
-        self.assertEqual(value[1].pattern, r"a.*")
-        self.assertEqual(value[2], None)
+        self.assertEqual(value[0].pattern, r"a.*")
+        self.assertEqual(value[1], None)
 
     def test_invalid(self):
         """Check a not valid regex."""
         value = validators.valid_regex(r"a[")
-        self.assertEqual(value, (False, None, "Invalid regex: unterminated character set."))
+        self.assertEqual(value, (None, "Invalid regex: unterminated character set."))
 
 
 class TestValidExcludeList(unittest.TestCase):
