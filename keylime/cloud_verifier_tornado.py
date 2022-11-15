@@ -783,7 +783,7 @@ class AllowlistHandler(BaseHandler):
         runtime_policy_name = rest_params["allowlists"]
         if runtime_policy_name is None:
             web_util.echo_json_response(self, 400, "Invalid URL")
-            if method != "POST":
+            if method not in ["POST", "PUT"]:
                 logger.warning("%s returning 400 response: %s", method, self.request.path)
             return None
 
@@ -946,7 +946,44 @@ class AllowlistHandler(BaseHandler):
         logger.info("POST returning 201")
 
     def put(self):
-        web_util.echo_json_response(self, 400, "Allowlist handler: PUT Not Implemented")
+        """Update an allowlist
+
+        PUT /allowlists/{name}
+        body: {"tpm_policy": {..} ...
+        """
+
+        runtime_policy_name = self.__validate_input("PUT")
+        if runtime_policy_name is None:
+            return
+
+        runtime_policy_db_format = self.__get_runtime_policy_db_format(runtime_policy_name)
+        if not runtime_policy_db_format:
+            return
+
+        session = get_session()
+        # don't allow creating a new policy
+        try:
+            runtime_policy_count = session.query(VerifierAllowlist).filter_by(name=runtime_policy_name).count()
+            if runtime_policy_count != 1:
+                web_util.echo_json_response(
+                    self, 409, f"Runtime policy with name {runtime_policy_name} does not already exist"
+                )
+                logger.warning("Runtime policy with name %s does not already exist", runtime_policy_name)
+                return
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error: %s", e)
+            raise
+
+        try:
+            # Update the named runtime policy
+            session.query(VerifierAllowlist).filter_by(name=runtime_policy_name).update(runtime_policy_db_format)
+            session.commit()
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error: %s", e)
+            raise
+
+        web_util.echo_json_response(self, 201)
+        logger.info("PUT returning 201")
 
     def data_received(self, chunk):
         raise NotImplementedError()
