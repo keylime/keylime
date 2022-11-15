@@ -770,24 +770,32 @@ class AllowlistHandler(BaseHandler):
     def head(self):
         web_util.echo_json_response(self, 400, "Allowlist handler: HEAD Not Implemented")
 
+    def __validate_input(self, method: str) -> Optional[str]:
+        """Validate the input"""
+        rest_params = web_util.get_restful_params(self.request.uri)
+        if rest_params is None or "allowlists" not in rest_params:
+            web_util.echo_json_response(self, 400, "Invalid URL")
+            return None
+
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
+            return None
+
+        runtime_policy_name = rest_params["allowlists"]
+        if runtime_policy_name is None:
+            web_util.echo_json_response(self, 400, "Invalid URL")
+            if method != "POST":
+                logger.warning("%s returning 400 response: %s", method, self.request.path)
+            return None
+
+        return runtime_policy_name
+
     def get(self):
         """Get an allowlist
 
         GET /allowlists/{name}
         """
-
-        rest_params = web_util.get_restful_params(self.request.uri)
-        if rest_params is None or "allowlists" not in rest_params:
-            web_util.echo_json_response(self, 400, "Invalid URL")
-            return
-
-        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
-            return
-
-        allowlist_name = rest_params["allowlists"]
+        allowlist_name = self.__validate_input("GET")
         if allowlist_name is None:
-            web_util.echo_json_response(self, 400, "Invalid URL")
-            logger.warning("GET returning 400 response: %s", self.request.path)
             return
 
         session = get_session()
@@ -813,18 +821,8 @@ class AllowlistHandler(BaseHandler):
         DELETE /allowlists/{name}
         """
 
-        rest_params = web_util.get_restful_params(self.request.uri)
-        if rest_params is None or "allowlists" not in rest_params:
-            web_util.echo_json_response(self, 400, "Invalid URL")
-            return
-
-        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
-            return
-
-        allowlist_name = rest_params["allowlists"]
+        allowlist_name = self.__validate_input("DELETE")
         if allowlist_name is None:
-            web_util.echo_json_response(self, 400, "Invalid URL")
-            logger.warning("DELETE returning 400 response: %s", self.request.path)
             return
 
         session = get_session()
@@ -874,17 +872,8 @@ class AllowlistHandler(BaseHandler):
         body: {"tpm_policy": {..} ...
         """
 
-        rest_params = web_util.get_restful_params(self.request.uri)
-        if rest_params is None or "allowlists" not in rest_params:
-            web_util.echo_json_response(self, 400, "Invalid URL")
-            return
-
-        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
-            return
-
-        runtime_policy_name = rest_params["allowlists"]
+        runtime_policy_name = self.__validate_input("POST")
         if runtime_policy_name is None:
-            web_util.echo_json_response(self, 400, "Invalid URL")
             return
 
         content_length = len(self.request.body)
