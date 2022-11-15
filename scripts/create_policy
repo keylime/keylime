@@ -157,7 +157,7 @@ def main(argv):
         dest="ima_measurement_list",
         default=IMA_MEASUREMENT_LIST,
         help="Use given IMA measurement list for keyrings and critical "
-        "data extraction rather than %s" % IMA_MEASUREMENT_LIST,
+        f"data extraction rather than {IMA_MEASUREMENT_LIST}",
     )
     parser.add_argument(
         "-i",
