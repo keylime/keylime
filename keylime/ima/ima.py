@@ -283,8 +283,8 @@ def _process_measurement_list(
                 if val not in allow_list["hashes"]["boot_aggregate"]:
                     allow_list["hashes"]["boot_aggregate"].append(val)
 
-    is_valid, compiled_regex, err_msg = validators.valid_exclude_list(exclude_list)
-    if not is_valid:
+    compiled_regex, err_msg = validators.valid_exclude_list(exclude_list)
+    if err_msg:
         # This should not happen as the exclude list has already been validated
         # by the verifier before acceping it. This is a safety net just in case.
         err_msg += " Exclude list will be ignored."
