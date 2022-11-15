@@ -83,7 +83,7 @@ def adjust(config, mapping):  # pylint: disable=unused-argument
                 if isinstance(v, tuple):
                     config[component][option] = f"{list(v)}"
 
-            except Exception as e:
+            except Exception:
                 print(
                     f"[{component}] In option '{option}', failed to parse "
                     f"'{value}' as python type, trying manual splitting"
