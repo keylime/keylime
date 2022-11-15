@@ -14,7 +14,7 @@ def adjust(config, mapping):
     the values are replaced in the templates
     """
 
-    print(f"Adjusting configuration")
+    print("Adjusting configuration")
 
     # Dictionary defining values to replace
     replace = {
