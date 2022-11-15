@@ -784,12 +784,12 @@ class tpm(tpm_abstract.AbstractTPM):
                 os.remove(sesspath)
         return key
 
-    def verify_ek(self, ekcert):
+    def verify_ek(self, ekcert, tpm_cert_store):
         """Verify that the provided EK certificate is signed by a trusted root
         :param ekcert: The Endorsement Key certificate in DER format
         :returns: True if the certificate can be verified, false otherwise
         """
-        return cert_utils.verify_ek(ekcert)
+        return cert_utils.verify_ek(ekcert, tpm_cert_store)
 
     def get_tpm_manufacturer(self, output=None):
         vendorStr = None

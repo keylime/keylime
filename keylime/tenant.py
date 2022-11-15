@@ -430,7 +430,7 @@ class Tenant:
             elif ekcert is None:
                 logger.warning("No EK cert provided, require_ek_cert option in config set to True")
                 return False
-            elif not self.tpm_instance.verify_ek(base64.b64decode(ekcert)):
+            elif not self.tpm_instance.verify_ek(base64.b64decode(ekcert), config.get("tenant", "tpm_cert_store")):
                 logger.warning("Invalid EK certificate")
                 return False
 

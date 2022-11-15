@@ -97,7 +97,7 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def verify_ek(self, ekcert):
+    def verify_ek(self, ekcert, tpm_cert_store):
         pass
 
     @abstractmethod
