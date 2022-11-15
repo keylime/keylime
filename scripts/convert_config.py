@@ -175,7 +175,7 @@ def process_mapping(old_config, templates, mapping_file, debug=False):
         try:
             mapping = json.loads(f.read())
         except Exception as e:
-            raise Exception(f"Could not load mapping file {mapping_file}: {e}")
+            raise Exception(f"Could not load mapping file {mapping_file}: {e}") from e
 
     if not mapping["version"]:
         raise Exception('Malformed mapping: no "version" set')
