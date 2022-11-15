@@ -13,6 +13,8 @@ fi
 
 ${PYLINT} --version
 
-${PYLINT} *.py $(find ./keylime ./test -name '*.py' ! -name 'oldtest.py' ! -path './keylime/da/examples/*.py')
+${PYLINT} \
+	*.py \
+	$(find ./keylime ./test ./scripts -name '*.py' ! -name 'oldtest.py' ! -path './keylime/da/examples/*.py')
 
 exit $?
