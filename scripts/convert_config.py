@@ -178,10 +178,10 @@ def process_mapping(old_config, templates, mapping_file, debug=False):
             raise Exception(f"Could not load mapping file {mapping_file}: {e}")
 
     if not mapping["version"]:
-        raise Exception(f'Malformed mapping: no "version" set')
+        raise Exception('Malformed mapping: no "version" set')
 
     if not mapping["components"]:
-        raise Exception(f'Malformed mapping: no "components" set')
+        raise Exception('Malformed mapping: no "components" set')
 
     print(f"Applying mapping from file {mapping_file} version {mapping['version']}")
 
