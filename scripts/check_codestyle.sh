@@ -15,6 +15,7 @@ ${PYLINT} --version
 
 ${PYLINT} \
 	*.py \
+	scripts/create_policy \
 	$(find ./keylime ./test ./scripts -name '*.py' ! -name 'oldtest.py' ! -path './keylime/da/examples/*.py')
 
 exit $?
