@@ -313,14 +313,8 @@ def validate_ima_policy_data(agent_data):
     lists = json.loads(agent_data)
 
     # Validate exlude list contains valid regular expressions
-    is_valid, _, err_msg_from_validator = validators.valid_exclude_list(lists.get("exclude"))
-    if not is_valid:
-        if err_msg_from_validator is not None:
-            err_msg_base = err_msg_from_validator + " "
-        else:
-            err_msg_base = ""
-        err_msg = err_msg_base + "Exclude list regex is misformatted. Please correct the issue and try again."
-    else:
-        err_msg = err_msg_from_validator
+    _, err_msg_from_validator = validators.valid_exclude_list(lists.get("exclude"))
+    if err_msg_from_validator:
+        err_msg_from_validator += " Exclude list regex is misformatted. Please correct the issue and try again."
 
-    return is_valid, err_msg
+    return err_msg_from_validator is None, err_msg_from_validator

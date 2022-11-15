@@ -20,11 +20,10 @@ def valid_regex(regex):
 def valid_exclude_list(exclude_list):
     """Check if the list is composed of valid regex."""
     if not exclude_list:
-        return True, None, None
+        return None, None
 
     combined_regex = "(" + ")|(".join(exclude_list) + ")"
-    compiled_regex, err = valid_regex(combined_regex)
-    return err is None, compiled_regex, err
+    return valid_regex(combined_regex)
 
 
 def valid_hex(value):
