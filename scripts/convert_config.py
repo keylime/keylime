@@ -6,8 +6,6 @@ import importlib.util
 import json
 import os
 import re
-import sys
-from functools import cmp_to_key
 
 from jinja2 import Template
 
