@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from pyasn1.codec.der import decoder, encoder
 from pyasn1_modules import pem, rfc2459
 
-from keylime import config, keylime_logging, tpm_ek_ca
+from keylime import keylime_logging, tpm_ek_ca
 
 # Issue #944 -- python-cryptography won't parse malformed certs,
 # such as some Nuvoton ones we have encountered in the field.
@@ -56,9 +56,10 @@ def x509_pem_cert(pem_cert_data: str):
         return x509.load_der_x509_certificate(data=encoder.encode(pyasn1_cert), backend=default_backend())
 
 
-def verify_ek(ekcert, tpm_cert_store=config.get("tenant", "tpm_cert_store")):
+def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:
     """Verify that the provided EK certificate is signed by a trusted root
     :param ekcert: The Endorsement Key certificate in DER format
+    :param tpm_cert_store: The path for the TPM certificate store
     :returns: True if the certificate can be verified, False otherwise
     """
     try:
