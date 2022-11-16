@@ -219,7 +219,7 @@ def _validate_ima_sig(
 def _validate_ima_buf(
     exclude_regex,
     allowlist,
-    ima_keyrings: file_signatures.ImaKeyrings,
+    ima_keyrings: Optional[file_signatures.ImaKeyrings],
     dm_validator: Optional[ima_dm.DmIMAValidator],
     digest: ast.Digest,
     path: ast.Name,
@@ -234,7 +234,8 @@ def _validate_ima_buf(
             failure = _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types="keyrings")
             if not failure:
                 # Add the key only now that it's validated (no failure)
-                ima_keyrings.add_pubkey_to_keyring(pubkey, path.name, keyidv2=keyidv2)
+                if ima_keyrings is not None:
+                    ima_keyrings.add_pubkey_to_keyring(pubkey, path.name, keyidv2=keyidv2)
     # Check if this is a device mapper entry only if we have a validator for that
     elif dm_validator is not None and path.name in dm_validator.valid_names:
         failure = dm_validator.validate(digest, path, data)
@@ -353,8 +354,8 @@ def _process_measurement_list(
                         agentAttestState.set_ima_dm_state(dm_validator.state_dump())
 
             # Keep old functionality for writing the parsed files with hashes into a file
-            if m2w is not None and (type(entry.mode) in [ast.Ima, ast.ImaNg, ast.ImaSig]):
-                hash_value = codecs.encode(entry.mode.digest.bytes, "hex")
+            if m2w is not None and (isinstance(entry.mode, (ast.Ima, ast.ImaNg, ast.ImaSig))):
+                hash_value = codecs.encode(entry.mode.digest.hash, "hex")
                 path = entry.mode.path.name
                 m2w.write(f"{hash_value} {path}\n")
         except ast.ParserError:
@@ -517,6 +518,7 @@ def read_allowlist(alist=None, checksum="", al_sig_file=None, al_key_file=None):
         "key": base64.b64encode(al_key).decode(),
         "sig": base64.b64encode(al_sig).decode(),
         "checksum": checksum,
+        "excllist": [],
     }
 
     return bundle
