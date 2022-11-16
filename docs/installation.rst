@@ -133,20 +133,18 @@ The following Python packages are required:
 
 * cryptography>=3.3.2
 * tornado>=5.0.2
-* m2crypto>=0.21.1
 * pyzmq>=14.4
 * pyyaml>=3.11
-* simplejson>=3.8
 * requests>=2.6
 * sqlalchemy>=1.3
 * alembic>=1.1.0
-* python-gnupg>=0.4.6
-* packaging>=16.0
+* packaging>=20.0
 * psutil>=5.4.2
 * lark>=1.0.0
 * pyasn1>=0.4.2
 * pyasn1-modules>=0.2.1
 * jinja2>=3.0.0
+* gpg (Note: the GPG bindings must match the local GPG version and therefore this package should not be installed via PyPI)
 
 The current list of required packages can be found `here <https://github.com/keylime/keylime/blob/master/requirements.txt>`_.
 
