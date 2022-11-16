@@ -9,10 +9,12 @@ import re
 import sys
 from collections import ChainMap
 from itertools import chain
-from typing import Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import lark
-from lark import Lark, Transformer, v_args
+from lark.exceptions import LarkError
+from lark.lark import Lark
+from lark.visitors import Transformer, v_args
 from packaging import version
 
 from keylime.common.algorithms import Hash
@@ -25,26 +27,73 @@ if sys.version_info >= (3, 7):
 else:
     from keylime.backport_dataclasses import dataclass
 
+if sys.version_info >= (3, 8):
+    from typing import Literal, TypedDict
+else:
+    from typing_extensions import Literal, TypedDict
 
-class DeepChainMap(ChainMap):
+
+class DeepChainMap(ChainMap):  # type: ignore[type-arg]
     """
     Variant of ChainMap that handles updates for nested ChainMaps
     Based on the example in https://docs.python.org/3/library/collections.html#collections.ChainMap
     """
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Any, value: Any) -> None:
         for mapping in self.maps:
             if key in mapping:
                 mapping[key] = value
                 return
         super().__setitem__(key, value)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Any) -> None:
         for mapping in self.maps:
             if key in mapping:
                 del mapping[key]
                 return
         raise KeyError(key)
+
+
+RuleAttributeType = Optional[Union[int, str, bool]]
+
+# Special Type for the match key.
+# Note that mypy currently does not detect that the variable is a literal,
+# so we still need to add a type ignore
+MatchKeyType = Literal["name", "uuid"]
+
+
+class DeviceRenameRule(TypedDict):
+    valid_name: RuleAttributeType
+    valid_uuid: RuleAttributeType
+
+
+class DeviceRemoveRule(TypedDict):
+    allow_removal: bool
+
+
+class TableLoadRule(TypedDict):
+    allow_multiple_loads: bool
+    name: str
+    uuid: str
+    major: int
+    minor: int
+    minor_count: int
+    num_targets: int
+    targets: List[Dict[str, RuleAttributeType]]
+
+
+class Rule(TypedDict):
+    required: bool
+    device_resume_required: bool
+    device_rename: DeviceRenameRule
+    device_remove: DeviceRemoveRule
+    allow_clear: bool
+    table_load: TableLoadRule
+
+
+class Policies(TypedDict):
+    match_on: MatchKeyType
+    rules: Dict[str, Rule]
 
 
 @dataclass
@@ -67,10 +116,10 @@ class DmIMAValidator:
         "dm_device_rename",
         "dm_target_update",
     ]
-    policies: dict
+    policies: Policies
     devices: Dict[str, DeviceState]
 
-    def __init__(self, policies) -> None:
+    def __init__(self, policies: Policies) -> None:
         self.policies = policies
         self.devices = {}
 
@@ -97,26 +146,32 @@ class DmIMAValidator:
             match_key = self.policies["match_on"]
 
             if path.name == "dm_table_load":
+                assert isinstance(event, LoadEvent)
                 failure.merge(self.validate_table_load(event, match_key, digest))
             elif path.name == "dm_device_resume":
+                assert isinstance(event, ResumeEvent)
                 failure.merge(self.validate_device_resume(event, match_key))
             elif path.name == "dm_device_remove":
+                assert isinstance(event, RemoveEvent)
                 failure.merge(self.validate_device_remove(event, match_key))
             elif path.name == "dm_device_rename":
+                assert isinstance(event, RenameEvent)
                 failure.merge(self.validate_device_rename(event, match_key))
             elif path.name == "dm_table_clear":
+                assert isinstance(event, ClearEvent)
                 failure.merge(self.validate_table_clear(event, match_key))
             elif path.name == "dm_target_update":
+                assert isinstance(event, UpdateEvent)
                 failure.merge(self.validate_target_update(event, match_key))
             else:
                 failure.add_event("invalid_event_type", {"got": path.name}, True)
 
-        except lark.exceptions.LarkError as e:
+        except (LarkError, TypeError) as e:
             failure.add_event("parsing_failed", f"Could not construct valid entry: {e}", True)
 
         return failure
 
-    def validate_table_clear(self, event: "ClearEvent", match_key) -> Failure:
+    def validate_table_clear(self, event: "ClearEvent", match_key: MatchKeyType) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_table_clear"])
 
         device_key = getattr(event.device_metadata, match_key)
@@ -135,7 +190,7 @@ class DmIMAValidator:
 
         return failure
 
-    def validate_target_update(self, event: "UpdateEvent", match_key) -> Failure:
+    def validate_target_update(self, event: "UpdateEvent", match_key: MatchKeyType) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_target_update"])
 
         device_key = getattr(event.device_metadata, match_key)
@@ -152,7 +207,7 @@ class DmIMAValidator:
 
         return failure
 
-    def validate_device_remove(self, event: "RemoveEvent", match_key) -> Failure:
+    def validate_device_remove(self, event: "RemoveEvent", match_key: MatchKeyType) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_device_remove"])
 
         # TODO: check if we can always use the active table
@@ -172,7 +227,7 @@ class DmIMAValidator:
         del self.devices[device_key]
         return failure
 
-    def validate_device_resume(self, event: "ResumeEvent", match_key) -> Failure:
+    def validate_device_resume(self, event: "ResumeEvent", match_key: MatchKeyType) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_device_resume"])
 
         device_key = getattr(event.device_metadata, match_key)
@@ -209,7 +264,7 @@ class DmIMAValidator:
         device_state.valid_state = True
         return failure
 
-    def validate_device_rename(self, event: "RenameEvent", match_key) -> Failure:
+    def validate_device_rename(self, event: "RenameEvent", match_key: MatchKeyType) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_device_rename"])
 
         device_key = getattr(event.device_metadata, match_key)
@@ -254,7 +309,7 @@ class DmIMAValidator:
 
         return failure
 
-    def validate_table_load(self, event: "LoadEvent", match_key, digest: ast.Digest) -> Failure:
+    def validate_table_load(self, event: "LoadEvent", match_key: MatchKeyType, digest: ast.Digest) -> Failure:
         failure = Failure(Component.IMA, ["validation", "dm", "dm_table_load"])
 
         device_key = getattr(event.device_metadata, match_key)
@@ -278,12 +333,12 @@ class DmIMAValidator:
 
         # Validate device metadata
         for entry in ["name", "uuid", "major", "minor", "minor_count", "num_targets"]:
-            if not _check_attr(getattr(event.device_metadata, entry), used_policy["table_load"][entry]):
+            if not _check_attr(getattr(event.device_metadata, entry), used_policy["table_load"][entry]):  # type:ignore
                 failure.add_event(
                     "invalid_entry",
                     {
                         "got": getattr(event.device_metadata, entry),
-                        "expected": used_policy["table_load"][entry],
+                        "expected": used_policy["table_load"][entry],  # type:ignore
                         "context": entry,
                     },
                     True,
@@ -317,14 +372,16 @@ class DmIMAValidator:
         return failure
 
     @staticmethod
-    def validate_target_table(target, reference_values, failure: Failure) -> None:
+    def validate_target_table(
+        target: "Target", reference_values: Dict[str, RuleAttributeType], failure: Failure
+    ) -> None:
         """
         Validates a target table entry against reference_values in a policy.
         If a failure occurs it is added to the failure object.
         """
         valid = True
         for key in reference_values.keys():
-            data = target
+            data: Union["Target", "TargetAttributes"] = target
             # Non default target arguments are stored in target_attributes
             if key not in ["target_index", "target_begin", "target_len", "target_name", "target_version"]:
                 data = target.target_attributes
@@ -381,7 +438,7 @@ def _strtobool(val: str) -> bool:
     raise ValueError(f"invalid truth value {val}")
 
 
-def _check_attr(attr: Optional[Union[int, str, bool]], reference_value: Optional[Union[int, str, bool]]) -> bool:
+def _check_attr(attr: RuleAttributeType, reference_value: RuleAttributeType) -> bool:
     """
     Validate an attribute against the reference value
     - If the reference value is a str we assume that is a regex
@@ -568,7 +625,7 @@ class ResumeEvent:
     current_device_capacity: int
     active_table_hash: ast.Digest
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if isinstance(self.active_table_hash, str):
             self.active_table_hash = ast.Digest(self.active_table_hash)
 
@@ -609,17 +666,18 @@ class UpdateEvent:
     target: Target
 
 
-def _token_to_dict(name, prefix=None):
+def _token_to_dict(name: str, prefix: Optional[str] = None) -> Callable[[List[Any]], Dict[str, Any]]:
     """
     Generates function that converts a token to a dict containing the token name as key.
     The length of prefix is stripped from the key.
     """
     if prefix is not None:
-        return lambda x: {name[len(prefix) :]: x[0]}
+        prefix_len = len(prefix)
+        return lambda x: {name[prefix_len:]: x[0]}
     return lambda x: {name: x[0]}
 
 
-class DeviceMapperTransformer(Transformer):
+class DeviceMapperTransformer(Transformer):  # type: ignore
     """
     Converts the Lark AST into the data structures for validation.
     """
@@ -702,7 +760,7 @@ class DeviceMapperTransformer(Transformer):
     other_tokens = ["dm_version", "remove_all", "current_device_capacity", "active_table_hash", "inactive_table_hash"]
     rename_tokens = ["rename_new_name", "rename_new_uuid"]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         for token in chain(self.target_tokens, self.other_tokens):
             setattr(self, token, _token_to_dict(token))
 
@@ -731,19 +789,19 @@ class DeviceMapperTransformer(Transformer):
         super().__init__(*args, **kwargs)
 
     @staticmethod
-    def INT(tok):
+    def INT(tok: Any) -> int:
         return int(tok.value)
 
     @staticmethod
-    def NUMBER(tok):
+    def NUMBER(tok: Any) -> int:
         return int(tok.value)
 
     @staticmethod
-    def STRING(tok):
+    def STRING(tok: Any) -> str:
         return str(tok.value)
 
     @staticmethod
-    def optional_string(children):
+    def optional_string(children: List[str]) -> str:
         """Special handling for options that can have an empty string"""
         if not children:
             return ""
@@ -751,117 +809,117 @@ class DeviceMapperTransformer(Transformer):
 
     @staticmethod
     @v_args(inline=True)
-    def version_nb(a, b, c):
+    def version_nb(a: int, b: int, c: int) -> str:
         return f"{a}.{b}.{c}"
 
     @staticmethod
-    def yes(x):
+    def yes(x: List[Any]) -> str:
         assert x == []
         return "y"
 
     @staticmethod
-    def no(x):
+    def no(x: List[Any]) -> str:
         assert x == []
         return "n"
 
     @staticmethod
-    def verity_attributes(children):
+    def verity_attributes(children: Any) -> VerityAttributes:
         return VerityAttributes(**DeepChainMap(*children))
 
     @staticmethod
-    def cache_attributes(children):
+    def cache_attributes(children: Any) -> CacheAttributes:
         return CacheAttributes(**DeepChainMap(*children))
 
     @staticmethod
-    def crypt_attributes(children):
+    def crypt_attributes(children: Any) -> CryptAttributes:
         return CryptAttributes(**DeepChainMap(*children))
 
     @staticmethod
-    def integrity_attributes(children):
+    def integrity_attributes(children: Any) -> IntegrityAttributes:
         return IntegrityAttributes(**DeepChainMap(*children))
 
     @staticmethod
-    def linear_attributes(children):
+    def linear_attributes(children: Any) -> LinearAttributes:
         return LinearAttributes(**DeepChainMap(*children))
 
     @staticmethod
-    def mirror_attributes(children):
+    def mirror_attributes(children: Any) -> MirrorAttributes:
         return MirrorAttributes(**DeepChainMap(*children))
 
     @staticmethod
-    def snapshot_attributes(children):
+    def snapshot_attributes(children: Any) -> SnapshotAttributes:
         return SnapshotAttributes(**DeepChainMap(*children))
 
     @staticmethod
-    def target(children):
+    def target(children: Any) -> Dict[str, Target]:
         return {"target": Target(**DeepChainMap(*children))}
 
     @staticmethod
-    def targets(children):
+    def targets(children: List[Dict[str, Target]]) -> Dict[str, List[Target]]:
         targets = []
         for child in children:
             targets.append(child["target"])
         return {"targets": targets}
 
     @staticmethod
-    def device_metadata(children):
+    def device_metadata(children: Any) -> Dict[str, DeviceMetaData]:
         return {"device_metadata": DeviceMetaData(**DeepChainMap(*children))}
 
     @staticmethod
-    def load_event(children):
+    def load_event(children: Any) -> LoadEvent:
         return LoadEvent(**DeepChainMap(*children))
 
-    def resume_event(self, children):
+    def resume_event(self, children: Any) -> ResumeEvent:
         data = DeepChainMap(*children)
         self._handle_no_data(data)
         return ResumeEvent(**data)
 
-    def remove_event(self, children):
+    def remove_event(self, children: Any) -> RemoveEvent:
         data = DeepChainMap(*children)
         self._handle_no_data(data)
         return RemoveEvent(**data)
 
     @staticmethod
-    def rename_event(children):
+    def rename_event(children: Any) -> RenameEvent:
         return RenameEvent(**DeepChainMap(*children))
 
-    def clear_event(self, children):
+    def clear_event(self, children: Any) -> ClearEvent:
         data = DeepChainMap(*children)
         self._handle_no_data(data)
         return ClearEvent(**data)
 
     @staticmethod
-    def update_event(children):
+    def update_event(children: Any) -> UpdateEvent:
         return UpdateEvent(**DeepChainMap(*children))
 
     @staticmethod
-    def remove_optional(children):
+    def remove_optional(children: Any) -> DeepChainMap:
         return DeepChainMap(*children)
 
     @staticmethod
-    def resume_optional(children):
+    def resume_optional(children: Any) -> DeepChainMap:
         return DeepChainMap(*children)
 
     @staticmethod
-    def clear_optional(children):
+    def clear_optional(children: Any) -> DeepChainMap:
         return DeepChainMap(*children)
 
     @staticmethod
-    def no_data(_):
+    def no_data(_: Any) -> Dict[str, bool]:
         return {"no_data": True}
 
     @staticmethod
     @v_args(inline=True)
-    def device_active_metadata(device_metadata):
+    def device_active_metadata(device_metadata: Any) -> Dict[str, Union[DeviceMetaData, DeviceMetaDataMinimal]]:
         return {"device_active_metadata": device_metadata["device_metadata"]}
 
     @staticmethod
     @v_args(inline=True)
-    def device_inactive_metadata(device_metadata):
+    def device_inactive_metadata(device_metadata: Any) -> Dict[str, Union[DeviceMetaData, DeviceMetaDataMinimal]]:
         return {"device_inactive_metadata": device_metadata["device_metadata"]}
 
     @staticmethod
-    def _handle_no_data(data):
+    def _handle_no_data(data: Union[Dict[Any, Any], DeepChainMap]) -> None:
         """
         If a no_data event happens (no information of the device is available) the event is still measured,
         but only with the devices name and uuid. This handles that special case.
@@ -874,20 +932,20 @@ class DeviceMapperTransformer(Transformer):
     # Because mirror targets contains multiple devices it needs special parsing for that
     @staticmethod
     @v_args(inline=True)
-    def mirror_mirror_device_name(_, name):
+    def mirror_mirror_device_name(_: Any, name: str) -> Dict[str, str]:
         return {"mirror_device_name": name}
 
     @staticmethod
     @v_args(inline=True)
-    def mirror_mirror_device_status(_, status):
+    def mirror_mirror_device_status(_: Any, status: str) -> Dict[str, str]:
         return {"mirror_device_status": status}
 
     @staticmethod
-    def mirror_mirror_device_row(children):
+    def mirror_mirror_device_row(children: Any) -> Dict[str, MirrorDevice]:
         return {"mirror_device_row": MirrorDevice(**DeepChainMap(*children))}
 
     @staticmethod
-    def mirror_mirror_device_data(children):
+    def mirror_mirror_device_data(children: Any) -> Dict[str, List[MirrorDevice]]:
         devices = []
         for child in children:
             # We might get mirror_device_data because of the manual left recursion
@@ -904,11 +962,24 @@ transformer = DeviceMapperTransformer()
 # The parser_fast only works on newer lark versions
 parser_fast = Lark(DM_GRAMMAR, parser="lalr", transformer=transformer)
 
+EventTypes = Union[LoadEvent, ClearEvent, RemoveEvent, ResumeEvent, RenameEvent, UpdateEvent]
 
-def parse(data: str, event: str):
+
+def parse(data: str, event: str) -> EventTypes:
     if version.Version(lark.__version__) >= version.Version("1.0.0"):
         out = parser_fast.parse(event + data)
     else:
         out = transformer.transform(parser.parse(event + data))
-    # TODO: Provide sanity checks for object construction e.g a linear target should always have LinearAttributes
+
+    if (event, type(out)) not in [
+        ("dm_table_load", LoadEvent),
+        ("dm_device_resume", ResumeEvent),
+        ("dm_device_remove", RemoveEvent),
+        ("dm_table_clear", ClearEvent),
+        ("dm_device_rename", RenameEvent),
+        ("dm_target_update", UpdateEvent),
+    ]:
+        raise TypeError(f"{event} was parsed as: {type(out)}")
+
+    assert isinstance(out, (LoadEvent, ResumeEvent, RemoveEvent, ClearEvent, RenameEvent, UpdateEvent))
     return out
