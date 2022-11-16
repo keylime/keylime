@@ -1,6 +1,6 @@
 import enum
 import hashlib
-from typing import Any, List, Optional
+from typing import Any, List
 
 
 def is_accepted(algorithm: str, accepted: List[Any]) -> bool:
@@ -12,12 +12,33 @@ def is_accepted(algorithm: str, accepted: List[Any]) -> bool:
     return algorithm in accepted
 
 
+def _hashit(algorithm: str, data: bytes) -> bytes:
+    if algorithm == "sha1":
+        return hashlib.sha1(data).digest()
+    if algorithm == "sha256":
+        return hashlib.sha256(data).digest()
+    if algorithm == "sha384":
+        return hashlib.sha384(data).digest()
+    if algorithm == "sha512":
+        return hashlib.sha512(data).digest()
+    if algorithm == "sm3_256":
+        # SM3 is not guaranteed to be there
+        return hashlib.new("sm3", data).digest()
+
+    raise ValueError(f"Unsupported hash algorithm {algorithm}")
+
+
 class Hash(str, enum.Enum):
     SHA1 = "sha1"
     SHA256 = "sha256"
     SHA384 = "sha384"
     SHA512 = "sha512"
     SM3_256 = "sm3_256"
+
+    def __init__(self, *args):  # pylint: disable=unused-argument
+        super().__init__()
+        # Test hash to raise ValueError for unsupported hashes
+        _hashit(self.value, b"")
 
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
@@ -27,26 +48,11 @@ class Hash(str, enum.Enum):
         except ValueError:
             return False
 
-    def hash(self, data: bytes) -> Optional[bytes]:
-        if self == Hash.SHA1:
-            return hashlib.sha1(data).digest()
-        if self == Hash.SHA256:
-            return hashlib.sha256(data).digest()
-        if self == Hash.SHA384:
-            return hashlib.sha384(data).digest()
-        if self == Hash.SHA512:
-            return hashlib.sha512(data).digest()
-        if self == Hash.SM3_256:
-            # SM3 might not be guaranteed to be there
-            try:
-                return hashlib.new("sm3", data).digest()
-            except ValueError:
-                return None
+    def hash(self, data: bytes) -> bytes:
+        return _hashit(self.value, data)
 
-        return None
-
-    def get_size(self) -> Optional[int]:
-        return _HASH_SIZE.get(self)
+    def get_size(self) -> int:
+        return _HASH_SIZE[self]
 
     def __str__(self) -> str:
         return self.value
