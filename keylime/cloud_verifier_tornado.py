@@ -574,8 +574,8 @@ class AgentsHandler(BaseHandler):
                         ima_policy = json.dumps(ima.process_ima_policy(ima.EMPTY_ALLOWLIST, []))
 
                     if ima_policy:
-                        is_valid, err_msg = cloud_verifier_common.validate_ima_policy_data(ima_policy)
-                        if not is_valid:
+                        err_msg = cloud_verifier_common.validate_ima_policy_data(ima_policy)
+                        if err_msg:
                             web_util.echo_json_response(self, 400, err_msg)
                             logger.warning(err_msg)
                             return
