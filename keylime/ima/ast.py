@@ -332,7 +332,7 @@ class Entry:
 
     pcr: str
     ima_template_hash: bytes
-    pcr_template_hash: Optional[bytes]
+    pcr_template_hash: bytes
     mode: Mode
     _bytes: bytes
     _validator: Optional[Validator]
