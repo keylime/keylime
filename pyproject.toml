@@ -35,5 +35,6 @@ ignore = [
     "keylime/registrar_common.py",
     "keylime/json.py",
     "keylime/cloud_verifier_tornado.py",
+    "keylime/ca_impl_openssl.py",
 ]
 reportMissingImports = false
