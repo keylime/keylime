@@ -307,7 +307,7 @@ def prepare_error(agent, msgtype="revocation", event=None):
 
 def validate_ima_policy_data(agent_data):
     if agent_data is None:
-        return False, None
+        return "No ima_policy provided"
 
     # validate that the allowlist is proper JSON
     lists = json.loads(agent_data)
