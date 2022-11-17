@@ -55,17 +55,17 @@ class HashAlgo(enum.IntEnum):
 class MyStreebog256(hashes.HashAlgorithm):
     """Basic class for Streebog256"""
 
-    name = "streebog256"
-    digest_size = 32
-    block_size = 64
+    name = "streebog256"  # type: ignore
+    digest_size = 32  # type: ignore
+    block_size = 64  # type: ignore
 
 
 class MyStreebog512(hashes.HashAlgorithm):
     """Basic class for Streebog512"""
 
-    name = "streebog512"
-    digest_size = 64
-    block_size = 64
+    name = "streebog512"  # type: ignore
+    digest_size = 64  # type: ignore
+    block_size = 64  # type: ignore
 
 
 HASH_FUNCS = {
