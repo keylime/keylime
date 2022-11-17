@@ -12,22 +12,6 @@ def is_accepted(algorithm: str, accepted: List[Any]) -> bool:
     return algorithm in accepted
 
 
-def _hashit(algorithm: str, data: bytes) -> bytes:
-    if algorithm == "sha1":
-        return hashlib.sha1(data).digest()
-    if algorithm == "sha256":
-        return hashlib.sha256(data).digest()
-    if algorithm == "sha384":
-        return hashlib.sha384(data).digest()
-    if algorithm == "sha512":
-        return hashlib.sha512(data).digest()
-    if algorithm == "sm3_256":
-        # SM3 is not guaranteed to be there
-        return hashlib.new("sm3", data).digest()
-
-    raise ValueError(f"Unsupported hash algorithm {algorithm}")
-
-
 class Hash(str, enum.Enum):
     SHA1 = "sha1"
     SHA256 = "sha256"
@@ -38,7 +22,7 @@ class Hash(str, enum.Enum):
     def __init__(self, *args):  # pylint: disable=unused-argument
         super().__init__()
         # Test hash to raise ValueError for unsupported hashes
-        _hashit(self.value, b"")
+        self.hash(b"")
 
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
@@ -49,7 +33,19 @@ class Hash(str, enum.Enum):
             return False
 
     def hash(self, data: bytes) -> bytes:
-        return _hashit(self.value, data)
+        if self.value == "sha1":
+            return hashlib.sha1(data).digest()
+        if self.value == "sha256":
+            return hashlib.sha256(data).digest()
+        if self.value == "sha384":
+            return hashlib.sha384(data).digest()
+        if self.value == "sha512":
+            return hashlib.sha512(data).digest()
+        if self.value == "sm3_256":
+            # SM3 is not guaranteed to be there
+            return hashlib.new("sm3", data).digest()
+
+        raise ValueError(f"Unsupported hash algorithm {self.value}")
 
     def get_size(self) -> int:
         return _HASH_SIZE[self]
