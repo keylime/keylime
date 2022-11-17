@@ -12,47 +12,36 @@ def is_accepted(algorithm: str, accepted: List[Any]) -> bool:
     return algorithm in accepted
 
 
-def _hashit(algorithm: str, data: bytes) -> bytes:
-    if algorithm == "sha1":
-        return hashlib.sha1(data).digest()
-    if algorithm == "sha256":
-        return hashlib.sha256(data).digest()
-    if algorithm == "sha384":
-        return hashlib.sha384(data).digest()
-    if algorithm == "sha512":
-        return hashlib.sha512(data).digest()
-    if algorithm == "sm3_256":
-        # SM3 is not guaranteed to be there
-        return hashlib.new("sm3", data).digest()
-
-    raise ValueError(f"Unsupported hash algorithm {algorithm}")
-
-
 class Hash(str, enum.Enum):
+    # Names compatible with tpm2-tools (man/common/alg.md)
     SHA1 = "sha1"
     SHA256 = "sha256"
     SHA384 = "sha384"
     SHA512 = "sha512"
     SM3_256 = "sm3_256"
 
-    def __init__(self, *args):  # pylint: disable=unused-argument
-        super().__init__()
-        # Test hash to raise ValueError for unsupported hashes
-        _hashit(self.value, b"")
+    @classmethod
+    def from_algorithm(cls, algorithm: str) -> "Hash":
+        return cls(algorithm)
 
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
         try:
-            Hash(algorithm)
-            return True
+            Hash(algorithm).get_size()
         except ValueError:
             return False
+        return True
+
+    def __hashfn(self, data: bytes) -> Any:
+        # Translate from tmp2-tools name into hashlib.new() name
+        alg = "sm3" if self.value == "sm3_256" else self.value
+        return hashlib.new(alg, data)
 
     def hash(self, data: bytes) -> bytes:
-        return _hashit(self.value, data)
+        return self.__hashfn(data).digest()
 
     def get_size(self) -> int:
-        return _HASH_SIZE[self]
+        return self.__hashfn(b"").digest_size * 8
 
     def __str__(self) -> str:
         return self.value
@@ -79,12 +68,3 @@ class Sign:
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
         return algorithm in Sign.supported_algorithms
-
-
-_HASH_SIZE = {
-    Hash.SHA1: 160,
-    Hash.SHA256: 256,
-    Hash.SHA384: 384,
-    Hash.SHA512: 512,
-    Hash.SM3_256: 256,
-}
