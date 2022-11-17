@@ -5,12 +5,12 @@ JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
 
 _list_types = [list, tuple]
 try:
-    from sqlalchemy.engine.row import Row  # sqlalchemy >= 1.4.
+    from sqlalchemy.engine.row import Row  # type: ignore  ;sqlalchemy >= 1.4.
 
     _list_types.append(Row)
 except ModuleNotFoundError:
     try:
-        from sqlalchemy.engine import RowProxy
+        from sqlalchemy.engine import RowProxy  # type: ignore
 
         _list_types.append(RowProxy)
     except ModuleNotFoundError:
