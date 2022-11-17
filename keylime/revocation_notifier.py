@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 from multiprocessing import Process
-from typing import Optional
+from typing import Optional, cast
 
 import requests
 
@@ -215,7 +215,7 @@ def await_notifications(callback, revocation_cert_path):
     )
 
     while True:
-        rawbody = mysock.recv()
+        rawbody = cast(bytes, mysock.recv())  # pyright
         body = json.loads(rawbody)
         process_revocation(body, callback, revocation_cert_path)
 
