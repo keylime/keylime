@@ -356,7 +356,7 @@ def base_build_key_list(registration_record_list: list) -> list:
     return aik_list
 
 
-def get_record_mgt_class(store_import: bool = False):
+def get_record_mgt_class(store_import: str = ""):
     """Dynamically imports a persistent store backend"""
     if store_import:
         return getattr(importlib.import_module(store_import), "RecordManagement")
