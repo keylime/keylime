@@ -305,12 +305,12 @@ def prepare_error(agent, msgtype="revocation", event=None):
     return tosend
 
 
-def validate_ima_policy_data(agent_data):
-    if agent_data is None:
-        return False, None
+def validate_ima_policy_data(ima_policy):
+    if ima_policy is None:
+        return "No ima_policy provided"
 
     # validate that the allowlist is proper JSON
-    lists = json.loads(agent_data)
+    lists = json.loads(ima_policy)
 
     # Validate that exclude list contains valid regular expressions
     _, err_msg_from_validator = validators.valid_exclude_list(lists.get("exclude"))
