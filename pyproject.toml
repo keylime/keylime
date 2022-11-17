@@ -29,7 +29,6 @@ ignore = [
     "keylime/da/record.py",
     "keylime/cmd/ima_emulator_adapter.py",
     "keylime/cmd/convert_ima_policy.py",
-    "keylime/ima/file_signatures.py",
     "keylime/revocation_actions/update_crl.py",
     "keylime/revocation_notifier.py",
     "keylime/registrar_common.py",
