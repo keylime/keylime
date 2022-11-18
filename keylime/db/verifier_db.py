@@ -1,4 +1,6 @@
-from sqlalchemy import Column, ForeignKey, Integer, LargeBinary, PickleType, String, Text, schema
+import datetime
+
+from sqlalchemy import TIMESTAMP, Column, ForeignKey, Integer, LargeBinary, PickleType, String, Text, schema
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -61,3 +63,4 @@ class VerifierAllowlist(Base):
     generator = Column(Integer)
     tpm_policy = Column(Text())
     ima_policy = Column(Text().with_variant(Text(429400000), "mysql"))
+    modified = Column(TIMESTAMP, nullable=False, default=datetime.datetime.now, onupdate=datetime.datetime.now)
