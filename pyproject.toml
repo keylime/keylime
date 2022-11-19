@@ -27,7 +27,6 @@ ignore = [
     "keylime/da/examples/redis.py",
     "keylime/da/examples/file.py",
     "keylime/da/record.py",
-    "keylime/cmd/ima_emulator_adapter.py",
     "keylime/revocation_actions/update_crl.py",
     "keylime/cloud_verifier_tornado.py",
     "keylime/ca_impl_openssl.py",
