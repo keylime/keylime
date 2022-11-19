@@ -2,6 +2,7 @@ import base64
 import enum
 import json
 import struct
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
@@ -18,6 +19,8 @@ from keylime import keylime_logging
 
 logger = keylime_logging.init_logging("file_signatures")
 
+
+SupportedKeyTypes = Union[RSAPublicKey, EllipticCurvePublicKey]
 
 """
 Tools for IMA file signature verification
@@ -100,12 +103,14 @@ class PubkeyAlgo(enum.IntEnum):
 class ImaKeyring:
     """ImaKeyring models an IMA keyring where keys are indexed by their keyid"""
 
-    def __init__(self):
+    ringv2: Dict[int, SupportedKeyTypes]
+
+    def __init__(self) -> None:
         """Constructor"""
         self.ringv2 = {}
 
     @staticmethod
-    def _get_keyidv2(pubkey):
+    def _get_keyidv2(pubkey: SupportedKeyTypes) -> int:
         """Calculate the keyidv2 of a given public key object. The keyidv2
         are the lowest 4 bytes of the sha1 hash over the public key bytes
         of a DER-encoded key in PKCS1 format.
@@ -125,7 +130,7 @@ class ImaKeyring:
         keydigest = digest.finalize()
         return int.from_bytes(keydigest[16:], "big")
 
-    def add_pubkey(self, pubkey, keyidv2):
+    def add_pubkey(self, pubkey: SupportedKeyTypes, keyidv2: Optional[int]) -> None:
         """Add a public key object to the keyring; a keyidv2 may be passed in
         and if it is 'None' it will be determined using the commonly used
         sha1 hash function for calculating the Subject Key Identifier.
@@ -136,11 +141,11 @@ class ImaKeyring:
         self.ringv2[keyidv2] = pubkey
         logger.debug("Added key with keyid: 0x%08x", keyidv2)
 
-    def get_pubkey_by_keyidv2(self, keyidv2):
+    def get_pubkey_by_keyidv2(self, keyidv2: int) -> Optional[SupportedKeyTypes]:
         """Get a public key object given its keyidv2"""
         return self.ringv2.get(keyidv2)
 
-    def to_json(self):
+    def to_json(self) -> Dict[str, List[Union[int, str]]]:
         """Convert the ImaKeyring into a JSON object"""
         fmt = serialization.PublicFormat.SubjectPublicKeyInfo
         obj = {}
@@ -157,12 +162,12 @@ class ImaKeyring:
         obj["keyids"] = list(self.ringv2.keys())
         return obj
 
-    def to_string(self):
+    def to_string(self) -> str:
         """Generate a string representation"""
         return json.dumps(self.to_json())
 
     @staticmethod
-    def _base64_to_der_keylist(base64_keylist, keyidv2_list):
+    def _base64_to_der_keylist(base64_keylist, keyidv2_list) -> List[Tuple[bytes, int]]:
         """Convert a base64-encoded list of public keys to a list of DER-encoded
         public keys; a keyidv2_list may also be given that contains
         the keyidv2 of each key
@@ -174,7 +179,7 @@ class ImaKeyring:
         return res
 
     @staticmethod
-    def from_string(stringrepr):
+    def from_string(stringrepr: str) -> Optional["ImaKeyring"]:
         """Convert a string-encoded ImaKeyring to an ImaKeyring object"""
         if not stringrepr:
             return None
@@ -196,6 +201,8 @@ class ImaKeyring:
         for (der_key, keyidv2) in ImaKeyring._base64_to_der_keylist(obj["pubkeys"], keyids):
             try:
                 pubkey = serialization.load_der_public_key(der_key, backend=default_be)
+                if not isinstance(pubkey, (RSAPublicKey, EllipticCurvePublicKey)):
+                    raise ValueError(f"Unsupported key type {type(pubkey).__name__}")
                 ima_keyring.add_pubkey(pubkey, keyidv2)
             except Exception as ex:
                 logger.error("Could not load a base64-decoded DER key: %s", str(ex))
@@ -205,18 +212,21 @@ class ImaKeyring:
 class ImaKeyrings:
     """IMA Keyrings models the various keyrings of the system where IMA may take its keys from"""
 
-    def __init__(self):
+    keyrings: Dict[str, ImaKeyring]
+
+    def __init__(self) -> None:
         """Constructor"""
         self.keyrings = {}
 
-    def add_to_keyring_from_data(self, filedata, keyring_name):
+    def add_to_keyring_from_data(self, filedata: bytes, keyring_name: str) -> None:
         """Add the public key, given as a plain filedata (bytes), to the keyring by the given name
         after converting the key to an object. If a keyring by the given name doesn't exist, one
         will be created."""
         pubkey, keyidv2 = get_pubkey(filedata)
-        self.add_pubkey_to_keyring(pubkey, keyring_name, keyidv2=keyidv2)
+        if pubkey:
+            self.add_pubkey_to_keyring(pubkey, keyring_name, keyidv2=keyidv2)
 
-    def add_pubkey_to_keyring(self, pubkey, keyring_name, keyidv2=None):
+    def add_pubkey_to_keyring(self, pubkey: SupportedKeyTypes, keyring_name: str, keyidv2=None) -> None:
         """Add a public key object to a keyring by the given name. If a keyring by the given name
         doesn't exist, one will be created."""
         keyring = self.keyrings.get(keyring_name)
@@ -225,22 +235,22 @@ class ImaKeyrings:
             self.keyrings[keyring_name] = keyring
         keyring.add_pubkey(pubkey, keyidv2)
 
-    def set_tenant_keyring(self, tenant_keyring):
+    def set_tenant_keyring(self, tenant_keyring: ImaKeyring) -> None:
         """Set the tenant keyring for which the tenant provided the keys via command line."""
         if tenant_keyring:
             self.keyrings["tenant_keyring"] = tenant_keyring
         else:
             self.keyrings.pop("tenant_keyring", None)
 
-    def get_tenant_keyring(self):
+    def get_tenant_keyring(self) -> Optional[ImaKeyring]:
         """Get the tenant keyring."""
         return self.keyrings.get("tenant_keyring")
 
-    def get_all_keyrings(self):
+    def get_all_keyrings(self) -> List[ImaKeyring]:
         """Get a list of all the keyrings"""
         return list(self.keyrings.values())
 
-    def to_json(self):
+    def to_json(self) -> Dict[str, str]:
         """Convert an ImaKeyrings into its JSON representation; this does not include the tenant keyring"""
         obj = {}
 
@@ -251,12 +261,12 @@ class ImaKeyrings:
 
         return obj
 
-    def to_string(self):
+    def to_string(self) -> str:
         """Convert an ImaKeyrings into its string representation; this does not include the tenant keyring"""
         return json.dumps(self.to_json())
 
     @staticmethod
-    def from_string(stringrepr):
+    def from_string(stringrepr: str) -> Optional["ImaKeyrings"]:
         """Convert a string-encoded ImaKeyrings into an ImaKeyrings object."""
 
         obj = json.loads(stringrepr)
@@ -268,24 +278,26 @@ class ImaKeyrings:
         return ImaKeyrings.from_json(obj)
 
     @staticmethod
-    def from_json(obj):
+    def from_json(obj) -> "ImaKeyrings":
         """Convert a JSON representation of an ImaKeyrings object to an ImaKeyrings object."""
         ima_keyrings = ImaKeyrings()
 
         for name, keyring_str in obj.items():
-            ima_keyrings.keyrings[name] = ImaKeyring.from_string(keyring_str)
+            ima_keyring = ImaKeyring.from_string(keyring_str)
+            if ima_keyring:
+                ima_keyrings.keyrings[name] = ima_keyring
 
         return ima_keyrings
 
     @staticmethod
-    def _verify(pubkey, sig, filehash, hashfunc):
+    def _verify(pubkey: SupportedKeyTypes, sig: bytes, filehash: bytes, hashfunc) -> None:
         """Do signature verification with the given public key"""
         if isinstance(pubkey, RSAPublicKey):
             pubkey.verify(sig, filehash, padding.PKCS1v15(), Prehashed(hashfunc))
         elif isinstance(pubkey, EllipticCurvePublicKey):
             pubkey.verify(sig, filehash, ec.ECDSA(Prehashed(hashfunc)))
 
-    def _asymmetric_verify(self, signature, filehash, filehash_type):
+    def _asymmetric_verify(self, signature: bytes, filehash: bytes, filehash_type: str) -> bool:
         """Do an IMA signature verification given the signature data from
         the log, which is formatted as 'struct signature_v2_hdr'.
         This function resembles the kernel code:
@@ -337,7 +349,7 @@ class ImaKeyrings:
             return False
         return True
 
-    def integrity_digsig_verify(self, signature, filehash, filehash_type):
+    def integrity_digsig_verify(self, signature: bytes, filehash: bytes, filehash_type: str) -> bool:
         """Validate the signature against the given hash trying all keyrings.
         This function resembles the kernel code at:
         https://elixir.bootlin.com/linux/v5.9/source/security/integrity/digsig.c#L59
@@ -359,7 +371,7 @@ class ImaKeyrings:
         return False
 
 
-def _get_pubkey_from_der_public_key(filedata, backend):
+def _get_pubkey_from_der_public_key(filedata: bytes, backend: Any) -> Tuple[Any, None]:
     """Load the filedata as a DER public key"""
     try:
         return serialization.load_der_public_key(filedata, backend=backend), None
@@ -367,7 +379,7 @@ def _get_pubkey_from_der_public_key(filedata, backend):
         return None, None
 
 
-def _get_pubkey_from_pem_public_key(filedata, backend):
+def _get_pubkey_from_pem_public_key(filedata: bytes, backend: Any) -> Tuple[Any, None]:
     """Load the filedata as a PEM public key"""
     try:
         return serialization.load_pem_public_key(filedata, backend=backend), None
@@ -375,7 +387,7 @@ def _get_pubkey_from_pem_public_key(filedata, backend):
         return None, None
 
 
-def _get_pubkey_from_der_private_key(filedata, backend):
+def _get_pubkey_from_der_private_key(filedata: bytes, backend: Any) -> Tuple[Any, None]:
     """Load the filedata as a DER private key"""
     try:
         privkey = serialization.load_der_private_key(filedata, None, backend=backend)
@@ -384,7 +396,7 @@ def _get_pubkey_from_der_private_key(filedata, backend):
         return None, None
 
 
-def _get_pubkey_from_pem_private_key(filedata, backend):
+def _get_pubkey_from_pem_private_key(filedata: bytes, backend: Any) -> Tuple[Any, None]:
     """Load the filedata as a PEM private key"""
     try:
         privkey = serialization.load_pem_private_key(filedata, None, backend=backend)
@@ -393,7 +405,7 @@ def _get_pubkey_from_pem_private_key(filedata, backend):
         return None, None
 
 
-def _get_keyidv2_from_cert(cert):
+def _get_keyidv2_from_cert(cert) -> Optional[int]:
     """Get the keyidv2 from the cert's Subject Key Identifier (SKID) if available."""
     if cert.extensions:
         try:
@@ -409,7 +421,7 @@ def _get_keyidv2_from_cert(cert):
     return None
 
 
-def _get_pubkey_from_der_x509_certificate(filedata, backend):
+def _get_pubkey_from_der_x509_certificate(filedata: bytes, backend: Any) -> Tuple[Any, Optional[int]]:
     """Load the filedata as a DER x509 certificate"""
     try:
         cert = x509.load_der_x509_certificate(filedata, backend=backend)
@@ -418,7 +430,7 @@ def _get_pubkey_from_der_x509_certificate(filedata, backend):
         return None, None
 
 
-def _get_pubkey_from_pem_x509_certificate(filedata, backend):
+def _get_pubkey_from_pem_x509_certificate(filedata: bytes, backend: Any) -> Tuple[Any, Optional[int]]:
     """Load the filedata as a PEM x509 certificate"""
     try:
         cert = x509.load_pem_x509_certificate(filedata, backend=backend)
@@ -427,7 +439,7 @@ def _get_pubkey_from_pem_x509_certificate(filedata, backend):
         return None, None
 
 
-def get_pubkey(filedata):
+def get_pubkey(filedata: bytes) -> Tuple[Optional[SupportedKeyTypes], Optional[int]]:
     """Get the public key from the filedata; if an x509 certificate is
     given, also determine the keyidv2 from the Subject Key Identifier,
     otherwise return None
@@ -454,12 +466,14 @@ def get_pubkey(filedata):
     return None, None
 
 
-def get_pubkey_from_file(filename):
+def get_pubkey_from_file(filename: str) -> Tuple[Optional[SupportedKeyTypes], Optional[int]]:
     """Get the public key object from a file"""
     with open(filename, "rb") as fobj:
         filedata = fobj.read()
         pubkey, keyidv2 = get_pubkey(filedata)
         if pubkey:
+            if not isinstance(pubkey, (RSAPublicKey, EllipticCurvePublicKey)):
+                raise ValueError(f"Unsupported key type {type(pubkey).__name__}")
             return pubkey, keyidv2
 
     return None, None
