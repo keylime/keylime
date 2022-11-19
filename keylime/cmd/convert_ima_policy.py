@@ -4,8 +4,11 @@ import datetime
 import json
 import sys
 from os.path import basename
+from typing import Any, Dict, List, Optional
 
 from keylime.ima import file_signatures, ima
+
+PolicyDict = Dict[str, Any]
 
 # pylint: disable=pointless-string-statement
 """
@@ -35,7 +38,7 @@ python convert_ima_policy.py -h
 """
 
 # Creates an IMA policy from provided legacy allowlist.
-def convert_legacy_allowlist(allowlist_path):
+def convert_legacy_allowlist(allowlist_path: str) -> PolicyDict:
     with open(allowlist_path, "r", encoding="utf8") as f:
         alist_raw = f.read()
 
@@ -53,7 +56,7 @@ def convert_legacy_allowlist(allowlist_path):
 
 
 # Converts JSON-format allowlist to JSON-format IMA policy
-def _convert_json_allowlist(alist_json):
+def _convert_json_allowlist(alist_json: PolicyDict) -> PolicyDict:
     ima_policy = copy.deepcopy(ima.EMPTY_IMA_POLICY)
     ima_policy["meta"]["timestamp"] = str(datetime.datetime.now())
     ima_policy["meta"]["generator"] = "convert_ima_policy.py"
@@ -77,7 +80,7 @@ def _convert_json_allowlist(alist_json):
 
 
 # Converts flat-format allowlist to JSON-format IMA policy
-def _convert_flat_format_allowlist(alist_raw):
+def _convert_flat_format_allowlist(alist_raw: str) -> PolicyDict:
     ima_policy = copy.deepcopy(ima.EMPTY_IMA_POLICY)
     ima_policy["meta"]["timestamp"] = str(datetime.datetime.now())
     ima_policy["meta"]["generator"] = "convert-ima-policy"
@@ -109,12 +112,14 @@ def _convert_flat_format_allowlist(alist_raw):
 
 
 # Updates an existing IMA policy to the latest version, and adds any provided input
-def update_ima_policy(policy, excludelist_path=None, verification_keys=None):
+def update_ima_policy(
+    policy: PolicyDict, excludelist_path: Optional[str] = None, verification_keys: Optional[List[str]] = None
+) -> PolicyDict:
     if policy["meta"]["version"] < ima.IMA_POLICY_CURRENT_VERSION:
         print(
             f"Provided policy has version {policy['meta']['version']}; latest policy has version {ima.IMA_POLICY_CURRENT_VERSION}. Updating to latest version."
         )
-        updated_policy = copy.deepcopy(ima.IMA_POLICY_CURRENT_VERSION)
+        updated_policy: Dict = copy.deepcopy(ima.EMPTY_IMA_POLICY)
         updated_policy["meta"]["timestamp"] = str(datetime.datetime.now())
         updated_policy["meta"]["generator"] = "convert_ima_policy.py"
         for key in updated_policy.keys():
@@ -139,15 +144,19 @@ def update_ima_policy(policy, excludelist_path=None, verification_keys=None):
     verification_key_list = None
     if verification_keys:
         keyring = file_signatures.ImaKeyring().from_string(policy["ima_sign_verification_keys"])
-        for key in verification_keys:
-            try:
-                pubkey, keyidv2 = file_signatures.get_pubkey_from_file(key)
-                if not pubkey:
-                    print(f"File '{key}' is not a file with a key")
-                keyring.add_pubkey(pubkey, keyidv2)
-            except ValueError as e:
-                print(f"File '{key}' does not have a supported key: {e}")
-        verification_key_list = json.dumps(keyring.to_string())
+        if not keyring:
+            print("Could not create IMAKeyring from JSON")
+        else:
+            for key in verification_keys:
+                try:
+                    pubkey, keyidv2 = file_signatures.get_pubkey_from_file(key)
+                    if not pubkey:
+                        print(f"File '{key}' is not a file with a key")
+                    else:
+                        keyring.add_pubkey(pubkey, keyidv2)
+                except ValueError as e:
+                    print(f"File '{key}' does not have a supported key: {e}")
+            verification_key_list = json.dumps(keyring.to_string())
 
     policy["excludes"] += excl_list
     if verification_key_list:
@@ -171,7 +180,10 @@ def main():
         parser.exit()
 
     args = parser.parse_args()
-    if (bool(args.allowlist) and not bool(args.ima_policy)) and (not bool(args.allowlist) and bool(args.ima_policy)):
+    if bool(args.allowlist) and bool(args.ima_policy):
+        print("Cannot provide both --allowlist and --ima-policy!")
+        sys.exit(1)
+    elif not bool(args.allowlist) and not bool(args.ima_policy):
         print("Either --allowlist or --ima_policy is required!")
         sys.exit(1)
     elif not args.output_file:
@@ -183,6 +195,12 @@ def main():
     elif args.ima_policy:
         with open(args.ima_policy, "r", encoding="utf8") as f:
             policy = json.load(f)
+        if not isinstance(policy, Dict):
+            print(f"The policy in file {args.ima_policy} must be a dictionary")
+            sys.exit(1)
+    else:
+        assert False  # This cannot happen
+
     policy_out = update_ima_policy(policy, excludelist_path=args.excludelist, verification_keys=args.verification_keys)
     with open(args.output_file, "wb") as f:
         f.write(json.dumps(policy_out).encode())
