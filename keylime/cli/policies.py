@@ -46,7 +46,10 @@ def process_allowlist(args):
         # Add all IMA file signing verification keys to a keyring
         tenant_keyring = file_signatures.ImaKeyring()
         for filename in args["ima_sign_verification_keys"]:
-            pubkey, keyidv2 = file_signatures.get_pubkey_from_file(filename)
+            try:
+                pubkey, keyidv2 = file_signatures.get_pubkey_from_file(filename)
+            except ValueError as e:
+                raise UserError(f"File '{filename}' does not have a supported key: {e}") from e
             if not pubkey:
                 raise UserError(f"File '{filename}' is not a file with a key")
             tenant_keyring.add_pubkey(pubkey, keyidv2)

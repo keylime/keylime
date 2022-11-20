@@ -140,10 +140,13 @@ def update_ima_policy(policy, excludelist_path=None, verification_keys=None):
     if verification_keys:
         keyring = file_signatures.ImaKeyring().from_string(policy["ima_sign_verification_keys"])
         for key in verification_keys:
-            pubkey, keyidv2 = file_signatures.get_pubkey_from_file(key)
-            if not pubkey:
-                print(f"File '{key}' is not a file with a key")
-            keyring.add_pubkey(pubkey, keyidv2)
+            try:
+                pubkey, keyidv2 = file_signatures.get_pubkey_from_file(key)
+                if not pubkey:
+                    print(f"File '{key}' is not a file with a key")
+                keyring.add_pubkey(pubkey, keyidv2)
+            except ValueError as e:
+                print(f"File '{key}' does not have a supported key: {e}")
         verification_key_list = json.dumps(keyring.to_string())
 
     policy["excludes"] += excl_list
