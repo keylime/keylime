@@ -227,7 +227,11 @@ def _validate_ima_buf(
 ):
     failure = Failure(Component.IMA)
     # Is data.data a key?
-    pubkey, keyidv2 = file_signatures.get_pubkey(data.data)
+    try:
+        pubkey, keyidv2 = file_signatures.get_pubkey(data.data)
+    except ValueError as ve:
+        failure.add_event("invalid_key", f"key from {path.name} does not have a supported key: {ve}", True)
+        return failure
     if pubkey:
         ignored_keyrings = allowlist["ima"]["ignored_keyrings"]
         if "*" not in ignored_keyrings and path.name not in ignored_keyrings:

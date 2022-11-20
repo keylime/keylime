@@ -447,6 +447,8 @@ def get_pubkey(filedata):
     ]:
         pubkey, keyidv2 = func(filedata, default_be)
         if pubkey:
+            if not isinstance(pubkey, (RSAPublicKey, EllipticCurvePublicKey)):
+                raise ValueError(f"Unsupported key type {type(pubkey).__name__}")
             return pubkey, keyidv2
 
     return None, None
@@ -454,13 +456,10 @@ def get_pubkey(filedata):
 
 def get_pubkey_from_file(filename):
     """Get the public key object from a file"""
-    try:
-        with open(filename, "rb") as fobj:
-            filedata = fobj.read()
-            pubkey, keyidv2 = get_pubkey(filedata)
-            if pubkey:
-                return pubkey, keyidv2
-    except Exception:
-        pass
+    with open(filename, "rb") as fobj:
+        filedata = fobj.read()
+        pubkey, keyidv2 = get_pubkey(filedata)
+        if pubkey:
+            return pubkey, keyidv2
 
     return None, None
