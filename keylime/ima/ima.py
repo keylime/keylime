@@ -42,7 +42,7 @@ EMPTY_ALLOWLIST = {
     "meta": {
         "version": ALLOWLIST_CURRENT_VERSION,
         "generator": IMA_POLICY_GENERATOR.EmptyAllowList,
-        "checksum": "1ab36a57ad793caba756b01fc142f296cbfc3d24088fe6d66448f3bb6ebadeee",
+        "checksum": "",
     },
     "release": 0,
     "hashes": {},
@@ -638,18 +638,15 @@ def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: st
         ima_policy_db_format["ima_policy"] = None
     else:
         ima_policy_db_format["ima_policy"] = ima_policy
-    ima_policy_json = json.loads(ima_policy)
-    if "allowlist" in ima_policy_json:
-        if "meta" in ima_policy_json["allowlist"]:
-            if "checksum" in ima_policy_json["allowlist"]["meta"]:
-                ima_policy_db_format["checksum"] = ima_policy_json["allowlist"]["meta"]["checksum"]
-            else:
-                alist_bytes = json.dumps(copy.deepcopy(EMPTY_ALLOWLIST)).encode()
-                sha256 = hashlib.sha256()
-                sha256.update(alist_bytes)
-                ima_policy_db_format["checksum"] = sha256.hexdigest()
-            if "generator" in ima_policy_json["allowlist"]["meta"]:
-                ima_policy_db_format["generator"] = ima_policy_json["allowlist"]["meta"]["generator"]
+
+    ima_policy_bytes = ima_policy.encode()
+    ima_policy_db_format["checksum"] = hashlib.sha256(ima_policy_bytes).hexdigest()
+
+    ima_policy_dict = json.loads(ima_policy)
+    if "allowlist" in ima_policy_dict:
+        if "meta" in ima_policy_dict["allowlist"]:
+            if "generator" in ima_policy_dict["allowlist"]["meta"]:
+                ima_policy_db_format["generator"] = ima_policy_dict["allowlist"]["meta"]["generator"]
             else:
                 ima_policy_db_format["generator"] = IMA_POLICY_GENERATOR.Unknown
 
