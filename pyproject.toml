@@ -22,7 +22,6 @@ ignore = [
     "keylime/keylime_agent.py",
     "keylime/elchecking/",
     "keylime/migrations/versions/",
-    "keylime/test/",
     "keylime/da/examples/tsa_rfc3161.py",
     "keylime/da/examples/sqldb.py",
     "keylime/da/examples/redis.py",
