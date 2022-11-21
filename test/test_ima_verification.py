@@ -278,9 +278,7 @@ class TestIMAVerification(unittest.TestCase):
         al_data = ima.unbundle_ima_policy(al_bundle, verify=False)
         self.assertIsNotNone(al_data["meta"], "AllowList metadata is present")
         self.assertEqual(al_data["meta"]["version"], 5, "AllowList metadata version is correct")
-        self.assertEqual(
-            al_data["meta"]["generator"], "keylime-legacy-format-upgrade", "AllowList metadata generator is correct"
-        )
+        self.assertEqual(al_data["meta"]["generator"], 3, "AllowList metadata generator is correct")
 
         self.assertIsNotNone(al_data["meta"].get("checksum", None), "AllowList checksum is present")
         self.assertIsNotNone(al_data["hashes"], "AllowList hashes are present")

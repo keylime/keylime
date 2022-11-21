@@ -73,6 +73,7 @@ Cloud verifier (CV)
             "vtpm_policy": "{\"23\": [\"ffffffffffffffffffffffffffffffffffffffff\", \"0000000000000000000000000000000000000000\"], \"15\": [\"0000000000000000000000000000000000000000\"], \"mask\": \"0x808000\"}",
             "meta_data": "{}",
             "has_mb_refstate": 0,
+            "has_ima_policy": 0,
             "accept_tpm_hash_algs": [
               "sha512",
               "sha384",
@@ -108,7 +109,8 @@ Cloud verifier (CV)
     :>json string vtpm_policy: Static PCR policy and mask for vTPM
     :>json string meta_data: Metadata about the agent. Normally contains certificate information if a CA is used.
     :>json int allowlist_len: Length of the allowlist.
-    :>json int mb_refstate_len: Length of the measured boot reference state policy.
+    :>json int mb_refstate_len: 1 if a measured boot refstate was provided via tenant, 0 otherwise.
+    :>json int mb_ima_policy: 1 if an IMA policy (allowlist and excludelist) was provided via tenant, 0 otherwise.
     :>json list[string] accept_tpm_hash_algs: Accepted TPM hashing algorithms. sha1 must be enabled for IMA validation to work.
     :>json list[string] accept_tpm_encryption_algs: Accepted TPM encryption algorithms.
     :>json list[string] accept_tpm_signing_algs: Accepted TPM signing algorithms.

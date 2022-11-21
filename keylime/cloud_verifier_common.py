@@ -251,6 +251,10 @@ def process_get_status(agent):
         )
         logger.debug('The contents of the agent %s attribute "mb_refstate" are %s', agent_id, agent.mb_refstate)
 
+    has_ima_policy = 0
+    if agent.ima_policy.generator > 1:
+        has_ima_policy = 1
+
     response = {
         "operational_state": agent.operational_state,
         "v": agent.v,
@@ -259,6 +263,7 @@ def process_get_status(agent):
         "tpm_policy": agent.tpm_policy,
         "meta_data": agent.meta_data,
         "has_mb_refstate": has_mb_refstate,
+        "has_ima_policy": has_ima_policy,
         "accept_tpm_hash_algs": agent.accept_tpm_hash_algs,
         "accept_tpm_encryption_algs": agent.accept_tpm_encryption_algs,
         "accept_tpm_signing_algs": agent.accept_tpm_signing_algs,
