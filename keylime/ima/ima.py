@@ -624,11 +624,11 @@ def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: st
         ima_policy_db_format["ima_policy"] = None
     else:
         ima_policy_db_format["ima_policy"] = ima_policy
-    ima_policy = json.loads(ima_policy)
-    if "allowlist" in ima_policy:
-        if "meta" in ima_policy["allowlist"]:
-            if "checksum" in ima_policy["allowlist"]["meta"]:
-                ima_policy_db_format["checksum"] = ima_policy["allowlist"]["meta"]["checksum"]
+    ima_policy_json = json.loads(ima_policy)
+    if "allowlist" in ima_policy_json:
+        if "meta" in ima_policy_json["allowlist"]:
+            if "checksum" in ima_policy_json["allowlist"]["meta"]:
+                ima_policy_db_format["checksum"] = ima_policy_json["allowlist"]["meta"]["checksum"]
             else:
                 alist_bytes = json.dumps(copy.deepcopy(EMPTY_ALLOWLIST)).encode()
                 sha256 = hashlib.sha256()
