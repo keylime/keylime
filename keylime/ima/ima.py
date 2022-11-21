@@ -21,6 +21,14 @@ logger = keylime_logging.init_logging("ima")
 # The version of the allowlist format that is supported by this keylime release
 ALLOWLIST_CURRENT_VERSION = 5
 
+
+class IMA_POLICY_GENERATOR:
+    Unknown = 0
+    EmptyAllowList = 1
+    CompatibleAllowList = 2
+    LegacyAllowList = 3
+
+
 # A correctly-formatted empty allowlist.
 #
 # IMA allowlists of versions older than 5 will not have the "log_hash_alg"
@@ -33,6 +41,7 @@ ALLOWLIST_CURRENT_VERSION = 5
 EMPTY_ALLOWLIST = {
     "meta": {
         "version": ALLOWLIST_CURRENT_VERSION,
+        "generator": IMA_POLICY_GENERATOR.EmptyAllowList,
         "checksum": "1ab36a57ad793caba756b01fc142f296cbfc3d24088fe6d66448f3bb6ebadeee",
     },
     "release": 0,
@@ -581,13 +590,14 @@ def canonicalize_allowlist(alist_bytes, checksum=""):
         else:
             logger.debug("Allowlist does not specify a version. Assuming current version %s", ALLOWLIST_CURRENT_VERSION)
 
+        alist["meta"]["generator"] = IMA_POLICY_GENERATOR.CompatibleAllowList
     else:
         # convert legacy format into new structured format
         logger.debug("Converting legacy allowlist format to JSON")
 
         alist = copy.deepcopy(EMPTY_ALLOWLIST)
         alist["meta"]["timestamp"] = str(datetime.datetime.now())
-        alist["meta"]["generator"] = "keylime-legacy-format-upgrade"
+        alist["meta"]["generator"] = IMA_POLICY_GENERATOR.LegacyAllowList
         if checksum:
             alist["meta"]["checksum"] = checksum
 
@@ -638,6 +648,11 @@ def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: st
                 sha256 = hashlib.sha256()
                 sha256.update(alist_bytes)
                 ima_policy_db_format["checksum"] = sha256.hexdigest()
+            if "generator" in ima_policy_json["allowlist"]["meta"]:
+                ima_policy_db_format["generator"] = ima_policy_json["allowlist"]["meta"]["generator"]
+            else:
+                ima_policy_db_format["generator"] = IMA_POLICY_GENERATOR.Unknown
+
     if tpm_policy:
         ima_policy_db_format["tpm_policy"] = tpm_policy
     return ima_policy_db_format
