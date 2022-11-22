@@ -28,6 +28,5 @@ ignore = [
     "keylime/da/examples/file.py",
     "keylime/da/record.py",
     "keylime/cloud_verifier_tornado.py",
-    "keylime/ca_impl_openssl.py",
 ]
 reportMissingImports = false
