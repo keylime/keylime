@@ -4,6 +4,11 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric.dsa import DSAPrivateKey
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, load_pem_private_key
 from cryptography.x509.oid import NameOID
 
@@ -188,5 +193,9 @@ def gencrl(serials, cert: str, ca_pk: str):
         cert_builder = cert_builder.revocation_date(date_now)
         builder = builder.add_revoked_certificate(cert_builder.build())
 
+    if not isinstance(
+        priv_key, (EllipticCurvePrivateKey, RSAPrivateKey, DSAPrivateKey, Ed448PrivateKey, Ed25519PrivateKey)
+    ):
+        raise ValueError(f"Unsupported key type {type(priv_key).__name__}")
     crl = builder.sign(private_key=priv_key, algorithm=hashes.SHA256(), backend=default_backend())
     return crl.public_bytes(encoding=Encoding.DER)
