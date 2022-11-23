@@ -1191,7 +1191,7 @@ async def process_agent(
             logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
 
         allowlist_id = stored_agent.ima_policy_id
-        allowlist_entry = AllowlistDBProxy.get_instance().get_allowlist(allowlist_id)
+        allowlist_entry = await AllowlistDBProxy.get_instance().get_allowlist(allowlist_id)
         if not allowlist_entry:
             logger.error("Could not get an allowlist for agent %s", stored_agent.agent_id)
             return

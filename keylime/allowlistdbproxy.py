@@ -1,11 +1,11 @@
 import time
 from datetime import datetime
-from threading import Event, Lock
 from typing import Dict, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
+from tornado.locks import Event, Lock
 
 from keylime import keylime_logging
 from keylime.db.verifier_db import VerifierAllowlist
@@ -88,10 +88,10 @@ class AllowlistEntry:
 
         return verifier_allowlist_list[0].modified != self.allowlist_modified  # type: ignore
 
-    def check_update(self) -> bool:
+    async def check_update(self) -> bool:
         """Check for an update to the AllowlistEntry in the DB"""
 
-        with self.update_lock:
+        async with self.update_lock:
             now = time.monotonic()
             # We have to be really careful with this update_timeout. If attestation fails
             # and an update of the allowlist comes very quickly this update_timeout may
@@ -163,29 +163,29 @@ class AllowlistDBProxy:
         self.loader_map_lock = Lock()
         self.loader_map = {}
 
-    def __purge(self) -> None:
+    async def __purge(self) -> None:
         """If purge timeout occurred remove all expired entries"""
 
-        with self.purge_lock:
+        async with self.purge_lock:
             now = time.monotonic()
             if self.last_purge + self.purge_timeout < now:
                 self.last_purge = now
             else:
                 return
 
-        with self.map_lock:
+        async with self.map_lock:
             for allowlist_id in list(self.map.keys()):
                 allowlist_entry = self.map[allowlist_id]
                 if allowlist_entry.is_expired(self.purge_timeout):
                     del self.map[allowlist_id]
 
-    def __load_allowlist(self, allowlist_id: int) -> Optional[AllowlistEntry]:
+    async def __load_allowlist(self, allowlist_id: int) -> Optional[AllowlistEntry]:
         """Load an allowlist given its ID and put it into the map and return
         the loaded entry. Ensure that only one thread loads a specific entry
         and all other ones wanting to load the same entry wait for the first
         thread to have it loaded."""
 
-        with self.loader_map_lock:
+        async with self.loader_map_lock:
             wait_event = self.loader_map.get(allowlist_id)
             if not wait_event:
                 # First thread to load the entry
@@ -197,15 +197,15 @@ class AllowlistDBProxy:
         if wait_event:
             # Wait for other thread to notify us of loaded object
             wait_event.wait()
-            with self.map_lock:
+            async with self.map_lock:
                 return self.map.get(allowlist_id)
 
         allowlist_entry = AllowlistEntry.from_db(self.session, allowlist_id)
         if allowlist_entry:
-            with self.map_lock:
+            async with self.map_lock:
                 self.map[allowlist_id] = allowlist_entry
 
-        with self.loader_map_lock:
+        async with self.loader_map_lock:
             del self.loader_map[allowlist_id]
             # Notify all waiters
             assert notify_event  # pyright
@@ -213,26 +213,26 @@ class AllowlistDBProxy:
 
         return allowlist_entry
 
-    def __get_allowlist(self, allowlist_id: int) -> Optional[AllowlistEntry]:
+    async def __get_allowlist(self, allowlist_id: int) -> Optional[AllowlistEntry]:
         """Get an allowlist given its ID"""
 
-        with self.map_lock:
+        async with self.map_lock:
             allowlist_entry = self.map.get(allowlist_id)
 
         if allowlist_entry:
-            if not allowlist_entry.check_update():
+            if not await allowlist_entry.check_update():
                 # allowlist_entry likely disappeared from DB
                 del self.map[allowlist_id]
                 return None
             return allowlist_entry
 
-        return self.__load_allowlist(allowlist_id)
+        return await self.__load_allowlist(allowlist_id)
 
-    def get_allowlist(self, allowlist_id: int) -> Optional[AllowlistEntry]:
+    async def get_allowlist(self, allowlist_id: int) -> Optional[AllowlistEntry]:
         """Get an allowlist given its ID; cleanup stale entries"""
 
-        allowlist_entry = self.__get_allowlist(allowlist_id)
+        allowlist_entry = await self.__get_allowlist(allowlist_id)
 
-        self.__purge()
+        await self.__purge()
 
         return allowlist_entry
