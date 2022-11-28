@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import re
-from re import Pattern
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from keylime import config, keylime_logging, signing
@@ -157,7 +156,7 @@ def read_measurement_list(ima_log_file, nth_entry: int) -> Tuple[Optional[str], 
 
 
 def _validate_ima_ng(
-    exclude_regex: Optional[Pattern],
+    exclude_regex,
     allowlist: Optional[Dict[str, Any]],
     digest: ast.Digest,
     path: ast.Name,
@@ -197,7 +196,7 @@ def _validate_ima_ng(
 
 
 def _validate_ima_sig(
-    exclude_regex: Optional[Pattern],
+    exclude_regex,
     ima_keyrings: Optional[file_signatures.ImaKeyrings],
     allowlist: Optional[Dict[str, Any]],
     digest: ast.Digest,
@@ -241,7 +240,7 @@ def _validate_ima_sig(
 
 
 def _validate_ima_buf(
-    exclude_regex: Optional[Pattern],
+    exclude_regex,
     allowlist: Optional[Dict[str, Any]],
     ima_keyrings: Optional[file_signatures.ImaKeyrings],
     dm_validator: Optional[ima_dm.DmIMAValidator],
