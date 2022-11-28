@@ -4,15 +4,6 @@ import os
 import os.path
 from typing import Optional
 
-# resources in importlib is a Python 3.7 feature, so we disable
-# fallback support if we cannot import this module
-try:
-    from importlib import resources
-
-    _CONFIG_FALLBACK = True
-except ImportError:
-    _CONFIG_FALLBACK = False
-
 import yaml
 
 try:
@@ -208,10 +199,6 @@ def get_config(component) -> configparser.RawConfigParser:
         # propper default, and the sections are initialized
         if not any(os.path.exists(c) for c in CONFIG_FILES[component]):
             print(f"Config file not found in {CONFIG_FILES[component]}. " f"Please see {__file__} for more details.")
-            if _CONFIG_FALLBACK:
-                print("Falling back on package provided configuration")
-                file = resources.files(__package__).joinpath(f"config/{component}.conf")
-                _config[component].read_string(file.read_text("utf-8"))
         else:
             for c in CONFIG_FILES[component]:
                 # Search for configuration file in order of priority given by
