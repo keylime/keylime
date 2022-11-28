@@ -464,6 +464,7 @@ def write_private(inp):
     salt = inp[1]
 
     priv_encoded = yaml.dump(priv, Dumper=SafeDumper)
+    assert isinstance(global_password, str)
     key = crypto.kdf(global_password, salt)
     ciphertext = crypto.encrypt(priv_encoded.encode("utf-8"), key)
     towrite = {"salt": salt, "priv": ciphertext}
@@ -481,6 +482,7 @@ def read_private(warn=False):
     if os.path.exists("private.yml"):
         with open("private.yml", encoding="utf-8") as f:
             toread = yaml.load(f, Loader=SafeLoader)
+        assert isinstance(global_password, str)
         key = crypto.kdf(global_password, toread["salt"])
         try:
             plain = crypto.decrypt(toread["priv"], key)
