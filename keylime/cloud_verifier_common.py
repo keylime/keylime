@@ -1,11 +1,13 @@
 import ast
 import base64
 import time
+from typing import Any, Dict, Optional, Union, cast
 
 from keylime import config, crypto, json, keylime_logging
-from keylime.agentstates import AgentAttestStates, TPMClockInfo
+from keylime.agentstates import AgentAttestState, AgentAttestStates, TPMClockInfo
 from keylime.common import algorithms, validators
-from keylime.failure import Component, Failure
+from keylime.db.verifier_db import VerfierMain
+from keylime.failure import Component, Event, Failure
 from keylime.ima import file_signatures
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime.tpm.tpm_main import tpm
@@ -13,22 +15,24 @@ from keylime.tpm.tpm_main import tpm
 # setup logging
 logger = keylime_logging.init_logging("cloudverifier_common")
 
-GLOBAL_TPM_INSTANCE = None
-DEFAULT_VERIFIER_ID = "default"
+GLOBAL_TPM_INSTANCE: Optional[tpm] = None
+DEFAULT_VERIFIER_ID: str = "default"
 
 
-def get_tpm_instance():
+def get_tpm_instance() -> tpm:
     global GLOBAL_TPM_INSTANCE
     if GLOBAL_TPM_INSTANCE is None:
         GLOBAL_TPM_INSTANCE = tpm()
     return GLOBAL_TPM_INSTANCE
 
 
-def get_AgentAttestStates():
+def get_AgentAttestStates() -> AgentAttestStates:
     return AgentAttestStates.get_instance()
 
 
-def process_quote_response(agent, ima_policy, json_response, agentAttestState) -> Failure:
+def process_quote_response(
+    agent: Dict[str, Any], ima_policy, json_response, agentAttestState: AgentAttestState
+) -> Failure:
     """Validates the response from the Cloud agent.
 
     This method invokes an Registrar Server call to register, and then check the quote.
@@ -198,7 +202,7 @@ def process_quote_response(agent, ima_policy, json_response, agentAttestState) -
     return failure
 
 
-def prepare_v(agent):
+def prepare_v(agent: Dict[str, Any]) -> Dict[str, bytes]:
     # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
     if config.INSECURE_DEBUG:
         logger.debug("b64_V (non encrypted): %s", agent["v"])
@@ -218,7 +222,7 @@ def prepare_v(agent):
     return post_data
 
 
-def prepare_get_quote(agent):
+def prepare_get_quote(agent: Dict[str, Any]) -> Dict[str, Union[str, int]]:
     """This method encapsulates the action required to invoke a quote request on the Cloud Agent.
 
     This method is part of the polling loop of the thread launched on Tenant POST.
@@ -235,12 +239,12 @@ def prepare_get_quote(agent):
     return params
 
 
-def process_get_status(agent):
+def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
     agent_id = agent.agent_id
 
     has_mb_refstate = 0
     try:
-        mb_refstate = json.loads(agent.mb_refstate)
+        mb_refstate = json.loads(cast(str, agent.mb_refstate))
         if mb_refstate and mb_refstate.keys():
             has_mb_refstate = 1
     except Exception as e:
@@ -282,7 +286,7 @@ def process_get_status(agent):
 
 
 # sign a message with revocation key.  telling of verification problem
-def prepare_error(agent, msgtype="revocation", event=None):
+def prepare_error(agent: Dict[str, Any], msgtype: str = "revocation", event: Optional[Event] = None) -> Dict[str, Any]:
     # prepare the revocation message:
     revocation = {
         "type": msgtype,
@@ -310,7 +314,7 @@ def prepare_error(agent, msgtype="revocation", event=None):
     return tosend
 
 
-def validate_ima_policy_data(ima_policy):
+def validate_ima_policy_data(ima_policy: Optional[str]) -> Optional[str]:
     if ima_policy is None:
         return "No ima_policy provided"
 

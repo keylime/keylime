@@ -6,6 +6,7 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Process
+from typing import Any, Dict, Optional
 
 import tornado.httpserver
 import tornado.ioloop
@@ -14,7 +15,7 @@ import tornado.process
 import tornado.web
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
 from keylime import api_version as keylime_api_version
@@ -27,13 +28,13 @@ from keylime import (
     tornado_requests,
     web_util,
 )
-from keylime.agentstates import AgentAttestStates
+from keylime.agentstates import AgentAttestState, AgentAttestStates
 from keylime.common import retry, states, validators
 from keylime.da import record
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist
 from keylime.elchecking import policies
-from keylime.failure import MAX_SEVERITY_LABEL, Component, Failure, set_severity_config
+from keylime.failure import MAX_SEVERITY_LABEL, Component, Failure, SeverityLabel, set_severity_config
 from keylime.ima import ima
 
 logger = keylime_logging.init_logging("verifier")
@@ -55,17 +56,17 @@ except record.RecordManagementException as rme:
     sys.exit(1)
 
 
-def get_session():
+def get_session() -> Session:
     return SessionManager().make_session(engine)
 
 
-def get_AgentAttestStates():
+def get_AgentAttestStates() -> AgentAttestState:
     return AgentAttestStates.get_instance()
 
 
 # The "exclude_db" dict values are removed from the response before adding the dict to the DB
 # This is because we want these values to remain ephemeral and not stored in the database.
-exclude_db = {
+exclude_db: Dict[str, Any] = {
     "registrar_data": "",
     "nonce": "",
     "b64_encrypted_V": "",
@@ -82,7 +83,7 @@ exclude_db = {
 }
 
 
-def _from_db_obj(agent_db_obj):
+def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, str]:
     fields = [
         "agent_id",
         "v",
@@ -124,14 +125,14 @@ def _from_db_obj(agent_db_obj):
     return agent_dict
 
 
-def verifier_db_delete_agent(session, agent_id):
+def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
     get_AgentAttestStates().delete_by_agent_id(agent_id)
     session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
     session.query(VerifierAllowlist).filter_by(name=agent_id).delete()
     session.commit()
 
 
-def store_attestation_state(agentAttestState):
+def store_attestation_state(agentAttestState: AgentAttestState) -> None:
     # Only store if IMA log was evaluated
     if agentAttestState.get_ima_pcrs():
         agent_id = agentAttestState.agent_id
@@ -155,10 +156,10 @@ def store_attestation_state(agentAttestState):
 
 
 class BaseHandler(tornado.web.RequestHandler):
-    def prepare(self):  # pylint: disable=W0235
+    def prepare(self) -> None:  # pylint: disable=W0235
         super().prepare()
 
-    def write_error(self, status_code, **kwargs):
+    def write_error(self, status_code: int, **kwargs) -> None:
 
         self.set_header("Content-Type", "text/json")
         if self.settings.get("serve_traceback") and "exc_info" in kwargs:
@@ -906,7 +907,9 @@ class AllowlistHandler(BaseHandler):
         raise NotImplementedError()
 
 
-async def invoke_get_quote(agent, ima_policy, need_pubkey, timeout=60.0):
+async def invoke_get_quote(
+    agent: Dict[str, Any], ima_policy: VerifierAllowlist, need_pubkey: bool, timeout: float = 60.0
+) -> None:
     failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
         raise Exception("agent deleted while being processed")
@@ -983,7 +986,7 @@ async def invoke_get_quote(agent, ima_policy, need_pubkey, timeout=60.0):
             asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
 
 
-async def invoke_provide_v(agent, timeout=60.0):
+async def invoke_provide_v(agent: Optional[Dict[str, Any]], timeout=60.0) -> None:
     failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
         raise Exception("Agent deleted while being processed")
@@ -1029,7 +1032,7 @@ async def invoke_provide_v(agent, timeout=60.0):
         asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
 
 
-async def invoke_notify_error(agent, tosend, timeout=60.0):
+async def invoke_notify_error(agent: Optional[Dict[str, Any]], tosend: str, timeout: float = 60.0) -> None:
     if agent is None:
         logger.warning("Agent deleted while being processed")
         return
@@ -1060,7 +1063,9 @@ async def invoke_notify_error(agent, tosend, timeout=60.0):
         )
 
 
-async def notify_error(agent, msgtype="revocation", event=None, timeout=60.0):
+async def notify_error(
+    agent: Dict[str, Any], msgtype: str = "revocation", event: Optional[SeverityLabel] = None, timeout: float = 60.0
+) -> None:
     notifiers = revocation_notifier.get_notifiers()
     if len(notifiers) == 0:
         return
@@ -1095,7 +1100,9 @@ async def notify_error(agent, msgtype="revocation", event=None, timeout=60.0):
                 logger.error("Timeout during notifying error to agents: %s", e)
 
 
-async def process_agent(agent, new_operational_state, failure=Failure(Component.INTERNAL, ["verifier"])):
+async def process_agent(
+    agent: Dict[str, Any], new_operational_state, failure: Failure = Failure(Component.INTERNAL, ["verifier"])
+):
     # Convert to dict if the agent arg is a db object
     if not isinstance(agent, dict):
         agent = _from_db_obj(agent)
@@ -1298,7 +1305,7 @@ async def process_agent(agent, new_operational_state, failure=Failure(Component.
         await process_agent(agent, states.FAILED, failure)
 
 
-async def activate_agents(verifier_id, verifier_ip, verifier_port):
+async def activate_agents(verifier_id: str, verifier_ip: str, verifier_port: int) -> None:
     session = get_session()
     aas = get_AgentAttestStates()
     try:
@@ -1326,7 +1333,7 @@ async def activate_agents(verifier_id, verifier_ip, verifier_port):
         logger.error("SQLAlchemy Error: %s", e)
 
 
-def main():
+def main() -> None:
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
@@ -1383,7 +1390,7 @@ def main():
 
     sockets = tornado.netutil.bind_sockets(int(verifier_port), address=verifier_host)
 
-    def server_process(task_id):
+    def server_process(task_id: int) -> None:
         logger.info("Starting server of process %s", task_id)
         assert isinstance(engine, Engine)
         engine.dispose()

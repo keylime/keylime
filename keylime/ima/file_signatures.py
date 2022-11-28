@@ -235,7 +235,7 @@ class ImaKeyrings:
             self.keyrings[keyring_name] = keyring
         keyring.add_pubkey(pubkey, keyidv2)
 
-    def set_tenant_keyring(self, tenant_keyring: ImaKeyring) -> None:
+    def set_tenant_keyring(self, tenant_keyring: Optional[ImaKeyring]) -> None:
         """Set the tenant keyring for which the tenant provided the keys via command line."""
         if tenant_keyring:
             self.keyrings["tenant_keyring"] = tenant_keyring
