@@ -150,7 +150,7 @@ class Digest:
     """
 
     hash: bytes
-    algorithm: Optional[str] = None
+    algorithm: str
     legacy: bool = False
 
     def __init__(self, digest: str, legacy: bool = False):
@@ -161,7 +161,11 @@ class Digest:
                 self.hash = codecs.decode(tokens[0].encode("utf-8"), "hex")
             except binascii.Error as e:
                 raise ParserError(f"Digest hash is not valid hex. Got: {tokens[0]}") from e
-            if not (len(self.hash) == SHA_DIGEST_LEN or len(self.hash) == MD5_DIGEST_LEN):
+            if len(self.hash) == SHA_DIGEST_LEN:
+                self.algorithm = "sha1"
+            elif len(self.hash) == MD5_DIGEST_LEN:
+                self.algorithm = "md5"
+            else:
                 raise ParserError(
                     "Cannot create Digest. No hash algorithm is provided and hash does not belong to a md5 or sha1 hash."
                 )
