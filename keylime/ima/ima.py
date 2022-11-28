@@ -7,13 +7,16 @@ import hashlib
 import json
 import os
 import re
-from typing import Optional
+from re import Pattern
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from keylime import config, keylime_logging, signing
 from keylime.agentstates import AgentAttestState
 from keylime.common import algorithms, validators
+from keylime.common.algorithms import Hash
 from keylime.failure import Component, Failure
 from keylime.ima import ast, file_signatures, ima_dm
+from keylime.ima.file_signatures import ImaKeyrings
 
 logger = keylime_logging.init_logging("ima")
 
@@ -71,24 +74,25 @@ class IMAMeasurementList:
     """
 
     instance = None
+    entries: Set
 
     @staticmethod
-    def get_instance():
+    def get_instance() -> "IMAMeasurementList":
         """Return a singleton"""
         if not IMAMeasurementList.instance:
             IMAMeasurementList.instance = IMAMeasurementList()
         return IMAMeasurementList.instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Constructor"""
         self.entries = set()
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the variables"""
         self.entries = set()
 
-    def update(self, num_entries, filesize):
+    def update(self, num_entries: int, filesize: int) -> None:
         """Update the number of entries and current filesize of the log."""
         if len(self.entries) > 256:
             for entry in self.entries:
@@ -96,7 +100,7 @@ class IMAMeasurementList:
                 break
         self.entries.add((num_entries, filesize))
 
-    def find(self, nth_entry):
+    def find(self, nth_entry: int) -> Tuple[int, int]:
         """Find the closest entry to the n-th entry and return its number
         and filesize to seek to, return 0, 0 if nothing was found.
         """
@@ -107,7 +111,7 @@ class IMAMeasurementList:
         return best
 
 
-def read_measurement_list(ima_log_file, nth_entry):
+def read_measurement_list(ima_log_file, nth_entry: int) -> Tuple[Optional[str], int, int]:
     """Read the IMA measurement list starting from a given entry.
     The entry may be of any value 0 <= entry <= entries_in_log where
     entries_in_log + 1 indicates that the client wants to read the next entry
@@ -152,7 +156,13 @@ def read_measurement_list(ima_log_file, nth_entry):
     return ml, nth_entry, num_entries
 
 
-def _validate_ima_ng(exclude_regex, allowlist, digest: ast.Digest, path: ast.Name, hash_types="hashes") -> Failure:
+def _validate_ima_ng(
+    exclude_regex: Optional[Pattern],
+    allowlist: Optional[Dict[str, Any]],
+    digest: ast.Digest,
+    path: ast.Name,
+    hash_types: str = "hashes",
+) -> Failure:
     failure = Failure(Component.IMA, ["validation", "ima-ng"])
     if allowlist is not None:
         if exclude_regex is not None and exclude_regex.match(path.name):
@@ -187,7 +197,12 @@ def _validate_ima_ng(exclude_regex, allowlist, digest: ast.Digest, path: ast.Nam
 
 
 def _validate_ima_sig(
-    exclude_regex, ima_keyrings, allowlist, digest: ast.Digest, path: ast.Name, signature: ast.Signature
+    exclude_regex: Optional[Pattern],
+    ima_keyrings: Optional[file_signatures.ImaKeyrings],
+    allowlist: Optional[Dict[str, Any]],
+    digest: ast.Digest,
+    path: ast.Name,
+    signature: ast.Signature,
 ) -> Failure:
     failure = Failure(Component.IMA, ["validator", "ima-sig"])
     valid_signature = False
@@ -226,14 +241,14 @@ def _validate_ima_sig(
 
 
 def _validate_ima_buf(
-    exclude_regex,
-    allowlist,
+    exclude_regex: Optional[Pattern],
+    allowlist: Optional[Dict[str, Any]],
     ima_keyrings: Optional[file_signatures.ImaKeyrings],
     dm_validator: Optional[ima_dm.DmIMAValidator],
     digest: ast.Digest,
     path: ast.Name,
     data: ast.Buffer,
-):
+) -> Failure:
     failure = Failure(Component.IMA)
     # Is data.data a key?
     try:
@@ -241,8 +256,12 @@ def _validate_ima_buf(
     except ValueError as ve:
         failure.add_event("invalid_key", f"key from {path.name} does not have a supported key: {ve}", True)
         return failure
+
     if pubkey:
-        ignored_keyrings = allowlist["ima"]["ignored_keyrings"]
+        ignored_keyrings = []
+        if allowlist:
+            ignored_keyrings = allowlist.get("ima", {}).get("ignored_keyrings", [])
+
         if "*" not in ignored_keyrings and path.name not in ignored_keyrings:
             failure = _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types="keyrings")
             if not failure:
@@ -261,10 +280,19 @@ def _validate_ima_buf(
 
 
 def _process_measurement_list(
-    agentAttestState, lines, hash_alg, lists=None, m2w=None, pcrval=None, ima_keyrings=None, boot_aggregates=None
-):
+    agentAttestState: AgentAttestState,
+    lines: List[str],
+    hash_alg: Hash,
+    lists: Optional[Union[str, Dict[str, Any]]] = None,
+    m2w=None,
+    pcrval: Optional[str] = None,
+    ima_keyrings: Optional[ImaKeyrings] = None,
+    boot_aggregates: Optional[Dict] = None,
+) -> Tuple[str, Failure]:
     failure = Failure(Component.IMA)
     running_hash = agentAttestState.get_pcr_state(config.IMA_PCR, hash_alg)
+    assert running_hash
+
     found_pcr = pcrval is None
     errors = {}
     pcrval_bytes = b""
@@ -274,6 +302,7 @@ def _process_measurement_list(
     if lists is not None:
         if isinstance(lists, str):
             lists = json.loads(lists)
+            assert isinstance(lists, dict)
         allow_list = lists["allowlist"]
         exclude_list = lists["exclude"]
     else:
@@ -390,15 +419,15 @@ def _process_measurement_list(
 
 
 def process_measurement_list(
-    agentAttestState,
-    lines,
-    lists=None,
+    agentAttestState: AgentAttestState,
+    lines: List[str],
+    lists: Optional[Union[str, Dict[str, Any]]] = None,
     m2w=None,
-    pcrval=None,
-    ima_keyrings=None,
-    boot_aggregates=None,
-    hash_alg=algorithms.Hash.SHA1,
-):
+    pcrval: Optional[str] = None,
+    ima_keyrings: Optional[ImaKeyrings] = None,
+    boot_aggregates: Optional[Dict] = None,
+    hash_alg: algorithms.Hash = algorithms.Hash.SHA1,
+) -> Tuple[str, Failure]:
     failure = Failure(Component.IMA)
     try:
         running_hash, failure = _process_measurement_list(
@@ -421,7 +450,7 @@ def process_measurement_list(
     return running_hash, failure
 
 
-def update_allowlist(allowlist):
+def update_allowlist(allowlist: Dict[str, Any]) -> Dict[str, Any]:
     """Update the allowlist to the latest version adding default values for missing fields"""
     allowlist["meta"]["version"] = ALLOWLIST_CURRENT_VERSION
 
@@ -446,7 +475,7 @@ def update_allowlist(allowlist):
     return allowlist
 
 
-def process_ima_policy(allowlist, exclude):
+def process_ima_policy(allowlist: Dict[str, Any], exclude: List[str]) -> Dict[str, Any]:
     # Pull in default config values if not specified
     if allowlist is None:
         allowlist = read_allowlist()
@@ -476,7 +505,12 @@ def process_ima_policy(allowlist, exclude):
 
 # Read allowlist files from disk, validate signatures and checksums, and prepare for sending.
 # Does not process exclusion lists.
-def read_allowlist(alist=None, checksum="", al_sig_file=None, al_key_file=None):
+def read_allowlist(
+    alist: Optional[str] = None,
+    checksum: str = "",
+    al_sig_file: Optional[str] = None,
+    al_key_file: Optional[str] = None,
+):
 
     al_key = b""
     al_sig = b""
@@ -538,14 +572,14 @@ def read_allowlist(alist=None, checksum="", al_sig_file=None, al_key_file=None):
 
 
 class SignatureValidationError(Exception):
-    def __init__(self, message, code):
+    def __init__(self, message: str, code: int) -> None:
         self.message = message
         self.code = code
         super().__init__(self.message)
 
 
 # Reads allowlist bundles sent to the verifier, validates them, and processes them. Returns an allowlist.
-def unbundle_ima_policy(allowlist_bundle, verify=True):
+def unbundle_ima_policy(allowlist_bundle, verify: bool = True) -> Dict[str, Any]:
     allowlist_raw = base64.b64decode(allowlist_bundle["ima_policy"])
 
     # Verify allowlist signatures if set to enforce
@@ -570,7 +604,7 @@ def unbundle_ima_policy(allowlist_bundle, verify=True):
 
 
 # Manipulates allowlists into database-ready format.
-def canonicalize_allowlist(alist_bytes, checksum=""):
+def canonicalize_allowlist(alist_bytes, checksum: str = ""):
     # if the first non-whitespace character in the file is '{' treat it as the new JSON format
     alist_raw = alist_bytes.decode("utf-8")
     p = re.compile(r"^\s*{")
@@ -629,7 +663,7 @@ def canonicalize_allowlist(alist_bytes, checksum=""):
     return alist
 
 
-def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: str = "") -> dict:
+def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: str = "") -> Dict[str, Any]:
     """Assembles an ima policy dictionary to be written on the database"""
     ima_policy_db_format = {}
     ima_policy_db_format["name"] = ima_policy_name
@@ -658,7 +692,7 @@ def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: st
     return ima_policy_db_format
 
 
-def read_excllist(exclude_path=None):
+def read_excllist(exclude_path: Optional[str] = None) -> List[str]:
     excl_list = []
     if exclude_path and os.path.exists(exclude_path):
         with open(exclude_path, encoding="utf-8") as f:
@@ -673,7 +707,7 @@ def read_excllist(exclude_path=None):
     return excl_list
 
 
-def main():
+def main() -> None:
     allowlist_path = "allowlist.txt"
     print(f"reading allowlist from {allowlist_path}")
 
