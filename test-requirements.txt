@@ -1,2 +1,10 @@
 dbus-python
-jinja2
+# packages required for mypy
+sqlalchemy-stubs
+typed-ast
+types-atomicwrites
+types-python-dateutil
+types-PyYAML
+types-redis
+types-requests
+types-urllib3
