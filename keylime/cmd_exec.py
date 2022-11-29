@@ -1,23 +1,34 @@
 import os
 import subprocess
 import time
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast
 
 EXIT_SUCESS = 0
 
+EnvType = Dict[str, str]
 
-def _execute(cmd, env=None, **kwargs):
+
+def _execute(cmd: Sequence[str], env: Optional[EnvType] = None, **kwargs) -> Tuple[bytes, bytes, int]:
     with subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs) as proc:
         out, err = proc.communicate()
-        return out, err, proc.returncode
+        # All callers assume to receive a list of bytes back; none of them uses 'text mode'
+        return cast(bytes, out), cast(bytes, err), proc.returncode
 
 
-def run(cmd, expectedcode=EXIT_SUCESS, raiseOnError=True, outputpaths=None, env=None, **kwargs):
+def run(
+    cmd: Sequence[str],
+    expectedcode: int = EXIT_SUCESS,
+    raiseOnError: bool = True,
+    outputpaths: Optional[Union[List[str], str]] = None,
+    env: Optional[EnvType] = None,
+    **kwargs,
+) -> Dict[str, Any]:
     """Execute external command.
 
     :param cmd: a sequence of command arguments
     """
     if env is None:
-        env = os.environ
+        env = cast(EnvType, os.environ)  # cannot use os._Environ as type
 
     t0 = time.time()
     retout, reterr, code = _execute(cmd, env=env, **kwargs)
@@ -25,7 +36,7 @@ def run(cmd, expectedcode=EXIT_SUCESS, raiseOnError=True, outputpaths=None, env=
     t1 = time.time()
     timing = {"t1": t1, "t0": t0}
 
-    # Gather subprocess response data
+    # Gather subprocess response data; retout & reterr are assumed to be 'bytes'
     retout_list = retout.splitlines(keepends=True)
     reterr_list = reterr.splitlines(keepends=True)
 
@@ -56,7 +67,7 @@ def run(cmd, expectedcode=EXIT_SUCESS, raiseOnError=True, outputpaths=None, env=
 
 # list_contains_substring checks whether a substring is contained in the given
 # list. The list may be the reterr from 'run' and contains bytes-like objects.
-def list_contains_substring(lst, substring):
+def list_contains_substring(lst: List, substring: str) -> bool:
     for s in lst:
         if substring in str(s):
             return True
