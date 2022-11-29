@@ -454,6 +454,10 @@ class Tenant:
             logger.warning("AIK not found in registrar, quote not validated")
             return False
 
+        if not self.nonce:
+            logger.warning("Nonce has not been set!")
+            return False
+
         failure = self.tpm_instance.check_quote(
             AgentAttestState(self.agent_uuid),
             self.nonce,
