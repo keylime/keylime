@@ -334,8 +334,8 @@ class tpm(tpm_abstract.AbstractTPM):
             self._set_tpm_metadata("ek_tpm", base64.b64encode(ek_tpm))
             self._set_tpm_metadata("ek_alg", asym_alg)
 
-    def __use_ek(self, ek_handle, config_pw):
-        ek_handle = int(ek_handle, 16)
+    def __use_ek(self, ek_handle_str, config_pw):
+        ek_handle = int(ek_handle_str, 16)
         logger.info("Using an already created ek with handle: %s", hex(ek_handle))
 
         self._set_tpm_metadata("owner_pw", config_pw)
