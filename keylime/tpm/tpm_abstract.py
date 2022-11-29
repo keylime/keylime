@@ -1,8 +1,8 @@
 import codecs
 import os
 import string
-import typing
 from abc import ABCMeta, abstractmethod
+from typing import Any, Dict, List, Optional, Set, Union
 
 import yaml
 
@@ -13,22 +13,25 @@ except ImportError:
     from yaml import SafeLoader, SafeDumper
 
 from keylime import config, crypto, json, keylime_logging, measured_boot
+from keylime.agentstates import AgentAttestState
 from keylime.common import algorithms
+from keylime.common.algorithms import Hash
 from keylime.failure import Component, Failure
 from keylime.ima import ima
+from keylime.ima.file_signatures import ImaKeyrings
 
 logger = keylime_logging.init_logging("tpm")
 
 
 class TPM_Utilities:
     @staticmethod
-    def check_mask(mask, pcr):
+    def check_mask(mask: Optional[str], pcr: int) -> bool:
         if mask is None:
             return False
         return bool(1 << pcr & int(mask, 0))
 
     @staticmethod
-    def random_password(length=20):
+    def random_password(length: int = 20) -> str:
         rand = crypto.generate_random_key(length)
         chars = string.ascii_uppercase + string.digits + string.ascii_lowercase
         password = ""
@@ -37,7 +40,7 @@ class TPM_Utilities:
         return password
 
     @staticmethod
-    def readPolicy(configval):
+    def readPolicy(configval: str) -> Dict[str, Any]:
         policy = json.loads(configval)
 
         # compute PCR mask from tpm_policy
@@ -66,13 +69,21 @@ class TPM_Utilities:
 
 class AbstractTPM(metaclass=ABCMeta):
     # Abstract base class
-    EXIT_SUCESS = 0
-    TPM_IO_ERR = 5
-    EMPTYMASK = "1"
-    MAX_NONCE_SIZE = 64
+    EXIT_SUCESS: int = 0
+    TPM_IO_ERR: int = 5
+    EMPTYMASK: str = "1"
+    MAX_NONCE_SIZE: int = 64
+
+    TPMDataTypes = Union[int, str]
+
+    need_hw_tpm: bool
+    global_tpmdata: Optional[Dict[str, TPMDataTypes]]
+    tpmrand_warned: bool
+    defaults: Dict[str, Union[str, Hash]]
+    supported: Dict[str, Set[str]]
 
     # constructor
-    def __init__(self, need_hw_tpm=True):
+    def __init__(self, need_hw_tpm: bool = True) -> None:
         # read the config file
         self.need_hw_tpm = need_hw_tpm
         self.global_tpmdata = None
@@ -89,19 +100,19 @@ class AbstractTPM(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def encryptAIK(self, uuid, ek_tpm: bytes, aik_tpm: bytes):
+    def encryptAIK(self, uuid: str, ek_tpm: bytes, aik_tpm: bytes):
         pass
 
     @abstractmethod
-    def activate_identity(self, keyblob):
+    def activate_identity(self, keyblob: bytes):
         pass
 
     @abstractmethod
-    def verify_ek(self, ekcert, tpm_cert_store):
+    def verify_ek(self, ekcert: bytes, tpm_cert_store: str):
         pass
 
     @abstractmethod
-    def get_tpm_manufacturer(self, output=None):
+    def get_tpm_manufacturer(self, output: Optional[List[bytes]] = None):
         pass
 
     @abstractmethod
@@ -115,23 +126,23 @@ class AbstractTPM(metaclass=ABCMeta):
             logger.warning("INSECURE: Only use Keylime in this mode for testing or debugging purposes.")
 
     @staticmethod
-    def __read_tpm_data():
+    def __read_tpm_data() -> Dict[str, TPMDataTypes]:
         if os.path.exists("tpmdata.yml"):
             with open("tpmdata.yml", "rb") as f:
                 return yaml.load(f, Loader=SafeLoader)
         else:
             return {}
 
-    def __write_tpm_data(self):
+    def __write_tpm_data(self) -> None:
         with os.fdopen(os.open("tpmdata.yml", os.O_WRONLY | os.O_CREAT, 0o600), "w", encoding="utf-8") as f:
             yaml.dump(self.global_tpmdata, f, Dumper=SafeDumper)
 
-    def get_tpm_metadata(self, key):
+    def get_tpm_metadata(self, key: str) -> Optional[TPMDataTypes]:
         if self.global_tpmdata is None:
             self.global_tpmdata = AbstractTPM.__read_tpm_data()
         return self.global_tpmdata.get(key, None)
 
-    def _set_tpm_metadata(self, key, value):
+    def _set_tpm_metadata(self, key: str, value: Any) -> None:
         if self.global_tpmdata is None:
             self.global_tpmdata = AbstractTPM.__read_tpm_data()
 
@@ -140,43 +151,50 @@ class AbstractTPM(metaclass=ABCMeta):
             self.__write_tpm_data()
 
     @abstractmethod
-    def tpm_init(self, self_activate=False, config_pw=None):
+    def tpm_init(self, self_activate: bool = False, config_pw: Optional[str] = None):
         pass
 
     # tpm_quote
     @abstractmethod
-    def create_quote(self, nonce, data=None, pcrmask=EMPTYMASK, hash_alg=None, compress=False):
+    def create_quote(
+        self,
+        nonce: str,
+        data: Optional[bytes] = None,
+        pcrmask: str = EMPTYMASK,
+        hash_alg: Optional[str] = None,
+        compress: bool = False,
+    ):
         pass
 
     @abstractmethod
     def check_quote(
         self,
-        agentAttestState,
-        nonce,
-        data,
-        quote,
-        aikTpmFromRegistrar,
-        tpm_policy=None,
-        ima_measurement_list=None,
-        allowlist=None,
-        hash_alg=None,
-        ima_keyrings=None,
-        mb_measurement_list=None,
-        mb_refstate=None,
-        compressed=False,
+        agentAttestState: AgentAttestState,
+        nonce: str,
+        data: str,
+        quote: str,
+        aikTpmFromRegistrar: str,
+        tpm_policy: Optional[Union[str, Dict]] = None,
+        ima_measurement_list: Optional[List[str]] = None,
+        allowlist: Optional[Union[str, Dict[str, Any]]] = None,
+        hash_alg: Optional[str] = None,
+        ima_keyrings: Optional[ImaKeyrings] = None,
+        mb_measurement_list: Optional[str] = None,
+        mb_refstate: Optional[str] = None,
+        compressed: bool = False,
     ):
         pass
 
-    def START_HASH(self, algorithm=None):
+    def START_HASH(self, algorithm: Optional[Hash] = None) -> str:
         if algorithm is None:
-            algorithm = self.defaults["hash"]
+            algorithm = Hash(self.defaults["hash"])
 
         alg_size = algorithm.get_size() // 4
         return "0" * alg_size
 
-    def hashdigest(self, payload, algorithm=None):
+    def hashdigest(self, payload: bytes, algorithm: Optional[Hash] = None) -> Optional[str]:
         if algorithm is None:
-            algorithm = self.defaults["hash"]
+            algorithm = Hash(self.defaults["hash"])
 
         digest = algorithm.hash(payload)
         if digest is None:
@@ -184,23 +202,31 @@ class AbstractTPM(metaclass=ABCMeta):
         return codecs.encode(digest, "hex").decode("utf-8")
 
     @abstractmethod
-    def sim_extend(self, hashval_1, hashval_0=None, hash_alg=None):
+    def sim_extend(self, hashval_1: str, hashval_0: Optional[str] = None, hash_alg: Optional[Hash] = None):
         pass
 
     @abstractmethod
-    def extendPCR(self, pcrval, hashval, hash_alg=None, lock=True):
+    def extendPCR(self, pcrval: int, hashval: str, hash_alg: Optional[Hash] = None, lock: bool = True):
         pass
 
     @abstractmethod
-    def readPCR(self, pcrval, hash_alg=None):
+    def readPCR(self, pcrval: int, hash_alg: Optional[Hash] = None):
         pass
 
     @abstractmethod
-    def _get_tpm_rand_block(self, size=4096):
+    def _get_tpm_rand_block(self, size: int = 4096):
         pass
 
     @staticmethod
-    def __check_ima(agentAttestState, pcrval, ima_measurement_list, allowlist, ima_keyrings, boot_aggregates, hash_alg):
+    def __check_ima(
+        agentAttestState: AgentAttestState,
+        pcrval: str,
+        ima_measurement_list: str,
+        allowlist: Optional[Union[str, Dict[str, Any]]],
+        ima_keyrings: Optional[ImaKeyrings],
+        boot_aggregates: Optional[Dict],
+        hash_alg: Hash,
+    ):
         failure = Failure(Component.IMA)
         logger.info("Checking IMA measurement list on agent: %s", agentAttestState.get_agent_id())
         _, ima_failure = ima.process_measurement_list(
@@ -218,7 +244,7 @@ class AbstractTPM(metaclass=ABCMeta):
         return failure
 
     @staticmethod
-    def __parse_pcrs(pcrs, virtual) -> typing.Dict[int, str]:
+    def __parse_pcrs(pcrs: List[str], virtual: int) -> Dict[int, str]:
         """Parses and validates the format of a list of PCR data"""
         output = {}
         for line in pcrs:
@@ -237,17 +263,17 @@ class AbstractTPM(metaclass=ABCMeta):
 
     def check_pcrs(
         self,
-        agentAttestState,
-        tpm_policy,
-        pcrs,
-        data,
-        virtual,
-        ima_measurement_list,
-        allowlist,
-        ima_keyrings,
-        mb_measurement_list,
-        mb_refstate_str,
-        hash_alg,
+        agentAttestState: AgentAttestState,
+        tpm_policy: Union[str, Dict],
+        pcrs: List[str],
+        data: str,
+        virtual: int,
+        ima_measurement_list: Optional[str],
+        allowlist: Optional[Union[str, Dict[str, Any]]],
+        ima_keyrings: Optional[ImaKeyrings],
+        mb_measurement_list: Optional[str],
+        mb_refstate_str: Optional[str],
+        hash_alg: Hash,
     ) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
 
@@ -431,13 +457,13 @@ class AbstractTPM(metaclass=ABCMeta):
 
     # tpm_nvram
     @abstractmethod
-    def write_key_nvram(self, key):
+    def write_key_nvram(self, key: bytes) -> None:
         pass
 
     @abstractmethod
-    def read_key_nvram(self):
+    def read_key_nvram(self) -> None:
         pass
 
     @abstractmethod
-    def parse_mb_bootlog(self, mb_measurement_list: str, hash_alg: algorithms.Hash) -> dict:
+    def parse_mb_bootlog(self, mb_measurement_list: Optional[str], hash_alg: algorithms.Hash) -> dict:
         raise NotImplementedError
