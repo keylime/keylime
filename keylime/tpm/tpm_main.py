@@ -11,6 +11,7 @@ import threading
 import time
 import typing
 import zlib
+from typing import List, Optional
 
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from packaging.version import Version
@@ -791,9 +792,11 @@ class tpm(tpm_abstract.AbstractTPM):
         """
         return cert_utils.verify_ek(ekcert, tpm_cert_store)
 
-    def get_tpm_manufacturer(self, output=None):
+    def get_tpm_manufacturer(self, output: Optional[List[bytes]] = None):
         vendorStr = None
-        if not output:
+        retout = output
+
+        if not retout:
             if self.tools_version == "3.2":
                 retDict = self.__run(["tpm2_getcap", "-c", "properties-fixed"])
             elif self.tools_version in ["4.0", "4.2", "5.4"]:
@@ -801,7 +804,7 @@ class tpm(tpm_abstract.AbstractTPM):
             else:
                 raise Exception(f"Unsupported tools version: {self.tools_version}")
 
-            output = retDict["retout"]
+            retout = retDict["retout"]
             reterr = retDict["reterr"]
             code = retDict["code"]
 
@@ -818,11 +821,11 @@ class tpm(tpm_abstract.AbstractTPM):
         def quoterepl(m):
             return '"' + m.group(0)[1:-1].replace('"', '\\"') + '"'
 
-        for i, s in enumerate(output):
+        for i, s in enumerate(retout):
             s1 = re.sub(r'(?!".*\\".*")".*".*"', quoterepl, s.decode("utf-8"))
-            output[i] = re.sub(r"[\x01-\x1F\x7F]", "", s1).encode("utf-8")
+            retout[i] = re.sub(r"[\x01-\x1F\x7F]", "", s1).encode("utf-8")
 
-        retyaml = config.yaml_to_dict(output, logger=logger)
+        retyaml = config.yaml_to_dict(retout, logger=logger)
         if retyaml is None:
             raise Exception("Could not read YAML output of tpm2_getcap.")
         if "TPM2_PT_VENDOR_STRING_1" in retyaml:
