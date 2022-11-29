@@ -4,11 +4,12 @@ import io
 import json
 import logging
 import os
+import ssl
 import sys
 import tempfile
 import time
 import zipfile
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Union, cast
 
 import requests
 from cryptography.hazmat.primitives import serialization as crypto_serialization
@@ -38,62 +39,65 @@ class Tenant:
 
     config = None
 
-    verifier_ip = None
-    verifier_port = None
+    verifier_ip: Optional[str] = None
+    verifier_port: Optional[str] = None
 
-    agent_ip = None
-    cv_cloudagent_ip = None
-    agent_port = None
+    nonce: Optional[str]
 
-    registrar_ip = None
-    registrar_port = None
+    agent_ip: Optional[str] = None
+    cv_cloudagent_ip: Optional[str] = None
+    agent_port: Optional[str] = None
+
+    registrar_ip: Optional[str] = None
+    registrar_port: Optional[str] = None
     registrar_data: Optional[registrar_client.RegistrarData] = None
 
-    api_version = None
+    api_version: Optional[str] = None
 
-    uuid_service_generate_locally = None
-    agent_uuid = ""
+    # uuid_service_generate_locally = None
+    agent_uuid: str = ""
 
-    K = b""
-    V = b""
-    U = b""
+    K: bytes = b""
+    V: bytes = b""
+    U: bytes = b""
     auth_tag = None
 
     tpm_policy = None
-    metadata = {}
-    runtime_policy = ""
-    runtime_policy_name = ""
+    metadata: Dict[str, Union[int, str]] = {}
+    runtime_policy: str = ""
+    runtime_policy_name: str = ""
     runtime_policy_key = None
     runtime_policy_sig = None
     ima_sign_verification_keys: Optional[str] = ""
-    revocation_key = ""
-    accept_tpm_hash_algs = []
-    accept_tpm_encryption_algs = []
-    accept_tpm_signing_algs = []
+    revocation_key: str = ""
+    accept_tpm_hash_algs: List[str] = []
+    accept_tpm_encryption_algs: List[str] = []
+    accept_tpm_signing_algs: List[str] = []
+
     mb_refstate = None
-    supported_version = None
+    supported_version: Optional[str] = None
 
     client_cert = None
     client_key = None
-    client_key_password = None
+    client_key_password: Optional[str] = None
     trusted_server_ca: List[str] = []
-    enable_agent_mtls = False
-    verify_server_cert = False
-    verify_custom = None
+    enable_agent_mtls: bool = False
+    verify_server_cert: bool = False
+    verify_custom: Optional[str] = None
 
-    request_timeout = None
+    request_timeout: Optional[int] = None
 
     # Context with the trusted CA certificates from the configuration
-    tls_context = None
+    tls_context: Optional[ssl.SSLContext] = None
 
     # Context with the agent's mTLS certificate
-    agent_tls_context = None
+    agent_tls_context: Optional[ssl.SSLContext] = None
 
-    payload = None
+    payload: Optional[bytes] = None
 
-    tpm_instance = tpm()
+    tpm_instance: tpm = tpm()
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Set up required values and TLS"""
         self.nonce = None
         self.agent_ip = None
@@ -150,10 +154,10 @@ class Tenant:
             logger.warning("TLS is disabled.")
 
     @property
-    def verifier_base_url(self):
+    def verifier_base_url(self) -> str:
         return f"{self.verifier_ip}:{self.verifier_port}"
 
-    def init_add(self, args):
+    def init_add(self, args: Dict[str, Any]) -> None:
         """Set up required values. Command line options can overwrite these config values
 
         Arguments:
@@ -165,6 +169,8 @@ class Tenant:
         if "agent_port" in args and args["agent_port"] is not None:
             self.agent_port = args["agent_port"]
 
+        if not self.registrar_ip or not self.registrar_port:
+            raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
         self.registrar_data = registrar_client.getData(
             self.registrar_ip, self.registrar_port, self.agent_uuid, self.tls_context
         )
@@ -278,7 +284,7 @@ class Tenant:
             self.runtime_policy,
             self.runtime_policy_key,
             self.runtime_policy_sig,
-        ) = policies.process_policy(args)
+        ) = policies.process_policy(cast(policies.ArgsType, args))
 
         # if none
         if args["file"] is None and args["keyfile"] is None and args["ca_dir"] is None:
@@ -293,6 +299,7 @@ class Tenant:
                 )
 
             # read the keys in
+            f: Union[io.StringIO, io.TextIOWrapper, io.BufferedReader]
             if isinstance(args["keyfile"], dict) and "data" in args["keyfile"]:
                 if isinstance(args["keyfile"]["data"], list) and len(args["keyfile"]["data"]) == 1:
                     keyfile = args["keyfile"]["data"][0]
@@ -302,7 +309,7 @@ class Tenant:
                 else:
                     raise UserError("Invalid key file provided")
             else:
-                f = open(args["keyfile"], encoding="utf-8")  # pylint: disable=consider-using-with
+                f = open(str(args["keyfile"]), encoding="utf-8")  # pylint: disable=consider-using-with
             self.K = base64.b64decode(f.readline())
             self.U = base64.b64decode(f.readline())
             self.V = base64.b64decode(f.readline())
@@ -314,7 +321,7 @@ class Tenant:
                     self.payload = args["payload"]["data"][0]
             else:
                 if args["payload"] is not None:
-                    with open(args["payload"], "rb") as f:
+                    with open(str(args["payload"]), "rb") as f:
                         self.payload = f.read()
 
         if args["file"] is not None:
@@ -331,7 +338,7 @@ class Tenant:
                 else:
                     raise UserError("Invalid file payload provided")
             else:
-                with open(args["file"], "rb") as f:
+                with open(str(args["file"]), "rb") as f:
                     contents = f.read()
             ret = user_data_encrypt.encrypt(contents)
             self.K = ret["k"]
@@ -385,10 +392,11 @@ class Tenant:
                             for i in range(len(args["incl_dir"]["data"])):
                                 zf.writestr(os.path.basename(args["incl_dir"]["name"][i]), args["incl_dir"]["data"][i])
                     else:
-                        if os.path.exists(args["incl_dir"]):
-                            files = next(os.walk(args["incl_dir"]))[2]
+                        incl_dir = str(args["incl_dir"])
+                        if os.path.exists(incl_dir):
+                            files = next(os.walk(incl_dir))[2]
                             for filename in files:
-                                with open(os.path.join(args["incl_dir"], filename), "rb") as f:
+                                with open(os.path.join(incl_dir, filename), "rb") as f:
                                     zf.writestr(os.path.basename(f.name), f.read())
                         else:
                             logger.warning(
@@ -413,7 +421,7 @@ class Tenant:
             if len(self.payload) > max_payload_size:
                 raise UserError(f"Payload size {len(self.payload)} exceeds max size {max_payload_size}")
 
-    def preloop(self):
+    def preloop(self) -> None:
         """encrypt the agent UUID as a check for delivering the correct key"""
         self.auth_tag = crypto.do_hmac(self.K, self.agent_uuid)
         # be very careful printing K, U, or V as they leak in logs stored on unprotected disks
@@ -423,7 +431,7 @@ class Tenant:
             logger.debug("U: %s", base64.b64encode(self.U))
             logger.debug("Auth Tag: %s", self.auth_tag)
 
-    def check_ek(self, ekcert):
+    def check_ek(self, ekcert: Optional[str]) -> bool:
         """Check the Entity Key
 
         Arguments:
@@ -444,7 +452,7 @@ class Tenant:
 
         return True
 
-    def validate_tpm_quote(self, public_key, quote, hash_alg):
+    def validate_tpm_quote(self, public_key: str, quote: str, hash_alg: algorithms.Hash) -> bool:
         """Validate TPM Quote received from the Agent
 
         Arguments:
@@ -537,10 +545,11 @@ class Tenant:
 
         return cert_utils.verify_ek_script(script, env, config.WORK_DIR)
 
-    def do_cvadd(self):
+    def do_cvadd(self) -> None:
         """Initiate v, agent_id and ip and initiate the cloudinit sequence"""
         b64_v = base64.b64encode(self.V).decode("utf-8")
         logger.debug("b64_v: %s", b64_v)
+        assert self.registrar_data
         data = {
             "v": b64_v,
             "cloudagent_ip": self.cv_cloudagent_ip,
@@ -628,7 +637,7 @@ class Tenant:
                     numtries,
                 )
 
-    def do_cvstatus(self):
+    def do_cvstatus(self) -> Dict[str, Any]:
         """Perform operational state look up for agent on the verifier"""
 
         do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
@@ -676,7 +685,7 @@ class Tenant:
         )
         return response_json
 
-    def do_cvlist(self):
+    def do_cvlist(self) -> Union[requests.Response, Dict[str, Any]]:
         """List all agent statuses in cloudverifier"""
 
         do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
@@ -721,7 +730,7 @@ class Tenant:
         )
         return response
 
-    def do_cvbulkinfo(self):
+    def do_cvbulkinfo(self) -> Dict[str, Any]:
         """Perform operational state look up for agent"""
 
         do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
@@ -749,7 +758,7 @@ class Tenant:
             f"Bulk Status: Unexpected response from Verifier {self.verifier_ip} on port {self.verifier_port}. Response status code is {response.status_code}"
         )
 
-    def do_cvdelete(self, verifier_check=True):
+    def do_cvdelete(self, verifier_check: bool = True) -> None:
         """Delete agent from Verifier."""
         if verifier_check:
             cvresponse = self.do_cvstatus()
@@ -823,7 +832,10 @@ class Tenant:
 
                 logger.info("Agent %s deleted from the CV", self.agent_uuid)
 
-    def do_regstatus(self):
+    def do_regstatus(self) -> Dict[str, Any]:
+        if not self.registrar_ip or not self.registrar_port:
+            raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
+
         agent_info = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid, self.tls_context)
 
         if not agent_info:
@@ -846,6 +858,7 @@ class Tenant:
             f"registrar {self.registrar_ip} port {self.registrar_port}.",
             "results": {},
         }
+        assert isinstance(response["results"], dict)
         response["results"][self.agent_uuid] = agent_info
         response["results"][self.agent_uuid]["operational_state"] = states.state_to_str(states.REGISTERED)
 
@@ -853,8 +866,11 @@ class Tenant:
 
         return response
 
-    def do_reglist(self):
+    def do_reglist(self) -> Optional[Dict[str, Any]]:
         """List agents from Registrar"""
+        if not self.registrar_ip or not self.registrar_port:
+            raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
+
         response = registrar_client.doRegistrarList(
             self.registrar_ip, self.registrar_port, tls_context=self.tls_context
         )
@@ -864,15 +880,18 @@ class Tenant:
         )
         return response
 
-    def do_regdelete(self):
+    def do_regdelete(self) -> Dict[str, Any]:
         """Delete agent from Registrar"""
+        if not self.registrar_ip or not self.registrar_port:
+            raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
+
         response = registrar_client.doRegistrarDelete(
             self.registrar_ip, self.registrar_port, self.agent_uuid, tls_context=self.tls_context
         )
 
         return response
 
-    def do_status(self):
+    def do_status(self) -> Dict[str, Any]:
         """Perform operational state look up for agent"""
 
         regresponse = self.do_regstatus()
@@ -910,7 +929,7 @@ class Tenant:
 
         return {"registrar": regresponse, "verifier": cvresponse}
 
-    def do_cvreactivate(self, verifier_check=True):
+    def do_cvreactivate(self, verifier_check: bool = True) -> Dict[str, Any]:
         """Reactive Agent."""
         if verifier_check:
             agent_json = self.do_cvstatus()
@@ -944,7 +963,7 @@ class Tenant:
         logger.error("Reactivate command response: %s Unexpected response from Cloud Verifier.", response.status_code)
         return response_json
 
-    def do_cvstop(self):
+    def do_cvstop(self) -> None:
         """Stop declared active agent"""
         params = f"/v{self.api_version}/agents/{self.agent_uuid}/stop"
         do_cvstop = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
@@ -969,7 +988,7 @@ class Tenant:
         else:
             logger.info("Agent %s stopped", self.agent_uuid)
 
-    def do_quote(self):
+    def do_quote(self) -> None:
         """Perform TPM quote by GET towards Agent
 
         Raises:
@@ -1101,7 +1120,7 @@ class Tenant:
                 f"Posting of Encrypted U to the Cloud Agent failed with response code {response.status_code} ({response.text})"
             )
 
-    def do_verify(self):
+    def do_verify(self) -> None:
         """Perform verify using a random generated challenge"""
         challenge = TPM_Utilities.random_password(20)
         numtries = 0
@@ -1183,7 +1202,7 @@ class Tenant:
                 continue
             break
 
-    def __convert_runtime_policy(self, args):
+    def __convert_runtime_policy(self, args: Dict[str, str]) -> str:
         if args.get("runtime_policy_name") is None:
             if args.get("allowlist_name") is not None:
                 logger.warning(
@@ -1202,7 +1221,7 @@ class Tenant:
             self.runtime_policy,
             self.runtime_policy_key,
             self.runtime_policy_sig,
-        ) = policies.process_policy(args)
+        ) = policies.process_policy(cast(policies.ArgsType, args))
 
         data = {
             "tpm_policy": json.dumps(self.tpm_policy),
@@ -1212,7 +1231,7 @@ class Tenant:
         }
         return json.dumps(data)
 
-    def do_add_runtime_policy(self, args):
+    def do_add_runtime_policy(self, args: Dict[str, str]) -> None:
         body = self.__convert_runtime_policy(args)
 
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
@@ -1221,7 +1240,7 @@ class Tenant:
         )
         Tenant._jsonify_response(response)
 
-    def do_update_runtime_policy(self, args) -> None:
+    def do_update_runtime_policy(self, args: Dict[str, str]) -> None:
         body = self.__convert_runtime_policy(args)
 
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
@@ -1230,14 +1249,14 @@ class Tenant:
         )
         Tenant._jsonify_response(response)
 
-    def do_delete_runtime_policy(self, name):
+    def do_delete_runtime_policy(self, name: Optional[str]) -> None:
         if not name:
             raise UserError("--allowlist_name or --runtime_policy_name is required to delete a runtime policy")
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.delete(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
         Tenant._jsonify_response(response)
 
-    def do_show_runtime_policy(self, name):  # pylint: disable=unused-argument
+    def do_show_runtime_policy(self, name: Optional[str]) -> None:  # pylint: disable=unused-argument
         if not name:
             raise UserError("--allowlist_name or --runtime_policy_name is required to show a runtime policy")
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
@@ -1246,7 +1265,10 @@ class Tenant:
         Tenant._jsonify_response(response)
 
     @staticmethod
-    def _jsonify_response(response, print_response=True, raise_except=False):
+    def _jsonify_response(
+        response: requests.Response, print_response: bool = True, raise_except: bool = False
+    ) -> Dict[str, Any]:
+        json_response: Dict[str, Any]
         try:
             json_response = response.json()
         except ValueError as e:
@@ -1259,7 +1281,7 @@ class Tenant:
         return json_response
 
 
-def write_to_namedtempfile(data, delete_tmp_files):
+def write_to_namedtempfile(data: bytes, delete_tmp_files: bool) -> str:
     temp = tempfile.NamedTemporaryFile(  # pylint: disable=consider-using-with
         prefix="keylime-", delete=delete_tmp_files
     )
