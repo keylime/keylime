@@ -1,16 +1,17 @@
 import base64
 import os
 import sys
+from typing import Dict
 
 from keylime import crypto
 
 
-def usage():
+def usage() -> None:
     print("Please pass in a file input file to encrypt")
     sys.exit(-1)
 
 
-def encrypt(contents):
+def encrypt(contents: bytes) -> Dict[str, bytes]:
     k = crypto.generate_random_key(32)
     v = crypto.generate_random_key(32)
     u = crypto.strbitxor(k, v)
