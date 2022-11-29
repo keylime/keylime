@@ -271,23 +271,23 @@ class AbstractTPM(metaclass=ABCMeta):
 
         pcrs_in_quote = set()  # PCRs in quote that were already used for some kind of validation
 
-        pcrs = AbstractTPM.__parse_pcrs(pcrs, virtual)
-        pcr_nums = set(pcrs.keys())
+        pcrs_dict = AbstractTPM.__parse_pcrs(pcrs, virtual)
+        pcr_nums = set(pcrs_dict.keys())
 
         # Validate data PCR
         if config.TPM_DATA_PCR in pcr_nums and data is not None:
             expectedval = self.sim_extend(data, hash_alg=hash_alg)
-            if expectedval != pcrs[config.TPM_DATA_PCR]:
+            if expectedval != pcrs_dict[config.TPM_DATA_PCR]:
                 logger.error(
                     "%sPCR #%s: invalid bind data %s from quote does not match expected value %s",
                     ("", "v")[virtual],
                     config.TPM_DATA_PCR,
-                    pcrs[config.TPM_DATA_PCR],
+                    pcrs_dict[config.TPM_DATA_PCR],
                     expectedval,
                 )
                 failure.add_event(
                     f"invalid_pcr_{config.TPM_DATA_PCR}",
-                    {"got": pcrs[config.TPM_DATA_PCR], "expected": expectedval},
+                    {"got": pcrs_dict[config.TPM_DATA_PCR], "expected": expectedval},
                     True,
                 )
             pcrs_in_quote.add(config.TPM_DATA_PCR)
@@ -312,7 +312,7 @@ class AbstractTPM(metaclass=ABCMeta):
             else:
                 ima_failure = AbstractTPM.__check_ima(
                     agentAttestState,
-                    pcrs[config.IMA_PCR],
+                    pcrs_dict[config.IMA_PCR],
                     ima_measurement_list,
                     allowlist,
                     ima_keyrings,
@@ -341,38 +341,38 @@ class AbstractTPM(metaclass=ABCMeta):
                     val_from_log_int = mb_pcrs_hashes.get(str(pcr_num), 0)
                     val_from_log_hex = hex(val_from_log_int)[2:]
                     val_from_log_hex_stripped = val_from_log_hex.lstrip("0")
-                    pcrval_stripped = pcrs[pcr_num].lstrip("0")
+                    pcrval_stripped = pcrs_dict[pcr_num].lstrip("0")
                     if val_from_log_hex_stripped != pcrval_stripped:
                         logger.error(
                             "For PCR %d and hash %s the boot event log has value %r but the agent returned %r",
                             pcr_num,
                             str(hash_alg),
                             val_from_log_hex,
-                            pcrs[pcr_num],
+                            pcrs_dict[pcr_num],
                         )
                         mb_pcr_failure.add_event(
                             f"invalid_pcr_{pcr_num}",
                             {
                                 "context": "SHA256 boot event log PCR value does not match",
-                                "got": pcrs[pcr_num],
+                                "got": pcrs_dict[pcr_num],
                                 "expected": val_from_log_hex,
                             },
                             True,
                         )
 
-                    if pcr_num in pcr_allowlist and pcrs[pcr_num] not in pcr_allowlist[pcr_num]:
+                    if pcr_num in pcr_allowlist and pcrs_dict[pcr_num] not in pcr_allowlist[pcr_num]:
                         logger.error(
                             "%sPCR #%s: %s from quote does not match expected value %s",
                             ("", "v")[virtual],
                             pcr_num,
-                            pcrs[pcr_num],
+                            pcrs_dict[pcr_num],
                             pcr_allowlist[pcr_num],
                         )
                         failure.add_event(
                             f"invalid_pcr_{pcr_num}",
                             {
                                 "context": "PCR value is not in allowlist",
-                                "got": pcrs[pcr_num],
+                                "got": pcrs_dict[pcr_num],
                                 "expected": pcr_allowlist[pcr_num],
                             },
                             True,
@@ -390,19 +390,19 @@ class AbstractTPM(metaclass=ABCMeta):
                     ("", "v")[virtual],
                 )
                 continue
-            if pcrs[pcr_num] not in pcr_allowlist[pcr_num]:
+            if pcrs_dict[pcr_num] not in pcr_allowlist[pcr_num]:
                 logger.error(
                     "%sPCR #%s: %s from quote does not match expected value %s",
                     ("", "v")[virtual],
                     pcr_num,
-                    pcrs[pcr_num],
+                    pcrs_dict[pcr_num],
                     pcr_allowlist[pcr_num],
                 )
                 failure.add_event(
                     f"invalid_pcr_{pcr_num}",
                     {
                         "context": "PCR value is not in allowlist",
-                        "got": pcrs[pcr_num],
+                        "got": pcrs_dict[pcr_num],
                         "expected": pcr_allowlist[pcr_num],
                     },
                     True,
