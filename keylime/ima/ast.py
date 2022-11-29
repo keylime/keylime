@@ -12,7 +12,7 @@ import binascii
 import codecs
 import struct
 import typing
-from typing import Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 from keylime import config, keylime_logging
 from keylime.common.algorithms import Hash
@@ -196,7 +196,7 @@ class Digest:
             self.hash,
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, Digest)
             and self.legacy == other.legacy
