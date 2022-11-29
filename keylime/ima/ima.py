@@ -283,7 +283,6 @@ def _process_measurement_list(
     lines: List[str],
     hash_alg: Hash,
     lists: Optional[Union[str, Dict[str, Any]]] = None,
-    m2w=None,
     pcrval: Optional[str] = None,
     ima_keyrings: Optional[ImaKeyrings] = None,
     boot_aggregates: Optional[Dict] = None,
@@ -394,11 +393,6 @@ def _process_measurement_list(
                     if dm_validator:
                         agentAttestState.set_ima_dm_state(dm_validator.state_dump())
 
-            # Keep old functionality for writing the parsed files with hashes into a file
-            if m2w is not None and (isinstance(entry.mode, (ast.Ima, ast.ImaNg, ast.ImaSig))):
-                hash_value = codecs.encode(entry.mode.digest.hash, "hex")
-                path = entry.mode.path.name
-                m2w.write(f"{hash_value} {path}\n")
         except ast.ParserError:
             failure.add_event("entry", f"Line was not parsable into a valid IMA entry: {line}", True, ["parser"])
             logger.error("Line was not parsable into a valid IMA entry: %s", line)
@@ -421,7 +415,6 @@ def process_measurement_list(
     agentAttestState: AgentAttestState,
     lines: List[str],
     lists: Optional[Union[str, Dict[str, Any]]] = None,
-    m2w=None,
     pcrval: Optional[str] = None,
     ima_keyrings: Optional[ImaKeyrings] = None,
     boot_aggregates: Optional[Dict] = None,
@@ -434,7 +427,6 @@ def process_measurement_list(
             lines,
             hash_alg,
             lists=lists,
-            m2w=m2w,
             pcrval=pcrval,
             ima_keyrings=ima_keyrings,
             boot_aggregates=boot_aggregates,
