@@ -4,6 +4,7 @@ import itertools
 import select
 import sys
 import time
+from typing import Optional
 
 from keylime.common import algorithms
 from keylime.ima import ast
@@ -14,14 +15,21 @@ from keylime.tpm.tpm_main import tpm
 tpm_instance = tpm(need_hw_tpm=True)
 
 
-def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=None):
+def measure_list(
+    file_path: str,
+    position: int,
+    ima_hash_alg: algorithms.Hash,
+    pcr_hash_alg: algorithms.Hash,
+    search_val: Optional[str] = None,
+) -> int:
     with open(file_path, encoding="utf-8") as f:
         lines = itertools.islice(f, position, None)
 
         runninghash = ast.get_START_HASH(pcr_hash_alg)
 
+        search_val_bytes = None
         if search_val is not None:
-            search_val = codecs.decode(search_val.encode("utf-8"), "hex")
+            search_val_bytes = codecs.decode(search_val.encode("utf-8"), "hex")
 
         for line in lines:
             # remove only the newline character, as there can be the
@@ -32,15 +40,15 @@ def measure_list(file_path, position, ima_hash_alg, pcr_hash_alg, search_val=Non
 
             entry = ast.Entry(line, None, ima_hash_alg=ima_hash_alg, pcr_hash_alg=pcr_hash_alg)
 
-            if search_val is None:
+            if search_val_bytes is None:
                 val = codecs.encode(entry.pcr_template_hash, "hex").decode("utf8")
                 tpm_instance.extendPCR(config.IMA_PCR, val, pcr_hash_alg)
             else:
                 runninghash = pcr_hash_alg.hash(runninghash + entry.pcr_template_hash)
-                if runninghash == search_val:
+                if runninghash == search_val_bytes:
                     return position
 
-        if search_val is not None:
+        if search_val_bytes is not None:
             raise Exception(
                 "Unable to find current measurement list position, Resetting the TPM emulator may be neccesary"
             )
