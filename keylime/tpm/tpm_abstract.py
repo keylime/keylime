@@ -250,10 +250,13 @@ class AbstractTPM(metaclass=ABCMeta):
         hash_alg,
     ) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
-        if isinstance(tpm_policy, str):
-            tpm_policy = json.loads(tpm_policy)
 
-        pcr_allowlist = tpm_policy.copy()
+        if isinstance(tpm_policy, str):
+            tpm_policy_dict = json.loads(tpm_policy)
+        else:
+            tpm_policy_dict = tpm_policy
+
+        pcr_allowlist = tpm_policy_dict.copy()
 
         if "mask" in pcr_allowlist:
             del pcr_allowlist["mask"]
