@@ -1,18 +1,22 @@
 import re
+from logging import Logger
+from typing import Dict, List, Union
 
 from packaging import version
 
-CURRENT_VERSION = "2.1"
-VERSIONS = ["1.0", "2.0", "2.1"]
-LATEST_VERSIONS = {"1": "1.0", "2": "2.1"}
-DEPRECATED_VERSIONS = ["1.0"]
+VersionType = Union[int, float, str]
+
+CURRENT_VERSION: str = "2.1"
+VERSIONS: List[str] = ["1.0", "2.0", "2.1"]
+LATEST_VERSIONS: Dict[str, str] = {"1": "1.0", "2": "2.1"}
+DEPRECATED_VERSIONS: List[str] = ["1.0"]
 
 
-def current_version():
+def current_version() -> str:
     return CURRENT_VERSION
 
 
-def latest_minor_version(v):
+def latest_minor_version(v: VersionType) -> str:
     v_obj = version.parse(str(v))
     if not isinstance(v_obj, version.Version):
         return "0"
@@ -23,21 +27,21 @@ def latest_minor_version(v):
     return "0"
 
 
-def all_versions():
+def all_versions() -> List[str]:
     return VERSIONS.copy()
 
 
-def is_supported_version(v):
+def is_supported_version(v: VersionType) -> bool:
     v_obj = version.parse(str(v))
     return v_obj.base_version in VERSIONS
 
 
-def is_deprecated_version(v):
+def is_deprecated_version(v: VersionType) -> bool:
     v_obj = version.parse(str(v))
     return is_supported_version(v) and v_obj.base_version in DEPRECATED_VERSIONS
 
 
-def normalize_version(v):
+def normalize_version(v: VersionType) -> str:
     v = str(v)
     v = v.strip("/")
     base_version = version.parse(v).base_version
@@ -49,19 +53,19 @@ def normalize_version(v):
     return base_version
 
 
-def major(v):
+def major(v: VersionType):
     v_obj = version.parse(str(v))
     assert isinstance(v_obj, version.Version)
     return v_obj.major
 
 
-def minor(v):
+def minor(v: VersionType):
     v_obj = version.parse(str(v))
     assert isinstance(v_obj, version.Version)
     return v_obj.minor
 
 
-def log_api_versions(logger):
+def log_api_versions(logger: Logger) -> None:
     logger.info("Current API version %s", CURRENT_VERSION)
     versions = all_versions()
     versions.remove(CURRENT_VERSION)

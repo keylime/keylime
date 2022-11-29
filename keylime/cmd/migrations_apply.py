@@ -1,15 +1,16 @@
 import os
+from typing import Optional
 
 import alembic.config
 
 from keylime import keylime_logging
 
 
-def main():
+def main() -> None:
     apply(None)
 
 
-def apply(db_name):
+def apply(db_name: Optional[str]) -> None:
     # set a conservative general umask
     os.umask(0o077)
 
