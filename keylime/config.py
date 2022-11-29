@@ -1,20 +1,21 @@
 import ast
-import configparser
+import logging
 import os
 import os.path
-from typing import Optional
+from configparser import RawConfigParser
+from typing import Any, Dict, List, Optional, cast
 
 import yaml
 
 try:
     from yaml import CSafeLoader as SafeLoader
 except ImportError:
-    from yaml import SafeLoader
+    from yaml import SafeLoader  # type: ignore
 
 from yaml.reader import ReaderError
 
 
-def convert(data):
+def convert(data: Any) -> Any:
     if isinstance(data, bytes):
         return data.decode()
     if isinstance(data, dict):
@@ -26,7 +27,7 @@ def convert(data):
     return data
 
 
-def environ_bool(env_name, default):
+def environ_bool(env_name: str, default: bool) -> bool:
     val = os.getenv(env_name, "default").lower()
     if val in ["on", "true", "1"]:
         return True
@@ -110,10 +111,10 @@ if "KEYLIME_LOGGING_CONFIG" in os.environ:
     CONFIG_ENV["logging"] = os.environ["KEYLIME_LOGGING_CONFIG"]
 
 # Single instance
-_config = None
+_config: Optional[Dict[str, RawConfigParser]] = None
 
 
-def get_config(component) -> configparser.RawConfigParser:
+def get_config(component: str) -> RawConfigParser:
     """Find the configuration file to use for the given component and apply the
     overrides defined by configuration snippets.
 
@@ -159,7 +160,7 @@ def get_config(component) -> configparser.RawConfigParser:
 
     if component not in _config:  # pylint: disable=too-many-nested-blocks
         # Use RawConfigParser, so we can also use it as the logging config
-        _config[component] = configparser.RawConfigParser()
+        _config[component] = RawConfigParser()
 
         if not CONFIG_ENV or not isinstance(CONFIG_ENV, dict):
             raise Exception("Invalid CONFIG_ENV")
@@ -228,7 +229,7 @@ def get_config(component) -> configparser.RawConfigParser:
     return _config[component]
 
 
-def getlist(component, option, section=None):
+def getlist(component: str, option: str, section: Optional[str] = None) -> List[Any]:
     if not section:
         section = component
 
@@ -250,35 +251,35 @@ def getlist(component, option, section=None):
     raise Exception(f"Could not find option '{option}' in section '{section}' of component '{component}'")
 
 
-def get(component, option, section=None, fallback=""):
+def get(component: str, option: str, section: Optional[str] = None, fallback: str = "") -> str:
     if not section:
         section = component
 
     return get_config(component).get(section, option, fallback=fallback)
 
 
-def getint(component, option, section=None, fallback=-1):
+def getint(component: str, option: str, section: Optional[str] = None, fallback: int = -1) -> int:
     if not section:
         section = component
 
     return get_config(component).getint(section, option, fallback=fallback)
 
 
-def getboolean(component, option, section=None, fallback=False):
+def getboolean(component: str, option: str, section: Optional[str] = None, fallback: bool = False) -> bool:
     if not section:
         section = component
 
     return get_config(component).getboolean(section, option, fallback=fallback)
 
 
-def getfloat(component, option, section=None, fallback=-1.0):
+def getfloat(component: str, option: str, section: Optional[str] = None, fallback: float = -1.0) -> float:
     if not section:
         section = component
 
     return get_config(component).getfloat(section, option, fallback=fallback)
 
 
-def has_option(component, option, section=None):
+def has_option(component: str, option: str, section: Optional[str] = None) -> bool:
     if not section:
         section = component
 
@@ -288,11 +289,13 @@ def has_option(component, option, section=None):
 CA_WORK_DIR = f"{WORK_DIR}/ca/"
 
 
-def yaml_to_dict(arry, add_newlines=True, logger=None) -> Optional[dict]:
-    arry = convert(arry)
+def yaml_to_dict(
+    arry: Any, add_newlines: bool = True, logger: Optional[logging.Logger] = None
+) -> Optional[Dict[Any, Any]]:
+    converted_arry: List[str] = convert(arry)
     sep = "\n" if add_newlines else ""
     try:
-        return yaml.load(sep.join(arry), Loader=SafeLoader)
+        return cast(Dict[Any, Any], yaml.load(sep.join(converted_arry), Loader=SafeLoader))
     except ReaderError as err:
         if logger is not None:
             logger.warning("Could not load yaml as dict: %s", str(err))
