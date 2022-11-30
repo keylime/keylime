@@ -16,7 +16,7 @@ profile = "black"
 line_length = 120
 
 [tool.pyright]
-include = ["keylime"]
+include = ["keylime", "test"]
 ignore = [
     "keylime/backport_dataclasses.py",
     "keylime/keylime_agent.py",
@@ -28,5 +28,15 @@ ignore = [
     "keylime/da/examples/file.py",
     "keylime/da/record.py",
     "keylime/cloud_verifier_tornado.py",
+    "test/oldtest.py",
+    "test/test_ca_impl_openssl.py",
+    "test/test_ca_util.py",
+    "test/test_cert_utils.py",
+    "test/test_crypto.py",
+    "test/test_ima_dm.py",
+    "test/test_ima_verification.py",
+    "test/test_restful.py",
+    "test/test_tpm.py",
+    "test/test_validators.py",
 ]
 reportMissingImports = false
