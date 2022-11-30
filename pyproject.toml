@@ -10,6 +10,7 @@ build-backend = "setuptools.build_meta"
 line-length = 120
 target-version = ['py37']
 include = '\.pyi?$'
+extend-exclude = 'test/data/template-invalid-adjust/2.0/adjust.py'
 
 [tool.isort]
 profile = "black"

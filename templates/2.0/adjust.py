@@ -1,11 +1,13 @@
 import ast
 import configparser
 import re
+from configparser import RawConfigParser
+from typing import Dict, List, Optional, Tuple
 
 from keylime.common.version import str_to_version
 
 
-def adjust(config, mapping):  # pylint: disable=unused-argument
+def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=unused-argument
     """
     Process the configuration intermediary representation adjusting some of the
     values following changes to the configuration files semantics.
