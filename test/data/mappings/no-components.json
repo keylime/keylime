@@ -1,0 +1,7 @@
+{
+    "version": "2.0",
+    "subcomponents": {
+        "subcomp1": "comp1",
+        "subcomp2": "comp2"
+    }
+}

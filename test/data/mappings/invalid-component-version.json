@@ -1,0 +1,57 @@
+{
+    "version": "2.0",
+    "components": {
+        "comp1": {
+            "version": {
+                "section": "comp1",
+                "option": "version",
+                "default": "2.0"
+            },
+            "test_option": {
+                "section": "comp1",
+                "option": "test_option",
+                "default": "2.0"
+            },
+            "test_adjust": {
+                "section": "comp1",
+                "option": "test_adjust",
+                "default": "not_adjusted"
+            }
+        },
+        "subcomp1": {
+            "suboption": {
+                "section": "subcomp1",
+                "option": "suboption",
+                "default": "2.0"
+            }
+        },
+        "comp2": {
+            "version": {
+                "section": "comp2",
+                "option": "version",
+                "default": "2.0"
+            },
+            "test_option": {
+                "section": "comp2",
+                "option": "test_option",
+                "default": "2.0"
+            },
+            "test_adjust": {
+                "section": "comp2",
+                "option": "test_adjust",
+                "default": "not_adjusted"
+            }
+        },
+        "subcomp2": {
+            "suboption": {
+                "section": "subcomp2",
+                "option": "suboption",
+                "default": "2.0"
+            }
+        }
+    },
+    "subcomponents": {
+        "subcomp1": "comp1",
+        "subcomp2": "comp2"
+    }
+}
