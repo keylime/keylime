@@ -359,11 +359,6 @@
                 "option": "webhook_url",
                 "default": ""
             },
-            "log_destination": {
-                "section": "cloud_verifier",
-                "option": "log_destination",
-                "default": ""
-            },
             "durable_attestation_import" : {
                 "section": "cloud_verifier",
                 "option": "durable_attestation_import",
@@ -592,11 +587,6 @@
                 "section": "registrar",
                 "option": "prov_db_filename",
                 "default": "provider_reg_data.sqlite"
-            },
-            "log_destination": {
-                "section": "registrar",
-                "option": "log_destination",
-                "default": ""
             },
             "durable_attestation_import" : {
                 "section": "registrar",
