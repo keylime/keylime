@@ -3,9 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2017 Massachusetts Institute of Technology.
 """
 
-import sys
 import unittest
-from pathlib import Path
 
 from keylime.crypto import (
     base64,
@@ -27,12 +25,6 @@ from keylime.crypto import (
     rsa_verify,
     strbitxor,
 )
-
-# Useful constants for the test
-KEYLIME_DIR = Path(__file__).parents[1]
-
-# Custom imports
-sys.path.insert(0, KEYLIME_DIR)
 
 
 class Crypto_Test(unittest.TestCase):
@@ -71,11 +63,11 @@ class Crypto_Test(unittest.TestCase):
         encrypt(None, get_random_bytes(32))
 
         with self.assertRaises(Exception):
-            decrypt("", None)
+            decrypt("", None)  # type: ignore
 
         invalid = base64.b64encode(get_random_bytes(45))
         with self.assertRaises(Exception):
-            decrypt(invalid, None)
+            decrypt(invalid, None)  # type: ignore
 
     def test_rsa_sign(self):
         message = b"a secret message!"
