@@ -39,7 +39,7 @@ def _get_cmd_env():
 
 class tpm(tpm_abstract.AbstractTPM):
     VERSION = 2
-    tools_version = ""
+    tools_version: str = ""
 
     def __init__(self, need_hw_tpm=False):
         tpm_abstract.AbstractTPM.__init__(self, need_hw_tpm)
@@ -65,28 +65,28 @@ class tpm(tpm_abstract.AbstractTPM):
         assert version_str_ is not None
         version_str = version_str_.group(1)
         # Extract the full semver release number.
-        self.tools_version = version_str.split("-")
+        tools_version = version_str.split("-")
 
-        if Version(self.tools_version[0]) >= Version("5.4") or (
+        if Version(tools_version[0]) >= Version("5.4") or (
             # Also mark first git version that introduces the change to the tpm2_eventlog format as 5.4
             # See: https://github.com/tpm2-software/tpm2-tools/commit/c78d258b2588aee535fd17594ad2f5e808056373
-            Version(self.tools_version[0]) == Version("5.3")
-            and len(self.tools_version) > 1
-            and int(self.tools_version[1]) >= 24
+            Version(tools_version[0]) == Version("5.3")
+            and len(tools_version) > 1
+            and int(tools_version[1]) >= 24
         ):
-            logger.info("TPM2-TOOLS Version: %s", self.tools_version[0])
+            logger.info("TPM2-TOOLS Version: %s", tools_version[0])
             self.tools_version = "5.4"
-        elif Version(self.tools_version[0]) >= Version("4.2"):
-            logger.info("TPM2-TOOLS Version: %s", self.tools_version[0])
+        elif Version(tools_version[0]) >= Version("4.2"):
+            logger.info("TPM2-TOOLS Version: %s", tools_version[0])
             self.tools_version = "4.2"
-        elif Version(self.tools_version[0]) >= Version("4.0.0"):
-            logger.info("TPM2-TOOLS Version: %s", self.tools_version[0])
+        elif Version(tools_version[0]) >= Version("4.0.0"):
+            logger.info("TPM2-TOOLS Version: %s", tools_version[0])
             self.tools_version = "4.0"
-        elif Version(self.tools_version[0]) >= Version("3.2.0"):
-            logger.info("TPM2-TOOLS Version: %s", self.tools_version[0])
+        elif Version(tools_version[0]) >= Version("3.2.0"):
+            logger.info("TPM2-TOOLS Version: %s", tools_version[0])
             self.tools_version = "3.2"
         else:
-            logger.error("TPM2-TOOLS Version %s is not supported.", self.tools_version[0])
+            logger.error("TPM2-TOOLS Version %s is not supported.", tools_version[0])
             sys.exit()
 
     def __get_tpm_algorithms(self):
