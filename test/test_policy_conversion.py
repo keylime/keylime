@@ -55,7 +55,9 @@ class TestPolicyConversion(unittest.TestCase):
             created_ima_policy["meta"]["version"], ima.IMA_POLICY_CURRENT_VERSION, "Metadata version is correct"
         )
         self.assertEqual(
-            created_ima_policy["meta"]["generator"], "convert_ima_policy.py", "Metadata generator is correct"
+            created_ima_policy["meta"]["generator"],
+            ima.IMA_POLICY_GENERATOR.LegacyAllowList,
+            "Metadata generator is correct",
         )
         self.assertEqual(
             created_ima_policy["digests"][

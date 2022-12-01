@@ -59,7 +59,7 @@ def convert_legacy_allowlist(allowlist_path: str) -> PolicyDict:
 def _convert_json_allowlist(alist_json: PolicyDict) -> PolicyDict:
     ima_policy = copy.deepcopy(ima.EMPTY_IMA_POLICY)
     ima_policy["meta"]["timestamp"] = str(datetime.datetime.now())
-    ima_policy["meta"]["generator"] = "convert_ima_policy.py"
+    ima_policy["meta"]["generator"] = ima.IMA_POLICY_GENERATOR.LegacyAllowList
     for key in ima_policy.keys():
         if key == "digests":
             digests = alist_json.get("hashes")
@@ -83,7 +83,7 @@ def _convert_json_allowlist(alist_json: PolicyDict) -> PolicyDict:
 def _convert_flat_format_allowlist(alist_raw: str) -> PolicyDict:
     ima_policy = copy.deepcopy(ima.EMPTY_IMA_POLICY)
     ima_policy["meta"]["timestamp"] = str(datetime.datetime.now())
-    ima_policy["meta"]["generator"] = "convert-ima-policy"
+    ima_policy["meta"]["generator"] = ima.IMA_POLICY_GENERATOR.LegacyAllowList
 
     lines = alist_raw.splitlines()
     for line_num, line in enumerate(lines):
@@ -121,7 +121,7 @@ def update_ima_policy(
         )
         updated_policy: Dict = copy.deepcopy(ima.EMPTY_IMA_POLICY)
         updated_policy["meta"]["timestamp"] = str(datetime.datetime.now())
-        updated_policy["meta"]["generator"] = "convert_ima_policy.py"
+        updated_policy["meta"]["generator"] = ima.IMA_POLICY_GENERATOR.CompatibleAllowList
         for key in updated_policy.keys():
             if key == "meta":
                 continue
