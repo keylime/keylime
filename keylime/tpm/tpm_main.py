@@ -62,7 +62,10 @@ class tpm(tpm_abstract.AbstractTPM):
 
         # Extract the `version="x.x.x"` from tools
         version_str_ = re.search(r'version="([^"]+)"', output)
-        assert version_str_ is not None
+        if version_str_ is None:
+            msg = f"Could not determine tpm2-tools version from TPM2_Startup output '{output}'"
+            logger.error(msg)
+            raise Exception(msg)
         version_str = version_str_.group(1)
         # Extract the full semver release number.
         self.tools_version = version_str.split("-")
