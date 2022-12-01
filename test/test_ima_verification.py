@@ -90,8 +90,8 @@ class TestIMAVerification(unittest.TestCase):
     def test_measurment_verification(self):
         """Test IMA measurement list verification"""
         lines = MEASUREMENTS.splitlines()
-        lists_map = ima.process_ima_policy(ALLOWLIST, "")
-        lists_map_empty = ima.process_ima_policy(ALLOWLIST_EMPTY, "")
+        lists_map = ima.process_ima_policy(ALLOWLIST, [])
+        lists_map_empty = ima.process_ima_policy(ALLOWLIST_EMPTY, [])
 
         _, failure = ima.process_measurement_list(AgentAttestState("1"), lines)
         self.assertTrue(not failure, "Validation should always work when no allowlist and no keyring is specified")
@@ -124,6 +124,7 @@ class TestIMAVerification(unittest.TestCase):
         # add key for 1st entry; 1st entry must be verifiable
         rsakeyfile = os.path.join(keydir, "rsa2048pub.pem")
         pubkey, keyidv2 = file_signatures.get_pubkey_from_file(rsakeyfile)
+        assert pubkey is not None
         tenant_keyring.add_pubkey(pubkey, keyidv2)
         _, failure = ima.process_measurement_list(AgentAttestState("1"), lines[0:1], ima_keyrings=keyrings)
         self.assertTrue(not failure)
@@ -133,13 +134,14 @@ class TestIMAVerification(unittest.TestCase):
         # add key for 2nd entry; 1st & 2nd entries must be verifiable
         eckeyfile = os.path.join(keydir, "secp256k1.pem")
         pubkey, keyidv2 = file_signatures.get_pubkey_from_file(eckeyfile)
+        assert pubkey is not None
         tenant_keyring.add_pubkey(pubkey, keyidv2)
         _, failure = ima.process_measurement_list(AgentAttestState("1"), lines[0:2], ima_keyrings=keyrings)
         self.assertTrue(not failure)
 
     def test_ima_buf_verification(self):
         """The verification of ima-buf entries supporting keys loaded onto keyrings"""
-        list_map = ima.process_ima_policy(ALLOWLIST, "")
+        list_map = ima.process_ima_policy(ALLOWLIST, [])
         ima_keyrings = file_signatures.ImaKeyrings()
 
         self.assertTrue(
@@ -154,9 +156,11 @@ class TestIMAVerification(unittest.TestCase):
         The AgentAtestState() will maintain the state of PCR 10.
         """
 
+        pcrval = None
         lines = MEASUREMENTS.splitlines()
         agentAttestState = AgentAttestState("1")
         running_hash = agentAttestState.get_pcr_state(10)
+        assert running_hash is not None
         for line in lines:
             parts = line.split(" ")
             template_hash = codecs.decode(parts[1].encode("utf-8"), "hex")
@@ -166,15 +170,15 @@ class TestIMAVerification(unittest.TestCase):
             self.assertTrue(ima_hash == pcrval)
 
         # Feed empty iterative measurement list simulating 'no new measurement list entries' on attested system
-        ima_hash, _ = ima.process_measurement_list(agentAttestState, [""], pcrval=pcrval)
+        ima_hash, _ = ima.process_measurement_list(agentAttestState, [], pcrval=pcrval)
         self.assertTrue(ima_hash == pcrval)
 
     def test_mixed_verfication(self):
         """Test verification using allowlist and keys"""
 
-        lists_map = ima.process_ima_policy(ALLOWLIST, "")
-        lists_map_wrong = ima.process_ima_policy(ALLOWLIST_WRONG, "")
-        lists_map_empty = ima.process_ima_policy(ALLOWLIST_EMPTY, "")
+        lists_map = ima.process_ima_policy(ALLOWLIST, [])
+        lists_map_wrong = ima.process_ima_policy(ALLOWLIST_WRONG, [])
+        lists_map_empty = ima.process_ima_policy(ALLOWLIST_EMPTY, [])
         lists_map_exclude = ima.process_ima_policy(ALLOWLIST, EXCLUDELIST)
         lists_map_exclude_wrong = ima.process_ima_policy(ALLOWLIST_WRONG, EXCLUDELIST)
 
@@ -191,10 +195,12 @@ class TestIMAVerification(unittest.TestCase):
 
         rsakeyfile = os.path.join(keydir, "rsa2048pub.pem")
         pubkey, keyidv2 = file_signatures.get_pubkey_from_file(rsakeyfile)
+        assert pubkey is not None
         tenant_keyring.add_pubkey(pubkey, keyidv2)
 
         eckeyfile = os.path.join(keydir, "secp256k1.pem")
         pubkey, keyidv2 = file_signatures.get_pubkey_from_file(eckeyfile)
+        assert pubkey is not None
         tenant_keyring.add_pubkey(pubkey, keyidv2)
 
         ima_keyrings.set_tenant_keyring(tenant_keyring)

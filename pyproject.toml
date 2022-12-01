@@ -33,7 +33,6 @@ ignore = [
     "test/test_ca_util.py",
     "test/test_cert_utils.py",
     "test/test_ima_dm.py",
-    "test/test_ima_verification.py",
     "test/test_restful.py",
     "test/test_tpm.py",
 ]

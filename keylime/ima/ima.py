@@ -498,7 +498,7 @@ def process_ima_policy(allowlist: Dict[str, Any], exclude: List[str]) -> Dict[st
 # Does not process exclusion lists.
 def read_allowlist(
     alist: Optional[str] = None,
-    checksum: str = "",
+    checksum: Optional[str] = "",
     al_sig_file: Optional[str] = None,
     al_key_file: Optional[str] = None,
 ):
