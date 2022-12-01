@@ -36,6 +36,5 @@ ignore = [
     "test/test_ima_verification.py",
     "test/test_restful.py",
     "test/test_tpm.py",
-    "test/test_validators.py",
 ]
 reportMissingImports = false

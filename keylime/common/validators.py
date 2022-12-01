@@ -1,6 +1,7 @@
 """Validators module."""
 
 import re
+from typing import Optional
 
 
 def valid_regex(regex):
@@ -35,8 +36,10 @@ def valid_hex(value):
     return True
 
 
-def valid_uuid(uuid: str) -> bool:
+def valid_uuid(uuid: Optional[str]) -> bool:
     """Check if the string is a valid UUID."""
+    if not uuid:
+        return False
     valid = False
     try:
         valid = bool(
@@ -51,8 +54,10 @@ def valid_uuid(uuid: str) -> bool:
     return valid
 
 
-def valid_agent_id(agent_id: str) -> bool:
+def valid_agent_id(agent_id: Optional[str]) -> bool:
     """Check if agent_id is valid."""
+    if not agent_id:
+        return False
     valid = False
     try:
         valid = bool(re.fullmatch(r"[\w.-]+", agent_id))

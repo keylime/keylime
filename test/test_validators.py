@@ -13,6 +13,7 @@ class TestValidRegex(unittest.TestCase):
     def test_valid(self):
         """Check a well formed regex."""
         value = validators.valid_regex(r"a.*")
+        assert value[0] is not None
         self.assertEqual(value[0].pattern, r"a.*")
         self.assertEqual(value[1], None)
 
@@ -32,12 +33,14 @@ class TestValidExcludeList(unittest.TestCase):
     def test_single(self):
         """Check a single exclude list element."""
         value = validators.valid_exclude_list([r"a.*"])
+        assert value[0] is not None
         self.assertEqual(value[0].pattern, r"(a.*)")
         self.assertEqual(value[1], None)
 
     def test_multi(self):
         """Check a multiple elements exclude list."""
         value = validators.valid_exclude_list([r"a.*", r"b.*"])
+        assert value[0] is not None
         self.assertEqual(value[0].pattern, r"(a.*)|(b.*)")
         self.assertEqual(value[1], None)
 
