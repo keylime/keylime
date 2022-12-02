@@ -34,7 +34,7 @@ from keylime.da import record
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist
 from keylime.elchecking import policies
-from keylime.failure import MAX_SEVERITY_LABEL, Component, Failure, SeverityLabel, set_severity_config
+from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
 
 logger = keylime_logging.init_logging("verifier")
@@ -1064,7 +1064,7 @@ async def invoke_notify_error(agent: Optional[Dict[str, Any]], tosend: Dict[str,
 
 
 async def notify_error(
-    agent: Dict[str, Any], msgtype: str = "revocation", event: Optional[SeverityLabel] = None, timeout: float = 60.0
+    agent: Dict[str, Any], msgtype: str = "revocation", event: Optional[Event] = None, timeout: float = 60.0
 ) -> None:
     notifiers = revocation_notifier.get_notifiers()
     if len(notifiers) == 0:
