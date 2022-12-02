@@ -39,10 +39,10 @@ class CA_Util_Test(unittest.TestCase):
     def test_ca_util(self):
         ca_util.setpassword("42")
 
+        # Create directory to be our working dir.
+        working_dir = tempfile.mkdtemp()
+        assert working_dir
         try:
-            # Create directory to be our working dir.
-            working_dir = tempfile.mkdtemp()
-
             # cmd_init()
             ca_util.cmd_init(working_dir)
 
