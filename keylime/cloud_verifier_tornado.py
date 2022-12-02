@@ -6,7 +6,7 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Process
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import tornado.httpserver
 import tornado.ioloop
@@ -267,7 +267,7 @@ class AgentsHandler(BaseHandler):
             web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
-        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
             return
 
         if "agents" not in rest_params:
@@ -361,7 +361,7 @@ class AgentsHandler(BaseHandler):
             web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
-        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
             return
 
         if "agents" not in rest_params:
@@ -436,7 +436,7 @@ class AgentsHandler(BaseHandler):
                 web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
                 return
 
-            if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+            if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
                 return
 
             if "agents" not in rest_params:
@@ -657,7 +657,7 @@ class AgentsHandler(BaseHandler):
                 web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
                 return
 
-            if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+            if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
                 return
 
             if "agents" not in rest_params:
@@ -745,7 +745,7 @@ class AllowlistHandler(BaseHandler):
             web_util.echo_json_response(self, 400, "Invalid URL")
             return
 
-        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
             return
 
         allowlist_name = rest_params["allowlists"]
@@ -781,7 +781,7 @@ class AllowlistHandler(BaseHandler):
             web_util.echo_json_response(self, 400, "Invalid URL")
             return
 
-        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
             return
 
         allowlist_name = rest_params["allowlists"]
@@ -842,7 +842,7 @@ class AllowlistHandler(BaseHandler):
             web_util.echo_json_response(self, 400, "Invalid URL")
             return
 
-        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
             return
 
         allowlist_name = rest_params["allowlists"]
