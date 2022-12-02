@@ -1,4 +1,5 @@
 import datetime
+from typing import Tuple
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -10,6 +11,7 @@ from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, load_pem_private_key
+from cryptography.x509 import Certificate
 from cryptography.x509.oid import NameOID
 
 from keylime import config
@@ -128,7 +130,7 @@ def mk_cacert(name=None):
     return cert, privkey, pubkey
 
 
-def mk_signed_cert(cacert, ca_privkey, name, serialnum):
+def mk_signed_cert(cacert: Certificate, ca_privkey, name: str, serialnum: int) -> Tuple[Certificate, RSAPrivateKey]:
     """
     Create a CA cert + server cert + server private key.
     """

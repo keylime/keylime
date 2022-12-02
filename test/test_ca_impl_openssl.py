@@ -10,6 +10,7 @@ from pathlib import Path
 
 from cryptography import exceptions as crypto_exceptions
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
 from keylime import ca_impl_openssl
 
@@ -28,6 +29,8 @@ class OpenSSL_Test(unittest.TestCase):
         cert, _ = ca_impl_openssl.mk_signed_cert(ca_cert, ca_pk, "cert", 4)
 
         pubkey = ca_cert.public_key()
+        assert isinstance(pubkey, RSAPublicKey)
+        assert cert.signature_hash_algorithm is not None
         try:
             pubkey.verify(
                 cert.signature,
