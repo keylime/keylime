@@ -60,7 +60,7 @@ def get_session() -> Session:
     return SessionManager().make_session(engine)
 
 
-def get_AgentAttestStates() -> AgentAttestState:
+def get_AgentAttestStates() -> AgentAttestStates:
     return AgentAttestStates.get_instance()
 
 
