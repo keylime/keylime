@@ -1,5 +1,5 @@
-import keylime.cmd.migrations_apply
 from keylime import cloud_verifier_tornado, config, keylime_logging
+from keylime.common.migrations import apply
 
 logger = keylime_logging.init_logging("verifier")
 
@@ -7,7 +7,7 @@ logger = keylime_logging.init_logging("verifier")
 def main():
     # if we are configured to auto-migrate the DB, check if there are any migrations to perform
     if config.has_option("verifier", "auto_migrate_db") and config.getboolean("verifier", "auto_migrate_db"):
-        keylime.cmd.migrations_apply.apply("cloud_verifier")
+        apply("cloud_verifier")
 
     cloud_verifier_tornado.main()
 
