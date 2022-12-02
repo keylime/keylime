@@ -1032,7 +1032,7 @@ async def invoke_provide_v(agent: Optional[Dict[str, Any]], timeout=60.0) -> Non
         asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
 
 
-async def invoke_notify_error(agent: Optional[Dict[str, Any]], tosend: str, timeout: float = 60.0) -> None:
+async def invoke_notify_error(agent: Optional[Dict[str, Any]], tosend: Dict[str, Any], timeout: float = 60.0) -> None:
     if agent is None:
         logger.warning("Agent deleted while being processed")
         return
