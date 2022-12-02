@@ -3,12 +3,6 @@ from typing import Optional
 
 import alembic.config
 
-from keylime import keylime_logging
-
-
-def main() -> None:
-    apply(None)
-
 
 def apply(db_name: Optional[str]) -> None:
     # set a conservative general umask
@@ -26,11 +20,3 @@ def apply(db_name: Optional[str]) -> None:
     alembic_args.extend(["upgrade", "head"])
 
     alembic.config.main(argv=alembic_args)
-
-
-if __name__ == "__main__":
-    logger = keylime_logging.init_logging("migrations")
-    try:
-        main()
-    except Exception as e:
-        logger.exception(e)

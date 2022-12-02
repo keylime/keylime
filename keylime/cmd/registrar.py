@@ -1,5 +1,5 @@
-import keylime.cmd.migrations_apply
 from keylime import config, keylime_logging, registrar_common
+from keylime.common.migrations import apply
 
 logger = keylime_logging.init_logging("registrar")
 
@@ -7,7 +7,7 @@ logger = keylime_logging.init_logging("registrar")
 def main():
     # if we are configured to auto-migrate the DB, check if there are any migrations to perform
     if config.has_option("registrar", "auto_migrate_db") and config.getboolean("registrar", "auto_migrate_db"):
-        keylime.cmd.migrations_apply.apply("registrar")
+        apply("registrar")
 
     registrar_common.start(
         config.get("registrar", "ip"),
