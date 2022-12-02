@@ -30,7 +30,6 @@ ignore = [
     "keylime/cloud_verifier_tornado.py",
     "test/oldtest.py",
     "test/test_ca_impl_openssl.py",
-    "test/test_cert_utils.py",
     "test/test_ima_dm.py",
     "test/test_restful.py",
     "test/test_tpm.py",
