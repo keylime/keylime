@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import zipfile
+from typing import List
 
 import requests
 from cryptography.hazmat.primitives import serialization as crypto_serialization
@@ -73,7 +74,7 @@ class Tenant:
     client_cert = None
     client_key = None
     client_key_password = None
-    trusted_server_ca = False
+    trusted_server_ca: List[str] = []
     enable_agent_mtls = False
     verify_server_cert = False
     verify_custom = None
