@@ -2,7 +2,7 @@ import io
 import os.path
 import subprocess
 import sys
-from typing import Dict
+from typing import Dict, Optional
 
 from cryptography import exceptions as crypto_exceptions
 from cryptography import x509
@@ -110,7 +110,7 @@ def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:
     return False
 
 
-def verify_ek_script(script: str, env: Dict[str, str], cwd: str) -> bool:
+def verify_ek_script(script: Optional[str], env: Optional[Dict[str, str]], cwd: Optional[str]) -> bool:
     if script is None:
         logger.warning("External check script (%s) not specified", script)
         return False
