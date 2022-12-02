@@ -6,14 +6,17 @@ import sys
 import tempfile
 import urllib.parse
 from http.server import BaseHTTPRequestHandler
+from logging import Logger
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import tornado.web
 
 from keylime import api_version as keylime_api_version
 from keylime import ca_util, config, json, secure_mount
+from keylime.api_version import VersionType
 
 
-def get_tls_dir(component):
+def get_tls_dir(component: str) -> str:
     # Get the values from the configuration file
     tls_dir = config.get(component, "tls_dir")
 
@@ -43,7 +46,7 @@ def get_tls_dir(component):
     return tls_dir
 
 
-def init_tls_dir(component, logger=None):
+def init_tls_dir(component: str, logger: Optional[Logger] = None) -> str:
     """
     Init the TLS directory, generating keys and certificates if requested
     """
@@ -144,15 +147,15 @@ def init_tls_dir(component, logger=None):
 
 
 def generate_tls_context(
-    certificate,
-    private_key,
-    trusted_ca,
-    private_key_password=None,
-    verify_peer_cert=True,
-    is_client=False,
-    ca_cert_string=None,
-    logger=None,
-):
+    certificate: Optional[str],
+    private_key: Optional[str],
+    trusted_ca: List[str],
+    private_key_password: Optional[str] = None,
+    verify_peer_cert: bool = True,
+    is_client: bool = False,
+    ca_cert_string: Optional[str] = None,
+    logger: Optional[Logger] = None,
+) -> ssl.SSLContext:
     """
     Generate the TLS context
 
@@ -227,7 +230,9 @@ def generate_tls_context(
     return context
 
 
-def get_tls_options(component, is_client=False, logger=None):
+def get_tls_options(
+    component: str, is_client: bool = False, logger: Optional[Logger] = None
+) -> Tuple[Tuple[Optional[str], Optional[str], List[str], Optional[str]], bool]:
     """
     Get the TLS key and certificates to use for the given component
 
@@ -270,32 +275,32 @@ def get_tls_options(component, is_client=False, logger=None):
         trusted_ca = config.getlist(component, ca_option)
         trusted_ca = list(os.path.abspath(os.path.join(tls_dir, ca)) for ca in trusted_ca)
 
-    cert = config.get(component, f"{role}_cert")
-    if not cert:
+    config_cert = config.get(component, f"{role}_cert")
+    if not config_cert:
         cert = None
         if logger:
             logger.warning("No value provided in %s_cert option for %s", role, component)
-    elif cert == "default":
+    elif config_cert == "default":
         cert = os.path.abspath(os.path.join(tls_dir, f"{role}-cert.crt"))
         if logger:
             logger.info("Using default %s_cert option for %s", role, component)
     else:
-        cert = os.path.abspath(os.path.join(tls_dir, cert))
+        cert = os.path.abspath(os.path.join(tls_dir, config_cert))
 
-    key = config.get(component, f"{role}_key")
-    if not key:
+    config_key = config.get(component, f"{role}_key")
+    if not config_key:
         if logger:
             logger.warning("No value provided in %s_key option for %s", role, component)
         key = None
-    elif key == "default":
+    elif config_key == "default":
         key = os.path.abspath(os.path.join(tls_dir, f"{role}-private.pem"))
         if logger:
             logger.info("Using default %s_key option for %s", role, component)
     else:
-        key = os.path.join(tls_dir, key)
+        key = os.path.join(tls_dir, config_key)
 
-    password = config.get(component, f"{role}_key_password")
-    if not password:
+    config_password = config.get(component, f"{role}_key_password")
+    if not config_password:
         if logger:
             logger.info(
                 "No value provided in %s_key_password option for %s, assuming the key is unencrypted",
@@ -303,11 +308,15 @@ def get_tls_options(component, is_client=False, logger=None):
                 component,
             )
         password = None
+    else:
+        password = config_password
 
     return (cert, key, trusted_ca, password), verify_peer_certificate
 
 
-def generate_agent_tls_context(component, cert_blob, logger=None):
+def generate_agent_tls_context(
+    component: str, cert_blob: str, logger: Optional[Logger] = None
+) -> Optional[ssl.SSLContext]:
     """
     Setups a TLS SSLContext object to connect to an agent.
 
@@ -352,7 +361,7 @@ def generate_agent_tls_context(component, cert_blob, logger=None):
     return context
 
 
-def init_mtls(component, logger=None):
+def init_mtls(component: str, logger: Optional[Logger] = None) -> ssl.SSLContext:
     """
     Initialize the server TLS context following the configuration options.
 
@@ -377,7 +386,9 @@ def init_mtls(component, logger=None):
     )
 
 
-def echo_json_response(handler, code, status=None, results=None):
+def echo_json_response(
+    handler: Any, code: int, status: Optional[str] = None, results: Optional[Dict[str, Any]] = None
+) -> bool:
     """Takes a json package and returns it to the user w/ full HTTP headers"""
     if handler is None or code is None:
         return False
@@ -388,32 +399,32 @@ def echo_json_response(handler, code, status=None, results=None):
 
     json_res = {"code": code, "status": status, "results": results}
     json_response = json.dumps(json_res)
-    json_response = json_response.encode("utf-8")
+    json_response_bytes = json_response.encode("utf-8")
 
     if isinstance(handler, BaseHTTPRequestHandler):
         handler.send_response(code)
         handler.send_header("Content-Type", "application/json")
         handler.end_headers()
-        handler.wfile.write(json_response)
+        handler.wfile.write(json_response_bytes)
         return True
     if isinstance(handler, tornado.web.RequestHandler):
         handler.set_status(code)
         handler.set_header("Content-Type", "application/json")
-        handler.write(json_response)
+        handler.write(json_response_bytes)
         handler.finish()
         return True
 
     return False
 
 
-def get_restful_params(urlstring):
+def get_restful_params(urlstring: str) -> Dict[str, Union[str, None]]:
     """Returns a dictionary of paired RESTful URI parameters"""
     parsed_path = urllib.parse.urlsplit(urlstring.strip("/"))
     query_params = urllib.parse.parse_qsl(parsed_path.query)
     path_tokens = parsed_path.path.split("/")
 
     # If first token looks like an API version, validate it and make sure it's supported
-    api_version = 0
+    api_version = "0"
     if path_tokens[0] and len(path_tokens[0]) >= 0 and re.match(r"^v?[0-9]+(\.[0-9]+)?", path_tokens[0]):
         version = keylime_api_version.normalize_version(path_tokens[0])
 
@@ -428,7 +439,7 @@ def get_restful_params(urlstring):
     return path_params
 
 
-def validate_api_version(handler, version, logger):
+def validate_api_version(handler: Any, version: VersionType, logger: Logger) -> bool:
     if not version or not keylime_api_version.is_supported_version(version):
         echo_json_response(handler, 400, "API Version not supported")
         return False
@@ -440,11 +451,11 @@ def validate_api_version(handler, version, logger):
     return True
 
 
-def _list_to_dict(alist):
+def _list_to_dict(alist: List[str]) -> Dict[str, Union[str, None]]:
     """Convert list into dictionary via grouping [k0,v0,k1,v1,...]"""
     params = {}
     i = 0
     while i < len(alist):
-        params[alist[i]] = alist[i + 1] if (i + 1) < len(alist) else None
+        params[alist[i]] = alist[i + 1] if (i + 1) < len(alist) else None  # FIXME: Can use "" instead?
         i = i + 2
     return params

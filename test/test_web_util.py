@@ -23,7 +23,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(web_util.get_restful_params(version_url), version_params)
 
         basic_url = "/version"
-        basic_params = {"version": None, "api_version": 0}
+        basic_params = {"version": None, "api_version": "0"}
         self.assertEqual(web_util.get_restful_params(basic_url), basic_params)
 
     def test_json_response_tornado(self):

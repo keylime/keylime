@@ -7,6 +7,7 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
+from typing import cast
 
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from sqlalchemy.exc import SQLAlchemyError
@@ -61,7 +62,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
             web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
-        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
             return
 
         if "agents" not in rest_params:
@@ -140,7 +141,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
             web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
-        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
             return
 
         if "agents" not in rest_params:
@@ -222,7 +223,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
-        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
             return
 
         if "agents" not in rest_params:
@@ -410,7 +411,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
             return
 
-        if not web_util.validate_api_version(self, rest_params["api_version"], logger):
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
             return
 
         if "agents" not in rest_params:
