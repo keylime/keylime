@@ -691,7 +691,7 @@ class AgentsHandler(BaseHandler):
                 return
 
             if "reactivate" in rest_params:
-                agent = _from_db_obj(db_agent)
+                agent = cast(Dict[str, Any], _from_db_obj(db_agent))
 
                 if agent["mtls_cert"] and agent["mtls_cert"] != "disabled":
                     agent["ssl_context"] = web_util.generate_agent_tls_context(
