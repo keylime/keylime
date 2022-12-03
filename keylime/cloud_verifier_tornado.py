@@ -680,19 +680,19 @@ class AgentsHandler(BaseHandler):
 
             try:
                 verifier_id = config.get("verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
-                agent = session.query(VerfierMain).filter_by(agent_id=agent_id, verifier_id=verifier_id).one()
+                db_agent = session.query(VerfierMain).filter_by(agent_id=agent_id, verifier_id=verifier_id).one()
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
                 raise e
 
-            if agent is None:
+            if db_agent is None:
                 web_util.echo_json_response(self, 404, "agent id not found")
                 logger.info("PUT returning 404 response. agent id: %s not found.", agent_id)
                 return
 
             if "reactivate" in rest_params:
-                if not isinstance(agent, dict):
-                    agent = _from_db_obj(agent)
+                agent = _from_db_obj(db_agent)
+
                 if agent["mtls_cert"] and agent["mtls_cert"] != "disabled":
                     agent["ssl_context"] = web_util.generate_agent_tls_context(
                         "verifier", agent["mtls_cert"], logger=logger
