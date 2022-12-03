@@ -1305,7 +1305,7 @@ async def process_agent(
         await process_agent(agent, states.FAILED, failure)
 
 
-async def activate_agents(verifier_id: str, verifier_ip: str, verifier_port: int) -> None:
+async def activate_agents(verifier_id: str, verifier_ip: str, verifier_port: str) -> None:
     session = get_session()
     aas = get_AgentAttestStates()
     try:
