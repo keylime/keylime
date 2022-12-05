@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 from multiprocessing import Process
-from typing import Optional, cast
+from typing import Callable, Optional, cast
 
 import requests
 
@@ -190,7 +190,7 @@ def process_revocation(revocation, callback, cert_path):
         callback(message)
 
 
-def await_notifications(callback, revocation_cert_path):
+def await_notifications(callback: Callable, revocation_cert_path: str) -> None:
     assert config.getboolean("agent", "enable_revocation_notifications", fallback=False)
     try:
         import zmq  # pylint: disable=import-outside-toplevel
