@@ -97,7 +97,7 @@ class AgentAttestState:
     boottime: int
     tpm_clocking: TPMClockInfo
     tpm_state: TPMState
-    ima_pcrs: Set
+    ima_pcrs: Set[int]
     ima_keyring: ImaKeyrings
     ima_dm_state: Optional[bytes]
 
@@ -138,7 +138,7 @@ class AgentAttestState:
         self.tpm_state.set_pcr(pcr_num, pcr_value)
         self.next_ima_ml_entry += num_ml_entries
 
-    def get_ima_pcrs(self) -> Dict[int, bytes]:
+    def get_ima_pcrs(self) -> Dict[int, Optional[bytes]]:
         """Return a dict with the IMA pcrs"""
         ima_pcrs_dict = {}
         for pcr_num in self.ima_pcrs:
@@ -248,7 +248,7 @@ class AgentAttestStates:
         boottime: int,
         ima_pcrs_dict: Dict[int, bytes],
         next_ima_ml_entry: int,
-        learned_ima_keyrings: ImaKeyrings,
+        learned_ima_keyrings: Dict[str, str],
     ) -> None:
         """Add or replace an existing AgentAttestState initialized with the given values"""
         agentAttestState = self.get_by_agent_id(agent_id)
