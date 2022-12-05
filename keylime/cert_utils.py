@@ -10,6 +10,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec, padding
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
+from cryptography.x509 import Certificate
 from pyasn1.codec.der import decoder, encoder
 from pyasn1_modules import pem, rfc2459
 
@@ -26,7 +27,7 @@ from keylime import keylime_logging, tpm_ek_ca
 logger = keylime_logging.init_logging("cert_utils")
 
 
-def x509_der_cert(der_cert_data: bytes):
+def x509_der_cert(der_cert_data: bytes) -> Certificate:
     """Load an x509 certificate provided in DER format
     :param der_cert_data: the DER bytes of the certificate
     :type der_cert_data: bytes
@@ -40,7 +41,7 @@ def x509_der_cert(der_cert_data: bytes):
         return x509.load_der_x509_certificate(data=encoder.encode(pyasn1_cert), backend=default_backend())
 
 
-def x509_pem_cert(pem_cert_data: str):
+def x509_pem_cert(pem_cert_data: str) -> Certificate:
     """Load an x509 certificate provided in PEM format
     :param pem_cert_data: the base-64 encoded PEM certificate
     :type pem_cert_data: str
