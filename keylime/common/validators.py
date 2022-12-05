@@ -1,10 +1,10 @@
 """Validators module."""
 
 import re
-from typing import Optional
+from typing import List, Optional, Pattern, Tuple
 
 
-def valid_regex(regex):
+def valid_regex(regex: Optional[str]) -> Tuple[Optional[Pattern[str]], Optional[str]]:
     """Check if string is a valid regular expression."""
     if regex is None:
         return None, None
@@ -18,7 +18,7 @@ def valid_regex(regex):
     return compiled_regex, None
 
 
-def valid_exclude_list(exclude_list):
+def valid_exclude_list(exclude_list: Optional[List[str]]) -> Tuple[Optional[Pattern[str]], Optional[str]]:
     """Check if the list is composed of valid regex."""
     if not exclude_list:
         return None, None
