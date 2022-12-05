@@ -1,5 +1,6 @@
 import os
 import shutil
+from typing import List
 
 from keylime import cmd_exec, config, keylime_logging
 
@@ -7,10 +8,10 @@ logger = keylime_logging.init_logging("secure_mount")
 
 # Store the mounted directories done by Keylime, so we can unmount
 # them in reverse order
-_MOUNTED = []
+_MOUNTED: List[str] = []
 
 
-def check_mounted(secdir):
+def check_mounted(secdir: str) -> bool:
     """Inspect mountinfo to detect if a directory is mounted."""
     secdir_escaped = secdir.replace(" ", r"\040")
     with open("/proc/self/mountinfo", "r", encoding="utf-8") as f:
@@ -58,7 +59,7 @@ def check_mounted(secdir):
     return False
 
 
-def get_secdir():
+def get_secdir() -> str:
     secdir = os.path.join(config.WORK_DIR, "secure")
 
     if not config.MOUNT_SECURE:
@@ -67,7 +68,7 @@ def get_secdir():
     return secdir
 
 
-def mount():
+def mount() -> str:
     secdir = get_secdir()
 
     if not config.MOUNT_SECURE:
@@ -88,7 +89,7 @@ def mount():
     return secdir
 
 
-def umount():
+def umount() -> None:
     """Umount all the devices mounted by Keylime."""
 
     # Make sure we leave tmpfs dir empty even if we did not mount it or
