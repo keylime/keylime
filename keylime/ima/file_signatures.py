@@ -12,8 +12,8 @@ from cryptography.hazmat.primitives.asymmetric import ec, padding
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
-from cryptography.x509 import oid
-from cryptography.x509.extensions import ExtensionNotFound
+from cryptography.x509 import Certificate, oid
+from cryptography.x509.extensions import ExtensionNotFound, SubjectKeyIdentifier
 
 from keylime import keylime_logging
 
@@ -145,10 +145,10 @@ class ImaKeyring:
         """Get a public key object given its keyidv2"""
         return self.ringv2.get(keyidv2)
 
-    def to_json(self) -> Dict[str, List[Union[int, str]]]:
+    def to_json(self) -> Dict[str, Union[List[int], List[str]]]:
         """Convert the ImaKeyring into a JSON object"""
         fmt = serialization.PublicFormat.SubjectPublicKeyInfo
-        obj = {}
+        obj: Dict[str, Union[List[int], List[str]]] = {}
         lst = []
 
         for pubkey in self.ringv2.values():
@@ -167,7 +167,7 @@ class ImaKeyring:
         return json.dumps(self.to_json())
 
     @staticmethod
-    def _base64_to_der_keylist(base64_keylist, keyidv2_list) -> List[Tuple[bytes, int]]:
+    def _base64_to_der_keylist(base64_keylist: List[str], keyidv2_list: List[int]) -> List[Tuple[bytes, Optional[int]]]:
         """Convert a base64-encoded list of public keys to a list of DER-encoded
         public keys; a keyidv2_list may also be given that contains
         the keyidv2 of each key
@@ -226,7 +226,9 @@ class ImaKeyrings:
         if pubkey:
             self.add_pubkey_to_keyring(pubkey, keyring_name, keyidv2=keyidv2)
 
-    def add_pubkey_to_keyring(self, pubkey: SupportedKeyTypes, keyring_name: str, keyidv2=None) -> None:
+    def add_pubkey_to_keyring(
+        self, pubkey: SupportedKeyTypes, keyring_name: str, keyidv2: Optional[int] = None
+    ) -> None:
         """Add a public key object to a keyring by the given name. If a keyring by the given name
         doesn't exist, one will be created."""
         keyring = self.keyrings.get(keyring_name)
@@ -278,7 +280,7 @@ class ImaKeyrings:
         return ImaKeyrings.from_json(obj)
 
     @staticmethod
-    def from_json(obj) -> "ImaKeyrings":
+    def from_json(obj: Dict[str, str]) -> "ImaKeyrings":
         """Convert a JSON representation of an ImaKeyrings object to an ImaKeyrings object."""
         ima_keyrings = ImaKeyrings()
 
@@ -290,7 +292,7 @@ class ImaKeyrings:
         return ima_keyrings
 
     @staticmethod
-    def _verify(pubkey: SupportedKeyTypes, sig: bytes, filehash: bytes, hashfunc) -> None:
+    def _verify(pubkey: SupportedKeyTypes, sig: bytes, filehash: bytes, hashfunc: hashes.HashAlgorithm) -> None:
         """Do signature verification with the given public key"""
         if isinstance(pubkey, RSAPublicKey):
             pubkey.verify(sig, filehash, padding.PKCS1v15(), Prehashed(hashfunc))
@@ -405,12 +407,12 @@ def _get_pubkey_from_pem_private_key(filedata: bytes, backend: Any) -> Tuple[Any
         return None, None
 
 
-def _get_keyidv2_from_cert(cert) -> Optional[int]:
+def _get_keyidv2_from_cert(cert: Certificate) -> Optional[int]:
     """Get the keyidv2 from the cert's Subject Key Identifier (SKID) if available."""
     if cert.extensions:
         try:
             skid = cert.extensions.get_extension_for_oid(oid.ExtensionOID.SUBJECT_KEY_IDENTIFIER)
-            if skid and skid.value and len(skid.value.digest) >= 4:
+            if skid and skid.value and isinstance(skid.value, SubjectKeyIdentifier) and len(skid.value.digest) >= 4:
                 keyidv2 = int.from_bytes(skid.value.digest[-4:], "big")
                 logger.debug("Extracted keyidv2 from cert: 0x%08x", keyidv2)
                 return keyidv2
