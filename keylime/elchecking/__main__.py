@@ -17,6 +17,12 @@ parser.add_argument("refstate_file", type=argparse.FileType("rt"))
 parser.add_argument("eventlog_file", type=argparse.FileType("rb"), default=sys.stdin)
 args = parser.parse_args()
 policy = policies.get_policy(args.policy_name)
+if policy is None:
+    print(
+        f"Specified policy '{args.policy_name}' does not exist. Options are: {policies.get_policy_names()}.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 refstate_str = args.refstate_file.read()
 refstate = json.loads(refstate_str)
 log_bin = args.eventlog_file.read()
