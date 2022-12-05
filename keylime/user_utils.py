@@ -1,6 +1,7 @@
 import grp
 import os
 import pwd
+from typing import Optional, Tuple
 
 from keylime import keylime_logging
 
@@ -8,7 +9,7 @@ from keylime import keylime_logging
 logger = keylime_logging.init_logging("privileges")
 
 
-def string_to_uidgid(user_and_group):
+def string_to_uidgid(user_and_group: str) -> Tuple[Optional[int], Optional[int]]:
     """Translate the user_and_group string to uid and gid.
     The userandgroup parameter must be a string of the format '<user>[:[<group>]]'
     or '[<user>]:gid'
@@ -56,7 +57,7 @@ def string_to_uidgid(user_and_group):
     return uid, gid
 
 
-def change_uidgid(user_and_group):
+def change_uidgid(user_and_group: str) -> None:
     """Change uid and gid of the current process.
     The user_and_group parameter must be a string of the format
     '<user>[:[<group>]]' or [<user>]:<group>. User and group can
@@ -93,7 +94,7 @@ def change_uidgid(user_and_group):
             raise RuntimeError(f"Could not set uid to {uid}: {e}") from e
 
 
-def chown(path, user_and_group):
+def chown(path: str, user_and_group: str) -> None:
     """Change ownership on a given file to the new owner described in
     user_and_group string.
     The user_and_group parameter must be a string of the format
