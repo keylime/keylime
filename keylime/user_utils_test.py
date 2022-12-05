@@ -4,7 +4,7 @@ from keylime import user_utils
 
 
 class TestUserUtils(unittest.TestCase):
-    def test_string_to_uidgid(self):
+    def test_string_to_uidgid(self) -> None:
         uid, gid = user_utils.string_to_uidgid("root")
         self.assertTrue(isinstance(uid, int))
         self.assertTrue(gid is None)
