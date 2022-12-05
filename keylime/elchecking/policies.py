@@ -42,7 +42,7 @@ class AcceptAll(Policy):
     """Policy that accepts all eventlogs"""
 
     def get_relevant_pcrs(self) -> typing.FrozenSet[int]:
-        return set()
+        return frozenset()
 
     def refstate_to_test(self, refstate: RefState) -> tests.Test:
         return tests.AcceptAll()
@@ -52,20 +52,20 @@ class RejectAll(Policy):
     """Policy that rejects all eventlogs"""
 
     def get_relevant_pcrs(self) -> typing.FrozenSet[int]:
-        return set()
+        return frozenset()
 
     def refstate_to_test(self, refstate: RefState) -> tests.Test:
         return tests.RejectAll("reject all")
 
 
-def _mkreg() -> typing.Mapping[str, Policy]:
+def _mkreg() -> typing.Dict[str, Policy]:
     return {}
 
 
 _registry = _mkreg()
 
 
-def register(name: str, policy: Policy):
+def register(name: str, policy: Policy) -> None:
     """Remember the given policy under the given name"""
     _registry[name] = policy
 
@@ -74,12 +74,12 @@ register("accept-all", AcceptAll())
 register("reject-all", RejectAll())
 
 
-def get_policy_names() -> typing.Tuple[str, ...]:
+def get_policy_names() -> typing.List[str]:
     """Return the list of policy names"""
     return list(_registry.keys())
 
 
-def get_policy(name: str) -> Policy:
+def get_policy(name: str) -> typing.Optional[Policy]:
     """Returns the Policy with the given name, None if there is none"""
     return _registry.get(name)
 

@@ -10,11 +10,13 @@ from keylime.common.algorithms import Hash
 # A Test can be used multiple times, even concurrently.
 
 # Data is the type of Python data that corresponds to JSON values.
-Data = typing.Union[int, float, str, bool, typing.Tuple["Data", ...], typing.Mapping[str, "Data"], None]
+Data = typing.Union[
+    int, float, str, bool, typing.Tuple["Data", ...], typing.Mapping[str, "Data"], typing.List["Data"], None
+]
 
 # Globals is a dict of variables for communication among tests.
 # There is a distinct dict for each top-level use of a test.
-Globals = typing.Mapping[str, Data]
+Globals = typing.Dict[str, Data]
 
 # PCR_Contents maps digest name to map from PCR index to PCR value.
 # Here digest name is something like 'sha256'.
@@ -38,7 +40,7 @@ class Test(metaclass=abc.ABCMeta):
 
 # type_test constructs a test of data type that is expected to pass.
 # This and the following are used to check reference state for bugs.
-def type_test(t) -> typing.Callable[[typing.Any], bool]:
+def type_test(t: typing.Type[typing.Any]) -> typing.Callable[[typing.Any], bool]:
     """Returns a lambda that tests against the given type.
     The lambda returns True on pass, raises Exception on fail."""
 
@@ -164,6 +166,9 @@ class Dispatcher(Test):
     it is desired to apply a different test depending on
     the value(s) of one or more entries."""
 
+    key_names: typing.Tuple[str, ...]
+    tests: typing.Dict[typing.Tuple[typing.Union[int, str], ...], Test]
+
     def __init__(self, key_names: typing.Tuple[str, ...]):
         """Initialize a Dispatcher Test.
 
@@ -187,12 +192,12 @@ class Dispatcher(Test):
     def why_not(self, globs: Globals, subject: Data) -> str:
         if not isinstance(subject, dict):
             return "is not a dict"
-        key_vals = tuple()
+        key_vals: typing.Tuple[typing.Union[int, str], ...] = tuple()
         for kn in self.key_names:
             if kn not in subject:
                 return f"has no {kn}"
             key_vals += (subject[kn],)
-        test = self.tests.get(key_vals)
+        test: typing.Optional[Test] = self.tests.get(key_vals)
         if test is None:
             return f"has unexpected {self.key_names} combination {key_vals}"
         return test.why_not(globs, subject)
@@ -301,7 +306,7 @@ class DelayInitializer(Test):
         super().__init__()
         self.delayer = delayer
 
-    def why_not(self, globs: Globals, subject):
+    def why_not(self, globs: Globals, subject: Data) -> str:
         self.delayer.initialize_globals(globs)
         return ""
 
@@ -314,6 +319,9 @@ class DelayToFields(Test):
     As a test, ignores the given subject and instead applies the
     configured fields_test to the record of accumulated value lists.
     """
+
+    field_names: typing.Tuple[str, ...]
+    fields_test: Test
 
     def __init__(self, fields_test: Test, *field_names: str):
         super().__init__()
@@ -378,7 +386,7 @@ class StringEqual(Test):
 class RegExp(Test):
     """Does a full match against a regular expression"""
 
-    def __init__(self, pattern: str, flags=0):
+    def __init__(self, pattern: str, flags: typing.Union[int, re.RegexFlag] = 0) -> None:
         super().__init__()
         self.regexp = re.compile(pattern, flags)
 
@@ -397,6 +405,8 @@ Digest = typing.Mapping[str, str]
 class DigestsTest(Test):
     """Tests whether subject has a digest that is in a list of good ones"""
 
+    good_digests: typing.Dict[str, typing.Set[str]]
+
     def __init__(self, good_digests_list: typing.Iterable[Digest]):
         """good_digests_list is a list of good {alg:hash}"""
         super().__init__()
@@ -408,7 +418,7 @@ class DigestsTest(Test):
                 if alg in self.good_digests:
                     self.good_digests[alg].add(hash_val)
                 else:
-                    self.good_digests[alg] = set((hash_val,))
+                    self.good_digests[alg] = {hash_val}
 
     def why_not(self, _: Globals, subject: Data) -> str:
         if not isinstance(subject, dict):
@@ -494,7 +504,9 @@ class VariableTest(Test):
 class VariableDispatch(FieldTest):
     """Do a specific test for each variable"""
 
-    def __init__(self):
+    vd: Dispatcher
+
+    def __init__(self) -> None:
         self.vd = Dispatcher(("VariableName", "UnicodeName"))
         super().__init__("Event", self.vd)
 
@@ -540,7 +552,7 @@ class KeySubset(IterateTest):
 class FieldsMismatchError(Exception):
     """Represents a mismatch between expected and actual sets of field names."""
 
-    def __init__(self, expected, actual):
+    def __init__(self, expected: typing.Set[str], actual: typing.Set[str]) -> None:
         """Constructor."""
         super().__init__(expected, actual)
         type_test(set)(expected)
@@ -550,7 +562,7 @@ class FieldsMismatchError(Exception):
         self.expected = expected
         self.actual = actual
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"expected fields {self.expected} but got {self.actual}"
 
 
@@ -560,14 +572,14 @@ class SupersetOfDicts(Test):
     All dicts must have the same field names"""
 
     @staticmethod
-    def dict_to_tuple(it: dict, field_names: typing.Tuple[str]) -> typing.Tuple:
+    def dict_to_tuple(it: typing.Mapping[str, Data], field_names: typing.Tuple[str, ...]) -> typing.Tuple[Data, ...]:
         actual_keys = set(it.keys())
         expected_keys = set(field_names)
         if actual_keys != expected_keys:
             raise FieldsMismatchError(expected_keys, actual_keys)
         return tuple(it.get(field_name) for field_name in field_names)
 
-    def __init__(self, reqs: typing.Iterable[dict], field_names: typing.Tuple[str]):
+    def __init__(self, reqs: typing.Iterable[typing.Mapping[str, Data]], field_names: typing.Tuple[str, ...]):
         list(map(type_test(dict), reqs))
         type_test(tuple)(field_names)
         list(map(type_test(str), field_names))
@@ -625,7 +637,7 @@ class OnceTest(Test):
 class EvSeperatorTest(Or):
     """Test for valid EV_SEPARATOR entry values"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # See TCG PC Client Platform Firmware Profile (Table 9 Events)
         valid_hex_values = ["00000000", "FFFFFFFF"]
         tests = []

@@ -110,7 +110,7 @@ class Example(policies.Policy):
         vd_driver_config = tests.VariableDispatch()
         vd_authority = tests.VariableDispatch()
 
-        def bsa_test(kernel: dict) -> tests.Test:
+        def bsa_test(kernel: typing.Dict[str, str]) -> tests.Test:
             tt = [
                 tests.DigestTest({"sha256": string_strip0x(kernel["shim_authcode_sha256"])}),
                 tests.DigestTest({"sha256": string_strip0x(kernel["grub_authcode_sha256"])}),
@@ -350,7 +350,7 @@ def digest_strip0x(digest: typing.Dict[str, str]) -> tests.Digest:
 
 def digests_strip0x(digests: typing.List[typing.Dict[str, str]]) -> typing.List[tests.Digest]:
     tests.type_test(list)(digests)
-    return map(digest_strip0x, digests)
+    return list(map(digest_strip0x, digests))
 
 
 def sig_strip0x(sig: typing.Dict[str, str]) -> tests.Signature:
@@ -360,7 +360,7 @@ def sig_strip0x(sig: typing.Dict[str, str]) -> tests.Signature:
 
 def sigs_strip0x(sigs: typing.Iterable[typing.Dict[str, str]]) -> typing.List[tests.Signature]:
     tests.type_test(typing.Iterable)(sigs)
-    return map(sig_strip0x, sigs)
+    return list(map(sig_strip0x, sigs))
 
 
 policies.register("example", Example())
