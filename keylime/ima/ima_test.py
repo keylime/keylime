@@ -5,7 +5,7 @@ from keylime.ima import ima
 
 
 class TestIMA(unittest.TestCase):
-    def test_read_measurement_list(self):
+    def test_read_measurement_list(self) -> None:
         filedata = "0-entry\n1-entry\n2-entry\n"
         with tempfile.NamedTemporaryFile(delete=True) as tf:
             tf.write(filedata.encode("utf-8"))
