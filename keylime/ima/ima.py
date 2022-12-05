@@ -7,7 +7,7 @@ import hashlib
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Pattern, Set, TextIO, Tuple, Type, Union, cast
 
 from keylime import config, keylime_logging, signing
 from keylime.agentstates import AgentAttestState
@@ -73,7 +73,7 @@ class IMAMeasurementList:
     """
 
     instance = None
-    entries: Set
+    entries: Set[Tuple[int, int]]
 
     @staticmethod
     def get_instance() -> "IMAMeasurementList":
@@ -110,7 +110,7 @@ class IMAMeasurementList:
         return best
 
 
-def read_measurement_list(ima_log_file, nth_entry: int) -> Tuple[Optional[str], int, int]:
+def read_measurement_list(ima_log_file: TextIO, nth_entry: int) -> Tuple[Optional[str], int, int]:
     """Read the IMA measurement list starting from a given entry.
     The entry may be of any value 0 <= entry <= entries_in_log where
     entries_in_log + 1 indicates that the client wants to read the next entry
@@ -156,7 +156,7 @@ def read_measurement_list(ima_log_file, nth_entry: int) -> Tuple[Optional[str], 
 
 
 def _validate_ima_ng(
-    exclude_regex,
+    exclude_regex: Optional[Pattern[str]],
     allowlist: Optional[Dict[str, Any]],
     digest: ast.Digest,
     path: ast.Name,
@@ -196,7 +196,7 @@ def _validate_ima_ng(
 
 
 def _validate_ima_sig(
-    exclude_regex,
+    exclude_regex: Optional[Pattern[str]],
     ima_keyrings: Optional[file_signatures.ImaKeyrings],
     allowlist: Optional[Dict[str, Any]],
     digest: ast.Digest,
@@ -240,7 +240,7 @@ def _validate_ima_sig(
 
 
 def _validate_ima_buf(
-    exclude_regex,
+    exclude_regex: Optional[Pattern[str]],
     allowlist: Optional[Dict[str, Any]],
     ima_keyrings: Optional[file_signatures.ImaKeyrings],
     dm_validator: Optional[ima_dm.DmIMAValidator],
@@ -285,14 +285,14 @@ def _process_measurement_list(
     lists: Optional[Union[str, Dict[str, Any]]] = None,
     pcrval: Optional[str] = None,
     ima_keyrings: Optional[ImaKeyrings] = None,
-    boot_aggregates: Optional[Dict] = None,
+    boot_aggregates: Optional[Dict[str, List[str]]] = None,
 ) -> Tuple[str, Failure]:
     failure = Failure(Component.IMA)
     running_hash = agentAttestState.get_pcr_state(config.IMA_PCR, hash_alg)
     assert running_hash
 
     found_pcr = pcrval is None
-    errors = {}
+    errors: Dict[Type[ast.Mode], int] = {}
     pcrval_bytes = b""
     if pcrval is not None:
         pcrval_bytes = codecs.decode(pcrval.encode("utf-8"), "hex")
@@ -417,7 +417,7 @@ def process_measurement_list(
     lists: Optional[Union[str, Dict[str, Any]]] = None,
     pcrval: Optional[str] = None,
     ima_keyrings: Optional[ImaKeyrings] = None,
-    boot_aggregates: Optional[Dict] = None,
+    boot_aggregates: Optional[Dict[str, List[str]]] = None,
     hash_alg: algorithms.Hash = algorithms.Hash.SHA1,
 ) -> Tuple[str, Failure]:
     failure = Failure(Component.IMA)
@@ -501,7 +501,7 @@ def read_allowlist(
     checksum: Optional[str] = "",
     al_sig_file: Optional[str] = None,
     al_key_file: Optional[str] = None,
-):
+) -> Dict[str, Any]:
 
     al_key = b""
     al_sig = b""
@@ -570,7 +570,7 @@ class SignatureValidationError(Exception):
 
 
 # Reads allowlist bundles sent to the verifier, validates them, and processes them. Returns an allowlist.
-def unbundle_ima_policy(allowlist_bundle, verify: bool = True) -> Dict[str, Any]:
+def unbundle_ima_policy(allowlist_bundle: Dict[str, Any], verify: bool = True) -> Dict[str, Any]:
     allowlist_raw = base64.b64decode(allowlist_bundle["ima_policy"])
 
     # Verify allowlist signatures if set to enforce
@@ -584,8 +584,8 @@ def unbundle_ima_policy(allowlist_bundle, verify: bool = True) -> Dict[str, Any]
                 message="Verifier is enforcing signature validation, but no public key was provided.", code=405
             )
 
-        allowlist_sig = base64.b64decode(allowlist_bundle.get("sig"))
-        allowlist_sig_key = base64.b64decode(allowlist_bundle.get("key"))
+        allowlist_sig = base64.b64decode(cast(bytes, allowlist_bundle.get("sig")))
+        allowlist_sig_key = base64.b64decode(cast(bytes, allowlist_bundle.get("key")))
 
         if not signing.verify_signature(allowlist_sig_key, allowlist_sig, allowlist_raw):
             raise SignatureValidationError(message="Signature verification for allowlist failed!", code=401)
@@ -595,7 +595,7 @@ def unbundle_ima_policy(allowlist_bundle, verify: bool = True) -> Dict[str, Any]
 
 
 # Manipulates allowlists into database-ready format.
-def canonicalize_allowlist(alist_bytes, checksum: str = ""):
+def canonicalize_allowlist(alist_bytes: bytes, checksum: str = "") -> Dict[str, Any]:
     # if the first non-whitespace character in the file is '{' treat it as the new JSON format
     alist_raw = alist_bytes.decode("utf-8")
     p = re.compile(r"^\s*{")
@@ -649,14 +649,12 @@ def canonicalize_allowlist(alist_bytes, checksum: str = ""):
             else:
                 alist[entrytype][path] = [checksum_hash]
 
-    alist = update_allowlist(alist)
-
-    return alist
+    return update_allowlist(alist)
 
 
 def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: str = "") -> Dict[str, Any]:
     """Assembles an ima policy dictionary to be written on the database"""
-    ima_policy_db_format = {}
+    ima_policy_db_format: Dict[str, Any] = {}
     ima_policy_db_format["name"] = ima_policy_name
     # TODO: This was required to ensure e2e CI tests pass
     if ima_policy == "{}":
