@@ -178,7 +178,7 @@ class Failure:
 
 
 def _eval_severity_config(
-    severity_labels=None, severity_policy=None
+    severity_labels: Optional[List[str]] = None, severity_policy: Optional[List[Dict[str, str]]] = None
 ) -> Tuple[List[Callable[[str], Optional[SeverityLabel]]], SeverityLabel]:
     """
     Generates the list of rules to match a event_id against.
@@ -225,7 +225,7 @@ def _eval_severity_config(
 SEVERITY_RULES, MAX_SEVERITY_LABEL = _eval_severity_config()
 
 
-def set_severity_config(severity_labels, severity_policy):
+def set_severity_config(severity_labels: Optional[List[str]], severity_policy: Optional[List[Dict[str, str]]]) -> None:
     """
     Set a custom severity configuration
     """
