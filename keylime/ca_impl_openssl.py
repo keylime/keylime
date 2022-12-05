@@ -1,5 +1,5 @@
 import datetime
-from typing import Tuple
+from typing import List, Optional, Tuple
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -9,15 +9,16 @@ from cryptography.hazmat.primitives.asymmetric.dsa import DSAPrivateKey
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey
 from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 from cryptography.hazmat.primitives.serialization import Encoding, load_pem_private_key
-from cryptography.x509 import Certificate
+from cryptography.x509 import Certificate, CertificateBuilder, Name
 from cryptography.x509.oid import NameOID
 
 from keylime import config
+from keylime.types import CERTIFICATE_PRIVATE_KEY_TYPES
 
 
-def mk_cert_valid(cert_req, days=365):
+def mk_cert_valid(cert_req: CertificateBuilder, days: int = 365) -> CertificateBuilder:
     """
     Make a cert valid from now and til 'days' from now.
     Args:
@@ -33,7 +34,7 @@ def mk_cert_valid(cert_req, days=365):
     return cert_req
 
 
-def mk_name(common_name):
+def mk_name(common_name: str) -> Name:
     return x509.Name(
         [
             x509.NameAttribute(NameOID.COUNTRY_NAME, config.get("ca", "cert_country")),
@@ -46,7 +47,7 @@ def mk_name(common_name):
     )
 
 
-def mk_request(bits, common_name):
+def mk_request(bits: int, common_name: str) -> Tuple[CertificateBuilder, RSAPrivateKey]:
     """
     Create a X509 request with the given number of bits in they key.
     Args:
@@ -68,7 +69,7 @@ def mk_request(bits, common_name):
     return cert_req, privkey
 
 
-def mk_cacert(name=None):
+def mk_cacert(name: Optional[str] = None) -> Tuple[Certificate, RSAPrivateKey, RSAPublicKey]:
     """
     Make a CA certificate.
     Returns the certificate, private key and public key.
@@ -130,7 +131,9 @@ def mk_cacert(name=None):
     return cert, privkey, pubkey
 
 
-def mk_signed_cert(cacert: Certificate, ca_privkey, name: str, serialnum: int) -> Tuple[Certificate, RSAPrivateKey]:
+def mk_signed_cert(
+    cacert: Certificate, ca_privkey: CERTIFICATE_PRIVATE_KEY_TYPES, name: str, serialnum: int
+) -> Tuple[Certificate, RSAPrivateKey]:
     """
     Create a CA cert + server cert + server private key.
     """
@@ -179,7 +182,7 @@ def mk_signed_cert(cacert: Certificate, ca_privkey, name: str, serialnum: int) -
     return cert, privkey
 
 
-def gencrl(serials, cert: str, ca_pk: str):
+def gencrl(serials: List[int], cert: str, ca_pk: str) -> bytes:
     ca_cert = x509.load_pem_x509_certificate(cert.encode())
     priv_key = load_pem_private_key(ca_pk.encode(), None, backend=default_backend())
     date_now = datetime.datetime.now(datetime.timezone.utc)
