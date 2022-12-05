@@ -53,13 +53,13 @@ def normalize_version(v: VersionType) -> str:
     return base_version
 
 
-def major(v: VersionType):
+def major(v: VersionType) -> int:
     v_obj = version.parse(str(v))
     assert isinstance(v_obj, version.Version)
     return v_obj.major
 
 
-def minor(v: VersionType):
+def minor(v: VersionType) -> int:
     v_obj = version.parse(str(v))
     assert isinstance(v_obj, version.Version)
     return v_obj.minor
