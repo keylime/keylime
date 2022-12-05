@@ -71,6 +71,7 @@ def get_public_key(private_key: RSAPrivateKey) -> RSAPublicKey:
 
 def rsa_sign(key: RSAPrivateKey, message: bytes, paddingt: str = "internal") -> bytes:
     """RSA sign message"""
+    _padding: Union[padding.PSS, padding.PKCS1v15]
     if paddingt == "internal":
         _padding = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH)
 
@@ -106,7 +107,7 @@ def rsa_export_pubkey(private_key: RSAPrivateKey) -> bytes:
     )
 
 
-def rsa_export_privkey(private_key: RSAPrivateKey, password=None) -> bytes:
+def rsa_export_privkey(private_key: RSAPrivateKey, password: Optional[str] = None) -> bytes:
     """export private key"""
 
     return private_key.private_bytes(
@@ -222,7 +223,7 @@ def generate_selfsigned_cert(
     name: str,
     key: RSAPrivateKey,
     valid_until: datetime.datetime,
-    other_ips: Optional[List] = None,
+    other_ips: Optional[List[str]] = None,
 ) -> x509.Certificate:
     subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
     # Add common SAN for localhost
