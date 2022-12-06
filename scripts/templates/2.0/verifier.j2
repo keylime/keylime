@@ -235,12 +235,3 @@ zmq_port = {{ verifier.zmq_port }}
 
 # Webhook url for revocation notifications.
 webhook_url = {{ verifier.webhook_url }}
-
-# Destination for log output, in addition to console. If left empty, the log
-# output will only be printed to console (recommended for containers to avoid
-# filling data storage). The accepted values are:
-# 'file': The log output will also be written to a file named after the
-#         component in '/var/log/keylime/verifier.log'
-# 'stream': The log output will be written to a common file in
-#           'var/log/keylime/keylime-stream.log'
-log_destination = {{ verifier.log_destination }}
