@@ -72,15 +72,6 @@ auto_migrate_db = {{ registrar.auto_migrate_db }}
 # The file to use for SQLite persistence of provider hypervisor data.
 prov_db_filename: {{ registrar.prov_db_filename }}
 
-# Destination for log output, in addition to console. If left empty, the log
-# output will only be printed to console (recommended for containers to avoid
-# filling data storage). The accepted values are:
-# 'file': The log output will also be written to a file named after the
-#         component in '/var/log/keylime/registrar.log'
-# 'stream': The log output will be written to a common file in
-#           'var/log/keylime/keylime-stream.log'
-log_destination = {{ registrar.log_destination }}
-
 # Durable Attestation is currently marked as an experimental feature
 # In order to enable Durable Attestation, an "adapter" for a Persistent data Store 
 # (time-series like database) needs to be specified. Some example adapters can be 
