@@ -11,7 +11,7 @@ from keylime import keylime_logging
 logger = keylime_logging.init_logging("signing")
 
 
-def verify_signature_from_file(key_file, filename, sig_file, file_description):
+def verify_signature_from_file(key_file: str, filename: str, sig_file: str, file_description: str) -> None:
     """
     Verify the file signature on disk (sig_file) using a public key on disk
     (key_file) with the file on disk (file). All inputs should be file
@@ -33,7 +33,7 @@ def verify_signature_from_file(key_file, filename, sig_file, file_description):
         )
 
 
-def verify_signature(key, sig, file):
+def verify_signature(key: bytes, sig: bytes, file: bytes) -> bool:
     """
     Verify the file signature (sig) using a public key (key)
     with the file (file).
