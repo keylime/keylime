@@ -47,7 +47,7 @@ class Tenant:
 
     registrar_ip = None
     registrar_port = None
-    registrar_data = {}
+    registrar_data: Optional[registrar_client.RegistrarData] = None
 
     api_version = None
 
