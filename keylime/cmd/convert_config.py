@@ -317,6 +317,9 @@ def process_mapping(
                 print(f"[{component}] {e} not found: Using default value \"{info['default']}\" for \"{option}\"")
                 new[component][option] = info["default"]
 
+        # Set the resulting version for the component
+        new[component]["version"] = mapping["version"]
+
     # If there is an adjust script, load and run it
     adjust_script = os.path.abspath(os.path.join(version_dir, "adjust.py"))
     if os.path.isfile(adjust_script):
