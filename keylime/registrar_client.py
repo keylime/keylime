@@ -1,15 +1,41 @@
 import logging
+import ssl
 import sys
+from typing import Any, Dict, Optional, Union
 
 from keylime import api_version as keylime_api_version
 from keylime import crypto, json, keylime_logging
 from keylime.requests_client import RequestsClient
 
+if sys.version_info >= (3, 8):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
+
+if sys.version_info >= (3, 11):
+    from typing import NotRequired
+else:
+    from typing_extensions import NotRequired
+
+
+class RegistrarData(TypedDict):
+    ip: Optional[str]
+    port: Optional[str]
+    regcount: int
+    mtls_cert: Optional[str]
+    aik_tpm: str
+    ek_tpm: str
+    ekcert: Optional[str]
+    provider_keys: NotRequired[Dict[str, str]]
+
+
 logger = keylime_logging.init_logging("registrar_client")
 api_version = keylime_api_version.current_version()
 
 
-def getData(registrar_ip, registrar_port, agent_id, tls_context):
+def getData(
+    registrar_ip: str, registrar_port: str, agent_id: str, tls_context: Optional[ssl.SSLContext]
+) -> Optional[RegistrarData]:
     """
     Get the agent data from the registrar.
 
@@ -64,7 +90,20 @@ def getData(registrar_ip, registrar_port, agent_id, tls_context):
             logger.critical("Error: did not receive port from Registrar Server.")
             return None
 
-        return response_body["results"]
+        r = response_body["results"]
+        res: RegistrarData = {
+            "aik_tpm": r["aik_tpm"],
+            "regcount": r["regcount"],
+            "ek_tpm": r["ek_tpm"],
+            "ip": r["ip"],
+            "port": r["port"],
+            "mtls_cert": r.get("mtls_cert"),
+            "ekcert": r.get("ekcert"),
+        }
+        if "provider_keys" in r:
+            res["provider_keys"] = r["provider_keys"]
+
+        return res
 
     except AttributeError as e:
         if response and response.status_code == 503:
@@ -79,8 +118,16 @@ def getData(registrar_ip, registrar_port, agent_id, tls_context):
 
 
 def doRegisterAgent(
-    registrar_ip, registrar_port, agent_id, ek_tpm, ekcert, aik_tpm, mtls_cert=None, contact_ip=None, contact_port=None
-):
+    registrar_ip: str,
+    registrar_port: str,
+    agent_id: str,
+    ek_tpm: bytes,
+    ekcert: Optional[Union[bytes, str]],
+    aik_tpm: bytes,
+    mtls_cert: Optional[bytes] = None,
+    contact_ip: Optional[str] = None,
+    contact_port: Optional[str] = None,
+) -> Optional[str]:
     """
     Register the agent with the registrar
 
@@ -89,7 +136,7 @@ def doRegisterAgent(
     :returns: base64 encoded blob containing the aik_tpm name and a challenge. Is encrypted with ek_tpm.
     """
 
-    data = {
+    data: Dict[str, Any] = {
         "ekcert": ekcert,
         "aik_tpm": aik_tpm,
     }
@@ -131,7 +178,7 @@ def doRegisterAgent(
             logger.critical("Error: did not receive blob from Registrar Server: %s", response.status_code)
             return None
 
-        return response_body["results"]["blob"]
+        return str(response_body["results"]["blob"])
     except Exception as e:
         if response and response.status_code == 503:
             logger.error("Agent cannot establish connection to registrar at %s:%s", registrar_ip, registrar_port)
@@ -142,7 +189,7 @@ def doRegisterAgent(
     return None
 
 
-def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
+def doActivateAgent(registrar_ip: str, registrar_port: str, agent_id: str, key: bytes) -> bool:
     """
     Activate the agent with the registrar
 
@@ -176,7 +223,9 @@ def doActivateAgent(registrar_ip, registrar_port, agent_id, key):
     return False
 
 
-def doRegistrarDelete(registrar_ip, registrar_port, agent_id, tls_context):
+def doRegistrarDelete(
+    registrar_ip: str, registrar_port: str, agent_id: str, tls_context: Optional[ssl.SSLContext]
+) -> Dict[str, Any]:
     """
     Delete the given agent from the registrar.
 
@@ -187,7 +236,7 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id, tls_context):
 
     client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context)
     response = client.delete(f"/v{api_version}/agents/{agent_id}")
-    response_body = response.json()
+    response_body: Dict[str, Any] = response.json()
 
     if response.status_code == 200:
         logger.debug("Registrar deleted.")
@@ -198,7 +247,9 @@ def doRegistrarDelete(registrar_ip, registrar_port, agent_id, tls_context):
     return response_body
 
 
-def doRegistrarList(registrar_ip, registrar_port, tls_context):
+def doRegistrarList(
+    registrar_ip: str, registrar_port: str, tls_context: Optional[ssl.SSLContext]
+) -> Optional[Dict[str, Any]]:
     """
     Get the list of registered agents from the registrar.
 
@@ -208,7 +259,7 @@ def doRegistrarList(registrar_ip, registrar_port, tls_context):
     """
     client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context)
     response = client.get(f"/v{api_version}/agents/")
-    response_body = response.json()
+    response_body: Dict[str, Any] = response.json()
 
     if response.status_code != 200:
         logger.warning("Registrar returned: %s Unexpected response from registrar.", response.status_code)

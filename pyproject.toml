@@ -29,6 +29,7 @@ ignore = [
     "keylime/da/examples/file.py",
     "keylime/da/record.py",
     "keylime/cloud_verifier_tornado.py",
+    "keylime/tenant.py",
     "test/oldtest.py",
     "test/test_ima_dm.py",
     "test/test_restful.py",
