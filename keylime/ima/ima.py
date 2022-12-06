@@ -656,6 +656,7 @@ def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: st
     """Assembles an ima policy dictionary to be written on the database"""
     ima_policy_db_format: Dict[str, Any] = {}
     ima_policy_db_format["name"] = ima_policy_name
+
     # TODO: This was required to ensure e2e CI tests pass
     if ima_policy == "{}":
         ima_policy_db_format["ima_policy"] = None
@@ -663,8 +664,6 @@ def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: st
         ima_policy_db_format["ima_policy"] = ima_policy
 
     ima_policy_bytes = ima_policy.encode()
-    ima_policy_db_format["checksum"] = hashlib.sha256(ima_policy_bytes).hexdigest()
-
     ima_policy_dict = json.loads(ima_policy)
     if "allowlist" in ima_policy_dict:
         if "meta" in ima_policy_dict["allowlist"]:
@@ -673,8 +672,18 @@ def ima_policy_db_contents(ima_policy_name: str, ima_policy: str, tpm_policy: st
             else:
                 ima_policy_db_format["generator"] = IMA_POLICY_GENERATOR.Unknown
 
+            if "timestamp" in ima_policy_dict["allowlist"]["meta"]:
+                meta_timestamp = ima_policy_dict["allowlist"]["meta"]["timestamp"]
+                # If a unique timestamp, injected by the verifier, is found within the
+                # (potentially large) IMA policy string, remove it to ensure
+                # matching checksums for identical policies.
+                ima_policy_bytes = ima_policy.replace(meta_timestamp, "").encode()
+
     if tpm_policy:
         ima_policy_db_format["tpm_policy"] = tpm_policy
+
+    ima_policy_db_format["checksum"] = hashlib.sha256(ima_policy_bytes).hexdigest()
+
     return ima_policy_db_format
 
 
