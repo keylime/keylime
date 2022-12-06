@@ -11,7 +11,7 @@ import threading
 import time
 import typing
 import zlib
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, List, Mapping, Match, Optional, Sequence, Tuple, Union, cast
 
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from packaging.version import Version
@@ -20,6 +20,7 @@ from keylime import cert_utils, cmd_exec, config, keylime_logging, secure_mount
 from keylime.agentstates import AgentAttestState, TPMClockInfo
 from keylime.common import algorithms, retry
 from keylime.common.algorithms import Hash
+from keylime.elchecking.policies import RefState
 from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyrings
@@ -130,7 +131,7 @@ class tpm(tpm_abstract.AbstractTPM):
             elif details["asymmetric"] == 1 and details["signing"] == 1 and algorithms.Sign.is_recognized(algorithm):
                 self.supported["sign"].add(algorithm)
 
-    def __get_pcrs(self):
+    def __get_pcrs(self) -> Mapping[str, str]:
         """Gets which PCRs are enabled with which hash algorithm"""
         if self.tools_version == "3.2":
             retDict = self.__run(["tpm2_getcap", "-c", "pcrs"])
@@ -145,7 +146,7 @@ class tpm(tpm_abstract.AbstractTPM):
             raise Exception("get_tpm_algorithms failed with code " + str(code) + ": " + str(errout))
 
         retyaml = config.yaml_to_dict(output, logger=logger)
-        pcrs = {}
+        pcrs: Mapping[str, str] = collections.ChainMap()
         if retyaml is None:
             logger.warning("Could not read YAML output of tpm2_getcap.")
             return pcrs
@@ -162,7 +163,7 @@ class tpm(tpm_abstract.AbstractTPM):
         expectedcode: int = tpm_abstract.AbstractTPM.EXIT_SUCESS,
         raiseOnError: bool = True,
         lock: bool = True,
-        outputpaths: Optional[Union[List, str]] = None,
+        outputpaths: Optional[Union[List[str], str]] = None,
     ) -> cmd_exec.RetDictType:
         env = _get_cmd_env()
 
@@ -221,13 +222,13 @@ class tpm(tpm_abstract.AbstractTPM):
         if code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
             raise Exception("Error initializing emulated TPM with TPM2_Startup: %s" + str(code) + ": " + str(errout))
 
-    def __create_ek(self, asym_alg: Optional[str] = None):
+    def __create_ek(self, asym_alg: Optional[str] = None) -> None:
         # this function is intended to be idempotent
         if asym_alg is None:
             asym_alg = self.defaults["encrypt"]
 
         current_handle = cast(int, self.get_tpm_metadata("ek_handle"))
-        owner_pw = self.get_tpm_metadata("owner_pw")
+        owner_pw = cast(str, self.get_tpm_metadata("owner_pw"))
 
         # clear out old handle before starting again (give idempotence)
         if current_handle is not None and owner_pw is not None:
@@ -435,7 +436,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
     def __create_aik(
         self, asym_alg: Optional[str] = None, hash_alg: Optional[str] = None, sign_alg: Optional[str] = None
-    ):
+    ) -> None:
         if hash_alg is None:
             hash_alg = self.defaults["hash"]
         if asym_alg is None:
@@ -443,7 +444,7 @@ class tpm(tpm_abstract.AbstractTPM):
         if sign_alg is None:
             sign_alg = self.defaults["sign"]
 
-        owner_pw = self.get_tpm_metadata("owner_pw")
+        owner_pw = str(self.get_tpm_metadata("owner_pw"))
 
         # clear out old handle before starting again (give idempotence)
         aik_handle = self.get_tpm_metadata("aik_handle")
@@ -478,7 +479,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     cmd = ["tpm2_evictcontrol", "-A", "o", "-H", hex(cast(int, aik_handle)), "-P", owner_pw]
                     retDict = self.__run(cmd, raiseOnError=False)
                 else:
-                    cmd = ["tpm2_evictcontrol", "-C", "o", "-c", aik_handle, "-P", owner_pw]
+                    cmd = ["tpm2_evictcontrol", "-C", "o", "-c", cast(str, aik_handle), "-P", owner_pw]
                     retDict = self.__run(cmd, raiseOnError=False)
                     os.remove(cast(str, aik_handle))
 
@@ -578,7 +579,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     "unable to parse YAML output of tpm2_createak. Is your tpm2-tools installation up to date?"
                 )
             aik_tpm = retDict["fileouts"][akpubfile.name]
-            if aik_tpm == "":
+            if not aik_tpm:
                 raise Exception(
                     "unable to read public aik from create identity.  Is your tpm2-tools installation up to date?"
                 )
@@ -588,18 +589,18 @@ class tpm(tpm_abstract.AbstractTPM):
             if "loaded-key" not in jsonout or "name" not in jsonout["loaded-key"]:
                 raise Exception("tpm2_createak failed to create aik: return " + str(reterr))
 
-            handle = int(0x81010008)
+            handle_int = int(0x81010008)
 
             # get and persist the pem (not returned by tpm2_getpubak)
-            self._set_tpm_metadata("aik_handle", handle)
+            self._set_tpm_metadata("aik_handle", handle_int)
         else:
             if "loaded-key" not in jsonout:
                 raise Exception("tpm2_createak failed to create aik: return " + str(reterr))
 
-            handle = secpath
+            handle_str = secpath
 
             # persist the pem
-            self._set_tpm_metadata("aik_handle", handle)
+            self._set_tpm_metadata("aik_handle", handle_str)
 
         # Make sure that all transient objects are flushed
         self.__run(["tpm2_flushcontext", "-t"], raiseOnError=False)
@@ -663,8 +664,8 @@ class tpm(tpm_abstract.AbstractTPM):
                 ekFile.write(ek_tpm)
 
             # write out the challenge
-            challenge = tpm_abstract.TPM_Utilities.random_password(32)
-            challenge = challenge.encode()
+            challenge_str = tpm_abstract.TPM_Utilities.random_password(32)
+            challenge = challenge_str.encode()
             keyfd, keypath = tempfile.mkstemp()
             with open(keypath, "wb") as challengeFile:
                 challengeFile.write(challenge)
@@ -711,9 +712,9 @@ class tpm(tpm_abstract.AbstractTPM):
 
         return (keyblob, key)
 
-    def activate_identity(self, keyblob: bytes) -> Optional[bytes]:
+    def activate_identity(self, keyblob: str) -> Optional[bytes]:
         owner_pw = cast(str, self.get_tpm_metadata("owner_pw"))
-        aik_keyhandle = cast(int, self.get_tpm_metadata("aik_handle"))
+        aik_keyhandle = self.get_tpm_metadata("aik_handle")
         ek_keyhandle = cast(int, self.get_tpm_metadata("ek_handle"))
 
         assert aik_keyhandle is not None
@@ -739,12 +740,12 @@ class tpm(tpm_abstract.AbstractTPM):
             secfd, secpath = tempfile.mkstemp(dir=secdir)
             sesspathfd, sesspath = tempfile.mkstemp(dir=secdir)
 
-            apw = self.get_tpm_metadata("aik_pw")
+            apw = cast(str, self.get_tpm_metadata("aik_pw"))
             if self.tools_version == "3.2":
                 command = [
                     "tpm2_activatecredential",
                     "-H",
-                    hex(aik_keyhandle),
+                    hex(cast(int, aik_keyhandle)),
                     "-k",
                     hex(ek_keyhandle),
                     "-f",
@@ -763,7 +764,7 @@ class tpm(tpm_abstract.AbstractTPM):
                 command = [
                     "tpm2_activatecredential",
                     "-c",
-                    aik_keyhandle,
+                    cast(str, aik_keyhandle),
                     "-C",
                     hex(ek_keyhandle),
                     "-i",
@@ -810,7 +811,7 @@ class tpm(tpm_abstract.AbstractTPM):
         """
         return cert_utils.verify_ek(ekcert, tpm_cert_store)
 
-    def get_tpm_manufacturer(self, output: Optional[List[bytes]] = None) -> str:
+    def get_tpm_manufacturer(self, output: Optional[List[bytes]] = None) -> Optional[str]:
         vendorStr = None
         retout = output
 
@@ -836,7 +837,7 @@ class tpm(tpm_abstract.AbstractTPM):
         # TPM manufacturer information can also contain un-escaped
         # double quotes. Making sure that un-escaped quotes are
         # replaced before attempting YAML parse.
-        def quoterepl(m):
+        def quoterepl(m: Match[str]) -> str:
             return '"' + m.group(0)[1:-1].replace('"', '\\"') + '"'
 
         for i, s in enumerate(retout):
@@ -850,15 +851,15 @@ class tpm(tpm_abstract.AbstractTPM):
             vendorStr = retyaml["TPM2_PT_VENDOR_STRING_1"]["value"]
         elif "TPM_PT_VENDOR_STRING_1" in retyaml:
             vendorStr = retyaml["TPM_PT_VENDOR_STRING_1"]["as string"].strip()
-        else:
-            vendorStr = ""
 
         return vendorStr
 
     def is_emulator(self) -> bool:
         return self.get_tpm_manufacturer() == "SW"
 
-    def tpm_init(self, self_activate: bool = False, config_pw: Optional[str] = None):
+    def tpm_init(
+        self, self_activate: bool = False, config_pw: Optional[str] = None
+    ) -> Tuple[Optional[bytes], Optional[bytes], Optional[bytes]]:
         # this was called tpm_initialize.init before
         self.warn_emulator()
 
@@ -914,7 +915,11 @@ class tpm(tpm_abstract.AbstractTPM):
         # if no AIK created, then create one
         self.__create_aik()
 
-        return self.get_tpm_metadata("ekcert"), self.get_tpm_metadata("ek_tpm"), self.get_tpm_metadata("aik_tpm")
+        return (
+            cast(Optional[bytes], self.get_tpm_metadata("ekcert")),
+            cast(Optional[bytes], self.get_tpm_metadata("ek_tpm")),
+            cast(Optional[bytes], self.get_tpm_metadata("aik_tpm")),
+        )
 
     # tpm_quote
     @staticmethod
@@ -934,13 +939,13 @@ class tpm(tpm_abstract.AbstractTPM):
         compress: bool = False,
     ) -> str:
         if hash_alg is None:
-            hash_alg = self.defaults["hash"]
+            hash_alg = cast(Hash, self.defaults["hash"]).value
 
         quote = ""
 
         with tempfile.NamedTemporaryFile() as quotepath, tempfile.NamedTemporaryFile() as sigpath, tempfile.NamedTemporaryFile() as pcrpath:
-            keyhandle = cast(int, self.get_tpm_metadata("aik_handle"))
-            aik_pw = self.get_tpm_metadata("aik_pw")
+            keyhandle = self.get_tpm_metadata("aik_handle")
+            aik_pw = cast(str, self.get_tpm_metadata("aik_pw"))
 
             assert keyhandle is not None
 
@@ -965,7 +970,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     command = [
                         "tpm2_quote",
                         "-k",
-                        hex(keyhandle),
+                        hex(cast(int, keyhandle)),
                         "-L",
                         f"{str(hash_alg)}:{pcrlist}",
                         "-q",
@@ -985,7 +990,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     command = [
                         "tpm2_quote",
                         "-c",
-                        keyhandle,
+                        cast(str, keyhandle),
                         "-l",
                         f"{str(hash_alg)}:{pcrlist}",
                         "-q",
@@ -1214,7 +1219,7 @@ class tpm(tpm_abstract.AbstractTPM):
         data: str,
         quote: str,
         aikTpmFromRegistrar: str,
-        tpm_policy: Optional[Union[str, Dict]] = None,
+        tpm_policy: Optional[Union[str, Dict[str, Any]]] = None,
         ima_measurement_list: Optional[str] = None,
         runtime_policy: Optional[Dict[str, Any]] = None,
         hash_alg: Optional[Hash] = None,
@@ -1353,9 +1358,11 @@ class tpm(tpm_abstract.AbstractTPM):
 
     def extendPCR(self, pcrval: int, hashval: str, hash_alg: Optional[Hash] = None, lock: bool = True) -> None:
         if hash_alg is None:
-            hash_alg = Hash(self.defaults["hash"]).value
+            hash_alg_str = Hash(self.defaults["hash"]).value
+        else:
+            hash_alg_str = hash_alg.value
 
-        self.__run(["tpm2_pcrextend", f"{pcrval}:{str(hash_alg)}={hashval}"], lock=lock)
+        self.__run(["tpm2_pcrextend", f"{pcrval}:{str(hash_alg_str)}={hashval}"], lock=lock)
 
     def readPCR(self, pcrval: int, hash_alg: Optional[Hash] = None) -> str:
         if hash_alg is None:
@@ -1546,7 +1553,7 @@ class tpm(tpm_abstract.AbstractTPM):
         return output
 
     @staticmethod
-    def __stringify_pcr_keys(log: dict) -> None:
+    def __stringify_pcr_keys(log: Dict[str, Dict[str, Dict[str, str]]]) -> None:
         """Ensure that the PCR indices are strings
 
         The YAML produced by `tpm2_eventlog`, when loaded by the yaml module,
@@ -1570,7 +1577,7 @@ class tpm(tpm_abstract.AbstractTPM):
         return
 
     @staticmethod
-    def __add_boot_aggregate(log: dict) -> None:
+    def __add_boot_aggregate(log: Dict[str, Any]) -> None:
         """Scan the boot event log and calculate possible boot aggregates.
 
         Hashes are calculated for both sha1 and sha256,
@@ -1600,7 +1607,7 @@ class tpm(tpm_abstract.AbstractTPM):
                     pass
 
     @staticmethod
-    def __unescape_eventlog(log: dict) -> None:
+    def __unescape_eventlog(log: Dict) -> None:  # type: ignore
         """
         Newer versions of tpm2-tools escapes the YAML output and including the trailing null byte.
         See: https://github.com/tpm2-software/tpm2-tools/commit/c78d258b2588aee535fd17594ad2f5e808056373
@@ -1624,7 +1631,7 @@ class tpm(tpm_abstract.AbstractTPM):
             ("\\", "\\\\"),
         ]
 
-        def recursive_unescape(data):
+        def recursive_unescape(data):  # type: ignore
             if isinstance(data, str):
                 if data.startswith('"') and data.endswith('"'):
                     data = data[1:-1]
@@ -1633,15 +1640,15 @@ class tpm(tpm_abstract.AbstractTPM):
                     data = data.rstrip("\0")
             elif isinstance(data, dict):
                 for key, value in data.items():
-                    data[key] = recursive_unescape(value)
+                    data[key] = recursive_unescape(value)  # type: ignore
             elif isinstance(data, list):
                 for pos, item in enumerate(data):
-                    data[pos] = recursive_unescape(item)
+                    data[pos] = recursive_unescape(item)  # type: ignore
             return data
 
-        recursive_unescape(log)
+        recursive_unescape(log)  # type: ignore
 
-    def parse_binary_bootlog(self, log_bin: bytes) -> typing.Tuple[Failure, typing.Optional[dict]]:
+    def parse_binary_bootlog(self, log_bin: bytes) -> typing.Tuple[Failure, typing.Optional[Dict[str, Any]]]:
         """Parse and enrich a BIOS boot log
 
         The input is the binary log.
@@ -1686,7 +1693,7 @@ class tpm(tpm_abstract.AbstractTPM):
         tpm.__unescape_eventlog(log_parsed_data)
         return failure, log_parsed_data
 
-    def _parse_mb_bootlog(self, log_b64: str) -> typing.Tuple[Failure, typing.Optional[dict]]:
+    def _parse_mb_bootlog(self, log_b64: str) -> typing.Tuple[Failure, typing.Optional[Dict[str, Any]]]:
         """Parse and enrich a BIOS boot log
 
         The input is the base64 encoding of a binary log.
@@ -1705,7 +1712,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
     def parse_mb_bootlog(
         self, mb_measurement_list: Optional[str], hash_alg: algorithms.Hash
-    ) -> typing.Tuple[dict, typing.Optional[dict], dict, Failure]:
+    ) -> typing.Tuple[Dict[str, int], typing.Optional[Dict[str, List[str]]], RefState, Failure]:
         """Parse the measured boot log and return its object and the state of the PCRs
         :param mb_measurement_list: The measured boot measurement list
         :param hash_alg: the hash algorithm that should be used for the PCRs
