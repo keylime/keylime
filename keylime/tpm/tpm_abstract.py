@@ -295,7 +295,7 @@ class AbstractTPM(metaclass=ABCMeta):
         )
         failure.merge(mb_failure)
 
-        pcrs_in_quote = set()  # PCRs in quote that were already used for some kind of validation
+        pcrs_in_quote: set[int] = set()  # PCRs in quote that were already used for some kind of validation
 
         pcrs_dict = AbstractTPM.__parse_pcrs(pcrs, virtual)
         pcr_nums = set(pcrs_dict.keys())
