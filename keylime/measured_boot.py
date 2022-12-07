@@ -2,18 +2,20 @@ import argparse
 import json
 import sys
 import traceback
+from typing import Any, Dict, Optional, Set, Tuple
 
 from keylime import config, keylime_logging
+from keylime.elchecking.policies import Policy, RefState
 from keylime.failure import Component, Failure
 
 logger = keylime_logging.init_logging("measured_boot")
 
 
-def read_mb_refstate(mb_path=None):
+def read_mb_refstate(mb_path: Optional[str] = None) -> Optional[str]:
     if mb_path is None:
         mb_path = config.get("tenant", "mb_refstate")
 
-    mb_data = None
+    mb_data: Optional[str] = None
     # Purposefully die if path doesn't exist
     with open(mb_path, encoding="utf-8") as f:
         mb_data = json.load(f)
@@ -23,7 +25,7 @@ def read_mb_refstate(mb_path=None):
     return mb_data
 
 
-def get_policy(mb_refstate_str):
+def get_policy(mb_refstate_str: Optional[str]) -> Tuple[Optional[Policy], str, Optional[Dict[str, Any]]]:
     """Convert the mb_refstate_str to JSON and get the measured boot policy.
     :param mb_refstate_str: String representation of measured boot reference state
     :returns: Returns
@@ -67,7 +69,13 @@ def get_policy(mb_refstate_str):
 
 
 def evaluate_policy(
-    mb_policy, mb_policy_name, mb_refstate_data, mb_measurement_data, pcrsInQuote, pcrPrefix, agent_id
+    mb_policy: Optional[Policy],
+    mb_policy_name: str,
+    mb_refstate_data: RefState,
+    mb_measurement_data: str,
+    pcrsInQuote: Set[int],
+    pcrPrefix: str,
+    agent_id: str,
 ) -> Failure:
     failure = Failure(Component.MEASURED_BOOT)
     missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
@@ -75,6 +83,8 @@ def evaluate_policy(
         logger.error("%sPCRs specified for measured boot not in quote: %s", pcrPrefix, missing)
         failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": missing}, True)
     try:
+        if mb_policy is None:
+            raise Exception("missing measured boot policy")
         reason = mb_policy.evaluate(mb_refstate_data, mb_measurement_data)
     except Exception as exn:
         reason = f"policy evaluation failed: {str(exn)}"
@@ -91,7 +101,7 @@ def evaluate_policy(
             {
                 "context": "Boot attestation failed",
                 "policy": mb_policy_name,
-                "refstate": mb_refstate_data,
+                "refstate": str(mb_refstate_data),
                 "reason": reason,
             },
             True,
@@ -99,7 +109,7 @@ def evaluate_policy(
     return failure
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("infile", default="mbtest.txt")
     args = parser.parse_args()
