@@ -32,6 +32,16 @@ def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=u
         "registrar": {"tls_dir": {"CV": "default"}, "database_url": {"": "sqlite"}},
     }
 
+    # List of all agent boolean values that need to be changed to lower case
+    # (for TOML output)
+    booleans = [
+        "enable_agent_mtls",
+        "extract_payload_zip",
+        "enable_revocation_notifications",
+        "enable_insecure_payload",
+        "exponential_backoff",
+    ]
+
     # Dictionary defining values to convert to lists
     tolist = {
         "agent": [
@@ -124,6 +134,15 @@ def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=u
                     print(f"[{section}] For option '{option}', converted '{value}' to " f"'{config[section][option]}'")
 
         # Other special adjustments
+
+        # Convert agent boolean values to lower case (for TOML output)
+        if section == "agent":
+            for option in booleans:
+                # If the option is present in the configuration
+                if config[section] and option in config[section]:
+                    # Replace the value with lowecase form
+                    config[section][option] = config[section][option].lower()
+                    print(f'[agent] Converted option "{option}" to lower case')
 
         if section == "verifier":
             if config["verifier"]["tls_dir"] == "generate":

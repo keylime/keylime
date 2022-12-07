@@ -139,6 +139,25 @@ class TestConfig(unittest.TestCase):
         # Unset the variable to not affect other tests
         os.environ["KEYLIME_AGENT_CONFIG"] = ""
 
+    def test_get(self) -> None:
+        """Sanity test for config.get()"""
+
+        config.CONFIG_FILES = {"agent": [os.path.join(CONFIG_DIR, "agent.conf")]}
+        config.CONFIG_ENV = {"agent": ""}
+        config.CONFIG_SNIPPETS_DIRS = {"agent": ""}
+
+        # Check that non-existing option will fallback
+        self.assertEqual(config.get("agent", "attribute", fallback="fallback"), "fallback")
+
+        # Check that existing option is properly obtained
+        self.assertEqual(config.get("agent", "attribute_1", fallback="fallback"), "value_1")
+
+        # Check that quoted option is unquoted
+        self.assertEqual(config.get("agent", "quoted"), "unquoted")
+
+        # Check that quotes and trailing spaces are properly removed
+        self.assertEqual(config.get("agent", "quotes_spaces"), "unquoted")
+
 
 if __name__ == "__main__":
     unittest.main()

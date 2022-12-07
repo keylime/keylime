@@ -55,7 +55,7 @@
             "enable_agent_mtls": {
                 "section": "cloud_agent",
                 "option": "mtls_cert_enabled",
-                "default": "True"
+                "default": "true"
             },
             "tls_dir": {
                 "section": "cloud_agent",
@@ -105,12 +105,12 @@
             "extract_payload_zip": {
                 "section": "cloud_agent",
                 "option": "extract_payload_zip",
-                "default": "True"
+                "default": "true"
             },
             "enable_revocation_notifications": {
                 "section": "cloud_agent",
                 "option": "listen_notifications",
-                "default": "True"
+                "default": "true"
             },
             "revocation_cert": {
                 "section": "cloud_agent",
@@ -130,7 +130,7 @@
             "enable_insecure_payload": {
                 "section": "cloud_agent",
                 "option": "enable_insecure_payload",
-                "default": "False"
+                "default": "false"
             },
             "measure_payload_pcr": {
                 "section": "cloud_agent",
@@ -140,7 +140,7 @@
             "exponential_backoff": {
                 "section": "cloud_agent",
                 "option": "exponential_backoff",
-                "default": "True"
+                "default": "true"
             },
             "retry_interval": {
                 "section": "cloud_agent",
