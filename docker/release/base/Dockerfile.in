@@ -2,6 +2,14 @@ FROM fedora:37 AS keylime_base
 LABEL version="_version_" description="Keylime Base - Only used as an base image for derived packages"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 
+RUN dnf -y install dnf-plugins-core git && dnf -y builddep tpm2-tools
+RUN git clone -b 5.4 https://github.com/tpm2-software/tpm2-tools.git && \
+    cd tpm2-tools && \
+    ./bootstrap && \
+    ./configure && \
+    make && make install && \
+    cd .. && rm -rf tpm2-tools
+
 ENV GOPATH=/root/go
 RUN --mount=target=/keylime,type=bind,source=.,rw \
     cd /keylime && ./installer.sh -o && \
