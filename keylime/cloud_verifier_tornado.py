@@ -39,6 +39,8 @@ from keylime.ima import ima
 
 logger = keylime_logging.init_logging("verifier")
 
+GLOBAL_POLICY_CACHE: Dict[str, Dict[str, str]] = {}
+
 set_severity_config(config.getlist("verifier", "severity_labels"), config.getlist("verifier", "severity_policy"))
 
 try:
@@ -123,6 +125,28 @@ def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, str]:
         agent_dict[key] = val
 
     return agent_dict
+
+
+def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
+    if stored_agent.agent_id not in GLOBAL_POLICY_CACHE:
+        GLOBAL_POLICY_CACHE[stored_agent.agent_id] = {}
+
+    if stored_agent.ima_policy.checksum not in GLOBAL_POLICY_CACHE[stored_agent.agent_id]:
+        if GLOBAL_POLICY_CACHE[stored_agent.agent_id]:
+            # Perform a cleanup of the contents, IMA policy checksum changed
+            GLOBAL_POLICY_CACHE[stored_agent.agent_id] = {}
+
+        logger.debug(
+            "IMA policy with checksum %s, used by agent %s is not present on policy cache on this verifier, performing SQLAlchemy load",
+            stored_agent.ima_policy.checksum,
+            stored_agent.agent_id,
+        )
+        # Actually contacts the database and load the (large) ima_policy column for "allowlists" table
+        GLOBAL_POLICY_CACHE[stored_agent.agent_id][
+            stored_agent.ima_policy.checksum
+        ] = stored_agent.ima_policy.ima_policy
+
+    return GLOBAL_POLICY_CACHE[stored_agent.agent_id][stored_agent.ima_policy.checksum]
 
 
 def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
@@ -398,6 +422,14 @@ class AgentsHandler(BaseHandler):
             web_util.echo_json_response(self, 404, "agent id associated to this verifier")
             logger.info("DELETE returning 404 response. agent id: %s not associated to this verifer.", agent_id)
             return
+
+        # Cleanup the cache when the agent is deleted. Do it early.
+        if agent_id in GLOBAL_POLICY_CACHE:
+            del GLOBAL_POLICY_CACHE[agent_id]
+            logger.debug(
+                "Cleaned up policy cache from all entries used by agent %s",
+                agent_id,
+            )
 
         op_state = agent.operational_state
         if op_state in (states.SAVED, states.FAILED, states.TERMINATED, states.TENANT_FAILED, states.INVALID_QUOTE):
@@ -965,7 +997,7 @@ async def invoke_get_quote(
                 rmc.record_create(agent, json_response, ima_policy)
 
             failure = cloud_verifier_common.process_quote_response(
-                agent, ima_policy.ima_policy, json_response["results"], agentAttestState
+                agent, ima_policy, json_response["results"], agentAttestState
             )
             if not failure:
                 if agent["provide_V"]:
@@ -1114,7 +1146,7 @@ async def process_agent(
         try:
             stored_agent = (
                 session.query(VerfierMain)
-                .options(joinedload(VerfierMain.ima_policy))
+                .options(joinedload(VerfierMain.ima_policy).load_only(VerifierAllowlist.checksum))
                 .filter_by(agent_id=str(agent["agent_id"]))
                 .first()
             )
@@ -1185,7 +1217,7 @@ async def process_agent(
             logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
 
         # Load agent's IMA policy
-        ima_policy = stored_agent.ima_policy
+        ima_policy = verifier_read_policy_from_cache(stored_agent)
 
         # If agent was in a failed state we check if we either stop polling
         # or just add it again to the event loop
