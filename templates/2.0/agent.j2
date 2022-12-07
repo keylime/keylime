@@ -4,7 +4,7 @@
 [agent]
 
 # The configuration file version number
-version = {{ agent.version }}
+version = "{{ agent.version }}"
 
 # The agent's UUID.
 # If you set this to "generate", Keylime will create a random UUID.
@@ -16,19 +16,19 @@ version = {{ agent.version }}
 # 'dmidecode -s system-uuid'.
 # If you set this to "hostname", Keylime will use the full qualified domain
 # name of current host as the agent id.
-uuid = {{ agent.uuid }}
+uuid = "{{ agent.uuid }}"
 
 # The binding address and port for the agent server
-ip = {{ agent.ip }}
+ip = "{{ agent.ip }}"
 port = {{ agent.port }}
 
 # Address and port where the verifier and tenant can connect to reach the agent.
 # These keys are optional.
-contact_ip = {{ agent.contact_ip }}
+contact_ip = "{{ agent.contact_ip }}"
 contact_port = {{ agent.contact_port }}
 
 # The address and port of registrar server which agent communicate with
-registrar_ip = {{ agent.registrar_ip }}
+registrar_ip = "{{ agent.registrar_ip }}"
 registrar_port = {{ agent.registrar_port }}
 
 # Enable mTLS communication between agent, verifier and tenant.
@@ -49,47 +49,47 @@ enable_agent_mtls = {{ agent.enable_agent_mtls }}
 # If set as 'default', the 'var/lib/keylime/secure' directory is used, which
 # should contain the files indicated by the 'server_key', 'server_cert',
 # and 'trusted_client_ca' options.
-tls_dir = {{ agent.tls_dir }}
+tls_dir = "{{ agent.tls_dir }}"
 
 # The name of the file containing the Keylime agent TLS server private key.
 # This private key is used to serve the Keylime agent REST API
 # A new private key is generated in case it is not found.
 # If set as 'default', the 'server-private.pem' value is used.
-server_key = {{ agent.server_key }}
+server_key = "{{ agent.server_key }}"
 
 # Set the password used to decrypt the private key file.
 # This password will also be used to protect the generated private key used for
 # mTLS authentication
 # If left empty, the private key will not be encrypted.
-server_key_password = {{ agent.server_key_password }}
+server_key_password = "{{ agent.server_key_password }}"
 
 # The name of the file containing the X509 certificate used as the Keylime agent
 # server TLS certificate.
 # This certificate must be self signed.
-server_cert = {{ agent.server_cert }}
+server_cert = "{{ agent.server_cert }}"
 
 # A list of trusted client CA certificates
-trusted_client_ca = {{ agent.trusted_client_ca }}
+trusted_client_ca = "{{ agent.trusted_client_ca }}"
 
 # The name of the file used to store the payload encryption key, derived from
 # the U and V parts.
 # This file is stored in the /var/lib/keylime/secure/ directory.
-enc_keyname = {{ agent.enc_keyname }}
+enc_keyname = "{{ agent.enc_keyname }}"
 
 # The name of the file used to store the optional decrypted payload.
 # This file is istored in the /var/lib/keylime/secure/ directory.
-dec_payload_file = {{ agent.dec_payload_file }}
+dec_payload_file = "{{ agent.dec_payload_file }}"
 
 # The size of the memory-backed tmpfs partition where Keylime stores keys and
 # the decrypted payload.
 # Use syntax that the 'mount' command would accept as a size parameter for tmpfs.
 # The default below sets it to 1 megabyte.
-secure_size =  {{ agent.secure_size }}
+secure_size =  "{{ agent.secure_size }}"
 
 # Use this option to set the TPM ownerpassword to something you want to use.
 # Set it to "generate" if you want Keylime to choose a random owner password
 # for you.
-tpm_ownerpassword = {{ agent.tpm_ownerpassword }}
+tpm_ownerpassword = "{{ agent.tpm_ownerpassword }}"
 
 # Whether to allow the agent to automatically extract a zip file in
 # the delivered payload after it has been decrypted, or not. Defaults to "True".
@@ -102,7 +102,7 @@ extract_payload_zip = {{ agent.extract_payload_zip }}
 enable_revocation_notifications = {{ agent.enable_revocation_notifications }}
 
 # The IP to listen for revocation notifications via ZeroMQ
-revocation_notification_ip = {{ agent.revocation_notification_ip }}
+revocation_notification_ip = "{{ agent.revocation_notification_ip }}"
 
 # The port to listen for revocation notifications via ZeroMQ
 revocation_notification_port = {{ agent.revocation_notification_port }}
@@ -111,7 +111,7 @@ revocation_notification_port = {{ agent.revocation_notification_port }}
 # verifier.  The path is relative to /var/lib/keylime.
 # If set to "default", Keylime will use the file RevocationNotifier-cert.crt
 # from the unzipped contents provided by the tenant.
-revocation_cert = {{ agent.revocation_cert }}
+revocation_cert = "{{ agent.revocation_cert }}"
 
 # A comma-separated list of Python scripts to run upon receiving a revocation
 # message. Keylime will verify the signature first, then call these Python
@@ -120,12 +120,12 @@ revocation_cert = {{ agent.revocation_cert }}
 #
 # Keylime will also get the list of revocation actions from the file
 # action_list in the unzipped payload content.
-revocation_actions = {{ agent.revocation_actions }}
+revocation_actions = "{{ agent.revocation_actions }}"
 
 # A script to execute after unzipping the tenant payload.  This is like
 # cloud-init lite =)  Keylime will run it with a /bin/sh environment and
 # with a working directory of /var/lib/keylime/secure/unzipped.
-payload_script = {{ agent.payload_script }}
+payload_script = "{{ agent.payload_script }}"
 
 # In case mTLS for the agent is disabled and the use of payloads is still
 # required, this option has to be set to "True" in order to allow the agent
@@ -153,21 +153,21 @@ max_retries = {{ agent.max_retries }}
 
 # List of hash algorithms used for PCRs
 # Accepted values: sha512, sha384, sha256, sha1
-tpm_hash_alg = {{ agent.tpm_hash_alg }}
+tpm_hash_alg = "{{ agent.tpm_hash_alg }}"
 
 # List of encryption algorithms to use with the TPM
 # Accepted values: ecc, rsa
-tpm_encryption_alg = {{ agent.tpm_encryption_alg }}
+tpm_encryption_alg = "{{ agent.tpm_encryption_alg }}"
 
 # List of signature algorithms to use
 # Accepted values: rsassa, rsapss, ecdsa, ecdaa, ecschnorr
-tpm_signing_alg = {{ agent.tpm_signing_alg }}
+tpm_signing_alg = "{{ agent.tpm_signing_alg }}"
 
 # If an EK is already present on the TPM (e.g., with "tpm2_createek") and
 # you require Keylime to use this EK, change "generate" to the actual EK
 # handle (e.g. "0x81000000"). The Keylime agent will then not attempt to
 # create a new EK upon startup, and neither will it flush the EK upon exit.
-ek_handle = {{ agent.ek_handle }}
+ek_handle = "{{ agent.ek_handle }}"
 
 # The user account to switch to to drop privileges when started as root
 # If left empty, the agent will keep running with high privileges.
@@ -184,5 +184,5 @@ ek_handle = {{ agent.ek_handle }}
 # If cv_ca directory exists:
 # chown keylime /var/lib/keylime/cv_ca
 # chown keylime /var/lib/keylime/cv_ca/cacert.crt
-run_as = {{ agent.run_as }}
+run_as = "{{ agent.run_as }}"
 

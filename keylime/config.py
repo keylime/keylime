@@ -233,7 +233,7 @@ def getlist(component: str, option: str, section: Optional[str] = None) -> List[
     if not section:
         section = component
 
-    read = get_config(component).get(section, option)
+    read = get_config(component).get(section, option).strip('" ')
 
     if read:
         try:
@@ -255,7 +255,7 @@ def get(component: str, option: str, section: Optional[str] = None, fallback: st
     if not section:
         section = component
 
-    return get_config(component).get(section, option, fallback=fallback)
+    return get_config(component).get(section, option, fallback=fallback).strip('" ')
 
 
 def getint(component: str, option: str, section: Optional[str] = None, fallback: int = -1) -> int:
