@@ -4,7 +4,7 @@ import datetime
 import json
 import sys
 from os.path import basename
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NoReturn, Optional
 
 from keylime.ima import file_signatures, ima
 
@@ -57,7 +57,7 @@ def convert_legacy_allowlist(allowlist_path: str) -> PolicyDict:
 
 # Converts JSON-format allowlist to JSON-format IMA policy
 def _convert_json_allowlist(alist_json: PolicyDict) -> PolicyDict:
-    ima_policy = copy.deepcopy(ima.EMPTY_IMA_POLICY)
+    ima_policy: PolicyDict = copy.deepcopy(ima.EMPTY_IMA_POLICY)
     ima_policy["meta"]["timestamp"] = str(datetime.datetime.now())
     ima_policy["meta"]["generator"] = ima.IMA_POLICY_GENERATOR.LegacyAllowList
     for key in ima_policy.keys():
@@ -81,7 +81,7 @@ def _convert_json_allowlist(alist_json: PolicyDict) -> PolicyDict:
 
 # Converts flat-format allowlist to JSON-format IMA policy
 def _convert_flat_format_allowlist(alist_raw: str) -> PolicyDict:
-    ima_policy = copy.deepcopy(ima.EMPTY_IMA_POLICY)
+    ima_policy: PolicyDict = copy.deepcopy(ima.EMPTY_IMA_POLICY)
     ima_policy["meta"]["timestamp"] = str(datetime.datetime.now())
     ima_policy["meta"]["generator"] = ima.IMA_POLICY_GENERATOR.LegacyAllowList
 
@@ -119,7 +119,7 @@ def update_ima_policy(
         print(
             f"Provided policy has version {policy['meta']['version']}; latest policy has version {ima.IMA_POLICY_CURRENT_VERSION}. Updating to latest version."
         )
-        updated_policy: Dict = copy.deepcopy(ima.EMPTY_IMA_POLICY)
+        updated_policy: PolicyDict = copy.deepcopy(ima.EMPTY_IMA_POLICY)
         updated_policy["meta"]["timestamp"] = str(datetime.datetime.now())
         updated_policy["meta"]["generator"] = ima.IMA_POLICY_GENERATOR.CompatibleAllowList
         for key in updated_policy.keys():
@@ -165,13 +165,13 @@ def update_ima_policy(
     return policy
 
 
-def main():
+def main() -> None:
 
     parser = ConversionParser()
     parser.add_argument("-a", "--allowlist", help="allowlist file location", action="store")
     parser.add_argument("-i", "--ima_policy", help="IMA policy file location", action="store")
     parser.add_argument("-e", "--excludelist", help="exclude list file location", action="store")
-    parser.add_argument("-v", "--verification_keys", help="list of verification key paths", action="store", type=list)
+    parser.add_argument("-v", "--verification_keys", help="list of verification key paths", nargs="+", default=[])
     parser.add_argument("-o", "--output_file", help="Output file path", action="store")
 
     # print help if no arguments provided
@@ -207,7 +207,7 @@ def main():
 
 
 class ConversionParser(argparse.ArgumentParser):
-    def error(self, message):
+    def error(self, message: str) -> NoReturn:
         sys.stderr.write(f"error: {message}\n")
         self.print_help(sys.stderr)
         sys.exit(2)
