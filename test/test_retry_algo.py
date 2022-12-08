@@ -31,7 +31,7 @@ class RetryInterval_Test(unittest.TestCase):
 
     def test_linear(self):
         b = rand_base()
-        self.assertEqual(retry.retry_time(False, b, rand_ntries, None), abs(b))
+        self.assertEqual(retry.retry_time(False, b, rand_ntries(), None), abs(b))
 
     def test_exponential(self):
         b0 = rand_base_proper()

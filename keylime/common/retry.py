@@ -1,4 +1,8 @@
-def retry_time(exponential, base, ntries, logger):
+from logging import Logger
+from typing import Optional
+
+
+def retry_time(exponential: bool, base: float, ntries: int, logger: Optional[Logger]) -> float:
     if exponential:
         if base > 1:
             return base**ntries

@@ -1,6 +1,6 @@
 import enum
 import hashlib
-from typing import Any, List
+from typing import Any, List, cast
 
 
 def is_accepted(algorithm: str, accepted: List[Any]) -> bool:
@@ -38,10 +38,10 @@ class Hash(str, enum.Enum):
         return hashlib.new(alg, data)
 
     def hash(self, data: bytes) -> bytes:
-        return self.__hashfn(data).digest()
+        return cast(bytes, self.__hashfn(data).digest())
 
     def get_size(self) -> int:
-        return self.__hashfn(b"").digest_size * 8
+        return cast(int, self.__hashfn(b"").digest_size * 8)
 
     def __str__(self) -> str:
         return self.value
