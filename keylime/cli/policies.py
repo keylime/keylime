@@ -1,9 +1,28 @@
 import sys
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from keylime import config, keylime_logging, measured_boot
 from keylime.ima import file_signatures, ima
 from keylime.tpm.tpm_abstract import TPM_Utilities
+
+if sys.version_info >= (3, 8):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
+
+# Dictionary specification for parameter to process_allowlist()
+class ArgsType(TypedDict):
+    tpm_policy: Optional[str]
+    mask: str
+    ima_sign_verification_keys: List[str]
+    allowlist: str
+    allowlist_name: str
+    allowlist_sig: Optional[str]
+    allowlist_sig_key: Optional[str]
+    allowlist_checksum: str
+    ima_exclude: str
+    mb_refstate: Optional[str]
+
 
 logger = keylime_logging.init_logging("cli.policies")
 
@@ -12,7 +31,7 @@ class UserError(Exception):
     pass
 
 
-def enforce_pcrs(tpm_policy, protected_pcrs, pcr_use):
+def enforce_pcrs(tpm_policy: Dict[str, Any], protected_pcrs: List[int], pcr_use: str) -> None:
     policy_pcrs = list(tpm_policy.keys())
     policy_pcrs.remove("mask")
 
@@ -26,8 +45,8 @@ def enforce_pcrs(tpm_policy, protected_pcrs, pcr_use):
             sys.exit(1)
 
 
-def process_allowlist(args):
-    tpm_policy = "{}"
+def process_allowlist(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, Optional[str], Dict[str, Any]]:
+    tpm_policy_str = "{}"
     ima_policy_name = ""
     mb_refstate = None
     ima_sign_verification_keys: Optional[str] = None
@@ -35,12 +54,12 @@ def process_allowlist(args):
 
     # Set up PCR values
     if "tpm_policy" in args and args["tpm_policy"] is not None:
-        tpm_policy = args["tpm_policy"]
+        tpm_policy_str = args["tpm_policy"]
 
-    tpm_policy = TPM_Utilities.readPolicy(tpm_policy)
+    tpm_policy = TPM_Utilities.readPolicy(tpm_policy_str)
     logger.info("TPM PCR Mask from policy is %s", tpm_policy["mask"])
 
-    if len(args.get("ima_sign_verification_keys")) > 0:
+    if len(args["ima_sign_verification_keys"]) > 0:
         # Auto-enable IMA (or-bit mask)
         tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
 
@@ -57,7 +76,7 @@ def process_allowlist(args):
         ima_sign_verification_keys = tenant_keyring.to_string()
 
     # Read command-line path string allowlist
-    al_data = {"excllist": []}
+    al_data: Dict[str, List[str]] = {"excllist": []}
 
     if "allowlist" in args and args["allowlist"] is not None:
 
