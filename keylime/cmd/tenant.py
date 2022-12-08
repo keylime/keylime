@@ -5,7 +5,7 @@ from keylime import keylime_logging, tenant
 logger = keylime_logging.init_logging("tenant")
 
 
-def main():
+def main() -> None:
     try:
         tenant.main()
     except tenant.UserError as ue:
