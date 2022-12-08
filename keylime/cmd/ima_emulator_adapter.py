@@ -6,9 +6,9 @@ import sys
 import time
 from typing import Optional
 
+from keylime import config
 from keylime.common import algorithms
 from keylime.ima import ast
-from keylime.tpm.tpm_abstract import config
 from keylime.tpm.tpm_main import tpm
 
 # Instaniate tpm
@@ -56,12 +56,12 @@ def measure_list(
     return position
 
 
-def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("-a", "--hash_algs", nargs="*", default=["sha1"], help="PCR banks hash algorithms")
     parser.add_argument("-i", "--ima-hash-alg", default="sha1", help="Set hash algorithm that is used in IMA log")
     parser.add_argument("-f", "--ima-log", default=config.IMA_ML, help="path to the IMA log")
-    args = parser.parse_args(argv[1:])
+    args = parser.parse_args()
 
     if not tpm_instance.is_emulator():
         raise Exception("This stub should only be used with a TPM emulator")
@@ -109,4 +109,4 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main()
