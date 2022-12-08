@@ -3,7 +3,7 @@ from keylime import ca_util, keylime_logging
 logger = keylime_logging.init_logging("ca-util")
 
 
-def main():
+def main() -> None:
     ca_util.main()
 
 
