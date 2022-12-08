@@ -71,7 +71,7 @@ STATE_REPRESENTATIONS = {
 }
 
 
-def state_to_str(state):
+def state_to_str(state: int) -> str:
     if state not in VALID_STATES:
         raise exception.InvalidAgentState()
     return STATE_REPRESENTATIONS[state]

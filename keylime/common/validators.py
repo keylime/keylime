@@ -27,8 +27,10 @@ def valid_exclude_list(exclude_list: Optional[List[str]]) -> Tuple[Optional[Patt
     return valid_regex(combined_regex)
 
 
-def valid_hex(value):
+def valid_hex(value: Optional[str]) -> bool:
     """Check if the string is a valid hex number representation."""
+    if value is None:
+        return False
     try:
         int(value, 16)
     except Exception:
