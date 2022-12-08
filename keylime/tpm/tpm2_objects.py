@@ -1,6 +1,6 @@
 import hashlib
 import struct
-from typing import Any, Tuple, Union, cast
+from typing import Tuple, Union
 
 import cryptography.hazmat.primitives.asymmetric.ec as crypto_ec
 from cryptography.hazmat.backends import default_backend
@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey, RSAPubli
 pubkey_type = Union[RSAPublicKey, EllipticCurvePublicKey]
 
 
-def _pack_in_tpm2b(val: bytes) -> bytes:
+def _pack_in_tpm2b(val):
     return struct.pack(">H", len(val)) + val
 
 
@@ -61,22 +61,14 @@ AK_EXPECTED_ATTRS = (
 
 
 class NonAsymAlgSpecificParameters:
-    sym_algorithm: int
-    sym_keybits: int
-    sym_mode: int
-    sym_details: int
-    scheme_scheme: int
-    scheme_details: int
+    sym_algorithm = None
+    sym_keybits = None
+    sym_mode = None
+    sym_details = None
+    scheme_scheme = None
+    scheme_details = None
 
-    def __init__(
-        self,
-        sym_algorithm: int,
-        sym_keybits: int,
-        sym_mode: int,
-        sym_details: int,
-        scheme_scheme: int,
-        scheme_details: int,
-    ) -> None:
+    def __init__(self, sym_algorithm, sym_keybits, sym_mode, sym_details, scheme_scheme, scheme_details):
         self.sym_algorithm = sym_algorithm
         self.sym_keybits = sym_keybits
         self.sym_mode = sym_mode
@@ -84,7 +76,7 @@ class NonAsymAlgSpecificParameters:
         self.scheme_scheme = scheme_scheme
         self.scheme_details = scheme_details
 
-    def to_bytes(self) -> bytes:
+    def to_bytes(self):
         sym = struct.pack(">HHH", self.sym_algorithm, self.sym_keybits, self.sym_mode)
         scheme = struct.pack(">H", self.scheme_scheme)
         return sym + scheme
@@ -275,13 +267,13 @@ def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
             raise ValueError(f"Misparsed either modulus or keybits: {len(modulus)}*8 != {keybits}")
         bmodulus = int.from_bytes(modulus, byteorder="big")
 
-        rsa_numbers = RSAPublicNumbers(exponent, bmodulus)
-        return rsa_numbers.public_key(backend=default_backend())
+        numbers = RSAPublicNumbers(exponent, bmodulus)
+        return numbers.public_key(backend=default_backend())
 
     if alg_type == TPM_ALG_ECC:
-        (curve_id, _) = struct.unpack(">HH", asym_parms[0:4])
+        (curve, _) = struct.unpack(">HH", asym_parms[0:4])
         asym_x = asym_parms[4:]
-        curve = _curve_from_curve_id(curve_id)
+        curve = _curve_from_curve_id(curve)
 
         (x, asym_y) = _extract_tpm2b(asym_x)
         (y, rest) = _extract_tpm2b(asym_y)
@@ -296,8 +288,8 @@ def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
         bx = int.from_bytes(x, byteorder="big")
         by = int.from_bytes(y, byteorder="big")
 
-        ecc_numbers = EllipticCurvePublicNumbers(bx, by, curve)
-        return ecc_numbers.public_key(backend=default_backend())
+        numbers = EllipticCurvePublicNumbers(bx, by, curve)
+        return numbers.public_key(backend=default_backend())
 
     raise ValueError(f"Invalid tpm2b_public type: {alg_type}")
 
@@ -311,10 +303,10 @@ def tpm2b_public_from_pubkey(
     if isinstance(pubkey, RSAPublicKey):
         alg_type = TPM_ALG_RSA
 
-        rsa_numbers = pubkey.public_numbers()
-        n = rsa_numbers.n.to_bytes((rsa_numbers.n.bit_length() + 7) // 8, byteorder="big")
+        numbers = pubkey.public_numbers()
+        n = numbers.n.to_bytes((numbers.n.bit_length() + 7) // 8, byteorder="big")
 
-        pub_e = rsa_numbers.e
+        pub_e = numbers.e
         if pub_e == 65537:
             pub_e = 0
 
@@ -323,15 +315,15 @@ def tpm2b_public_from_pubkey(
     elif isinstance(pubkey, EllipticCurvePublicKey):
         alg_type = TPM_ALG_ECC
 
-        ecc_numbers = pubkey.public_numbers()
+        numbers = pubkey.public_numbers()
 
         algo_parms = struct.pack(
             ">HH",
-            _curve_id_from_name(ecc_numbers.curve.name),
+            _curve_id_from_name(numbers.curve.name),
             TPM2_ALG_NULL,
         )
-        unique_x = ecc_numbers.x.to_bytes((ecc_numbers.x.bit_length() + 7) // 8, byteorder="big")
-        unique_y = ecc_numbers.y.to_bytes((ecc_numbers.y.bit_length() + 7) // 8, byteorder="big")
+        unique_x = numbers.x.to_bytes((numbers.x.bit_length() + 7) // 8, byteorder="big")
+        unique_y = numbers.y.to_bytes((numbers.y.bit_length() + 7) // 8, byteorder="big")
         unique = _pack_in_tpm2b(unique_x) + _pack_in_tpm2b(unique_y)
     else:
         raise ValueError("Unsupported public key type")
@@ -353,7 +345,7 @@ def tpm2b_public_from_pubkey(
     return _pack_in_tpm2b(tpmt_pub)
 
 
-def _get_hasher_from_name_alg(nameAlg: int) -> Any:
+def _get_hasher_from_name_alg(nameAlg: int):
     if nameAlg == TPM_ALG_SHA1:
         return hashlib.sha1()
     if nameAlg == TPM_ALG_SHA256:
@@ -374,7 +366,7 @@ def get_tpm2b_public_object_attributes(public: bytes) -> int:
         _,
         attrs,
     ) = struct.unpack(">HHHI", public[0:10])
-    return cast(int, attrs)
+    return attrs
 
 
 def get_tpm2b_public_name(public: bytes) -> str:
@@ -401,7 +393,7 @@ def get_tpm2b_public_name(public: bytes) -> str:
     # The name is nameAlg || H(TP_PUBLIC)
     name = tpmt_public[2:4] + hasher.digest()
     # We return it as hex-encoded, since that's the way we pass it onwards
-    return cast(str, name.hex())
+    return name.hex()
 
 
 def object_attributes_description(oas: int) -> str:
