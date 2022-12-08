@@ -633,7 +633,7 @@ def revocation_listener():
         logger.info("Stopping revocation listener...")
 
 
-def main():
+def main() -> None:
     logger.warning("IMPORTANT: The Python agent is deprecated and will be removed with the next major release (7.0.0)!")
     logger.warning("           Please migrate to the Rust based agent: https://github.com/keylime/rust-keylime/")
 
