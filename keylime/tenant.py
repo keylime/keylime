@@ -1210,7 +1210,7 @@ def write_to_namedtempfile(data, delete_tmp_files):
     return temp.name
 
 
-def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
+def main() -> None:
     """[summary]
 
     Keyword Arguments:
@@ -1221,7 +1221,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
         UserError: [description]
         UserError: [description]
     """
-    parser = argparse.ArgumentParser(argv[0])
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c",
         "--command",
@@ -1413,7 +1413,7 @@ def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
         help="API version that is supported by the agent. Detected automatically by default",
     )
 
-    args = parser.parse_args(argv[1:])
+    args = parser.parse_args()
 
     argerr, argerrmsg = options.get_opts_error(args)
     if argerr:
