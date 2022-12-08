@@ -1,5 +1,5 @@
 import os
-from typing import Tuple
+from typing import Any, Tuple
 
 from keylime import keylime_logging
 
@@ -10,7 +10,7 @@ class UserError(Exception):
     pass
 
 
-def extract_password(pwstring):
+def extract_password(pwstring: str) -> str:
     # First we check if "pwstring" points to a file on the fs which contains the pw
     pwstring = os.path.expanduser(pwstring)
     if os.path.exists(pwstring):
@@ -24,7 +24,7 @@ def extract_password(pwstring):
     return pwstring
 
 
-def get_opts_error(args) -> Tuple[bool, str]:
+def get_opts_error(args: Any) -> Tuple[bool, str]:
     if args.ima_exclude and not args.allowlist:
         return True, "--exclude cannot be used without an --allowlist"
     if args.allowlist and args.allowlist_url:
