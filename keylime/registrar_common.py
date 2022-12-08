@@ -497,7 +497,7 @@ class RegistrarServer(ThreadingMixIn, HTTPServer):
         http.server.HTTPServer.shutdown(self)
 
 
-def start(host, tlsport, port):
+def start(host: str, tlsport: int, port: int) -> None:
     """Main method of the Registrar Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
