@@ -11,7 +11,7 @@ class UserError(Exception):
     pass
 
 
-def enforce_pcrs(tpm_policy, policy_pcrs, protected_pcrs, pcr_use):
+def enforce_pcrs(tpm_policy, protected_pcrs, pcr_use):
     policy_pcrs = list(tpm_policy.keys())
     policy_pcrs.remove("mask")
 
@@ -60,7 +60,7 @@ def process_allowlist(args):
 
     if "allowlist" in args and args["allowlist"] is not None:
 
-        enforce_pcrs(tpm_policy, list(tpm_policy.keys()), [config.IMA_PCR], "IMA")
+        enforce_pcrs(tpm_policy, [config.IMA_PCR], "IMA")
 
         # Auto-enable IMA (or-bit mask)
         tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
@@ -98,7 +98,7 @@ def process_allowlist(args):
     mb_refstate_data = None
     if "mb_refstate" in args and args["mb_refstate"] is not None:
 
-        enforce_pcrs(tpm_policy, list(tpm_policy.keys()), config.MEASUREDBOOT_PCRS, "measured boot")
+        enforce_pcrs(tpm_policy, config.MEASUREDBOOT_PCRS, "measured boot")
 
         # Auto-enable TPM event log mesured boot (or-bit mask)
         for _pcr in config.MEASUREDBOOT_PCRS:
