@@ -25,11 +25,11 @@ def encrypt(contents: bytes) -> Dict[str, bytes]:
     return {"u": u, "v": v, "k": k, "ciphertext": ciphertext}
 
 
-def main(argv=sys.argv):  # pylint: disable=dangerous-default-value
-    if len(argv) < 2:
+def main() -> None:
+    if len(sys.argv) < 2:
         usage()
 
-    infile = argv[1]
+    infile = sys.argv[1]
 
     if not os.path.isfile(infile):
         print(f"ERROR: File %s not found. {infile}")
