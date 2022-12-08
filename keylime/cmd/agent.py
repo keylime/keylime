@@ -3,7 +3,7 @@ from keylime import keylime_agent, keylime_logging
 logger = keylime_logging.init_logging("cloudagent")
 
 
-def main():
+def main() -> None:
     keylime_agent.main()
 
 
