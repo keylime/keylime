@@ -9,12 +9,15 @@ A simple script to generate a valid mb_refstate for the example policy
 
 import argparse
 import json
+import logging
 import re
 import sys
 
 from packaging.version import Version
 
 from keylime.tpm import tpm_main
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 
 
 def event_to_sha256(event):
@@ -75,7 +78,7 @@ def get_keys(events):
     return out
 
 
-def get_kernel(events):
+def get_kernel(events, secure_boot):
     """
     Extract digest for Shim, Grub, Linux Kernel and initrd.
     """
@@ -84,13 +87,13 @@ def get_kernel(events):
         if event["EventType"] != "EV_EFI_BOOT_SERVICES_APPLICATION":
             continue
         out.append(event_to_sha256(event))
-    assert len(out) in [3, 4], "Expected 3 different UEFI applications to be booted (Shim, Grub, Linux)"
 
-    kernel = {
-        "shim_authcode_sha256": out[0]["sha256"],
-        "grub_authcode_sha256": out[1]["sha256"],
-        "kernel_authcode_sha256": out[2]["sha256"],
-    }
+    kernel = {"shim_authcode_sha256": out[0]["sha256"], "grub_authcode_sha256": out[1]["sha256"]}
+    if secure_boot:
+        assert len(out) in [3, 4], "Expected 3 different UEFI applications to be booted (Shim, Grub, Linux)"
+        kernel["kernel_authcode_sha256"] = out[2]["sha256"]
+    else:
+        assert len(out) == 2, "Expected 2 different UEFI applications to be booted (Shim, Grub)"
 
     for event in events:
         if event["EventType"] != "EV_IPL" or event["PCRIndex"] != 9:
@@ -98,6 +101,15 @@ def get_kernel(events):
         if "initrd" in event["Event"]["String"] or "initramfs" in event["Event"]["String"]:
             kernel["initrd_plain_sha256"] = event_to_sha256(event)["sha256"]
             break
+
+    if not secure_boot:
+        logging.info("Adding plain sha256 digest of vmlinuz for GRUB to refstate, because SecureBoot is disabled")
+        for event in events:
+            if event["EventType"] != "EV_IPL" or event["PCRIndex"] != 9:
+                continue
+            if "vmlinuz" in event["Event"]["String"]:
+                kernel["vmlinuz_plain_sha256"] = event_to_sha256(event)["sha256"]
+                break
 
     for event in events:
         if event["EventType"] != "EV_IPL" or event["PCRIndex"] != 8:
@@ -125,6 +137,14 @@ def get_mok(events):
     return out
 
 
+def secureboot_enabled(events):
+    for event in events:
+        if event["EventType"] == "EV_EFI_VARIABLE_DRIVER_CONFIG" and event["Event"].get("UnicodeName") == "SecureBoot":
+            return event["Event"]["VariableData"]["Enabled"] == "Yes"
+
+    raise Exception("SecureBoot state could not be determined")
+
+
 def main():
     tpm = tpm_main.tpm()
 
@@ -140,6 +160,12 @@ def main():
         help="Binary UEFI eventlog (Normally /sys/kernel/security/tpm0/binary_bios_measurements)",
     )
     parser.add_argument(
+        "--without-secureboot",
+        "-i",
+        action="store_true",
+        help="Set if you want to create a mb_refstate without SecureBoot (only MeasuredBoot)",
+    )
+    parser.add_argument(
         "mb_refstate", type=argparse.FileType("w"), help="Output path for the generated measure boot reference state."
     )
     args = parser.parse_args()
@@ -147,15 +173,29 @@ def main():
 
     failure, log_data = tpm.parse_binary_bootlog(log_bin)
     if failure or not log_data:
-        print(f"Parsing of binary boot measurements failed with: {list(map(lambda x: x.context, failure.events))}")
+        logging.error(
+            f"Parsing of binary boot measurements failed with: {list(map(lambda x: x.context, failure.events))}"
+        )
         sys.exit(1)
 
     events = log_data.get("events")
     if not events:
-        print("No events found on binary boot measurements log")
+        logging.error("No events found on binary boot measurements log")
         sys.exit(1)
 
+    has_secureboot = secureboot_enabled(events)
+    if not has_secureboot and not args.without_secureboot:
+        logging.error("Provided eventlog has SecureBoot disabled, but -i flag was not set")
+        sys.exit(1)
+
+    if has_secureboot and args.without_secureboot:
+        logging.warning(
+            "-i was set to create a refstate without SecureBoot, "
+            "but he provided eventlog has SecureBoot enabled. Ignoring this flag!"
+        )
+
     mb_refstate = {
+        "has_secureboot": has_secureboot,
         "scrtm_and_bios": [
             {
                 **get_s_crtm(events),
@@ -164,7 +204,7 @@ def main():
         ],
         **get_keys(events),
         **get_mok(events),
-        **get_kernel(events),
+        **get_kernel(events, has_secureboot),
     }
     json.dump(mb_refstate, args.mb_refstate)
 
