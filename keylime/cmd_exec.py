@@ -1,11 +1,26 @@
 import os
 import subprocess
+import sys
 import time
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast
+from typing import Dict, List, Optional, Sequence, Tuple, Union, cast
+
+if sys.version_info >= (3, 8):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
+
 
 EXIT_SUCESS = 0
 
 EnvType = Dict[str, str]
+
+
+class RetDictType(TypedDict):
+    retout: List[bytes]
+    reterr: List[bytes]
+    code: int
+    fileouts: Dict[str, bytes]
+    timing: Dict[str, float]
 
 
 def _execute(cmd: Sequence[str], env: Optional[EnvType] = None, **kwargs) -> Tuple[bytes, bytes, int]:
@@ -22,7 +37,7 @@ def run(
     outputpaths: Optional[Union[List[str], str]] = None,
     env: Optional[EnvType] = None,
     **kwargs,
-) -> Dict[str, Any]:
+) -> RetDictType:
     """Execute external command.
 
     :param cmd: a sequence of command arguments
@@ -55,7 +70,7 @@ def run(
             with open(thispath, "rb") as f:
                 fileouts[thispath] = f.read()
 
-    returnDict = {
+    returnDict: RetDictType = {
         "retout": retout_list,
         "reterr": reterr_list,
         "code": code,

@@ -152,7 +152,7 @@ class tpm(tpm_abstract.AbstractTPM):
             pcrs = collections.ChainMap(*retyaml["selected-pcrs"])
         return pcrs
 
-    def run(self, cmd: Sequence[str]) -> Dict[str, Any]:
+    def run(self, cmd: Sequence[str]) -> cmd_exec.RetDictType:
         return self.__run(cmd, lock=False)
 
     def __run(
@@ -162,7 +162,7 @@ class tpm(tpm_abstract.AbstractTPM):
         raiseOnError: bool = True,
         lock: bool = True,
         outputpaths: Optional[Union[List, str]] = None,
-    ) -> Dict[str, Any]:
+    ) -> cmd_exec.RetDictType:
         env = _get_cmd_env()
 
         # Convert single outputpath to list
@@ -1026,7 +1026,7 @@ class tpm(tpm_abstract.AbstractTPM):
 
     def __tpm2_checkquote(
         self, pubaik: str, nonce: str, quoteFile: str, sigFile: str, pcrFile: str, hash_alg: Union[Hash, str]
-    ) -> Dict[str, Any]:
+    ) -> cmd_exec.RetDictType:
         nonce = bytes(nonce, encoding="utf8").hex()
         if self.tools_version == "3.2":
             command = [
@@ -1065,7 +1065,7 @@ class tpm(tpm_abstract.AbstractTPM):
         retDict = self.__run(command, lock=False)
         return retDict
 
-    def __tpm2_printquote(self, quoteFile: str) -> Dict[str, Any]:
+    def __tpm2_printquote(self, quoteFile: str) -> cmd_exec.RetDictType:
         command = ["tpm2_print", "-t", "TPMS_ATTEST", quoteFile]
         retDict = self.__run(command, lock=False)
         return retDict
@@ -1376,7 +1376,7 @@ class tpm(tpm_abstract.AbstractTPM):
         return f"{jsonout[hash_alg][pcrval]:0{alg_size}x}"
 
     # tpm_random
-    def _get_tpm_rand_block(self, size: int = 32) -> Optional[str]:
+    def _get_tpm_rand_block(self, size: int = 32) -> Optional[bytes]:
         # make a temp file for the output
         rand = None
         with tempfile.NamedTemporaryFile() as randpath:
