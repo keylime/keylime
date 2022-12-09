@@ -67,6 +67,17 @@ allowed_kernel_test = tests.obj_test(
 
 allowed_kernel_list_test = tests.list_test(allowed_kernel_test)
 
+shim_authcode_sha256_no_secureboot = tests.obj_test(
+    shim_authcode_sha256=hex_test,
+    grub_authcode_sha256=hex_test,
+    vmlinuz_plain_sha256=hex_test,
+    initrd_plain_sha256=hex_test,
+    kernel_cmdline=tests.type_test(str),
+)
+
+
+allowed_kernel_list_test_no_secureboot = tests.list_test(shim_authcode_sha256_no_secureboot)
+
 
 class Example(policies.Policy):
     relevant_pcr_indices = frozenset(list(range(10)) + [14])
@@ -80,10 +91,15 @@ class Example(policies.Policy):
         if not isinstance(refstate, dict):
             raise Exception(f"Expected refstate to be a Python dict but instead got this Python value: {refstate!r}")
 
+        has_secureboot = refstate.get("has_secureboot", True)
+
         kernels = refstate.get("kernels")
         if not isinstance(kernels, list):
             raise Exception(f"refstate['kernels'] is {kernels!r} instead of a list")
-        allowed_kernel_list_test(kernels)
+        if has_secureboot:
+            allowed_kernel_list_test(kernels)
+        else:
+            allowed_kernel_list_test_no_secureboot(kernels)
 
         scrtm_and_bios_spec = refstate.get("scrtm_and_bios")
         if scrtm_and_bios_spec is None:
@@ -111,12 +127,20 @@ class Example(policies.Policy):
         vd_authority = tests.VariableDispatch()
 
         def bsa_test(kernel: typing.Dict[str, str]) -> tests.Test:
+            if not has_secureboot:
+                # When SecureBoot is disabled, GRUB does not use SHIM_LOCK to verify the signature therefore
+                # there is no EV_EFI_BOOT_SERVICES_APPLICATION entry.
+                tt = [
+                    tests.DigestTest({"sha256": string_strip0x(kernel["shim_authcode_sha256"])}),
+                    tests.DigestTest({"sha256": string_strip0x(kernel["grub_authcode_sha256"])}),
+                ]
+                return tests.TupleTest(*tt)
+
             tt = [
                 tests.DigestTest({"sha256": string_strip0x(kernel["shim_authcode_sha256"])}),
                 tests.DigestTest({"sha256": string_strip0x(kernel["grub_authcode_sha256"])}),
                 tests.DigestTest({"sha256": string_strip0x(kernel["kernel_authcode_sha256"])}),
             ]
-
             # In some scenarios the kernel gets measured twice
             tt2 = [
                 tests.DigestTest({"sha256": string_strip0x(kernel["shim_authcode_sha256"])}),
@@ -125,6 +149,13 @@ class Example(policies.Policy):
                 tests.DigestTest({"sha256": string_strip0x(kernel["kernel_authcode_sha256"])}),
             ]
             return tests.Or(tests.TupleTest(*tt), tests.TupleTest(*tt2))
+
+        def vmlinuz_test(kernel: typing.Dict[str, str]) -> tests.Test:
+            # Only when SecureBoot is disabled validate the vmlinuz digest measured by GRUB. When SecureBoot is enabled
+            # this was already done using the tests for EV_EFI_BOOT_SERVICES_APPLICATION.
+            if has_secureboot:
+                return tests.AcceptAll()
+            return tests.DigestTest({"sha256": string_strip0x(kernel["vmlinuz_plain_sha256"])})
 
         events_final = tests.DelayToFields(
             tests.And(
@@ -135,6 +166,7 @@ class Example(policies.Policy):
                             ipl9s=tests.TupleTest(
                                 tests.DigestTest({"sha256": string_strip0x(kernel["initrd_plain_sha256"])})
                             ),
+                            vmlinuz=tests.TupleTest(vmlinuz_test(kernel)),
                             kernel_cmdlines=tests.TupleTest(
                                 tests.RegExp("kernel_cmdline: " + kernel["kernel_cmdline"])
                             ),
@@ -147,6 +179,7 @@ class Example(policies.Policy):
             "kernel_cmdlines",
             "bsas",
             "ipl9s",
+            "vmlinuz",
             "s_crtms",
             "platform_firmware_blobs",
         )
@@ -155,9 +188,11 @@ class Example(policies.Policy):
         dispatcher.set((0, "EV_S_CRTM_VERSION"), events_final.get("s_crtms"))
         dispatcher.set((0, "EV_EFI_PLATFORM_FIRMWARE_BLOB"), events_final.get("platform_firmware_blobs"))
         dispatcher.set((7, "EV_EFI_VARIABLE_DRIVER_CONFIG"), vd_driver_config)
+        secure_boot_test = tests.FieldTest("Enabled", tests.StringEqual("Yes"))
+        if not has_secureboot:
+            secure_boot_test = tests.FieldTest("Enabled", tests.StringEqual("No"))
         # tpm2-tools versions < 5.2 parsed the GUIDs wrong therefore we include a check for both here
         # For more information see: https://github.com/keylime/keylime/issues/1003
-        secure_boot_test = tests.FieldTest("Enabled", tests.StringEqual("Yes"))
         vd_driver_config.set("61dfe48b-ca93-d211-aa0d-00e098032b8c", "SecureBoot", secure_boot_test)
         vd_driver_config.set("8be4df61-93ca-11d2-aa0d-00e098032b8c", "SecureBoot", secure_boot_test)
         pk_test = tests.OnceTest(
@@ -297,7 +332,10 @@ class Example(policies.Policy):
                     "Event", tests.FieldTest("String", tests.RegExp(r".*/loader/entries.*"))
                 ),  # Ignore  Boot Loader Spec files
                 tests.FieldTest("Event", tests.FieldTest("String", tests.RegExp(r".*/grub.*"))),
-                tests.FieldTest("Event", tests.FieldTest("String", tests.RegExp(r".*/vmlinuz.*"))),
+                tests.And(
+                    tests.FieldTest("Event", tests.FieldTest("String", tests.RegExp(r".*/vmlinuz.*"))),
+                    events_final.get("vmlinuz"),  # Note: this evaluates always to true if SecureBoot is enabled
+                ),
                 tests.And(
                     tests.FieldTest(
                         "Event",
