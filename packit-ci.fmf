@@ -9,7 +9,6 @@
   prepare:
     how: shell
     script:
-     - rm -f /etc/yum.repos.d/tag-repository.repo
      - ln -s $(pwd) /var/tmp/keylime_sources
      - systemctl disable --now dnf-makecache.service || true
      - systemctl disable --now dnf-makecache.timer || true
@@ -92,7 +91,6 @@
   prepare:
     how: shell
     script:
-     - rm -f /etc/yum.repos.d/tag-repository.repo
      - ln -s $(pwd) /var/tmp/keylime_sources
      - systemctl disable --now dnf-makecache.service || true
      - systemctl disable --now dnf-makecache.timer || true
