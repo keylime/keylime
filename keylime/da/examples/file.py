@@ -1,4 +1,5 @@
 import os
+import time
 
 from keylime import keylime_logging
 from keylime.da.record import BaseRecordManagement, base_build_key_list
@@ -19,6 +20,7 @@ class RecordManagement(BaseRecordManagement):
         self.file_path = self.ps_url.path
         self.file_prefix = self.ps_url.query.replace("prefix=", "")
         self.line_sep = b"\n----\n"
+        self.ts_sep = b"--"
 
         os.makedirs(self.file_path, exist_ok=True)
 
@@ -42,24 +44,47 @@ class RecordManagement(BaseRecordManagement):
 
         return agent_list
 
-    def bulk_record_retrieval(self, record_identifier):
+    def _bulk_record_retrieval(self, record_identifier, start_date=0, end_date="auto"):
 
         logger.debug(
             "Extracting all records for record_identifier %s from filesystem persistent store", record_identifier
         )
 
+        if f"{end_date}" == "auto":
+            end_date = self.end_of_times
+
         record_list = []
 
         with open(record_identifier, "rb") as fp:
+            if self.only_last_record_wanted(start_date, end_date):
+                start_date = 0
+                # A simple and unoptimized way to get penultimate line of the
+                # file (given the last line is just a separator)
+                try:
+                    fp.seek(-2, os.SEEK_END)
+                    while fp.read(1) != b"\n":
+                        fp.seek(-2, os.SEEK_CUR)
+
+                    fp.seek(-2, os.SEEK_CUR)
+                    while fp.read(1) != b"\n":
+                        fp.seek(-2, os.SEEK_CUR)
+
+                except OSError:
+                    fp.seek(0)
+
             for _line in fp:
                 if b"\n" + _line != self.line_sep:
-                    encoded_record_object = _line
+
+                    internal_timestamp, encoded_record_object = _line.split(self.ts_sep)
 
                     decoded_record_object = self.record_deserialize(encoded_record_object)
 
-                    self.record_signature_check(decoded_record_object, record_identifier)
+                    internal_timestamp = int(internal_timestamp)
+                    if start_date <= internal_timestamp <= end_date:
 
-                    record_list.append(decoded_record_object)
+                        self.record_signature_check(decoded_record_object, record_identifier)
+
+                        record_list.append(decoded_record_object)
 
         return record_list
 
@@ -69,17 +94,17 @@ class RecordManagement(BaseRecordManagement):
             f"{self.file_path}/{self.file_prefix}_{self.get_record_type(service)}_{agent_identifier}.{self.rcd_fmt}"
         )
 
-        registration_record_list = self.bulk_record_retrieval(registration_record_identifier)
+        registration_record_list = self._bulk_record_retrieval(registration_record_identifier)
 
         return base_build_key_list(registration_record_list)
 
-    def record_read(self, agent_identifier, service="auto"):
+    def record_read(self, agent_identifier, start_date, end_date, service="auto"):
 
         attestation_record_identifier = (
             f"{self.file_path}/{self.file_prefix}_{self.get_record_type(service)}_{agent_identifier}.{self.rcd_fmt}"
         )
 
-        attestation_record_list = self.bulk_record_retrieval(attestation_record_identifier)
+        attestation_record_list = self._bulk_record_retrieval(attestation_record_identifier, start_date, end_date)
 
         self.base_record_read(attestation_record_list)
 
@@ -118,5 +143,8 @@ class RecordManagement(BaseRecordManagement):
             f'{self.file_path}/{self.file_prefix}_{self.get_record_type(service)}_{agent_data["agent_id"]}.{self.rcd_fmt}',
             "ab",
         ) as fp:
-            fp.write(self.base_record_create(record_object, agent_data, attestation_data, ima_policy_data))
+            ts = str(int(time.time())).encode()
+            fp.write(
+                ts + self.ts_sep + self.base_record_create(record_object, agent_data, attestation_data, ima_policy_data)
+            )
             fp.write(self.line_sep)

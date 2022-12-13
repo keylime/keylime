@@ -23,6 +23,7 @@ class RecordManagement(BaseRecordManagement):
             self.redis_ip,
             self.redis_port,
         ) = self.ps_url.netloc.split(":")
+
         self.redis_db, self.redis_password, self.redis_prefix = (
             self.ps_url.query.replace("db=", "").replace("password=", "").replace("prefix=", "").split("&")
         )
@@ -62,7 +63,7 @@ class RecordManagement(BaseRecordManagement):
                 agent_list.append(agent_uuid)
         return agent_list
 
-    def bulk_record_retrieval(self, record_identifier):
+    def _bulk_record_retrieval(self, record_identifier, start_date=0, end_date=-1):
 
         logger.debug("Extracting all records for record_identifier %s from redis persistent store", record_identifier)
 
@@ -70,7 +71,12 @@ class RecordManagement(BaseRecordManagement):
 
         record_list = []
 
-        for encoded_record_object in self.redis_conn.zrange(record_identifier, 0, -1):
+        if self.only_last_record_wanted(start_date, end_date):
+            encoded_record_object_list = self.redis_conn.zrevrange(record_identifier, 0, 0)
+        else:
+            encoded_record_object_list = self.redis_conn.zrange(record_identifier, start_date, end_date)
+
+        for encoded_record_object in encoded_record_object_list:
 
             decoded_record_object = self.record_deserialize(encoded_record_object)
 
@@ -84,15 +90,15 @@ class RecordManagement(BaseRecordManagement):
 
         registration_record_identifier = f"{self.redis_prefix}_{self.get_record_type(service)}_{agent_identifier}"
 
-        registration_record_list = self.bulk_record_retrieval(registration_record_identifier)
+        registration_record_list = self._bulk_record_retrieval(registration_record_identifier)
 
         return base_build_key_list(registration_record_list)
 
-    def record_read(self, agent_identifier, service="auto"):
+    def record_read(self, agent_identifier, start_date, end_date, service="auto"):
 
         attestation_record_identifier = f"{self.redis_prefix}_{self.get_record_type(service)}_{agent_identifier}"
 
-        attestation_record_list = self.bulk_record_retrieval(attestation_record_identifier)
+        attestation_record_list = self._bulk_record_retrieval(attestation_record_identifier, start_date, end_date)
 
         self.base_record_read(attestation_record_list)
 
