@@ -1,4 +1,4 @@
-import datetime
+import time
 
 import sqlalchemy
 import sqlalchemy.ext.declarative
@@ -17,14 +17,14 @@ TableBase = sqlalchemy.ext.declarative.declarative_base()
 
 class AttestationRecord(TableBase):
     __tablename__ = "AttestationRecord"
-    time = sqlalchemy.Column(sqlalchemy.DateTime, primary_key=True)
+    time = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
     agentid = sqlalchemy.Column(sqlalchemy.String(128), primary_key=True)
     record = sqlalchemy.Column(sqlalchemy.LargeBinary(length=(2**32) - 1))
 
 
 class RegistrationRecord(TableBase):
     __tablename__ = "RegistrationRecord"
-    time = sqlalchemy.Column(sqlalchemy.DateTime, primary_key=True)
+    time = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
     agentid = sqlalchemy.Column(sqlalchemy.String(128), primary_key=True)
     record = sqlalchemy.Column(sqlalchemy.LargeBinary(length=(2**32) - 1))
 
@@ -68,9 +68,8 @@ class RecordManagement(BaseRecordManagement):
         self, agent_data, attestation_data, ima_policy_data=None, service="auto", signed_attributes="auto"
     ):
 
-        # position the record in the git shadow. <localrepo>/<agentID>/<timestamp>
         agentid = agent_data["agent_id"]
-        recordtime = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+        recordtime = str(int(time.time()))
         recordtype = self.get_record_type(service)
 
         # create the record, and sign it.
@@ -96,22 +95,39 @@ class RecordManagement(BaseRecordManagement):
 
         self.base_record_timestamp_create(record_object, agent_data, contents)
 
-    def bulk_record_retrieval(self, record_identifier, service):
+    def _bulk_record_retrieval(self, record_identifier, start_date=0, end_date="auto", service="auto"):
         recordtype = self.get_record_type(service)
         tbl = type2table(recordtype)
         record_list = []
-        for row in self.session.query(tbl).filter(tbl.agentid == record_identifier):  # pylint: disable=no-member
+
+        if f"{end_date}" == "auto":
+            end_date = self.end_of_times
+
+        if self.only_last_record_wanted(start_date, end_date):
+            attestion_record_rows = (
+                self.session.query(tbl)  # pylint: disable=no-member
+                .filter(tbl.agentid == record_identifier)
+                .order_by(sqlalchemy.desc(tbl.time))
+                .limit(1)
+            )
+
+        else:
+            attestion_record_rows = self.session.query(tbl).filter(  # pylint: disable=no-member
+                tbl.agentid == record_identifier
+            )
+
+        for row in attestion_record_rows:
             decoded_record_object = self.record_deserialize(row.record)
             self.record_signature_check(decoded_record_object, record_identifier)
             record_list.append(decoded_record_object)
         return record_list
 
     def build_key_list(self, agent_identifier, service="auto"):
-        record_list = self.bulk_record_retrieval(agent_identifier, service)
+        record_list = self._bulk_record_retrieval(agent_identifier, service)
         return base_build_key_list(record_list)
 
-    def record_read(self, agent_identifier, service="auto"):
-        attestation_record_list = self.bulk_record_retrieval(agent_identifier, service)
+    def record_read(self, agent_identifier, start_date, end_date, service="auto"):
+        attestation_record_list = self._bulk_record_retrieval(agent_identifier, start_date, end_date, service)
 
         self.base_record_read(attestation_record_list)
 
