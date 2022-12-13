@@ -5,6 +5,7 @@ import traceback
 from typing import Any, Dict, Optional, Set, Tuple
 
 from keylime import config, keylime_logging
+from keylime.elchecking import tests
 from keylime.elchecking.policies import Policy, RefState
 from keylime.failure import Component, Failure
 
@@ -72,7 +73,7 @@ def evaluate_policy(
     mb_policy: Optional[Policy],
     mb_policy_name: str,
     mb_refstate_data: RefState,
-    mb_measurement_data: str,
+    mb_measurement_data: tests.Data,
     pcrsInQuote: Set[int],
     pcrPrefix: str,
     agent_id: str,
