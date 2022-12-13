@@ -1,4 +1,5 @@
 import sys
+from typing import Optional
 
 from keylime import config, keylime_logging, measured_boot
 from keylime.ima import file_signatures, ima
@@ -29,7 +30,7 @@ def process_allowlist(args):
     tpm_policy = "{}"
     ima_policy_name = ""
     mb_refstate = None
-    ima_sign_verification_keys = []
+    ima_sign_verification_keys: Optional[str] = None
     allowlist = {}
 
     # Set up PCR values
