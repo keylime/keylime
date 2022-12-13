@@ -637,6 +637,8 @@ def main() -> None:
     logger.warning("IMPORTANT: The Python agent is deprecated and will be removed with the next major release (7.0.0)!")
     logger.warning("           Please migrate to the Rust based agent: https://github.com/keylime/rust-keylime/")
 
+    config.check_version("agent", logger=logger)
+
     for ML in [config.MEASUREDBOOT_ML, config.IMA_ML]:
         if not os.access(ML, os.F_OK):
             logger.warning(

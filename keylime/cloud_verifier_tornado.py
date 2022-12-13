@@ -1369,6 +1369,8 @@ def main() -> None:
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
 
+    config.check_version("verifier", logger=logger)
+
     verifier_port = config.get("verifier", "port")
     verifier_host = config.get("verifier", "ip")
     verifier_id = config.get("verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)

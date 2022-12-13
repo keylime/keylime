@@ -1419,6 +1419,8 @@ def main() -> None:
     if argerr:
         parser.error(argerrmsg)
 
+    config.check_version("tenant", logger=logger)
+
     mytenant = Tenant()
 
     if args.agent_uuid is not None:

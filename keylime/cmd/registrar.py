@@ -5,6 +5,9 @@ logger = keylime_logging.init_logging("registrar")
 
 
 def main() -> None:
+
+    config.check_version("registrar", logger=logger)
+
     # if we are configured to auto-migrate the DB, check if there are any migrations to perform
     if config.has_option("registrar", "auto_migrate_db") and config.getboolean("registrar", "auto_migrate_db"):
         apply("registrar")
