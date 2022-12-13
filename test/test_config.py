@@ -1,11 +1,15 @@
 import importlib
+import logging
 import os
+import shutil
+import tempfile
 import unittest
 from configparser import NoOptionError
 
 from keylime import config
 
-CONFIG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "data/config"))
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
+CONFIG_DIR = os.path.abspath(os.path.join(DATA_DIR, "config"))
 
 
 class TestConfig(unittest.TestCase):
@@ -126,7 +130,11 @@ class TestConfig(unittest.TestCase):
     def test_env_overrides_all(self):
         """Test that using an env var to set config ignore other files"""
 
-        env_bkp = os.environ["KEYLIME_AGENT_CONFIG"]
+        if "KEYLIME_AGENT_CONFIG" in os.environ:
+            env_bkp = os.environ["KEYLIME_AGENT_CONFIG"]
+        else:
+            env_bkp = ""
+
         os.environ["KEYLIME_AGENT_CONFIG"] = os.path.join(CONFIG_DIR, "agent.conf")
 
         # Reload the configuration to use the set environment variable on setup
@@ -158,6 +166,78 @@ class TestConfig(unittest.TestCase):
 
         # Check that quotes and trailing spaces are properly removed
         self.assertEqual(config.get("agent", "quotes_spaces"), "unquoted")
+
+    def test_check_version(self) -> None:
+        """Sanity check for check_version"""
+
+        config.CONFIG_FILES = {"comp1": [os.path.join(CONFIG_DIR, "comp1_old.conf")]}
+        config.CONFIG_ENV = {"comp1": ""}
+        config.CONFIG_SNIPPETS_DIRS = {"comp1": ""}
+        config.TEMPLATES_DIR = os.path.join(DATA_DIR, "templates")
+
+        self.assertTrue(os.path.exists(config.TEMPLATES_DIR))
+        self.assertTrue(config.check_version("comp1"))
+
+        with self.assertLogs("test_config", level="DEBUG") as cm:
+            logger = logging.getLogger("test_config")
+
+            # Check with non-existing directory
+            config.TEMPLATES_DIR = "non-existing"
+            self.assertFalse(config.check_version("comp1", logger=logger))
+            self.assertTrue(
+                f"WARNING:test_config:The configuration upgrade templates path {config.TEMPLATES_DIR} does not exist"
+                in cm.output
+            )
+
+            # Check with existing file that is not a directory
+            config.TEMPLATES_DIR = os.path.join(CONFIG_DIR, "comp1.conf")
+            self.assertTrue(os.path.exists(config.TEMPLATES_DIR))
+            self.assertFalse(config.check_version("comp1", logger=logger))
+            self.assertTrue(f"WARNING:test_config:The path {config.TEMPLATES_DIR} is not a directory" in cm.output)
+
+            with tempfile.TemporaryDirectory() as tempdir:
+                config.TEMPLATES_DIR = tempdir
+
+                logger = logging.getLogger("test_config")
+
+                # Check with empty directory
+                self.assertFalse(config.check_version("comp1", logger=logger))
+                self.assertTrue(
+                    f"WARNING:test_config:The path {tempdir} does not contain version directories for config upgrade templates"
+                    in cm.output
+                )
+
+                # Check with up-to-date version
+                shutil.copytree(os.path.join(DATA_DIR, "templates/1.0"), os.path.join(tempdir, "1.0"))
+                self.assertFalse(config.check_version("comp1"))
+
+                # Check with minor update available
+                shutil.copytree(os.path.join(DATA_DIR, "templates/1.0"), os.path.join(tempdir, "1.2"))
+                self.assertTrue(config.check_version("comp1", logger=logger))
+                self.assertTrue(
+                    "INFO:test_config:A minor configuration upgrade is available (from 1.0 to 1.2). Run 'keylime_upgrade_config' to upgrade the configuration"
+                    in cm.output
+                )
+
+                # Check with major update available
+                shutil.copytree(os.path.join(DATA_DIR, "templates/2.0"), os.path.join(tempdir, "2.0"))
+                self.assertTrue(config.check_version("comp1", logger=logger))
+                print(cm.output)
+                self.assertTrue(
+                    "WARNING:test_config:A major configuration upgrade is available (from 1.0 to 2.0). Run 'keylime_upgrade_config' to upgrade the configuration"
+                    in cm.output
+                )
+
+            with tempfile.TemporaryDirectory() as tempdir:
+                config.TEMPLATES_DIR = tempdir
+
+                # Check with invalid directory naming (should be version number)
+                shutil.copytree(os.path.join(DATA_DIR, "templates/2.0"), os.path.join(tempdir, "not_version"))
+                self.assertFalse(config.check_version("comp1", logger=logger))
+                self.assertTrue(
+                    f"WARNING:test_config:The path {tempdir} does not contain valid config version upgrade directories"
+                    in cm.output
+                )
 
 
 if __name__ == "__main__":
