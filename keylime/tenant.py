@@ -9,7 +9,7 @@ import sys
 import tempfile
 import time
 import zipfile
-from typing import List
+from typing import List, Optional
 
 import requests
 from cryptography.hazmat.primitives import serialization as crypto_serialization
@@ -63,7 +63,7 @@ class Tenant:
     metadata = {}
     allowlist = {}
     ima_policy_name = ""
-    ima_sign_verification_keys = []
+    ima_sign_verification_keys: Optional[str] = None
     revocation_key = ""
     accept_tpm_hash_algs = []
     accept_tpm_encryption_algs = []

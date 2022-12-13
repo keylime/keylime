@@ -188,8 +188,8 @@ class ImaKeyring:
 
         default_be = backends.default_backend()
 
-        # An empty Db entry comes as a string '[]'. A valid DB entry as a string
-        # ith escaped quotes and needs to be loaded twice
+        # An empty Db entry comes as a string 'null' or previously '[]'. A valid DB entry
+        # is a string with escaped quotes and needs to be loaded twice
         obj = json.loads(stringrepr)
         if isinstance(obj, str):
             obj = json.loads(obj)
