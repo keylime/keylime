@@ -243,10 +243,10 @@ def process_mapping(old_config, templates, mapping_file, debug=False, target=Non
 
     new = configparser.RawConfigParser()
 
-    for component in mapping["components"].keys():
+    for component in mapping["components"]:
 
         if component in old_config:
-            if component in mapping["subcomponents"].keys():
+            if component in mapping["subcomponents"]:
                 # If the component is a subcomponent, use the version from the
                 # component
                 version_component = mapping["subcomponents"][component]
@@ -285,7 +285,7 @@ def process_mapping(old_config, templates, mapping_file, debug=False, target=Non
         new.add_section(component)
         m = mapping["components"][component]
 
-        for option in m.keys():
+        for option in m:
             # For each option, get the dictionary with the info to search:
             # {
             #     "section": section to search
