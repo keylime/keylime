@@ -67,8 +67,8 @@
      when: distro == centos-stream-8
 
    # discover step adjustments
-   # disable code coverage measurement everywhere except F35
-   - when: distro != fedora-35
+   # disable code coverage measurement everywhere except F37
+   - when: distro != fedora-37
      discover+:
        test-:
         - /setup/enable_keylime_coverage
