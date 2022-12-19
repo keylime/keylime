@@ -75,9 +75,10 @@ import configparser
 import importlib.util
 import json
 import os
-import re
 
 from jinja2 import Template
+
+from keylime.common.version import str_to_version
 
 COMPONENTS = ["agent", "verifier", "tenant", "registrar", "ca", "logging"]
 
@@ -244,23 +245,6 @@ def process_mapping(old_config, templates, mapping_file, debug=False):
         print(json.dumps(new, indent=4))
 
     return new
-
-
-def str_to_version(v_str):
-    """
-    Validates the string format and converts the provided string to a tuple of
-    ints which can be sorted and compared.
-
-    :returns: Tuple with version number parts converted to int. In case of
-    invalid version string, returns None
-    """
-
-    m = re.match(r"^(\d+)\.(\d+)$", v_str)
-
-    if not m:
-        return None
-
-    return tuple(int(x) for x in m.group(1, 2))
 
 
 def process_versions(templates, old_config, target_version=None, debug=False):
