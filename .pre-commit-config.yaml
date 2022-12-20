@@ -1,3 +1,4 @@
+exclude: 'test/data/template-invalid-adjust/2.0/adjust.py'
 repos:
   - repo: https://github.com/pycqa/isort
     rev: 5.10.1

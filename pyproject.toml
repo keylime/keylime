@@ -32,5 +32,6 @@ ignore = [
     "test/oldtest.py",
     "test/test_ima_dm.py",
     "test/test_restful.py",
+    "test/data/template-invalid-adjust/2.0/adjust.py",
 ]
 reportMissingImports = false
