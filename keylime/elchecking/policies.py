@@ -103,9 +103,10 @@ def evaluate(policy_name: str, refstate: RefState, eventlog: tests.Data) -> str:
     return tester.why_not({}, eventlog)
 
 
-imports = config.getlist("verifier", "measured_boot_imports")
-# print(f'importing {imports!r}, __package__={__package__!r}')
-if imports:
-    for imp in imports:
-        if imp:
-            importlib.import_module(imp, __package__)
+def load_policies() -> None:
+    imports = config.getlist("verifier", "measured_boot_imports")
+    imports.append(".example")
+    if imports:
+        for imp in imports:
+            if imp:
+                importlib.import_module(imp, __package__)
