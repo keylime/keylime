@@ -5,6 +5,7 @@ import sys
 from ..tpm import tpm_main
 from . import policies
 
+policies.load_policies()
 # This main module is just for command-line based testing.
 # It implements a command to do one test.
 # Invoke it with `python3 -m $packagename`, for some value of
