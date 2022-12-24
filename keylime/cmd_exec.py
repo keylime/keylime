@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 import time
-from typing import Dict, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast
 
 if sys.version_info >= (3, 8):
     from typing import TypedDict
@@ -23,7 +23,7 @@ class RetDictType(TypedDict):
     timing: Dict[str, float]
 
 
-def _execute(cmd: Sequence[str], env: Optional[EnvType] = None, **kwargs) -> Tuple[bytes, bytes, int]:
+def _execute(cmd: Sequence[str], env: Optional[EnvType] = None, **kwargs: Any) -> Tuple[bytes, bytes, int]:
     with subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs) as proc:
         out, err = proc.communicate()
         # All callers assume to receive a list of bytes back; none of them uses 'text mode'
@@ -36,7 +36,7 @@ def run(
     raiseOnError: bool = True,
     outputpaths: Optional[Union[List[str], str]] = None,
     env: Optional[EnvType] = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> RetDictType:
     """Execute external command.
 
@@ -82,7 +82,7 @@ def run(
 
 # list_contains_substring checks whether a substring is contained in the given
 # list. The list may be the reterr from 'run' and contains bytes-like objects.
-def list_contains_substring(lst: List, substring: str) -> bool:
+def list_contains_substring(lst: List[bytes], substring: str) -> bool:
     for s in lst:
         if substring in str(s):
             return True
