@@ -50,6 +50,7 @@ def execute(json_revocation: Dict[str, str]) -> None:
         # write out the updated CRL
         logger.debug("Updating CRL in %s/unzipped/cacrl.der", secdir)
         with open(os.path.join(secdir, "unzipped", "cacrl.der"), "wb") as f:
+            assert not isinstance(response.body, str)
             f.write(response.body)
         ca_util.convert_crl_to_pem(
             os.path.join(secdir, "unzipped", "cacrl.der"), os.path.join(secdir, "unzipped", "cacrl.pem")
