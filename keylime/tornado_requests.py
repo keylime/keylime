@@ -1,11 +1,27 @@
 import ssl
+from typing import Any, Dict, Optional, Union
 
 from tornado import httpclient
+from tornado.httputil import HTTPHeaders
 
 from keylime import json
 
 
-async def request(method, url, params=None, data=None, context=None, headers=None, timeout=60.0):
+class TornadoResponse:
+    def __init__(self, code: int, body: Union[str, bytes]):
+        self.status_code = code
+        self.body = body
+
+
+async def request(
+    method: str,
+    url: str,
+    params: Optional[Dict[str, str]] = None,
+    data: Optional[Dict[str, Any]] = None,
+    context: Optional[ssl.SSLContext] = None,
+    headers: Optional[Union[Dict[str, str], HTTPHeaders]] = None,
+    timeout: float = 60.0,
+) -> TornadoResponse:
 
     http_client = httpclient.AsyncHTTPClient()
     if params is not None and len(list(params.keys())) > 0:
@@ -18,19 +34,22 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
         url = url.replace("http://", "https://", 1)
 
     # Convert dict to JSON before sending
+    body: Optional[str]
     if isinstance(data, dict):
-        data = json.dumps(data)
+        body = json.dumps(data)
         if headers is None:
             headers = {}
         if "Content-Type" not in headers:
             headers["Content-Type"] = "application/json"
+    else:
+        body = data
 
     try:
         req = httpclient.HTTPRequest(
             url=url,
             method=method,
             ssl_options=context,
-            body=data,
+            body=body,
             headers=headers,
             request_timeout=timeout,
         )
@@ -51,9 +70,3 @@ async def request(method, url, params=None, data=None, context=None, headers=Non
     if response is None:
         return TornadoResponse(599, "Unspecified failure in tornado (empty http response)")
     return TornadoResponse(response.code, response.body)
-
-
-class TornadoResponse:
-    def __init__(self, code, body):
-        self.status_code = code
-        self.body = body
