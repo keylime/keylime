@@ -1,6 +1,7 @@
 import os
 from configparser import NoOptionError
 from sqlite3 import Connection as SQLite3Connection
+from typing import Any, Dict, Optional
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
@@ -12,8 +13,8 @@ from keylime import config, keylime_logging
 logger = keylime_logging.init_logging("keylime_db")
 
 # make sure referential integrity is working for SQLite
-@event.listens_for(Engine, "connect")
-def _set_sqlite_pragma(dbapi_connection, _):
+@event.listens_for(Engine, "connect")  # type: ignore
+def _set_sqlite_pragma(dbapi_connection: SQLite3Connection, _) -> None:
     if isinstance(dbapi_connection, SQLite3Connection):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
@@ -21,10 +22,12 @@ def _set_sqlite_pragma(dbapi_connection, _):
 
 
 class DBEngineManager:
-    def __init__(self):
+    service: Optional[str]
+
+    def __init__(self) -> None:
         self.service = None
 
-    def make_engine(self, service):
+    def make_engine(self, service: str) -> Engine:
         """
         To use: engine = self.make_engine('cloud_verifier')
         """
@@ -42,10 +45,10 @@ class DBEngineManager:
             p_sz_m_ovfl = config.get(config_service, "database_pool_sz_ovfl")
             p_sz, m_ovfl = p_sz_m_ovfl.split(",")
         except NoOptionError:
-            p_sz = 5
-            m_ovfl = 10
+            p_sz = "5"
+            m_ovfl = "10"
 
-        engine_args = {}
+        engine_args: Dict[str, Any] = {}
 
         url = config.get(config_service, "database_url")
         if url:
@@ -88,17 +91,19 @@ class DBEngineManager:
 
 
 class SessionManager:
-    def __init__(self):
+    engine: Optional[Engine]
+
+    def __init__(self) -> None:
         self.engine = None
 
-    def make_session(self, engine):
+    def make_session(self, engine: Engine) -> Any:
         """
         To use: session = self.make_session(engine)
         """
         self.engine = engine
         Session = scoped_session(sessionmaker())
         try:
-            Session.configure(bind=self.engine)
+            Session.configure(bind=self.engine)  # type: ignore
         except SQLAlchemyError as e:
             logger.error("Error creating SQL session manager %s", e)
         return Session()
