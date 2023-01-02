@@ -12,7 +12,7 @@ try:
 except ImportError:
     from yaml import SafeLoader, SafeDumper
 
-from keylime import config, crypto, json, keylime_logging
+from keylime import config, crypto, json, keylime_logging, measured_boot
 from keylime.agentstates import AgentAttestState
 from keylime.common import algorithms
 from keylime.common.algorithms import Hash
@@ -276,9 +276,6 @@ class AbstractTPM(metaclass=ABCMeta):
         hash_alg: Hash,
     ) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
-
-        # The measured_boot code loads verifier configuration automatically and therefore cannot be imported globally.
-        from keylime import measured_boot  # pylint: disable=import-outside-toplevel
 
         if isinstance(tpm_policy, str):
             tpm_policy_dict = json.loads(tpm_policy)
