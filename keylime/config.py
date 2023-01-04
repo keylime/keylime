@@ -21,7 +21,7 @@ def convert(data: Any) -> Any:
     if isinstance(data, bytes):
         return data.decode()
     if isinstance(data, dict):
-        return dict(iter(map(convert, data.items())))
+        return dict(iter(map(convert, data.items())))  # pyright: ignore
     if isinstance(data, tuple):
         return tuple(map(convert, data))
     if isinstance(data, list):
