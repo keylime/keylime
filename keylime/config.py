@@ -3,7 +3,7 @@ import logging
 import os
 import os.path
 from configparser import RawConfigParser
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, Iterator, List, Optional, cast
 
 import yaml
 
@@ -21,7 +21,7 @@ def convert(data: Any) -> Any:
     if isinstance(data, bytes):
         return data.decode()
     if isinstance(data, dict):
-        return dict(iter(map(convert, data.items())))  # pyright: ignore
+        return dict(cast(Iterator[Any], iter(map(convert, data.items()))))
     if isinstance(data, tuple):
         return tuple(map(convert, data))
     if isinstance(data, list):
