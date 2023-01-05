@@ -1,6 +1,5 @@
 import argparse
 import base64
-import hashlib
 import io
 import json
 import logging
@@ -1423,9 +1422,6 @@ def main() -> None:
 
     if args.agent_uuid is not None:
         mytenant.agent_uuid = args.agent_uuid
-        # if the uuid is actually a public key, then hash it
-        if mytenant.agent_uuid.startswith("-----BEGIN PUBLIC KEY-----"):
-            mytenant.agent_uuid = hashlib.sha256(mytenant.agent_uuid).hexdigest()
         if not validators.valid_agent_id(mytenant.agent_uuid):
             raise UserError("The agent ID set via agent uuid parameter use invalid characters")
     else:
