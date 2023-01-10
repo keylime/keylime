@@ -86,7 +86,7 @@ exclude_db: Dict[str, Any] = {
 }
 
 
-def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, str]:
+def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, Any]:
     fields = [
         "agent_id",
         "v",
@@ -130,12 +130,12 @@ def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, str]:
 
 def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
     if stored_agent.agent_id not in GLOBAL_POLICY_CACHE:
-        GLOBAL_POLICY_CACHE[stored_agent.agent_id] = {}
+        GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)] = {}
 
-    if stored_agent.ima_policy.checksum not in GLOBAL_POLICY_CACHE[stored_agent.agent_id]:
-        if GLOBAL_POLICY_CACHE[stored_agent.agent_id]:
+    if stored_agent.ima_policy.checksum not in GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)]:
+        if GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)]:
             # Perform a cleanup of the contents, IMA policy checksum changed
-            GLOBAL_POLICY_CACHE[stored_agent.agent_id] = {}
+            GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)] = {}
 
         logger.debug(
             "IMA policy with checksum %s, used by agent %s is not present on policy cache on this verifier, performing SQLAlchemy load",
@@ -143,11 +143,11 @@ def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
             stored_agent.agent_id,
         )
         # Actually contacts the database and load the (large) ima_policy column for "allowlists" table
-        GLOBAL_POLICY_CACHE[stored_agent.agent_id][
+        GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)][
             stored_agent.ima_policy.checksum
         ] = stored_agent.ima_policy.ima_policy
 
-    return GLOBAL_POLICY_CACHE[stored_agent.agent_id][stored_agent.ima_policy.checksum]
+    return GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)][stored_agent.ima_policy.checksum]
 
 
 def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
@@ -242,6 +242,10 @@ class VersionHandler(BaseHandler):
         web_util.echo_json_response(self, 405, "Not Implemented: Use GET interface instead")
 
     def get(self):
+        if self.request.uri is None:
+            web_util.echo_json_response(self, 400, "URI not specified")
+            return
+
         rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None:
             web_util.echo_json_response(self, 405, "Not Implemented")
@@ -287,6 +291,11 @@ class AgentsHandler(BaseHandler):
         to contact the Cloud Agent.
         """
         session = get_session()
+
+        if self.request.uri is None:
+            web_util.echo_json_response(self, 400, "URI not specified")
+            return
+
         rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None:
             web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
@@ -381,6 +390,11 @@ class AgentsHandler(BaseHandler):
         agents requests require a single agent_id parameter which identifies the agent to be deleted.
         """
         session = get_session()
+
+        if self.request.uri is None:
+            web_util.echo_json_response(self, 400, "URI not specified")
+            return
+
         rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None:
             web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
@@ -465,6 +479,10 @@ class AgentsHandler(BaseHandler):
         # TODO: exception handling needs fixing
         # Maybe handle exceptions with if/else if/else blocks ... simple and avoids nesting
         try:  # pylint: disable=too-many-nested-blocks
+            if self.request.uri is None:
+                web_util.echo_json_response(self, 400, "URI not specified")
+                return
+
             rest_params = web_util.get_restful_params(self.request.uri)
             if rest_params is None:
                 web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
@@ -654,6 +672,8 @@ class AgentsHandler(BaseHandler):
                         except SQLAlchemyError as e:
                             logger.error("SQLAlchemy Error while updating ima policy for agent ID %s: %s", agent_id, e)
                             raise
+                    else:
+                        runtime_policy_stored = None
 
                     # Write the agent to the database, attaching associated stored policy
                     try:
@@ -696,6 +716,10 @@ class AgentsHandler(BaseHandler):
         """
         session = get_session()
         try:
+            if self.request.uri is None:
+                web_util.echo_json_response(self, 400, "URI not specified")
+                return
+
             rest_params = web_util.get_restful_params(self.request.uri)
             if rest_params is None:
                 web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
@@ -780,6 +804,9 @@ class AllowlistHandler(BaseHandler):
 
     def __validate_input(self, method: str) -> Optional[str]:
         """Validate the input"""
+        if self.request.uri is None:
+            web_util.echo_json_response(self, 400, "Invalid URL")
+            return None
         rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None or "allowlists" not in rest_params:
             web_util.echo_json_response(self, 400, "Invalid URL")
@@ -1000,7 +1027,7 @@ class AllowlistHandler(BaseHandler):
 
 
 async def invoke_get_quote(
-    agent: Dict[str, Any], runtime_policy: VerifierAllowlist, need_pubkey: bool, timeout: float = 60.0
+    agent: Dict[str, Any], runtime_policy: str, need_pubkey: bool, timeout: float = 60.0
 ) -> None:
     failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
@@ -1319,11 +1346,9 @@ async def process_agent(
                     "Setting up callback to check agent ID %s again in %f seconds", agent["agent_id"], interval
                 )
 
-                # set up a call back to check again
-                async def cb():
-                    await invoke_get_quote(agent, runtime_policy, False, timeout=timeout)
-
-                pending = tornado.ioloop.IOLoop.current().call_later(interval, cb)
+                pending = tornado.ioloop.IOLoop.current().call_later(
+                    interval, invoke_get_quote, agent, runtime_policy, False, timeout=timeout  # type: ignore  ; due to python <3.9
+                )
                 agent["pending_event"] = pending
             return
 
@@ -1347,9 +1372,6 @@ async def process_agent(
             else:
                 agent["operational_state"] = states.GET_QUOTE
 
-                async def cb_quote_retry():
-                    await invoke_get_quote(agent, runtime_policy, True, timeout=timeout)
-
                 agent["num_retries"] += 1
                 next_retry = retry.retry_time(exponential_backoff, interval, agent["num_retries"], logger)
                 logger.info(
@@ -1359,7 +1381,9 @@ async def process_agent(
                     maxr,
                     next_retry,
                 )
-                tornado.ioloop.IOLoop.current().call_later(next_retry, cb_quote_retry)
+                tornado.ioloop.IOLoop.current().call_later(
+                    next_retry, invoke_get_quote, agent, runtime_policy, True, timeout=timeout  # type: ignore  ; due to python <3.9
+                )
             return
 
         if main_agent_operational_state == states.PROVIDE_V and new_operational_state == states.PROVIDE_V_RETRY:
@@ -1375,9 +1399,6 @@ async def process_agent(
             else:
                 agent["operational_state"] = states.PROVIDE_V
 
-                async def cb_vprov_retry():
-                    await invoke_provide_v(agent)
-
                 agent["num_retries"] += 1
                 next_retry = retry.retry_time(exponential_backoff, interval, agent["num_retries"], logger)
                 logger.info(
@@ -1387,7 +1408,9 @@ async def process_agent(
                     maxr,
                     next_retry,
                 )
-                tornado.ioloop.IOLoop.current().call_later(next_retry, cb_vprov_retry)
+                tornado.ioloop.IOLoop.current().call_later(
+                    next_retry, invoke_provide_v, agent  # type: ignore  ; due to python <3.9
+                )
             return
         raise Exception("nothing should ever fall out of this!")
 
