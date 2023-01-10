@@ -103,6 +103,9 @@ class Tenant:
         self.api_version = keylime_api_version.current_version()
         self.enable_agent_mtls = config.getboolean("tenant", "enable_agent_mtls")
         self.request_timeout = config.getint("tenant", "request_timeout", fallback=60)
+        self.retry_interval = config.getfloat("tenant", "retry_interval")
+        self.exponential_backoff = config.getboolean("tenant", "exponential_backoff")
+        self.maxr = config.getint("tenant", "max_retries")
 
         logger.info("Setting up client TLS...")
         (cert, key, trusted_ca, key_password), verify_server_cert = web_util.get_tls_options(
@@ -582,6 +585,39 @@ class Tenant:
                 response.text,
             )
             sys.exit()
+        else:
+            numtries = 0
+            added = False
+
+            while not added:
+                reponse_json = self.do_cvstatus()
+                if reponse_json["code"] != 200:
+                    numtries += 1
+                    if numtries >= self.maxr:
+                        logger.error(
+                            "Agent ID %s still not added to the Verifier after %d tries",
+                            self.agent_uuid,
+                            numtries,
+                        )
+                        sys.exit()
+                    next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
+                    logger.info(
+                        "Agent ID %s still not added to the Verifier at try %d of %d , trying again in %s seconds...",
+                        self.agent_uuid,
+                        numtries,
+                        self.maxr,
+                        next_retry,
+                    )
+                    time.sleep(next_retry)
+                else:
+                    added = True
+
+            if added:
+                logger.info(
+                    "Agent ID %s added to the Verifier after %d tries",
+                    self.agent_uuid,
+                    numtries,
+                )
 
     def do_cvstatus(self):
         """Perform operational state look up for agent on the verifier"""
@@ -735,11 +771,15 @@ class Tenant:
             cvresponse = self.do_cvstatus()
 
             if not isinstance(cvresponse, dict):
-                return cvresponse
+                keylime_logging.log_http_response(logger, logging.ERROR, cvresponse)
+                sys.exit()
 
-            if cvresponse["code"] != 200:
-                logger.error("Could not get status of agent %s from verifier %s.", self.agent_uuid, self.verifier_ip)
-                return cvresponse
+            if cvresponse["code"] == 404:
+                logger.info(
+                    "Agent ID %s deleted from Verifier",
+                    self.agent_uuid,
+                )
+                return
 
             self.verifier_ip = cvresponse["results"][self.agent_uuid]["verifier_ip"]
             self.verifier_port = cvresponse["results"][self.agent_uuid]["verifier_port"]
@@ -755,36 +795,49 @@ class Tenant:
                 self.verifier_ip,
                 self.verifier_port,
             )
-            return response
+            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
+            sys.exit()
+
         if response_json["code"] == 504:
             logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
-            return response
+            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
+            sys.exit()
+
         if response_json["code"] == 202:
+            numtries = 0
             deleted = False
-            for _ in range(12):
-                get_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-                response = get_cvdelete.get(
-                    f"/v{self.api_version}/agents/{self.agent_uuid}", timeout=self.request_timeout
+
+            while not deleted:
+                reponse_json = self.do_cvstatus()
+                if reponse_json["code"] != 404:
+                    numtries += 1
+                    if numtries >= self.maxr:
+                        logger.error(
+                            "Agent ID %s still not deleted from the Verifier after %d tries",
+                            self.agent_uuid,
+                            numtries,
+                        )
+                        sys.exit()
+                    next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
+                    logger.info(
+                        "Agent ID %s still not deleted from the Verifier at try %d of %d , trying again in %s seconds...",
+                        self.agent_uuid,
+                        numtries,
+                        self.maxr,
+                        next_retry,
+                    )
+                    time.sleep(next_retry)
+                else:
+                    deleted = True
+
+            if deleted:
+                logger.info(
+                    "Agent ID %s deleted from the Verifier after %d tries",
+                    self.agent_uuid,
+                    numtries,
                 )
 
-                response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
-
-                if response.status_code == 404:
-                    deleted = True
-                    break
-                time.sleep(0.4)
-            if deleted:
                 logger.info("Agent %s deleted from the CV", self.agent_uuid)
-                return response_json
-            logger.error("Timed out waiting for delete of agent %s to complete at CV", self.agent_uuid)
-            return response_json
-
-        if response_json["code"] == 200:
-            logger.info("Agent %s deleted from the CV", self.agent_uuid)
-            return response
-
-        keylime_logging.log_http_response(logger, logging.ERROR, response_json)
-        return response
 
     def do_regstatus(self):
         agent_info = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid, self.tls_context)
@@ -965,22 +1018,19 @@ class Tenant:
             except Exception as e:
                 if response is None or response.status_code in (503, 504):
                     numtries += 1
-                    maxr = config.getint("tenant", "max_retries")
-                    if numtries >= maxr:
+                    if numtries >= self.maxr:
                         logger.error(
                             "Tenant cannot establish connection to agent on %s with port %s",
                             self.agent_ip,
                             self.agent_port,
                         )
                         sys.exit()
-                    interval = config.getfloat("tenant", "retry_interval")
-                    exponential_backoff = config.getboolean("tenant", "exponential_backoff")
-                    next_retry = retry.retry_time(exponential_backoff, interval, numtries, logger)
+                    next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                     logger.info(
                         "Tenant connection to agent at %s refused %s/%s times, trying again in %s seconds...",
                         self.agent_ip,
                         numtries,
-                        maxr,
+                        self.maxr,
                         next_retry,
                     )
                     time.sleep(next_retry)
@@ -1099,21 +1149,18 @@ class Tenant:
             except Exception as e:
                 if response is not None and response.status_code in (503, 504):
                     numtries += 1
-                    maxr = config.getint("tenant", "max_retries")
-                    if numtries >= maxr:
+                    if numtries >= self.maxr:
                         logger.error(
                             "Cannot establish connection to agent on %s with port %s", self.agent_ip, self.agent_port
                         )
                         self.do_cvstop()
                         sys.exit()
-                    interval = config.getfloat("tenant", "retry_interval")
-                    exponential_backoff = config.getboolean("tenant", "exponential_backoff")
-                    next_retry = retry.retry_time(exponential_backoff, interval, numtries, logger)
+                    next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                     logger.info(
                         "Verifier connection to agent at %s refused %s/%s times, trying again in %s seconds...",
                         self.agent_ip,
                         numtries,
-                        maxr,
+                        self.maxr,
                         next_retry,
                     )
                     time.sleep(next_retry)
@@ -1137,18 +1184,15 @@ class Tenant:
             else:
                 keylime_logging.log_http_response(logger, logging.ERROR, response_json)
                 numtries += 1
-                maxr = config.getint("tenant", "max_retries")
-                if numtries >= maxr:
+                if numtries >= self.maxr:
                     logger.error("Agent on %s with port %s failed key derivation", self.agent_ip, self.agent_port)
                     self.do_cvstop()
                     sys.exit()
-                interval = config.getfloat("tenant", "retry_interval")
-                exponential_backoff = config.getboolean("tenant", "exponential_backoff")
-                next_retry = retry.retry_time(exponential_backoff, interval, numtries, logger)
+                next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                 logger.info(
                     "Key derivation not yet complete (retry %s/%s), trying again in %s seconds... (Ctrl-C to stop)",
                     numtries,
-                    maxr,
+                    self.maxr,
                     next_retry,
                 )
                 time.sleep(next_retry)
