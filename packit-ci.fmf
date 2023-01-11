@@ -7,11 +7,11 @@
     agent: python
 
   prepare:
-    how: shell
-    script:
-     - ln -s $(pwd) /var/tmp/keylime_sources
-     - systemctl disable --now dnf-makecache.service || true
-     - systemctl disable --now dnf-makecache.timer || true
+   - how: shell
+     script:
+      - ln -s $(pwd) /var/tmp/keylime_sources
+      - systemctl disable --now dnf-makecache.service || true
+      - systemctl disable --now dnf-makecache.timer || true
 
   discover:
     how: fmf
@@ -55,18 +55,31 @@
      - /setup/generate_coverage_report
 
   adjust:
-   # prepare step adjustments
-   - prepare+:
-       script+:
-        - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-     when: distro == centos-stream-9
 
-   - prepare+:
-       script+:
-        - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-     when: distro == centos-stream-8
+   # prepare step adjustments
+
+   - when: distro == centos-stream-9
+     prepare+:
+      - how: shell
+        script:
+         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+
+   - when: distro == centos-stream-8
+     prepare+:
+      - how: shell
+        script:
+         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+
+   # temporary hotfix until Fedora BZ#2158598 gets fixed
+   - when: "distro == fedora-36 or distro == fedora-37"
+     prepare+:
+      - how: shell
+        order: 99
+        script:
+         - yum -y downgrade tpm2-tss
 
    # discover step adjustments
+
    # disable code coverage measurement everywhere except F37
    - when: distro != fedora-37
      discover+:
@@ -89,11 +102,11 @@
     agent: python
 
   prepare:
-    how: shell
-    script:
-     - ln -s $(pwd) /var/tmp/keylime_sources
-     - systemctl disable --now dnf-makecache.service || true
-     - systemctl disable --now dnf-makecache.timer || true
+   - how: shell
+     script:
+      - ln -s $(pwd) /var/tmp/keylime_sources
+      - systemctl disable --now dnf-makecache.service || true
+      - systemctl disable --now dnf-makecache.timer || true
 
   discover:
     how: fmf
@@ -108,16 +121,28 @@
      - /functional/basic-attestation-with-unpriviledged-agent
 
   adjust:
-   # prepare step adjustments
-   - prepare+:
-       script+:
-        - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-     when: distro == centos-stream-9
 
-   - prepare+:
-       script+:
-        - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-     when: distro == centos-stream-8
+   # prepare step adjustments
+
+   - when: distro == centos-stream-9
+     prepare+:
+      - how: shell
+        script:
+         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+
+   - when: distro == centos-stream-8
+     prepare+:
+      - how: shell
+        script:
+         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+
+   # temporary hotfix until Fedora BZ#2158598 gets fixed
+   - when: "distro == fedora-36 or distro == fedora-37"
+     prepare+:
+      - how: shell
+        order: 99
+        script:
+         - yum -y downgrade tpm2-tss
 
   execute:
     how: tmt
