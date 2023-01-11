@@ -267,5 +267,5 @@ if [[ "$IMA_ENABLE" -eq "1" ]] ; then
     echo $'\t\t\t\tGenerating IMA allowlist'
     echo "=================================================================================="
     cd $KEYLIME_DIR/scripts
-    ./create_allowlist.sh allowlist.txt
+    ./create_runtime_policy.sh allowlist.txt
 fi

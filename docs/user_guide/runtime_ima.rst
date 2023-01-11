@@ -92,11 +92,11 @@ Keylime provides a script to generate runtime policies from `initramfs`, but thi
 only a guide. We encourage developers / users of Keylime to be creative and come
 up with their own process for securely creating and maintaining runtime policies.
 
-The `create_allowlist.sh` script is `available here <https://github.com/keylime/keylime/blob/master/scripts/create_allowlist.sh>`_
+The `create_runtime_policy.sh` script is `available here <https://github.com/keylime/keylime/blob/master/scripts/create_runtime_policy.sh>`_
 
 Run the script as follows::
 
-  # create_allowlist.sh -o [filename] -h [hash-algo]
+  # create_runtime_policy.sh -o [filename] -h [hash-algo]
 
 With `[hash-algo]` being `sha1sum`, `sha256sum` (note, you need the OpenSSL app
 installed to have the shasum CLI applications available).
