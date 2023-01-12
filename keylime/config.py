@@ -234,11 +234,21 @@ def get_config(component: str) -> RawConfigParser:
     return _config[component]
 
 
+def _get_env(component: str, option: str, section: Optional[str]) -> Optional[str]:
+    opt_section = f"_{section.upper()}" if section else ""
+    env_name = f"KEYLIME_{component.upper()}{opt_section}_{option.upper()}"
+    return os.environ.get(env_name, None)
+
+
 def getlist(component: str, option: str, section: Optional[str] = None) -> List[Any]:
+    env_value = _get_env(component, option, section)
     if not section:
         section = component
 
-    read = get_config(component).get(section, option).strip('" ')
+    if env_value is not None:
+        read = env_value.strip('" ')
+    else:
+        read = get_config(component).get(section, option).strip('" ')
 
     if read:
         try:
@@ -257,36 +267,59 @@ def getlist(component: str, option: str, section: Optional[str] = None) -> List[
 
 
 def get(component: str, option: str, section: Optional[str] = None, fallback: str = "") -> str:
+    env_value = _get_env(component, option, section)
     if not section:
         section = component
+
+    if env_value is not None:
+        return env_value.strip('" ')
 
     return get_config(component).get(section, option, fallback=fallback).strip('" ')
 
 
 def getint(component: str, option: str, section: Optional[str] = None, fallback: int = -1) -> int:
+    env_value = _get_env(component, option, section)
     if not section:
         section = component
+
+    if env_value is not None:
+        return int(env_value)
 
     return get_config(component).getint(section, option, fallback=fallback)
 
 
 def getboolean(component: str, option: str, section: Optional[str] = None, fallback: bool = False) -> bool:
+    env_value = _get_env(component, option, section)
     if not section:
         section = component
+
+    if env_value is not None:
+        env_value_lower = env_value.lower().strip('" ')
+        if env_value_lower not in RawConfigParser.BOOLEAN_STATES:
+            return fallback
+        return RawConfigParser.BOOLEAN_STATES[env_value_lower]
 
     return get_config(component).getboolean(section, option, fallback=fallback)
 
 
 def getfloat(component: str, option: str, section: Optional[str] = None, fallback: float = -1.0) -> float:
+    env_value = _get_env(component, option, section)
     if not section:
         section = component
+
+    if env_value is not None:
+        return float(env_value)
 
     return get_config(component).getfloat(section, option, fallback=fallback)
 
 
 def has_option(component: str, option: str, section: Optional[str] = None) -> bool:
+    env_value = _get_env(component, option, section)
     if not section:
         section = component
+
+    if env_value is not None:
+        return True
 
     return get_config(component).has_option(section, option)
 
