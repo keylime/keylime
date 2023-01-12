@@ -27,7 +27,9 @@ def _execute(cmd: Sequence[str], env: Optional[EnvType] = None, **kwargs: Any) -
     with subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs) as proc:
         out, err = proc.communicate()
         # All callers assume to receive a list of bytes back; none of them uses 'text mode'
-        return cast(bytes, out), cast(bytes, err), proc.returncode
+        assert isinstance(out, bytes)
+        assert isinstance(err, bytes)
+        return out, err, proc.returncode
 
 
 def run(
