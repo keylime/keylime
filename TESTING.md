@@ -156,4 +156,4 @@ The Keylime test suite can be run locally by executing [.ci/run_local.sh](.ci/ru
 
 Tests can be easily run on Fedora and CentOS Stream using the [tmt](https://tmt.readthedocs.io/en/stable/) tool.
 
-For more details on local E2E test execution and troubleshooting please see [TESTING.md](https://github.com/RedHat-SP-Security/keylime-tests/blob/main/TESTING.md) document from keylime-tests repository.
+For more details on local E2E test execution and troubleshooting please see [TESTING.md](https://github.com/RedHat-SP-Security/keylime-tests/blob/main/TESTING.md) document from keylime-tests repository, especially section [Running CI tests from the upstream keylime project](https://github.com/RedHat-SP-Security/keylime-tests/blob/main/TESTING.md#running-ci-tests-from-the-upstream-keylime-project).
