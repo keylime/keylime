@@ -44,7 +44,7 @@ def start_broker():
                 logger.error(msg)
                 raise Exception(msg)
 
-        context = zmq.Context(1)
+        context = zmq.Context(1)  # pylint: disable=abstract-class-instantiated
         frontend = context.socket(zmq.SUB)
         frontend.bind(f"ipc://{_SOCKET_PATH}")
 
@@ -93,7 +93,7 @@ def notify(tosend):
     tosend = json.bytes_to_str(tosend)
 
     def worker(tosend):
-        context = zmq.Context()
+        context = zmq.Context()  # pylint: disable=abstract-class-instantiated
         mysock = context.socket(zmq.PUB)
         mysock.connect(f"ipc://{_SOCKET_PATH}")
         # wait 100ms for connect to happen
@@ -200,7 +200,7 @@ def await_notifications(callback: Callable, revocation_cert_path: str) -> None:
     if revocation_cert_path is None:
         raise Exception("must specify revocation_cert_path")
 
-    context = zmq.Context()
+    context = zmq.Context()  # pylint: disable=abstract-class-instantiated
     mysock = context.socket(zmq.SUB)
     mysock.setsockopt(zmq.SUBSCRIBE, b"")
     mysock.connect(
