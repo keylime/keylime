@@ -692,24 +692,6 @@ class Tenant:
 
         response_json = Tenant._jsonify_response(response, print_response=False)
 
-        if response.status_code == 503:
-            logger.error(
-                "Cannot connect to Verifier at %s with Port %s. Connection refused.",
-                self.verifier_ip,
-                self.verifier_port,
-            )
-            return response_json
-        if response.status_code == 504:
-            logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
-            return response_json
-        if response.status_code == 404:
-            logger.info(
-                "Verifier at %s with Port %s does not have agent %s.",
-                self.verifier_ip,
-                self.verifier_port,
-                self.agent_uuid,
-            )
-            return response_json
         if response.status_code == 200:
 
             for agent in response_json["results"].keys():
@@ -720,14 +702,9 @@ class Tenant:
 
             return response_json
 
-        logger.info(
-            "Bulk Status command response: %s. Unexpected response from Cloud Verifier %s on port %s. %s",
-            response.status_code,
-            self.verifier_ip,
-            self.verifier_port,
-            str(response),
+        raise UserError(
+            f"Bulk Status: Unexpected response from Verifier {self.verifier_ip} on port {self.verifier_port}. Response status code is {response.status_code}"
         )
-        return response_json
 
     def do_cvdelete(self, verifier_check=True):
         """Delete agent from Verifier."""
