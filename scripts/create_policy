@@ -10,6 +10,8 @@ import sys
 from cryptography import x509
 from cryptography.hazmat import backends
 
+from keylime.ima import ima
+
 IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
 IGNORED_KEYRINGS = []
 
@@ -179,16 +181,8 @@ def main(argv):
     )
     args = parser.parse_args(argv[1:])
 
-    policy = {
-        "meta": {"version": 4},
-        "release": 0,
-        "hashes": {},
-        "keyrings": {},
-        "ima-buf": {},
-        "ima": {
-            "ignored_keyrings": args.ignored_keyrings,
-        },
-    }
+    policy = ima.EMPTY_RUNTIME_POLICY
+    policy["ima"]["ignored_keyrings"] = args.ignored_keyrings
 
     ret = 0
 
@@ -199,7 +193,7 @@ def main(argv):
             base_policy = json.loads(basepol)
 
             # Cherry-pick from base policy what is supported and merge into policy
-            policy["hashes"] = base_policy.get("hashes", {})
+            policy["digests"] = base_policy.get("digests", {})
             policy["keyrings"] = base_policy.get("keyrings", {})
             policy["ima-buf"] = base_policy.get("ima-buf", {})
             ignored_keyrings = base_policy.get("ima", {}).get("ignored_keyrings", [])
@@ -213,11 +207,11 @@ def main(argv):
     if ret:
         sys.exit(ret)
 
-    # Add the hashes map either from the allowlist, if given, or the IMA measurement list.
+    # Add the digests map either from the allowlist, if given, or the IMA measurement list.
     if args.allowlist:
-        policy["hashes"], ret = process_flat_allowlist(args.allowlist, policy["hashes"])
+        policy["digests"], ret = process_flat_allowlist(args.allowlist, policy["digests"])
     elif not args.no_hashes:
-        policy["hashes"], ret = get_hashes_from_measurement_list(args.ima_measurement_list, policy["hashes"])
+        policy["digests"], ret = get_hashes_from_measurement_list(args.ima_measurement_list, policy["digests"])
     if ret:
         sys.exit(ret)
 
