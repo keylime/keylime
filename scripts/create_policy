@@ -235,10 +235,12 @@ def main(argv):
 
             # Cherry-pick from base policy what is supported and merge into policy
             policy["digests"] = base_policy.get("digests", {})
+            policy["excludes"] = base_policy.get("excludes", [])
             policy["keyrings"] = base_policy.get("keyrings", {})
             policy["ima-buf"] = base_policy.get("ima-buf", {})
             ignored_keyrings = base_policy.get("ima", {}).get("ignored_keyrings", [])
             policy["ima"]["ignored_keyrings"] = ignored_keyrings
+            policy["verification-keys"] = base_policy.get("verification-keys", "")
         except (PermissionError, FileNotFoundError) as ex:
             print(f"An error occurred while loading the policy: {ex}")
             ret = 1
