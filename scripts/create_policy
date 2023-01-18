@@ -162,13 +162,15 @@ def process_signature_verification_keys(verification_keys, policy):
 
 def main(argv):
     """main"""
-    parser = argparse.ArgumentParser(argv[0])
+    parser = argparse.ArgumentParser(
+        description="This is an experimental tool for adding items to a Keylime's IMA runtime policy"
+    )
     parser.add_argument(
         "-B",
         "--base-policy",
         action="store",
         dest="base_policy",
-        help='Use given JSON policy as a "base" and merge new data into it',
+        help="Merge new data into the given JSON runtime policy",
     )
     parser.add_argument(
         "-k", "--keyrings", action="store_true", dest="get_keyrings", help="Create keyrings policy entries"
