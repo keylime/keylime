@@ -25,7 +25,7 @@ sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_registrar.service.template > /
 sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" $BASEDIR/keylime_verifier.service.template > /etc/systemd/system/keylime_verifier.service
 
 # Copy secure mount
-cp keylime_agent_secure.mount  /etc/systemd/system/keylime_agent_secure.mount
+cp var-lib-keylime-secure.mount  /etc/systemd/system/var-lib-keylime-secure.mount
 
 echo "Creating keylime user if it not exists"
 if ! getent passwd keylime >/dev/null; then
@@ -52,7 +52,7 @@ chown keylime:keylime -R /var/run/keylime
 chmod 664 /etc/systemd/system/keylime_agent.service
 chmod 664 /etc/systemd/system/keylime_registrar.service
 chmod 664 /etc/systemd/system/keylime_verifier.service
-chmod 664 /etc/systemd/system/keylime_agent_secure.mount
+chmod 664 /etc/systemd/system/var-lib-keylime-secure.mount
 
 chmod 700 /var/run/keylime
 
@@ -60,4 +60,4 @@ chmod 700 /var/run/keylime
 systemctl enable keylime_agent.service
 systemctl enable keylime_registrar.service
 systemctl enable keylime_verifier.service
-systemctl enable keylime_agent_secure.mount
+systemctl enable var-lib-keylime-secure.mount
