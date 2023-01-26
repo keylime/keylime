@@ -522,8 +522,15 @@ class AgentsHandler(BaseHandler):
                     agent_data["verifier_id"] = config.get(
                         "verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID
                     )
-                    agent_data["verifier_ip"] = config.get("verifier", "ip")
-                    agent_data["verifier_port"] = config.get("verifier", "port")
+                    if "verifier_ip" in json_body:
+                        agent_data["verifier_ip"] = json_body["verifier_ip"]
+                    else:
+                        agent_data["verifier_ip"] = config.get("verifier", "ip")
+
+                    if "verifier_port" in json_body:
+                        agent_data["verifier_port"] = json_body["verifier_port"]
+                    else:
+                        agent_data["verifier_port"] = config.get("verifier", "port")
                     agent_data["attestation_count"] = 0
                     agent_data["last_received_quote"] = 0
 

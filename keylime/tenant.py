@@ -544,6 +544,8 @@ class Tenant:
             "v": b64_v,
             "cloudagent_ip": self.cv_cloudagent_ip,
             "cloudagent_port": self.agent_port,
+            "verifier_ip": self.verifier_ip,
+            "verifier_port": self.verifier_port,
             "tpm_policy": json.dumps(self.tpm_policy),
             "runtime_policy": self.runtime_policy,
             "runtime_policy_name": self.runtime_policy_name,
