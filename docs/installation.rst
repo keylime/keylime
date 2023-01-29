@@ -106,20 +106,6 @@ Those are automatically generated for every commit and release.
 For building those images locally see
 `here <https://github.com/keylime/keylime/blob/master/docker/release/build_locally.sh>`_.
 
-
-Docker - Development
---------------------
-
-Python Keylime and with a TPM emulator can also be deployed using Docker.
-Since this docker configuration uses a TPM emulator, it should only be
-used for development or testing and NOT in production.
-
-Please see either the Dockerfiles
-`here <https://github.com/keylime/keylime/tree/master/docker/ci>`_ or our
-local CI script
-`here <https://github.com/keylime/keylime/blob/master/.ci/run_local.sh>`_
-which will automate the build and pull of Keylime.
-
 Manual
 ------
 
