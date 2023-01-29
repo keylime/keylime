@@ -33,7 +33,7 @@ TPM Version Control (Software TPM)
 versions.
 
 TPM 2.0 support can be configured by simply adding
-the role in the `playbook.yml` file `here <https://github.com/keylime/ansible-keylime/blob/master/playbook.yml#L11>`_
+the role in the :code:`playbook.yml` file `here <https://github.com/keylime/ansible-keylime/blob/master/playbook.yml#L11>`_
 
 For TPM 2.0 use::
 
@@ -45,7 +45,7 @@ This rule uses the TPM 2.0 Emulator (IBM software TPM).
 Vagrant
 ~~~~~~~
 
-If you prefer, a `Vagrantfile` is available for provisioning.
+If you prefer, a :code:`Vagrantfile` is available for provisioning.
 
 Clone the repository and then simply run::
 
@@ -74,7 +74,7 @@ Rust agent
 ~~~~~~~~~~~~~~~
 .. note::
     The Rust agent is the official agent for Keylime and replaces the Python implementation.
-    For the rust agent a different configuration file is used (by default `/etc/keylime/agent.conf`)
+    For the rust agent a different configuration file is used (by default :code:`/etc/keylime/agent.conf`)
     which is **not** interchangeable with the old Python configuration.
 
 Installation instructions can be found in the `README.md <https://github.com/keylime/rust-keylime>`_ for the Rust agent.
@@ -84,7 +84,7 @@ Keylime Bash installer
 
 Keylime requires Python 3.6 or greater.
 
-Installation can be performed via an automated shell script, `installer.sh`. The
+Installation can be performed via an automated shell script, :code:`installer.sh`. The
 following command line options are available::
 
     Usage: ./installer.sh [option...]
@@ -136,7 +136,7 @@ The following Python packages are required:
 The current list of required packages can be found `here <https://github.com/keylime/keylime/blob/master/requirements.txt>`_.
 
 All of them should be available as distro packages. See `installer.sh <https://github.com/keylime/keylime/blob/master/installer.sh>`_
-for more information if you want to install them this way. You can also let Keylime's `setup.py`
+for more information if you want to install them this way. You can also let Keylime's :code:`setup.py`
 install them via PyPI.
 
 
@@ -168,14 +168,14 @@ The brief synopsis of a quick build/install (after installing dependencies) is::
 
 
 To ensure that you have the recent version installed ensure that you have
-the `tpm2_checkquote` utility in your path.
+the :code:`tpm2_checkquote` utility in your path.
 
 .. note::
     Keylime by default (all versions after 6.2.0) uses the kernel TPM resource
     manager. For kernel versions older than 4.12 we recommend to use the tpm2-abrmd
     resource manager (available `here <https://github.com/tpm2-software/tpm2-abrmd>`_).
 
-How the TPM is accessed by tpm2-tools can be set using the `TPM2TOOLS_TCTI` environment
+How the TPM is accessed by tpm2-tools can be set using the :code:`TPM2TOOLS_TCTI` environment
 variable. More information about that can be found
 `here <https://github.com/tpm2-software/tpm2-tools/blob/master/man/common/tcti.md>`_.
 
@@ -197,6 +197,25 @@ You're finally ready to install Keylime::
     sudo python setup.py install
 
 
+Configuring basic (m)TLS setup
+------------------------------
+Keylime uses mTLS authentication between the different components.
+By default the verifier creates a CA for this under :code:`/var/lib/keylime/cv_ca/` on first startup.
+The directory contains files for three different components:
+
+* *Root CA*: :code:`cacert.crt` contains the root CA certificate.
+  **Important:** this certificate needs to be also be deployed on the agent, otherwise the tenant and verifier cannot
+  connect to the agent!
+* *Server certificate and key*: :code:`server-cert.crt` and :code:`server-{private,public}.pem` are used by the registrar
+  and verifier for their HTTPS interface.
+* *Client certificate and key*: :code:`client-cert.crt` and :code:`client-{private,public}.pem` are used
+  by the tenant to authenticate against the verifier, registrar and agent. The verifier uses this key and certificate
+  to authenticate against the agent.
+
+Keylime allows each component to use their own server and client keys and
+also a list of trusted certificates for mTLS connections.
+Please refer to options the the respective configuration files for more details.
+
 Database support
 ---------------------
 
@@ -207,7 +226,7 @@ Keylime supports the following databases:
 * MySQL
 * MariaDB
 
-SQLite is configured as default (`database_url = sqlite`) where the databases are stored under `/var/lib/keylime`.
+SQLite is configured as default (:code:`database_url = sqlite`) where the databases are stored under :code:`/var/lib/keylime`.
 
 Starting with Keylime version 6.4.0 only supports SQLAlchemy's URL format to allow a more flexible configuration.
 The format for the supported databases can be found in the SQLAlchemy
