@@ -19,6 +19,9 @@ This Documentation site contains guides to install, use and administer keylime
 as well as guides to enable developers to make contributions to keylime
 or develop services against Keylime's Rest API(s).
 
+We recommend newcomers to read the :doc:`design section <design>` to get an understanding
+what the goals of Keylime are and how they are implemented.
+
 
 .. toctree::
    :maxdepth: 2
@@ -35,5 +38,4 @@ Indices and tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
