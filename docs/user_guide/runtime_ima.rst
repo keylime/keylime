@@ -1,18 +1,18 @@
-Run-time Integrity Monitoring
-=============================
-
-Keylimes run-time integrity monitoring requires the set up of Linux IMA.
+Runtime Integrity Monitoring
+============================
+Keylime's runtime integrity monitoring requires the set up of Linux IMA.
+More information about IMA in general can be found in the `openSUSE Wiki <https://en.opensuse.org/SDB:Ima_evm>`_.
 
 You should refer to your Linux Distributions documentation to enable IMA, but
-as a general guide most recent versions already have `CONFIG_IMA` toggled to
-`Y` as a value during Kernel compile.
+as a general guide most recent versions already have :code:`CONFIG_IMA` toggled to
+:code:`Y` as a value during Kernel compile.
 
-It is then just a case of deploying an `ima-policy` file. On a Fedora or Debian
-system, the file is situated in `/etc/ima/ima-policy`.
+It is then just a case of deploying an :code:`ima-policy` file. On a Fedora or Debian
+system, the file is located in :code:`/etc/ima/ima-policy`.
 
-For configuration of your IMA policy, please refer to the `IMA Documentation <https://github.com/torvalds/linux/blob/6f0d349d922ba44e4348a17a78ea51b7135965b1/Documentation/ABI/testing/ima_policy>`_
+For configuration of your IMA policy, please refer to the `IMA Documentation <https://github.com/torvalds/linux/blob/v6.1/Documentation/ABI/testing/ima_policy>`_.
 
-Within Keylime we use the following for demonstration (found in `demo/ima-policies/ima-policy-keylime`)::
+Within Keylime we use the following for demonstration (found in :code:`demo/ima-policies/ima-policy-keylime`)::
 
     # PROC_SUPER_MAGIC
     dont_measure fsmagic=0x9fa0
@@ -42,11 +42,11 @@ Within Keylime we use the following for demonstration (found in `demo/ima-polici
     measure func=FILE_MMAP mask=MAY_EXEC
     measure func=MODULE_CHECK uid=0
 
-This default policy measures all executables in `bprm_check` and all files `mmapped`
-executable in `file_mmap` and module checks and skips several irrelevant files
+This default policy measures all executables in :code:`bprm_check` and all files :code:`mmapped`
+executable in :code:`file_mmap` and module checks and skips several irrelevant files
 (logs, audit, tmp, etc).
 
-Once your `ima-policy` is in place, reboot your machine (or even better have it
+Once your :code:`ima-policy` is in place, reboot your machine (or even better have it
 present in your image for first boot).
 
 You can then verify IMA is measuring your system::
@@ -59,49 +59,50 @@ You can then verify IMA is measuring your system::
   10 7efd8e2a3da367f2de74b26b84f20b37c692b9f9 ima-ng sha1:af78ea0b455f654e9237e2086971f367b6bebc5f /usr/lib/systemd/libsystemd-shared-239.so
   10 784fbf69b54c99d4ae82c0be5fca365a8272414e ima-ng sha1:b0c601bf82d32ff9afa34bccbb7e8f052c48d64e /etc/ld.so.cache
 
-Keylime IMA allowlists
-----------------------
 
-An allowlist is a set of "golden" cryptographic hashes of a files un-tampered
-state or of keys that may be loaded onto keyrings.
+Keylime Runtime Policies
+------------------------
 
-The structure of the allowlist is a hash followed by a full POSIX path to the
-file::
+A runtime policy in its most basic form is a set of "golden" cryptographic hashes of files' un-tampered
+state or of keys that may be loaded onto keyrings for IMA verification.
 
-  ffe3ad4c395985d143bd0e45a9a1dd09aac21b91 /path/to/file
-
-For a key that is expected to be loaded on a keyring with the name .ima an entry
-may look like this::
-
-  b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c %keyring:.ima
-
-Keylime will load the allowlist into the Keylime Verifier. Keylime will then
+Keylime will load the runtime policy  into the Keylime Verifier. Keylime will then
 poll tpm quotes to `PCR 10` on the agents TPM and validate the agents file(s)
-state against the allowlist. If the object has been tampered with or an
+state against the policy. If the object has been tampered with or an
 unexpected key was loaded onto a keyring, the hashes will not match and Keylime
 will place the agent into a failed state. Likewise, if any files invoke the actions
-stated in `ima-policy` that are not matched in the allowlist, keylime will place
+stated in :code:`ima-policy` that are not matched in the allowlist, keylime will place
 the agent into a failed state.
 
 Allowlists are contained in Keylime runtime policies - see below for more details.
 
-Generate a runtime policy
-~~~~~~~~~~~~~~~~~~~~~
+Generate a Runtime Policy
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Keylime provides a script to generate runtime policies from `initramfs`, but this is
-only a guide. We encourage developers / users of Keylime to be creative and come
-up with their own process for securely creating and maintaining runtime policies.
+Runtime policies heavily depend on the IMA configuration and used files by the operating system.
+Keylime provides two helper scripts for getting started.
 
-The `create_runtime_policy.sh` script is `available here <https://github.com/keylime/keylime/blob/master/scripts/create_runtime_policy.sh>`_
+.. note::
+    Those scripts only provide a reference point to get started and **not** a complete solution.
+    We encourage developers / users of Keylime to be creative and
+    come up with their own process for securely creating and maintaining runtime policies.
+
+
+Create Runtime Policy from a Running System
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The first script generates a runtime policy from the :code:`initramfs`, IMA log and
+files located on the root filesystem of a running system.
+
+The :code:`create_runtime_policy.sh` script is `available here <https://github.com/keylime/keylime/blob/master/scripts/create_runtime_policy.sh>`_
 
 Run the script as follows::
 
   # create_runtime_policy.sh -o [filename] -h [hash-algo]
 
-With `[hash-algo]` being `sha1sum`, `sha256sum` (note, you need the OpenSSL app
+With :code:`[hash-algo]` being :code:`sha1sum`, :code:`sha256sum` (note, you need the OpenSSL app
 installed to have the shasum CLI applications available).
 
-This will then result in `[filename]` being available for Agent provisioning.
+This will then result in `[filename]` being available for agent provisioning.
 
 .. warning::
     It’s best practice to create the runtime policy in a secure environment.
@@ -110,43 +111,75 @@ This will then result in `[filename]` being available for Agent provisioning.
     the runtime policy hash to ensure no tampering occurs when transferring to other
     machines.
 
-Alongside building a runtime policy from `initramfs`, you could also generate good
-hashes for your applications files or admin scripts that will run on the
-remotely attested machine.
 
-Excludes List
-~~~~~~~~~~~~~
+Creating more Complex Policies
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The second script allows the user to build more complex policies by providing options to include:
+keyring verification, IMA verification keys, generating allowlist from IMA measurement log
+and extending existing policies. The :code:`create_policy` script is `available here <https://github.com/keylime/keylime/blob/master/scripts/create_policy>`_.
 
-An excludes list can be utilised to exclude any file or path. The excludes list
-uses the Python regular expression standard, where the syntax is similar to
-those found in Perl. Note that this syntax is different from POSIX basic
-regular expressions. For example the `tmp` directory can be ignored using::
+A basic policy can be easily created by using a IMA measurement log from system::
 
-  /tmp/.*
+  ./scripts/create_policy -m /path/to/ascii_runtime_measurements -o runtime_policy.json
 
-Exclude lists are present as part of the runtime policy format.
+For the more options see the help page :code:`create_policy -h`::
 
-Allowlist entries for keys
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+    usage: create_policy [-h] [-B BASE_POLICY] [-k] [-b] [-a ALLOWLIST] [-m IMA_MEASUREMENT_LIST] [-i IGNORED_KEYRINGS] [-o OUTPUT] [--no-hashes] [-A IMA_SIGNATURE_KEYS]
 
-Allowlist entries for keys expected to be loaded onto keyrings can be generated
-by hashing the files of keys like this::
+    This is an experimental tool for adding items to a Keylime's IMA runtime policy
 
-   sha256sum /etc/keys/ima/rsakey-rsa.crt.der
+    options:
+      -h, --help            show this help message and exit
+      -B BASE_POLICY, --base-policy BASE_POLICY
+                            Merge new data into the given JSON runtime policy
+      -k, --keyrings        Create keyrings policy entries
+      -b, --ima-buf         Process ima-buf entries other than those related to keyrings
+      -a ALLOWLIST, --allowlist ALLOWLIST
+                            Use given plain-text allowlist
+      -m IMA_MEASUREMENT_LIST, --ima-measurement-list IMA_MEASUREMENT_LIST
+                            Use given IMA measurement list for keyrings and critical data extraction rather than /sys/kernel/security/ima/ascii_runtime_measurements
+      -i IGNORED_KEYRINGS, --ignored-keyrings IGNORED_KEYRINGS
+                            Ignored the given keyring; this option may be passed multiple times
+      -o OUTPUT, --output OUTPUT
+                            File to write JSON policy into; default is to print to stdout
+      --no-hashes           Do not add any hashes to the policy
+      -A IMA_SIGNATURE_KEYS, --add-ima-signature-verification-key IMA_SIGNATURE_KEYS
+                            Add the given IMA signature verification key to the Keylime-internal 'tenant_keyring'; the key should be an x509 certificate in DER or PEM format but may also be a public or private key
+                            file; this option may be passed multiple times
 
-As previously shown, the allowlist entry should be formed of the hash (sha256) and
-the prefix '%keyring:' in front of the keyring the key will be loaded onto::
 
-  b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c %keyring:.ima
+Runtime Policy Entries for Keys
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+IMA can measure which keys are loaded onto different keyrings. Keylime has the option to verify
+those keys and automatically use them for signature verification.
+
+The hash of the an key can be generated for example with::
+
+    sha256sum /etc/keys/ima/rsakey-rsa.crt.der
+
+
+As seen the the JSON schema below, the hash (sha1 or sha256) depending on the IMA configuration
+can be added as the following where in :code:`.ima` is the keyring the key gets loaded onto and
+:code:`<SHA256_HASH>` is the hash of that key::
+
+    jq '.keyrings += {".ima" : ["<SHA256_HASH>"]}'  runtime_policy.json  > runtime_policy_with_keyring.json
 
 The following rule should be added to the IMA policy so that IMA reports keys
 loaded onto keyrings .ima and .evm (since Linux 5.6)::
 
-   measure func=KEY_CHECK keyrings=.ima|.evm
+    measure func=KEY_CHECK keyrings=.ima|.evm
 
 
-IMA Keylime JSON format
-~~~~~~~~~~~~~~~~~~~~~~~
+If the key should only be verified and not be used for IMA signature verification,
+then it can be added to the ignore list::
+
+    jq '.ima.ignored_keyrings += [".ima"]' runtime_policy.json > runtime_policy_ignore_ima.json
+
+If :code:`*` is added no verified keyring is used for IMA signature verification.
+
+Runtime Policy JSON Schema
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The tenant parses the allow and exclude list into a JSON object that is then sent to the verifier.
 Depending of the use case the object can also be constructed manually instead of using the tenant.
@@ -154,67 +187,126 @@ Depending of the use case the object can also be constructed manually instead of
 .. sourcecode:: json
 
     {
-       "allowlist":{
-          "meta":{
-             "version":"ALLOWLIST_CURRENT_VERSION"
-          },
-          "release":"RELEASE_VERSION",
-          "hashes":{
-             "/file/path":[
-                "VALID_HASH1",
-                "VALID_HASH2"
-             ]
-          },
-          "keyrings":{
-             "LINUX_KEYRING":[
-                "VALID_HASH3"
-             ]
-          },
-          "ima":{
-             "ignored_keyrings":[
-                "IGNORED_KEYRING"
-             ]
-          }
-       },
-       "exclude":[
-          "REGEX1, REGEX2"
-       ]
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Keylime IMA policy",
+        "type": "object",
+        "properties": {
+            "meta": {
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": "integer",
+                        "description": "Version number of the IMA policy schema"
+                    }
+                },
+                "required": ["version"],
+                "additionalProperties": false
+            },
+            "release": {
+                "type": "number",
+                "title": "Release version",
+                "description": "Version of the IMA policy (arbitrarily chosen by the user)"
+            },
+            "digests": {
+                "type": "object",
+                "title": "File paths and their digests",
+                "patternProperties": {
+                    ".*": {
+                        "type": "array",
+                        "title": "Path of a valid file",
+                        "items": {
+                            "type": "string",
+                            "title": "Hash of an valid file"
+                        }
+                    }
+                }
+            },
+            "excludes": {
+                "type": "array",
+                "title": "Excluded file paths",
+                "items": {
+                    "type": "string",
+                    "format": "regex"
+                }
+            },
+            "keyrings": {
+                "type": "object",
+                "patternProperties": {
+                    ".*": {
+                        "type": "string",
+                        "title": "Hash of the content in the keyring"
+                    }
+                }
+            },
+            "ima-buf": {
+                "type": "object",
+                "title": "Validation of ima-buf entries",
+                "patternProperties": {
+                    ".*": {
+                        "type": "string",
+                        "title": "Hash of the ima-buf entry"
+                    }
+                }
+            },
+            "verification-keys": {
+                "type": "array",
+                "title": "Public keys to verify IMA attached signatures",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "ima": {
+                "type": "object",
+                "title": "IMA validation configuration",
+                "properties": {
+                    "ignored_keyrings": {
+                        "type": "array",
+                        "title": "Ignored keyrings for key learning",
+                        "description": "The IMA validation can learn the used keyrings embedded in the kernel. Use '*' to never learn any key from the IMA keyring measurements",
+                        "items": {
+                            "type": "string",
+                            "title": "Keyring name"
+                        }
+                    },
+                    "log_hash_alg": {
+                        "type": "string",
+                        "title": "IMA entry running hash algorithm",
+                        "description": "The hash algorithm used for the running hash in IMA entries (second value). The kernel currently hardcodes it to sha1.",
+                        "const": "sha1"
+                    }
+                },
+                "required": ["ignored_keyrings", "log_hash_alg"],
+                "additionalProperties": false
+            }
+        },
+        "required": ["meta", "release", "digests", "excludes", "keyrings", "ima", "ima-buf", "verification-keys"],
+        "additionalProperties": false
     }
 
 
-- `ALLOWLIST_CURRENT_VERSION` (integer): current version of the allow list format (latest is 2).
-- `RELEASE_VERSION` (integer): release version of this allowlist.
-- `hashes`: dictionary of the file path that should be validated as key and a list of valid hashes as entry.
-- `VALID_HASHn`: valid hash of the file or keyring that is measured
-- `keyrings`: dictionary of the keyring that should be used for signature validation and a list of valid hashes as entry.
-- `LINUX_KEYRING`: kernel keyring like `.ima` or `.evm`
-- `ignored_keyrings`: successful validated keyrings are used for signature validation. Add `*` to disable all or add them one by one.
-- `exclude`: list of regexes of files to exclude
-- `REGEXn`: regex for excluding certain files (e.g. `/tmp/.*`)
-
-
 Remotely Provision Agents
-~~~~~~~~~~~~~~~~~~~~~~~~~
+-------------------------
 
-Now that we have our allowlist available, we can send it to the verifier.
+Now that we have our runtime policy available, we can send it to the verifier.
 
 .. note::
   If you're using a TPM Emulator (for example with the ansible-keylime-tpm-emulator, you will also need
-  to run the keylime ima emulator. To do this, open a terminal and run `keylime_ima_emulator`
+  to run the keylime ima emulator. To do this, open a terminal and run :code:`keylime_ima_emulator`
 
-Using the `keylime_tenant` we can send the allowlist and our excludes list as
+Using the :code:`keylime_tenant` we can send the runtime policy as
 follows::
 
-  keylime_tenant -v <verifier-ip> -t <agent-ip> -f /path/excludes.txt --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --allowlist /path/allowlist.txt --exclude /path/excludes.txt
+  touch payload  # create empty payload for example purposes
+  keylime_tenant -c add --uuid <agent-uuid> -f payload --runtime-policy /path/to/policy.json
 
 .. note::
-  If your agent is already registered, you can use `-c update`
+  If your agent is already registered, you can use :code:`-c update`
 
 How can I test this?
 --------------------
 
-Create a script that does anything (for example `echo "hello world"`) that is not
-present in your allowlist or the excludes list. Run the script as root on the
+Create a script that does anything (for example :code:`echo "hello world"`) that is not
+present in your runtime policy. Run the script as root on the
 agent machine. You will then see the following output on the verifier showing
 the agent status change to failed::
 
@@ -229,9 +321,9 @@ IMA File Signature Verification
 
 Keylime supports the verification of IMA file signatures, which also helps to
 detect modifications on immutable files and can be used to complement or even
-replace the allowlist of hashes if all relevant executables and libraries are
-signed. However, the set up of a system that has *all* files signed is beyond
-the scope of this documentation.
+replace the allowlist of hashes in the runtime policy if all relevant
+executables and libraries are signed. However, the set up of a system that
+has *all* files signed is beyond the scope of this documentation.
 
 In the following we will show how files can be signed and how a system with
 signed files must be registered. We assume that the system has already been
@@ -240,7 +332,7 @@ system would not show any errors on the Keylime Verifier side. It should not
 be registered with the keylime verifier at this point. If it is, we now
 deregister it::
 
-   keylime_tenant -c delete -u D432FBB3-D2F1-4A97-9EF7-75BD81C00000
+   keylime_tenant -c delete -u <agent-uuid>
 
 Our first step is to enable IMA Appraisal in Linux. Recent Fedora kernels for
 example have IMA Appraisal support built-in but not activated. To enable it,
@@ -318,13 +410,15 @@ After the reboot the IMA measurement log should not have any measurement of the
 
    grep myecho /sys/kernel/security/ima/ascii_runtime_measurements
 
-We now register the system and pass along the file signing key::
+We now create a new policy that includes the signing key using :code:`create_policy` script::
 
-  keylime_tenant -v 127.0.0.1 -t neptune -f /root/excludes.txt \
-    --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 --allowlist default --exclude default \
-    --sign_verification_key ima-pub.pem
+  scripts/create_policy -B /path/to/runtime_policy.json -A /path/to/ima-pub.pem  -o /output/path/runtime_policy_with_key.json
 
-We can now execute the myecho tool as root::
+After that we register the agent with the new policy::
+
+  keylime_tenant -c add --uuid <agent-uuid> -f payload --runtime-policy /path/to/runtime_policy_with_key.json
+
+We can now execute the :code:`myecho` tool as root::
 
    sudo ./myecho
 
@@ -351,3 +445,9 @@ The verifier log should now indicating a bad file signature::
   keylime.ima - WARNING - signature for file /home/test/myecho is not valid
   keylime.ima - ERROR - IMA ERRORS: template-hash 0 fnf 0 hash 0 bad-sig 1 good 3042
   keylime.cloudverifier - WARNING - agent D432FBB3-D2F1-4A97-9EF7-75BD81C00000 failed, stopping polling
+
+
+Legacy allowlist and excludelist Format
+---------------------------------------
+Since Keylime 6.6.0 the old JSON and flat file formats for runtime policies are deprecated.
+Keylime provides with :code:`keylime_convert_runtime_policy` a utility to convert those into the new format.
