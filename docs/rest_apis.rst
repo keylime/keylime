@@ -5,34 +5,27 @@ All Keylime APIs use `REST (Representational State Transfer)`.
 
 Authentication
 --------------
-Most API interactions are secured using mTLS connections.
-There are up to three different CAs involved.
-(The revocation process also uses a CA, but this is a different to those CAs)
+Most API interactions are secured using mTLS connections. By default there are two CAs involved,
+but the components can be configured to accommodate more complex setups.
 
-Verifier CA (CV CA)
-~~~~~~~~~~~~~~~~~~~
-This CA is used by the verifier to authenticate connections to it.
-The tenant requires a certificate from this CA to add/delete/list agents at the CV.
+(The revocation process also uses a CA, but this is different to those CAs)
 
-Registrar CA
-~~~~~~~~~~~~
-This CA is used by the registrar to authenticate connections to it.
-The tenant and the verifier require certificate from this CA to get or delete agent information from the registrar.
-By default it is the same CA as the CV CA.
-
-Note that the API endpoints from the registrar for the agent are unprotected by design.
+Server Components CA
+~~~~~~~~~~~~~~~~~~~~
+This CA is created by verifier on startup.
+It contains the server certificates and keys used by the verifier and registrar for their respective HTTPS interfaces.
+Then it also contains the client certificates and keys that are used by the tenant to connect to the registrar, verifier
+and agent. Also the verifier uses that certificate to authenticate itself against the agent.
 
 Agent Keylime CA
 ~~~~~~~~~~~~~~~~
-The agent runs a HTTPS server and provides it's certificate to the registrar (`mtls_cert`).
-All connections done to the agent are verified against the CA specified in the `keylime_ca` option.
-This ensures that only trusted systems can interact with the agents.
-By default the CV CA is used, but the CA certificate (`cacert.crt`) needs to be copied to the agents.
+The agent runs an HTTPS server and provides its certificate to the registrar (:code:`mtls_cert`).
 
-Registrar, tenant and verifier can configure this CA separately using the `agent_mtls_*` options.
+The server component CA certificate is also required on the agent to authenticate connections
+from the tenant and verifier. By default :code:`/var/lib/keylime/cv_ca/cacert.crt` is used.
 
 RESTful API for Keylime (v2.1)
-----------------------------
+------------------------------
 Keylime API is versioned. More information can be found here: https://github.com/keylime/enhancements/blob/master/45_api_versioning.md
 
 .. warning::
