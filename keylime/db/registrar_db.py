@@ -6,7 +6,7 @@ from keylime.json import JSONPickler
 Base = declarative_base()
 
 
-class JSONPickleType(PickleType):  # pylint: disable=abstract-method
+class JSONPickleType(PickleType):  # pylint: disable=abstract-method,too-many-ancestors
     impl = Text
     cache_ok = True
 
