@@ -11,7 +11,7 @@ import setuptools
 from setuptools.command.build_py import build_py
 
 
-class keylime_build(build_py):
+class keylime_build(build_py):  # pylint: disable=too-many-ancestors
     def run(self):
 
         # Generate the split configuration files, if not present
