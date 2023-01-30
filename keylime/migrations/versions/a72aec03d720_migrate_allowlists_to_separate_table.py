@@ -41,8 +41,8 @@ def upgrade_cloud_verifier():
     old_policy = [{"name": r[0], "tpm_policy": r[1], "ima_policy": r[2]} for r in results]
 
     # get existing table metadata
-    meta = sa.MetaData(bind=conn)
-    meta.reflect(only=("allowlists",))
+    meta = sa.MetaData()
+    meta.reflect(bind=conn, only=("allowlists",))
     allowlists = meta.tables["allowlists"]
 
     op.bulk_insert(allowlists, old_policy)
@@ -57,8 +57,8 @@ def upgrade_cloud_verifier():
 def downgrade_cloud_verifier():
     # Migrate existing agent info to the allowlist column in verifiermain.
     conn = op.get_bind()
-    meta = sa.MetaData(bind=conn)
-    meta.reflect(only=("verifiermain", "allowlists"))
+    meta = sa.MetaData()
+    meta.reflect(bind=conn, only=("verifiermain", "allowlists"))
     verifiermain = meta.tables["verifiermain"]
     allowlists = meta.tables["allowlists"]
 
