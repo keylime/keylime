@@ -34,8 +34,8 @@ def downgrade_registrar():
 def upgrade_cloud_verifier():
     # get existing table metadata
     conn = op.get_bind()
-    meta = sa.MetaData(bind=conn)
-    meta.reflect(only=("verifiermain",))
+    meta = sa.MetaData()
+    meta.reflect(bind=conn, only=("verifiermain",))
     verifiermain = meta.tables["verifiermain"]
 
     res = conn.execute("SELECT id, name FROM allowlists")

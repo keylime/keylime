@@ -44,8 +44,8 @@ def downgrade_registrar():
 def upgrade_cloud_verifier():
     # get existing table metadata
     conn = op.get_bind()
-    meta = sa.MetaData(bind=conn)
-    meta.reflect(only=("allowlists",))
+    meta = sa.MetaData()
+    meta.reflect(bind=conn, only=("allowlists",))
     allowlists = meta.tables["allowlists"]
     results = conn.execute("SELECT id, ima_policy FROM allowlists").fetchall()
 
@@ -89,8 +89,8 @@ def upgrade_cloud_verifier():
 def downgrade_cloud_verifier():
     # get existing table metadata
     conn = op.get_bind()
-    meta = sa.MetaData(bind=conn)
-    meta.reflect(only=("allowlists",))
+    meta = sa.MetaData()
+    meta.reflect(bind=conn, only=("allowlists",))
     allowlists = meta.tables["allowlists"]
     results = conn.execute("SELECT id, ima_policy FROM allowlists").fetchall()
 
