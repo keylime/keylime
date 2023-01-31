@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 from multiprocessing import Process
-from typing import Callable, Optional, cast
+from typing import Any, Callable, Dict, Optional, Set
 
 import requests
 
@@ -19,19 +19,19 @@ _SOCKET_PATH = "/var/run/keylime/keylime.verifier.ipc"
 
 
 # return the revocation notification methods for cloud verifier
-def get_notifiers():
+def get_notifiers() -> Set[str]:
     notifiers = set(config.getlist("verifier", "enabled_revocation_notifications", section="revocations"))
     return notifiers.intersection({"zeromq", "webhook", "agent"})
 
 
-def start_broker():
+def start_broker() -> None:
     assert "zeromq" in get_notifiers()
     try:
         import zmq  # pylint: disable=import-outside-toplevel
     except ImportError as error:
         raise Exception("install PyZMQ for 'zeromq' in 'enabled_revocation_notifications' option") from error
 
-    def worker():
+    def worker() -> None:
         # do not receive signals form the parent process
         os.setpgrp()
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
@@ -66,7 +66,7 @@ def start_broker():
     broker_proc.start()
 
 
-def stop_broker():
+def stop_broker() -> None:
     if broker_proc is not None:
         # Remove the socket file before  we kill the process
         if os.path.exists(f"ipc://{_SOCKET_PATH}"):
@@ -79,7 +79,7 @@ def stop_broker():
             broker_proc.kill()  # pylint: disable=E1101
 
 
-def notify(tosend):
+def notify(tosend: Dict[str, str]) -> None:
     assert "zeromq" in get_notifiers()
     try:
         import zmq  # pylint: disable=import-outside-toplevel
@@ -92,7 +92,7 @@ def notify(tosend):
     # To avoid such issues, let's convert `tosend' to str beforehand.
     tosend = json.bytes_to_str(tosend)
 
-    def worker(tosend):
+    def worker(tosend: Dict[str, str]) -> None:
         context = zmq.Context()  # pylint: disable=abstract-class-instantiated
         mysock = context.socket(zmq.PUB)
         mysock.connect(f"ipc://{_SOCKET_PATH}")
@@ -119,7 +119,7 @@ def notify(tosend):
     t.start()
 
 
-def notify_webhook(tosend):
+def notify_webhook(tosend: bytes) -> None:
     url = config.get("verifier", "webhook_url", section="revocations", fallback="")
     # Check if a url was specified
     if url == "":
@@ -129,7 +129,7 @@ def notify_webhook(tosend):
     # possible issues with json handling by python-requests.
     tosend = json.bytes_to_str(tosend)
 
-    def worker_webhook(tosend, url):
+    def worker_webhook(tosend: bytes, url: str) -> None:
         interval = config.getfloat("verifier", "retry_interval")
         exponential_backoff = config.getboolean("verifier", "exponential_backoff")
         session = requests.session()
@@ -167,7 +167,7 @@ def notify_webhook(tosend):
 cert_key = None
 
 
-def process_revocation(revocation, callback, cert_path):
+def process_revocation(revocation: Dict[str, Any], callback: Callable[[Dict[str, Any]], None], cert_path: str) -> None:
     global cert_key
 
     if cert_key is None:
@@ -190,7 +190,7 @@ def process_revocation(revocation, callback, cert_path):
         callback(message)
 
 
-def await_notifications(callback: Callable, revocation_cert_path: str) -> None:
+def await_notifications(callback: Callable[[Dict[str, Any]], None], revocation_cert_path: str) -> None:
     assert config.getboolean("agent", "enable_revocation_notifications", fallback=False)
     try:
         import zmq  # pylint: disable=import-outside-toplevel
@@ -215,16 +215,16 @@ def await_notifications(callback: Callable, revocation_cert_path: str) -> None:
     )
 
     while True:
-        rawbody = cast(bytes, mysock.recv())  # pyright
+        rawbody = mysock.recv()
         body = json.loads(rawbody)
         process_revocation(body, callback, revocation_cert_path)
 
 
-def main():
+def main() -> None:
     start_broker()
 
-    def worker():
-        def print_notification(revocation):
+    def worker() -> None:
+        def print_notification(revocation: Dict[str, Any]) -> None:
             logger.warning("Received revocation: %s", revocation)
 
         keypath = os.path.join(secure_mount.mount(), "unzipped", "RevocationNotifier-cert.crt")
