@@ -393,7 +393,7 @@ def digests_strip0x(digests: typing.List[typing.Dict[str, str]]) -> typing.List[
 
 def sig_strip0x(sig: typing.Dict[str, str]) -> tests.Signature:
     tests.obj_test(SignatureOwner=tests.type_test(str), SignatureData=tests.type_test(str))(sig)
-    return dict(SignatureOwner=sig["SignatureOwner"], SignatureData=string_strip0x(sig["SignatureData"]))
+    return {"SignatureOwner": sig["SignatureOwner"], "SignatureData": string_strip0x(sig["SignatureData"])}
 
 
 def sigs_strip0x(sigs: typing.Iterable[typing.Dict[str, str]]) -> typing.List[tests.Signature]:
