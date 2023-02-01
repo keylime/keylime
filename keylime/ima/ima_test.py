@@ -13,7 +13,6 @@ class TestIMA(unittest.TestCase):
 
             # Open file again to get str on read()
             with open(tf.name, "r", encoding="utf-8") as ima_log_file:
-
                 # Request the 2nd entry, which is available
                 ml, nth_entry, num_entries = ima.read_measurement_list(ima_log_file, 2)
                 self.assertEqual(num_entries, 3)

@@ -16,7 +16,6 @@ logger = keylime_logging.init_logging("durable_attestation_persistent_store")
 
 class RecordManagement(BaseRecordManagement):
     def __init__(self, service):
-
         BaseRecordManagement.__init__(self, service)
 
         (
@@ -44,7 +43,6 @@ class RecordManagement(BaseRecordManagement):
             self.redis_conn.zadd(key, {value: score})
 
     def agent_list_retrieval(self, record_prefix="auto", service="auto"):
-
         self.redis_connect()
 
         agent_list = []
@@ -64,7 +62,6 @@ class RecordManagement(BaseRecordManagement):
         return agent_list
 
     def _bulk_record_retrieval(self, record_identifier, start_date=0, end_date=-1):
-
         logger.debug("Extracting all records for record_identifier %s from redis persistent store", record_identifier)
 
         self.redis_connect()
@@ -77,7 +74,6 @@ class RecordManagement(BaseRecordManagement):
             encoded_record_object_list = self.redis_conn.zrange(record_identifier, start_date, end_date)
 
         for encoded_record_object in encoded_record_object_list:
-
             decoded_record_object = self.record_deserialize(encoded_record_object)
 
             self.record_signature_check(decoded_record_object, record_identifier)
@@ -87,7 +83,6 @@ class RecordManagement(BaseRecordManagement):
         return record_list
 
     def build_key_list(self, agent_identifier, service="auto"):
-
         registration_record_identifier = f"{self.redis_prefix}_{self.get_record_type(service)}_{agent_identifier}"
 
         registration_record_list = self._bulk_record_retrieval(registration_record_identifier)
@@ -95,7 +90,6 @@ class RecordManagement(BaseRecordManagement):
         return base_build_key_list(registration_record_list)
 
     def record_read(self, agent_identifier, start_date, end_date, service="auto"):
-
         attestation_record_identifier = f"{self.redis_prefix}_{self.get_record_type(service)}_{agent_identifier}"
 
         attestation_record_list = self._bulk_record_retrieval(attestation_record_identifier, start_date, end_date)
@@ -105,7 +99,6 @@ class RecordManagement(BaseRecordManagement):
         return attestation_record_list
 
     def record_signature_check(self, record_object, record_identifier):
-
         contents = self.base_record_signature_check(record_object, record_identifier)
 
         self.base_record_timestamp_check(record_object, record_identifier, contents)
@@ -113,7 +106,6 @@ class RecordManagement(BaseRecordManagement):
     def record_signature_create(
         self, record_object, agent_data, attestation_data, service="auto", signed_attributes="auto"
     ):
-
         contents = self.base_record_signature_create(
             record_object, agent_data, attestation_data, service, signed_attributes
         )
@@ -123,7 +115,6 @@ class RecordManagement(BaseRecordManagement):
     def record_create(
         self, agent_data, attestation_data, ima_policy_data=None, service="auto", signed_attributes="auto"
     ):
-
         record_object = {}
 
         self.record_signature_create(record_object, agent_data, attestation_data, service, signed_attributes)

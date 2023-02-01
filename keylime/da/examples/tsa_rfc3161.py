@@ -24,7 +24,6 @@ def record_timestamp_create(record_object, agent_id, contents, tsa_url, tsa_cert
 
 def record_timestamp_check(record_object, agent_id, contents, tsa_url, tsa_cert):
     if tsa_url:
-
         if tsa_cert:
             with open(tsa_cert, "rb") as fp:
                 _certificate = fp.read()

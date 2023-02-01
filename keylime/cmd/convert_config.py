@@ -274,7 +274,6 @@ def process_mapping(
     new = configparser.RawConfigParser()
 
     for component in mapping["components"]:
-
         if component in old_config:
             if component in mapping["subcomponents"]:
                 # If the component is a subcomponent, use the version from the

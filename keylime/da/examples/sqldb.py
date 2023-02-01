@@ -51,7 +51,6 @@ class RecordManagement(BaseRecordManagement):
         TableBase.metadata.create_all(self.engine)
 
     def agent_list_retrieval(self, record_prefix="auto", service="auto"):
-
         if record_prefix == "auto":
             record_prefix = ""
 
@@ -67,7 +66,6 @@ class RecordManagement(BaseRecordManagement):
     def record_create(
         self, agent_data, attestation_data, ima_policy_data=None, service="auto", signed_attributes="auto"
     ):
-
         agentid = agent_data["agent_id"]
         recordtime = str(int(time.time()))
         recordtype = self.get_record_type(service)
@@ -88,7 +86,6 @@ class RecordManagement(BaseRecordManagement):
     def record_signature_create(
         self, record_object, agent_data, attestation_data, service="auto", signed_attributes="auto"
     ):
-
         contents = self.base_record_signature_create(
             record_object, agent_data, attestation_data, service, signed_attributes
         )
@@ -134,7 +131,6 @@ class RecordManagement(BaseRecordManagement):
         return attestation_record_list
 
     def record_signature_check(self, record_object, record_identifier):
-
         contents = self.base_record_signature_check(record_object, record_identifier)
 
         self.base_record_timestamp_check(record_object, record_identifier, contents)

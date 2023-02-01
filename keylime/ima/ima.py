@@ -190,7 +190,6 @@ def _validate_ima_sig(
     failure = Failure(Component.IMA, ["validator", "ima-sig"])
     valid_signature = False
     if ima_keyrings and signature:
-
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug("IMA: ignoring excluded path %s", path.name)
             return failure
@@ -429,7 +428,6 @@ def read_runtime_policy(
     al_sig_file: Optional[str] = None,
     al_key_file: Optional[str] = None,
 ) -> Tuple[bytes, bytes, bytes]:
-
     al_key = b""
     al_sig = b""
     verify_signature = False

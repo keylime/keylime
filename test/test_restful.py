@@ -157,6 +157,7 @@ keyblob = None
 ek_tpm = None
 aik_tpm = None
 
+
 # Boring setup stuff
 def setUpModule():
     try:
@@ -337,7 +338,6 @@ def launch_cloudagent(agent="python"):
     else:
         agent_path = "echo"
     if agent_process is None:
-
         # In case the run_as option is set, change files ownership to allow
         # dropping privileges
         run_as = config.get("agent", "run_as").strip('" ')
@@ -424,7 +424,6 @@ def services_running():
 
 
 class TestRestful(unittest.TestCase):
-
     # Static class members (won't change between tests)
     payload = None
     auth_tag = None
@@ -616,7 +615,6 @@ class TestRestful(unittest.TestCase):
         )
 
     def test_015_reg_agent_delete(self):
-
         """Test registrar's DELETE /agents/{UUID} Interface"""
         test_015_reg_agent_delete = RequestsClient(
             tenant_templ.registrar_base_tls_url, True, tls_context=tenant_templ.tls_context

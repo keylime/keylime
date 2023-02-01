@@ -185,7 +185,6 @@ class BaseHandler(tornado.web.RequestHandler):
         super().prepare()
 
     def write_error(self, status_code: int, **kwargs) -> None:
-
         self.set_header("Content-Type", "text/json")
         if self.settings.get("serve_traceback") and "exc_info" in kwargs:
             # in debug mode, try to send a traceback

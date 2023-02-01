@@ -13,6 +13,7 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import TypedDict
 
+
 # Dictionary specification for parameter to process_policy()
 class ArgsType(TypedDict):
     tpm_policy: Optional[str]
@@ -122,7 +123,6 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
 
     # Read command-line path string IMA policy
     if "runtime_policy" in args and args["runtime_policy"] is not None:
-
         enforce_pcrs(tpm_policy, [config.IMA_PCR], "IMA")
 
         # Auto-enable IMA (or-bit mask)
@@ -156,7 +156,6 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
     # Read command-line path string TPM event log (measured boot) reference state
     mb_refstate_data = None
     if "mb_refstate" in args and args["mb_refstate"] is not None:
-
         enforce_pcrs(tpm_policy, config.MEASUREDBOOT_PCRS, "measured boot")
 
         # Auto-enable TPM event log mesured boot (or-bit mask)

@@ -72,7 +72,6 @@ class Event:
         context: Union[str, Dict[str, json.JSONType]],
         recoverable: bool,
     ):
-
         # Build full event id with the format "component.[sub_component].event_id"
         self.event_id = component.value
         if sub_components is not None:
