@@ -7,7 +7,7 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
-from typing import cast
+from typing import Any, Dict, Tuple, cast
 
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from sqlalchemy.exc import SQLAlchemyError
@@ -41,15 +41,15 @@ except record.RecordManagementException as rme:
 
 
 class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
-    def do_HEAD(self):
+    def do_HEAD(self) -> None:
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
 
-    def do_PATCH(self):
+    def do_PATCH(self) -> None:
         """PATCH not supported"""
         web_util.echo_json_response(self, 405, "PATCH not supported")
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         """This method handles the GET requests to retrieve status on agents from the Registrar Server.
 
         Currently, only agents resources are available for GETing, i.e. /agents. All other GET uri's
@@ -121,15 +121,15 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         return
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         """POST not supported"""
         web_util.echo_json_response(self, 405, "POST not supported via TLS interface")
 
-    def do_PUT(self):
+    def do_PUT(self) -> None:
         """PUT not supported"""
         web_util.echo_json_response(self, 405, "PUT not supported via TLS interface")
 
-    def do_DELETE(self):
+    def do_DELETE(self) -> None:
         """This method handles the DELETE requests to remove agents from the Registrar Server.
 
         Currently, only agents resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
@@ -175,20 +175,20 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         web_util.echo_json_response(self, 404)
 
     # pylint: disable=W0622
-    def log_message(self, format, *args):
+    def log_message(self, format: str, *args: Any) -> None:
         return
 
 
 class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
-    def do_HEAD(self):
+    def do_HEAD(self) -> None:
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
 
-    def do_PATCH(self):
+    def do_PATCH(self) -> None:
         """PATCH not supported"""
         web_util.echo_json_response(self, 405, "PATCH not supported")
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         """This method handles the GET requests to the unprotected side of the Registrar Server
 
         Currently the only supported path is /versions which shows the supported API versions
@@ -210,7 +210,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         web_util.echo_json_response(self, 200, "Success", version_info)
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         """This method handles the POST requests to add agents to the Registrar Server.
 
         Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's
@@ -358,7 +358,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 logger.warning("Agent %s did not send a mTLS certificate. Most operations will not work!", agent_id)
 
             # Add values to database
-            d = {}
+            d: Dict[str, Any] = {}
             d["agent_id"] = agent_id
             d["ek_tpm"] = ek_tpm
             d["aik_tpm"] = aik_tpm
@@ -398,7 +398,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             logger.warning("POST for %s returning 400 response. Error: %s", agent_id, e)
             logger.exception(e)
 
-    def do_PUT(self):
+    def do_PUT(self) -> None:
         """This method handles the PUT requests to add agents to the Registrar Server.
 
         Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's
@@ -472,12 +472,12 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
             logger.exception(e)
             return
 
-    def do_DELETE(self):
+    def do_DELETE(self) -> None:
         """DELETE not supported"""
         web_util.echo_json_response(self, 405, "DELETE not supported")
 
     # pylint: disable=W0622
-    def log_message(self, format, *args):
+    def log_message(self, format: str, *args: Any) -> None:
         return
 
 
@@ -488,11 +488,11 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 class RegistrarServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
 
-    def __init__(self, server_address, RequestHandlerClass):
+    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: Any) -> None:
         """Constructor overridden to provide ability to read file"""
         http.server.HTTPServer.__init__(self, server_address, RequestHandlerClass)
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         http.server.HTTPServer.shutdown(self)
 
 
@@ -528,7 +528,7 @@ def start(host: str, tlsport: int, port: int) -> None:
     thread_protected_server.start()
     thread_unprotected_server.start()
 
-    def signal_handler(signum, frame):
+    def signal_handler(signum: int, frame: Any) -> None:
         del signum, frame
         logger.info("Shutting down Registrar Server...")
         protected_server.shutdown()
