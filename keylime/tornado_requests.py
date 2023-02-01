@@ -22,7 +22,6 @@ async def request(
     headers: Optional[Union[Dict[str, str], HTTPHeaders]] = None,
     timeout: float = 60.0,
 ) -> TornadoResponse:
-
     http_client = httpclient.AsyncHTTPClient()
     if params is not None and len(list(params.keys())) > 0:
         url += "?"

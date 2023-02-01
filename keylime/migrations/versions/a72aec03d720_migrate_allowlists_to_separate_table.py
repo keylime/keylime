@@ -32,7 +32,6 @@ def downgrade_registrar():
 
 
 def upgrade_cloud_verifier():
-
     # Migrate existing agent info to the allowlists table.
     conn = op.get_bind()
 

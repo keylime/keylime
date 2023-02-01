@@ -453,7 +453,6 @@ def _check_attr(attr: RuleAttributeType, reference_value: RuleAttributeType) -> 
         return False
 
     if isinstance(reference_value, bool):
-
         if isinstance(attr, str):
             try:
                 return reference_value == _strtobool(attr)

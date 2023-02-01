@@ -19,7 +19,6 @@ logger = keylime_logging.init_logging("durable_attestation")
 
 class BaseRecordManagement(metaclass=abc.ABCMeta):
     def __init__(self, service: str, key_tls_pub: Optional[str] = "") -> None:
-
         self.svc = service
 
         self.ps_url = urlparse(config.get(self.svc, "persistent_store_url", fallback=""))
@@ -251,9 +250,7 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
         self.set_certs_path()
 
         with tempfile.TemporaryDirectory() as _temp_dir_path:
-
             if self.key_tls_pub:
-
                 ch_dir("/".join(self.key_tls_pub.split("/")[0:-1]))
                 if not os.path.exists(self.key_tls_pub):
                     raise RecordManagementException(
@@ -322,7 +319,6 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
     ) -> None:
         """Accesses a Time Stamp Autorhity (TSA) and checks a signed timestamp for a given contents"""
         if self.tsa_url.scheme and contents:
-
             logger.debug(
                 "Checking the time stamp for data referring to agent %s from TSA at %s",
                 record_identifier,
@@ -349,7 +345,6 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
             )
 
         with tempfile.TemporaryDirectory() as _temp_dir_path:
-
             record_object["temp_dir"] = _temp_dir_path
             record_object["contents_file_path"] = f'{record_object["temp_dir"]}/object.json'
             record_object["signature_file_path"] = f'{record_object["temp_dir"]}/object.json.sig'

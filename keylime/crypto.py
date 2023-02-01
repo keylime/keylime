@@ -120,7 +120,6 @@ def rsa_export_privkey(private_key: RSAPrivateKey, password: Optional[str] = Non
 
 
 def rsa_encrypt(key: RSAPublicKey, message: bytes) -> bytes:
-
     """RSA encrypt message"""
     return key.encrypt(
         bytes(message),

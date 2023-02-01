@@ -14,7 +14,6 @@ logger = keylime_logging.init_logging("durable_attestation_persistent_store")
 
 class RecordManagement(BaseRecordManagement):
     def __init__(self, service):
-
         BaseRecordManagement.__init__(self, service)
         self.rcd_enc = "base64"
         self.file_path = self.ps_url.path
@@ -25,7 +24,6 @@ class RecordManagement(BaseRecordManagement):
         os.makedirs(self.file_path, exist_ok=True)
 
     def agent_list_retrieval(self, record_prefix="auto", service="auto"):
-
         if record_prefix == "auto":
             record_prefix = self.file_prefix
 
@@ -45,7 +43,6 @@ class RecordManagement(BaseRecordManagement):
         return agent_list
 
     def _bulk_record_retrieval(self, record_identifier, start_date=0, end_date="auto"):
-
         logger.debug(
             "Extracting all records for record_identifier %s from filesystem persistent store", record_identifier
         )
@@ -74,14 +71,12 @@ class RecordManagement(BaseRecordManagement):
 
             for _line in fp:
                 if b"\n" + _line != self.line_sep:
-
                     internal_timestamp, encoded_record_object = _line.split(self.ts_sep)
 
                     decoded_record_object = self.record_deserialize(encoded_record_object)
 
                     internal_timestamp = int(internal_timestamp)
                     if start_date <= internal_timestamp <= end_date:
-
                         self.record_signature_check(decoded_record_object, record_identifier)
 
                         record_list.append(decoded_record_object)
@@ -89,7 +84,6 @@ class RecordManagement(BaseRecordManagement):
         return record_list
 
     def build_key_list(self, agent_identifier, service="auto"):
-
         registration_record_identifier = (
             f"{self.file_path}/{self.file_prefix}_{self.get_record_type(service)}_{agent_identifier}.{self.rcd_fmt}"
         )
@@ -99,7 +93,6 @@ class RecordManagement(BaseRecordManagement):
         return base_build_key_list(registration_record_list)
 
     def record_read(self, agent_identifier, start_date, end_date, service="auto"):
-
         attestation_record_identifier = (
             f"{self.file_path}/{self.file_prefix}_{self.get_record_type(service)}_{agent_identifier}.{self.rcd_fmt}"
         )
@@ -111,7 +104,6 @@ class RecordManagement(BaseRecordManagement):
         return attestation_record_list
 
     def record_signature_check(self, record_object, record_identifier):
-
         contents = self.base_record_signature_check(record_object, record_identifier)
 
         self.base_record_timestamp_check(record_object, record_identifier, contents)
@@ -119,7 +111,6 @@ class RecordManagement(BaseRecordManagement):
     def record_signature_create(
         self, record_object, agent_data, attestation_data, service="auto", signed_attributes="auto"
     ):
-
         contents = self.base_record_signature_create(
             record_object, agent_data, attestation_data, service, signed_attributes
         )
@@ -129,7 +120,6 @@ class RecordManagement(BaseRecordManagement):
     def record_create(
         self, agent_data, attestation_data, ima_policy_data=None, service="auto", signed_attributes="auto"
     ):
-
         record_object = {}
 
         self.record_signature_create(record_object, agent_data, attestation_data, service, signed_attributes)

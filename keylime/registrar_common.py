@@ -314,7 +314,6 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 raise
 
             if agent is not None:
-
                 # keep track of how many ek-ekcerts have registered on this uuid
                 regcount = agent.regcount
                 if agent.ek_tpm != ek_tpm or agent.ekcert != ekcert:

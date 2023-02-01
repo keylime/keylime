@@ -13,7 +13,6 @@ from setuptools.command.build_py import build_py
 
 class keylime_build(build_py):  # pylint: disable=too-many-ancestors
     def run(self):
-
         # Generate the split configuration files, if not present
         setup_dir = os.path.dirname(os.path.abspath(__file__))
         config_dir = os.path.join(setup_dir, "config")

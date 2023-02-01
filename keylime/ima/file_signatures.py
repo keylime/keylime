@@ -198,7 +198,7 @@ class ImaKeyring:
 
         keyids = obj.get("keyids", [])
 
-        for (der_key, keyidv2) in ImaKeyring._base64_to_der_keylist(obj["pubkeys"], keyids):
+        for der_key, keyidv2 in ImaKeyring._base64_to_der_keylist(obj["pubkeys"], keyids):
             try:
                 pubkey = serialization.load_der_public_key(der_key, backend=default_be)
                 if not isinstance(pubkey, (RSAPublicKey, EllipticCurvePublicKey)):

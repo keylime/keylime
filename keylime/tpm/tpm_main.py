@@ -647,7 +647,6 @@ class tpm(tpm_abstract.AbstractTPM):
         self.__run(["tpm2_flushcontext", "-t"], lock=False, raiseOnError=False)
 
     def encryptAIK(self, uuid: str, ek_tpm: bytes, aik_tpm: bytes) -> Optional[Tuple[bytes, str]]:
-
         if ek_tpm is None or aik_tpm is None:
             logger.error("Missing parameters for encryptAIK")
             return None
@@ -1151,7 +1150,9 @@ class tpm(tpm_abstract.AbstractTPM):
         :returns: Returns the 'retout' from running tpm2_checkquote and True in case of success, None and False in case of error.
         This function throws an Exception on bad input.
         """
-        aikFromRegistrar = tpm2_objects.pubkey_from_tpm2b_public(base64.b64decode(aikTpmFromRegistrar),).public_bytes(
+        aikFromRegistrar = tpm2_objects.pubkey_from_tpm2b_public(
+            base64.b64decode(aikTpmFromRegistrar),
+        ).public_bytes(
             crypto_serialization.Encoding.PEM,
             crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
         )
@@ -1469,7 +1470,6 @@ class tpm(tpm_abstract.AbstractTPM):
     def read_ekcert_nvram(self) -> Optional[bytes]:
         # make a temp file for the quote
         with tempfile.NamedTemporaryFile() as nvpath:
-
             # Check for RSA EK cert in NVRAM (and get length)
             if self.tools_version == "3.2":
                 retDict = self.__run("tpm2_nvlist", raiseOnError=False)

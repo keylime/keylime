@@ -78,12 +78,10 @@ def text_callback(request, context):
 
 
 class Test(unittest.TestCase):
-
     cloudverifier_process = None
 
     @classmethod
     def setUpClass(cls):
-
         cls.test_table = {
             "test_cloudagent_tenant_get_nonce": {
                 "prerun_function": {"name": "launch_cloudagent", "argument": None},
@@ -409,7 +407,6 @@ class Test(unittest.TestCase):
     def test_concurrent_cloudnodiness_reset_request(
         self, test_method_name, test_function_name, state_change_or_validation, test_iteration, argument
     ):
-
         # time.sleep(2)
 
         test_record = self.test_table.get(test_method_name)
@@ -518,7 +515,6 @@ class Test(unittest.TestCase):
                 if public_key is None or quote is None:
                     self.fail("Expected both pubkey and quote arguments.")
                 else:
-
                     mytenant = tenant.Tenant()
 
                     # command line options can overwrite config values
@@ -626,7 +622,6 @@ class Test(unittest.TestCase):
                         self.fail("Delete of agent_id " + agent_id + " failed with exception: %s" % e)
 
     def execute_the_test(self, setup_or_state_change_or_validation, test_functions, test_iteration):
-
         # call the pre_function
         pre_function = test_functions.get("pre_function")
         if pre_function is not None:
@@ -832,7 +827,6 @@ class Test(unittest.TestCase):
             os.remove(backup_file_name)
 
     def launch_cloudverifier(self, argument):
-
         readKUV()
 
         # modify the persistence file per the passed argument
@@ -855,14 +849,12 @@ class Test(unittest.TestCase):
             parser.write(configfile)
 
     def launch_cloudagents(self, argument):
-
         # self.launch_cloudverifier(None)
         port_file = argument.get("port_file")
         cloudagent_start_port = argument.get("starting_port")
         num_cloudagent_instances = argument["num_cloudagent_instances"]
 
         if cloudagent_start_port is not None:
-
             parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             original_cloudagent_port = parser.get("general", "cloudagent_port")
@@ -891,7 +883,6 @@ class Test(unittest.TestCase):
             self.overwrite_config_file(common.CONFIG_FILE, "general", "cloudagent_port", str(original_cloudagent_port))
 
         elif port_file is not None:
-
             parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             original_cloudagent_port = parser.get("general", "cloudagent_port")
@@ -927,7 +918,6 @@ class Test(unittest.TestCase):
         print("starting test...")
 
     def kill_cloudagents_after_delay(self, argument):
-
         sleep_time = argument.get("sleep")
         time.sleep(sleep_time)
 
@@ -937,7 +927,6 @@ class Test(unittest.TestCase):
         num_cloudagent_instances = argument["num_cloudagent_instances"]
 
         if cloudagent_start_port is not None:
-
             parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
 
@@ -947,7 +936,6 @@ class Test(unittest.TestCase):
                 cloudagent_port = cloudagent_start_port + 1
 
         elif port_file is not None:
-
             parser = configparser.RawConfigParser()
             parser.read(common.CONFIG_FILE)
             test_agent_uuid = parser.get("general", "agent_uuid")
@@ -988,7 +976,6 @@ class Test(unittest.TestCase):
         return True
 
     def launch_cloudagent(self, argument):
-
         readKUV()
 
         global cn_process
@@ -1025,7 +1012,6 @@ class Test(unittest.TestCase):
         change_or_validation = test_record.get(setup_or_state_change_or_validation)
         if change_or_validation is not None:
             for test_functions in test_record[setup_or_state_change_or_validation]:
-
                 #                 full_url = "http://" + test_functions.get("http_request_ip") + ":" + test_functions.get("http_request_port") + test_functions.get("http_request_path")
                 #                 http_request_body_tag = test_functions.get("http_request_body")
                 #                 http_request_body_file_tag = test_functions.get("http_request_body_file")
@@ -1060,14 +1046,11 @@ class Test(unittest.TestCase):
                         )
 
                 for test_iteration in range(int(test_functions.get("test_iterations", "1"))):
-
                     if concurrent_instances is None:
-
                         # do it inline on this thread
                         self.execute_the_test(setup_or_state_change_or_validation, test_functions, test_iteration)
 
                     else:
-
                         threads = []
                         for count in range(concurrent_instances):
                             args = (queue, setup_or_state_change_or_validation, test_functions, test_iteration)

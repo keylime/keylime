@@ -27,6 +27,7 @@ from keylime.tpm.tpm_main import tpm
 # setup logging
 logger = keylime_logging.init_logging("tenant")
 
+
 # special exception that suppresses stack traces when it happens
 class UserError(Exception):
     pass
@@ -707,7 +708,6 @@ class Tenant:
             )
             return response_json
         if response.status_code == 200:
-
             logger.info('From verifier %s port %s retrieved: "%s"', self.verifier_ip, self.verifier_port, response_json)
 
             return response
@@ -737,7 +737,6 @@ class Tenant:
         response_json = Tenant._jsonify_response(response, print_response=False)
 
         if response.status_code == 200:
-
             for agent in response_json["results"].keys():
                 response_json["results"][agent]["operational_state"] = states.state_to_str(
                     response_json["results"][agent]["operational_state"]
@@ -1580,7 +1579,6 @@ def main() -> None:
         # verify all the remote keys for which we have a signature URL and key to to verify
         # Append the downloaded key files to args.ima_sign_verification_keys
         for i, key_url in enumerate(args.ima_sign_verification_key_urls):
-
             logger.info("Downloading key from %s", key_url)
             response = requests.get(key_url, timeout=mytenant.request_timeout, allow_redirects=False)
             if response.status_code == 200:

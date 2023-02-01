@@ -37,6 +37,7 @@ python convert_runtime_policy.py -h
 ```
 """
 
+
 # Creates a runtime policy from provided legacy allowlist.
 def convert_legacy_allowlist(allowlist_path: str) -> PolicyDict:
     with open(allowlist_path, "r", encoding="utf8") as f:
@@ -176,7 +177,6 @@ def update_runtime_policy(
 
 
 def main() -> None:
-
     parser = ConversionParser()
     parser.add_argument("-a", "--allowlist", help="allowlist file location", action="store")
     parser.add_argument("-i", "--runtime_policy", help="IMA policy file location", action="store")

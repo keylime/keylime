@@ -69,7 +69,6 @@ def run_migrations_offline():
     # individual files.
 
     for name in re.split(r",\s*", db_names):
-
         logger.info("Migrating database %s", name)
         file_ = f"{name}.sql"
         logger.info("Writing output to %s", file_)
