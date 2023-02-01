@@ -255,8 +255,6 @@ def main():
     stop_broker()
     print("exiting...")
     sys.exit(0)
-    print("done")
-
 
 if __name__ == "__main__":
     main()
