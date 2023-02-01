@@ -452,7 +452,7 @@ class CloudAgentHTTPServer(ThreadingMixIn, HTTPServer):
                     agent_ips.append(contact_ip)
                 with open(cert_path, "wb") as f:
                     # By default generate a TLS certificate valid for 5 years
-                    valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=(360 * 5))
+                    valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=360 * 5)
                     cert = crypto.generate_selfsigned_cert(agent_uuid, private_key, valid_util, agent_ips)
                     f.write(cert.public_bytes(serialization.Encoding.PEM))
 

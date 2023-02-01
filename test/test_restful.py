@@ -495,7 +495,7 @@ class TestRestful(unittest.TestCase):
         # Create a mTLS cert for testing
         global mtls_cert
         rsa_key = crypto.rsa_generate(2048)
-        valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=(360 * 5))
+        valid_util = datetime.datetime.utcnow() + datetime.timedelta(days=360 * 5)
         mtls_cert = crypto.generate_selfsigned_cert("TEST_CERT", rsa_key, valid_util).public_bytes(
             serialization.Encoding.PEM
         )
