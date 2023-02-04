@@ -79,7 +79,7 @@ def stop_broker() -> None:
             broker_proc.kill()  # pylint: disable=E1101
 
 
-def notify(tosend: Dict[str, str]) -> None:
+def notify(tosend: Dict[str, Any]) -> None:
     assert "zeromq" in get_notifiers()
     try:
         import zmq  # pylint: disable=import-outside-toplevel
@@ -92,7 +92,7 @@ def notify(tosend: Dict[str, str]) -> None:
     # To avoid such issues, let's convert `tosend' to str beforehand.
     tosend = json.bytes_to_str(tosend)
 
-    def worker(tosend: Dict[str, str]) -> None:
+    def worker(tosend: Dict[str, Any]) -> None:
         context = zmq.Context()  # pylint: disable=abstract-class-instantiated
         mysock = context.socket(zmq.PUB)
         mysock.connect(f"ipc://{_SOCKET_PATH}")
@@ -119,7 +119,7 @@ def notify(tosend: Dict[str, str]) -> None:
     t.start()
 
 
-def notify_webhook(tosend: bytes) -> None:
+def notify_webhook(tosend: Dict[str, Any]) -> None:
     url = config.get("verifier", "webhook_url", section="revocations", fallback="")
     # Check if a url was specified
     if url == "":
@@ -129,7 +129,7 @@ def notify_webhook(tosend: bytes) -> None:
     # possible issues with json handling by python-requests.
     tosend = json.bytes_to_str(tosend)
 
-    def worker_webhook(tosend: bytes, url: str) -> None:
+    def worker_webhook(tosend: Dict[str, Any], url: str) -> None:
         interval = config.getfloat("verifier", "retry_interval")
         exponential_backoff = config.getboolean("verifier", "exponential_backoff")
         session = requests.session()
