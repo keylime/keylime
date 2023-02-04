@@ -316,7 +316,7 @@ class AgentsHandler(BaseHandler):
                     session.query(VerfierMain)
                     .options(
                         joinedload(VerfierMain.ima_policy).load_only(
-                            VerifierAllowlist.checksum, VerifierAllowlist.generator
+                            VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                         )
                     )
                     .filter_by(agent_id=agent_id)
@@ -340,7 +340,7 @@ class AgentsHandler(BaseHandler):
                         session.query(VerfierMain)
                         .options(
                             joinedload(VerfierMain.ima_policy).load_only(
-                                VerifierAllowlist.checksum, VerifierAllowlist.generator
+                                VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                             )
                         )
                         .filter_by(verifier_id=rest_params["verifier"])
@@ -351,7 +351,7 @@ class AgentsHandler(BaseHandler):
                         session.query(VerfierMain)
                         .options(
                             joinedload(VerfierMain.ima_policy).load_only(
-                                VerifierAllowlist.checksum, VerifierAllowlist.generator
+                                VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                             )
                         )
                         .all()
@@ -1207,7 +1207,7 @@ async def process_agent(
         try:
             stored_agent = (
                 session.query(VerfierMain)
-                .options(joinedload(VerfierMain.ima_policy).load_only(VerifierAllowlist.checksum))
+                .options(joinedload(VerfierMain.ima_policy).load_only(VerifierAllowlist.checksum))  # pyright: ignore
                 .filter_by(agent_id=str(agent["agent_id"]))
                 .first()
             )
