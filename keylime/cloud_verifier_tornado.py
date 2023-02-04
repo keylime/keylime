@@ -984,7 +984,9 @@ class AllowlistHandler(BaseHandler):
 
         try:
             # Update the named runtime policy
-            session.query(VerifierAllowlist).filter_by(name=runtime_policy_name).update(runtime_policy_db_format)
+            session.query(VerifierAllowlist).filter_by(name=runtime_policy_name).update(
+                runtime_policy_db_format  # pyright: ignore
+            )
             session.commit()
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error: %s", e)
@@ -1262,7 +1264,7 @@ async def process_agent(
                     for key in exclude_db:
                         if key in agent:
                             del agent[key]
-                    session.query(VerfierMain).filter_by(agent_id=agent["agent_id"]).update(agent)
+                    session.query(VerfierMain).filter_by(agent_id=agent["agent_id"]).update(agent)  # pyright: ignore
                     session.commit()
 
         # propagate all state, but remove none DB keys first (using exclude_db)
@@ -1272,7 +1274,7 @@ async def process_agent(
                 if key in agent_db:
                     del agent_db[key]
 
-            session.query(VerfierMain).filter_by(agent_id=agent_db["agent_id"]).update(agent_db)
+            session.query(VerfierMain).filter_by(agent_id=agent_db["agent_id"]).update(agent_db)  # pyright: ignore
             session.commit()
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
