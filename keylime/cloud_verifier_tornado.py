@@ -164,6 +164,7 @@ def store_attestation_state(agentAttestState: AgentAttestState) -> None:
         session = get_session()
         try:
             update_agent = session.query(VerfierMain).get(agentAttestState.get_agent_id())
+            assert update_agent
             update_agent.boottime = agentAttestState.get_boottime()
             update_agent.next_ima_ml_entry = agentAttestState.get_next_ima_ml_entry()
             ima_pcrs_dict = agentAttestState.get_ima_pcrs()
@@ -442,6 +443,7 @@ class AgentsHandler(BaseHandler):
         else:
             try:
                 update_agent = session.query(VerfierMain).get(agent_id)
+                assert update_agent
                 update_agent.operational_state = states.TERMINATED
                 try:
                     session.add(update_agent)
