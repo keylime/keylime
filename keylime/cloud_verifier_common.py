@@ -31,7 +31,10 @@ def get_AgentAttestStates() -> AgentAttestStates:
 
 
 def process_quote_response(
-    agent: Dict[str, Any], runtime_policy, json_response, agentAttestState: AgentAttestState
+    agent: Dict[str, Any],
+    runtime_policy: Dict[str, Any],
+    json_response: Dict[str, Any],
+    agentAttestState: AgentAttestState,
 ) -> Failure:
     """Validates the response from the Cloud agent.
 
@@ -101,8 +104,10 @@ def process_quote_response(
     agent["sign_alg"] = sign_alg
 
     # Ensure hash_alg is in accept_tpm_hash_alg list
-    if not algorithms.is_accepted(hash_alg, agent["accept_tpm_hash_algs"]) or not algorithms.Hash.is_recognized(
-        hash_alg
+    if (
+        not hash_alg
+        or not algorithms.is_accepted(hash_alg, agent["accept_tpm_hash_algs"])
+        or not algorithms.Hash.is_recognized(hash_alg)
     ):
         logger.error("TPM Quote for agent %s is using an unaccepted hash algorithm: %s", agent_id, hash_alg)
         failure.add_event(
@@ -113,7 +118,7 @@ def process_quote_response(
         return failure
 
     # Ensure enc_alg is in accept_tpm_encryption_algs list
-    if not algorithms.is_accepted(enc_alg, agent["accept_tpm_encryption_algs"]):
+    if not enc_alg or not algorithms.is_accepted(enc_alg, agent["accept_tpm_encryption_algs"]):
         logger.error("TPM Quote for agent %s is using an unaccepted encryption algorithm: %s", agent_id, enc_alg)
         failure.add_event(
             "invalid_enc_alg",
@@ -123,7 +128,7 @@ def process_quote_response(
         return failure
 
     # Ensure sign_alg is in accept_tpm_encryption_algs list
-    if not algorithms.is_accepted(sign_alg, agent["accept_tpm_signing_algs"]):
+    if not sign_alg or not algorithms.is_accepted(sign_alg, agent["accept_tpm_signing_algs"]):
         logger.error("TPM Quote for agent %s is using an unaccepted signing algorithm: %s", agent_id, sign_alg)
         failure.add_event(
             "invalid_sign_alg",
@@ -266,7 +271,7 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         logger.debug('The contents of the agent %s attribute "mb_refstate" are %s', agent_id, agent.mb_refstate)
 
     has_runtime_policy = 0
-    if agent.ima_policy.generator > 1:
+    if agent.ima_policy.generator and agent.ima_policy.generator > 1:
         has_runtime_policy = 1
 
     response = {
