@@ -5,12 +5,22 @@
 import argparse
 import binascii
 import json
+import multiprocessing
+import pathlib
 import sys
 
 from cryptography import x509
 from cryptography.hazmat import backends
 
+try:
+    import rpm
+
+    HAS_RPM = True
+except ModuleNotFoundError:
+    HAS_RPM = False
+
 from keylime.ima import file_signatures, ima
+from keylime.signing import verify_signature_from_file
 
 IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
 IGNORED_KEYRINGS = []
@@ -168,6 +178,57 @@ def process_signature_verification_keys(verification_keys, policy):
     return policy
 
 
+def analyze_rpm_pkg(pkg):
+    """Analyze a single RPM package."""
+    ts = rpm.TransactionSet()
+    ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES | rpm._RPMVSF_NODIGESTS)
+
+    with open(pkg) as f:
+        hdr = ts.hdrFromFdno(f)
+    # TODO - How are symbolic links managed with IMA
+    # TODO - How to detect a link in RPM
+    info = {f.name: [f.digest] for f in rpm.files(hdr) if f.digest != "0" * 64}
+
+    return info
+
+
+def analize_local_repo(repo, hash_map, jobs=None):
+    repomd_xml = repo / "repodata" / "repomd.xml"
+    if not repomd_xml.exists():
+        print(f"{repomd_xml} cannot be found", file=sys.stderr)
+        # TODO - remove Go idioms
+        return None, 1
+
+    repomd_asc = repo / "repodata" / "repomd.xml.asc"
+    if repomd_asc.exists():
+        repomd_key = repo / "repodata" / "repomd.xml.key"
+        if not repomd_key.exists():
+            print(f"Error. Key file {repomd_key} missing", file=sys.stderr)
+            return None, 1
+
+        try:
+            verify_signature_from_file(repomd_key, repomd_xml, repomd_asc, "Repository metadata")
+        except Exception:
+            print("Error. Invalid dignature. Untrusted repository", file=sys.stderr)
+            return None, 1
+    else:
+        print("Warning. Unsigned repository. Continuing the RPM scanning", file=sys.stderr)
+
+    jobs = jobs if jobs else multiprocessing.cpu_count()
+
+    # Analyze all the RPMs in parallel
+    with multiprocessing.Pool(jobs) as pool:
+        packages = pool.map(analyze_rpm_pkg, repo.glob("**/*.rpm"))
+
+    hash_map.update(packages)
+
+    return hash_map, 0
+
+
+def analize_remote_repo(repo, hash_map):
+    return "", 1
+
+
 def main():
     """main"""
     parser = argparse.ArgumentParser(description="This is tool for adding items to a Keylime's IMA runtime policy")
@@ -223,9 +284,12 @@ def main():
         dest="ima_signature_keys",
         default=[],
         help="Add the given IMA signature verification key to the Keylime-internal 'tenant_keyring'; "
-        "the key should be an x509 certificate in DER or PEM format but may also be a public or private key file; "
-        "this option may be passed multiple times",
+        "the key should be an x509 certificate in DER or PEM format but may also be a public or "
+        "private key file; this option may be passed multiple times",
     )
+    parser.add_argument("-l", "--local-repo", metavar="REPO", type=pathlib.Path, help="Local repo directory")
+    parser.add_argument("-r", "--remote-repo", metavar="URL", help="Remote repo directory")
+
     args = parser.parse_args()
 
     policy = ima.EMPTY_RUNTIME_POLICY
@@ -256,9 +320,18 @@ def main():
     if ret:
         sys.exit(ret)
 
-    # Add the digests map either from the allowlist, if given, or the IMA measurement list.
+    if (args.local_repo or args.remote_repo) and not HAS_RPM:
+        print('To analyze RPM repositories the "rpm" Python module is required', file=sys.stderr)
+        sys.exit(1)
+
+    # Add the digests map either from the allowlist, a repo, or the
+    # IMA measurement list.
     if args.allowlist:
         policy["digests"], ret = process_flat_allowlist(args.allowlist, policy["digests"])
+    elif args.local_repo:
+        policy["digests"], ret = analize_local_repo(args.local_repo, policy["digests"])
+    elif args.remote_repo:
+        policy["digests"], ret = analize_remote_repo(args.remote_repo, policy["digests"])
     elif not args.no_hashes:
         policy["digests"], ret = get_hashes_from_measurement_list(args.ima_measurement_list, policy["digests"])
     if ret:
