@@ -16,6 +16,9 @@ from yaml.reader import ReaderError
 
 from keylime.common.version import str_to_version
 
+logging.basicConfig(level=logging.INFO)
+base_logger = logging.getLogger("keylime.config")
+
 
 def convert(data: Any) -> Any:
     if isinstance(data, bytes):
@@ -180,19 +183,19 @@ def get_config(component: str) -> RawConfigParser:
             if os.path.exists(CONFIG_ENV[component]):
                 if os.path.isfile(CONFIG_ENV[component]):
                     config_files = _config[component].read(CONFIG_ENV[component])
-                    print(f"Reading configuration from {config_files}")
+                    base_logger.info("Reading configuration from %s", config_files)
                     return _config[component]
 
-                print(
-                    f"Configuration file {CONFIG_ENV[component]} for"
-                    f"{component} set through environment variable is "
-                    "not a file, falling back to installed configuration"
+                base_logger.info(
+                    "Configuration file %s for %s set through environment variable is not a file, falling back to installed configuration",
+                    CONFIG_ENV[component],
+                    component,
                 )
             else:
-                print(
-                    f"Configuration file {CONFIG_ENV[component]} for "
-                    f"{component} set through environment variable not found, "
-                    f"falling back to installed configuration"
+                base_logger.info(
+                    "Configuration file %s for %s set through environment variable not found, falling back to installed configuration",
+                    CONFIG_ENV[component],
+                    component,
                 )
 
         if not CONFIG_FILES or not isinstance(CONFIG_FILES, dict):
@@ -201,10 +204,12 @@ def get_config(component: str) -> RawConfigParser:
         if not component in CONFIG_FILES:
             raise Exception(f"Invalid component {component}")
 
-        # TODO - use logger and be sure that all variables have a
+        # TODO - be sure that all variables have a
         # propper default, and the sections are initialized
         if not any(os.path.exists(c) for c in CONFIG_FILES[component]):
-            print(f"Config file not found in {CONFIG_FILES[component]}. " f"Please see {__file__} for more details.")
+            base_logger.info(
+                "Config file not found in %s. Please see %s for more details.", CONFIG_FILES[component], __file__
+            )
         else:
             for c in CONFIG_FILES[component]:
                 # Search for configuration file in order of priority given by
@@ -213,9 +218,8 @@ def get_config(component: str) -> RawConfigParser:
 
                 # Validate that at least one config file is present
                 config_file = _config[component].read(c)
-                # TODO - use the logger
                 if config_file:
-                    print(f"Reading configuration from {config_file}")
+                    base_logger.info("Reading configuration from %s", config_file)
 
                     if not CONFIG_SNIPPETS_DIRS or not isinstance(CONFIG_SNIPPETS_DIRS, dict):
                         raise Exception("Invalid CONFIG_FILES")
@@ -227,8 +231,8 @@ def get_config(component: str) -> RawConfigParser:
                         snippets = sorted(filter(os.path.isfile, (os.path.join(d, f) for f in os.listdir(d) if f)))
                         applied_snippets = _config[component].read(snippets)
                         if applied_snippets:
-                            # TODO - use the logger
-                            print(f"Applied configuration snippets from {d}")
+                            base_logger.info("Applied configuration snippets from %s", d)
+
                     break
 
     return _config[component]
@@ -237,7 +241,12 @@ def get_config(component: str) -> RawConfigParser:
 def _get_env(component: str, option: str, section: Optional[str]) -> Optional[str]:
     opt_section = f"_{section.upper()}" if section else ""
     env_name = f"KEYLIME_{component.upper()}{opt_section}_{option.upper()}"
-    return os.environ.get(env_name, None)
+    env_value = os.environ.get(env_name, None)
+    if env_value is not None:
+        log_msg = f'option "{option}" on section {section} for component {component}.conf was overriden by environment variable {env_name}'
+        base_logger.info(log_msg.replace("on section None ", ""))
+
+    return env_value
 
 
 def getlist(component: str, option: str, section: Optional[str] = None) -> List[Any]:
