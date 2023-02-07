@@ -4,11 +4,16 @@ import sys
 import time
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast
 
+from keylime import keylime_logging
+
 if sys.version_info >= (3, 8):
     from typing import TypedDict
 else:
     from typing_extensions import TypedDict
 
+
+# setup logging
+logger = keylime_logging.init_logging("keylime.cmd_exec")
 
 EXIT_SUCESS = 0
 
@@ -47,6 +52,7 @@ def run(
     if env is None:
         env = cast(EnvType, os.environ)  # cannot use os._Environ as type
 
+    logger.debug('Executing command "%s"', " ".join(cmd))
     t0 = time.time()
     retout, reterr, code = _execute(cmd, env=env, **kwargs)
 
