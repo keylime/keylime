@@ -39,14 +39,16 @@ def process_flat_allowlist(allowlist_file, hashes_map):
                     continue
                 pieces = line.split(None, 1)
                 if not len(pieces) == 2:
-                    print(f"Skipping line that was split into {len(pieces)} parts, " "expected 2: {line}")
+                    print(
+                        f"Skipping line that was split into {len(pieces)} parts, expected 2: {line}", file=sys.stderr
+                    )
                 (checksum_hash, path) = pieces
                 if path in hashes_map:
                     hashes_map[path].append(checksum_hash)
                 else:
                     hashes_map[path] = [checksum_hash]
     except (PermissionError, FileNotFoundError) as ex:
-        print(f"An error occurred while accessing the allowlist: {ex}")
+        print(f"An error occurred while accessing the allowlist: {ex}", file=sys.stderr)
         ret = 1
     return hashes_map, ret
 
@@ -62,7 +64,10 @@ def get_hashes_from_measurement_list(ima_measurement_list_file, hashes_map):
                     break
                 pieces = line.split(" ")
                 if len(pieces) < 5:
-                    print(f"Skipping line that was split into {len(pieces)} pieces, " "expected at least 5: {line}")
+                    print(
+                        f"Skipping line that was split into {len(pieces)} pieces, expected at least 5: {line}",
+                        file=sys.stderr,
+                    )
                     continue
                 if pieces[2] not in ["ima-sig", "ima-ng"]:
                     continue
@@ -74,7 +79,7 @@ def get_hashes_from_measurement_list(ima_measurement_list_file, hashes_map):
                 else:
                     hashes_map[path] = [checksum_hash]
     except (PermissionError, FileNotFoundError) as ex:
-        print(f"An error occurred: {ex}")
+        print(f"An error occurred: {ex}", file=sys.stderr)
         ret = 1
     return hashes_map, ret
 
@@ -95,7 +100,10 @@ def process_ima_buf_in_measurement_list(
                 # FIXME: filenames with spaces may be problematic
                 pieces = line.split(" ")
                 if len(pieces) != 6:
-                    print(f"Skipping line that was split into {len(pieces)} pieces, " "expected 6: {line}")
+                    print(
+                        f"Skipping line that was split into {len(pieces)} pieces, expected 6: {line}",
+                        file=sys.stderr,
+                    )
                     continue
                 if pieces[2] not in ["ima-buf"]:
                     continue
@@ -126,7 +134,7 @@ def process_ima_buf_in_measurement_list(
                     else:
                         ima_buf_map[path] = [checksum_hash]
     except (PermissionError, FileNotFoundError) as ex:
-        print(f"An error occurred: {ex}")
+        print(f"An error occurred: {ex}", file=sys.stderr)
         ret = 1
     return keyrings_map, ima_buf_map, ret
 
@@ -139,7 +147,7 @@ def process_signature_verification_keys(verification_keys, policy):
         if policy.get("verification-keys"):
             keyring = file_signatures.ImaKeyring().from_string(policy["verification-keys"])
             if not keyring:
-                print("Could not create IMAKeyring from JSON")
+                print("Could not create IMAKeyring from JSON", file=sys.stderr)
         else:
             keyring = file_signatures.ImaKeyring()
         if keyring:
@@ -147,11 +155,11 @@ def process_signature_verification_keys(verification_keys, policy):
                 try:
                     pubkey, keyidv2 = file_signatures.get_pubkey_from_file(key)
                     if not pubkey:
-                        print(f"File '{key}' is not a file with a key")
+                        print(f"File '{key}' is not a file with a key", file=sys.stderr)
                     else:
                         keyring.add_pubkey(pubkey, keyidv2)
                 except ValueError as e:
-                    print(f"File '{key}' does not have a supported key: {e}")
+                    print(f"File '{key}' does not have a supported key: {e}", file=sys.stderr)
             verification_key_list = keyring.to_string()
 
     if verification_key_list:
@@ -242,10 +250,10 @@ def main():
             policy["ima"]["ignored_keyrings"] = ignored_keyrings
             policy["verification-keys"] = base_policy.get("verification-keys", "")
         except (PermissionError, FileNotFoundError) as ex:
-            print(f"An error occurred while loading the policy: {ex}")
+            print(f"An error occurred while loading the policy: {ex}", file=sys.stderr)
             ret = 1
         except json.decoder.JSONDecodeError as ex:
-            print(f"An error occurred while converting the policy to a JSON object: {ex}")
+            print(f"An error occurred while converting the policy to a JSON object: {ex}", file=sys.stderr)
             ret = 1
     if ret:
         sys.exit(ret)
@@ -279,7 +287,7 @@ def main():
             with open(args.output, "w", encoding="utf-8") as fobj:
                 fobj.write(jsonpolicy)
         except (PermissionError, FileNotFoundError) as ex:
-            print(f"An error occurred while writing the policy: %{ex}")
+            print(f"An error occurred while writing the policy: %{ex}", file=sys.stderr)
             ret = 1
     else:
         print(jsonpolicy)
