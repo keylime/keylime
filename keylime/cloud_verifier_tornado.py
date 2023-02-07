@@ -1406,7 +1406,7 @@ async def activate_agents(verifier_id: str, verifier_ip: str, verifier_port: str
     try:
         agents = session.query(VerfierMain).filter_by(verifier_id=verifier_id).all()
         for agent in agents:
-            agent.verifier_ip = verifier_ip
+            agent.verifier_ip = verifier_ip  # pyright: ignore
             agent.verifier_host = verifier_port
             agent_run = _from_db_obj(agent)
             if agent_run["mtls_cert"] and agent_run["mtls_cert"] != "disabled":
@@ -1462,7 +1462,7 @@ def main() -> None:
         query_all = session.query(VerfierMain).all()
         for row in query_all:
             if row.operational_state in states.APPROVED_REACTIVATE_STATES:
-                row.operational_state = states.START
+                row.operational_state = states.START  # pyright: ignore
         session.commit()
     except SQLAlchemyError as e:
         logger.error("SQLAlchemy Error: %s", e)
