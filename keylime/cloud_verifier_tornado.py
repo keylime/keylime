@@ -1421,7 +1421,11 @@ async def activate_agents(verifier_id: str, verifier_ip: str, verifier_port: str
                 for pcr_num in agent.ima_pcrs:
                     ima_pcrs_dict[pcr_num] = getattr(agent, f"pcr{pcr_num}")
                 aas.add(
-                    agent.agent_id, agent.boottime, ima_pcrs_dict, agent.next_ima_ml_entry, agent.learned_ima_keyrings
+                    str(agent.agent_id),
+                    int(agent.boottime),  # pyright: ignore
+                    ima_pcrs_dict,
+                    int(agent.next_ima_ml_entry),  # pyright: ignore
+                    dict(agent.learned_ima_keyrings),  # pyright: ignore
                 )
         session.commit()
     except SQLAlchemyError as e:
