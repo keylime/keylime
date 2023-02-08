@@ -86,6 +86,7 @@ class TestRegistrarDB(unittest.TestCase):
 
     def test_add_agent(self):
         agent = self.session.query(RegistrarMain).filter_by(agent_id=agent_id).first()
+        assert agent
         self.assertEqual(
             agent.ek_tpm,
             """-----BEGIN PUBLIC KEY-----

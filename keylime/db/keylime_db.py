@@ -1,12 +1,12 @@
 import os
 from configparser import NoOptionError
 from sqlite3 import Connection as SQLite3Connection
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from keylime import config, keylime_logging
 
@@ -97,14 +97,14 @@ class SessionManager:
     def __init__(self) -> None:
         self.engine = None
 
-    def make_session(self, engine: Engine) -> Any:
+    def make_session(self, engine: Engine) -> Session:
         """
         To use: session = self.make_session(engine)
         """
         self.engine = engine
-        Session = scoped_session(sessionmaker())
+        MySession = scoped_session(sessionmaker())
         try:
-            Session.configure(bind=self.engine)  # type: ignore
+            MySession.configure(bind=self.engine)  # type: ignore
         except SQLAlchemyError as e:
             logger.error("Error creating SQL session manager %s", e)
-        return Session()
+        return cast(Session, MySession())

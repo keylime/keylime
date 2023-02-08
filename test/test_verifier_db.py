@@ -75,6 +75,7 @@ class TestVerfierDB(unittest.TestCase):
             .filter_by(agent_id=agent_id)
             .first()
         )
+        assert agent
         self.assertEqual(agent.v, "cf0B779EA1dkHVWfTxQuSLHNFeutYeSmVWe7JOFWzXg=")
         self.assertEqual(agent.port, 9002)
         self.assertEqual(
@@ -108,6 +109,7 @@ class TestVerfierDB(unittest.TestCase):
         )
         self.session.commit()
         agent = self.session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+        assert agent
         self.assertEqual(agent.operational_state, 10)
 
     def test_06_set_verifier_ip_port(self):
@@ -115,6 +117,7 @@ class TestVerfierDB(unittest.TestCase):
         self.session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update({"verifier_port": 8882})
         self.session.commit()
         agent = self.session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+        assert agent
         self.assertEqual(agent.verifier_ip, "127.0.0.2")
         self.assertEqual(agent.verifier_port, 8882)
 
@@ -123,6 +126,7 @@ class TestVerfierDB(unittest.TestCase):
         self.session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
         self.session.commit()
         agent = self.session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+        assert agent is None
         self.assertIsNone(agent)
 
     def test_08_delete_allowlist(self):
@@ -133,7 +137,8 @@ class TestVerfierDB(unittest.TestCase):
 
         # unassign this allowlist from the agent
         agent = self.session.query(VerfierMain).filter_by(agent_id=agent_id).first()
-        agent.ima_policy_id = None
+        assert agent
+        agent.ima_policy_id = None  # type: ignore
         self.session.commit()
         # now delete
         self.session.query(VerifierAllowlist).filter_by(name="test-allowlist").delete()
