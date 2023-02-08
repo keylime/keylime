@@ -315,6 +315,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
             if agent is not None:
                 # keep track of how many ek-ekcerts have registered on this uuid
+                assert isinstance(agent.regcount, int)
                 regcount = agent.regcount
                 if agent.ek_tpm != ek_tpm or agent.ekcert != ekcert:
                     logger.warning("WARNING: Overwriting previous registration for this UUID with new ek-ekcert pair!")
@@ -451,6 +452,8 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 logger.error("SQLAlchemy Error: %s", e)
                 raise
 
+            assert agent
+            assert isinstance(agent.key, str)
             ex_mac = crypto.do_hmac(agent.key.encode(), agent_id)
             if ex_mac == auth_tag:
                 try:

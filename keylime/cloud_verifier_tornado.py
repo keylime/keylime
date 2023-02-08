@@ -7,7 +7,7 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Process
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 import tornado.httpserver
 import tornado.ioloop
@@ -138,7 +138,7 @@ def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
         GLOBAL_POLICY_CACHE[agent_id][""] = ""
 
     if stored_agent.ima_policy:
-        checksum = stored_agent.ima_policy.checksum
+        checksum = str(stored_agent.ima_policy.checksum)
         name = stored_agent.ima_policy.name
 
     if checksum not in GLOBAL_POLICY_CACHE[agent_id]:
@@ -161,7 +161,9 @@ def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
             agent_id,
         )
         # Actually contacts the database and load the (large) ima_policy column for "allowlists" table
-        GLOBAL_POLICY_CACHE[agent_id][checksum] = stored_agent.ima_policy.ima_policy
+        ima_policy = stored_agent.ima_policy.ima_policy
+        assert isinstance(ima_policy, str)
+        GLOBAL_POLICY_CACHE[agent_id][checksum] = ima_policy
 
     return GLOBAL_POLICY_CACHE[agent_id][checksum]
 
@@ -201,7 +203,7 @@ class BaseHandler(tornado.web.RequestHandler):
     def prepare(self) -> None:  # pylint: disable=W0235
         super().prepare()
 
-    def write_error(self, status_code: int, **kwargs) -> None:
+    def write_error(self, status_code: int, **kwargs: Any) -> None:
         self.set_header("Content-Type", "text/json")
         if self.settings.get("serve_traceback") and "exc_info" in kwargs:
             # in debug mode, try to send a traceback
@@ -229,35 +231,35 @@ class BaseHandler(tornado.web.RequestHandler):
                 )
             )
 
-    def data_received(self, chunk):
+    def data_received(self, chunk: Any) -> None:
         raise NotImplementedError()
 
 
 class MainHandler(tornado.web.RequestHandler):
-    def head(self):
+    def head(self) -> None:
         web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
-    def get(self):
+    def get(self) -> None:
         web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
-    def delete(self):
+    def delete(self) -> None:
         web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
-    def post(self):
+    def post(self) -> None:
         web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
-    def put(self):
+    def put(self) -> None:
         web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
-    def data_received(self, chunk):
+    def data_received(self, chunk: Any) -> None:
         raise NotImplementedError()
 
 
 class VersionHandler(BaseHandler):
-    def head(self):
+    def head(self) -> None:
         web_util.echo_json_response(self, 405, "Not Implemented: Use GET interface instead")
 
-    def get(self):
+    def get(self) -> None:
         if self.request.uri is None:
             web_util.echo_json_response(self, 400, "URI not specified")
             return
@@ -279,25 +281,25 @@ class VersionHandler(BaseHandler):
 
         web_util.echo_json_response(self, 200, "Success", version_info)
 
-    def delete(self):
+    def delete(self) -> None:
         web_util.echo_json_response(self, 405, "Not Implemented: Use GET interface instead")
 
-    def post(self):
+    def post(self) -> None:
         web_util.echo_json_response(self, 405, "Not Implemented: Use GET interface instead")
 
-    def put(self):
+    def put(self) -> None:
         web_util.echo_json_response(self, 405, "Not Implemented: Use GET interface instead")
 
-    def data_received(self, chunk):
+    def data_received(self, chunk: Any) -> None:
         raise NotImplementedError()
 
 
 class AgentsHandler(BaseHandler):
-    def head(self):
+    def head(self) -> None:
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
 
-    def get(self):
+    def get(self) -> None:
         """This method handles the GET requests to retrieve status on agents from the Cloud Verifier.
 
         Currently, only agents resources are available for GETing, i.e. /agents. All other GET uri's
@@ -339,7 +341,7 @@ class AgentsHandler(BaseHandler):
             try:
                 agent = (
                     session.query(VerfierMain)
-                    .options(
+                    .options(  # type: ignore
                         joinedload(VerfierMain.ima_policy).load_only(
                             VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                         )
@@ -363,7 +365,7 @@ class AgentsHandler(BaseHandler):
                 if ("verifier" in rest_params) and (rest_params["verifier"] != ""):
                     agent_list = (
                         session.query(VerfierMain)
-                        .options(
+                        .options(  # type: ignore
                             joinedload(VerfierMain.ima_policy).load_only(
                                 VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                             )
@@ -374,7 +376,7 @@ class AgentsHandler(BaseHandler):
                 else:
                     agent_list = (
                         session.query(VerfierMain)
-                        .options(
+                        .options(  # type: ignore
                             joinedload(VerfierMain.ima_policy).load_only(
                                 VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                             )
@@ -389,17 +391,19 @@ class AgentsHandler(BaseHandler):
                 web_util.echo_json_response(self, 200, "Success", json_response)
             else:
                 if ("verifier" in rest_params) and (rest_params["verifier"] != ""):
-                    json_response = (
-                        session.query(VerfierMain.agent_id).filter_by(verifier_id=rest_params["verifier"]).all()
+                    json_response_list = (
+                        session.query(VerfierMain.agent_id)
+                        .filter_by(verifier_id=rest_params["verifier"])  # type: ignore
+                        .all()
                     )
                 else:
-                    json_response = session.query(VerfierMain.agent_id).all()
+                    json_response_list = session.query(VerfierMain.agent_id).all()
 
-                web_util.echo_json_response(self, 200, "Success", {"uuids": json_response})
+                web_util.echo_json_response(self, 200, "Success", {"uuids": json_response_list})
 
             logger.info("GET returning 200 response for agent_id list")
 
-    def delete(self):
+    def delete(self) -> None:
         """This method handles the DELETE requests to remove agents from the Cloud Verifier.
 
         Currently, only agents resources are available for DELETEing, i.e. /agents. All other DELETE uri's will return errors.
@@ -485,7 +489,7 @@ class AgentsHandler(BaseHandler):
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
 
-    def post(self):
+    def post(self) -> None:
         """This method handles the POST requests to add agents to the Cloud Verifier.
 
         Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's will return errors.
@@ -692,6 +696,7 @@ class AgentsHandler(BaseHandler):
 
                     # Write the agent to the database, attaching associated stored policy
                     try:
+                        assert runtime_policy_stored
                         session.add(VerfierMain(**agent_data, ima_policy=runtime_policy_stored))
                         session.commit()
                     except SQLAlchemyError as e:
@@ -723,7 +728,7 @@ class AgentsHandler(BaseHandler):
             logger.warning("POST returning 400 response. Exception error: %s", e)
             logger.exception(e)
 
-    def put(self):
+    def put(self) -> None:
         """This method handles the PUT requests to add agents to the Cloud Verifier.
 
         Currently, only agents resources are available for PUTing, i.e. /agents. All other PUT uri's will return errors.
@@ -774,7 +779,7 @@ class AgentsHandler(BaseHandler):
                 return
 
             if "reactivate" in rest_params:
-                agent = cast(Dict[str, Any], _from_db_obj(db_agent))
+                agent = _from_db_obj(db_agent)
 
                 if agent["mtls_cert"] and agent["mtls_cert"] != "disabled":
                     agent["ssl_context"] = web_util.generate_agent_tls_context(
@@ -809,12 +814,12 @@ class AgentsHandler(BaseHandler):
             logger.warning("PUT returning 400 response. Exception error: %s", e)
             logger.exception(e)
 
-    def data_received(self, chunk):
+    def data_received(self, chunk: Any) -> None:
         raise NotImplementedError()
 
 
 class AllowlistHandler(BaseHandler):
-    def head(self):
+    def head(self) -> None:
         web_util.echo_json_response(self, 400, "Allowlist handler: HEAD Not Implemented")
 
     def __validate_input(self, method: str) -> Optional[str]:
@@ -839,7 +844,7 @@ class AllowlistHandler(BaseHandler):
 
         return runtime_policy_name
 
-    def get(self):
+    def get(self) -> None:
         """Get an allowlist
 
         GET /allowlists/{name}
@@ -865,7 +870,7 @@ class AllowlistHandler(BaseHandler):
         response["runtime_policy"] = getattr(allowlist, "ima_policy", None)
         web_util.echo_json_response(self, 200, "Success", response)
 
-    def delete(self):
+    def delete(self) -> None:
         """Delete an allowlist
 
         DELETE /allowlists/{name}
@@ -957,7 +962,7 @@ class AllowlistHandler(BaseHandler):
 
         return runtime_policy_db_format
 
-    def post(self):
+    def post(self) -> None:
         """Create an allowlist
 
         POST /allowlists/{name}
@@ -995,7 +1000,7 @@ class AllowlistHandler(BaseHandler):
         web_util.echo_json_response(self, 201)
         logger.info("POST returning 201")
 
-    def put(self):
+    def put(self) -> None:
         """Update an allowlist
 
         PUT /allowlists/{name}
@@ -1037,7 +1042,7 @@ class AllowlistHandler(BaseHandler):
         web_util.echo_json_response(self, 201)
         logger.info("PUT returning 201")
 
-    def data_received(self, chunk):
+    def data_received(self, chunk: Any) -> None:
         raise NotImplementedError()
 
 
@@ -1123,7 +1128,7 @@ async def invoke_get_quote(
             asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
 
 
-async def invoke_provide_v(agent: Optional[Dict[str, Any]], timeout=60.0) -> None:
+async def invoke_provide_v(agent: Optional[Dict[str, Any]], timeout: float = 60.0) -> None:
     failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
         raise Exception("Agent deleted while being processed")
@@ -1182,7 +1187,7 @@ async def invoke_notify_error(agent: Optional[Dict[str, Any]], tosend: Dict[str,
     res = tornado_requests.request(
         "POST",
         f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/notifications/revocation",
-        **kwargs,
+        **kwargs,  # type: ignore
         timeout=timeout,
     )
     response = await res
@@ -1238,8 +1243,8 @@ async def notify_error(
 
 
 async def process_agent(
-    agent: Dict[str, Any], new_operational_state, failure: Failure = Failure(Component.INTERNAL, ["verifier"])
-):
+    agent: Dict[str, Any], new_operational_state: int, failure: Failure = Failure(Component.INTERNAL, ["verifier"])
+) -> None:
     # Convert to dict if the agent arg is a db object
     if not isinstance(agent, dict):
         agent = _from_db_obj(agent)
@@ -1251,7 +1256,9 @@ async def process_agent(
         try:
             stored_agent = (
                 session.query(VerfierMain)
-                .options(joinedload(VerfierMain.ima_policy).load_only(VerifierAllowlist.checksum))  # pyright: ignore
+                .options(  # type: ignore
+                    joinedload(VerfierMain.ima_policy).load_only(VerifierAllowlist.checksum)  # pyright: ignore
+                )
                 .filter_by(agent_id=str(agent["agent_id"]))
                 .first()
             )
@@ -1362,7 +1369,7 @@ async def process_agent(
                 )
 
                 pending = tornado.ioloop.IOLoop.current().call_later(
-                    interval, invoke_get_quote, agent, runtime_policy, False, timeout=timeout  # type: ignore  ; due to python <3.9
+                    interval, invoke_get_quote, agent, runtime_policy, False, timeout=timeout  # type: ignore  # due to python <3.9
                 )
                 agent["pending_event"] = pending
             return
@@ -1397,7 +1404,7 @@ async def process_agent(
                     next_retry,
                 )
                 tornado.ioloop.IOLoop.current().call_later(
-                    next_retry, invoke_get_quote, agent, runtime_policy, True, timeout=timeout  # type: ignore  ; due to python <3.9
+                    next_retry, invoke_get_quote, agent, runtime_policy, True, timeout=timeout  # type: ignore  # due to python <3.9
                 )
             return
 
@@ -1424,7 +1431,7 @@ async def process_agent(
                     next_retry,
                 )
                 tornado.ioloop.IOLoop.current().call_later(
-                    next_retry, invoke_provide_v, agent  # type: ignore  ; due to python <3.9
+                    next_retry, invoke_provide_v, agent  # type: ignore  # due to python <3.9
                 )
             return
         raise Exception("nothing should ever fall out of this!")
@@ -1438,14 +1445,14 @@ async def process_agent(
         await process_agent(agent, states.FAILED, failure)
 
 
-async def activate_agents(verifier_id: str, verifier_ip: str, verifier_port: str) -> None:
+async def activate_agents(verifier_id: str, verifier_ip: str, verifier_port: int) -> None:
     session = get_session()
     aas = get_AgentAttestStates()
     try:
         agents = session.query(VerfierMain).filter_by(verifier_id=verifier_id).all()
         for agent in agents:
             agent.verifier_ip = verifier_ip  # pyright: ignore
-            agent.verifier_host = verifier_port
+            agent.verifier_port = verifier_port  # pyright: ignore
             agent_run = _from_db_obj(agent)
             if agent_run["mtls_cert"] and agent_run["mtls_cert"] != "disabled":
                 agent_run["ssl_context"] = web_util.generate_agent_tls_context(
@@ -1456,14 +1463,15 @@ async def activate_agents(verifier_id: str, verifier_ip: str, verifier_port: str
                 asyncio.ensure_future(process_agent(agent_run, states.GET_QUOTE))
             if agent.boottime:
                 ima_pcrs_dict = {}
+                assert isinstance(agent.ima_pcrs, list)
                 for pcr_num in agent.ima_pcrs:
                     ima_pcrs_dict[pcr_num] = getattr(agent, f"pcr{pcr_num}")
                 aas.add(
                     str(agent.agent_id),
                     int(agent.boottime),  # pyright: ignore
                     ima_pcrs_dict,
-                    int(agent.next_ima_ml_entry),  # pyright: ignore
-                    dict(agent.learned_ima_keyrings),  # pyright: ignore
+                    int(agent.next_ima_ml_entry),  # type: ignore
+                    dict(agent.learned_ima_keyrings),  # type: ignore
                 )
         session.commit()
     except SQLAlchemyError as e:
@@ -1536,13 +1544,13 @@ def main() -> None:
         server = tornado.httpserver.HTTPServer(app, ssl_options=ssl_ctx, max_buffer_size=max_upload_size)
         server.add_sockets(sockets)
 
-        def server_sig_handler(*_):
+        def server_sig_handler(*_: Any) -> None:
             logger.info("Shutting down server %s..", task_id)
             # Stop server to not accept new incoming connections
             server.stop()
 
             # Wait for all connections to be closed and then stop ioloop
-            async def stop():
+            async def stop() -> None:
                 await server.close_all_connections()
                 tornado.ioloop.IOLoop.current().stop()
 
@@ -1557,16 +1565,16 @@ def main() -> None:
         server.start()
         if task_id == 0:
             # Reactivate agents
-            asyncio.ensure_future(activate_agents(verifier_id, verifier_host, verifier_port))
+            asyncio.ensure_future(activate_agents(verifier_id, verifier_host, int(verifier_port)))
         tornado.ioloop.IOLoop.current().start()
         logger.debug("Server %s stopped.", task_id)
         sys.exit(0)
 
-    processes = []
+    processes: List[Process] = []
 
     run_revocation_notifier = "zeromq" in revocation_notifier.get_notifiers()
 
-    def sig_handler(*_):
+    def sig_handler(*_: Any) -> None:
         if run_revocation_notifier:
             revocation_notifier.stop_broker()
         for p in processes:
