@@ -179,7 +179,7 @@ def update_runtime_policy(
 def main() -> None:
     parser = ConversionParser()
     parser.add_argument("-a", "--allowlist", help="allowlist file location", action="store")
-    parser.add_argument("-i", "--runtime_policy", help="IMA policy file location", action="store")
+    parser.add_argument("-r", "--runtime_policy", help="Runtime policy file location", action="store")
     parser.add_argument("-e", "--excludelist", help="exclude list file location", action="store")
     parser.add_argument("-v", "--verification_keys", help="list of verification key paths", nargs="+", default=[])
     parser.add_argument("-o", "--output_file", help="Output file path", action="store")
@@ -191,7 +191,7 @@ def main() -> None:
 
     args = parser.parse_args()
     if bool(args.allowlist) and bool(args.runtime_policy):
-        print("Cannot provide both --allowlist and --ima-policy!")
+        print("Cannot provide both --allowlist and --runtime-policy!")
         sys.exit(1)
     elif not bool(args.allowlist) and not bool(args.runtime_policy):
         print("Either --allowlist or --runtime_policy is required!")
