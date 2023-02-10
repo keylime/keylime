@@ -192,7 +192,7 @@ def analyze_rpm_pkg(pkg):
     ts = rpm.TransactionSet()
     ts.setVSFlags(rpm.RPMVSF_MASK_NOSIGNATURES | rpm.RPMVSF_MASK_NODIGESTS)
 
-    with open(pkg) as f:
+    with open(pkg, "rb") as f:
         hdr = ts.hdrFromFdno(f)
     # TODO - How are symbolic links managed with IMA
     # TODO - How to detect a link in RPM
@@ -211,7 +211,7 @@ def analyze_rpm_pkg_url(url):
     # iteratively.
 
     # Hide errors while fetching partial headers
-    rpm.setLogFile(open(os.devnull, "w"))
+    rpm.setLogFile(open(os.devnull, "wb"))  # pylint: disable=consider-using-with
 
     print(f"Fetching header for {url}", file=sys.stderr)
 
