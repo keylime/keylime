@@ -4,10 +4,18 @@
 
 import argparse
 import binascii
+import collections
+import gzip
 import json
 import multiprocessing
+import os
 import pathlib
+import shutil
 import sys
+import tempfile
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
 
 from cryptography import x509
 from cryptography.hazmat import backends
@@ -24,6 +32,9 @@ from keylime.signing import verify_signature_from_file
 
 IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
 IGNORED_KEYRINGS = []
+
+# Estimation of a RPM header size
+HEADER_SIZE = 24 * 1024
 
 
 def is_x509_cert(bindata):
@@ -49,9 +60,7 @@ def process_flat_allowlist(allowlist_file, hashes_map):
                     continue
                 pieces = line.split(None, 1)
                 if not len(pieces) == 2:
-                    print(
-                        f"Skipping line that was split into {len(pieces)} parts, expected 2: {line}", file=sys.stderr
-                    )
+                    print(f"Skipping line that was split into {len(pieces)} parts, expected 2: {line}", file=sys.stderr)
                 (checksum_hash, path) = pieces
                 if path in hashes_map:
                     hashes_map[path].append(checksum_hash)
@@ -192,6 +201,47 @@ def analyze_rpm_pkg(pkg):
     return info
 
 
+def analyze_rpm_pkg_url(url):
+    """Analyze a single RPM package from its URL."""
+
+    # To fetch the header we can emulate rpmReadPackageFile, but this
+    # seems to require multiple reads.  This simplified algorithm read
+    # first a sizeable blob, adjusted from the median of some repo
+    # analysis, and if the hdrFromFdno fails, try to expand it
+    # iteratively.
+
+    # Hide errors while fetching partial headers
+    rpm.setLogFile(open(os.devnull, "w"))
+
+    print(f"Fetching header for {url}", file=sys.stderr)
+
+    blob = b""
+    chunk_size = HEADER_SIZE
+    while True:
+        with tempfile.TemporaryFile() as f:
+            range_ = f"{len(blob)}-{len(blob) + chunk_size - 1}"
+            req = urllib.request.Request(url, headers={"Range": f"bytes={range_}"})
+            with urllib.request.urlopen(req) as resp:
+                blob += resp.read()
+
+            f.write(blob)
+            f.seek(0)
+
+            ts = rpm.TransactionSet()
+            ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES | rpm._RPMVSF_NODIGESTS)
+            try:
+                hdr = ts.hdrFromFdno(f)
+                break
+            except Exception:
+                chunk_size = max(1024, int(chunk_size / 2))
+
+    # TODO - How are symbolic links managed with IMA
+    # TODO - How to detect a link in RPM
+    info = {f.name: [f.digest] for f in rpm.files(hdr) if f.digest != "0" * 64}
+
+    return info
+
+
 def analize_local_repo(repo, hash_map, jobs=None):
     repomd_xml = repo / "repodata" / "repomd.xml"
     if not repomd_xml.exists():
@@ -220,13 +270,99 @@ def analize_local_repo(repo, hash_map, jobs=None):
     with multiprocessing.Pool(jobs) as pool:
         packages = pool.map(analyze_rpm_pkg, repo.glob("**/*.rpm"))
 
-    hash_map.update(packages)
+    hash_map.update(dict(collections.ChainMap(*packages)))
 
     return hash_map, 0
 
 
-def analize_remote_repo(repo, hash_map):
-    return "", 1
+def _get(url):
+    try:
+        with urllib.request.urlopen(url) as resp:
+            with tempfile.NamedTemporaryFile(delete=False) as f:
+                shutil.copyfileobj(resp, f)
+                return f.name
+    except urllib.error.HTTPError:
+        return None
+
+
+def _get_rpm_urls(repo, repomd_xml):
+    root = ET.parse(repomd_xml).getroot()
+    location = root.find(
+        "./{http://linux.duke.edu/metadata/repo}data[@type='primary']/{http://linux.duke.edu/metadata/repo}location"
+    )
+    if location is None:
+        print("Error. Primary location tag not found", file=sys.stderr)
+        return []
+
+    print("Generating package list from repo ...", file=sys.stderr)
+    primary_xml = urllib.parse.urljoin(repo, location.attrib["href"])
+    primary_xml_tmp = _get(primary_xml)
+    if primary_xml_tmp is None:
+        print("Error. Primary XML file cannot be downloaded", file=sys.stderr)
+        return []
+
+    root = ET.parse(gzip.open(primary_xml_tmp))
+    os.remove(primary_xml_tmp)
+
+    locations = root.findall(
+        "./{http://linux.duke.edu/metadata/common}package[@type='rpm']"
+        "/{http://linux.duke.edu/metadata/common}location"
+    )
+
+    return [urllib.parse.urljoin(repo, l.attrib["href"]) for l in locations]
+
+
+def analize_remote_repo(repo, hash_map, jobs=None):
+    # Make the repo ends with "/", so we can be considered as a base URL
+    repo = repo if repo.endswith("/") else f"{repo}/"
+
+    repomd_xml = urllib.parse.urljoin(repo, "repodata/repomd.xml")
+    repomd_xml_tmp = _get(repomd_xml)
+    if not repomd_xml_tmp:
+        print(f"{repomd_xml} cannot be found", file=sys.stderr)
+        return None, 1
+
+    repomd_asc = urllib.parse.urljoin(repo, "repodata/repomd.xml.asc")
+    repomd_asc_tmp = _get(repomd_asc)
+    if repomd_asc_tmp:
+        repomd_key = urllib.parse.urljoin(repo, "repodata/repomd.xml.key")
+        repomd_key_tmp = _get(repomd_key)
+        if not repomd_key_tmp:
+            print(f"Error. Key file {repomd_key} missing", file=sys.stderr)
+            os.remove(repomd_xml_tmp)
+            return None, 1
+
+        try:
+            verify_signature_from_file(repomd_key_tmp, repomd_xml_tmp, repomd_asc_tmp, "Repository metadata")
+        except Exception:
+            print("Error. Invalid dignature. Untrusted repository", file=sys.stderr)
+            os.remove(repomd_xml_tmp)
+            os.remove(repomd_asc_tmp)
+            os.remove(repomd_key_tmp)
+            return None, 1
+
+        os.remove(repomd_asc_tmp)
+        os.remove(repomd_key_tmp)
+    else:
+        print("Warning. Unsigned repository. Continuing the RPM scanning", file=sys.stderr)
+
+    rpms = _get_rpm_urls(repo, repomd_xml_tmp)
+    os.remove(repomd_xml_tmp)
+
+    # The default job selection is a bit weird.  The issue is that
+    # seems that librpm can be not always thread safe, so we can use a
+    # single thread (asyncio) or multiple process.  To avoid change
+    # all the stack, I go for synchronous functions but with many
+    # process.  In the future we can move all to asyncio.
+    jobs = jobs if jobs else (multiprocessing.cpu_count() * 8)
+
+    # Analyze all the RPMs in parallel
+    with multiprocessing.Pool(jobs) as pool:
+        packages = pool.map(analyze_rpm_pkg_url, rpms)
+
+    hash_map.update(dict(collections.ChainMap(*packages)))
+
+    return hash_map, 0
 
 
 def main():
