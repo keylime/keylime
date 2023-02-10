@@ -190,7 +190,7 @@ def process_signature_verification_keys(verification_keys, policy):
 def analyze_rpm_pkg(pkg):
     """Analyze a single RPM package."""
     ts = rpm.TransactionSet()
-    ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES | rpm._RPMVSF_NODIGESTS)
+    ts.setVSFlags(rpm.RPMVSF_MASK_NOSIGNATURES | rpm.RPMVSF_MASK_NODIGESTS)
 
     with open(pkg) as f:
         hdr = ts.hdrFromFdno(f)
@@ -228,7 +228,7 @@ def analyze_rpm_pkg_url(url):
             f.seek(0)
 
             ts = rpm.TransactionSet()
-            ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES | rpm._RPMVSF_NODIGESTS)
+            ts.setVSFlags(rpm.RPMVSF_MASK_NOSIGNATURES | rpm.RPMVSF_MASK_NODIGESTS)
             try:
                 hdr = ts.hdrFromFdno(f)
                 break
