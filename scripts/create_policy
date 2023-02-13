@@ -194,8 +194,8 @@ def analyze_rpm_pkg(pkg):
 
     with open(pkg, "rb") as f:
         hdr = ts.hdrFromFdno(f)
-    # TODO - How are symbolic links managed with IMA
-    # TODO - How to detect a link in RPM
+    # Symbolic links in IMA are resolved before the measured,
+    # registering the final linked name in the logs
     info = {f.name: [f.digest] for f in rpm.files(hdr) if f.digest != "0" * 64}
 
     return info
@@ -235,8 +235,8 @@ def analyze_rpm_pkg_url(url):
             except Exception:
                 chunk_size = max(1024, int(chunk_size / 2))
 
-    # TODO - How are symbolic links managed with IMA
-    # TODO - How to detect a link in RPM
+    # Symbolic links in IMA are resolved before the measured,
+    # registering the final linked name in the logs
     info = {f.name: [f.digest] for f in rpm.files(hdr) if f.digest != "0" * 64}
 
     return info
