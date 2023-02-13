@@ -43,7 +43,7 @@
      - /functional/db-postgresql-sanity-on-localhost
      - /functional/db-mariadb-sanity-on-localhost
      - /functional/db-mysql-sanity-on-localhost
-     - /functional/tenant-allowlist-sanity
+     - /functional/tenant-runtime-policy-sanity
      - /functional/use-multiple-ima-sign-verification-keys
      - /functional/measured-boot-swtpm-sanity
      # now set zeromq as a default revocation notifier and test it
