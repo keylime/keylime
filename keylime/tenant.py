@@ -774,8 +774,9 @@ class Tenant:
                 )
                 return
 
-            self.verifier_ip = cvresponse["results"][self.agent_uuid]["verifier_ip"]
-            self.verifier_port = cvresponse["results"][self.agent_uuid]["verifier_port"]
+            if self.agent_uuid in cvresponse["results"]:
+                self.verifier_ip = cvresponse["results"][self.agent_uuid]["verifier_ip"]
+                self.verifier_port = cvresponse["results"][self.agent_uuid]["verifier_port"]
 
         do_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvdelete.delete(f"/v{self.api_version}/agents/{self.agent_uuid}", timeout=self.request_timeout)

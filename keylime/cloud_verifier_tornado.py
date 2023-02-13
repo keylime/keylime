@@ -129,25 +129,41 @@ def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, Any]:
 
 
 def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
-    if stored_agent.agent_id not in GLOBAL_POLICY_CACHE:
-        GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)] = {}
+    checksum = ""
+    name = "empty"
+    agent_id = str(stored_agent.agent_id)
 
-    if stored_agent.ima_policy.checksum not in GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)]:
-        if GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)]:
+    if agent_id not in GLOBAL_POLICY_CACHE:
+        GLOBAL_POLICY_CACHE[agent_id] = {}
+        GLOBAL_POLICY_CACHE[agent_id][""] = ""
+
+    if stored_agent.ima_policy:
+        checksum = stored_agent.ima_policy.checksum
+        name = stored_agent.ima_policy.name
+
+    if checksum not in GLOBAL_POLICY_CACHE[agent_id]:
+        if len(GLOBAL_POLICY_CACHE[agent_id]) > 1:
             # Perform a cleanup of the contents, IMA policy checksum changed
-            GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)] = {}
+            logger.debug(
+                "Cleaning up policy cache for policy named %s, with checksum %s, used by agent %s",
+                name,
+                checksum,
+                agent_id,
+            )
+
+            GLOBAL_POLICY_CACHE[agent_id] = {}
+            GLOBAL_POLICY_CACHE[agent_id][""] = ""
 
         logger.debug(
-            "IMA policy with checksum %s, used by agent %s is not present on policy cache on this verifier, performing SQLAlchemy load",
-            stored_agent.ima_policy.checksum,
-            stored_agent.agent_id,
+            "IMA policy named %s, with checksum %s, used by agent %s is not present on policy cache on this verifier, performing SQLAlchemy load",
+            name,
+            checksum,
+            agent_id,
         )
         # Actually contacts the database and load the (large) ima_policy column for "allowlists" table
-        GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)][
-            stored_agent.ima_policy.checksum
-        ] = stored_agent.ima_policy.ima_policy
+        GLOBAL_POLICY_CACHE[agent_id][checksum] = stored_agent.ima_policy.ima_policy
 
-    return GLOBAL_POLICY_CACHE[str(stored_agent.agent_id)][stored_agent.ima_policy.checksum]
+    return GLOBAL_POLICY_CACHE[agent_id][checksum]
 
 
 def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
@@ -576,6 +592,7 @@ class AgentsHandler(BaseHandler):
 
                     runtime_policy_name = json_body.get("runtime_policy_name")
                     runtime_policy = base64.b64decode(json_body.get("runtime_policy")).decode()
+                    runtime_policy_stored = None
 
                     if runtime_policy_name:
                         try:
@@ -672,8 +689,6 @@ class AgentsHandler(BaseHandler):
                         except SQLAlchemyError as e:
                             logger.error("SQLAlchemy Error while updating ima policy for agent ID %s: %s", agent_id, e)
                             raise
-                    else:
-                        runtime_policy_stored = None
 
                     # Write the agent to the database, attaching associated stored policy
                     try:
