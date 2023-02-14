@@ -1039,9 +1039,28 @@ class tpm(tpm_abstract.AbstractTPM):
 
         return "r" + quote
 
-    def __tpm2_checkquote(
-        self, pubaik: str, nonce: str, quoteFile: str, sigFile: str, pcrFile: str, hash_alg: Union[Hash, str]
+    def tpm2_checkquote(
+            self,
+            pubaik: str,
+            nonce: str,
+            quote_file: str,
+            sig_file: str,
+            pcr_file: str,
+            hash_alg: Union[Hash, str],
     ) -> cmd_exec.RetDictType:
+        """Executes the tpm2_checkquote command.
+
+        Args:
+            pubaik: The public AIK file.
+            nonce: The nonce to use.
+            quote_file: The quote file.
+            sig_file: The signature file.
+            pcr_file: The PCR file.
+            hash_alg: The hash algorithm to use.
+
+        Returns:
+            A dictionary containing the stdout and stderr of the command.
+        """
         nonce = bytes(nonce, encoding="utf8").hex()
         if self.tools_version == "3.2":
             command = [
@@ -1049,41 +1068,48 @@ class tpm(tpm_abstract.AbstractTPM):
                 "-c",
                 pubaik,
                 "-m",
-                quoteFile,
+                quote_file,
                 "-s",
-                sigFile,
+                sig_file,
                 "-p",
-                pcrFile,
+                pcr_file,
                 "-G",
                 hash_alg,
                 "-q",
                 nonce,
             ]
         else:
-            # versions >= 4.0
             command = [
                 "tpm2_checkquote",
                 "-u",
                 pubaik,
                 "-m",
-                quoteFile,
+                quote_file,
                 "-s",
-                sigFile,
+                sig_file,
                 "-f",
-                pcrFile,
+                pcr_file,
                 "-g",
                 hash_alg,
                 "-q",
                 nonce,
             ]
 
-        retDict = self.__run(command, lock=False)
-        return retDict
+        ret_dict = cmd_exec.run(command, lock=False)
+        return ret_dict
 
-    def __tpm2_printquote(self, quoteFile: str) -> cmd_exec.RetDictType:
-        command = ["tpm2_print", "-t", "TPMS_ATTEST", quoteFile]
-        retDict = self.__run(command, lock=False)
-        return retDict
+    def tpm2_printquote(self, quote_file: str) -> cmd_exec.RetDictType:
+        """Executes the tpm2_print command.
+
+        Args:
+            quote_file: The quote file to print.
+
+        Returns:
+            A dictionary containing the stdout and stderr of the command.
+        """
+        command = ["tpm2_print", "-t", "TPMS_ATTEST", quote_file]
+        ret_dict = cmd_exec.run(command, lock=False)
+        return ret_dict
 
     def _tpm2_printquote(self, quote: str, compressed: bool) -> Tuple[Optional[List[bytes]], bool]:
         """Get TPM timestamp info from quote
