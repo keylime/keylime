@@ -47,7 +47,7 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
         self,
         agent_data: Dict[Any, Any],
         attestation_data: Dict[Any, Any],
-        ima_policy_data: Dict[Any, Any],
+        runtime_policy_data: Dict[Any, Any],
         service: str = "auto",
         signed_attributes: str = "auto",
     ) -> None:
@@ -135,7 +135,7 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
         record_object: Dict[Any, Any],
         agent_data: Dict[Any, Any],
         attestation_data: Dict[Any, Any],
-        ima_policy_data: Dict[Any, Any],
+        runtime_policy_data: Dict[Any, Any],
     ) -> Dict[Any, Any]:
         """Assemble record to be created on persistent datastore"""
 
@@ -150,8 +150,8 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
         if attestation_data:
             sanitized_and_assembled_record_object["json_response"] = attestation_data
 
-        if ima_policy_data:
-            sanitized_and_assembled_record_object["ima_policy"] = ima_policy_data
+        if runtime_policy_data:
+            sanitized_and_assembled_record_object["runtime_policy"] = runtime_policy_data
 
         return sanitized_and_assembled_record_object
 
@@ -186,10 +186,10 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
         record_object: Dict[Any, Any],
         agent_data: Dict[Any, Any],
         attestation_data: Dict[Any, Any],
-        ima_policy_data: Dict[Any, Any],
+        runtime_policy_data: Dict[Any, Any],
     ) -> Union[bytes, Dict[Any, Any]]:
         """Prepares record to be stored on persistent datastore"""
-        record_assembled = self.record_assemble(record_object, agent_data, attestation_data, ima_policy_data)
+        record_assembled = self.record_assemble(record_object, agent_data, attestation_data, runtime_policy_data)
 
         record_assembled[self.svc + "_timestamp"] = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
 

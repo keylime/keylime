@@ -1,9 +1,11 @@
 #!/usr/bin/python3
 import argparse
+import json
 from datetime import datetime
 
 from keylime import cloud_verifier_common, config, keylime_logging
 from keylime.da import record
+from keylime.elchecking.policies import load_policies
 
 logger = keylime_logging.init_logging("durable_attestation_fetch_and_replay")
 
@@ -36,6 +38,8 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    load_policies()
 
     rmcb = config.get("registrar", "durable_attestation_import", fallback="")
     rmc = record.get_record_mgt_class(rmcb)
@@ -96,7 +100,7 @@ def main() -> None:
         for attestation_record in attestation_record_list:
             agent = attestation_record["agent"]
             json_response = attestation_record["json_response"]
-            ima_policy = attestation_record["ima_policy"]
+            runtime_policy = json.loads(attestation_record["runtime_policy"])
 
             logger.info(
                 "----------- Attesting data (quote and logs from %s, captured by verifier %s (%s:%s)",
@@ -114,7 +118,7 @@ def main() -> None:
                     p_tpm_ts = agent["tpm_clockinfo"]["clock"]
 
             failure = cloud_verifier_common.process_quote_response(
-                agent, ima_policy, json_response["results"], agentAttestState
+                agent, runtime_policy, json_response["results"], agentAttestState
             )
 
             if "tpm_clockinfo" in agent:
