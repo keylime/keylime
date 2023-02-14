@@ -118,7 +118,7 @@ class RecordManagement(BaseRecordManagement):
         self.base_record_timestamp_create(record_object, agent_data, contents)
 
     def record_create(
-        self, agent_data, attestation_data, ima_policy_data=None, service="auto", signed_attributes="auto"
+        self, agent_data, attestation_data, runtime_policy_data=None, service="auto", signed_attributes="auto"
     ):
         record_object = {}
 
@@ -135,6 +135,8 @@ class RecordManagement(BaseRecordManagement):
         ) as fp:
             ts = str(int(time.time())).encode()
             fp.write(
-                ts + self.ts_sep + self.base_record_create(record_object, agent_data, attestation_data, ima_policy_data)
+                ts
+                + self.ts_sep
+                + self.base_record_create(record_object, agent_data, attestation_data, runtime_policy_data)
             )
             fp.write(self.line_sep)
