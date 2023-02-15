@@ -11,29 +11,29 @@ from keylime import keylime_logging
 logger = keylime_logging.init_logging("signing")
 
 
-def verify_signature_from_file(key_file: str, filename: str, sig_file: str, file_description: str) -> None:
+def verify_signature_from_file(key_file: str, filename: str, sig_file: str, description: str) -> None:
     """
     Verify the file signature on disk (sig_file) using a public key on disk
     (key_file) with the file on disk (file). All inputs should be file
     paths.
     """
 
-    with open(key_file, "rb") as key_f:
-        key = key_f.read()
-    with open(sig_file, "rb") as sig_f:
-        sig = sig_f.read()
-    with open(filename, "rb") as file_f:
-        file = file_f.read()
+    with open(key_file, "rb") as fd:
+        key = fd.read()
+    with open(sig_file, "rb") as fd:
+        sig = fd.read()
+    with open(filename, "rb") as fd:
+        body = fd.read()
 
-    if verify_signature(key, sig, file):
-        logger.debug("%s passed signature verification", file_description.capitalize())
+    if verify_signature(key, sig, body):
+        logger.debug("%s passed signature verification", description)
     else:
         raise Exception(
-            f"{file_description.capitalize()} signature verification failed comparing {file_description} ({filename}) against sig_file ({sig_file})"
+            f'{description} signature verification failed for "{filename}" against signature "{sig_file}" using key "{key_file}"'
         )
 
 
-def verify_signature(key: bytes, sig: bytes, file: bytes) -> bool:
+def verify_signature(key: bytes, sig: bytes, body: bytes) -> bool:
     """
     Verify the file signature (sig) using a public key (key)
     with the file (file).
@@ -57,8 +57,8 @@ def verify_signature(key: bytes, sig: bytes, file: bytes) -> bool:
                 except Exception as e:
                     raise Exception("Unable to import GPG key") from e
 
-                if result is not None and hasattr(result, "considered") is True:
-                    _, result = ctx.verify(file, sig)
+                if hasattr(result, "considered"):
+                    _, result = ctx.verify(body, sig)
                     verified = result.signatures[0].status == 0
 
         # OpenSSL
@@ -69,7 +69,7 @@ def verify_signature(key: bytes, sig: bytes, file: bytes) -> bool:
             if isinstance(pubkey, ec.EllipticCurvePublicKey):
                 logger.debug("EC public key successfully imported, verifying signature...")
                 try:
-                    pubkey.verify(sig, file, ec.ECDSA(hashes.SHA256()))
+                    pubkey.verify(sig, body, ec.ECDSA(hashes.SHA256()))
                     verified = True
                 except InvalidSignature:
                     verified = False
