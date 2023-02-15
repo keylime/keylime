@@ -48,6 +48,7 @@ class VerfierMain(Base):
     mtls_cert = Column(String(2048), nullable=True)
     attestation_count = Column(Integer)
     last_received_quote = Column(Integer)
+    last_successful_attestation = Column(Integer)
     tpm_clockinfo = Column(JSONPickleType(pickler=JSONPickler))
 
 

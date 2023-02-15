@@ -115,6 +115,7 @@ def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, Any]:
         "ak_tpm",
         "attestation_count",
         "last_received_quote",
+        "last_successful_attestation",
         "tpm_clockinfo",
     ]
     agent_dict = {}
@@ -557,6 +558,10 @@ class AgentsHandler(BaseHandler):
                     agent_data["verifier_id"] = config.get(
                         "verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID
                     )
+                    agent_data["attestation_count"] = 0
+                    agent_data["last_received_quote"] = 0
+                    agent_data["last_successful_attestation"] = 0
+
                     if "verifier_ip" in json_body:
                         agent_data["verifier_ip"] = json_body["verifier_ip"]
                     else:
@@ -566,8 +571,6 @@ class AgentsHandler(BaseHandler):
                         agent_data["verifier_port"] = json_body["verifier_port"]
                     else:
                         agent_data["verifier_port"] = config.get("verifier", "port")
-                    agent_data["attestation_count"] = 0
-                    agent_data["last_received_quote"] = 0
 
                     agent_mtls_cert_enabled = config.getboolean("verifier", "enable_agent_mtls", fallback=False)
 
