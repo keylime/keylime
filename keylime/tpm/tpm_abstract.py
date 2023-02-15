@@ -280,6 +280,8 @@ class AbstractTPM(metaclass=ABCMeta):
     ) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
 
+        agent_id = agentAttestState.get_agent_id()
+
         if isinstance(tpm_policy, str):
             tpm_policy_dict = json.loads(tpm_policy)
         else:
@@ -293,6 +295,13 @@ class AbstractTPM(metaclass=ABCMeta):
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
         mb_policy, mb_policy_name, mb_refstate_data = measured_boot.get_policy(mb_refstate_str)
+        if mb_refstate_data:
+            logger.debug(
+                "Evaluating measured boot log sent by agent %s using a measured boot reference state containing %d entries with measured boot policy %s",
+                agent_id,
+                len(mb_refstate_data),
+                mb_policy_name,
+            )
         mb_pcrs_hashes, boot_aggregates, mb_measurement_data, mb_failure = self.parse_mb_bootlog(
             mb_measurement_list, hash_alg
         )
@@ -308,10 +317,11 @@ class AbstractTPM(metaclass=ABCMeta):
             expectedval = self.sim_extend(data, hash_alg=hash_alg)
             if expectedval != pcrs_dict[config.TPM_DATA_PCR]:
                 logger.error(
-                    "%sPCR #%s: invalid bind data %s from quote does not match expected value %s",
+                    "%sPCR #%s: invalid bind data %s from quote (from agent %s) does not match expected value %s",
                     ("", "v")[virtual],
                     config.TPM_DATA_PCR,
                     pcrs_dict[config.TPM_DATA_PCR],
+                    agent_id,
                     expectedval,
                 )
                 failure.add_event(
@@ -322,9 +332,10 @@ class AbstractTPM(metaclass=ABCMeta):
             pcrs_in_quote.add(config.TPM_DATA_PCR)
         else:
             logger.error(
-                "Binding %sPCR #%s was not included in the quote, but is required",
+                "Binding %sPCR #%s was not included in the quote (from agent %s), but is required",
                 ("", "v")[virtual],
                 config.TPM_DATA_PCR,
+                agent_id,
             )
             failure.add_event(
                 f"missing_pcr_{config.TPM_DATA_PCR}",
@@ -334,7 +345,7 @@ class AbstractTPM(metaclass=ABCMeta):
         # Check for ima PCR
         if config.IMA_PCR in pcr_nums:
             if ima_measurement_list is None:
-                logger.error("IMA PCR in policy, but no measurement list provided")
+                logger.error("IMA PCR in policy, but no measurement list provided by agent %s", agent_id)
                 failure.add_event(
                     f"unused_pcr_{config.IMA_PCR}", "IMA PCR in policy, but no measurement list provided", True
                 )
@@ -359,7 +370,11 @@ class AbstractTPM(metaclass=ABCMeta):
             for pcr_num in set(config.MEASUREDBOOT_PCRS) & pcr_nums:
                 if mb_refstate_data:
                     if not mb_measurement_list:
-                        logger.error("Measured Boot PCR %d in policy, but no measurement list provided", pcr_num)
+                        logger.error(
+                            "Measured Boot PCR %d in policy, but no measurement list provided by agent %s",
+                            pcr_num,
+                            agent_id,
+                        )
                         failure.add_event(
                             f"unused_pcr_{pcr_num}",
                             f"Measured Boot PCR {pcr_num} in policy, but no measurement list provided",
@@ -373,10 +388,11 @@ class AbstractTPM(metaclass=ABCMeta):
                     pcrval_stripped = pcrs_dict[pcr_num].lstrip("0")
                     if val_from_log_hex_stripped != pcrval_stripped:
                         logger.error(
-                            "For PCR %d and hash %s the boot event log has value %r but the agent returned %r",
+                            "For PCR %d and hash %s the boot event log has value %r but the agent %s returned %r",
                             pcr_num,
                             str(hash_alg),
                             val_from_log_hex,
+                            agent_id,
                             pcrs_dict[pcr_num],
                         )
                         mb_pcr_failure.add_event(
@@ -391,10 +407,11 @@ class AbstractTPM(metaclass=ABCMeta):
 
                     if pcr_num in pcr_allowlist and pcrs_dict[pcr_num] not in pcr_allowlist[pcr_num]:
                         logger.error(
-                            "%sPCR #%s: %s from quote does not match expected value %s",
+                            "%sPCR #%s: %s from quote (from agent %s) does not match expected value %s",
                             ("", "v")[virtual],
                             pcr_num,
                             pcrs_dict[pcr_num],
+                            agent_id,
                             pcr_allowlist[pcr_num],
                         )
                         failure.add_event(
@@ -413,18 +430,20 @@ class AbstractTPM(metaclass=ABCMeta):
         for pcr_num in pcr_nums - pcrs_in_quote:
             if pcr_num not in list(pcr_allowlist.keys()):
                 logger.warning(
-                    "%sPCR #%s in quote not found in %stpm_policy, skipping.",
+                    "%sPCR #%s in quote (from agent %s) not found in %stpm_policy, skipping.",
                     ("", "v")[virtual],
                     pcr_num,
+                    agent_id,
                     ("", "v")[virtual],
                 )
                 continue
             if pcrs_dict[pcr_num] not in pcr_allowlist[pcr_num]:
                 logger.error(
-                    "%sPCR #%s: %s from quote does not match expected value %s",
+                    "%sPCR #%s: %s from quote (from agent %s) does not match expected value %s",
                     ("", "v")[virtual],
                     pcr_num,
                     pcrs_dict[pcr_num],
+                    agent_id,
                     pcr_allowlist[pcr_num],
                 )
                 failure.add_event(
@@ -441,7 +460,9 @@ class AbstractTPM(metaclass=ABCMeta):
 
         missing = set(pcr_allowlist.keys()) - pcrs_in_quote
         if len(missing) > 0:
-            logger.error("%sPCRs specified in policy not in quote: %s", ("", "v")[virtual], missing)
+            logger.error(
+                "%sPCRs specified in policy not in quote (from agent %s): %s", ("", "v")[virtual], agent_id, missing
+            )
             failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": list(missing)}, True)
 
         if not mb_failure and mb_refstate_data:
