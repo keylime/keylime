@@ -82,6 +82,7 @@ class DBEngineManager:
             if not url.count("sqlite:"):
                 engine_args["pool_size"] = int(p_sz)
                 engine_args["max_overflow"] = int(m_ovfl)
+                engine_args["pool_pre_ping"] = True
 
         # Enable DB debugging
         if config.DEBUG_DB and config.INSECURE_DEBUG:
