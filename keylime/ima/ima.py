@@ -36,7 +36,7 @@ class RUNTIME_POLICY_GENERATOR:
 # hash algorithm received from agent's IMA runtime measurements.
 # The only situation where this hard-coding would become a problem is if and when
 # the kernel maintainers decide to use a different algorithm for template-hash.
-EMPTY_RUNTIME_POLICY = {
+EMPTY_RUNTIME_POLICY: Dict[str, Any] = {
     "meta": {
         "version": RUNTIME_POLICY_CURRENT_VERSION,
         "generator": RUNTIME_POLICY_GENERATOR.EmptyAllowList,

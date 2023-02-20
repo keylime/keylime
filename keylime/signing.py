@@ -1,4 +1,6 @@
 import tempfile
+from os import PathLike
+from typing import Union
 
 import gpg
 from cryptography.exceptions import InvalidSignature
@@ -11,7 +13,12 @@ from keylime import keylime_logging
 logger = keylime_logging.init_logging("signing")
 
 
-def verify_signature_from_file(key_file: str, filename: str, sig_file: str, description: str) -> None:
+def verify_signature_from_file(
+    key_file: Union[str, PathLike[str]],
+    filename: Union[str, PathLike[str]],
+    sig_file: Union[str, PathLike[str]],
+    description: str,
+) -> None:
     """
     Verify the file signature on disk (sig_file) using a public key on disk
     (key_file) with the file on disk (file). All inputs should be file

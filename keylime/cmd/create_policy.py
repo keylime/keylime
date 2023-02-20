@@ -16,6 +16,8 @@ import tempfile
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from os import PathLike
+from typing import Any, Dict, List, Optional, Tuple
 
 from cryptography import x509
 from cryptography.hazmat import backends
@@ -31,13 +33,13 @@ from keylime.ima import file_signatures, ima
 from keylime.signing import verify_signature_from_file
 
 IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
-IGNORED_KEYRINGS = []
+IGNORED_KEYRINGS: List[str] = []
 
 # Estimation of a RPM header size
 HEADER_SIZE = 24 * 1024
 
 
-def is_x509_cert(bindata):
+def is_x509_cert(bindata: bytes) -> bool:
     """Determine whether the given bindata are a x509 cert"""
     try:
         x509.load_der_x509_certificate(bindata, backend=backends.default_backend())
@@ -46,7 +48,7 @@ def is_x509_cert(bindata):
         return False
 
 
-def process_flat_allowlist(allowlist_file, hashes_map):
+def process_flat_allowlist(allowlist_file: str, hashes_map: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
     """Process a flat allowlist file"""
     ret = 0
     try:
@@ -72,7 +74,9 @@ def process_flat_allowlist(allowlist_file, hashes_map):
     return hashes_map, ret
 
 
-def get_hashes_from_measurement_list(ima_measurement_list_file, hashes_map):
+def get_hashes_from_measurement_list(
+    ima_measurement_list_file: str, hashes_map: Dict[str, Any]
+) -> Tuple[Dict[str, Any], int]:
     """Get the hashes from the IMA measurement list file"""
     ret = 0
     try:
@@ -104,8 +108,13 @@ def get_hashes_from_measurement_list(ima_measurement_list_file, hashes_map):
 
 
 def process_ima_buf_in_measurement_list(
-    ima_measurement_list_file, ignored_keyrings, get_keyrings, keyrings_map, get_ima_buf, ima_buf_map
-):
+    ima_measurement_list_file: str,
+    ignored_keyrings: List[str],
+    get_keyrings: bool,
+    keyrings_map: Dict[str, List[str]],
+    get_ima_buf: bool,
+    ima_buf_map: Dict[str, List[str]],
+) -> Tuple[Dict[str, List[str]], Dict[str, List[str]], int]:
     """Process ima-buf entries and get the keyrings map from key-related entries
     and ima_buf map from the rest
     """
@@ -158,7 +167,7 @@ def process_ima_buf_in_measurement_list(
     return keyrings_map, ima_buf_map, ret
 
 
-def process_signature_verification_keys(verification_keys, policy):
+def process_signature_verification_keys(verification_keys: List[str], policy: Dict[str, Any]) -> Dict[str, Any]:
     """Add the given keys (x509 certificates) to keyring"""
 
     verification_key_list = None
@@ -187,7 +196,7 @@ def process_signature_verification_keys(verification_keys, policy):
     return policy
 
 
-def analyze_rpm_pkg(pkg):
+def analyze_rpm_pkgl(pkg: PathLike[str]) -> Dict[str, List[str]]:
     """Analyze a single RPM package."""
     ts = rpm.TransactionSet()
     ts.setVSFlags(rpm.RPMVSF_MASK_NOSIGNATURES | rpm.RPMVSF_MASK_NODIGESTS)
@@ -201,7 +210,7 @@ def analyze_rpm_pkg(pkg):
     return info
 
 
-def analyze_rpm_pkg_url(url):
+def analyze_rpm_pkg_url(url: str) -> Dict[str, List[Any]]:
     """Analyze a single RPM package from its URL."""
 
     # To fetch the header we can emulate rpmReadPackageFile, but this
@@ -242,7 +251,9 @@ def analyze_rpm_pkg_url(url):
     return info
 
 
-def analize_local_repo(repo, hash_map, jobs=None):
+def analize_local_repo(
+    repo: pathlib.Path, hash_map: Dict[str, str], jobs: Optional[int] = None
+) -> Tuple[Optional[Dict[str, str]], int]:
     repomd_xml = repo / "repodata" / "repomd.xml"
     if not repomd_xml.exists():
         print(f"{repomd_xml} cannot be found", file=sys.stderr)
@@ -268,14 +279,14 @@ def analize_local_repo(repo, hash_map, jobs=None):
 
     # Analyze all the RPMs in parallel
     with multiprocessing.Pool(jobs) as pool:
-        packages = pool.map(analyze_rpm_pkg, repo.glob("**/*.rpm"))
+        packages = pool.map(analyze_rpm_pkgl, repo.glob("**/*.rpm"))
 
     hash_map.update(dict(collections.ChainMap(*packages)))
 
     return hash_map, 0
 
 
-def _get(url):
+def _get(url: str) -> Optional[str]:
     try:
         with urllib.request.urlopen(url) as resp:
             with tempfile.NamedTemporaryFile(delete=False) as f:
@@ -285,7 +296,7 @@ def _get(url):
         return None
 
 
-def _get_rpm_urls(repo, repomd_xml):
+def _get_rpm_urls(repo: str, repomd_xml: str) -> List[str]:
     root = ET.parse(repomd_xml).getroot()
     location = root.find(
         "./{http://linux.duke.edu/metadata/repo}data[@type='primary']/{http://linux.duke.edu/metadata/repo}location"
@@ -312,7 +323,9 @@ def _get_rpm_urls(repo, repomd_xml):
     return [urllib.parse.urljoin(repo, l.attrib["href"]) for l in locations]
 
 
-def analize_remote_repo(repo, hash_map, jobs=None):
+def analize_remote_repo(
+    repo: str, hash_map: Dict[str, str], jobs: Optional[int] = None
+) -> Tuple[Optional[Dict[str, str]], int]:
     # Make the repo ends with "/", so we can be considered as a base URL
     repo = repo if repo.endswith("/") else f"{repo}/"
 
@@ -365,7 +378,7 @@ def analize_remote_repo(repo, hash_map, jobs=None):
     return hash_map, 0
 
 
-def main():
+def main() -> None:
     """main"""
     parser = argparse.ArgumentParser(description="This is tool for adding items to a Keylime's IMA runtime policy")
     parser.add_argument(
