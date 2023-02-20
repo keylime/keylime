@@ -16,7 +16,6 @@ import tempfile
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from os import PathLike
 from typing import Any, Dict, List, Optional, Tuple
 
 from cryptography import x509
@@ -31,6 +30,7 @@ except ModuleNotFoundError:
 
 from keylime.ima import file_signatures, ima
 from keylime.signing import verify_signature_from_file
+from keylime.types import PathLike_str
 
 IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
 IGNORED_KEYRINGS: List[str] = []
