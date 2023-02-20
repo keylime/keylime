@@ -16,7 +16,6 @@ import tempfile
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from os import PathLike
 from typing import Any, Dict, List, Optional, Tuple
 
 from cryptography import x509
@@ -31,6 +30,7 @@ except ModuleNotFoundError:
 
 from keylime.ima import file_signatures, ima
 from keylime.signing import verify_signature_from_file
+from keylime.types import PathLike_str
 
 IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
 IGNORED_KEYRINGS: List[str] = []
@@ -196,7 +196,7 @@ def process_signature_verification_keys(verification_keys: List[str], policy: Di
     return policy
 
 
-def analyze_rpm_pkgl(pkg: PathLike[str]) -> Dict[str, List[str]]:
+def analyze_rpm_pkgl(pkg: PathLike_str) -> Dict[str, List[str]]:
     """Analyze a single RPM package."""
     ts = rpm.TransactionSet()
     ts.setVSFlags(rpm.RPMVSF_MASK_NOSIGNATURES | rpm.RPMVSF_MASK_NODIGESTS)

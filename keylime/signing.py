@@ -1,5 +1,4 @@
 import tempfile
-from os import PathLike
 from typing import Union
 
 import gpg
@@ -9,14 +8,15 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
 from keylime import keylime_logging
+from keylime.types import PathLike_str
 
 logger = keylime_logging.init_logging("signing")
 
 
 def verify_signature_from_file(
-    key_file: Union[str, PathLike[str]],
-    filename: Union[str, PathLike[str]],
-    sig_file: Union[str, PathLike[str]],
+    key_file: Union[str, PathLike_str],
+    filename: Union[str, PathLike_str],
+    sig_file: Union[str, PathLike_str],
     description: str,
 ) -> None:
     """
