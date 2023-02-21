@@ -66,11 +66,10 @@ def process_flat_allowlist(allowlist_file: str, hashes_map: Dict[str, List[str]]
                 pieces = line.split(None, 1)
                 if not len(pieces) == 2:
                     print(f"Skipping line that was split into {len(pieces)} parts, expected 2: {line}", file=sys.stderr)
+                    continue
+
                 (checksum_hash, path) = pieces
-                if path in hashes_map:
-                    hashes_map[path].append(checksum_hash)
-                else:
-                    hashes_map[path] = [checksum_hash]
+                hashes_map.setdefault(path, []).append(checksum_hash)
     except (PermissionError, FileNotFoundError) as ex:
         print(f"An error occurred while accessing the allowlist: {ex}", file=sys.stderr)
         ret = 1
@@ -100,10 +99,7 @@ def get_hashes_from_measurement_list(
                 # FIXME: filenames with spaces may be problematic
                 checksum_hash = pieces[3].split(":")[1]
                 path = pieces[4]
-                if path in hashes_map:
-                    hashes_map[path].append(checksum_hash)
-                else:
-                    hashes_map[path] = [checksum_hash]
+                hashes_map.setdefault(path, []).append(checksum_hash)
     except (PermissionError, FileNotFoundError) as ex:
         print(f"An error occurred: {ex}", file=sys.stderr)
         ret = 1
@@ -153,17 +149,11 @@ def process_ima_buf_in_measurement_list(
                     if path in ignored_keyrings or not get_keyrings:
                         continue
 
-                    if path in keyrings_map:
-                        keyrings_map[path].append(checksum_hash)
-                    else:
-                        keyrings_map[path] = [checksum_hash]
+                    keyrings_map.setdefault(path, []).append(checksum_hash)
                     continue
 
                 if get_ima_buf:
-                    if path in ima_buf_map:
-                        ima_buf_map[path].append(checksum_hash)
-                    else:
-                        ima_buf_map[path] = [checksum_hash]
+                    ima_buf_map.setdefault(path, []).append(checksum_hash)
     except (PermissionError, FileNotFoundError) as ex:
         print(f"An error occurred: {ex}", file=sys.stderr)
         ret = 1
@@ -536,6 +526,10 @@ def main() -> None:
         sys.exit(ret)
 
     policy = process_signature_verification_keys(args.ima_signature_keys, policy)
+
+    # Ensure we only have unique values in lists
+    for key in ["digests", "ima-buf", "keyrings"]:
+        policy[key] = {k: sorted(list(set(v))) for k, v in policy[key].items()}  # type: ignore
 
     jsonpolicy = json.dumps(policy)
     if args.output:
