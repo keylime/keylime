@@ -30,6 +30,7 @@ try:
 except ModuleNotFoundError:
     HAS_RPM = False
 
+from keylime.common import validators
 from keylime.ima import file_signatures, ima
 from keylime.ima.types import RuntimePolicyType
 from keylime.signing import verify_signature_from_file
@@ -189,7 +190,33 @@ def process_signature_verification_keys(verification_keys: List[str], policy: Ru
     return policy
 
 
-def analyze_rpm_pkg(pkg: PathLike[str]) -> Dict[str, List[str]]:
+def process_exclude_list_file(exclude_list_file: str, excludes: List[str]) -> Tuple[List[str], int]:
+    """Add the contents of the IMA exclude list file to the given list"""
+    ret = 0
+    try:
+        with open(exclude_list_file, "r", encoding="utf-8") as fobj:
+            while True:
+                line = fobj.readline()
+                if not line:
+                    break
+
+                line = line.strip()
+                if not line:
+                    continue
+
+                _, err_msg = validators.valid_exclude_list([line])
+                if err_msg:
+                    print(f"Bad IMA exclude list rule '{line}': {err_msg}")
+                    return [], 1
+
+                excludes.append(line)
+    except (PermissionError, FileNotFoundError) as ex:
+        print(f"An error occurred: {ex}", file=sys.stderr)
+        ret = 1
+    return excludes, ret
+
+
+def analyze_rpm_pkg(pkg: PathLike_str) -> Dict[str, List[str]]:
     """Analyze a single RPM package."""
     ts = rpm.TransactionSet()
     ts.setVSFlags(rpm.RPMVSF_MASK_NOSIGNATURES | rpm.RPMVSF_MASK_NODIGESTS)
@@ -462,6 +489,13 @@ def main() -> None:
         "the key should be an x509 certificate in DER or PEM format but may also be a public or "
         "private key file; this option may be passed multiple times",
     )
+    parser.add_argument(
+        "-e",
+        "--exclude",
+        action="store",
+        dest="exclude_list_file",
+        help="An IMA exclude list file whose contents will be added to the policy",
+    )
     parser.add_argument("-l", "--local-repo", metavar="REPO", type=pathlib.Path, help="Local repo directory")
     parser.add_argument("-r", "--remote-repo", metavar="URL", help="Remote repo directory")
 
@@ -512,6 +546,11 @@ def main() -> None:
     if ret:
         sys.exit(ret)
 
+    if args.exclude_list_file:
+        policy["excludes"], ret = process_exclude_list_file(args.exclude_list_file, policy["excludes"])
+    if ret:
+        sys.exit(ret)
+
     if args.get_keyrings or args.get_ima_buf:
         policy["keyrings"], policy["ima-buf"], ret = process_ima_buf_in_measurement_list(
             args.ima_measurement_list,
@@ -530,6 +569,7 @@ def main() -> None:
     # Ensure we only have unique values in lists
     for key in ["digests", "ima-buf", "keyrings"]:
         policy[key] = {k: sorted(list(set(v))) for k, v in policy[key].items()}  # type: ignore
+    policy["excludes"] = sorted(list(set(policy["excludes"])))
 
     jsonpolicy = json.dumps(policy)
     if args.output:
