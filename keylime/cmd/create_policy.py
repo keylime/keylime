@@ -40,6 +40,16 @@ IGNORED_KEYRINGS: List[str] = []
 HEADER_SIZE = 24 * 1024
 
 
+def add_to_list(l: Optional[List[str]], value: str) -> List[str]:
+    """Add a value to a list or create a new list. Only add to list if it does not already exist."""
+    if l is None:
+        return [value]
+    if value in l:
+        return l
+    l.append(value)
+    return l
+
+
 def is_x509_cert(bindata: bytes) -> bool:
     """Determine whether the given bindata are a x509 cert"""
     try:
@@ -64,11 +74,10 @@ def process_flat_allowlist(allowlist_file: str, hashes_map: Dict[str, Any]) -> T
                 pieces = line.split(None, 1)
                 if not len(pieces) == 2:
                     print(f"Skipping line that was split into {len(pieces)} parts, expected 2: {line}", file=sys.stderr)
+                    continue
+
                 (checksum_hash, path) = pieces
-                if path in hashes_map:
-                    hashes_map[path].append(checksum_hash)
-                else:
-                    hashes_map[path] = [checksum_hash]
+                hashes_map[path] = add_to_list(hashes_map.get(path), checksum_hash)
     except (PermissionError, FileNotFoundError) as ex:
         print(f"An error occurred while accessing the allowlist: {ex}", file=sys.stderr)
         ret = 1
@@ -98,10 +107,7 @@ def get_hashes_from_measurement_list(
                 # FIXME: filenames with spaces may be problematic
                 checksum_hash = pieces[3].split(":")[1]
                 path = pieces[4]
-                if path in hashes_map:
-                    hashes_map[path].append(checksum_hash)
-                else:
-                    hashes_map[path] = [checksum_hash]
+                hashes_map[path] = add_to_list(hashes_map.get(path), checksum_hash)
     except (PermissionError, FileNotFoundError) as ex:
         print(f"An error occurred: {ex}", file=sys.stderr)
         ret = 1
@@ -151,17 +157,11 @@ def process_ima_buf_in_measurement_list(
                     if path in ignored_keyrings or not get_keyrings:
                         continue
 
-                    if path in keyrings_map:
-                        keyrings_map[path].append(checksum_hash)
-                    else:
-                        keyrings_map[path] = [checksum_hash]
+                    keyrings_map[path] = add_to_list(keyrings_map.get(path), checksum_hash)
                     continue
 
                 if get_ima_buf:
-                    if path in ima_buf_map:
-                        ima_buf_map[path].append(checksum_hash)
-                    else:
-                        ima_buf_map[path] = [checksum_hash]
+                    ima_buf_map[path] = add_to_list(ima_buf_map.get(path), checksum_hash)
     except (PermissionError, FileNotFoundError) as ex:
         print(f"An error occurred: {ex}", file=sys.stderr)
         ret = 1
