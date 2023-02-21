@@ -1,5 +1,5 @@
 Project Lead:
-@mpeters
+@maugustosilva
 
 Maintainers:
 
@@ -9,6 +9,6 @@ Maintainers:
 @lukehinds
 @jetwhiz
 @kaifeng
-@maugustosilva
+@mpeters
 @nabilschear
 @THS-on
