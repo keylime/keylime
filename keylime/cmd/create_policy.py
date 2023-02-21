@@ -502,7 +502,6 @@ def main() -> None:
     args = parser.parse_args()
 
     policy = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
-    policy["ima"]["ignored_keyrings"] = args.ignored_keyrings
 
     ret = 0
 
@@ -551,6 +550,8 @@ def main() -> None:
     if ret:
         sys.exit(ret)
 
+    policy["ima"]["ignored_keyrings"].extend(args.ignored_keyrings)
+
     if args.get_keyrings or args.get_ima_buf:
         policy["keyrings"], policy["ima-buf"], ret = process_ima_buf_in_measurement_list(
             args.ima_measurement_list,
@@ -570,6 +571,7 @@ def main() -> None:
     for key in ["digests", "ima-buf", "keyrings"]:
         policy[key] = {k: sorted(list(set(v))) for k, v in policy[key].items()}  # type: ignore
     policy["excludes"] = sorted(list(set(policy["excludes"])))
+    policy["ima"]["ignored_keyrings"] = sorted(list(set(policy["ima"]["ignored_keyrings"])))
 
     jsonpolicy = json.dumps(policy)
     if args.output:
