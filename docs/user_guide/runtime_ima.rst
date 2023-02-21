@@ -116,15 +116,15 @@ Creating more Complex Policies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The second script allows the user to build more complex policies by providing options to include:
 keyring verification, IMA verification keys, generating allowlist from IMA measurement log
-and extending existing policies. The :code:`create_policy` script is `available here <https://github.com/keylime/keylime/blob/master/scripts/create_policy>`_.
+and extending existing policies.
 
 A basic policy can be easily created by using a IMA measurement log from system::
 
-  ./scripts/create_policy -m /path/to/ascii_runtime_measurements -o runtime_policy.json
+  keylime_create_policy -m /path/to/ascii_runtime_measurements -o runtime_policy.json
 
-For the more options see the help page :code:`create_policy -h`::
+For the more options see the help page :code:`keylime_create_policy -h`::
 
-    usage: create_policy [-h] [-B BASE_POLICY] [-k] [-b] [-a ALLOWLIST] [-m IMA_MEASUREMENT_LIST] [-i IGNORED_KEYRINGS] [-o OUTPUT] [--no-hashes] [-A IMA_SIGNATURE_KEYS]
+    usage: keylime_create_policy [-h] [-B BASE_POLICY] [-k] [-b] [-a ALLOWLIST] [-m IMA_MEASUREMENT_LIST] [-i IGNORED_KEYRINGS] [-o OUTPUT] [--no-hashes] [-A IMA_SIGNATURE_KEYS]
 
     This is an experimental tool for adding items to a Keylime's IMA runtime policy
 
@@ -410,9 +410,9 @@ After the reboot the IMA measurement log should not have any measurement of the
 
    grep myecho /sys/kernel/security/ima/ascii_runtime_measurements
 
-We now create a new policy that includes the signing key using :code:`create_policy` script::
+We now create a new policy that includes the signing key using the :code:`keylime_create_policy` tool::
 
-  scripts/create_policy -B /path/to/runtime_policy.json -A /path/to/ima-pub.pem  -o /output/path/runtime_policy_with_key.json
+  keylime_create_policy -B /path/to/runtime_policy.json -A /path/to/ima-pub.pem  -o /output/path/runtime_policy_with_key.json
 
 After that we register the agent with the new policy::
 
