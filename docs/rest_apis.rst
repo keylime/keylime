@@ -88,7 +88,10 @@ Cloud verifier (CV)
             "verifier_ip": "127.0.0.1",
             "verifier_port": 8881,
             "severity_level": 6,
-            "last_event_id": "qoute_validation.quote_validation"
+            "last_event_id": "qoute_validation.quote_validation",
+            "attestation_count": 240,
+            "last_received_quote": 1676644582,
+            "last_successful_attestation": 1676644462
           }
         }
 
@@ -114,6 +117,9 @@ Cloud verifier (CV)
     :>json int verifier_port: Port of the verifier that is used.
     :>json int severity_level: Severity level of the agent. Might be `null`. Levels are the numeric representation of the severity labels.
     :>json string last_event_id: ID of the last revocation event. Might be `null`.
+    :>json int attestation_count: Number of quotes received from the agent which have verified successfully.
+    :>json int last_received_quote: Timestamp of the last quote received from the agent irrespective of validity. A value of 0 indicates no quotes have been received. May be `null` after upgrading from a previous Keylime version.
+    :>json int last_successful_attestation: Timestamp of the last quote received from the agent which verified successfully. A value of 0 indicates no valid quotes have been received. May be `null` after upgrading from a previous Keylime version.
 
 
 .. http:post::  /v2.1/agents/{agent_id:UUID}

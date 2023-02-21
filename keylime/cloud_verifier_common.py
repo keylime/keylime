@@ -204,7 +204,7 @@ def process_quote_response(
 
     if not failure:
         agent["attestation_count"] += 1
-
+        agent["last_successful_attestation"] = int(time.time())
         agent["tpm_clockinfo"] = agentAttestState.get_tpm_clockinfo().to_dict()
 
         # has public key changed? if so, clear out b64_encrypted_V, it is no longer valid
@@ -296,6 +296,7 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         "last_event_id": agent.last_event_id,
         "attestation_count": agent.attestation_count,
         "last_received_quote": agent.last_received_quote,
+        "last_successful_attestation": agent.last_successful_attestation,
     }
     return response
 
