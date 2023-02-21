@@ -281,7 +281,7 @@ def analize_local_repo(
     with multiprocessing.Pool(jobs) as pool:
         packages = pool.map(analyze_rpm_pkgl, repo.glob("**/*.rpm"))
 
-    hash_map.update(dict(collections.ChainMap(*packages)))
+    hash_map.update(dict(collections.ChainMap(*packages)))  # type: ignore
 
     return hash_map, 0
 
@@ -373,7 +373,7 @@ def analize_remote_repo(
     with multiprocessing.Pool(jobs) as pool:
         packages = pool.map(analyze_rpm_pkg_url, rpms)
 
-    hash_map.update(dict(collections.ChainMap(*packages)))
+    hash_map.update(dict(collections.ChainMap(*packages)))  # type: ignore
 
     return hash_map, 0
 
