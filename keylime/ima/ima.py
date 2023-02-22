@@ -188,37 +188,26 @@ def _validate_ima_sig(
     signature: ast.Signature,
 ) -> Failure:
     failure = Failure(Component.IMA, ["validator", "ima-sig"])
-    valid_signature = False
     if ima_keyrings and signature:
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug("IMA: ignoring excluded path %s", path.name)
             return failure
 
-        if not ima_keyrings.integrity_digsig_verify(signature.data, digest.hash, digest.algorithm):
-            logger.warning("signature for file %s is not valid", path.name)
-            failure.add_event("invalid_signature", f"signature for file {path.name} is not valid", True)
+        if ima_keyrings.integrity_digsig_verify(signature.data, digest.hash, digest.algorithm):
+            logger.debug("signature for file %s is good", path)
             return failure
 
-        valid_signature = True
-        logger.debug("signature for file %s is good", path)
-
-    # If there is also an allowlist verify the file against that but only do this if:
-    # - we did not evaluate the signature (valid_siganture = False)
-    # - the signature is valid and the file is also in the allowlist
-    if (
-        allowlist is not None
-        and allowlist.get("digests") is not None
-        and ((allowlist["digests"].get(path.name, None) is not None and valid_signature) or not valid_signature)
-    ):
-        # We use the normal ima_ng validator to validate hash
+    # If signature validation failed check if the allowlist matches
+    if allowlist is not None:
+        logger.debug("signature for file %s could not be validated. Trying allowlist.", path.name)
         return _validate_ima_ng(exclude_regex, allowlist, digest, path)
 
     # If we don't have a allowlist and don't have a keyring we just ignore the validation.
     if ima_keyrings is None:
         return failure
 
-    if not valid_signature:
-        failure.add_event("invalid_signature", f"signature for file {path.name} could not be validated", True)
+    logger.warning("signature verification for file %s failed and no allowlist is available", path.name)
+    failure.add_event("invalid_signature", f"signature for file {path.name} could not be validated", True)
     return failure
 
 
