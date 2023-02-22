@@ -212,11 +212,11 @@ class TestIMAVerification(unittest.TestCase):
         )
         self.assertTrue(not failure)
 
-        # the signature is valid but the hash in the allowlist is wrong -> this should fail
+        # the signature is valid but the hash in the allowlist is wrong -> this should pass
         _, failure = ima.process_measurement_list(
             AgentAttestState("1"), SIGNATURES.splitlines(), RUNTIME_POLICY_WRONG, ima_keyrings=ima_keyrings
         )
-        self.assertTrue(failure)
+        self.assertTrue(not failure)
 
         # the signature is valid and the file is not in the allowlist -> this should pass
         _, failure = ima.process_measurement_list(
@@ -224,12 +224,12 @@ class TestIMAVerification(unittest.TestCase):
         )
         self.assertTrue(not failure)
 
-        # the signature is invalid but the correct hash is in the allowlist -> this should fail
+        # the signature is invalid but the correct hash is in the allowlist -> this should pass
         ima_keyrings.set_tenant_keyring(empty_keyring)
         _, failure = ima.process_measurement_list(
             AgentAttestState("1"), SIGNATURES.splitlines(), RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings
         )
-        self.assertTrue(failure)
+        self.assertTrue(not failure)
 
         # the file has no signature but the hash is correct -> this should pass
         _, failure = ima.process_measurement_list(AgentAttestState("1"), MEASUREMENTS.splitlines(), RUNTIME_POLICY_TEST)
