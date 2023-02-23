@@ -8,24 +8,8 @@ enhancement process, please visit the enhancements [repository](https://github.c
 
 This document tracks only major changes done to Keylime. 
 
-## Rust Agent
-#### End of Q3-2022
-**Status:** mostly complete
-
-The Keylime agent is being ported to Rust Lang. This decision was made based on
-several reasons:
-
-* Rust is statically linked and does not require the ability to retrieve
-  dependencies. (Important for non internet connected machines or immutable read
-  only operating systems)
-* Rust can be more performant and generally requires less resources.
-* Rust provides strong safety guarantees (memory safe).
-
-For further details of development, please consult the [rust-keylime](https://github.com/keylime/rust-keylime)
-repository and the [Rust agent roadmap issue](https://github.com/keylime/keylime/issues/986).
-
 ## Removal of the Python Agent
-#### End of Q4-2022
+#### Q1-2023
 
 Once the Rust agent is stable the Python agent will be removed in two stages:
 
@@ -33,35 +17,48 @@ Once the Rust agent is stable the Python agent will be removed in two stages:
 2. Remove the agent from the code with the release of 7.0.0
 
 ## User Experience Improvements
-#### End of Q4-2022
 
-Some aspects of Keylime of the Keylime user experience can be improved: 
+Some aspects of Keylime's user experience can be improved: 
 
 * Update the user documentation (https://github.com/keylime/keylime/issues/1035)
-* Simplify the TLS setup (https://github.com/keylime/enhancements/pull/73)
-* Simplify the configuration (https://github.com/keylime/enhancements/pull/73)
-* Remove or rework WebUI
 * Investigate integration with monitoring systems (e.g. Prometheus)
 
-## Push Model
-#### Q4-2022 or Q1-2023
 
-Instead of the verifier connecting to the agent to retrieve the attestation data, 
-the agent can also send this data periodically to the verifier.
+## Move Keylime to a new Architecture and Refactoring
+### Q2/Q3-2023
+
+The main eventloop in Keylime is very focused on TPM based attestation in combination with IMA and Measured Boot.
+This has the disadvantage that it is currently not easy to support other forms of claims and evidence 
+(e.g. Intel SGX, AMD SEV) and their retrieval via different methods (e.g. push model, one shot attestation).
+Moving to a more flexible plugin or layered architecture allows us to implement those changes without requiring core changes to Keylime. 
+
+This entails the following aspects:
+* Evaluating the use of general policy languages for validation (e.g. Rego or Seedwing)
+* Use common remote attestation terminology (see where the current one differs to the [rats](https://datatracker.ietf.org/wg/rats/about/) one)
+* Evaluate the use of a plugin API and runtime specification
+* Moving the current validation parts into separate modules: quote validation, IMA validation, static PCR checks, Measured Boot
+* Implement the pull model as the default runtime
+* General cleanup of the code base: removing the tpm2-tools abstraction layer, cleanup API endpoints
+* Complete the split of the Rust agent into a library and the agent itself
+
+## Push Model
+#### Q3-2023
+Once the new architecture is implemented, we can implement another runtime that allows the agents
+to push the claims and evidence periodically to the verifier. This has the advantage, that the 
+verifier does not need a direct connection to the agents.
 
 Proposal: https://github.com/keylime/enhancements/issues/60 
 
 ## Improved Quote Validation
 Remove the need for “atomic quotes”, add clock validation and validate all IMA data first before validating content.
+Also done after the architecture change.
 
 Proposal: https://github.com/keylime/enhancements/issues/59 
 
-## Durable Attestation
-#### Q4-2022
 
-Attestation "artifacts" (e.g., quotes, IMA logs) collected by the verifier can be optionally written on a "persistent 
-time-series like store", allowing a third-party (e.g., an auditor) to assess the state of a given node N at a certain date D, 
-far in the past. This functionality will include the use of a "transparency log" to record the association between an given EK and AIK, 
-and a new command-line tool (keylime_attest) to perform "offline attestation").
+## IDevID Support
+### 2023
+IDevID is a standardized way for device identities that are generally deployed by the manufacturer.
+This allows Keylime to use this identity for remote attestation.
 
-Proposal: https://github.com/keylime/enhancements/pull/76
+More details can be found in the proposal: https://github.com/keylime/enhancements/blob/master/81-IDevID_and_IAK_support.md
