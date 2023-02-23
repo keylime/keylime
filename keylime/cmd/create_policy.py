@@ -458,8 +458,9 @@ def main() -> None:
         action="store",
         dest="ima_measurement_list",
         default=IMA_MEASUREMENT_LIST,
-        help="Use given IMA measurement list for keyrings and critical "
-        f"data extraction rather than {IMA_MEASUREMENT_LIST}",
+        help="Use given IMA measurement list for hash, keyring, and critical "
+        f"data extraction rather than {IMA_MEASUREMENT_LIST}; use /dev/null for "
+        "an empty list",
     )
     parser.add_argument(
         "-i",
