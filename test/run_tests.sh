@@ -20,15 +20,6 @@ UMODE_OPT=""
 COVERAGE=0
 COVERAGE_DIR=`pwd`
 unset COVERAGE_FILE
-RUST_TEST="${RUST_TEST:-0}"
-
-for opt in "$@"; do
-  shift
-  case "$opt" in
-    "--ssl") set -- "$@" "-s" ;;
-    *)       set -- "$@" "$opt"
-  esac
-done
 
 while getopts ":cuh:" opt; do
     case $opt in
@@ -109,30 +100,18 @@ fi
 if [ $PACKAGE_MGR = "dnf" ]; then
     PYTHON_PREIN="python3 openssl"
     PYTHON_DEPS="python3-pip python3-dbus"
-    RUST_DEPS="cargo rust openssl-devel libarchive-devel tpm2-tss-devel clang-devel gcc"
-    # Drop default features no not require zeromq nor support legacy revocation actions
-    RUST_PARAMS="--no-default-features"
 # RHEL / CentOS etc
 elif [ $PACKAGE_MGR = "yum" ]; then
     PYTHON_PREIN="epel-release python36 openssl"
     PYTHON_DEPS="python36-pip python36-dbus"
-    RUST_DEPS="cargo rust openssl-devel libarchive-devel tpm2-tss-devel clang-devel gcc"
-    # Drop default features no not require zeromq nor support legacy revocation actions
-    RUST_PARAMS="--no-default-features"
 # Ubuntu / Debian
 elif [ $PACKAGE_MGR = "apt-get" ]; then
     PYTHON_PREIN="python3 openssl"
     PYTHON_DEPS="python3-pip python3-dbus"
-    RUST_DEPS="cargo rustc librust-openssl-dev libarchive-dev libtss2-dev clang libclang-dev gcc"
-    # Drop default features no not require zeromq nor support legacy revocation actions
-    RUST_PARAMS="--no-default-features"
 # SUSE
 elif [ $PACKAGE_MGR = "zypper" ]; then
     PYTHON_PREIN="python3 openssl"
     PYTHON_DEPS="python3-pip python3-dbus"
-    RUST_DEPS="cargo rust openssl-devel libarchive-devel tpm2-0-tss-devel clang-devel gcc"
-    # Drop default features no not require zeromq nor support legacy revocation actions
-    RUST_PARAMS="--no-default-features"
 else
     echo "No recognized package manager found on this system!" 1>&2
     exit 1
@@ -179,40 +158,6 @@ if [[ ! "$KEYLIME_TEMP_DIR" || ! -d "$KEYLIME_TEMP_DIR" ]]; then
 fi
 
 export KEYLIME_TEMP_DIR=$KEYLIME_TEMP_DIR
-
-if [ "$RUST_TEST" == 1 ]; then
-    if [ "$USER_MODE" == "1" ]; then
-        echo -e "The rust dependencies cannot be installed as a non-root user, please re-run as root"
-        exit 1
-    else
-        $PACKAGE_MGR install -y $RUST_DEPS
-    fi
-
-    if [[ ! -d "$KEYLIME_SRC/../rust-keylime" ]]; then
-        git clone https://github.com/keylime/rust-keylime.git $KEYLIME_SRC/../rust-keylime
-    fi
-
-    pushd $KEYLIME_SRC/../rust-keylime && cargo build $RUST_PARAMS
-
-    export KEYLIME_RUST_AGENT="$(pwd)/target/debug/keylime_agent"
-
-    if [[ ! -f $KEYLIME_RUST_AGENT ]]; then
-        echo -e "Failed to compile rust agent. Check if all dependencies are installed: $RUST_DEPS"
-        exit 1
-    fi
-
-    export KEYLIME_RUST_CONF=$KEYLIME_TEMP_DIR/keylime-agent.conf
-
-    cp keylime-agent.conf $KEYLIME_RUST_CONF
-
-    echo -e "Setting tpm_ownerpassword as keylime"
-    sed -i 's/^tpm_ownerpassword =.*$/tpm_ownerpassword = "keylime"/g' $KEYLIME_RUST_CONF
-
-    echo -e "Setting agent uuid"
-    sed -i 's/^uuid =.*$/uuid = "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"/g' $KEYLIME_RUST_CONF
-
-    popd
-fi
 
 # Install Keylime
 echo
