@@ -15,7 +15,7 @@ import requests
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 
 from keylime import api_version as keylime_api_version
-from keylime import ca_util, cert_utils, config, crypto, keylime_logging, registrar_client, signing, web_util
+from keylime import ca_util, cert_utils, config, crypto, keylime_logging, registrar_client, web_util
 from keylime.agentstates import AgentAttestState
 from keylime.cli import options, policies
 from keylime.cmd import user_data_encrypt
@@ -68,7 +68,6 @@ class Tenant:
     runtime_policy_name: str = ""
     runtime_policy_key = None
     runtime_policy_sig = None
-    ima_sign_verification_keys: Optional[str] = ""
     revocation_key: str = ""
     accept_tpm_hash_algs: List[str] = []
     accept_tpm_encryption_algs: List[str] = []
@@ -280,7 +279,6 @@ class Tenant:
             self.tpm_policy,
             self.mb_refstate,
             self.runtime_policy_name,
-            self.ima_sign_verification_keys,
             self.runtime_policy,
             self.runtime_policy_key,
             self.runtime_policy_sig,
@@ -562,7 +560,6 @@ class Tenant:
             "runtime_policy_key": self.runtime_policy_key,
             "runtime_policy_sig": self.runtime_policy_sig,
             "mb_refstate": json.dumps(self.mb_refstate),
-            "ima_sign_verification_keys": self.ima_sign_verification_keys,
             "metadata": json.dumps(self.metadata),
             "revocation_key": self.revocation_key,
             "accept_tpm_hash_algs": self.accept_tpm_hash_algs,
@@ -1218,7 +1215,6 @@ class Tenant:
             self.tpm_policy,
             self.mb_refstate,
             self.runtime_policy_name,
-            self.ima_sign_verification_keys,
             self.runtime_policy,
             self.runtime_policy_key,
             self.runtime_policy_sig,
@@ -1393,49 +1389,6 @@ def main() -> None:
         help="Specify the file path of a runtime policy",
     )
     parser.add_argument(
-        "--signature-verification-key",
-        "--sign_verification_key",
-        action="append",
-        dest="ima_sign_verification_keys",
-        default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify an IMA file signature verification key",
-    )
-    parser.add_argument(
-        "--signature-verification-key-sig",
-        action="append",
-        dest="ima_sign_verification_key_sigs",
-        default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the GPG signature file for an IMA file signature verification key; pair this option with --signature-verification-key",
-    )
-    parser.add_argument(
-        "--signature-verification-key-sig-key",
-        action="append",
-        dest="ima_sign_verification_key_sig_keys",
-        default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the GPG public key file use to validate the --signature-verification-key-sig; pair this option with --signature-verification-key",
-    )
-    parser.add_argument(
-        "--signature-verification-key-url",
-        action="append",
-        dest="ima_sign_verification_key_urls",
-        default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the URL for a remote IMA file signature verification key",
-    )
-    parser.add_argument(
-        "--signature-verification-key-sig-url",
-        action="append",
-        dest="ima_sign_verification_key_sig_urls",
-        default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the URL for the remote GPG signature of a remote IMA file signature verification key; pair this option with --signature-verification-key-url",
-    )
-    parser.add_argument(
-        "--signature-verification-key-sig-url-key",
-        action="append",
-        dest="ima_sign_verification_key_sig_url_keys",
-        default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the GPG public key file used to validate the --signature-verification-key-sig-url; pair this option with --signature-verification-key-url",
-    )
-    parser.add_argument(
         "--mb_refstate",
         action="store",
         dest="mb_refstate",
@@ -1585,53 +1538,6 @@ def main() -> None:
                 raise Exception(
                     f"Downloading allowlist ({args.allowlist_url}) failed with status code {response.status_code}!"
                 )
-
-        # verify all the local keys for which we have a signature file and a key to verify
-        for i, key_file in enumerate(args.ima_sign_verification_keys):
-            if len(args.ima_sign_verification_key_sigs) <= i:
-                break
-            keysig_file = args.ima_sign_verification_key_sigs[i]
-            if len(args.ima_sign_verification_key_sig_keys) == 0:
-                raise UserError(f"A gpg key is missing for key signature file '{keysig_file}'")
-
-            gpg_key_file = args.ima_sign_verification_key_sig_keys[i]
-            signing.verify_signature_from_file(gpg_key_file, key_file, keysig_file, "IMA file signing key")
-
-            logger.info("Signature verification on %s was successful", key_file)
-
-        # verify all the remote keys for which we have a signature URL and key to to verify
-        # Append the downloaded key files to args.ima_sign_verification_keys
-        for i, key_url in enumerate(args.ima_sign_verification_key_urls):
-            logger.info("Downloading key from %s", key_url)
-            response = requests.get(key_url, timeout=mytenant.request_timeout, allow_redirects=False)
-            if response.status_code == 200:
-                key_file = write_to_namedtempfile(response.content, delete_tmp_files)
-                args.ima_sign_verification_keys.append(key_file)
-                logger.debug("Key temporarily saved in %s", key_file)
-            else:
-                raise Exception(f"Downloading key ({key_url}) failed with status code {response.status_code}!")
-
-            if len(args.ima_sign_verification_key_sig_urls) <= i:
-                continue
-
-            keysig_url = args.ima_sign_verification_key_sig_urls[i]
-
-            if len(args.ima_sign_verification_key_sig_url_keys) == 0:
-                raise UserError(f"A gpg key is missing for key signature URL '{keysig_url}'")
-
-            logger.info("Downloading key signature from %s", keysig_url)
-            response = requests.get(keysig_url, timeout=mytenant.request_timeout, allow_redirects=False)
-            if response.status_code == 200:
-                keysig_file = write_to_namedtempfile(response.content, delete_tmp_files)
-                logger.debug("Key signature temporarily saved in %s", keysig_file)
-            else:
-                raise Exception(
-                    f"Downloading key signature ({key_url}) failed with status code {response.status_code}!"
-                )
-
-            gpg_key_file = args.ima_sign_verification_key_sig_url_keys[i]
-            signing.verify_signature_from_file(gpg_key_file, key_file, keysig_file, "IMA file signing key")
-            logger.info("Signature verification on %s was successful", key_url)
 
     if args.command == "add":
         mytenant.init_add(vars(args))
