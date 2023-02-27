@@ -98,27 +98,27 @@ class TestConfig(unittest.TestCase):
 
     def test_merge_config(self):
         """Test reading multiple config files and merging them."""
-        config.CONFIG_FILES = {"agent": [os.path.join(CONFIG_DIR, "agent.conf")]}
-        config.CONFIG_ENV = {"agent": ""}
-        config.CONFIG_SNIPPETS_DIRS = {"agent": [os.path.join(CONFIG_DIR, "agent.conf.d")]}
-        c = config.get_config("agent")
-        self.assertEqual(c.get("agent", "attribute_1"), "value_1_3")
-        self.assertEqual(c.get("agent", "attribute_2"), "value_2")
-        self.assertEqual(c.get("agent", "attribute_3"), "value_3")
+        config.CONFIG_FILES = {"verifier": [os.path.join(CONFIG_DIR, "verifier.conf")]}
+        config.CONFIG_ENV = {"verifier": ""}
+        config.CONFIG_SNIPPETS_DIRS = {"verifier": [os.path.join(CONFIG_DIR, "verifier.conf.d")]}
+        c = config.get_config("verifier")
+        self.assertEqual(c.get("verifier", "attribute_1"), "value_1_3")
+        self.assertEqual(c.get("verifier", "attribute_2"), "value_2")
+        self.assertEqual(c.get("verifier", "attribute_3"), "value_3")
 
     def test_cache_config(self):
         """Test the config is properly cached between calls."""
-        config.CONFIG_FILES = {"agent": [os.path.join(CONFIG_DIR, "agent.conf")]}
-        config.CONFIG_ENV = {"agent": ""}
-        config.CONFIG_SNIPPETS_DIRS = {"agent": ""}
-        c = config.get_config("agent")
-        self.assertEqual(c.get("agent", "attribute", fallback=None), None)
+        config.CONFIG_FILES = {"verifier": [os.path.join(CONFIG_DIR, "verifier.conf")]}
+        config.CONFIG_ENV = {"verifier": ""}
+        config.CONFIG_SNIPPETS_DIRS = {"verifier": ""}
+        c = config.get_config("verifier")
+        self.assertEqual(c.get("verifier", "attribute", fallback=None), None)
 
-        c.set("agent", "attribute", "value")
-        self.assertEqual(c.get("agent", "attribute"), "value")
+        c.set("verifier", "attribute", "value")
+        self.assertEqual(c.get("verifier", "attribute"), "value")
 
-        c_copy = config.get_config("agent")
-        self.assertEqual(c_copy.get("agent", "attribute"), "value")
+        c_copy = config.get_config("verifier")
+        self.assertEqual(c_copy.get("verifier", "attribute"), "value")
 
     def test_reexport_function(self):
         """Test re-exported functions to access data."""
@@ -130,42 +130,42 @@ class TestConfig(unittest.TestCase):
     def test_env_overrides_all(self):
         """Test that using an env var to set config ignore other files"""
 
-        if "KEYLIME_AGENT_CONFIG" in os.environ:
-            env_bkp = os.environ["KEYLIME_AGENT_CONFIG"]
+        if "KEYLIME_VERIFIER_CONFIG" in os.environ:
+            env_bkp = os.environ["KEYLIME_VERIFIER_CONFIG"]
         else:
             env_bkp = ""
 
-        os.environ["KEYLIME_AGENT_CONFIG"] = os.path.join(CONFIG_DIR, "agent.conf")
+        os.environ["KEYLIME_VERIFIER_CONFIG"] = os.path.join(CONFIG_DIR, "verifier.conf")
 
         # Reload the configuration to use the set environment variable on setup
         importlib.reload(config)
-        config.CONFIG_SNIPPETS_DIRS = {"agent": [os.path.join(CONFIG_DIR, "agent.conf.d")]}
-        c = config.get_config("agent")
-        self.assertEqual(c.get("agent", "attribute_1"), "value_1")
-        self.assertRaises(Exception, c.get, "agent", "attribute_2")
-        self.assertRaises(Exception, c.get, "agent", "attribute_3")
+        config.CONFIG_SNIPPETS_DIRS = {"verifier": [os.path.join(CONFIG_DIR, "verifier.conf.d")]}
+        c = config.get_config("verifier")
+        self.assertEqual(c.get("verifier", "attribute_1"), "value_1")
+        self.assertRaises(Exception, c.get, "verifier", "attribute_2")
+        self.assertRaises(Exception, c.get, "verifier", "attribute_3")
 
         # Unset the variable to not affect other tests
-        os.environ["KEYLIME_AGENT_CONFIG"] = env_bkp
+        os.environ["KEYLIME_VERIFIER_CONFIG"] = env_bkp
 
     def test_get(self) -> None:
         """Sanity test for config.get()"""
 
-        config.CONFIG_FILES = {"agent": [os.path.join(CONFIG_DIR, "agent.conf")]}
-        config.CONFIG_ENV = {"agent": ""}
-        config.CONFIG_SNIPPETS_DIRS = {"agent": ""}
+        config.CONFIG_FILES = {"verifier": [os.path.join(CONFIG_DIR, "verifier.conf")]}
+        config.CONFIG_ENV = {"verifier": ""}
+        config.CONFIG_SNIPPETS_DIRS = {"verifier": ""}
 
         # Check that non-existing option will fallback
-        self.assertEqual(config.get("agent", "attribute", fallback="fallback"), "fallback")
+        self.assertEqual(config.get("verifier", "attribute", fallback="fallback"), "fallback")
 
         # Check that existing option is properly obtained
-        self.assertEqual(config.get("agent", "attribute_1", fallback="fallback"), "value_1")
+        self.assertEqual(config.get("verifier", "attribute_1", fallback="fallback"), "value_1")
 
         # Check that quoted option is unquoted
-        self.assertEqual(config.get("agent", "quoted"), "unquoted")
+        self.assertEqual(config.get("verifier", "quoted"), "unquoted")
 
         # Check that quotes and trailing spaces are properly removed
-        self.assertEqual(config.get("agent", "quotes_spaces"), "unquoted")
+        self.assertEqual(config.get("verifier", "quotes_spaces"), "unquoted")
 
     def test_check_version(self) -> None:
         """Sanity check for check_version"""
