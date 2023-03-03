@@ -4,6 +4,7 @@ codecov:
 
 coverage:
   fixes:
+  - "/usr/share/keylime/scripts/::scripts/"
   - "/usr/local/bin/keylime_::keylime/cmd/"
   - "/usr/local/lib/python*/site-packages/keylime-*/::"
   status:
