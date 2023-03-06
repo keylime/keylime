@@ -51,8 +51,6 @@ INSECURE_DEBUG = False
 # allow the emuatlor to not have an ekcert even if check ekcert is true
 DISABLE_EK_CERT_CHECK_EMULATOR = False
 
-# whether to use tpmfs or not
-MOUNT_SECURE = True
 
 DEFAULT_WORK_DIR = "/var/lib/keylime"
 WORK_DIR = os.getenv("KEYLIME_DIR", DEFAULT_WORK_DIR)
@@ -70,13 +68,11 @@ if TEST_MODE:
         "- Change the KEYLIME_DIR to CWD"
     )
     DISABLE_EK_CERT_CHECK_EMULATOR = True
-    MOUNT_SECURE = False
     # Different default WORK_DIR in TEST_MODE
     WORK_DIR = os.getenv("KEYLIME_DIR", os.getcwd())
 
 # Possible paths for base configuration files
 CONFIG_FILES = {
-    "agent": ["/etc/keylime/agent.conf", "/usr/etc/keylime/agent.conf"],
     "verifier": ["/etc/keylime/verifier.conf", "/usr/etc/keylime/verifier.conf"],
     "tenant": ["/etc/keylime/tenant.conf", "/usr/etc/keylime/tenant.conf"],
     "registrar": ["/etc/keylime/registrar.conf", "/usr/etc/keylime/registrar.conf"],
@@ -87,7 +83,6 @@ CONFIG_FILES = {
 # Paths to directories in which options can be overriden using configuration
 # snippets
 CONFIG_SNIPPETS_DIRS = {
-    "agent": ["/usr/etc/keylime/agent.conf.d", "/etc/keylime/agent.conf.d"],
     "verifier": ["/usr/etc/keylime/verifier.conf.d", "/etc/keylime/verifier.conf.d"],
     "tenant": ["/usr/etc/keylime/tenant.conf.d", "/etc/keylime/tenant.conf.d"],
     "registrar": ["/usr/etc/keylime/registrar.conf.d", "/etc/keylime/registrar.conf.d"],
@@ -96,7 +91,6 @@ CONFIG_SNIPPETS_DIRS = {
 }
 
 CONFIG_ENV = {
-    "agent": "",
     "verifier": "",
     "tenant": "",
     "registrar": "",
@@ -105,8 +99,6 @@ CONFIG_ENV = {
 }
 
 # Add files from environment variables, if set
-if "KEYLIME_AGENT_CONFIG" in os.environ:
-    CONFIG_ENV["agent"] = os.environ["KEYLIME_AGENT_CONFIG"]
 if "KEYLIME_VERIFIER_CONFIG" in os.environ:
     CONFIG_ENV["verifier"] = os.environ["KEYLIME_VERIFIER_CONFIG"]
 if "KEYLIME_TENANT_CONFIG" in os.environ:
@@ -137,18 +129,17 @@ def get_config(component: str) -> RawConfigParser:
 
     The system administrator can define overrides for the values through
     configuration snippets in /etc/keylime/<component>.config.d, where
-    <component> is one of: "agent", "verifier", "tenant", "registrar", "ca", or
-    "logging".
+    <component> is one of: "verifier", "tenant", "registrar", "ca", or "logging".
 
     The configuration processing follows the steps described below:
 
     * If a configuration path is set through environment variable, use the
     configuration from this file and ignore configuration from other files.
     * Check if the configuration file for the component is present in
-    /usr/etc/keylime (e.g. /usr/etc/keylime/agent.conf). If found, this file is
+    /usr/etc/keylime (e.g. /usr/etc/keylime/verifier.conf). If found, this file is
     used as the base configuration file for the component
     * Check if the configuration file for the component is present in
-    /etc/keylime (e.g. /etc/keylime/agent.conf). If found, set this file as the
+    /etc/keylime (e.g. /etc/keylime/verifier.conf). If found, set this file as the
     base configuration file for the component, ignoring any previously set base
     configuration file.
     * Find and apply any override from files in /etc/keylime/<component.d> to
@@ -426,17 +417,11 @@ IMA_PCR = 10
 # PCRs 8-9: bootloader (grub)
 # PCR 14: MokList, MokListX, and MokSBState
 MEASUREDBOOT_PCRS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15]
-MEASUREDBOOT_ML = "/sys/kernel/security/tpm0/binary_bios_measurements"
 
 LIBEFIVAR = "libefivar.so.1"  # formerly "/usr/lib/x86_64-linux-gnu/libefivar.so"
 
 # this is where data will be bound to a quote, MUST BE RESETABLE!
 TPM_DATA_PCR = 16
-
-# the size of the bootstrap key for AES-GCM 256bit
-BOOTSTRAP_KEY_SIZE = 32
-
-CRL_PORT = 38080
 
 # Enable DB debugging via environment variable DEBUG_DB
 # This is only effective when INSECURE_DEBUG is also True
