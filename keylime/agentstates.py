@@ -95,7 +95,7 @@ class AgentAttestState:
     agent_id: str
     next_ima_ml_entry: int
     boottime: int
-    tpm_clocking: TPMClockInfo
+    tpm_clockinfo: TPMClockInfo
     tpm_state: TPMState
     ima_pcrs: Set[int]
     ima_keyring: ImaKeyrings
