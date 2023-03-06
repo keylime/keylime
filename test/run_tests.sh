@@ -180,13 +180,6 @@ python3 -m keylime.cmd.convert_config \
 echo -e "Setting require_ek_cert to False"
 sed -i 's/require_ek_cert = True/require_ek_cert = False/g' $KEYLIME_CONF_DIR/tenant.conf
 
-echo -e "Setting agent uuid"
-sed -i 's/^uuid =.*$/uuid = d432fbb3-d2f1-4a97-9ef7-75bd81c00000/g' $KEYLIME_CONF_DIR/agent.conf
-
-echo -e "Setting tpm_ownerpassword as keylime"
-sed -i 's/^tpm_ownerpassword =.*$/tpm_ownerpassword = "keylime"/g' $KEYLIME_CONF_DIR/agent.conf
-
-export KEYLIME_AGENT_CONFIG=$KEYLIME_CONF_DIR/agent.conf
 export KEYLIME_VERIFIER_CONFIG=$KEYLIME_CONF_DIR/verifier.conf
 export KEYLIME_REGISTRAR_CONFIG=$KEYLIME_CONF_DIR/registrar.conf
 export KEYLIME_TENANT_CONFIG=$KEYLIME_CONF_DIR/tenant.conf
@@ -243,11 +236,6 @@ echo $'\t\t\tCleanup'
 echo "=================================================================================="
 # The generated files can be kept by setting the environment variable KEEP_TMP_FILES=1
 if [[ ! "$KEEP_TMP_FILES" -eq "1" ]]; then
-    if [[ $(findmnt -M "$KEYLIME_TEMP_DIR/keylime_dir/secure") ]]; then
-        echo -e "Umount $KEYLIME_TEMP_DIR/keylime_dir/secure"
-        umount "$KEYLIME_TEMP_DIR/keylime_dir/secure"
-    fi
-
     echo -e "Removing $KEYLIME_TEMP_DIR"
     rm -rf $KEYLIME_TEMP_DIR
 else
