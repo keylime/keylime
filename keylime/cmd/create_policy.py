@@ -358,14 +358,23 @@ def analize_remote_repo(repo, hash_map, jobs=None):
     filelists_ext_xml = _get_filelists_ext_xml(repo, repomd_xml_tmp)
     if filelists_ext_xml:
         filelists_ext_xml_tmp = _get(filelists_ext_xml)
+        if not filelists_ext_xml_tmp:
+            print(f"{filelists_ext_xml} cannot be found", file=sys.stderr)
+            os.remove(repomd_xml_tmp)
+            return None, 1
+
         root = ET.parse(gzip.open(filelists_ext_xml_tmp))
         os.remove(filelists_ext_xml_tmp)
         os.remove(repomd_xml_tmp)
 
         files = root.findall(".//{http://linux.duke.edu/metadata/filelists-ext}file[@hash]")
-        info = {f.text: [f.attrib["hash"]] for f in files}
+        for f in files:
+            if not f.text:
+                continue
+            v = hash_map.get(f.text, [])
+            v.append(f.attrib["hash"])
+            hash_map[f.text] = v
 
-        hash_map.update(info)
         return hash_map, 0
 
     # If not, use the slow method
