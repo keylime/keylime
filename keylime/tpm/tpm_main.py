@@ -29,14 +29,12 @@ logger = keylime_logging.init_logging("tpm")
 
 
 class tpm(tpm_abstract.AbstractTPM):
-    VERSION: int = 2
     tools_version: str = ""
 
     tpmutilLock: threading.Lock
 
-    def __init__(self, need_hw_tpm: bool = False) -> None:
-        tpm_abstract.AbstractTPM.__init__(self, need_hw_tpm)
-
+    def __init__(self) -> None:
+        super().__init__()
         # Shared lock to serialize access to tools
         self.tpmutilLock = threading.Lock()
 
@@ -96,7 +94,6 @@ class tpm(tpm_abstract.AbstractTPM):
         lock: bool = True,
         outputpaths: Optional[Union[List[str], str]] = None,
     ) -> cmd_exec.RetDictType:
-
         # Convert single outputpath to list
         if isinstance(outputpaths, str):
             outputpaths = [outputpaths]
@@ -428,7 +425,8 @@ class tpm(tpm_abstract.AbstractTPM):
 
         failure = Failure(Component.QUOTE_VALIDATION)
         if hash_alg is None:
-            hash_alg = Hash(self.defaults["hash"])
+            failure.add_event("hash_alg_missing", "Hash algorithm cannot be empty", False)
+            return failure
 
         # First and foremost, the quote needs to be validated
         retout, success = self._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, hash_alg, compressed)
@@ -530,11 +528,8 @@ class tpm(tpm_abstract.AbstractTPM):
 
         return None, current_clockinfo
 
-    def sim_extend(self, hashval_1: str, hashval_0: Optional[str] = None, hash_alg: Optional[Hash] = None) -> str:
-        # simulate extending a PCR value by performing TPM-specific extend procedure
-
-        if hashval_0 is None:
-            hashval_0 = self.START_HASH(hash_alg)
+    def sim_extend(self, hashval_1: str, hash_alg: Hash) -> str:
+        hashval_0 = self.START_HASH(hash_alg)
 
         # compute expected value  H(0|H(data))
         hdata = self.hashdigest(hashval_1.encode("utf-8"), hash_alg)
@@ -545,7 +540,6 @@ class tpm(tpm_abstract.AbstractTPM):
         )
         assert hext is not None
         return hext.lower()
-
 
     @staticmethod
     def __stringify_pcr_keys(log: Dict[str, Dict[str, Dict[str, str]]]) -> None:

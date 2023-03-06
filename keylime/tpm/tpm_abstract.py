@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from keylime import config, crypto, json, keylime_logging, measured_boot
 from keylime.agentstates import AgentAttestState
-from keylime.common import algorithms
 from keylime.common.algorithms import Hash
 from keylime.elchecking.policies import RefState
 from keylime.failure import Component, Failure
@@ -64,27 +63,6 @@ class TPM_Utilities:
 class AbstractTPM(metaclass=ABCMeta):
     # Abstract base class
     EXIT_SUCESS: int = 0
-    TPM_IO_ERR: int = 5
-    EMPTYMASK: str = "1"
-    MAX_NONCE_SIZE: int = 64
-
-    need_hw_tpm: bool
-    global_tpmdata: Optional[Dict[str, TPMDataTypes]]
-    tpmrand_warned: bool
-    defaults: Dict[str, Union[str, Hash]]
-    supported: Dict[str, Set[str]]
-
-    # constructor
-    def __init__(self, need_hw_tpm: bool = True) -> None:
-        # read the config file
-        self.need_hw_tpm = need_hw_tpm
-        self.global_tpmdata = None
-        self.tpmrand_warned = False
-        self.defaults = {}
-        self.defaults["hash"] = Hash.SHA1
-        self.defaults["encrypt"] = algorithms.Encrypt.RSA
-        self.defaults["sign"] = algorithms.Sign.RSASSA
-        self.supported = {}
 
     @abstractmethod
     def verify_ek(self, ekcert: bytes, tpm_cert_store: str) -> bool:
@@ -109,24 +87,20 @@ class AbstractTPM(metaclass=ABCMeta):
     ) -> Failure:
         pass
 
-    def START_HASH(self, algorithm: Optional[Hash] = None) -> str:
-        if algorithm is None:
-            algorithm = Hash(self.defaults["hash"])
-
+    @staticmethod
+    def START_HASH(algorithm: Hash) -> str:
         alg_size = algorithm.get_size() // 4
         return "0" * alg_size
 
-    def hashdigest(self, payload: bytes, algorithm: Optional[Hash] = None) -> Optional[str]:
-        if algorithm is None:
-            algorithm = Hash(self.defaults["hash"])
-
+    @staticmethod
+    def hashdigest(payload: bytes, algorithm: Hash) -> Optional[str]:
         digest = algorithm.hash(payload)
         if digest is None:
             return None
         return codecs.encode(digest, "hex").decode("utf-8")
 
     @abstractmethod
-    def sim_extend(self, hashval_1: str, hashval_0: Optional[str] = None, hash_alg: Optional[Hash] = None) -> str:
+    def sim_extend(self, hashval_1: str, hash_alg: Hash) -> str:
         pass
 
     @staticmethod
@@ -223,7 +197,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
         # Validate data PCR
         if config.TPM_DATA_PCR in pcr_nums and data is not None:
-            expectedval = self.sim_extend(data, hash_alg=hash_alg)
+            expectedval = self.sim_extend(data, hash_alg)
             if expectedval != pcrs_dict[config.TPM_DATA_PCR]:
                 logger.error(
                     "%sPCR #%s: invalid bind data %s from quote (from agent %s) does not match expected value %s",
