@@ -156,7 +156,6 @@ esac
 # Command line params
 STUB=0
 KEYLIME_DIR=
-TPM_SOCKET=0
 while getopts ":shckmp:" opt; do
     case $opt in
         k) STUB=1 ;;
@@ -168,13 +167,11 @@ while getopts ":shckmp:" opt; do
             fi
             ;;
         m) ;;
-        s) TPM_SOCKET=1 NEED_BUILD_TOOLS=1 ;;
         h)
             echo "Usage: $0 [option...]"
             echo "Options:"
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
             echo $'-m \t\t\t\t Use modern TPM 2.0 libraries; this is the default'
-            echo $'-s \t\t\t\t Install & use a Software TPM emulator (development only)'
             echo $'-p PATH \t\t\t Use PATH as Keylime path'
             echo $'-h \t\t\t\t This help info'
             exit
@@ -374,32 +371,6 @@ if [[ -z "$(command -v tpm2_getrandom)" ]] ; then
     exit 1
 fi
 
-if [[ "$TPM_SOCKET" -eq "1" ]] ; then
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\t\tBuild and install TPM2 simulator'
-    echo "=================================================================================="
-
-    # Download and unpack swtpm2
-    TMPFILE=`mktemp -t swtpm2.XXXXXXXXXX.tar.gz` || exit 1
-    wget "$TPM2SIM_SRC" -O $TMPFILE
-    if [[ $? -ne 0 ]] ; then
-        echo "ERROR: Failed to download TPM2 simulator!"
-        exit 1
-    fi
-    mkdir swtpm2
-    tar -C ./swtpm2 -xzf $TMPFILE
-    pushd swtpm2
-
-    # Begin building and installing swtpm2
-    pushd src
-    make
-    install -c tpm_server /usr/local/bin/tpm_server
-
-    popd # tpm/swtpm2
-fi
-
-
 # Install keylime
 echo
 echo "=================================================================================="
@@ -450,30 +421,4 @@ if [ ! -d "/var/lib/keylime/tpm_cert_store" ]; then
 else
   echo "Updating existing cert store"
   cp -n $KEYLIME_DIR/tpm_cert_store/* /var/lib/keylime/tpm_cert_store/
-fi
-
-# don't start the emulator until after keylime is installed
-if [[ "$TPM_SOCKET" -eq "1" ]] ; then
-    echo
-    echo "=================================================================================="
-    echo $'\t\t\t\tStart TPM emulator'
-    echo "=================================================================================="
-    # starts emulator and IMA stub at boot
-    cd $KEYLIME_DIR/ima_stub_service
-    ./installer.sh
-
-    echo "=================================================================================="
-    echo $'\tWARNING: Please set the env var for accessing the TPM:'
-    echo $'\tTPM2TOOLS_TCTI="mssim:port=2321"'
-    echo "=================================================================================="
-
-    # disable ek cert checking
-    sed -i 's/require_ek_cert = True/require_ek_cert = False/' /etc/keylime/tenant.conf
-else
-    # Warn that we don't use abrmd anymore.
-    echo "=================================================================================="
-    echo $'\tWARNING: Keylime uses /dev/tpmrm0 by default.'
-    echo $'\t         If you want to use abrmd set:'
-    echo $'\tTPM2TOOLS_TCTI=="tabrmd:bus_name=com.intel.tss2.Tabrmd"'
-    echo "=================================================================================="
 fi
