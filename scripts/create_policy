@@ -285,6 +285,14 @@ def _get(url):
         return None
 
 
+def _get_filelists_ext_xml(repo, repomd_xml):
+    root = ET.parse(repomd_xml).getroot()
+    location = root.find(
+        "./{http://linux.duke.edu/metadata/repo}data[@type='filelists-ext']/{http://linux.duke.edu/metadata/repo}location"
+    )
+    return urllib.parse.urljoin(repo, location.attrib["href"]) if location is not None else None
+
+
 def _get_rpm_urls(repo, repomd_xml):
     root = ET.parse(repomd_xml).getroot()
     location = root.find(
@@ -346,6 +354,22 @@ def analize_remote_repo(repo, hash_map, jobs=None):
     else:
         print("Warning. Unsigned repository. Continuing the RPM scanning", file=sys.stderr)
 
+    # Check if this repo contains the filelists-ext.xml metadata
+    filelists_ext_xml = _get_filelists_ext_xml(repo, repomd_xml_tmp)
+    if filelists_ext_xml:
+        filelists_ext_xml_tmp = _get(filelists_ext_xml)
+        root = ET.parse(gzip.open(filelists_ext_xml_tmp))
+        os.remove(filelists_ext_xml_tmp)
+        os.remove(repomd_xml_tmp)
+
+        files = root.findall(".//{http://linux.duke.edu/metadata/filelists-ext}file[@hash]")
+        info = {f.text: [f.attrib["hash"]] for f in files}
+
+        hash_map.update(info)
+        return hash_map, 0
+
+    # If not, use the slow method
+    print("Warning. filelist-ext.xml not present in the repo", file=sys.stderr)
     rpms = _get_rpm_urls(repo, repomd_xml_tmp)
     os.remove(repomd_xml_tmp)
 
