@@ -2,9 +2,12 @@
 
   summary: run keylime e2e tests
 
+  environment:
+    RUST_IMA_EMULATOR: 1
+
   context:
     swtpm: yes
-    agent: python
+    agent: rust
 
   prepare:
    - how: shell
@@ -20,6 +23,7 @@
     test:
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
+     - /setup/install_upstream_rust_keylime
      - /setup/enable_keylime_coverage
      # change IMA policy to simple and run one attestation scenario
      # this is to utilize also a different parser
@@ -48,11 +52,6 @@
      - /functional/tpm-issuer-cert-using-ecc
      - /functional/tpm_policy-sanity-on-localhost
      - /functional/use-multiple-ima-sign-verification-keys
-     # now set zeromq as a default revocation notifier and test it
-     - /setup/configure_default_revocation_notifier/zeromq
-     - /functional/basic-attestation-on-localhost
-     # now set revocation notifier back to agent
-     - /setup/configure_default_revocation_notifier/agent
      - /upstream/run_keylime_tests
      - /setup/generate_coverage_report
 
@@ -99,9 +98,10 @@
   environment:
     KEYLIME_TEST_DISABLE_REVOCATION: 1
 
+
   context:
     swtpm: yes
-    agent: python
+    agent: rust
 
   prepare:
    - how: shell
@@ -117,6 +117,7 @@
     test:
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
+     - /setup/install_upstream_rust_keylime
      - /functional/basic-attestation-on-localhost
      - /functional/basic-attestation-with-custom-certificates
      - /functional/basic-attestation-without-mtls
