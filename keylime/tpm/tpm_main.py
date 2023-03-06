@@ -479,7 +479,6 @@ class tpm(tpm_abstract.AbstractTPM):
             tpm_policy,
             pcrs,
             data,
-            False,
             ima_measurement_list,
             runtime_policy,
             ima_keyrings,

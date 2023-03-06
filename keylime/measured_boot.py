@@ -75,13 +75,12 @@ def evaluate_policy(
     mb_refstate_data: RefState,
     mb_measurement_data: tests.Data,
     pcrsInQuote: Set[int],
-    pcrPrefix: str,
     agent_id: str,
 ) -> Failure:
     failure = Failure(Component.MEASURED_BOOT)
     missing = list(set(config.MEASUREDBOOT_PCRS).difference(pcrsInQuote))
     if len(missing) > 0:
-        logger.error("%sPCRs specified for measured boot not in quote: %s", pcrPrefix, missing)
+        logger.error("PCRs specified for measured boot not in quote: %s", missing)
         failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": missing}, True)
     try:
         if mb_policy is None:
