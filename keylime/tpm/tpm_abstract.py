@@ -1,16 +1,7 @@
 import codecs
-import os
 import string
 from abc import ABCMeta, abstractmethod
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
-
-import yaml
-
-try:
-    from yaml import CSafeDumper as SafeDumper
-    from yaml import CSafeLoader as SafeLoader
-except ImportError:
-    from yaml import SafeLoader, SafeDumper  # type: ignore
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from keylime import config, crypto, json, keylime_logging, measured_boot
 from keylime.agentstates import AgentAttestState
@@ -95,78 +86,8 @@ class AbstractTPM(metaclass=ABCMeta):
         self.defaults["sign"] = algorithms.Sign.RSASSA
         self.supported = {}
 
-    # tpm_initialize
-    @abstractmethod
-    def flush_keys(self) -> None:
-        pass
-
-    @abstractmethod
-    def encryptAIK(self, uuid: str, ek_tpm: bytes, aik_tpm: bytes) -> Optional[Tuple[bytes, str]]:
-        pass
-
-    @abstractmethod
-    def activate_identity(self, keyblob: str) -> Optional[bytes]:
-        pass
-
     @abstractmethod
     def verify_ek(self, ekcert: bytes, tpm_cert_store: str) -> bool:
-        pass
-
-    @abstractmethod
-    def get_tpm_manufacturer(self, output: Optional[List[bytes]] = None) -> Optional[str]:
-        pass
-
-    @abstractmethod
-    def is_emulator(self) -> bool:
-        pass
-
-    def warn_emulator(self) -> None:
-        if self.is_emulator():
-            logger.warning("INSECURE: Keylime is using a software TPM emulator rather than a real hardware TPM.")
-            logger.warning("INSECURE: The security of Keylime is currently NOT linked to a hardware root of trust.")
-            logger.warning("INSECURE: Only use Keylime in this mode for testing or debugging purposes.")
-
-    @staticmethod
-    def __read_tpm_data() -> Dict[str, TPMDataTypes]:
-        if os.path.exists("tpmdata.yml"):
-            with open("tpmdata.yml", "rb") as f:
-                return cast(Dict[str, TPMDataTypes], yaml.load(f, Loader=SafeLoader))
-        else:
-            return {}
-
-    def __write_tpm_data(self) -> None:
-        with os.fdopen(os.open("tpmdata.yml", os.O_WRONLY | os.O_CREAT, 0o600), "w", encoding="utf-8") as f:
-            yaml.dump(self.global_tpmdata, f, Dumper=SafeDumper)
-
-    def get_tpm_metadata(self, key: str) -> Optional[TPMDataTypes]:
-        if self.global_tpmdata is None:
-            self.global_tpmdata = AbstractTPM.__read_tpm_data()
-        return self.global_tpmdata.get(key, None)
-
-    def _set_tpm_metadata(self, key: str, value: Any) -> None:
-        if self.global_tpmdata is None:
-            self.global_tpmdata = AbstractTPM.__read_tpm_data()
-
-        if self.global_tpmdata.get(key, None) is not value:
-            self.global_tpmdata[key] = value
-            self.__write_tpm_data()
-
-    @abstractmethod
-    def tpm_init(
-        self, self_activate: bool = False, config_pw: Optional[str] = None
-    ) -> Tuple[Optional[bytes], Optional[bytes], Optional[bytes]]:
-        pass
-
-    # tpm_quote
-    @abstractmethod
-    def create_quote(
-        self,
-        nonce: str,
-        data: Optional[bytes] = None,
-        pcrmask: str = EMPTYMASK,
-        hash_alg: Optional[str] = None,
-        compress: bool = False,
-    ) -> str:
         pass
 
     @abstractmethod
@@ -206,18 +127,6 @@ class AbstractTPM(metaclass=ABCMeta):
 
     @abstractmethod
     def sim_extend(self, hashval_1: str, hashval_0: Optional[str] = None, hash_alg: Optional[Hash] = None) -> str:
-        pass
-
-    @abstractmethod
-    def extendPCR(self, pcrval: int, hashval: str, hash_alg: Optional[Hash] = None, lock: bool = True) -> None:
-        pass
-
-    @abstractmethod
-    def readPCR(self, pcrval: int, hash_alg: Optional[Hash] = None) -> str:
-        pass
-
-    @abstractmethod
-    def _get_tpm_rand_block(self, size: int = 4096) -> Optional[bytes]:
         pass
 
     @staticmethod
@@ -478,15 +387,6 @@ class AbstractTPM(metaclass=ABCMeta):
             failure.merge(mb_policy_failure)
 
         return failure
-
-    # tpm_nvram
-    @abstractmethod
-    def write_key_nvram(self, key: bytes) -> None:
-        pass
-
-    @abstractmethod
-    def read_key_nvram(self) -> Optional[List[bytes]]:
-        pass
 
     @abstractmethod
     def parse_mb_bootlog(

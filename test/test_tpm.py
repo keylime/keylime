@@ -84,20 +84,6 @@ class TestTPM(unittest.TestCase):
     def setUp(self):
         self.tpm = tpm()
 
-    # basic test:
-    # whatever the underlying TPM is, just ensure get_manufacturer worked.
-    # we cannot predict the output on the test system, so this test merely
-    # ensures that the call to get_tpm_manufacturer succeeds.
-    def test_get_tpm_manufacturer(self):
-        """TPM sanity test"""
-        self.tpm.get_tpm_manufacturer()
-
-    def test_get_tpm_manufacturer_challenges(self):
-        """Test the challenges in the list `tpm_manufacturer_tests`"""
-        for test in tpm_manufacturer_tests:
-            response = self.tpm.get_tpm_manufacturer(output=test["challenge"])
-            self.assertEqual(test["response"], response)
-
     @unittest.skipIf(TPM2TOOLS_VERSION < Version("4.2"), "tpm_eventlog is not available")
     def test_parse_mb_bootlog(self):
         """Test parsing binary measured boot event log"""
