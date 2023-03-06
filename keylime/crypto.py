@@ -1,11 +1,9 @@
 import base64
-import datetime
 import hashlib
 import hmac
 import os
 import secrets
-from ipaddress import IPv4Address, IPv6Address, ip_address
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 # Crypto implementation using python cryptography package
 from cryptography import exceptions, x509
@@ -16,7 +14,6 @@ from cryptography.hazmat.primitives.asymmetric.padding import MGF1, OAEP
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey, generate_private_key
 from cryptography.hazmat.primitives.ciphers import AEADEncryptionContext, Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.x509.oid import NameOID
 
 aes_block_size = 16
 
@@ -180,22 +177,6 @@ def do_hmac(key: bytes, value: str) -> str:
     return h.hexdigest()
 
 
-def _is_multiple_16(s: str) -> None:
-    """
-    Ensures string's length is a multple of 16
-    """
-    if not (len(s) % 16) == 0:
-        raise Exception("Ciphertext was not a multiple of 16 in length")
-
-
-def _has_iv_material(s: bytes) -> None:
-    """
-    Make sure enough material for IV in ciphertext
-    """
-    if len(s) < aes_block_size:
-        raise Exception("Ciphertext did not contain enough material for an IV")
-
-
 def encrypt(plaintext: Optional[bytes], key: bytes) -> bytes:
     """Encrypt object"""
     if plaintext is None:
@@ -216,34 +197,3 @@ def decrypt(ciphertext: bytes, key: bytes) -> bytes:
 
     decryptor = Cipher(algorithms.AES(key), modes.GCM(iv, tag), backend=default_backend()).decryptor()
     return decryptor.update(ciphertext) + decryptor.finalize()
-
-
-def generate_selfsigned_cert(
-    name: str,
-    key: RSAPrivateKey,
-    valid_until: datetime.datetime,
-    other_ips: Optional[List[str]] = None,
-) -> x509.Certificate:
-    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
-    # Add common SAN for localhost
-    san_names = [
-        x509.DNSName("localhost"),
-        x509.DNSName("localhost.localdomain"),
-        x509.IPAddress(IPv4Address("127.0.0.1")),
-        x509.IPAddress(IPv6Address("::1")),
-    ]
-    if other_ips:
-        for ip in other_ips:
-            san_names.append(x509.IPAddress(ip_address(ip)))
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(subject)
-        .add_extension(x509.SubjectAlternativeName(san_names), critical=False)
-        .issuer_name(issuer)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.utcnow())
-        .not_valid_after(valid_until)
-        .sign(key, hashes.SHA256(), backend=default_backend())
-    )
-    return cert
