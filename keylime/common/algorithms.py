@@ -20,10 +20,6 @@ class Hash(str, enum.Enum):
     SHA512 = "sha512"
     SM3_256 = "sm3_256"
 
-    @classmethod
-    def from_algorithm(cls, algorithm: str) -> "Hash":
-        return cls(algorithm)
-
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
         try:
