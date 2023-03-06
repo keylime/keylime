@@ -30,7 +30,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(
             config.CONFIG_FILES,
             {
-                "agent": ["/etc/keylime/agent.conf", "/usr/etc/keylime/agent.conf"],
                 "verifier": ["/etc/keylime/verifier.conf", "/usr/etc/keylime/verifier.conf"],
                 "tenant": ["/etc/keylime/tenant.conf", "/usr/etc/keylime/tenant.conf"],
                 "registrar": ["/etc/keylime/registrar.conf", "/usr/etc/keylime/registrar.conf"],
