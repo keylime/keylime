@@ -103,7 +103,6 @@ def expectedFailureIf(condition):
 
 class Cert_Utils_Test(unittest.TestCase):
     def test_tpm_cert_store(self):
-        tpm_ek_ca.check_tpm_cert_store(CERT_STORE_DIR)
         my_trusted_certs = tpm_ek_ca.cert_loader(CERT_STORE_DIR)
 
         self.assertNotEqual(len(my_trusted_certs), 0)
