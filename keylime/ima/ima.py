@@ -9,6 +9,7 @@ from keylime import config, keylime_logging, signing
 from keylime.agentstates import AgentAttestState
 from keylime.common import algorithms, validators
 from keylime.common.algorithms import Hash
+from keylime.dsse import dsse
 from keylime.failure import Component, Failure
 from keylime.ima import ast, file_signatures, ima_dm
 from keylime.ima.file_signatures import ImaKeyrings
@@ -413,50 +414,52 @@ def process_measurement_list(
 
 # Read IMA policy files from disk, validate signatures and checksums, and prepare for sending.
 def read_runtime_policy(
-    alist: Optional[str] = None,
+    runtime_policy_path: Optional[str] = None,
     checksum: Optional[str] = "",
-    al_sig_file: Optional[str] = None,
-    al_key_file: Optional[str] = None,
-) -> Tuple[bytes, bytes, bytes]:
+    runtime_policy_key_file: Optional[str] = None,
+) -> Tuple[bytes, bytes]:
     al_key = b""
-    al_sig = b""
     verify_signature = False
 
     # If user only wants signatures then a runtime policy is not required
-    if alist is None or alist == "":
+    if runtime_policy_path is None or runtime_policy_path == "":
         alist_bytes = json.dumps(copy.deepcopy(EMPTY_RUNTIME_POLICY)).encode()
 
-    elif isinstance(alist, str):
-        with open(alist, "rb") as alist_f:
-            logger.debug("Loading runtime policy from %s", alist)
+    elif isinstance(runtime_policy_path, str):
+        with open(runtime_policy_path, "rb") as alist_f:
+            logger.debug("Loading runtime policy from %s", runtime_policy_path)
             alist_bytes = alist_f.read()
 
     else:
         raise Exception("Invalid runtime policy provided")
 
     # Load signatures/keys if needed
-    if al_sig_file and al_key_file:
+    if runtime_policy_key_file:
         logger.debug(
-            "Loading key (%s) and signature (%s) checking against runtime policy (%s)", al_key_file, al_sig_file, alist
+            "Loading key (%s) and checking against runtime policy (%s)", runtime_policy_key_file, runtime_policy_path
         )
         verify_signature = True
-        with open(al_key_file, "rb") as key_f:
+        with open(runtime_policy_key_file, "rb") as key_f:
             al_key = key_f.read()
-        with open(al_sig_file, "rb") as sig_f:
-            al_sig = sig_f.read()
+
+    if json.loads(alist_bytes).get("payload"):
+        logger.debug(
+            "Loading key (%s) and checking against runtime policy (%s)", runtime_policy_key_file, runtime_policy_path
+        )
+        verify_signature = True
 
     # Verify runtime policy. This function checks for correct JSON formatting, and
     # will also verify signatures if provided.
     try:
-        verify_runtime_policy(alist_bytes, al_key, al_sig, verify_sig=verify_signature)
+        verify_runtime_policy(alist_bytes, al_key, verify_sig=verify_signature)
     except ImaValidationError as error:
-        message = f"Validation for runtime policy {alist} failed! Error: {error.message}"
+        message = f"Validation for runtime policy {runtime_policy_path} failed! Error: {error.message}"
         raise Exception(message) from error
 
     sha256 = hashlib.sha256()
     sha256.update(alist_bytes)
     calculated_checksum = sha256.hexdigest()
-    logger.debug("Loaded runtime policy from %s with checksum %s", alist, calculated_checksum)
+    logger.debug("Loaded runtime policy from %s with checksum %s", runtime_policy_path, calculated_checksum)
 
     if checksum:
         if checksum == calculated_checksum:
@@ -466,7 +469,7 @@ def read_runtime_policy(
                 f"Checksum of runtime policy does not match! Expected {checksum}, Calculated {calculated_checksum}"
             )
 
-    return alist_bytes, al_key, al_sig
+    return alist_bytes, al_key
 
 
 def runtime_policy_db_contents(runtime_policy_name: str, runtime_policy: str, tpm_policy: str = "") -> Dict[str, Any]:
@@ -503,7 +506,6 @@ class ImaValidationError(Exception):
 def verify_runtime_policy(
     runtime_policy: bytes,
     runtime_policy_key: Optional[bytes] = None,
-    runtime_policy_sig: Optional[bytes] = None,
     verify_sig: Optional[bool] = True,
 ) -> None:
     """
@@ -516,19 +518,15 @@ def verify_runtime_policy(
             code=400,
         )
 
-    if verify_sig:
-        if not runtime_policy_sig:
-            raise ImaValidationError(
-                message="Verifier is enforcing signature validation, but no signature was provided.", code=405
-            )
-        if not runtime_policy_key:
-            raise ImaValidationError(
-                message="Verifier is enforcing signature validation, but no public key was provided.", code=405
-            )
-
-        if not signing.verify_signature(runtime_policy_key, runtime_policy_sig, runtime_policy):
-            raise ImaValidationError(message="Runtime policy failed detached signature verification!", code=401)
-        logger.info("Runtime policy passed detached signature verification")
+    # detect if runtime policy is DSSE
+    runtime_policy_json = json.loads(runtime_policy)
+    if runtime_policy_json.get("payload"):
+        if verify_sig:
+            if not signing.verify_dsse_envelope(runtime_policy, runtime_policy_key):
+                raise ImaValidationError(message="Runtime policy failed DSSE signature verification!", code=401)
+            logger.info("Runtime policy passed DSSE signature verification")
+        else:
+            runtime_policy = dsse.b64dec(runtime_policy_json["payload"])
 
     # validate that the runtime_policy is proper JSON
     try:
@@ -550,6 +548,12 @@ def deserialize_runtime_policy(runtime_policy: str) -> RuntimePolicyType:
     Converts policies stored in the database to JSON (if applicable), for use in code.
     """
 
-    # TODO: Extract IMA policy JSON from DSSE envelope, if applicable.
-    runtime_policy_deserialized: RuntimePolicyType = json.loads(runtime_policy)
+    runtime_policy_loaded: Dict[str, Any] = json.loads(runtime_policy)
+
+    # If runtime policy is formatted as a DSSE envelope, extract policy from payload.
+    if runtime_policy_loaded.get("payload"):
+        runtime_policy_deserialized: RuntimePolicyType = json.loads(dsse.b64dec(runtime_policy_loaded["payload"]))
+    else:
+        runtime_policy_deserialized = json.loads(runtime_policy)
+
     return runtime_policy_deserialized

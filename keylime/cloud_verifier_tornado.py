@@ -26,6 +26,7 @@ from keylime import (
     json,
     keylime_logging,
     revocation_notifier,
+    signing,
     tornado_requests,
     web_util,
 )
@@ -589,7 +590,7 @@ class AgentsHandler(BaseHandler):
                         web_util.echo_json_response(self, 400, "mTLS certificate for agent is required!")
                         return
 
-                    # Handle allowlists/IMA policies
+                    # Handle runtime policies
 
                     # How each pair of inputs should be handled:
                     # - No name, no policy: use default empty policy using agent UUID as name
@@ -650,21 +651,15 @@ class AgentsHandler(BaseHandler):
                         runtime_policy = json.dumps(cast(Dict[str, Any], ima.EMPTY_RUNTIME_POLICY))
 
                     if runtime_policy:
-                        runtime_policy_sig = json_body.get("runtime_policy_sig")
-                        runtime_policy_key = json_body.get("runtime_policy_key")
-
-                        runtime_policy_key_bytes = None
-                        runtime_policy_sig_bytes = None
-
-                        if runtime_policy_key and runtime_policy_sig:
-                            runtime_policy_key_bytes = base64.b64decode(runtime_policy_key)
-                            runtime_policy_sig_bytes = base64.b64decode(runtime_policy_sig)
+                        runtime_policy_key_bytes = signing.get_runtime_policy_keys(
+                            runtime_policy.encode(),
+                            json_body.get("runtime_policy_key"),
+                        )
 
                         try:
                             ima.verify_runtime_policy(
                                 runtime_policy.encode(),
                                 runtime_policy_key_bytes,
-                                runtime_policy_sig_bytes,
                                 verify_sig=config.getboolean(
                                     "verifier", "require_allow_list_signatures", fallback=False
                                 ),
@@ -936,22 +931,15 @@ class AllowlistHandler(BaseHandler):
         json_body = json.loads(self.request.body)
 
         runtime_policy = base64.b64decode(json_body.get("runtime_policy")).decode()
-
-        runtime_policy_key = json_body.get("runtime_policy_key")
-        runtime_policy_sig = json_body.get("runtime_policy_sig")
-
-        runtime_policy_key_bytes = None
-        runtime_policy_sig_bytes = None
-
-        if runtime_policy_key and runtime_policy_sig:
-            runtime_policy_key_bytes = base64.b64decode(runtime_policy_key)
-            runtime_policy_sig_bytes = base64.b64decode(runtime_policy_sig)
+        runtime_policy_key_bytes = signing.get_runtime_policy_keys(
+            runtime_policy.encode(),
+            json_body.get("runtime_policy_key"),
+        )
 
         try:
             ima.verify_runtime_policy(
                 runtime_policy.encode(),
                 runtime_policy_key_bytes,
-                runtime_policy_sig_bytes,
                 verify_sig=config.getboolean("verifier", "require_allow_list_signatures", fallback=False),
             )
         except ima.ImaValidationError as e:
