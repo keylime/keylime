@@ -1569,9 +1569,8 @@ def main() -> None:
         loop.add_signal_handler(signal.SIGTERM, server_sig_handler)
 
         server.start()
-        if task_id == 0:
-            # Reactivate agents
-            asyncio.ensure_future(activate_agents(agents, verifier_host, int(verifier_port)))
+        # Reactivate agents
+        asyncio.ensure_future(activate_agents(agents, verifier_host, int(verifier_port)))
         tornado.ioloop.IOLoop.current().start()
         logger.debug("Server %s stopped.", task_id)
         sys.exit(0)
@@ -1602,6 +1601,7 @@ def main() -> None:
 
     agents = get_agents_by_verifier_id(verifier_id)
     for task_id in range(0, num_workers):
-        process = Process(target=server_process, args=(task_id, agents))
+        active_agents = [agents[i] for i in range(task_id, len(agents), num_workers)]
+        process = Process(target=server_process, args=(task_id, active_agents))
         process.start()
         processes.append(process)
