@@ -512,6 +512,12 @@ def main() -> None:
                 basepol = fobj.read()
             base_policy: RuntimePolicyType = json.loads(basepol)
 
+            try:
+                ima.validate_runtime_policy(base_policy)
+            except ima.ImaValidationError as ex:
+                print(f"Base policy is not a valid runtime policy: {ex}", file=sys.stderr)
+                sys.exit(1)
+
             # Cherry-pick from base policy what is supported and merge into policy
             policy["digests"] = base_policy.get("digests", {})
             policy["excludes"] = base_policy.get("excludes", [])
@@ -573,6 +579,12 @@ def main() -> None:
         policy[key] = {k: sorted(list(set(v))) for k, v in policy[key].items()}  # type: ignore
     policy["excludes"] = sorted(list(set(policy["excludes"])))
     policy["ima"]["ignored_keyrings"] = sorted(list(set(policy["ima"]["ignored_keyrings"])))
+
+    try:
+        ima.validate_runtime_policy(policy)
+    except ima.ImaValidationError as ex:
+        print(f"Base policy is not a valid runtime policy: {ex}", file=sys.stderr)
+        sys.exit(1)
 
     jsonpolicy = json.dumps(policy)
     if args.output:
