@@ -192,7 +192,13 @@ echo "==========================================================================
 echo $'\t\t\tRunning Unit Tests'
 echo "=================================================================================="
 # Run separate unit tests
-python3 -m unittest discover -s keylime -p '*_test.py' -v
+python3 -m unittest discover -s keylime/ima -p '*_test.py' -v
+if [ $? -ne 0 ]; then
+    echo "Error: Unit tests failed"
+    exit 1
+fi
+
+python3 -m unittest discover -s keylime/tpm -p '*_test.py' -v
 if [ $? -ne 0 ]; then
     echo "Error: Unit tests failed"
     exit 1
