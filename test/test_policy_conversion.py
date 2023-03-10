@@ -55,7 +55,7 @@ class TestPolicyConversion(unittest.TestCase):
             created_runtime_policy["meta"]["version"], ima.RUNTIME_POLICY_CURRENT_VERSION, "Metadata version is correct"
         )
         self.assertEqual(
-            created_runtime_policy["meta"]["generator"],
+            created_runtime_policy["meta"].get("generator"),
             ima.RUNTIME_POLICY_GENERATOR.LegacyAllowList,
             "Metadata generator is correct",
         )

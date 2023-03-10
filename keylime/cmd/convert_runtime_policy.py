@@ -7,8 +7,7 @@ from os.path import basename
 from typing import Any, Dict, List, NoReturn, Optional
 
 from keylime.ima import file_signatures, ima
-
-PolicyDict = Dict[str, Any]
+from keylime.ima.types import RuntimePolicyType
 
 # pylint: disable=pointless-string-statement
 """
@@ -39,7 +38,7 @@ python convert_runtime_policy.py -h
 
 
 # Creates a runtime policy from provided legacy allowlist.
-def convert_legacy_allowlist(allowlist_path: str) -> PolicyDict:
+def convert_legacy_allowlist(allowlist_path: str) -> RuntimePolicyType:
     with open(allowlist_path, "r", encoding="utf8") as f:
         alist_raw = f.read()
 
@@ -64,8 +63,8 @@ def convert_legacy_allowlist(allowlist_path: str) -> PolicyDict:
 
 
 # Converts JSON-format allowlist to JSON-format IMA policy
-def _convert_json_allowlist(alist_json: PolicyDict) -> PolicyDict:
-    runtime_policy: PolicyDict = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
+def _convert_json_allowlist(alist_json: Dict[str, Any]) -> RuntimePolicyType:
+    runtime_policy: RuntimePolicyType = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
     runtime_policy["meta"]["timestamp"] = str(datetime.datetime.now())
     runtime_policy["meta"]["generator"] = ima.RUNTIME_POLICY_GENERATOR.LegacyAllowList
     for key in runtime_policy.keys():
@@ -74,7 +73,7 @@ def _convert_json_allowlist(alist_json: PolicyDict) -> PolicyDict:
             if not digests:
                 print("Allowlist does not have a valid hash list!")
             else:
-                runtime_policy[key] = alist_json["hashes"]
+                runtime_policy["digests"] = alist_json["hashes"]
         elif key == "meta":
             # Skip old metadata
             continue
@@ -83,13 +82,13 @@ def _convert_json_allowlist(alist_json: PolicyDict) -> PolicyDict:
             if not to_migrate:
                 print(f"IMA policy field '{key}' not found in allowlist; using default value")
             else:
-                runtime_policy[key] = alist_json[key]
+                runtime_policy[key] = alist_json[key]  # type: ignore
     return runtime_policy
 
 
 # Converts flat-format allowlist to JSON-format IMA policy
-def _convert_flat_format_allowlist(alist_raw: str) -> PolicyDict:
-    runtime_policy: PolicyDict = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
+def _convert_flat_format_allowlist(alist_raw: str) -> RuntimePolicyType:
+    runtime_policy: RuntimePolicyType = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
     runtime_policy["meta"]["timestamp"] = str(datetime.datetime.now())
     runtime_policy["meta"]["generator"] = ima.RUNTIME_POLICY_GENERATOR.LegacyAllowList
 
@@ -112,22 +111,22 @@ def _convert_flat_format_allowlist(alist_raw: str) -> PolicyDict:
         else:
             entrytype = "digests"
 
-        if path in runtime_policy[entrytype]:
-            runtime_policy[entrytype][path].append(checksum_hash)
+        if path in runtime_policy[entrytype]:  # type: ignore
+            runtime_policy[entrytype][path].append(checksum_hash)  # type: ignore
         else:
-            runtime_policy[entrytype][path] = [checksum_hash]
+            runtime_policy[entrytype][path] = [checksum_hash]  # type: ignore
     return runtime_policy
 
 
 # Updates an existing IMA policy to the latest version, and adds any provided input
 def update_runtime_policy(
-    policy: PolicyDict, excludelist_path: Optional[str] = None, verification_keys: Optional[List[str]] = None
-) -> PolicyDict:
+    policy: RuntimePolicyType, excludelist_path: Optional[str] = None, verification_keys: Optional[List[str]] = None
+) -> RuntimePolicyType:
     if policy["meta"]["version"] < ima.RUNTIME_POLICY_CURRENT_VERSION:
         print(
             f"Provided policy has version {policy['meta']['version']}; latest policy has version {ima.RUNTIME_POLICY_CURRENT_VERSION}. Updating to latest version."
         )
-        updated_policy: PolicyDict = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
+        updated_policy: RuntimePolicyType = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
         updated_policy["meta"]["timestamp"] = str(datetime.datetime.now())
         updated_policy["meta"]["generator"] = ima.RUNTIME_POLICY_GENERATOR.CompatibleAllowList
         for key in updated_policy.keys():
@@ -137,7 +136,7 @@ def update_runtime_policy(
             if not to_migrate:
                 print(f"IMA policy field '{key}' not found in existing IMA policy; using default value")
             else:
-                updated_policy[key] = policy[key]
+                updated_policy[key] = policy[key]  # type: ignore
         policy = updated_policy
 
     excl_list = []
@@ -200,6 +199,7 @@ def main() -> None:
         print("An output file path (-o, --output_file) is required to write new policy!")
         sys.exit(1)
 
+    policy: RuntimePolicyType
     if args.allowlist:
         policy = convert_legacy_allowlist(args.allowlist)
     elif args.runtime_policy:

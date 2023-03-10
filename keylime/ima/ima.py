@@ -12,6 +12,7 @@ from keylime.common.algorithms import Hash
 from keylime.failure import Component, Failure
 from keylime.ima import ast, file_signatures, ima_dm
 from keylime.ima.file_signatures import ImaKeyrings
+from keylime.ima.types import RuntimePolicyType
 
 logger = keylime_logging.init_logging("ima")
 
@@ -36,7 +37,7 @@ class RUNTIME_POLICY_GENERATOR:
 # hash algorithm received from agent's IMA runtime measurements.
 # The only situation where this hard-coding would become a problem is if and when
 # the kernel maintainers decide to use a different algorithm for template-hash.
-EMPTY_RUNTIME_POLICY = {
+EMPTY_RUNTIME_POLICY: RuntimePolicyType = {
     "meta": {
         "version": RUNTIME_POLICY_CURRENT_VERSION,
         "generator": RUNTIME_POLICY_GENERATOR.EmptyAllowList,
@@ -141,18 +142,18 @@ def read_measurement_list(ima_log_file: TextIO, nth_entry: int) -> Tuple[Optiona
 
 def _validate_ima_ng(
     exclude_regex: Optional[Pattern[str]],
-    allowlist: Optional[Dict[str, Any]],
+    runtime_policy: Optional[RuntimePolicyType],
     digest: ast.Digest,
     path: ast.Name,
     hash_types: str = "digests",
 ) -> Failure:
     failure = Failure(Component.IMA, ["validation", "ima-ng"])
-    if allowlist is not None:
+    if runtime_policy is not None:
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug("IMA: ignoring excluded path %s", path)
             return failure
 
-        accept_list = allowlist[hash_types].get(path.name, None)
+        accept_list = runtime_policy[hash_types].get(path.name, None)  # type: ignore
         if accept_list is None:
             logger.warning("File not found in allowlist: %s", path.name)
             failure.add_event("not_in_allowlist", f"File not found in allowlist: {path.name}", True)
@@ -163,12 +164,12 @@ def _validate_ima_ng(
                 "Hashes for file %s don't match %s not in %s",
                 path.name,
                 codecs.encode(digest.hash, "hex").decode("utf-8"),
-                accept_list,
+                runtime_policy,
             )
             failure.add_event(
-                "allowlist_hash",
+                "runtime_policy_hash",
                 {
-                    "message": "Hash not in allowlist found",
+                    "message": "Hash not found in runtime policy",
                     "got": codecs.encode(digest.hash, "hex").decode("utf-8"),
                     "expected": accept_list,
                 },
@@ -182,7 +183,7 @@ def _validate_ima_ng(
 def _validate_ima_sig(
     exclude_regex: Optional[Pattern[str]],
     ima_keyrings: Optional[file_signatures.ImaKeyrings],
-    allowlist: Optional[Dict[str, Any]],
+    runtime_policy: Optional[RuntimePolicyType],
     digest: ast.Digest,
     path: ast.Name,
     signature: ast.Signature,
@@ -197,23 +198,23 @@ def _validate_ima_sig(
             logger.debug("signature for file %s is good", path)
             return failure
 
-    # If signature validation failed check if the allowlist matches
-    if allowlist is not None:
-        logger.debug("signature for file %s could not be validated. Trying allowlist.", path.name)
-        return _validate_ima_ng(exclude_regex, allowlist, digest, path)
+    # If signature validation failed check if the runtime_policy matches
+    if runtime_policy is not None:
+        logger.debug("signature for file %s could not be validated. Trying runtime_policy.", path.name)
+        return _validate_ima_ng(exclude_regex, runtime_policy, digest, path)
 
-    # If we don't have a allowlist and don't have a keyring we just ignore the validation.
+    # If we don't have a runtime_policy and don't have a keyring we just ignore the validation.
     if ima_keyrings is None:
         return failure
 
-    logger.warning("signature verification for file %s failed and no allowlist is available", path.name)
+    logger.warning("signature verification for file %s failed and no runtime_policy is available", path.name)
     failure.add_event("invalid_signature", f"signature for file {path.name} could not be validated", True)
     return failure
 
 
 def _validate_ima_buf(
     exclude_regex: Optional[Pattern[str]],
-    allowlist: Optional[Dict[str, Any]],
+    runtime_policy: Optional[RuntimePolicyType],
     ima_keyrings: Optional[file_signatures.ImaKeyrings],
     dm_validator: Optional[ima_dm.DmIMAValidator],
     digest: ast.Digest,
@@ -230,11 +231,11 @@ def _validate_ima_buf(
 
     if pubkey:
         ignored_keyrings = []
-        if allowlist:
-            ignored_keyrings = allowlist.get("ima", {}).get("ignored_keyrings", [])
+        if runtime_policy:
+            ignored_keyrings = runtime_policy.get("ima", {}).get("ignored_keyrings", [])
 
         if "*" not in ignored_keyrings and path.name not in ignored_keyrings:
-            failure = _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types="keyrings")
+            failure = _validate_ima_ng(exclude_regex, runtime_policy, digest, path, hash_types="keyrings")
             if not failure:
                 # Add the key only now that it's validated (no failure)
                 if ima_keyrings is not None:
@@ -244,7 +245,7 @@ def _validate_ima_buf(
         failure = dm_validator.validate(digest, path, data)
     else:
         # handling of generic ima-buf entries that for example carry a hash in the buf field
-        failure = _validate_ima_ng(exclude_regex, allowlist, digest, path, hash_types="ima-buf")
+        failure = _validate_ima_ng(exclude_regex, runtime_policy, digest, path, hash_types="ima-buf")
 
     # Anything else evaluates to true for now
     return failure
@@ -254,7 +255,7 @@ def _process_measurement_list(
     agentAttestState: AgentAttestState,
     lines: List[str],
     hash_alg: Hash,
-    runtime_policy: Optional[Dict[str, Any]] = None,
+    runtime_policy: Optional[RuntimePolicyType] = None,
     pcrval: Optional[str] = None,
     ima_keyrings: Optional[ImaKeyrings] = None,
     boot_aggregates: Optional[Dict[str, List[str]]] = None,
@@ -383,7 +384,7 @@ def _process_measurement_list(
 def process_measurement_list(
     agentAttestState: AgentAttestState,
     lines: List[str],
-    runtime_policy: Optional[Dict[str, Any]] = None,
+    runtime_policy: Optional[RuntimePolicyType] = None,
     pcrval: Optional[str] = None,
     ima_keyrings: Optional[ImaKeyrings] = None,
     boot_aggregates: Optional[Dict[str, List[str]]] = None,
@@ -529,7 +530,7 @@ def verify_runtime_policy(
             raise ImaValidationError(message="Runtime policy failed detached signature verification!", code=401)
         logger.info("Runtime policy passed detached signature verification")
 
-    # validate that the allowlist is proper JSON
+    # validate that the runtime_policy is proper JSON
     try:
         lists = json.loads(runtime_policy)
     except Exception as error:
@@ -544,11 +545,11 @@ def verify_runtime_policy(
         )
 
 
-def deserialize_runtime_policy(runtime_policy: str) -> Dict[str, Any]:
+def deserialize_runtime_policy(runtime_policy: str) -> RuntimePolicyType:
     """
     Converts policies stored in the database to JSON (if applicable), for use in code.
     """
 
     # TODO: Extract IMA policy JSON from DSSE envelope, if applicable.
-    runtime_policy_deserialized: Dict[str, Any] = json.loads(runtime_policy)
+    runtime_policy_deserialized: RuntimePolicyType = json.loads(runtime_policy)
     return runtime_policy_deserialized

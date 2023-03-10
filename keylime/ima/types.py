@@ -6,6 +6,11 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal, TypedDict
 
+if sys.version_info >= (3, 11):
+    from typing import NotRequired, Required
+else:
+    from typing_extensions import NotRequired, Required
+
 ### Types for tpm_dm.py
 
 RuleAttributeType = Optional[Union[int, str, bool]]
@@ -48,3 +53,33 @@ class Rule(TypedDict):
 class Policies(TypedDict):
     match_on: MatchKeyType
     rules: Dict[str, Rule]
+
+
+### Runtime policy data types
+
+
+class RPMetaType(TypedDict):
+    version: Required[int]
+    generator: NotRequired[int]
+    timestamp: NotRequired[str]
+
+
+class RPImaType(TypedDict):
+    ignored_keyrings: Required[List[str]]
+    log_hash_alg: Required[Literal["sha1", "sha256", "sha384", "sha512"]]
+    dm_policy: Optional[Policies]
+
+
+RuntimePolicyType = TypedDict(
+    "RuntimePolicyType",
+    {
+        "meta": Required[RPMetaType],
+        "release": NotRequired[int],
+        "digests": Required[Dict[str, List[str]]],
+        "excludes": Required[List[str]],
+        "keyrings": Required[Dict[str, List[str]]],
+        "ima": Required[RPImaType],
+        "ima-buf": Required[Dict[str, List[str]]],
+        "verification-keys": Required[str],
+    },
+)
