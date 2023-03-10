@@ -31,8 +31,7 @@ and verifying that the `AK` belongs to the `EK` (using `MakeCredential` and `Act
 
 
 Once an agent has been registered in the registrar, it is ready to be enrolled for attestation.
-The tenant can use the EK certificate to verify to verify the trustworthiness of the TPM.
-Both the tenant and verifier
+The tenant can use the EK certificate to verify the trustworthiness of the TPM.
 
 .. note::
     If `EK` or `AK` are mentioned outside of internal TPM signing operations, it usually
