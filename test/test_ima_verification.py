@@ -12,10 +12,11 @@ import unittest
 from keylime import json
 from keylime.agentstates import AgentAttestState
 from keylime.ima import file_signatures, ima
+from keylime.ima.types import RuntimePolicyType
 
 # BEGIN TEST DATA
 
-RUNTIME_POLICY_TEST = {
+RUNTIME_POLICY_TEST: RuntimePolicyType = {
     "meta": {
         "version": 1,
     },
@@ -41,7 +42,7 @@ RUNTIME_POLICY_TEST = {
 }
 
 # Allowlist with different hashes
-RUNTIME_POLICY_WRONG = {
+RUNTIME_POLICY_WRONG: RuntimePolicyType = {
     "meta": {
         "version": 1,
     },
@@ -50,6 +51,7 @@ RUNTIME_POLICY_WRONG = {
         "/usr/bin/zmore": ["bad00b8dd04a5935cd8165aa2260cd11b658bd71629bdb52256a675a1f73907b"],
     },
     "excludes": [],
+    "keyrings": {},
     "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1", "dm_policy": None},
     "ima-buf": {},
     "verification-keys": "",

@@ -9,6 +9,7 @@ from keylime.common import algorithms
 from keylime.db.verifier_db import VerfierMain
 from keylime.failure import Component, Event, Failure
 from keylime.ima import file_signatures
+from keylime.ima.types import RuntimePolicyType
 from keylime.tpm.tpm_abstract import TPM_Utilities
 from keylime.tpm.tpm_main import tpm
 
@@ -32,7 +33,7 @@ def get_AgentAttestStates() -> AgentAttestStates:
 
 def process_quote_response(
     agent: Dict[str, Any],
-    runtime_policy: Dict[str, Any],
+    runtime_policy: RuntimePolicyType,
     json_response: Dict[str, Any],
     agentAttestState: AgentAttestState,
 ) -> Failure:

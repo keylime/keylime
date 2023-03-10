@@ -24,6 +24,7 @@ from keylime.elchecking.policies import RefState
 from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyrings
+from keylime.ima.types import RuntimePolicyType
 from keylime.tpm import tpm2_objects, tpm_abstract
 
 logger = keylime_logging.init_logging("tpm")
@@ -1232,7 +1233,7 @@ class tpm(tpm_abstract.AbstractTPM):
         aikTpmFromRegistrar: str,
         tpm_policy: Optional[Union[str, Dict[str, Any]]] = None,
         ima_measurement_list: Optional[str] = None,
-        runtime_policy: Optional[Dict[str, Any]] = None,
+        runtime_policy: Optional[RuntimePolicyType] = None,
         hash_alg: Optional[Hash] = None,
         ima_keyrings: Optional[ImaKeyrings] = None,
         mb_measurement_list: Optional[str] = None,
