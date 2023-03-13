@@ -5,6 +5,7 @@
 import argparse
 import binascii
 import collections
+import copy
 import gzip
 import json
 import multiprocessing
@@ -30,6 +31,7 @@ except ModuleNotFoundError:
     HAS_RPM = False
 
 from keylime.ima import file_signatures, ima
+from keylime.ima.types import RuntimePolicyType
 from keylime.signing import verify_signature_from_file
 from keylime.types import PathLike_str
 
@@ -168,7 +170,7 @@ def process_ima_buf_in_measurement_list(
     return keyrings_map, ima_buf_map, ret
 
 
-def process_signature_verification_keys(verification_keys: List[str], policy: Dict[str, Any]) -> Dict[str, Any]:
+def process_signature_verification_keys(verification_keys: List[str], policy: RuntimePolicyType) -> RuntimePolicyType:
     """Add the given keys (x509 certificates) to keyring"""
 
     verification_key_list = None
@@ -254,25 +256,25 @@ def analyze_rpm_pkg_url(url: str) -> Dict[str, List[Any]]:
 
 def analize_local_repo(
     repo: pathlib.Path, hash_map: Dict[str, List[str]], jobs: Optional[int] = None
-) -> Tuple[Optional[Dict[str, List[str]]], int]:
+) -> Tuple[Dict[str, List[str]], int]:
     repomd_xml = repo / "repodata" / "repomd.xml"
     if not repomd_xml.exists():
         print(f"{repomd_xml} cannot be found", file=sys.stderr)
         # TODO - remove Go idioms
-        return None, 1
+        return {}, 1
 
     repomd_asc = repo / "repodata" / "repomd.xml.asc"
     if repomd_asc.exists():
         repomd_key = repo / "repodata" / "repomd.xml.key"
         if not repomd_key.exists():
             print(f"Error. Key file {repomd_key} missing", file=sys.stderr)
-            return None, 1
+            return {}, 1
 
         try:
             verify_signature_from_file(repomd_key, repomd_xml, repomd_asc, "Repository metadata")
         except Exception:
             print("Error. Invalid dignature. Untrusted repository", file=sys.stderr)
-            return None, 1
+            return {}, 1
     else:
         print("Warning. Unsigned repository. Continuing the RPM scanning", file=sys.stderr)
 
@@ -334,7 +336,7 @@ def _get_rpm_urls(repo: str, repomd_xml: str) -> List[str]:
 
 def analize_remote_repo(
     repo: str, hash_map: Dict[str, List[str]], jobs: Optional[int] = None
-) -> Tuple[Optional[Dict[str, List[str]]], int]:
+) -> Tuple[Dict[str, List[str]], int]:
     # Make the repo ends with "/", so we can be considered as a base URL
     repo = repo if repo.endswith("/") else f"{repo}/"
 
@@ -342,7 +344,7 @@ def analize_remote_repo(
     repomd_xml_tmp = _get(repomd_xml)
     if not repomd_xml_tmp:
         print(f"{repomd_xml} cannot be found", file=sys.stderr)
-        return None, 1
+        return {}, 1
 
     repomd_asc = urllib.parse.urljoin(repo, "repodata/repomd.xml.asc")
     repomd_asc_tmp = _get(repomd_asc)
@@ -352,7 +354,7 @@ def analize_remote_repo(
         if not repomd_key_tmp:
             print(f"Error. Key file {repomd_key} missing", file=sys.stderr)
             os.remove(repomd_xml_tmp)
-            return None, 1
+            return {}, 1
 
         try:
             verify_signature_from_file(repomd_key_tmp, repomd_xml_tmp, repomd_asc_tmp, "Repository metadata")
@@ -361,7 +363,7 @@ def analize_remote_repo(
             os.remove(repomd_xml_tmp)
             os.remove(repomd_asc_tmp)
             os.remove(repomd_key_tmp)
-            return None, 1
+            return {}, 1
 
         os.remove(repomd_asc_tmp)
         os.remove(repomd_key_tmp)
@@ -375,7 +377,7 @@ def analize_remote_repo(
         if not filelists_ext_xml_tmp:
             print(f"{filelists_ext_xml} cannot be found", file=sys.stderr)
             os.remove(repomd_xml_tmp)
-            return None, 1
+            return {}, 1
 
         root = ET.parse(gzip.open(filelists_ext_xml_tmp))
         os.remove(filelists_ext_xml_tmp)
@@ -475,7 +477,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    policy = ima.EMPTY_RUNTIME_POLICY
+    policy = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
     policy["ima"]["ignored_keyrings"] = args.ignored_keyrings
 
     ret = 0
@@ -484,7 +486,7 @@ def main() -> None:
         try:
             with open(args.base_policy, "r", encoding="utf-8") as fobj:
                 basepol = fobj.read()
-            base_policy = json.loads(basepol)
+            base_policy: RuntimePolicyType = json.loads(basepol)
 
             # Cherry-pick from base policy what is supported and merge into policy
             policy["digests"] = base_policy.get("digests", {})
