@@ -20,7 +20,6 @@ line_length = 120
 include = ["keylime", "test"]
 ignore = [
     "keylime/backport_dataclasses.py",
-    "keylime/keylime_agent.py",
     "keylime/elchecking/",
     "keylime/migrations/versions/",
     "keylime/da/examples/tsa_rfc3161.py",

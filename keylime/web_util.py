@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import tornado.web
 
 from keylime import api_version as keylime_api_version
-from keylime import ca_util, config, json, secure_mount
+from keylime import ca_util, config, json
 from keylime.api_version import VersionType
 
 
@@ -36,9 +36,6 @@ def get_tls_dir(component: str) -> str:
         if component in ("verifier", "registrar", "tenant"):
             # Use the keys/certificates generated for the verifier
             tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, "cv_ca"))
-        elif component == "agent":
-            # For the agent, use the secure mount dir as the default directory
-            tls_dir = secure_mount.get_secdir()
     else:
         # if it is relative path, convert to absolute in WORK_DIR
         tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))

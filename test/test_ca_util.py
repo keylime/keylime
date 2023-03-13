@@ -29,13 +29,6 @@ class CA_Util_Test(unittest.TestCase):
 
         self.assertEqual(cert.serial_number, 1)
 
-    def test_get_crl_distpoint(self):
-        curdir = os.path.dirname(os.path.abspath(__file__))
-        cert_path = os.path.join(curdir, "data", "ca", "cacert.crt")
-
-        crl_distpoint = ca_util.get_crl_distpoint(cert_path)
-        self.assertEqual(crl_distpoint, "http://localhost/crl.pem")
-
     def test_ca_util(self):
         ca_util.setpassword("42")
 
@@ -54,9 +47,6 @@ class CA_Util_Test(unittest.TestCase):
 
             # cmd_revoke()
             ca_util.cmd_revoke(working_dir, "foo bar")
-
-            # cmd_regencrl()
-            ca_util.cmd_regencrl(working_dir)
         except Exception as e:
             self.fail(e)
         finally:

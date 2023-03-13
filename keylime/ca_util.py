@@ -17,19 +17,13 @@ Protips:
 
 import argparse
 import base64
-import datetime
 import getpass
 import glob
 import io
 import os
-import socket
 import sys
-import threading
-import time
 import zipfile
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from socketserver import ThreadingMixIn
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -50,11 +44,9 @@ from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from cryptography.x509 import Certificate
-from cryptography.x509.extensions import ExtensionNotFound
-from cryptography.x509.general_name import UniformResourceIdentifier
 
 from keylime import ca_impl_openssl as ca_impl
-from keylime import cmd_exec, config, crypto, fs_util, json, keylime_logging, revocation_notifier
+from keylime import config, crypto, fs_util, keylime_logging
 
 logger = keylime_logging.init_logging("ca-util")
 
@@ -286,25 +278,6 @@ def convert_crl_to_pem(derfile: str, pemfile: str) -> None:
         pem_f.write(x509.load_der_x509_crl(der_crl).public_bytes(encoding=serialization.Encoding.PEM))
 
 
-def get_crl_distpoint(cert_path: str) -> Optional[str]:
-    cert_obj = load_cert_by_path(cert_path)
-
-    try:
-        crl_distpoints = cert_obj.extensions.get_extension_for_class(x509.CRLDistributionPoints).value
-        for dstpnt in crl_distpoints:
-            for point in dstpnt.full_name:
-                if isinstance(point, UniformResourceIdentifier):
-                    return point.value
-    except ExtensionNotFound:
-        pass
-
-    logger.info("No CRL distribution points in %s", cert_path)
-    return ""
-
-
-# to check: openssl crl -inform DER -text -noout -in cacrl.der
-
-
 def cmd_revoke(workingdir: str, name: Optional[str] = None, serial: Optional[int] = None) -> bytes:
     cwd = os.getcwd()
     try:
@@ -344,126 +317,6 @@ def cmd_revoke(workingdir: str, name: Optional[str] = None, serial: Optional[int
     finally:
         os.chdir(cwd)
     return crl
-
-
-# regenerate the crl without revoking anything
-
-
-def cmd_regencrl(workingdir: str) -> bytes:
-    cwd = os.getcwd()
-    try:
-        fs_util.ch_dir(workingdir)
-        priv = read_private()
-
-        # get the ca key cert and keys as strings
-        with open("cacert.crt", encoding="utf-8") as f:
-            cacert = f.read()
-        ca_pk = priv[0]["ca"].decode()
-
-        crl = ca_impl.gencrl(priv[0]["revoked_keys"], cacert, ca_pk)
-
-        write_private(priv)
-
-        # write out the CRL to the disk
-        with open("cacrl.der", "wb") as f:
-            f.write(crl)
-        convert_crl_to_pem("cacrl.der", "cacrl.pem")
-
-    finally:
-        os.chdir(cwd)
-    return crl
-
-
-def cmd_listen(workingdir: str, cert_path: str) -> None:
-    cwd = os.getcwd()
-    try:
-        fs_util.ch_dir(workingdir)
-        # just load up the password for later
-        read_private(True)
-
-        serveraddr = ("", config.CRL_PORT)
-        server = ThreadedCRLServer(serveraddr, CRLHandler)
-        if os.path.exists("cacrl.der"):
-            logger.info("Loading existing crl: %s", os.path.abspath("cacrl.der"))
-            with open("cacrl.der", "rb") as f:
-                server.setcrl(f.read())
-        t = threading.Thread(target=server.serve_forever)
-        logger.info("Hosting CRL on %s:%d", socket.getfqdn(), config.CRL_PORT)
-        t.start()
-
-        def check_expiration() -> None:
-            logger.info("checking CRL for expiration every hour")
-            while True:  # pylint: disable=R1702
-                try:
-                    if os.path.exists("cacrl.der") and os.stat("cacrl.der").st_size:
-                        cmd = ("openssl", "crl", "-inform", "der", "-in", "cacrl.der", "-text", "-noout")
-                        retout = cmd_exec.run(cmd)["retout"]
-                        for line in retout:
-                            line = line.strip()
-                            if line.startswith(b"Next Update:"):
-                                expire = datetime.datetime.strptime(line[13:].decode("utf-8"), "%b %d %H:%M:%S %Y %Z")
-                                # check expiration within 6 hours
-                                in1hour = datetime.datetime.utcnow() + datetime.timedelta(hours=6)
-                                if expire <= in1hour:
-                                    logger.info("Certificate to expire soon %s, re-issuing", expire)
-                                    cmd_regencrl(workingdir)
-                    # check a little less than every hour
-                    time.sleep(3540)
-
-                except KeyboardInterrupt:
-                    logger.info("TERM Signal received, shutting down...")
-                    # server.shutdown()
-                    break
-
-        t2 = threading.Thread(target=check_expiration, daemon=True)
-        t2.start()
-
-        def revoke_callback(revocation: Dict[str, Union[str, bytes]]) -> None:
-            json_meta = json.loads(revocation["meta_data"])
-            serial = json_meta["cert_serial"]
-            if revocation.get("type", None) != "revocation" or serial is None:
-                logger.error("Unsupported revocation message: %s", revocation)
-                return
-
-            logger.info("Revoking certificate: %s", serial)
-            server.setcrl(cmd_revoke(workingdir, None, serial))
-
-        try:
-            while True:
-                try:
-                    revocation_notifier.await_notifications(revoke_callback, revocation_cert_path=cert_path)
-                except Exception as e:
-                    logger.exception(e)
-                    logger.warning("No connection to revocation server, retrying in 10s...")
-                    time.sleep(10)
-        except KeyboardInterrupt:
-            logger.info("TERM Signal received, shutting down...")
-            server.shutdown()
-            sys.exit()
-    finally:
-        os.chdir(cwd)
-
-
-class ThreadedCRLServer(ThreadingMixIn, HTTPServer):
-    published_crl = None
-
-    def setcrl(self, crl: bytes) -> None:
-        self.published_crl = crl
-
-
-class CRLHandler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:
-        logger.info("GET invoked from %s with uri: %s", str(self.client_address), self.path)
-
-        assert isinstance(self.server, ThreadedCRLServer)
-        if self.server.published_crl is None:
-            self.send_response(404)
-            self.end_headers()
-        else:
-            # send back the CRL
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(self.server.published_crl)
 
 
 def rmfiles(path: str) -> None:
@@ -567,11 +420,6 @@ def main(argv: List[str] = sys.argv) -> None:  # pylint: disable=dangerous-defau
             parser.print_help()
             sys.exit(-1)
         cmd_revoke(workingdir, args.name)
-    elif args.command == "listen":
-        if args.name is None:
-            args.name = os.path.join(workingdir, "RevocationNotifier-cert.crt")
-            logger.warning("using default name for revocation cert %s", args.name)
-        cmd_listen(workingdir, args.name)
     else:
         logger.error("Invalid command: %s", args.command)
         parser.print_help()

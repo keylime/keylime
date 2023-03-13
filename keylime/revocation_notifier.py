@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Optional, Set
 
 import requests
 
-from keylime import config, crypto, json, keylime_logging, secure_mount
+from keylime import config, crypto, json, keylime_logging
 from keylime.common import retry
 
 logger = keylime_logging.init_logging("revocation_notifier")
@@ -188,74 +188,3 @@ def process_revocation(revocation: Dict[str, Any], callback: Callable[[Dict[str,
         message = json.loads(revocation["msg"])
         logger.debug("Revocation signature validated for revocation: %s", message)
         callback(message)
-
-
-def await_notifications(callback: Callable[[Dict[str, Any]], None], revocation_cert_path: str) -> None:
-    assert config.getboolean("agent", "enable_revocation_notifications", fallback=False)
-    try:
-        import zmq  # pylint: disable=import-outside-toplevel
-    except ImportError as error:
-        raise Exception("install PyZMQ for 'zeromq' in 'enable_revocation_notifications' option") from error
-
-    if revocation_cert_path is None:
-        raise Exception("must specify revocation_cert_path")
-
-    context = zmq.Context()  # pylint: disable=abstract-class-instantiated
-    mysock = context.socket(zmq.SUB)
-    mysock.setsockopt(zmq.SUBSCRIBE, b"")
-    mysock.connect(
-        f"tcp://{config.get('agent', 'revocation_notification_ip')}:"
-        f"{config.getint('agent', 'revocation_notification_port')}"
-    )
-
-    logger.info(
-        "Waiting for revocation messages on 0mq %s:%s",
-        config.get("agent", "revocation_notification_ip"),
-        config.getint("agent", "revocation_notification_port"),
-    )
-
-    while True:
-        rawbody = mysock.recv()
-        body = json.loads(rawbody)
-        process_revocation(body, callback, revocation_cert_path)
-
-
-def main() -> None:
-    start_broker()
-
-    def worker() -> None:
-        def print_notification(revocation: Dict[str, Any]) -> None:
-            logger.warning("Received revocation: %s", revocation)
-
-        keypath = os.path.join(secure_mount.mount(), "unzipped", "RevocationNotifier-cert.crt")
-        await_notifications(print_notification, revocation_cert_path=keypath)
-
-    t = threading.Thread(target=worker)
-    t.start()
-    # time.sleep(0.5)
-
-    json_body2 = {
-        "v": "vbaby",
-        "agent_id": "2094aqrea3",
-        "cloudagent_ip": "ipaddy",
-        "cloudagent_port": "39843",
-        "tpm_policy": '{"ab":"1"}',
-        "metadata": '{"cert_serial":"1"}',
-        "allowlist": "{}",
-        "ima_sign_verification_keys": "{}",
-        "revocation_key": "",
-        "revocation": '{"cert_serial":"1"}',
-    }
-
-    print("sending notification")
-    notify(json_body2)
-
-    time.sleep(2)
-    print("shutting down")
-    stop_broker()
-    print("exiting...")
-    sys.exit(0)
-
-
-if __name__ == "__main__":
-    main()

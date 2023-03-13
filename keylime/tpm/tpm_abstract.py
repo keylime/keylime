@@ -1,20 +1,10 @@
 import codecs
-import os
 import string
 from abc import ABCMeta, abstractmethod
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
-
-import yaml
-
-try:
-    from yaml import CSafeDumper as SafeDumper
-    from yaml import CSafeLoader as SafeLoader
-except ImportError:
-    from yaml import SafeLoader, SafeDumper  # type: ignore
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from keylime import config, crypto, json, keylime_logging, measured_boot
 from keylime.agentstates import AgentAttestState
-from keylime.common import algorithms
 from keylime.common.algorithms import Hash
 from keylime.elchecking.policies import RefState
 from keylime.failure import Component, Failure
@@ -74,100 +64,9 @@ class TPM_Utilities:
 class AbstractTPM(metaclass=ABCMeta):
     # Abstract base class
     EXIT_SUCESS: int = 0
-    TPM_IO_ERR: int = 5
-    EMPTYMASK: str = "1"
-    MAX_NONCE_SIZE: int = 64
-
-    need_hw_tpm: bool
-    global_tpmdata: Optional[Dict[str, TPMDataTypes]]
-    tpmrand_warned: bool
-    defaults: Dict[str, Union[str, Hash]]
-    supported: Dict[str, Set[str]]
-
-    # constructor
-    def __init__(self, need_hw_tpm: bool = True) -> None:
-        # read the config file
-        self.need_hw_tpm = need_hw_tpm
-        self.global_tpmdata = None
-        self.tpmrand_warned = False
-        self.defaults = {}
-        self.defaults["hash"] = Hash.SHA1
-        self.defaults["encrypt"] = algorithms.Encrypt.RSA
-        self.defaults["sign"] = algorithms.Sign.RSASSA
-        self.supported = {}
-
-    # tpm_initialize
-    @abstractmethod
-    def flush_keys(self) -> None:
-        pass
-
-    @abstractmethod
-    def encryptAIK(self, uuid: str, ek_tpm: bytes, aik_tpm: bytes) -> Optional[Tuple[bytes, str]]:
-        pass
-
-    @abstractmethod
-    def activate_identity(self, keyblob: str) -> Optional[bytes]:
-        pass
 
     @abstractmethod
     def verify_ek(self, ekcert: bytes, tpm_cert_store: str) -> bool:
-        pass
-
-    @abstractmethod
-    def get_tpm_manufacturer(self, output: Optional[List[bytes]] = None) -> Optional[str]:
-        pass
-
-    @abstractmethod
-    def is_emulator(self) -> bool:
-        pass
-
-    def warn_emulator(self) -> None:
-        if self.is_emulator():
-            logger.warning("INSECURE: Keylime is using a software TPM emulator rather than a real hardware TPM.")
-            logger.warning("INSECURE: The security of Keylime is currently NOT linked to a hardware root of trust.")
-            logger.warning("INSECURE: Only use Keylime in this mode for testing or debugging purposes.")
-
-    @staticmethod
-    def __read_tpm_data() -> Dict[str, TPMDataTypes]:
-        if os.path.exists("tpmdata.yml"):
-            with open("tpmdata.yml", "rb") as f:
-                return cast(Dict[str, TPMDataTypes], yaml.load(f, Loader=SafeLoader))
-        else:
-            return {}
-
-    def __write_tpm_data(self) -> None:
-        with os.fdopen(os.open("tpmdata.yml", os.O_WRONLY | os.O_CREAT, 0o600), "w", encoding="utf-8") as f:
-            yaml.dump(self.global_tpmdata, f, Dumper=SafeDumper)
-
-    def get_tpm_metadata(self, key: str) -> Optional[TPMDataTypes]:
-        if self.global_tpmdata is None:
-            self.global_tpmdata = AbstractTPM.__read_tpm_data()
-        return self.global_tpmdata.get(key, None)
-
-    def _set_tpm_metadata(self, key: str, value: Any) -> None:
-        if self.global_tpmdata is None:
-            self.global_tpmdata = AbstractTPM.__read_tpm_data()
-
-        if self.global_tpmdata.get(key, None) is not value:
-            self.global_tpmdata[key] = value
-            self.__write_tpm_data()
-
-    @abstractmethod
-    def tpm_init(
-        self, self_activate: bool = False, config_pw: Optional[str] = None
-    ) -> Tuple[Optional[bytes], Optional[bytes], Optional[bytes]]:
-        pass
-
-    # tpm_quote
-    @abstractmethod
-    def create_quote(
-        self,
-        nonce: str,
-        data: Optional[bytes] = None,
-        pcrmask: str = EMPTYMASK,
-        hash_alg: Optional[str] = None,
-        compress: bool = False,
-    ) -> str:
         pass
 
     @abstractmethod
@@ -189,36 +88,20 @@ class AbstractTPM(metaclass=ABCMeta):
     ) -> Failure:
         pass
 
-    def START_HASH(self, algorithm: Optional[Hash] = None) -> str:
-        if algorithm is None:
-            algorithm = Hash(self.defaults["hash"])
-
+    @staticmethod
+    def START_HASH(algorithm: Hash) -> str:
         alg_size = algorithm.get_size() // 4
         return "0" * alg_size
 
-    def hashdigest(self, payload: bytes, algorithm: Optional[Hash] = None) -> Optional[str]:
-        if algorithm is None:
-            algorithm = Hash(self.defaults["hash"])
-
+    @staticmethod
+    def hashdigest(payload: bytes, algorithm: Hash) -> Optional[str]:
         digest = algorithm.hash(payload)
         if digest is None:
             return None
         return codecs.encode(digest, "hex").decode("utf-8")
 
     @abstractmethod
-    def sim_extend(self, hashval_1: str, hashval_0: Optional[str] = None, hash_alg: Optional[Hash] = None) -> str:
-        pass
-
-    @abstractmethod
-    def extendPCR(self, pcrval: int, hashval: str, hash_alg: Optional[Hash] = None, lock: bool = True) -> None:
-        pass
-
-    @abstractmethod
-    def readPCR(self, pcrval: int, hash_alg: Optional[Hash] = None) -> str:
-        pass
-
-    @abstractmethod
-    def _get_tpm_rand_block(self, size: int = 4096) -> Optional[bytes]:
+    def sim_extend(self, hashval_1: str, hash_alg: Hash) -> str:
         pass
 
     @staticmethod
@@ -248,13 +131,13 @@ class AbstractTPM(metaclass=ABCMeta):
         return failure
 
     @staticmethod
-    def __parse_pcrs(pcrs: List[str], virtual: int) -> Dict[int, str]:
+    def __parse_pcrs(pcrs: List[str]) -> Dict[int, str]:
         """Parses and validates the format of a list of PCR data"""
         output = {}
         for line in pcrs:
             tokens = line.split()
             if len(tokens) != 3:
-                logger.error("Invalid %sPCR in quote: %s", ("", "v")[virtual], pcrs)
+                logger.error("Invalid PCR in quote: %s", pcrs)
                 continue
             try:
                 pcr_num = int(tokens[1])
@@ -271,7 +154,6 @@ class AbstractTPM(metaclass=ABCMeta):
         tpm_policy: Union[str, Dict[str, Any]],
         pcrs: List[str],
         data: str,
-        virtual: int,
         ima_measurement_list: Optional[str],
         runtime_policy: Optional[RuntimePolicyType],
         ima_keyrings: Optional[ImaKeyrings],
@@ -310,16 +192,15 @@ class AbstractTPM(metaclass=ABCMeta):
 
         pcrs_in_quote: set[int] = set()  # PCRs in quote that were already used for some kind of validation
 
-        pcrs_dict = AbstractTPM.__parse_pcrs(pcrs, virtual)
+        pcrs_dict = AbstractTPM.__parse_pcrs(pcrs)
         pcr_nums = set(pcrs_dict.keys())
 
         # Validate data PCR
         if config.TPM_DATA_PCR in pcr_nums and data is not None:
-            expectedval = self.sim_extend(data, hash_alg=hash_alg)
+            expectedval = self.sim_extend(data, hash_alg)
             if expectedval != pcrs_dict[config.TPM_DATA_PCR]:
                 logger.error(
-                    "%sPCR #%s: invalid bind data %s from quote (from agent %s) does not match expected value %s",
-                    ("", "v")[virtual],
+                    "PCR #%s: invalid bind data %s from quote (from agent %s) does not match expected value %s",
                     config.TPM_DATA_PCR,
                     pcrs_dict[config.TPM_DATA_PCR],
                     agent_id,
@@ -333,8 +214,7 @@ class AbstractTPM(metaclass=ABCMeta):
             pcrs_in_quote.add(config.TPM_DATA_PCR)
         else:
             logger.error(
-                "Binding %sPCR #%s was not included in the quote (from agent %s), but is required",
-                ("", "v")[virtual],
+                "Binding PCR #%s was not included in the quote (from agent %s), but is required",
                 config.TPM_DATA_PCR,
                 agent_id,
             )
@@ -408,8 +288,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
                     if pcr_num in pcr_allowlist and pcrs_dict[pcr_num] not in pcr_allowlist[pcr_num]:
                         logger.error(
-                            "%sPCR #%s: %s from quote (from agent %s) does not match expected value %s",
-                            ("", "v")[virtual],
+                            "PCR #%s: %s from quote (from agent %s) does not match expected value %s",
                             pcr_num,
                             pcrs_dict[pcr_num],
                             agent_id,
@@ -431,17 +310,14 @@ class AbstractTPM(metaclass=ABCMeta):
         for pcr_num in pcr_nums - pcrs_in_quote:
             if pcr_num not in list(pcr_allowlist.keys()):
                 logger.warning(
-                    "%sPCR #%s in quote (from agent %s) not found in %stpm_policy, skipping.",
-                    ("", "v")[virtual],
+                    "PCR #%s in quote (from agent %s) not found in tpm_policy, skipping.",
                     pcr_num,
                     agent_id,
-                    ("", "v")[virtual],
                 )
                 continue
             if pcrs_dict[pcr_num] not in pcr_allowlist[pcr_num]:
                 logger.error(
-                    "%sPCR #%s: %s from quote (from agent %s) does not match expected value %s",
-                    ("", "v")[virtual],
+                    "PCR #%s: %s from quote (from agent %s) does not match expected value %s",
                     pcr_num,
                     pcrs_dict[pcr_num],
                     agent_id,
@@ -461,9 +337,7 @@ class AbstractTPM(metaclass=ABCMeta):
 
         missing = set(pcr_allowlist.keys()) - pcrs_in_quote
         if len(missing) > 0:
-            logger.error(
-                "%sPCRs specified in policy not in quote (from agent %s): %s", ("", "v")[virtual], agent_id, missing
-            )
+            logger.error("PCRs specified in policy not in quote (from agent %s): %s", agent_id, missing)
             failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": list(missing)}, True)
 
         if not mb_failure and mb_refstate_data:
@@ -473,21 +347,11 @@ class AbstractTPM(metaclass=ABCMeta):
                 mb_refstate_data,
                 mb_measurement_data,
                 pcrs_in_quote,
-                ("", "v")[virtual],
                 agentAttestState.get_agent_id(),
             )
             failure.merge(mb_policy_failure)
 
         return failure
-
-    # tpm_nvram
-    @abstractmethod
-    def write_key_nvram(self, key: bytes) -> None:
-        pass
-
-    @abstractmethod
-    def read_key_nvram(self) -> Optional[List[bytes]]:
-        pass
 
     @abstractmethod
     def parse_mb_bootlog(

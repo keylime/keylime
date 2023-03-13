@@ -1,10 +1,10 @@
 import logging
 import ssl
 import sys
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 from keylime import api_version as keylime_api_version
-from keylime import crypto, json, keylime_logging
+from keylime import keylime_logging
 from keylime.requests_client import RequestsClient
 
 if sys.version_info >= (3, 8):
@@ -115,112 +115,6 @@ def getData(
         logger.exception(e)
 
     return None
-
-
-def doRegisterAgent(
-    registrar_ip: str,
-    registrar_port: str,
-    agent_id: str,
-    ek_tpm: bytes,
-    ekcert: Optional[Union[bytes, str]],
-    aik_tpm: bytes,
-    mtls_cert: Optional[bytes] = None,
-    contact_ip: Optional[str] = None,
-    contact_port: Optional[str] = None,
-) -> Optional[str]:
-    """
-    Register the agent with the registrar
-
-    This is called by the agent code
-
-    :returns: base64 encoded blob containing the aik_tpm name and a challenge. Is encrypted with ek_tpm.
-    """
-
-    data: Dict[str, Any] = {
-        "ekcert": ekcert,
-        "aik_tpm": aik_tpm,
-    }
-    if ekcert is None or ekcert == "emulator":
-        data["ek_tpm"] = ek_tpm
-
-    if mtls_cert is not None:
-        data["mtls_cert"] = mtls_cert
-    else:
-        data["mtls_cert"] = "disabled"
-        logger.error("Most actions require the agent to have mTLS enabled, but no cert was provided!")
-    if contact_ip is not None:
-        data["ip"] = contact_ip
-    if contact_port is not None:
-        data["port"] = contact_port
-
-    response = None
-    try:
-        # The agent accesses the registrar without mTLS, meaning without client
-        # certificate
-        # TODO the registrar could be accessed using TLS, but without client
-        # certificate verification. Currently it is accessed without TLS at all
-        client = RequestsClient(f"{registrar_ip}:{registrar_port}", False)
-        response = client.post(f"/v{api_version}/agents/{agent_id}", data=json.dumps(data))
-        response_body = response.json()
-
-        if response.status_code != 200:
-            logger.error("Error: unexpected http response code from Registrar Server: %s", response.status_code)
-            keylime_logging.log_http_response(logger, logging.ERROR, response_body)
-            return None
-
-        logger.info("Agent registration requested for %s", agent_id)
-
-        if "results" not in response_body:
-            logger.critical("Error: unexpected http response body from Registrar Server: %s", response.status_code)
-            return None
-
-        if "blob" not in response_body["results"]:
-            logger.critical("Error: did not receive blob from Registrar Server: %s", response.status_code)
-            return None
-
-        return str(response_body["results"]["blob"])
-    except Exception as e:
-        if response and response.status_code == 503:
-            logger.error("Agent cannot establish connection to registrar at %s:%s", registrar_ip, registrar_port)
-            sys.exit()
-        else:
-            logger.exception(e)
-
-    return None
-
-
-def doActivateAgent(registrar_ip: str, registrar_port: str, agent_id: str, key: bytes) -> bool:
-    """
-    Activate the agent with the registrar
-
-    Contact the registrar to inform the agent has the derived key
-
-    This is called by the agent code
-
-    :returns:
-    """
-    data = {
-        "auth_tag": crypto.do_hmac(key, agent_id),
-    }
-
-    # The agent accesses the registrar without mTLS, meaning without client
-    # certificate
-    # TODO the registrar could be accessed using TLS, but without client
-    # certificate verification. Currently it is accessed without TLS at all
-    client = RequestsClient(f"{registrar_ip}:{registrar_port}", False)
-    response = client.put(
-        f"/v{api_version}/agents/{agent_id}/activate",
-        data=json.dumps(data),
-    )
-    response_body = response.json()
-
-    if response.status_code == 200:
-        logger.info("Registration activated for agent %s.", agent_id)
-        return True
-
-    logger.error("Error: unexpected http response code from Registrar Server: %s", str(response.status_code))
-    keylime_logging.log_http_response(logger, logging.ERROR, response_body)
-    return False
 
 
 def doRegistrarDelete(
