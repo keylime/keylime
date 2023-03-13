@@ -1,5 +1,6 @@
 import codecs
 import copy
+import enum
 import functools
 import hashlib
 import json
@@ -21,7 +22,7 @@ logger = keylime_logging.init_logging("ima")
 RUNTIME_POLICY_CURRENT_VERSION = 1
 
 
-class RUNTIME_POLICY_GENERATOR:
+class RUNTIME_POLICY_GENERATOR(enum.IntEnum):
     Unknown = 0
     EmptyAllowList = 1
     CompatibleAllowList = 2
