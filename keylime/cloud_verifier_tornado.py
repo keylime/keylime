@@ -1448,37 +1448,40 @@ async def process_agent(
         await process_agent(agent, states.FAILED, failure)
 
 
-async def activate_agents(verifier_id: str, verifier_ip: str, verifier_port: int) -> None:
-    session = get_session()
+async def activate_agents(agents: List[VerfierMain], verifier_ip: str, verifier_port: int) -> None:
     aas = get_AgentAttestStates()
-    try:
-        agents = session.query(VerfierMain).filter_by(verifier_id=verifier_id).all()
-        for agent in agents:
-            agent.verifier_ip = verifier_ip  # pyright: ignore
-            agent.verifier_port = verifier_port  # pyright: ignore
-            agent_run = _from_db_obj(agent)
-            if agent_run["mtls_cert"] and agent_run["mtls_cert"] != "disabled":
-                agent_run["ssl_context"] = web_util.generate_agent_tls_context(
-                    "verifier", agent_run["mtls_cert"], logger=logger
-                )
+    for agent in agents:
+        agent.verifier_ip = verifier_ip  # pyright: ignore
+        agent.verifier_port = verifier_port  # pyright: ignore
+        agent_run = _from_db_obj(agent)
+        if agent_run["mtls_cert"] and agent_run["mtls_cert"] != "disabled":
+            agent_run["ssl_context"] = web_util.generate_agent_tls_context(
+                "verifier", agent_run["mtls_cert"], logger=logger
+            )
 
-            if agent.operational_state == states.START:
-                asyncio.ensure_future(process_agent(agent_run, states.GET_QUOTE))
-            if agent.boottime:
-                ima_pcrs_dict = {}
-                assert isinstance(agent.ima_pcrs, list)
-                for pcr_num in agent.ima_pcrs:
-                    ima_pcrs_dict[pcr_num] = getattr(agent, f"pcr{pcr_num}")
-                aas.add(
-                    str(agent.agent_id),
-                    int(agent.boottime),  # pyright: ignore
-                    ima_pcrs_dict,
-                    int(agent.next_ima_ml_entry),  # type: ignore
-                    dict(agent.learned_ima_keyrings),  # type: ignore
-                )
-        session.commit()
+        if agent.operational_state == states.START:
+            asyncio.ensure_future(process_agent(agent_run, states.GET_QUOTE))
+        if agent.boottime:
+            ima_pcrs_dict = {}
+            assert isinstance(agent.ima_pcrs, list)
+            for pcr_num in agent.ima_pcrs:
+                ima_pcrs_dict[pcr_num] = getattr(agent, f"pcr{pcr_num}")
+            aas.add(
+                str(agent.agent_id),
+                int(agent.boottime),  # pyright: ignore
+                ima_pcrs_dict,
+                int(agent.next_ima_ml_entry),  # type: ignore
+                dict(agent.learned_ima_keyrings),  # type: ignore
+            )
+
+
+def get_agents_by_verifier_id(verifier_id: str) -> List[VerfierMain]:
+    session = get_session()
+    try:
+        return session.query(VerfierMain).filter_by(verifier_id=verifier_id).all()
     except SQLAlchemyError as e:
         logger.error("SQLAlchemy Error: %s", e)
+    return []
 
 
 def main() -> None:
@@ -1540,7 +1543,7 @@ def main() -> None:
 
     sockets = tornado.netutil.bind_sockets(int(verifier_port), address=verifier_host)
 
-    def server_process(task_id: int) -> None:
+    def server_process(task_id: int, agents: List[VerfierMain]) -> None:
         logger.info("Starting server of process %s", task_id)
         assert isinstance(engine, Engine)
         engine.dispose()
@@ -1566,9 +1569,8 @@ def main() -> None:
         loop.add_signal_handler(signal.SIGTERM, server_sig_handler)
 
         server.start()
-        if task_id == 0:
-            # Reactivate agents
-            asyncio.ensure_future(activate_agents(verifier_id, verifier_host, int(verifier_port)))
+        # Reactivate agents
+        asyncio.ensure_future(activate_agents(agents, verifier_host, int(verifier_port)))
         tornado.ioloop.IOLoop.current().start()
         logger.debug("Server %s stopped.", task_id)
         sys.exit(0)
@@ -1596,7 +1598,10 @@ def main() -> None:
     num_workers = config.getint("verifier", "num_workers")
     if num_workers <= 0:
         num_workers = tornado.process.cpu_count()
+
+    agents = get_agents_by_verifier_id(verifier_id)
     for task_id in range(0, num_workers):
-        process = Process(target=server_process, args=(task_id,))
+        active_agents = [agents[i] for i in range(task_id, len(agents), num_workers)]
+        process = Process(target=server_process, args=(task_id, active_agents))
         process.start()
         processes.append(process)
