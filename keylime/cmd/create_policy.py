@@ -99,7 +99,7 @@ def get_hashes_from_measurement_list(
                     continue
                 # FIXME: filenames with spaces may be problematic
                 checksum_hash = pieces[3].split(":")[1]
-                path = pieces[4]
+                path = pieces[4].rstrip("\n")
                 hashes_map.setdefault(path, []).append(checksum_hash)
     except (PermissionError, FileNotFoundError) as ex:
         print(f"An error occurred: {ex}", file=sys.stderr)
