@@ -1239,7 +1239,10 @@ class Tenant:
         response = cv_client.post(
             f"/v{self.api_version}/allowlists/{self.runtime_policy_name}", data=body, timeout=self.request_timeout
         )
-        Tenant._jsonify_response(response)
+        response_json = Tenant._jsonify_response(response)
+
+        if response.status_code == 401:
+            raise UserError(response_json)
 
     def do_update_runtime_policy(self, args: Dict[str, str]) -> None:
         body = self.__convert_runtime_policy(args)
@@ -1248,7 +1251,10 @@ class Tenant:
         response = cv_client.put(
             f"/v{self.api_version}/allowlists/{self.runtime_policy_name}", data=body, timeout=self.request_timeout
         )
-        Tenant._jsonify_response(response)
+        response_json = Tenant._jsonify_response(response)
+
+        if response.status_code == 401:
+            raise UserError(response_json)
 
     def do_delete_runtime_policy(self, name: Optional[str]) -> None:
         if not name:
