@@ -4,10 +4,12 @@
 
   environment:
     RUST_IMA_EMULATOR: 1
+    TPM_BINARY_MEASUREMENTS: /var/tmp/binary_bios_measurements
 
   context:
     swtpm: yes
     agent: rust
+    faked_measured_boot_log: yes
 
   prepare:
    - how: shell
@@ -40,6 +42,7 @@
      - /functional/db-postgresql-sanity-on-localhost
      - /functional/db-mariadb-sanity-on-localhost
      - /functional/db-mysql-sanity-on-localhost
+     - /functional/durable-attestion-sanity-on-localhost
      - /functional/ek-cert-use-ek_check_script
      - /functional/ek-cert-use-ek_handle-custom-ca_certs
      - /functional/install-rpm-with-ima-signature
@@ -89,11 +92,13 @@
 
   environment:
     KEYLIME_TEST_DISABLE_REVOCATION: 1
+    TPM_BINARY_MEASUREMENTS: /var/tmp/binary_bios_measurements
 
 
   context:
     swtpm: yes
     agent: rust
+    faked_measured_boot_log: yes
 
   prepare:
    - how: shell
