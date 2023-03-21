@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from keylime import config, keylime_logging, measured_boot
 from keylime.cmd import convert_runtime_policy
-from keylime.ima import file_signatures, ima
+from keylime.ima import ima
 from keylime.tpm.tpm_abstract import TPM_Utilities
 
 if sys.version_info >= (3, 8):
@@ -18,7 +18,6 @@ else:
 class ArgsType(TypedDict):
     tpm_policy: Optional[str]
     mask: str
-    ima_sign_verification_keys: List[str]
     allowlist: str
     allowlist_name: str
     ima_exclude: str
@@ -51,11 +50,10 @@ def enforce_pcrs(tpm_policy: Dict[str, Any], protected_pcrs: List[int], pcr_use:
             sys.exit(1)
 
 
-def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, Optional[str], str, str, str]:
+def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, str, str, str]:
     tpm_policy_str = "{}"
     runtime_policy_name = ""
     mb_refstate = None
-    ima_sign_verification_keys: Optional[str] = ""
     runtime_policy = ""
     runtime_policy_key = ""
     runtime_policy_sig = ""
@@ -66,27 +64,6 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
 
     tpm_policy = TPM_Utilities.readPolicy(tpm_policy_str)
     logger.info("TPM PCR Mask from policy is %s", tpm_policy["mask"])
-
-    if len(args["ima_sign_verification_keys"]) > 0:
-        # Auto-enable IMA (or-bit mask)
-        tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
-
-        logger.warning(
-            "WARNING: Verification key support in the Keylime tenant is deprecated. Provide "
-            "verification keys as part of a runtime policy instead."
-        )
-
-        # Add all IMA file signing verification keys to a keyring
-        tenant_keyring = file_signatures.ImaKeyring()
-        for filename in args["ima_sign_verification_keys"]:
-            try:
-                pubkey, keyidv2 = file_signatures.get_pubkey_from_file(filename)
-            except ValueError as e:
-                raise UserError(f"File '{filename}' does not have a supported key: {e}") from e
-            if not pubkey:
-                raise UserError(f"File '{filename}' is not a file with a key")
-            tenant_keyring.add_pubkey(pubkey, keyidv2)
-        ima_sign_verification_keys = tenant_keyring.to_string()
 
     # Read command-line path string legacy policy and warn about deprecation.
     if "allowlist" in args and args["allowlist"] is not None:
@@ -180,7 +157,6 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
         tpm_policy,
         mb_refstate,
         runtime_policy_name,
-        ima_sign_verification_keys,
         runtime_policy,
         runtime_policy_key,
         runtime_policy_sig,
