@@ -1,7 +1,9 @@
 import tempfile
 import unittest
+from typing import cast
 
 from keylime.ima import ima
+from keylime.ima.types import RuntimePolicyType
 
 
 class TestIMA(unittest.TestCase):
@@ -35,6 +37,12 @@ class TestIMA(unittest.TestCase):
                 self.assertIsNotNone(ml)
                 assert ml is not None  # redundant but it makes type-checking happy
                 self.assertTrue(ml.startswith("0-entry"))
+
+    def test_json_schema(self) -> None:
+        with self.assertRaises(ima.ImaValidationError):
+            ima.validate_runtime_policy(cast(RuntimePolicyType, {}))
+
+        ima.validate_runtime_policy(ima.EMPTY_RUNTIME_POLICY)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,12 @@
 import codecs
 import copy
+import enum
 import functools
 import hashlib
 import json
 from typing import Any, Dict, List, Optional, Pattern, Set, TextIO, Tuple, Type
+
+import jsonschema
 
 from keylime import config, keylime_logging, signing
 from keylime.agentstates import AgentAttestState
@@ -21,7 +24,7 @@ logger = keylime_logging.init_logging("ima")
 RUNTIME_POLICY_CURRENT_VERSION = 1
 
 
-class RUNTIME_POLICY_GENERATOR:
+class RUNTIME_POLICY_GENERATOR(enum.IntEnum):
     Unknown = 0
     EmptyAllowList = 1
     CompatibleAllowList = 2
@@ -49,6 +52,55 @@ EMPTY_RUNTIME_POLICY: RuntimePolicyType = {
     "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1", "dm_policy": None},
     "ima-buf": {},
     "verification-keys": "",
+}
+
+
+RUNTIME_POLICY_SCHEMA = {
+    "type": "object",
+    "required": ["meta", "release", "digests", "excludes", "keyrings", "ima", "ima-buf", "verification-keys"],
+    "properties": {
+        "meta": {
+            "type": "object",
+            "required": ["version", "generator"],
+            "properties": {
+                "version": {"type": "integer", "minimum": 0},
+                "generator": {
+                    "type": "integer",
+                    "minimum": min(list(RUNTIME_POLICY_GENERATOR)),
+                    "maximum": max(list(RUNTIME_POLICY_GENERATOR)),
+                },
+                "timestamp": {"type": "string"},
+            },
+        },
+        "release": {"type": "integer", "minimum": 0},
+        "digests": {"$ref": "#/definitions/digests-object"},
+        "excludes": {"type": "array", "items": {"type": "string"}},
+        "keyrings": {"$ref": "#/definitions/digests-object"},
+        "ima": {
+            "type": "object",
+            "required": ["ignored_keyrings", "log_hash_alg", "dm_policy"],
+            "properties": {
+                "ignored_keyrings": {"type": "array", "items": {"type": "string"}},
+                "log_hash_alg": {"type": "string", "enum": ["sha1", "sha256", "sha384", "sha512"]},
+                "dm_policy": {"type": "null"},
+            },
+        },
+        "ima-buf": {"$ref": "#/definitions/digests-object"},
+        "verification-keys": {"type": "string"},
+    },
+    "definitions": {
+        "digests-object": {
+            "type": "object",
+            "patternProperties": {
+                "^": {
+                    "type": "array",
+                    "items": {"type": "string", "pattern": "^[0-9a-f]{40,128}$"},
+                    "minItems": 1,
+                    "uniqueItems": False,
+                }
+            },
+        }
+    },
 }
 
 
@@ -480,6 +532,9 @@ def runtime_policy_db_contents(runtime_policy_name: str, runtime_policy: str, tp
         runtime_policy_db_format["ima_policy"] = runtime_policy
     runtime_policy_bytes = runtime_policy.encode()
     runtime_policy_dict = deserialize_runtime_policy(runtime_policy)
+
+    validate_runtime_policy(runtime_policy_dict)
+
     if "meta" in runtime_policy_dict:
         if "generator" in runtime_policy_dict["meta"]:
             runtime_policy_db_format["generator"] = runtime_policy_dict["meta"]["generator"]
@@ -553,3 +608,14 @@ def deserialize_runtime_policy(runtime_policy: str) -> RuntimePolicyType:
     # TODO: Extract IMA policy JSON from DSSE envelope, if applicable.
     runtime_policy_deserialized: RuntimePolicyType = json.loads(runtime_policy)
     return runtime_policy_deserialized
+
+
+def validate_runtime_policy(runtime_policy: RuntimePolicyType) -> None:
+    """
+    Validate a runtime policy against the schema.
+    """
+    try:
+        jsonschema.validate(instance=runtime_policy, schema=RUNTIME_POLICY_SCHEMA)
+    except Exception as error:
+        msg = str(error).split("\n", 1)[0]
+        raise ImaValidationError(message=f"{msg}", code=400) from error

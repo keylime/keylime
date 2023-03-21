@@ -677,7 +677,15 @@ class AgentsHandler(BaseHandler):
                         if not runtime_policy_name:
                             runtime_policy_name = agent_id
 
-                        runtime_policy_db_format = ima.runtime_policy_db_contents(runtime_policy_name, runtime_policy)
+                        try:
+                            runtime_policy_db_format = ima.runtime_policy_db_contents(
+                                runtime_policy_name, runtime_policy
+                            )
+                        except ima.ImaValidationError as e:
+                            message = f"Runtime policy is malformatted: {e.message}"
+                            web_util.echo_json_response(self, e.code, message)
+                            logger.warning(message)
+                            return
 
                         try:
                             runtime_policy_stored = (
@@ -961,7 +969,13 @@ class AllowlistHandler(BaseHandler):
 
         tpm_policy = json_body.get("tpm_policy")
 
-        runtime_policy_db_format = ima.runtime_policy_db_contents(runtime_policy_name, runtime_policy, tpm_policy)
+        try:
+            runtime_policy_db_format = ima.runtime_policy_db_contents(runtime_policy_name, runtime_policy, tpm_policy)
+        except ima.ImaValidationError as e:
+            message = f"Runtime policy is malformatted: {e.message}"
+            web_util.echo_json_response(self, e.code, message)
+            logger.warning(message)
+            return None
 
         return runtime_policy_db_format
 
