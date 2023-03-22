@@ -35,23 +35,8 @@ def get_opts_error(args: Any) -> Tuple[bool, str]:
         return True, "--allowlist and --allowlist-url cannot be specified at the same time"
     if args.runtime_policy and args.runtime_policy_url:
         return True, "--runtime_policy and --runtime_policy-url cannot be specified at the same time"
-    if args.runtime_policy_url and not (
-        args.runtime_policy_sig or args.runtime_policy_sig_url or args.runtime_policy_checksum
-    ):
-        return (
-            True,
-            "--runtime_policy-url must have either --runtime_policy-sig, --runtime_policy-sig-url or --runtime_policy-checksum to verifier integrity",
-        )
-    if args.runtime_policy_sig and not (args.runtime_policy_url or args.runtime_policy):
-        return True, "--runtime_policy-sig must have either --runtime_policy or --runtime_policy-url"
-    if args.runtime_policy_sig_url and not (args.runtime_policy_url or args.runtime_policy):
-        return True, "--runtime_policy-sig-url must have either --runtime_policy or --runtime_policy-url"
+    if args.runtime_policy_url and not args.runtime_policy_checksum:
+        return True, "--runtime_policy-url must have --runtime_policy-checksum to verifier integrity"
     if args.runtime_policy_checksum and not (args.runtime_policy_url or args.runtime_policy):
         return True, "--runtime_policy-checksum must have either --runtime_policy or --runtime_policy-url"
-    if args.runtime_policy_sig and not args.runtime_policy_sig_key:
-        return True, "--runtime_policy-sig must also have --runtime_policy-sig-key"
-    if args.runtime_policy_sig_url and not args.runtime_policy_sig_key:
-        return True, "--runtime_policy-sig-url must also have --runtime_policy-sig-key"
-    if args.runtime_policy_sig_key and not (args.runtime_policy_sig or args.runtime_policy_sig_url):
-        return True, "--runtime_policy-sig-key must have either --runtime_policy-sig or --runtime_policy-sig-url"
     return False, ""

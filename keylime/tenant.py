@@ -67,7 +67,6 @@ class Tenant:
     runtime_policy: str = ""
     runtime_policy_name: str = ""
     runtime_policy_key = None
-    runtime_policy_sig = None
     ima_sign_verification_keys: Optional[str] = ""
     revocation_key: str = ""
     accept_tpm_hash_algs: List[str] = []
@@ -283,7 +282,6 @@ class Tenant:
             self.ima_sign_verification_keys,
             self.runtime_policy,
             self.runtime_policy_key,
-            self.runtime_policy_sig,
         ) = policies.process_policy(cast(policies.ArgsType, args))
 
         # if none
@@ -560,7 +558,6 @@ class Tenant:
             "runtime_policy": self.runtime_policy,
             "runtime_policy_name": self.runtime_policy_name,
             "runtime_policy_key": self.runtime_policy_key,
-            "runtime_policy_sig": self.runtime_policy_sig,
             "mb_refstate": json.dumps(self.mb_refstate),
             "ima_sign_verification_keys": self.ima_sign_verification_keys,
             "metadata": json.dumps(self.metadata),
@@ -1221,14 +1218,12 @@ class Tenant:
             self.ima_sign_verification_keys,
             self.runtime_policy,
             self.runtime_policy_key,
-            self.runtime_policy_sig,
         ) = policies.process_policy(cast(policies.ArgsType, args))
 
         data = {
             "tpm_policy": json.dumps(self.tpm_policy),
             "runtime_policy": self.runtime_policy,
             "runtime_policy_key": self.runtime_policy_key,
-            "runtime_policy_sig": self.runtime_policy_sig,
         }
         return json.dumps(data)
 
@@ -1470,20 +1465,6 @@ def main() -> None:
         help="Specify the SHA-256 checksum of a runtime policy",
     )
     parser.add_argument(
-        "--runtime-policy-sig",
-        action="store",
-        dest="runtime_policy_sig",
-        default=None,
-        help="Specify the signature file of a runtime policy",
-    )
-    parser.add_argument(
-        "--runtime-policy-sig-url",
-        action="store",
-        dest="runtime_policy_sig_url",
-        default=None,
-        help="Specify the URL of the remote signature file of a runtime policy",
-    )
-    parser.add_argument(
         "--runtime-policy-sig-key",
         action="store",
         dest="runtime_policy_sig_key",
@@ -1566,19 +1547,6 @@ def main() -> None:
             else:
                 raise Exception(
                     f"Downloading IMA policy ({args.runtime_policy_url}) failed with status code {response.status_code}!"
-                )
-
-        if args.runtime_policy_sig_url:
-            logger.info("Downloading IMA policy signature from %s", args.runtime_policy_sig_url)
-            response = requests.get(
-                args.runtime_policy_sig_url, timeout=mytenant.request_timeout, allow_redirects=False
-            )
-            if response.status_code == 200:
-                args.runtime_policy_sig = write_to_namedtempfile(response.content, delete_tmp_files)
-                logger.debug("IMA policy signature temporarily saved in %s", args.runtime_policy_sig)
-            else:
-                raise Exception(
-                    f"Downloading IMA policy signature ({args.runtime_policy_sig_url}) failed with status code {response.status_code}!"
                 )
 
         if args.allowlist_url:

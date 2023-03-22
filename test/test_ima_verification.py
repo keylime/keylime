@@ -264,14 +264,15 @@ class TestIMAVerification(unittest.TestCase):
 
         curdir = os.path.dirname(os.path.abspath(__file__))
         allowlist_file = os.path.join(curdir, "data", "runtime-policy-test.json")
-        allowlist_sig = os.path.join(curdir, "data", "runtime-policy-test.sig")
-        allowlist_bad_sig = os.path.join(curdir, "data", "runtime-policy-bad.sig")
-        allowlist_ecdsa_key = os.path.join(curdir, "data", "ecdsa-sig-key.pub")
+        allowlist_file_signed = os.path.join(curdir, "data", "runtime-policy-test-signed.json")
+        allowlist_file_signed_bad = os.path.join(curdir, "data", "runtime-policy-test-signed-bad.json")
+        allowlist_dsse_key = os.path.join(curdir, "data", "runtime-policy-pubkey.pub")
         allowlist_checksum = "64608ceb82d6d6459e8ac5ffd19865d670d1fe99417e10f20446de5d125bc4ab"
+        allowlist_signed_checksum = "ed42c2beda1207061187a5e03b1faaf4cb3e2ff57121cb823ac92b536800e027"
         allowlist_bad_checksum = "4c143670836f96535d9e617359b4d87c59e89e633e2773b4d7feae97f561b3dc"
 
         # simple read, no fancy verification
-        runtime_policy, _, _ = ima.read_runtime_policy(allowlist_file)
+        runtime_policy, _ = ima.read_runtime_policy(allowlist_file)
         runtime_policy = json.loads(runtime_policy)
         self.assertIsNotNone(runtime_policy, "Runtime policy data is present")
         self.assertIsNotNone(runtime_policy["meta"], "Runtime policy metadata is present")
@@ -297,7 +298,7 @@ class TestIMAVerification(unittest.TestCase):
         )
 
         # validate checksum
-        runtime_policy, _, _ = ima.read_runtime_policy(allowlist_file, allowlist_checksum)
+        runtime_policy, _ = ima.read_runtime_policy(allowlist_file, allowlist_checksum)
         runtime_policy = json.loads(runtime_policy)
         self.assertIsNotNone(runtime_policy, "Runtime policy data is present")
         self.assertIsNotNone(runtime_policy["digests"], "Runtime policy hashes are present")
@@ -313,14 +314,23 @@ class TestIMAVerification(unittest.TestCase):
             ima.read_runtime_policy(allowlist_file, allowlist_bad_checksum)
         self.assertIn("Checksum of runtime policy does not match", str(bad_checksum_context.exception))
 
-        # validate signature (tenant side)
-        runtime_policy, runtime_policy_key, runtime_policy_sig = ima.read_runtime_policy(
-            allowlist_file, None, allowlist_sig, allowlist_ecdsa_key
+        # validate DSSE signature (tenant side)
+        runtime_policy_envelope_raw, runtime_policy_key = ima.read_runtime_policy(
+            allowlist_file_signed, None, allowlist_dsse_key
         )
-        runtime_policy = json.loads(runtime_policy)
-        self.assertIsNotNone(runtime_policy, "Runtime policy data is present")
+        runtime_policy_envelope = json.loads(runtime_policy_envelope_raw)
+        self.assertIsNotNone(runtime_policy_envelope, "Runtime policy envelope data is present")
         self.assertIsNotNone(runtime_policy_key, "Runtime policy signing key is present")
-        self.assertIsNotNone(runtime_policy_sig, "Runtime policy signature is present")
+        self.assertIsNotNone(runtime_policy_envelope["payload"], "DSSE payload is present")
+        self.assertIsNotNone(runtime_policy_envelope["payloadType"], "DSSE payload type is present")
+        self.assertEqual(
+            runtime_policy_envelope["payloadType"],
+            "application/vnd.keylime+json",
+            "DSSE payload is present",
+        )
+
+        # deserialize DSSE payload
+        runtime_policy = ima.deserialize_runtime_policy(runtime_policy_envelope_raw.decode())
         self.assertIsNotNone(runtime_policy["digests"], "Runtime policy hashes are present")
         self.assertEqual(len(runtime_policy["digests"]), 21, "Runtime policy hashes are correct length")
         self.assertEqual(
@@ -329,33 +339,41 @@ class TestIMAVerification(unittest.TestCase):
             "Runtime policy sample hash is correct",
         )
 
-        # test with a bad sig (tenant-side)
+        # test with a bad DSSE signature (tenant-side)
         with self.assertRaises(Exception) as bad_sig_context:
-            ima.read_runtime_policy(allowlist_file, None, allowlist_bad_sig, allowlist_ecdsa_key)
-        self.assertIn("Runtime policy failed detached signature verification!", str(bad_sig_context.exception))
+            ima.read_runtime_policy(allowlist_file_signed_bad, None, allowlist_dsse_key)
+        self.assertIn("Runtime policy failed DSSE signature verification!", str(bad_sig_context.exception))
 
-        # validate signature (verifier side)
-        runtime_policy, runtime_policy_key, runtime_policy_sig = ima.read_runtime_policy(
-            allowlist_file, None, allowlist_sig, allowlist_ecdsa_key
-        )
-        ima.verify_runtime_policy(runtime_policy, runtime_policy_key, runtime_policy_sig)
+        # validate DSSE signature (verifier side)
+        runtime_policy, runtime_policy_key = ima.read_runtime_policy(allowlist_file_signed, None, allowlist_dsse_key)
+        ima.verify_runtime_policy(runtime_policy, runtime_policy_key)
 
         # test with a bad sig (verifier-side)
-        with open(allowlist_bad_sig, "rb") as bad_sig_f:
-            bad_sig_raw = bad_sig_f.read()
+
+        with open(allowlist_file_signed_bad, "rb") as bad_sig_f:
+            runtime_policy_bad = bad_sig_f.read()
         with self.assertRaises(ima.ImaValidationError) as bad_sig_context:
-            ima.verify_runtime_policy(runtime_policy, runtime_policy_key, bad_sig_raw)
-        self.assertIn("Runtime policy failed detached signature verification!", bad_sig_context.exception.message)
+            ima.verify_runtime_policy(runtime_policy_bad, runtime_policy_key)
+        self.assertIn("Runtime policy failed DSSE signature verification!", bad_sig_context.exception.message)
         self.assertEqual(bad_sig_context.exception.code, 401)
 
         # validate everything together
-        runtime_policy, runtime_policy_key, runtime_policy_sig = ima.read_runtime_policy(
-            allowlist_file, allowlist_checksum, allowlist_sig, allowlist_ecdsa_key
+        runtime_policy_envelope_raw, runtime_policy_key = ima.read_runtime_policy(
+            allowlist_file_signed, allowlist_signed_checksum, allowlist_dsse_key
         )
-        runtime_policy = json.loads(runtime_policy)
-        self.assertIsNotNone(runtime_policy, "Runtime policy data is present")
+        runtime_policy_envelope = json.loads(runtime_policy_envelope_raw)
+        self.assertIsNotNone(runtime_policy_envelope, "Runtime policy envelope data is present")
         self.assertIsNotNone(runtime_policy_key, "Runtime policy signing key is present")
-        self.assertIsNotNone(runtime_policy_sig, "Runtime policy signature is present")
+        self.assertIsNotNone(runtime_policy_envelope["payload"], "DSSE payload is present")
+        self.assertIsNotNone(runtime_policy_envelope["payloadType"], "DSSE payload type is present")
+        self.assertEqual(
+            runtime_policy_envelope["payloadType"],
+            "application/vnd.keylime+json",
+            "DSSE payload is present",
+        )
+
+        # deserialize DSSE payload
+        runtime_policy = ima.deserialize_runtime_policy(runtime_policy_envelope_raw.decode())
         self.assertIsNotNone(runtime_policy["digests"], "Runtime policy hashes are present")
         self.assertEqual(len(runtime_policy["digests"]), 21, "Runtime policy hashes are correct length")
         self.assertEqual(

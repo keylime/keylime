@@ -24,7 +24,6 @@ class ArgsType(TypedDict):
     ima_exclude: str
     runtime_policy: str
     runtime_policy_name: str
-    runtime_policy_sig: Optional[str]
     runtime_policy_sig_key: Optional[str]
     runtime_policy_checksum: str
     mb_refstate: Optional[str]
@@ -51,14 +50,13 @@ def enforce_pcrs(tpm_policy: Dict[str, Any], protected_pcrs: List[int], pcr_use:
             sys.exit(1)
 
 
-def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, Optional[str], str, str, str]:
+def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, Optional[str], str, str]:
     tpm_policy_str = "{}"
     runtime_policy_name = ""
     mb_refstate = None
     ima_sign_verification_keys: Optional[str] = ""
     runtime_policy = ""
     runtime_policy_key = ""
-    runtime_policy_sig = ""
 
     # Set up PCR values
     if "tpm_policy" in args and args["tpm_policy"] is not None:
@@ -129,15 +127,13 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
         tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
 
         try:
-            runtime_policy_bytes, runtime_policy_key_bytes, runtime_policy_sig_bytes = ima.read_runtime_policy(
+            runtime_policy_bytes, runtime_policy_key_bytes = ima.read_runtime_policy(
                 args["runtime_policy"],
                 args["runtime_policy_checksum"],
-                args["runtime_policy_sig"],
                 args["runtime_policy_sig_key"],
             )
             runtime_policy = base64.b64encode(runtime_policy_bytes).decode()
             runtime_policy_key = base64.b64encode(runtime_policy_key_bytes).decode()
-            runtime_policy_sig = base64.b64encode(runtime_policy_sig_bytes).decode()
         except Exception as ima_e:
             raise UserError(str(ima_e)) from ima_e
 
@@ -183,5 +179,4 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
         ima_sign_verification_keys,
         runtime_policy,
         runtime_policy_key,
-        runtime_policy_sig,
     )
