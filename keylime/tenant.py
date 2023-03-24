@@ -1235,7 +1235,7 @@ class Tenant:
         )
         response_json = Tenant._jsonify_response(response)
 
-        if response.status_code == 401:
+        if response.status_code >= 400:
             raise UserError(response_json)
 
     def do_update_runtime_policy(self, args: Dict[str, str]) -> None:
@@ -1247,7 +1247,7 @@ class Tenant:
         )
         response_json = Tenant._jsonify_response(response)
 
-        if response.status_code == 401:
+        if response.status_code >= 400:
             raise UserError(response_json)
 
     def do_delete_runtime_policy(self, name: Optional[str]) -> None:
@@ -1255,7 +1255,10 @@ class Tenant:
             raise UserError("--allowlist_name or --runtime_policy_name is required to delete a runtime policy")
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.delete(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
-        Tenant._jsonify_response(response)
+        response_json = Tenant._jsonify_response(response)
+
+        if response.status_code >= 400:
+            raise UserError(response_json)
 
     def do_show_runtime_policy(self, name: Optional[str]) -> None:  # pylint: disable=unused-argument
         if not name:
@@ -1263,7 +1266,10 @@ class Tenant:
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.get(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
         print(f"Show allowlist command response: {response.status_code}.")
-        Tenant._jsonify_response(response)
+        response_json = Tenant._jsonify_response(response)
+
+        if response.status_code >= 400:
+            raise UserError(response_json)
 
     @staticmethod
     def _jsonify_response(
