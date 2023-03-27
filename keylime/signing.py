@@ -3,7 +3,7 @@ import hashlib
 import json
 import os
 import tempfile
-from typing import Optional
+from typing import Optional, Union
 
 import gpg
 from cryptography.exceptions import InvalidSignature
@@ -16,11 +16,17 @@ from keylime import keylime_logging
 from keylime.dsse import dsse
 from keylime.dsse import ecdsa as dsse_ecdsa
 from keylime.dsse import x509 as dsse_x509
+from keylime.types import PathLike_str
 
 logger = keylime_logging.init_logging("signing")
 
 
-def verify_signature_from_file(key_file: str, filename: str, sig_file: str, description: str) -> None:
+def verify_signature_from_file(
+    key_file: Union[str, PathLike_str],
+    filename: Union[str, PathLike_str],
+    sig_file: Union[str, PathLike_str],
+    description: str,
+) -> None:
     """
     Verify the file signature on disk (sig_file) using a public key on disk
     (key_file) with the file on disk (file). All inputs should be file
