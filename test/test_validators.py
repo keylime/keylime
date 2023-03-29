@@ -70,7 +70,7 @@ class TestValidHex(unittest.TestCase):
         self.assertTrue(validators.valid_hex("123ABC"))
 
     def test_invalid(self):
-        """Check and invalid hexadecimal number."""
+        """Check an invalid hexadecimal number."""
         self.assertFalse(validators.valid_hex("123xyz"))
 
 
