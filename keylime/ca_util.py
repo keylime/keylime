@@ -63,15 +63,30 @@ def load_cert_by_path(cert_path: str) -> Certificate:
     return cert
 
 
-def setpassword(pw: Optional[str]) -> None:
+def read_password(key_store_pw: Optional[str] = None) -> None:
     global global_password
-    if not pw:
-        pw = getpass.getpass("Please enter the password to decrypt your keystore: ")
+    if not key_store_pw:
+        key_store_pw = config.get("ca", "password", fallback="default")
 
-    if not pw:
+    if key_store_pw == "default":
+        logger.warning("Using 'default' password option from CA configuration file")
+    global_password = key_store_pw
+
+
+def ask_password(key_store_pw: Optional[str] = None) -> None:
+    global global_password
+    if not key_store_pw:
+        key_store_pw = config.get("ca", "password", fallback="default")
+
+    if key_store_pw == "default":
+        logger.warning(
+            "The 'default' password option from CA configuration file cannot be used with keylime CLI (keylime_tenant or keylime_ca)"
+        )
+        key_store_pw = getpass.getpass("Please enter the password to decrypt your keystore: ")
+
+    if not key_store_pw:
         raise Exception("You must specify a password!")
-
-    global_password = pw
+    global_password = key_store_pw
 
 
 def cmd_mkcert(workingdir: str, name: str, password: Optional[str] = None) -> None:
@@ -79,7 +94,7 @@ def cmd_mkcert(workingdir: str, name: str, password: Optional[str] = None) -> No
     mask = os.umask(0o037)
     try:
         fs_util.ch_dir(workingdir)
-        priv = read_private()
+        priv = read_private(False)
         cacert = load_cert_by_path("cacert.crt")
         ca_pk = serialization.load_pem_private_key(priv[0]["ca"], password=None, backend=default_backend())
         if not isinstance(
@@ -149,7 +164,7 @@ def cmd_init(workingdir: str) -> None:
         rmfiles("private.yml")
 
         cacert, ca_pk, _ = ca_impl.mk_cacert()  # pylint: disable=W0632
-        priv = read_private()
+        priv = read_private(False)
 
         # write out keys
         with open("cacert.crt", "wb") as f:
@@ -234,7 +249,7 @@ def cmd_certpkg(workingdir: str, name: str, insecure: bool = False) -> Tuple[byt
         serial = cert_obj.serial_number
         subject = cert_obj.subject.rfc4514_string()
 
-        priv = read_private()
+        priv = read_private(False)
         private = priv[0][name]
 
         with open(f"{name}-private.pem", "rb") as f:
@@ -282,7 +297,7 @@ def cmd_revoke(workingdir: str, name: Optional[str] = None, serial: Optional[int
     cwd = os.getcwd()
     try:
         fs_util.ch_dir(workingdir)
-        priv = read_private()
+        priv = read_private(False)
 
         if name is not None and serial is not None:
             raise Exception("You may not specify a cert and a serial at the same time")
@@ -342,9 +357,6 @@ def write_private(inp: Tuple[Dict[str, Any], str]) -> None:
 
 
 def read_private(warn: bool = False) -> Tuple[Dict[str, Any], str]:
-    if global_password is None:
-        setpassword(getpass.getpass("Please enter the password to decrypt your keystore: "))
-
     if os.path.exists("private.yml"):
         with open("private.yml", encoding="utf-8") as f:
             toread = yaml.load(f, Loader=SafeLoader)
@@ -401,24 +413,28 @@ def main(argv: List[str] = sys.argv) -> None:  # pylint: disable=dangerous-defau
     os.umask(0o077)
 
     if args.command == "init":
+        ask_password(None)
         cmd_init(workingdir)
     elif args.command == "create":
         if args.name is None:
             logger.error("you must pass in a name for the certificate using -n (or --name)")
             parser.print_help()
             sys.exit(-1)
+        ask_password(None)
         cmd_mkcert(workingdir, args.name)
     elif args.command == "pkg":
         if args.name is None:
             logger.error("you must pass in a name for the certificate using -n (or --name)")
             parser.print_help()
             sys.exit(-1)
+        ask_password(None)
         cmd_certpkg(workingdir, args.name, args.insecure)
     elif args.command == "revoke":
         if args.name is None:
             logger.error("you must pass in a name for the certificate using -n (or --name)")
             parser.print_help()
             sys.exit(-1)
+        ask_password(None)
         cmd_revoke(workingdir, args.name)
     else:
         logger.error("Invalid command: %s", args.command)

@@ -354,8 +354,7 @@ class Tenant:
             if args["ca_dir"] == "default":
                 args["ca_dir"] = config.CA_WORK_DIR
 
-            if "ca_dir_pw" in args and args["ca_dir_pw"] is not None:
-                ca_util.setpassword(args["ca_dir_pw"])
+            ca_util.ask_password(args["ca_dir_pw"])
 
             if not os.path.exists(args["ca_dir"]) or not os.path.exists(os.path.join(args["ca_dir"], "cacert.crt")):
                 logger.warning("CA directory does not exist. Creating...")

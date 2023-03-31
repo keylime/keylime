@@ -73,14 +73,7 @@ def init_tls_dir(component: str, logger: Optional[Logger] = None) -> str:
         tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, generatedir))
         ca_path = os.path.join(tls_dir, "cacert.crt")
 
-        key_store_pw = config.get("ca", "password")
-        if key_store_pw:
-            if key_store_pw == "default":
-                if logger:
-                    logger.warning("Using 'default' password option from CA configuration file")
-            key_store_pw = str(key_store_pw)
-
-        ca_util.setpassword(key_store_pw)
+        ca_util.read_password(None)
 
         if os.path.exists(ca_path):
             if logger:
