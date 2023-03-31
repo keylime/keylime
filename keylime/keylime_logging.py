@@ -5,7 +5,10 @@ from typing import Any, Callable, Dict
 
 from keylime import config
 
-logging_config.fileConfig(config.get_config("logging"))
+try:
+    logging_config.fileConfig(config.get_config("logging"))
+except KeyError:
+    logging.basicConfig(format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s", level=logging.DEBUG)
 
 
 def set_log_func(loglevel: int, logger: Logger) -> Callable[..., None]:

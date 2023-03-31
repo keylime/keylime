@@ -157,6 +157,10 @@ def get_config(component: str) -> RawConfigParser:
         # If no component was specified, return an empty configuration
         raise Exception("No component provided to get_config")
 
+    conf_create_msg = (
+        '\nPlease use "keylime_upgrade_config --defaults" to create a minimalistic set of configurations.\n'
+    )
+
     if component not in _config:  # pylint: disable=too-many-nested-blocks
         # Use RawConfigParser, so we can also use it as the logging config
         _config[component] = RawConfigParser()
@@ -198,8 +202,11 @@ def get_config(component: str) -> RawConfigParser:
         # TODO - be sure that all variables have a
         # propper default, and the sections are initialized
         if not any(os.path.exists(c) for c in CONFIG_FILES[component]):
-            base_logger.info(
-                "Config file not found in %s. Please see %s for more details.", CONFIG_FILES[component], __file__
+            base_logger.warning(
+                "Config file not found in %s. It is required by component %s. %s",
+                CONFIG_FILES[component],
+                __file__,
+                conf_create_msg,
             )
         else:
             for c in CONFIG_FILES[component]:
