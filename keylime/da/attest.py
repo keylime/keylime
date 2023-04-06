@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import argparse
 import json
+import sys
 from datetime import datetime
 
 from keylime import cloud_verifier_common, config, keylime_logging
@@ -78,6 +79,8 @@ def main() -> None:
         logger.info("=> Focusing on the agent %s on the persistent store.", args.agent_uuid)
         agent_list = [args.agent_uuid]
 
+    failed_agents = []
+
     for agent_uuid in agent_list:
         logger.info("===> Getting all existing registration records for agent %s...", agent_uuid)
 
@@ -132,6 +135,8 @@ def main() -> None:
             if failure:
                 if failure.events:
                     quote_failed = True
+                    if agent_uuid not in failed_agents:
+                        failed_agents.append(agent_uuid)
 
             if quote_failed:
                 f_e_id = "NA"
@@ -148,7 +153,7 @@ def main() -> None:
                         f_e_id,
                         f_e_ctx,
                     )
-                    return
+                    break
             else:
                 logger.info(
                     '---------- Agent %s was in "attested" state at %s (TPM delta: %s)',
@@ -156,3 +161,11 @@ def main() -> None:
                     attestation_record["verifier" + "_timestamp"],
                     d_tpm_ts,
                 )
+
+    if failed_agents:
+        logger.info(
+            "=> The following agents failed attestation at some point in recorded history: %s", ",".join(failed_agents)
+        )
+        sys.exit(1)
+    else:
+        logger.info("=> All agents were in attested state for the whole duration of recorded history")
