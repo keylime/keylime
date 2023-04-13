@@ -71,14 +71,6 @@
         script:
          - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
 
-   # temporary hotfix until Fedora BZ#2158598 gets fixed
-   - when: "distro == fedora-36 or distro == fedora-37"
-     prepare+:
-      - how: shell
-        order: 99
-        script:
-         - yum -y downgrade tpm2-tss
-
    # discover step adjustments
 
    # disable code coverage measurement everywhere except F37
@@ -138,14 +130,6 @@
       - how: shell
         script:
          - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-
-   # temporary hotfix until Fedora BZ#2158598 gets fixed
-   - when: "distro == fedora-36 or distro == fedora-37"
-     prepare+:
-      - how: shell
-        order: 99
-        script:
-         - yum -y downgrade tpm2-tss
 
   execute:
     how: tmt
