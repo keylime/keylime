@@ -30,7 +30,7 @@ class CA_Util_Test(unittest.TestCase):
         self.assertEqual(cert.serial_number, 1)
 
     def test_ca_util(self):
-        ca_util.setpassword("42")
+        ca_util.read_password("42")
 
         # Create directory to be our working dir.
         working_dir = tempfile.mkdtemp()
