@@ -23,7 +23,7 @@
     test:
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
-     - /setup/install_upstream_rust_keylime
+     - /setup/install_rust_keylime_from_copr
      - /setup/enable_keylime_coverage
      # change IMA policy to simple and run one attestation scenario
      # this is to utilize also a different parser
@@ -109,7 +109,7 @@
     test:
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
-     - /setup/install_upstream_rust_keylime
+     - /setup/install_rust_keylime_from_copr
      - /functional/basic-attestation-on-localhost
      - /functional/basic-attestation-with-custom-certificates
      - /functional/basic-attestation-without-mtls
