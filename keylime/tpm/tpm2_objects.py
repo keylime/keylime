@@ -1,6 +1,6 @@
 import hashlib
 import struct
-from typing import Any, Tuple, Union, cast
+from typing import Any, Dict, Tuple, Union, cast
 
 import cryptography.hazmat.primitives.asymmetric.ec as crypto_ec
 from cryptography.hazmat.backends import default_backend
@@ -38,6 +38,7 @@ TPM_ALG_SHA512 = 0x000D
 TPM_ALG_AES = 0x0006
 TPM_ALG_CFB = 0x0043
 
+TPM_GENERATED_VALUE = 0xFF544347
 
 # These are the object attribute values important for EK certs
 OA_FIXEDTPM = 0x00000002
@@ -440,3 +441,23 @@ def ek_low_tpm2b_public_from_pubkey(pubkey: pubkey_type) -> bytes:
         EK_LOW_AUTH_POLICY,
         EK_LOW_NON_ASYM_ALG_PARMS,
     )
+
+
+def parse_tpms_clock_info(clock_info: bytes) -> Dict[str, int]:
+    clock, resetCount, restartCount, safe = struct.unpack(">QIIB", clock_info)
+    return {"clock": clock, "resetCount": resetCount, "restartCount": restartCount, "safe": safe}
+
+
+def get_tpms_attest_clock_info(tpms_attest: bytes) -> Dict[str, Any]:
+    magic, _ = struct.unpack_from(">IH", tpms_attest, 0)
+    if magic != TPM_GENERATED_VALUE:
+        raise Exception("Bad magic in tpm_attests")
+    o = 6
+    # TPM2B_NAME
+    (sz,) = struct.unpack_from(">H", tpms_attest, o)
+    o = o + 2 + sz
+    # TPM2B_NAME
+    (sz,) = struct.unpack_from(">H", tpms_attest, o)
+    o = o + 2 + sz
+    # TPMS_CLOCK_INFO
+    return parse_tpms_clock_info(tpms_attest[o : o + 17])

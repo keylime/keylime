@@ -1,6 +1,6 @@
 import sys
 import threading
-from typing import Any, Dict, Optional, Set
+from typing import Dict, Optional, Set
 
 from keylime.common.algorithms import Hash
 from keylime.ima.ast import get_FF_HASH, get_START_HASH
@@ -20,14 +20,7 @@ class TPMClockInfo:
     safe: int
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TPMClockInfo":
-        dclki: Dict[str, int] = {}
-        if "clockInfo" in data:
-            dclki = data["clockInfo"]
-
-        if "clock" in data:
-            dclki = data
-
+    def from_dict(cls, dclki: Dict[str, int]) -> "TPMClockInfo":
         return cls(
             clock=dclki.get("clock", 0),
             resetcount=dclki.get("resetCount", 0),

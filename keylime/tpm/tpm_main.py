@@ -257,16 +257,12 @@ class tpm(tpm_abstract.AbstractTPM):
         retDict = self.__run(command, lock=False)
         return retDict
 
-    def __tpm2_printquote(self, quoteFile: str) -> cmd_exec.RetDictType:
-        command = ["tpm2_print", "-t", "TPMS_ATTEST", quoteFile]
-        retDict = self.__run(command, lock=False)
-        return retDict
-
-    def _tpm2_printquote(self, quote: str, compressed: bool) -> Tuple[Optional[List[bytes]], bool]:
+    @staticmethod
+    def _tpm2_clock_info_from_quote(quote: str, compressed: bool) -> Dict[str, Any]:
         """Get TPM timestamp info from quote
         :param quote: quote data in the format 'r<b64-compressed-quoteblob>:<b64-compressed-sigblob>:<b64-compressed-pcrblob>
         :param compressed: if the quote data is compressed with zlib or not
-        :returns: Returns the 'retout' from running tpm2_print and True in case of success, None and False in case of error.
+        :returns: Returns a dict holding the TPMS_CLOCK_INFO fields
         This function throws an Exception on bad input.
         """
 
@@ -284,36 +280,12 @@ class tpm(tpm_abstract.AbstractTPM):
             logger.warning("Decompressing quote data which is unsafe!")
             quoteblob = zlib.decompress(quoteblob)
 
-        qfd = -1
-        quoteFile = None
-
         try:
-            # write out quote
-            qfd, qtemp = tempfile.mkstemp()
-            with open(qtemp, "wb") as quoteFile:
-                quoteFile.write(quoteblob)
-
-            retDict = self.__tpm2_printquote(quoteFile.name)
-            retout = retDict["retout"]
-            reterr = retDict["reterr"]
-            code = retDict["code"]
+            return tpm2_objects.get_tpms_attest_clock_info(quoteblob)
         except Exception as e:
-            logger.error("Error printing quote: %s", str(e))
+            logger.error("Error extracting clock info from quote: %s", str(e))
             logger.exception(e)
-            return None, False
-        finally:
-            for fd in [qfd]:
-                if fd >= 0:
-                    os.close(fd)
-            for fi in [quoteFile]:
-                if fi is not None:
-                    os.remove(fi.name)
-
-        if len(retout) < 1 or code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            logger.error("Failed to print quote info, output: %s", reterr)
-            return None, False
-
-        return retout, True
+            return {}
 
     def _tpm2_checkquote(
         self, aikTpmFromRegistrar: str, quote: str, nonce: str, hash_alg: Union[Hash, str], compressed: bool
@@ -439,7 +411,7 @@ class tpm(tpm_abstract.AbstractTPM):
             return failure
 
         # Only after validating the quote, the TPM clock information can be extracted from it.
-        clock_failure, current_clock_info = self.check_quote_timing(
+        clock_failure, current_clock_info = tpm.check_quote_timing(
             agentAttestState.get_tpm_clockinfo(), quote, compressed
         )
         if clock_failure:
@@ -488,22 +460,19 @@ class tpm(tpm_abstract.AbstractTPM):
             hash_alg,
         )
 
+    @staticmethod
     def check_quote_timing(
-        self, previous_clockinfo: TPMClockInfo, quote: str, compressed: bool
+        previous_clockinfo: TPMClockInfo, quote: str, compressed: bool
     ) -> Tuple[Optional[str], Optional[TPMClockInfo]]:
         # Sanity check quote clock information
 
         current_clockinfo = None
 
-        retout, success = self._tpm2_printquote(quote, compressed)
-        if not success:
-            return "tpm2_print failed with " + str(retout), current_clockinfo
+        clock_info_dict = tpm._tpm2_clock_info_from_quote(quote, compressed)
+        if not clock_info_dict:
+            return "_tpm2_clock_info_from_quote failed ", current_clockinfo
 
-        tpm_data_str_dict = config.yaml_to_dict(retout, add_newlines=False, logger=logger)
-        if tpm_data_str_dict is None:
-            return "yaml output of tpm2_print could not be parsed!", current_clockinfo
-
-        tentative_current_clockinfo = TPMClockInfo.from_dict(tpm_data_str_dict)
+        tentative_current_clockinfo = TPMClockInfo.from_dict(clock_info_dict)
 
         resetdiff = tentative_current_clockinfo.resetcount - previous_clockinfo.resetcount
         restartdiff = tentative_current_clockinfo.restartcount - previous_clockinfo.restartcount
