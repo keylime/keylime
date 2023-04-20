@@ -3,9 +3,11 @@ import http.server
 import ipaddress
 import os
 import signal
+import socket
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from ipaddress import IPv6Address, ip_address
 from socketserver import ThreadingMixIn
 from typing import Any, Dict, Tuple, cast
 
@@ -493,6 +495,9 @@ class RegistrarServer(ThreadingMixIn, HTTPServer):
 
     def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: Any) -> None:
         """Constructor overridden to provide ability to read file"""
+        bindaddr = server_address[0].strip()
+        if len(bindaddr) > 0 and isinstance(ip_address(bindaddr), IPv6Address):
+            self.address_family = socket.AF_INET6
         http.server.HTTPServer.__init__(self, server_address, RequestHandlerClass)
 
     def shutdown(self) -> None:
