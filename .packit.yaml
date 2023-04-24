@@ -3,7 +3,6 @@ jobs:
   trigger: pull_request
   metadata:
     targets:
-    - fedora-37
-#    - fedora-all
+    - fedora-all
     - centos-stream-9-x86_64
     skip_build: true
