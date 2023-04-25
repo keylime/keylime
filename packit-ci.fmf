@@ -1,22 +1,43 @@
+# common test plan configuration
+
+environment:
+  RUST_IMA_EMULATOR: 1
+  TPM_BINARY_MEASUREMENTS: /var/tmp/binary_bios_measurements
+
+context:
+  swtpm: yes
+  agent: rust
+  faked_measured_boot_log: yes
+
+prepare:
+ - how: shell
+   script:
+    - ln -s $(pwd) /var/tmp/keylime_sources
+    - systemctl disable --now dnf-makecache.service || true
+    - systemctl disable --now dnf-makecache.timer || true
+    - dnf makecache
+    - dnf -y update tpm2-tools tpm2-tss
+
+execute:
+  how: tmt
+
+adjust:
+ # prepare step adjustments
+ - when: distro == centos-stream-9
+   prepare+:
+    - how: shell
+      order: 30
+      script:
+       - rpm -Uv https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm https://dl.fedoraproject.org/pub/epel/epel-next-release-latest-9.noarch.rpm
+ - when: distro == centos-stream-8
+   enabled: 0
+
+
+## First test plan
+
 /e2e-with-revocation:
 
   summary: run keylime e2e tests
-
-  environment:
-    RUST_IMA_EMULATOR: 1
-    TPM_BINARY_MEASUREMENTS: /var/tmp/binary_bios_measurements
-
-  context:
-    swtpm: yes
-    agent: rust
-    faked_measured_boot_log: yes
-
-  prepare:
-   - how: shell
-     script:
-      - ln -s $(pwd) /var/tmp/keylime_sources
-      - systemctl disable --now dnf-makecache.service || true
-      - systemctl disable --now dnf-makecache.timer || true
 
   discover:
     how: fmf
@@ -58,24 +79,8 @@
      - /upstream/run_keylime_tests
      - /setup/generate_coverage_report
 
-  adjust:
-
-   # prepare step adjustments
-
-   - when: distro == centos-stream-9
-     prepare+:
-      - how: shell
-        script:
-         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-
-   - when: distro == centos-stream-8
-     prepare+:
-      - how: shell
-        script:
-         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-
+  adjust+:
    # discover step adjustments
-
    # disable code coverage measurement everywhere except F37
    - when: distro != fedora-37
      discover+:
@@ -83,29 +88,15 @@
         - /setup/enable_keylime_coverage
         - /setup/generate_coverage_report
 
-  execute:
-    how: tmt
+
+## Second test plan
 
 /e2e-without-revocation:
 
   summary: run keylime e2e tests without revocation support
 
-  environment:
+  environment+:
     KEYLIME_TEST_DISABLE_REVOCATION: 1
-    TPM_BINARY_MEASUREMENTS: /var/tmp/binary_bios_measurements
-
-
-  context:
-    swtpm: yes
-    agent: rust
-    faked_measured_boot_log: yes
-
-  prepare:
-   - how: shell
-     script:
-      - ln -s $(pwd) /var/tmp/keylime_sources
-      - systemctl disable --now dnf-makecache.service || true
-      - systemctl disable --now dnf-makecache.timer || true
 
   discover:
     how: fmf
@@ -119,22 +110,3 @@
      - /functional/basic-attestation-with-custom-certificates
      - /functional/basic-attestation-without-mtls
      - /functional/basic-attestation-with-unpriviledged-agent
-
-  adjust:
-
-   # prepare step adjustments
-
-   - when: distro == centos-stream-9
-     prepare+:
-      - how: shell
-        script:
-         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-
-   - when: distro == centos-stream-8
-     prepare+:
-      - how: shell
-        script:
-         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-
-  execute:
-    how: tmt
