@@ -20,6 +20,7 @@ from keylime.agentstates import AgentAttestState
 from keylime.cli import options, policies
 from keylime.cmd import user_data_encrypt
 from keylime.common import algorithms, retry, states, validators
+from keylime.ip_util import bracketize_ipv6
 from keylime.requests_client import RequestsClient
 from keylime.tpm import tpm2_objects
 from keylime.tpm.tpm_abstract import TPM_Utilities
@@ -154,7 +155,7 @@ class Tenant:
 
     @property
     def verifier_base_url(self) -> str:
-        return f"{self.verifier_ip}:{self.verifier_port}"
+        return f"{bracketize_ipv6(self.verifier_ip)}:{self.verifier_port}"
 
     def init_add(self, args: Dict[str, Any]) -> None:
         """Set up required values. Command line options can overwrite these config values
@@ -229,7 +230,7 @@ class Tenant:
                     tls_context = self.agent_tls_context
 
                 with RequestsClient(
-                    f"{self.agent_ip}:{self.agent_port}",
+                    f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}",
                     tls_enabled=self.enable_agent_mtls,
                     tls_context=tls_context,
                 ) as get_version:
@@ -999,7 +1000,7 @@ class Tenant:
         while True:
             try:
                 params = f"/v{self.supported_version}/quotes/identity?nonce=%s" % (self.nonce)
-                cloudagent_base_url = f"{self.agent_ip}:{self.agent_port}"
+                cloudagent_base_url = f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}"
 
                 if self.enable_agent_mtls and self.registrar_data and self.registrar_data["mtls_cert"]:
                     with RequestsClient(
@@ -1088,7 +1089,7 @@ class Tenant:
 
         # post encrypted U back to CloudAgent
         params = f"/v{self.supported_version}/keys/ukey"
-        cloudagent_base_url = f"{self.agent_ip}:{self.agent_port}"
+        cloudagent_base_url = f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}"
 
         if self.enable_agent_mtls and self.registrar_data and self.registrar_data["mtls_cert"]:
             with RequestsClient(
@@ -1125,7 +1126,7 @@ class Tenant:
         while True:
             response = None
             try:
-                cloudagent_base_url = f"{self.agent_ip}:{self.agent_port}"
+                cloudagent_base_url = f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}"
 
                 if self.registrar_data and self.registrar_data["mtls_cert"]:
                     with RequestsClient(

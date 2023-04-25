@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from keylime import api_version as keylime_api_version
 from keylime import keylime_logging
+from keylime.ip_util import bracketize_ipv6
 from keylime.requests_client import RequestsClient
 
 if sys.version_info >= (3, 8):
@@ -49,7 +50,7 @@ def getData(
 
     response = None
     try:
-        client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context)
+        client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
         response = client.get(f"/v{api_version}/agents/{agent_id}")
         response_body = response.json()
 
@@ -128,7 +129,7 @@ def doRegistrarDelete(
     :returns: The request response body
     """
 
-    client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context)
+    client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
     response = client.delete(f"/v{api_version}/agents/{agent_id}")
     response_body: Dict[str, Any] = response.json()
 
@@ -151,7 +152,7 @@ def doRegistrarList(
 
     :returns: The request response body
     """
-    client = RequestsClient(f"{registrar_ip}:{registrar_port}", True, tls_context=tls_context)
+    client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
     response = client.get(f"/v{api_version}/agents/")
     response_body: Dict[str, Any] = response.json()
 
