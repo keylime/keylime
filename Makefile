@@ -1,6 +1,6 @@
 .PHONY: check check-rebuild
 check:
-	tox -epylint -epyright -emypy -eblack -eisort
+	tox -e pylint,pyright,mypy,black,isort
 
 check-rebuild:
-	tox -r -vv -epylint -epyright -emypy -eblack -eisort
+	tox -r -vv -e pylint,pyright,mypy,black,isort
