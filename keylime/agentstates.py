@@ -29,12 +29,12 @@ class TPMClockInfo:
         )
 
     def to_dict(self) -> Dict[str, int]:
-        data = {}
-        data["clock"] = self.clock
-        data["resetCount"] = self.resetcount
-        data["restartCount"] = self.restartcount
-        data["safe"] = self.safe
-        return data
+        return {
+            "clock": self.clock,
+            "resetCount": self.resetcount,
+            "restartCount": self.restartcount,
+            "safe": self.safe,
+        }
 
 
 class TPMState:
