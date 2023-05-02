@@ -125,10 +125,8 @@ def init_tls_dir(component: str, logger: Optional[Logger] = None) -> str:
     elif tls_dir == "default":
         # Use the keys/certificates generated for the verifier
         tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, "cv_ca"))
-        if not os.path.exists(os.path.join(tls_dir, "cacert.crt")):
-            raise Exception(
-                "It appears that the verifier has not yet created a CA and certificates, please run the verifier first"
-            )
+        if not os.path.exists(tls_dir):
+            raise Exception(f"It appears that the specified tls_dir does not exist: {tls_dir}")
     else:
         # if it is relative path, convert to absolute in WORK_DIR
         tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
