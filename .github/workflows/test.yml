@@ -45,8 +45,5 @@ jobs:
       run: tox -vv -e 'pylint,pylint36'
     - name: Run mypy
       run: tox -vv -e 'mypy'
-    - name: Install pyright
-      run: sudo pip3 install pyright
     - name: Run pyright
-      run: pyright
-
+      run: tox -vv -e 'pyright'
