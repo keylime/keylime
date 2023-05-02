@@ -13,7 +13,7 @@ from typing import Any, Dict, Tuple, cast
 
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.exc import NoResultFound  # pyright: ignore
 
 from keylime import api_version as keylime_api_version
 from keylime import cert_utils, config, crypto, json, keylime_logging, web_util
