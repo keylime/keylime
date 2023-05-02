@@ -165,6 +165,7 @@ The brief synopsis of a quick build/install (after installing dependencies) is::
     ./configure --prefix=/usr/local
     make
     sudo make install
+    popd
 
 
 To ensure that you have the recent version installed ensure that you have
