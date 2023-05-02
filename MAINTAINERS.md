@@ -3,12 +3,9 @@ Project Lead:
 
 Maintainers:
 
-@ashcrow
-@axelsimon
-@font
-@lukehinds
-@jetwhiz
-@kaifeng
 @mpeters
-@nabilschear
 @THS-on
+@stefanberger
+@ansasaki
+@aplanas
+@sergio-correia
