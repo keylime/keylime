@@ -2,9 +2,10 @@ FROM fedora:37 AS keylime_base
 LABEL version="_version_" description="Keylime Base - Only used as an base image for derived packages"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 
-RUN dnf -y install dnf-plugins-core git && dnf -y builddep tpm2-tools
-RUN git clone -b 5.4 https://github.com/tpm2-software/tpm2-tools.git && \
+RUN dnf -y install dnf-plugins-core git efivar-libs efivar-devel && dnf -y builddep tpm2-tools 
+RUN git clone -b 5.5 https://github.com/tpm2-software/tpm2-tools.git && \
     cd tpm2-tools && \
+    git cherry-pick 9735dc332b782ce94371aff8746ce6a68094b038 576a31bcc910da517067b29667f45fbe78e812e0 && \
     ./bootstrap && \
     ./configure && \
     make && make install && \
