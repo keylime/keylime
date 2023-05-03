@@ -24,7 +24,7 @@ from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyrings
 from keylime.ima.types import RuntimePolicyType
-from keylime.tpm import tpm2_objects, tpm_abstract
+from keylime.tpm import tpm2_objects, tpm_abstract, tpm_util
 
 logger = keylime_logging.init_logging("tpm")
 
@@ -354,6 +354,8 @@ class tpm(tpm_abstract.AbstractTPM):
             retout = retDict["retout"]
             reterr = retDict["reterr"]
             code = retDict["code"]
+
+            tpm_util.checkquote(aikFromRegistrar, nonce, sigblob, quoteblob, pcrblob, str(hash_alg))
         except Exception as e:
             logger.error("Error verifying quote: %s", str(e))
             logger.exception(e)
