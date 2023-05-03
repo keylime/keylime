@@ -109,7 +109,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
                 "regcount": agent.regcount,
             }
 
-            if agent.virtual:
+            if agent.virtual:  # pyright: ignore
                 response["provider_keys"] = agent.provider_keys
 
             web_util.echo_json_response(self, 200, "Success", response)
@@ -319,7 +319,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 # keep track of how many ek-ekcerts have registered on this uuid
                 assert isinstance(agent.regcount, int)
                 regcount = agent.regcount
-                if agent.ek_tpm != ek_tpm or agent.ekcert != ekcert:
+                if agent.ek_tpm != ek_tpm or agent.ekcert != ekcert:  # pyright: ignore
                     logger.warning("WARNING: Overwriting previous registration for this UUID with new ek-ekcert pair!")
                     regcount += 1
 

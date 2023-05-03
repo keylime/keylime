@@ -1278,7 +1278,7 @@ async def process_agent(
             return
 
         # if the user did terminated this agent
-        if stored_agent.operational_state == states.TERMINATED:
+        if stored_agent.operational_state == states.TERMINATED:  # pyright: ignore
             logger.warning("Agent %s terminated by user.", agent["agent_id"])
             if agent["pending_event"] is not None:
                 tornado.ioloop.IOLoop.current().remove_timeout(agent["pending_event"])
@@ -1286,7 +1286,7 @@ async def process_agent(
             return
 
         # if the user tells us to stop polling because the tenant quote check failed
-        if stored_agent.operational_state == states.TENANT_FAILED:
+        if stored_agent.operational_state == states.TENANT_FAILED:  # pyright: ignore
             logger.warning("Agent %s has failed tenant quote. Stopping polling", agent["agent_id"])
             if agent["pending_event"] is not None:
                 tornado.ioloop.IOLoop.current().remove_timeout(agent["pending_event"])
@@ -1461,9 +1461,9 @@ async def activate_agents(agents: List[VerfierMain], verifier_ip: str, verifier_
                 "verifier", agent_run["mtls_cert"], logger=logger
             )
 
-        if agent.operational_state == states.START:
+        if agent.operational_state == states.START:  # pyright: ignore
             asyncio.ensure_future(process_agent(agent_run, states.GET_QUOTE))
-        if agent.boottime:
+        if agent.boottime:  # pyright: ignore
             ima_pcrs_dict = {}
             assert isinstance(agent.ima_pcrs, list)
             for pcr_num in agent.ima_pcrs:
