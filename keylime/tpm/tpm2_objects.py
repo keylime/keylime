@@ -4,12 +4,15 @@ from typing import Any, Dict, Tuple, Union, cast
 
 import cryptography.hazmat.primitives.asymmetric.ec as crypto_ec
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurve,
     EllipticCurvePublicKey,
     EllipticCurvePublicNumbers,
 )
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey, RSAPublicNumbers
+
+from keylime.tpm.types import TpmsAttestType
 
 pubkey_type = Union[RSAPublicKey, EllipticCurvePublicKey]
 
@@ -38,7 +41,13 @@ TPM_ALG_SHA512 = 0x000D
 TPM_ALG_AES = 0x0006
 TPM_ALG_CFB = 0x0043
 
+TPM_ALG_RSASSA = 0x0014
+
+TPM_ALG_ECDSA = 0x0018
+
 TPM_GENERATED_VALUE = 0xFF544347
+
+TPM_ST_ATTEST_QUOTE = 0x8018
 
 # These are the object attribute values important for EK certs
 OA_FIXEDTPM = 0x00000002
@@ -59,6 +68,15 @@ OA_SIGN_ENCRYPT = 0x00040000
 AK_EXPECTED_ATTRS = (
     OA_RESTRICTED | OA_USERWITHAUTH | OA_SIGN_ENCRYPT | OA_FIXEDTPM | OA_FIXEDPARENT | OA_SENSITIVEDATAORIGIN
 )
+
+
+# The hash functions used by TPM
+HASH_FUNCS = {
+    TPM_ALG_SHA1: hashes.__dict__.get("SHA1"),
+    TPM_ALG_SHA256: hashes.__dict__.get("SHA256"),
+    TPM_ALG_SHA384: hashes.__dict__.get("SHA384"),
+    TPM_ALG_SHA512: hashes.__dict__.get("SHA512"),
+}
 
 
 class NonAsymAlgSpecificParameters:
@@ -443,21 +461,71 @@ def ek_low_tpm2b_public_from_pubkey(pubkey: pubkey_type) -> bytes:
     )
 
 
-def parse_tpms_clock_info(clock_info: bytes) -> Dict[str, int]:
+def unmarshal_tpms_clock_info(clock_info: bytes) -> Dict[str, int]:
     clock, resetCount, restartCount, safe = struct.unpack(">QIIB", clock_info)
     return {"clock": clock, "resetCount": resetCount, "restartCount": restartCount, "safe": safe}
 
 
-def get_tpms_attest_clock_info(tpms_attest: bytes) -> Dict[str, Any]:
-    magic, _ = struct.unpack_from(">IH", tpms_attest, 0)
+def unmarshal_tpms_quote_info(tpms_quote_info: bytes) -> bytes:
+    # TPMS_QUOTE_INFO: TPML_PCR_SELECTION
+    _, sz = unmarshal_tpml_pcr_selection(tpms_quote_info)
+    o = sz
+    # TPMS_QUOTE_INFO: TPM2B_DIGEST
+    (sz,) = struct.unpack_from(">H", tpms_quote_info, o)
+    o = o + 2
+    (pcrDigest,) = struct.unpack_from(f"{sz}s", tpms_quote_info, o)
+
+    return bytes(pcrDigest)
+
+
+def unmarshal_tpms_attest(tpms_attest: bytes) -> TpmsAttestType:
+    magic, typ = struct.unpack_from(">IH", tpms_attest, 0)
     if magic != TPM_GENERATED_VALUE:
-        raise Exception("Bad magic in tpm_attests")
+        raise Exception("Bad magic in tpms_attest")
+    if typ != TPM_ST_ATTEST_QUOTE:
+        raise Exception(f"Unsupported type in tpms_attest: {typ:#x}")
     o = 6
     # TPM2B_NAME
     (sz,) = struct.unpack_from(">H", tpms_attest, o)
     o = o + 2 + sz
     # TPM2B_NAME
     (sz,) = struct.unpack_from(">H", tpms_attest, o)
-    o = o + 2 + sz
+    o = o + 2
+    (extradata,) = struct.unpack_from(f"{sz}s", tpms_attest, o)
+    o = o + sz
     # TPMS_CLOCK_INFO
-    return parse_tpms_clock_info(tpms_attest[o : o + 17])
+    clock_info = unmarshal_tpms_clock_info(tpms_attest[o : o + 17])
+    o = o + 17
+    # UINT64
+    o = o + 8
+    pcrDigest = unmarshal_tpms_quote_info(tpms_attest[o:])
+
+    return {
+        "clockInfo": clock_info,
+        "extraData": bytes(extradata),
+        "attested.quote.pcrDigest": pcrDigest,
+    }
+
+
+def get_tpms_attest_clock_info(tpms_attest: bytes) -> Dict[str, int]:
+    retDict = unmarshal_tpms_attest(tpms_attest)
+    return retDict["clockInfo"]
+
+
+def unmarshal_tpms_pcr_selection(tpms_pcr_selection: bytes) -> Tuple[int, int, int]:
+    hash_alg, size_of_select = struct.unpack_from(">HB", tpms_pcr_selection, 0)
+    (select,) = struct.unpack_from(f"{size_of_select}s", tpms_pcr_selection, 3)
+    return hash_alg, select, 3 + size_of_select
+
+
+def unmarshal_tpml_pcr_selection(tpml_pcr_selection: bytes) -> Tuple[Dict[int, int], int]:
+    (count,) = struct.unpack_from(">I", tpml_pcr_selection, 0)
+    o = 4
+
+    selections: Dict[int, int] = {}
+    for _ in range(0, count):
+        hash_alg, select, sz = unmarshal_tpms_pcr_selection(tpml_pcr_selection[o:])
+        selections[hash_alg] = select
+        o = o + sz
+
+    return selections, o
