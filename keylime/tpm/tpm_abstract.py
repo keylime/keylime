@@ -130,29 +130,11 @@ class AbstractTPM(metaclass=ABCMeta):
             logger.debug("IMA measurement list of agent %s validated", agentAttestState.get_agent_id())
         return failure
 
-    @staticmethod
-    def __parse_pcrs(pcrs: List[str]) -> Dict[int, str]:
-        """Parses and validates the format of a list of PCR data"""
-        output = {}
-        for line in pcrs:
-            tokens = line.split()
-            if len(tokens) != 3:
-                logger.error("Invalid PCR in quote: %s", pcrs)
-                continue
-            try:
-                pcr_num = int(tokens[1])
-            except ValueError:
-                logger.error("Invalid PCR number %s", tokens[1])
-                continue
-            output[pcr_num] = tokens[2].lower()
-
-        return output
-
     def check_pcrs(
         self,
         agentAttestState: AgentAttestState,
         tpm_policy: Union[str, Dict[str, Any]],
-        pcrs: List[str],
+        pcrs_dict: Dict[int, str],
         data: str,
         ima_measurement_list: Optional[str],
         runtime_policy: Optional[RuntimePolicyType],
@@ -192,7 +174,6 @@ class AbstractTPM(metaclass=ABCMeta):
 
         pcrs_in_quote: set[int] = set()  # PCRs in quote that were already used for some kind of validation
 
-        pcrs_dict = AbstractTPM.__parse_pcrs(pcrs)
         pcr_nums = set(pcrs_dict.keys())
 
         # Validate data PCR
