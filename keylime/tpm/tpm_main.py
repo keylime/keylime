@@ -215,48 +215,6 @@ class tpm(tpm_abstract.AbstractTPM):
         """
         return cert_utils.verify_ek(ekcert, tpm_cert_store)
 
-    # tpm_quote
-    def __tpm2_checkquote(
-        self, pubaik: str, nonce: str, quoteFile: str, sigFile: str, pcrFile: str, hash_alg: Union[Hash, str]
-    ) -> cmd_exec.RetDictType:
-        nonce = bytes(nonce, encoding="utf8").hex()
-        if self.tools_version == "3.2":
-            command = [
-                "tpm2_checkquote",
-                "-c",
-                pubaik,
-                "-m",
-                quoteFile,
-                "-s",
-                sigFile,
-                "-p",
-                pcrFile,
-                "-G",
-                hash_alg,
-                "-q",
-                nonce,
-            ]
-        else:
-            # versions >= 4.0
-            command = [
-                "tpm2_checkquote",
-                "-u",
-                pubaik,
-                "-m",
-                quoteFile,
-                "-s",
-                sigFile,
-                "-f",
-                pcrFile,
-                "-g",
-                hash_alg,
-                "-q",
-                nonce,
-            ]
-
-        retDict = self.__run(command, lock=False)
-        return retDict
-
     @staticmethod
     def _tpm2_clock_info_from_quote(quote: str, compressed: bool) -> Dict[str, Any]:
         """Get TPM timestamp info from quote
@@ -287,9 +245,10 @@ class tpm(tpm_abstract.AbstractTPM):
             logger.exception(e)
             return {}
 
+    @staticmethod
     def _tpm2_checkquote(
-        self, aikTpmFromRegistrar: str, quote: str, nonce: str, hash_alg: Union[Hash, str], compressed: bool
-    ) -> Tuple[Optional[List[bytes]], bool]:
+        aikTpmFromRegistrar: str, quote: str, nonce: str, hash_alg: str, compressed: bool
+    ) -> Tuple[Dict[int, str], str]:
         """Write the files from data returned from tpm2_quote for running tpm2_checkquote
         :param aikTpmFromRegistrar: AIK used to generate the quote and is needed for verifying it now.
         :param quote: quote data in the format 'r<b64-compressed-quoteblob>:<b64-compressed-sigblob>:<b64-compressed-pcrblob>
@@ -324,55 +283,14 @@ class tpm(tpm_abstract.AbstractTPM):
             sigblob = zlib.decompress(sigblob)
             pcrblob = zlib.decompress(pcrblob)
 
-        qfd = sfd = pfd = afd = -1
-        quoteFile = None
-        aikFile = None
-        sigFile = None
-        pcrFile = None
-
         try:
-            # write out quote
-            qfd, qtemp = tempfile.mkstemp()
-            with open(qtemp, "wb") as quoteFile:
-                quoteFile.write(quoteblob)
-
-            # write out sig
-            sfd, stemp = tempfile.mkstemp()
-            with open(stemp, "wb") as sigFile:
-                sigFile.write(sigblob)
-
-            # write out pcr
-            pfd, ptemp = tempfile.mkstemp()
-            with open(ptemp, "wb") as pcrFile:
-                pcrFile.write(pcrblob)
-
-            afd, atemp = tempfile.mkstemp()
-            with open(atemp, "wb") as aikFile:
-                aikFile.write(aikFromRegistrar)
-
-            retDict = self.__tpm2_checkquote(aikFile.name, nonce, quoteFile.name, sigFile.name, pcrFile.name, hash_alg)
-            retout = retDict["retout"]
-            reterr = retDict["reterr"]
-            code = retDict["code"]
-
-            tpm_util.checkquote(aikFromRegistrar, nonce, sigblob, quoteblob, pcrblob, str(hash_alg))
+            pcrs_dict = tpm_util.checkquote(aikFromRegistrar, nonce, sigblob, quoteblob, pcrblob, hash_alg)
         except Exception as e:
             logger.error("Error verifying quote: %s", str(e))
             logger.exception(e)
-            return None, False
-        finally:
-            for fd in [qfd, sfd, pfd, afd]:
-                if fd >= 0:
-                    os.close(fd)
-            for fi in [aikFile, quoteFile, sigFile, pcrFile]:
-                if fi is not None:
-                    os.remove(fi.name)
+            return {}, str(e)
 
-        if len(retout) < 1 or code != tpm_abstract.AbstractTPM.EXIT_SUCESS:
-            logger.error("Failed to validate signature, output: %s", reterr)
-            return None, False
-
-        return retout, True
+        return pcrs_dict, ""
 
     def check_quote(
         self,
@@ -404,12 +322,10 @@ class tpm(tpm_abstract.AbstractTPM):
             return failure
 
         # First and foremost, the quote needs to be validated
-        retout, success = self._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, hash_alg, compressed)
-        if not success:
+        pcrs_dict, err = tpm._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, str(hash_alg), compressed)
+        if err:
             # If the quote validation fails we will skip all other steps therefore this failure is irrecoverable.
-            failure.add_event(
-                "quote_validation", {"message": "Quote data validation using tpm2-tools", "data": retout}, False
-            )
+            failure.add_event("quote_validation", {"message": "Quote data validation", "error": err}, False)
             return failure
 
         # Only after validating the quote, the TPM clock information can be extracted from it.
@@ -426,23 +342,7 @@ class tpm(tpm_abstract.AbstractTPM):
         if current_clock_info:
             agentAttestState.set_tpm_clockinfo(current_clock_info)
 
-        pcrs = []
-        jsonout = config.yaml_to_dict(retout, logger=logger)
-        if jsonout is None:
-            failure.add_event(
-                "quote_validation",
-                {"message": "YAML parsing failed for quote validation using tpm2-tools.", "data": retout},
-                False,
-            )
-            return failure
-        if "pcrs" in jsonout:
-            # The hash algorithm might be in the YAML output but does not contain any data, so we also check that.
-            if hash_alg in jsonout["pcrs"] and jsonout["pcrs"][hash_alg] is not None:
-                alg_size = hash_alg.get_size() // 4
-                for pcrval, hashval in jsonout["pcrs"][hash_alg].items():
-                    pcrs.append(f"PCR {pcrval} {hashval:0{alg_size}x}")
-
-        if len(pcrs) == 0:
+        if len(pcrs_dict) == 0:
             logger.warning(
                 "Quote for agent %s does not contain any PCRs. Make sure that the TPM supports %s PCR banks",
                 agent_id,
@@ -452,7 +352,7 @@ class tpm(tpm_abstract.AbstractTPM):
         return self.check_pcrs(
             agentAttestState,
             tpm_policy,
-            pcrs,
+            pcrs_dict,
             data,
             ima_measurement_list,
             runtime_policy,
