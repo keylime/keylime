@@ -22,6 +22,7 @@ from keylime.tpm.tpm2_objects import (
     get_tpm2b_public_object_attributes,
     object_attributes_description,
     pubkey_from_tpm2b_public,
+    unmarshal_tpms_attest,
 )
 
 
@@ -304,6 +305,20 @@ class TestTpm2Objects(unittest.TestCase):
                 "user-with-auth | admin-with-policy | no-da | "
                 "encrypted-duplication | restricted | decrypt | sign-encrypt",
             )
+
+    def test_unmarshal_tpms_attest(self) -> None:
+        tpms_attest = base64.b64decode(
+            "/1RDR4AYACIACzi1x2WoenP+buZXpt2LdpW0GTj5lBE6PXQmPZ0upQM0ABRBaTVNNVNqWWpua3l2"
+            "NFA3aXRIMQAAAABMlE7mAAAAAwAAAAABIBkQIwAWNjYAAAABAAsDAAABACBtTTdJEy9iVxchZM1f"
+            "8xNfRHlz1KXITgGJAfZ1NwW3AQ=="
+        )
+        retDict = unmarshal_tpms_attest(tpms_attest)
+        self.assertEqual(retDict["clockInfo"], {"clock": 1284787942, "resetCount": 3, "restartCount": 0, "safe": 1})
+        self.assertEqual(retDict["extraData"].hex(), "4169354d35536a596a6e6b797634503769744831")
+        self.assertEqual(
+            retDict["attested.quote.pcrDigest"].hex(),
+            "6d4d3749132f6257172164cd5ff3135f447973d4a5c84e018901f6753705b701",
+        )
 
 
 if __name__ == "__main__":
