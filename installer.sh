@@ -148,6 +148,26 @@ case "$ID" in
         fi
     ;;
 
+    # Alibaba Cloud Linux
+    alinux)
+        case "${VERSION_ID}" in
+            3*)
+                echo "${ID} selected."
+                PACKAGE_MGR=$(command -v dnf)
+                PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch rust cargo"
+                PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-zmq python3-cryptography python3-tornado python3-requests python3-gpg yaml-cpp-devel procps-ng python3-psutil python3-lark-parser python3-alembic python3-setuptools"
+                if [ "$(uname -m)" = "x86_64" ]; then
+                     PYTHON_DEPS+=" efivar-libs"
+                fi
+                pip3 install setuptools_rust
+                TPM2_TOOLS_PKGS="tpm2-tools tpm2-tss"
+            ;;
+            *)
+                echo "Version ${VERSION_ID} of ${ID} not supported"
+                exit 1
+        esac
+    ;;
+
     *)
         echo "${ID} is not currently supported."
         exit 1
