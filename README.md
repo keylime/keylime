@@ -149,7 +149,7 @@ agent and registrar.
 
 You can install the services with the following command:
 
-`sudo ./services/install.sh`
+`sudo ./services/installer.sh`
 
 Once installed, you can run and inspect the services `keylime_verifier` and `keylime_registrar` via `systemctl`.
 The Rust agent repository also contains a systemd service file for the agent.
