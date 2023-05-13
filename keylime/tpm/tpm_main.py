@@ -13,15 +13,15 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from packaging.version import Version
 
-from keylime import cert_utils, cmd_exec, config, json, keylime_logging, measured_boot
+from keylime import cert_utils, cmd_exec, config, json, keylime_logging
 from keylime.agentstates import AgentAttestState, TPMClockInfo
 from keylime.common import algorithms
 from keylime.common.algorithms import Hash
-from keylime.elchecking.policies import RefState
 from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyrings
 from keylime.ima.types import RuntimePolicyType
+from keylime.mba import mba
 from keylime.tpm import tpm2_objects, tpm_abstract, tpm_util
 
 logger = keylime_logging.init_logging("tpm")
@@ -295,7 +295,7 @@ class Tpm:
         runtime_policy: Optional[RuntimePolicyType],
         ima_keyrings: Optional[ImaKeyrings],
         mb_measurement_list: Optional[str],
-        mb_refstate_str: Optional[str],
+        mb_refstate: Optional[str],
         hash_alg: Hash,
     ) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
@@ -314,14 +314,15 @@ class Tpm:
         # convert all pcr num keys to integers
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
-        mb_policy, mb_policy_name, mb_refstate_data = measured_boot.get_policy(mb_refstate_str)
-        if mb_refstate_data:
-            logger.debug(
-                "Evaluating measured boot log sent by agent %s using a measured boot reference state containing %d entries with measured boot policy %s",
-                agent_id,
-                len(mb_refstate_data),
-                mb_policy_name,
-            )
+        # temporary: to avoid a CI failure, we don't attempt to evaluate
+        # boot logs when the policy is empty. This is because the CI
+        # system currently cannot simulate MBA correctly.
+        # we parse mb_refstate here to figure out whether it's empty.
+        if not mb_refstate:
+            mb_refstate_data = None
+        else:
+            mb_refstate_data = json.loads(mb_refstate)
+
         mb_pcrs_hashes, boot_aggregates, mb_measurement_data, mb_failure = self.parse_mb_bootlog(
             mb_measurement_list, hash_alg
         )
@@ -477,10 +478,8 @@ class Tpm:
             failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": list(missing)}, True)
 
         if not mb_failure and mb_refstate_data:
-            mb_policy_failure = measured_boot.evaluate_policy(
-                mb_policy,
-                mb_policy_name,
-                mb_refstate_data,
+            mb_policy_failure = mba.evaluate_bootlog(
+                mb_refstate,
                 mb_measurement_data,
                 pcrs_in_quote,
                 agentAttestState.get_agent_id(),
@@ -761,7 +760,7 @@ class Tpm:
 
     def parse_mb_bootlog(
         self, mb_measurement_list: Optional[str], hash_alg: algorithms.Hash
-    ) -> typing.Tuple[Dict[str, int], typing.Optional[Dict[str, List[str]]], RefState, Failure]:
+    ) -> typing.Tuple[Dict[str, int], typing.Optional[Dict[str, List[str]]], Dict[str, Any], Failure]:
         """Parse the measured boot log and return its object and the state of the PCRs
         :param mb_measurement_list: The measured boot measurement list
         :param hash_alg: the hash algorithm that should be used for the PCRs

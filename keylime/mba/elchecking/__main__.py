@@ -2,7 +2,8 @@ import argparse
 import json
 import sys
 
-from ..tpm import tpm_main
+from keylime.tpm import tpm_main
+
 from . import policies
 
 policies.load_policies()
