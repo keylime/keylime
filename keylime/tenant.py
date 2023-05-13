@@ -561,7 +561,7 @@ class Tenant:
             "runtime_policy": self.runtime_policy,
             "runtime_policy_name": self.runtime_policy_name,
             "runtime_policy_key": self.runtime_policy_key,
-            "mb_refstate": json.dumps(self.mb_refstate),
+            "mb_refstate": self.mb_refstate,
             "ima_sign_verification_keys": self.ima_sign_verification_keys,
             "metadata": json.dumps(self.metadata),
             "revocation_key": self.revocation_key,

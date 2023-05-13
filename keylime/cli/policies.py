@@ -3,9 +3,10 @@ import json
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-from keylime import config, keylime_logging, measured_boot
+from keylime import config, keylime_logging
 from keylime.cmd import convert_runtime_policy
 from keylime.ima import file_signatures, ima
+from keylime.mba import mba
 from keylime.tpm.tpm_abstract import TPM_Utilities
 
 if sys.version_info >= (3, 8):
@@ -163,7 +164,7 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
         if isinstance(args["mb_refstate"], str):
             if args["mb_refstate"] == "default":
                 args["mb_refstate"] = config.get("tenant", "mb_refstate")
-            mb_refstate_data = measured_boot.read_mb_refstate(args["mb_refstate"])
+            mb_refstate_data = mba.load_policy_file(args["mb_refstate"])
         else:
             raise UserError("Invalid measured boot reference state (intended state) provided")
 

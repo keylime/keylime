@@ -1,6 +1,6 @@
 from keylime import cloud_verifier_tornado, config, keylime_logging
 from keylime.common.migrations import apply
-from keylime.elchecking.policies import load_policies
+from keylime.mba import mba
 
 logger = keylime_logging.init_logging("verifier")
 
@@ -12,7 +12,7 @@ def main() -> None:
 
     # Load explicitly the policy modules into Keylime for the verifier,
     # so that they are not loaded accidentally from other components
-    load_policies()
+    mba.load_policy_engine()
     cloud_verifier_tornado.main()
 
 

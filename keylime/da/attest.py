@@ -6,7 +6,7 @@ from datetime import datetime
 
 from keylime import cloud_verifier_common, config, keylime_logging
 from keylime.da import record
-from keylime.elchecking.policies import load_policies
+from keylime.mba import mba
 
 logger = keylime_logging.init_logging("durable_attestation_fetch_and_replay")
 
@@ -40,7 +40,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    load_policies()
+    mba.load_policy_engine()
 
     rmcb = config.get("registrar", "durable_attestation_import", fallback="")
     rmc = record.get_record_mgt_class(rmcb)
