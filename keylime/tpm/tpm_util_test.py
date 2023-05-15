@@ -1,7 +1,8 @@
 import base64
 import unittest
+from unittest import mock
 
-from keylime.tpm.tpm_util import checkquote
+from keylime.tpm.tpm_util import checkquote, makecredential
 
 
 class TestTpmUtil(unittest.TestCase):
@@ -50,3 +51,35 @@ class TestTpmUtil(unittest.TestCase):
             checkquote(aikblob, nonce, sigblob, quoteblob, pcrblob, "sha256")
         except Exception as e:
             self.fail(f"checkquote failed with {e}")
+
+    @staticmethod
+    def not_random(numbytes: int) -> bytes:
+        return b"\x12" * numbytes
+
+    def test_makecredential(self) -> None:
+        with mock.patch("os.urandom", TestTpmUtil.not_random):
+            ek_tpm = bytes.fromhex(
+                "013a0001000b000300b20020837197674484b3f81a90cc8d46a5d724fd52d76e06520b64f2a1"
+                "da1b331469aa00060080004300100800000000000100aef12278a9b8d8a1e5700fb835ff3d9b"
+                "613d0d6fc17df186711260244f3f24847eb3ef1f5ff9b53d01cfebf291104385fbd71ead80a8"
+                "294ebc76f671859b7c3c9a998300f30859ef3fdba00c5229f17092fd97f19128243000205cfe"
+                "5ba24f5fc55538e52bf849c6f777690919929c7d2d9328070a2a6bdd67355a516b94afdceda0"
+                "0a0d27988a28644b30ac11beae23a51d9038cd9d789ae39cae15c1312ef174e217449771a602"
+                "ade4daf35b20e072017c85a2f211fe5512319184059ddeaab94fa331c49c3f213bc3fbccd1e8"
+                "56b8984353ac92e3df0f72f1e5c0b97b9cdc333702872e9e63565c809d81fa8bb6c6da86867c"
+                "ead2adedc0cee80bb6617183"
+            )
+            challenge = bytes.fromhex("5a4e524b4f4e6e777552754831683734785a466a42416f314758676c484d4149")
+            aik_name = bytes.fromhex("000b9601163463aacdb45be7ad1f6d11ad3dae0578d5aeeb5125e1075c5601b7c7fa")
+
+            credential = makecredential(ek_tpm, challenge, aik_name)
+
+            # the signature is not 'constant' due to OAEP padding
+            self.assertEqual(
+                credential[:80],
+                bytes.fromhex(
+                    "badcc0de00000001004400206f0c4b08cfa00f21b474ca75623d098309c2cd7fac8d10"
+                    "ae3caf0da40162496db140cc6a5ae79a2bd7c22dc52cee372f34b356bf9bcd5176fa94"
+                    "239ee93191a0a75d0100"
+                ),
+            )

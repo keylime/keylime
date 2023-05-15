@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePublicNumbers,
 )
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey, RSAPublicNumbers
+from cryptography.hazmat.primitives.ciphers import algorithms
 
 from keylime.tpm.types import TpmsAttestType
 
@@ -76,6 +77,10 @@ HASH_FUNCS: Dict[int, hashes.HashAlgorithm] = {
     TPM_ALG_SHA256: hashes.SHA256(),
     TPM_ALG_SHA384: hashes.SHA384(),
     TPM_ALG_SHA512: hashes.SHA512(),
+}
+
+SYMCIPHER_FUNCS = {
+    TPM_ALG_AES: algorithms.AES,
 }
 
 
