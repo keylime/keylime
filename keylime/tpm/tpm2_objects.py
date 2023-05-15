@@ -266,21 +266,23 @@ def _extract_tpm2b(vals: bytes) -> Tuple[bytes, bytes]:
     return (vals[:length], vals[length:])
 
 
-def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
+def pubkey_parms_from_tpm2b_public(
+    public: bytes,
+) -> Tuple[pubkey_type, int]:
     (public, rest) = _extract_tpm2b(public)
     if len(rest) != 0:
         raise ValueError("More in tpm2b_public than tpmt_public")
-    # Extract type, [nameAlg], and [objectAttributes] (we don't care about the
-    #  latter two)
-    (alg_type, _, _) = struct.unpack(">HHI", public[0:8])
+    # Extract type, nameAlg, and [objectAttributes] (we don't care about the
+    #  latter)
+    (alg_type, name_alg, _) = struct.unpack(">HHI", public[0:8])
     # Ignore the authPolicy
     (_, sym_parms) = _extract_tpm2b(public[8:])
     # Ignore the non-asym-alg parameters
-    (sym_mode,) = struct.unpack(">H", sym_parms[0:2])
+    (sym_alg,) = struct.unpack(">H", sym_parms[0:2])
     # Ignore the sym_mode and keybits (4 bytes), possibly symmetric (2) and sign
     #  scheme (2)
     to_skip = 4 + 2  # sym_mode, keybits and sign scheme
-    if sym_mode != TPM2_ALG_NULL:
+    if sym_alg != TPM2_ALG_NULL:
         to_skip = to_skip + 2
     asym_parms = sym_parms[to_skip:]
 
@@ -295,7 +297,7 @@ def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
         bmodulus = int.from_bytes(modulus, byteorder="big")
 
         rsa_numbers = RSAPublicNumbers(exponent, bmodulus)
-        return rsa_numbers.public_key(backend=default_backend())
+        return rsa_numbers.public_key(backend=default_backend()), name_alg
 
     if alg_type == TPM_ALG_ECC:
         (curve_id, _) = struct.unpack(">HH", asym_parms[0:4])
@@ -316,9 +318,14 @@ def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
         by = int.from_bytes(y, byteorder="big")
 
         ecc_numbers = EllipticCurvePublicNumbers(bx, by, curve)
-        return ecc_numbers.public_key(backend=default_backend())
+        return ecc_numbers.public_key(backend=default_backend()), name_alg
 
     raise ValueError(f"Invalid tpm2b_public type: {alg_type}")
+
+
+def pubkey_from_tpm2b_public(public: bytes) -> pubkey_type:
+    pubkey, _ = pubkey_parms_from_tpm2b_public(public)
+    return pubkey
 
 
 def tpm2b_public_from_pubkey(
@@ -394,6 +401,20 @@ def get_tpm2b_public_object_attributes(public: bytes) -> int:
         attrs,
     ) = struct.unpack(">HHHI", public[0:10])
     return cast(int, attrs)
+
+
+def get_tpm2b_public_symkey_params(
+    public: bytes,
+) -> Tuple[int, int]:
+    # Ignore length, type, namealg and attributes
+    (public, rest) = _extract_tpm2b(public)
+    if len(rest) != 0:
+        raise ValueError("More in tpm2b_public than tpmt_public")
+    # Ignore the authPolicy
+    (_, sym_parms) = _extract_tpm2b(public[8:])
+
+    sym_alg, symkey_bits = struct.unpack(">HH", sym_parms[0:4])
+    return sym_alg, symkey_bits
 
 
 def get_tpm2b_public_name(public: bytes) -> str:
