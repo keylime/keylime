@@ -17,11 +17,15 @@ from keylime.tpm.tpm2_objects import (
     OA_SIGN_ENCRYPT,
     OA_STCLEAR,
     OA_USERWITHAUTH,
+    TPM_ALG_AES,
+    TPM_ALG_SHA256,
     ek_low_tpm2b_public_from_pubkey,
     get_tpm2b_public_name,
     get_tpm2b_public_object_attributes,
+    get_tpm2b_public_symkey_params,
     object_attributes_description,
     pubkey_from_tpm2b_public,
+    pubkey_parms_from_tpm2b_public,
     unmarshal_tpms_attest,
 )
 
@@ -183,6 +187,10 @@ class TestTpm2Objects(unittest.TestCase):
         self.assertEqual(new_rsa_pubkey_n.e, correct_rsa_pubkey_n.e)  # pylint: disable=no-member
         self.assertEqual(new_rsa_pubkey_n.n, correct_rsa_pubkey_n.n)  # pylint: disable=no-member
 
+        sym_alg, symkey_bits = get_tpm2b_public_symkey_params(correct_rsa_obj)
+        self.assertEqual(sym_alg, TPM_ALG_AES)
+        self.assertEqual(symkey_bits, 128)
+
     def test_pubkey_from_tpm2b_public_rsa_without_encryption(self) -> None:
         new_rsa_pubkey = pubkey_from_tpm2b_public(
             bytes.fromhex(
@@ -242,8 +250,9 @@ class TestTpm2Objects(unittest.TestCase):
             "wGqmoOwgqQSByVBrADgEVHlhS9J2tJQNMQ=="
         )
         test_ec_cert = load_der_x509_certificate(test_ec_cert_bytes, backend=default_backend())
-        new_ec_pubkey = pubkey_from_tpm2b_public(correct_ec_obj)
+        new_ec_pubkey, name_alg = pubkey_parms_from_tpm2b_public(correct_ec_obj)
         assert isinstance(new_ec_pubkey, ec.EllipticCurvePublicKey)
+        self.assertEqual(name_alg, TPM_ALG_SHA256)
 
         correct_ec_pubkey = test_ec_cert.public_key()
         assert isinstance(correct_ec_pubkey, ec.EllipticCurvePublicKey)
