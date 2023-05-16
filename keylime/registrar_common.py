@@ -267,8 +267,6 @@ class UnprotectedHandler(BaseHandler):
             ekcert = json_body["ekcert"]
             aik_tpm = json_body["aik_tpm"]
 
-            initialize_tpm = Tpm()
-
             if ekcert is None or ekcert == "emulator":
                 logger.warning("Agent %s did not submit an ekcert", agent_id)
                 ek_tpm = json_body["ek_tpm"]
@@ -300,7 +298,7 @@ class UnprotectedHandler(BaseHandler):
                 return
 
             # try to encrypt the AIK
-            aik_enc = initialize_tpm.encryptAIK(
+            aik_enc = Tpm.encryptAIK(
                 agent_id,
                 base64.b64decode(ek_tpm),
                 base64.b64decode(aik_tpm),

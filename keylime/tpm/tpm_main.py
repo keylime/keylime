@@ -1,7 +1,6 @@
 import base64
 import binascii
 import hashlib
-import os
 import re
 import sys
 import tempfile
@@ -106,71 +105,31 @@ class Tpm:
 
         return retDict
 
-    def encryptAIK(self, uuid: str, ek_tpm: bytes, aik_tpm: bytes) -> Optional[Tuple[bytes, str]]:
+    @staticmethod
+    def encryptAIK(uuid: str, ek_tpm: bytes, aik_tpm: bytes) -> Optional[Tuple[bytes, str]]:
         if ek_tpm is None or aik_tpm is None:
             logger.error("Missing parameters for encryptAIK")
             return None
 
         aik_name = tpm2_objects.get_tpm2b_public_name(aik_tpm)
 
-        efd = keyfd = blobfd = -1
-        ekFile = None
-        challengeFile = None
-        keyblob = None
-        blobpath = None
-
         try:
-            # write out the public EK
-            efd, etemp = tempfile.mkstemp()
-            with open(etemp, "wb") as ekFile:
-                ekFile.write(ek_tpm)
-
             # write out the challenge
             challenge_str = tpm_abstract.TPM_Utilities.random_password(32)
             challenge = challenge_str.encode()
-            keyfd, keypath = tempfile.mkstemp()
-            with open(keypath, "wb") as challengeFile:
-                challengeFile.write(challenge)
-
-            # create temp file for the blob
-            blobfd, blobpath = tempfile.mkstemp()
-            command = [
-                "tpm2_makecredential",
-                "-T",
-                "none",
-                "-e",
-                ekFile.name,
-                "-s",
-                challengeFile.name,
-                "-n",
-                aik_name,
-                "-o",
-                blobpath,
-            ]
-            self.__run(command, lock=False)
 
             logger.info("Encrypting AIK for UUID %s", uuid)
 
-            # read in the blob
-            with open(blobpath, "rb") as f:
-                keyblob = base64.b64encode(f.read())
-
             # read in the aes key
             key = base64.b64encode(challenge).decode("utf-8")
+
+            credentialblob = tpm_util.makecredential(ek_tpm, challenge, bytes.fromhex(aik_name))
+            keyblob = base64.b64encode(credentialblob)
 
         except Exception as e:
             logger.error("Error encrypting AIK: %s", str(e))
             logger.exception(e)
             raise
-        finally:
-            for fd in [efd, keyfd, blobfd]:
-                if fd >= 0:
-                    os.close(fd)
-            for fi in [ekFile, challengeFile]:
-                if fi is not None:
-                    os.remove(fi.name)
-            if blobpath is not None:
-                os.remove(blobpath)
 
         return (keyblob, key)
 
