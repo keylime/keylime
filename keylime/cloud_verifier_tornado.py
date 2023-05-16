@@ -1532,7 +1532,11 @@ def main() -> None:
     keylime_api_version.log_api_versions(logger)
 
     # Get the server TLS context
-    ssl_ctx = web_util.init_mtls("verifier", logger=logger)
+    agent_mtls_cert_enabled = config.getboolean("verifier", "enable_agent_mtls", fallback=False)
+    if agent_mtls_cert_enabled:
+        ssl_ctx = web_util.init_mtls("verifier", logger=logger)
+    else:
+        ssl_ctx = None
 
     app = tornado.web.Application(
         [
