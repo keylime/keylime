@@ -71,16 +71,16 @@ class MyStreebog512(hashes.HashAlgorithm):
     block_size = 64  # type: ignore
 
 
-HASH_FUNCS = {
+HASH_FUNCS: Dict[int, hashes.HashAlgorithm] = {
     # The list of hash functions we need for signature verification.
-    HashAlgo.HASH_ALGO_MD5: hashes.__dict__.get("MD5"),
-    HashAlgo.HASH_ALGO_SHA1: hashes.__dict__.get("SHA1"),
-    HashAlgo.HASH_ALGO_SHA256: hashes.__dict__.get("SHA256"),
-    HashAlgo.HASH_ALGO_SHA384: hashes.__dict__.get("SHA384"),
-    HashAlgo.HASH_ALGO_SHA512: hashes.__dict__.get("SHA512"),
-    HashAlgo.HASH_ALGO_SHA224: hashes.__dict__.get("SHA224"),
-    HashAlgo.HASH_ALGO_STREEBOG_256: MyStreebog256,
-    HashAlgo.HASH_ALGO_STREEBOG_512: MyStreebog512,
+    HashAlgo.HASH_ALGO_MD5: hashes.MD5(),
+    HashAlgo.HASH_ALGO_SHA1: hashes.SHA1(),
+    HashAlgo.HASH_ALGO_SHA256: hashes.SHA256(),
+    HashAlgo.HASH_ALGO_SHA384: hashes.SHA384(),
+    HashAlgo.HASH_ALGO_SHA512: hashes.SHA512(),
+    HashAlgo.HASH_ALGO_SHA224: hashes.SHA224(),
+    HashAlgo.HASH_ALGO_STREEBOG_256: MyStreebog256(),
+    HashAlgo.HASH_ALGO_STREEBOG_512: MyStreebog512(),
 }
 
 
@@ -328,10 +328,8 @@ class ImaKeyrings:
             logger.warning("Unsupported hash algo with id '%d'", hash_algo)
             return False
 
-        if filehash_type != hashfunc().name:
-            logger.warning(
-                "Mismatching filehash type %s and ima signature hash used %s", filehash_type, hashfunc().name
-            )
+        if filehash_type != hashfunc.name:
+            logger.warning("Mismatching filehash type %s and ima signature hash used %s", filehash_type, hashfunc.name)
             return False
 
         # Try all the keyrings until we find one with a key with the given keyidv2
@@ -346,7 +344,7 @@ class ImaKeyrings:
             return False
 
         try:
-            ImaKeyrings._verify(pubkey, signature[hdrlen:], filehash, hashfunc())
+            ImaKeyrings._verify(pubkey, signature[hdrlen:], filehash, hashfunc)
         except InvalidSignature:
             return False
         return True
