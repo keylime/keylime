@@ -87,7 +87,7 @@ def __hash_pcr_banks(
     if not hashfunc:
         raise ValueError(f"Unsupported hash with id {hash_alg:#x} in signature blob")
 
-    digest = hashes.Hash(hashfunc(), backend=backends.default_backend())
+    digest = hashes.Hash(hashfunc, backend=backends.default_backend())
 
     idx = 0
     pcrs_dict: Dict[int, str] = {}
@@ -145,15 +145,15 @@ def checkquote(
     hashfunc = tpm2_objects.HASH_FUNCS.get(hash_alg)
     if not hashfunc:
         raise ValueError(f"Unsupported hash with id {hash_alg:#x} in signature blob")
-    if hashfunc().name != exp_hash_alg:
-        raise ValueError(f"Quote was expected to use {exp_hash_alg} but used {hashfunc().name} instead")
+    if hashfunc.name != exp_hash_alg:
+        raise ValueError(f"Quote was expected to use {exp_hash_alg} but used {hashfunc.name} instead")
 
-    digest = hashes.Hash(hashfunc(), backend=backends.default_backend())
+    digest = hashes.Hash(hashfunc, backend=backends.default_backend())
     digest.update(quoteblob)
     quote_digest = digest.finalize()
 
     try:
-        verify(pubkey, signature, quote_digest, hashfunc())
+        verify(pubkey, signature, quote_digest, hashfunc)
     except InvalidSignature:
         logger.error("Invalid quote signature!")
 
@@ -168,7 +168,7 @@ def checkquote(
     if retDict["attested.quote.pcrDigest"] != compare_digest:
         raise Exception("The digest used for quoting is different than the one that was calculated")
 
-    digest = hashes.Hash(hashfunc(), backend=backends.default_backend())
+    digest = hashes.Hash(hashfunc, backend=backends.default_backend())
     digest.update(quoteblob)
     quoteblob_digest = digest.finalize()
 

@@ -71,11 +71,11 @@ AK_EXPECTED_ATTRS = (
 
 
 # The hash functions used by TPM
-HASH_FUNCS = {
-    TPM_ALG_SHA1: hashes.__dict__.get("SHA1"),
-    TPM_ALG_SHA256: hashes.__dict__.get("SHA256"),
-    TPM_ALG_SHA384: hashes.__dict__.get("SHA384"),
-    TPM_ALG_SHA512: hashes.__dict__.get("SHA512"),
+HASH_FUNCS: Dict[int, hashes.HashAlgorithm] = {
+    TPM_ALG_SHA1: hashes.SHA1(),
+    TPM_ALG_SHA256: hashes.SHA256(),
+    TPM_ALG_SHA384: hashes.SHA384(),
+    TPM_ALG_SHA512: hashes.SHA512(),
 }
 
 
