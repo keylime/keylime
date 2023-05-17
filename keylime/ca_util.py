@@ -364,7 +364,7 @@ def read_private(warn: bool = False) -> Tuple[Dict[str, Any], str]:
         key = crypto.kdf(global_password, toread["salt"])
         try:
             plain = crypto.decrypt(toread["priv"], key)
-        except ValueError as e:
+        except crypto_exceptions.InvalidTag as e:
             raise Exception("Invalid password for keystore") from e
 
         return yaml.load(plain, Loader=SafeLoader), toread["salt"]
