@@ -363,7 +363,10 @@ class Tenant:
             if not os.path.exists(os.path.join(args["ca_dir"], f"{self.agent_uuid}-private.pem")):
                 ca_util.cmd_mkcert(args["ca_dir"], self.agent_uuid)
 
-            cert_pkg, serial, subject = ca_util.cmd_certpkg(args["ca_dir"], self.agent_uuid)
+            try:
+                cert_pkg, serial, subject = ca_util.cmd_certpkg(args["ca_dir"], self.agent_uuid)
+            except Exception as e:
+                raise UserError(f"Error reading the keystore from {args['ca_dir']}: {e}") from e
 
             # support revocation
             if not os.path.exists(os.path.join(args["ca_dir"], "RevocationNotifier-private.pem")):
