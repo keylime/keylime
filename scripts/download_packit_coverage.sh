@@ -42,8 +42,6 @@ TF_ARTIFACTS_URL_PREFIX="https://artifacts.dev.testing-farm.io"
 
 GITHUB_API_PREFIX_URL="https://api.github.com/repos/${PROJECT}"
 
-WEBDRIVE_URL="https://(transfer.sh|free.keep.sh)"
-
 ##################################
 # no need to change anything below
 ##################################
@@ -140,14 +138,14 @@ echo "TF_ARTIFACTS_URL=${TF_ARTIFACTS_URL}"
 TF_TESTLOG=$( curl --retry 5 ${TF_ARTIFACTS_URL}/results.xml | egrep -o "${TF_ARTIFACTS_URL}.*${TF_TEST_OUTPUT}" )
 echo "TF_TESTLOG=${TF_TESTLOG}"
 
-# parse the URL of coverage XML file on WEBDRIVE_URL and download it
+# parse the URL of coverage XML file and download it
 curl --retry 5 -s "${TF_TESTLOG}" &> ${TMPFILE}
 for REPORT in coverage.packit.xml coverage.testsuite.xml coverage.unittests.xml; do
-    COVERAGE_URL=$( grep "$REPORT report is available at" ${TMPFILE} | egrep -o "${WEBDRIVE_URL}.*\.xml" )
+    COVERAGE_URL=$( grep "$REPORT report is available at" ${TMPFILE} | egrep -o "https://.*\.xml" )
     echo "COVERAGE_URL=${COVERAGE_URL}"
 
     if [ -z "${COVERAGE_URL}" ]; then
-        echo "Could not parse $REPORT URL at ${WEBDRIVE_URL} from test log ${TF_TESTLOG}"
+        echo "Could not parse $REPORT URL from test log ${TF_TESTLOG}"
         exit 5
     fi
 
