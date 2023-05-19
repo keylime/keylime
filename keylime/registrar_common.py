@@ -9,7 +9,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from ipaddress import IPv6Address, ip_address
 from socketserver import ThreadingMixIn
-from typing import Any, Dict, Tuple, cast
+from typing import Any, Dict, Optional, Tuple, cast
 
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from sqlalchemy.exc import SQLAlchemyError
@@ -212,6 +212,36 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         web_util.echo_json_response(self, 200, "Success", version_info)
 
+    @staticmethod
+    def get_network_params(
+        json_body: Dict[str, Any], agent_id: str
+    ) -> Tuple[Optional[str], Optional[int], Optional[str]]:
+        # Validate ip and port
+        ip = json_body.get("ip")
+        if ip is not None:
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                logger.warning("Contact ip for agent %s is not a valid ip got: %s.", agent_id, ip)
+                ip = None
+
+        port = json_body.get("port")
+        if port is not None:
+            try:
+                port = int(port)
+                if port < 1 or port > 65535:
+                    logger.warning("Contact port for agent %s is not a number between 1 and got: %s.", agent_id, port)
+                    port = None
+            except ValueError:
+                logger.warning("Contact port for agent %s is not a valid number got: %s.", agent_id, port)
+                port = None
+
+        mtls_cert = json_body.get("mtls_cert")
+        if mtls_cert is None or mtls_cert == "disabled":
+            logger.warning("Agent %s did not send a mTLS certificate. Most operations will not work!", agent_id)
+
+        return ip, port, mtls_cert
+
     def do_POST(self) -> None:
         """This method handles the POST requests to add agents to the Registrar Server.
 
@@ -331,34 +361,9 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
                 except SQLAlchemyError as e:
                     logger.error("SQLAlchemy Error: %s", e)
                     raise
-            # Check for ip and port
-            contact_ip = json_body.get("ip", None)
-            contact_port = json_body.get("port", None)
 
-            # Validate ip and port
-            if contact_ip is not None:
-                try:
-                    # Use parser from the standard library instead of implementing our own
-                    ipaddress.ip_address(contact_ip)
-                except ValueError:
-                    logger.warning("Contact ip for agent %s is not a valid ip got: %s.", agent_id, contact_ip)
-                    contact_ip = None
-            if contact_port is not None:
-                try:
-                    contact_port = int(contact_port)
-                    if contact_port < 1 or contact_port > 65535:
-                        logger.warning(
-                            "Contact port for agent %s is not a number between 1 and got: %s.", agent_id, contact_port
-                        )
-                        contact_port = None
-                except ValueError:
-                    logger.warning("Contact port for agent %s is not a valid number got: %s.", agent_id, contact_port)
-                    contact_port = None
-
-            # Check for mTLS cert
-            mtls_cert = json_body.get("mtls_cert", None)
-            if mtls_cert is None or mtls_cert == "disabled":
-                logger.warning("Agent %s did not send a mTLS certificate. Most operations will not work!", agent_id)
+            # Check for ip and port and mTLS cert
+            contact_ip, contact_port, mtls_cert = UnprotectedHandler.get_network_params(json_body, agent_id)
 
             # Add values to database
             d: Dict[str, Any] = {}
