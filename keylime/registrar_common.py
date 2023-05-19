@@ -9,7 +9,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from ipaddress import IPv6Address, ip_address
 from socketserver import ThreadingMixIn
-from typing import Any, Dict, Optional, Tuple, cast
+from typing import Any, Dict, Optional, Tuple, Union, cast
 
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from sqlalchemy.exc import SQLAlchemyError
@@ -43,6 +43,30 @@ except record.RecordManagementException as rme:
 
 
 class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
+    def __validate_input(self, method: str) -> Tuple[Optional[Dict[str, Union[str, None]]], Optional[str]]:
+        rest_params = web_util.get_restful_params(self.path)
+        if rest_params is None:
+            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            return None, None
+
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
+            return None, None
+
+        if "agents" not in rest_params:
+            web_util.echo_json_response(self, 400, "URI not supported")
+            logger.warning("%s agent returning 400 response. uri not supported: %s", method, self.path)
+            return None, None
+
+        agent_id = rest_params["agents"]
+        if agent_id is not None:
+            # If the agent ID is not valid (wrong set of characters), just do nothing.
+            if not validators.valid_agent_id(agent_id):
+                web_util.echo_json_response(self, 400, "agent_id is not valid")
+                logger.error("%s received an invalid agent ID: %s", method, agent_id)
+                return None, None
+
+        return rest_params, agent_id
+
     def do_HEAD(self) -> None:
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
@@ -59,30 +83,12 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         agent to be returned. If the agent_id is not found, a 404 response is returned.
         """
         session = SessionManager().make_session(engine)
-        rest_params = web_util.get_restful_params(self.path)
-        if rest_params is None:
-            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
-            return
 
-        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
+        rest_params, agent_id = self.__validate_input("GET")
+        if not rest_params:
             return
-
-        if "agents" not in rest_params:
-            web_util.echo_json_response(self, 400, "uri not supported")
-            logger.warning("GET returning 400 response. uri not supported: %s", self.path)
-            return
-
-        agent_id = rest_params["agents"]
 
         if agent_id is not None:
-            # If the agent ID is not valid (wrong set of characters),
-            # just do nothing.
-            if not validators.valid_agent_id(agent_id):
-                web_util.echo_json_response(self, 400, "agent_id not not valid")
-                logger.error("GET received an invalid agent ID: %s", agent_id)
-                return
-
-            agent = None
             try:
                 agent = session.query(RegistrarMain).filter_by(agent_id=agent_id).first()
             except SQLAlchemyError as e:
@@ -138,29 +144,12 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         agents requests require a single agent_id parameter which identifies the agent to be deleted.
         """
         session = SessionManager().make_session(engine)
-        rest_params = web_util.get_restful_params(self.path)
-        if rest_params is None:
-            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
-            return
 
-        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
+        rest_params, agent_id = self.__validate_input("DELETE")
+        if not rest_params:
             return
-
-        if "agents" not in rest_params:
-            web_util.echo_json_response(self, 400, "URI not supported")
-            logger.warning("DELETE agent returning 400 response. uri not supported: %s", self.path)
-            return
-
-        agent_id = rest_params["agents"]
 
         if agent_id is not None:
-            # If the agent ID is not valid (wrong set of characters),
-            # just do nothing.
-            if not validators.valid_agent_id(agent_id):
-                web_util.echo_json_response(self, 400, "agent_id not not valid")
-                logger.error("DELETE received an invalid agent ID: %s", agent_id)
-                return
-
             if session.query(RegistrarMain).filter_by(agent_id=agent_id).delete():
                 # send response
                 try:
