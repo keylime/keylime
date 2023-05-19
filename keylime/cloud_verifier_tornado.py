@@ -7,7 +7,7 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Process
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import tornado.httpserver
 import tornado.ioloop
@@ -297,6 +297,49 @@ class VersionHandler(BaseHandler):
 
 
 class AgentsHandler(BaseHandler):
+    def __validate_input(self, method: str) -> Tuple[Optional[Dict[str, Union[str, None]]], Optional[str]]:
+        if self.request.uri is None:
+            web_util.echo_json_response(self, 400, "URI not specified")
+            return None, None
+
+        rest_params = web_util.get_restful_params(self.request.uri)
+        if rest_params is None:
+            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
+            return None, None
+
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
+            return None, None
+
+        if "agents" not in rest_params:
+            web_util.echo_json_response(self, 400, "uri not supported")
+            if method != "DELETE":
+                logger.warning("%s returning 400 response. uri not supported: %s", method, self.request.path)
+            return None, None
+
+        agent_id = rest_params["agents"]
+
+        validate_agent_id = False
+        if method == "GET":
+            validate_agent_id = (agent_id is not None) and (agent_id != "")
+        elif method in ["PUT", "DELETE"]:
+            if agent_id is None:
+                web_util.echo_json_response(self, 400, "uri not supported")
+                logger.warning("%s returning 400 response. uri not supported", method)
+                if method == "DELETE":
+                    return None, None
+
+            validate_agent_id = True
+        else:
+            validate_agent_id = agent_id is not None
+
+        # If the agent ID is not valid (wrong set of characters), just do nothing.
+        if validate_agent_id and not validators.valid_agent_id(agent_id):
+            web_util.echo_json_response(self, 400, "agent_id not not valid")
+            logger.error("%s received an invalid agent ID: %s", method, agent_id)
+            return None, None
+
+        return rest_params, agent_id
+
     def head(self) -> None:
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
@@ -312,33 +355,13 @@ class AgentsHandler(BaseHandler):
         """
         session = get_session()
 
-        if self.request.uri is None:
-            web_util.echo_json_response(self, 400, "URI not specified")
+        rest_params, agent_id = self.__validate_input("GET")
+        if not rest_params:
             return
-
-        rest_params = web_util.get_restful_params(self.request.uri)
-        if rest_params is None:
-            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
-            return
-
-        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
-            return
-
-        if "agents" not in rest_params:
-            web_util.echo_json_response(self, 400, "uri not supported")
-            logger.warning("GET returning 400 response. uri not supported: %s", self.request.path)
-            return
-
-        agent_id = rest_params["agents"]
 
         if (agent_id is not None) and (agent_id != ""):
             # If the agent ID is not valid (wrong set of characters),
             # just do nothing.
-            if not validators.valid_agent_id(agent_id):
-                web_util.echo_json_response(self, 400, "agent_id not not valid")
-                logger.error("GET received an invalid agent ID: %s", agent_id)
-                return
-
             agent = None
             try:
                 agent = (
@@ -413,34 +436,8 @@ class AgentsHandler(BaseHandler):
         """
         session = get_session()
 
-        if self.request.uri is None:
-            web_util.echo_json_response(self, 400, "URI not specified")
-            return
-
-        rest_params = web_util.get_restful_params(self.request.uri)
-        if rest_params is None:
-            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
-            return
-
-        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
-            return
-
-        if "agents" not in rest_params:
-            web_util.echo_json_response(self, 400, "uri not supported")
-            return
-
-        agent_id = rest_params["agents"]
-
-        if agent_id is None:
-            web_util.echo_json_response(self, 400, "uri not supported")
-            logger.warning("DELETE returning 400 response. uri not supported: %s", self.request.path)
-            return
-
-        # If the agent ID is not valid (wrong set of characters), just
-        # do nothing.
-        if not validators.valid_agent_id(agent_id):
-            web_util.echo_json_response(self, 400, "agent_id not not valid")
-            logger.error("DELETE received an invalid agent ID: %s", agent_id)
+        rest_params, agent_id = self.__validate_input("DELETE")
+        if not rest_params or not agent_id:
             return
 
         agent = None
@@ -501,33 +498,11 @@ class AgentsHandler(BaseHandler):
         # TODO: exception handling needs fixing
         # Maybe handle exceptions with if/else if/else blocks ... simple and avoids nesting
         try:  # pylint: disable=too-many-nested-blocks
-            if self.request.uri is None:
-                web_util.echo_json_response(self, 400, "URI not specified")
+            rest_params, agent_id = self.__validate_input("POST")
+            if not rest_params:
                 return
-
-            rest_params = web_util.get_restful_params(self.request.uri)
-            if rest_params is None:
-                web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
-                return
-
-            if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
-                return
-
-            if "agents" not in rest_params:
-                web_util.echo_json_response(self, 400, "uri not supported")
-                logger.warning("POST returning 400 response. uri not supported: %s", self.request.path)
-                return
-
-            agent_id = rest_params["agents"]
 
             if agent_id is not None:
-                # If the agent ID is not valid (wrong set of
-                # characters), just do nothing.
-                if not validators.valid_agent_id(agent_id):
-                    web_util.echo_json_response(self, 400, "agent_id not not valid")
-                    logger.error("POST received an invalid agent ID: %s", agent_id)
-                    return
-
                 content_length = len(self.request.body)
                 if content_length == 0:
                     web_util.echo_json_response(self, 400, "Expected non zero content length")
@@ -742,34 +717,8 @@ class AgentsHandler(BaseHandler):
         """
         session = get_session()
         try:
-            if self.request.uri is None:
-                web_util.echo_json_response(self, 400, "URI not specified")
-                return
-
-            rest_params = web_util.get_restful_params(self.request.uri)
-            if rest_params is None:
-                web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
-                return
-
-            if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
-                return
-
-            if "agents" not in rest_params:
-                web_util.echo_json_response(self, 400, "uri not supported")
-                logger.warning("PUT returning 400 response. uri not supported: %s", self.request.path)
-                return
-
-            agent_id = rest_params["agents"]
-
-            if agent_id is None:
-                web_util.echo_json_response(self, 400, "uri not supported")
-                logger.warning("PUT returning 400 response. uri not supported")
-
-            # If the agent ID is not valid (wrong set of characters),
-            # just do nothing.
-            if not validators.valid_agent_id(agent_id):
-                web_util.echo_json_response(self, 400, "agent_id not not valid")
-                logger.error("PUT received an invalid agent ID: %s", agent_id)
+            rest_params, agent_id = self.__validate_input("PUT")
+            if not rest_params:
                 return
 
             try:
