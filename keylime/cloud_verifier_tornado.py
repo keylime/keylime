@@ -509,38 +509,39 @@ class AgentsHandler(BaseHandler):
                     logger.warning("POST returning 400 response. Expected non zero content length.")
                 else:
                     json_body = json.loads(self.request.body)
-                    agent_data = {}
-                    agent_data["v"] = json_body["v"]
-                    agent_data["ip"] = json_body["cloudagent_ip"]
-                    agent_data["port"] = int(json_body["cloudagent_port"])
-                    agent_data["operational_state"] = states.START
-                    agent_data["public_key"] = ""
-                    agent_data["tpm_policy"] = json_body["tpm_policy"]
-                    agent_data["meta_data"] = json_body["metadata"]
-                    agent_data["mb_refstate"] = json_body["mb_refstate"]
-                    agent_data["ima_sign_verification_keys"] = json_body["ima_sign_verification_keys"]
-                    agent_data["revocation_key"] = json_body["revocation_key"]
-                    agent_data["accept_tpm_hash_algs"] = json_body["accept_tpm_hash_algs"]
-                    agent_data["accept_tpm_encryption_algs"] = json_body["accept_tpm_encryption_algs"]
-                    agent_data["accept_tpm_signing_algs"] = json_body["accept_tpm_signing_algs"]
-                    agent_data["supported_version"] = json_body["supported_version"]
-                    agent_data["ak_tpm"] = json_body["ak_tpm"]
-                    agent_data["mtls_cert"] = json_body.get("mtls_cert", None)
-                    agent_data["hash_alg"] = ""
-                    agent_data["enc_alg"] = ""
-                    agent_data["sign_alg"] = ""
-                    agent_data["agent_id"] = agent_id
-                    agent_data["boottime"] = 0
-                    agent_data["ima_pcrs"] = []
-                    agent_data["pcr10"] = None
-                    agent_data["next_ima_ml_entry"] = 0
-                    agent_data["learned_ima_keyrings"] = {}
-                    agent_data["verifier_id"] = config.get(
-                        "verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID
-                    )
-                    agent_data["attestation_count"] = 0
-                    agent_data["last_received_quote"] = 0
-                    agent_data["last_successful_attestation"] = 0
+                    agent_data = {
+                        "v": json_body["v"],
+                        "ip": json_body["cloudagent_ip"],
+                        "port": int(json_body["cloudagent_port"]),
+                        "operational_state": states.START,
+                        "public_key": "",
+                        "tpm_policy": json_body["tpm_policy"],
+                        "meta_data": json_body["metadata"],
+                        "mb_refstate": json_body["mb_refstate"],
+                        "ima_sign_verification_keys": json_body["ima_sign_verification_keys"],
+                        "revocation_key": json_body["revocation_key"],
+                        "accept_tpm_hash_algs": json_body["accept_tpm_hash_algs"],
+                        "accept_tpm_encryption_algs": json_body["accept_tpm_encryption_algs"],
+                        "accept_tpm_signing_algs": json_body["accept_tpm_signing_algs"],
+                        "supported_version": json_body["supported_version"],
+                        "ak_tpm": json_body["ak_tpm"],
+                        "mtls_cert": json_body.get("mtls_cert", None),
+                        "hash_alg": "",
+                        "enc_alg": "",
+                        "sign_alg": "",
+                        "agent_id": agent_id,
+                        "boottime": 0,
+                        "ima_pcrs": [],
+                        "pcr10": None,
+                        "next_ima_ml_entry": 0,
+                        "learned_ima_keyrings": {},
+                        "verifier_id": config.get(
+                            "verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID
+                        ),
+                        "attestation_count": 0,
+                        "last_received_quote": 0,
+                        "last_successful_attestation": 0,
+                    }
 
                     if "verifier_ip" in json_body:
                         agent_data["verifier_ip"] = json_body["verifier_ip"]
