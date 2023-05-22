@@ -212,18 +212,19 @@ def _validate_ima_ng(
             failure.add_event("not_in_allowlist", f"File not found in allowlist: {path.name}", True)
             return failure
 
-        if codecs.encode(digest.hash, "hex").decode("utf-8") not in accept_list:
+        hex_hash = digest.hash.hex()
+        if hex_hash not in accept_list:
             logger.warning(
                 "Hashes for file %s don't match %s not in %s",
                 path.name,
-                codecs.encode(digest.hash, "hex").decode("utf-8"),
+                hex_hash,
                 runtime_policy,
             )
             failure.add_event(
                 "runtime_policy_hash",
                 {
                     "message": "Hash not found in runtime policy",
-                    "got": codecs.encode(digest.hash, "hex").decode("utf-8"),
+                    "got": hex_hash,
                     "expected": accept_list,
                 },
                 True,
@@ -431,7 +432,7 @@ def _process_measurement_list(
         error_msg += ", ".join([f"{k.__name__ } {v}" for k, v in errors.items()])
         logger.error("%s.", error_msg)
 
-    return codecs.encode(running_hash, "hex").decode("utf-8"), failure
+    return running_hash.hex(), failure
 
 
 def process_measurement_list(
