@@ -1086,11 +1086,9 @@ async def invoke_provide_v(agent: Optional[Dict[str, Any]], timeout: float = 60.
     failure = Failure(Component.INTERNAL, ["verifier"])
     if agent is None:
         raise Exception("Agent deleted while being processed")
-    try:
-        if agent["pending_event"] is not None:
-            agent["pending_event"] = None
-    except KeyError:
-        pass
+    if agent.get("pending_event") is not None:
+        agent["pending_event"] = None
+
     v_json_message = cloud_verifier_common.prepare_v(agent)
 
     # TODO: remove special handling after initial upgrade
