@@ -42,8 +42,10 @@ except record.RecordManagementException as rme:
     sys.exit(1)
 
 
-class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
-    def __validate_input(self, method: str) -> Tuple[Optional[Dict[str, Union[str, None]]], Optional[str]]:
+class BaseHandler(BaseHTTPRequestHandler, SessionManager):
+    def _validate_input(
+        self, method: str, respond_on_agent_id_none: bool
+    ) -> Tuple[Optional[Dict[str, Union[str, None]]], Optional[str]]:
         rest_params = web_util.get_restful_params(self.path)
         if rest_params is None:
             web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
@@ -60,6 +62,9 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         agent_id = rest_params["agents"]
 
         if agent_id is None:
+            if respond_on_agent_id_none:
+                web_util.echo_json_response(self, 400, "agent id not found in uri")
+                logger.warning("%s agent returning 400 response. agent id not found in uri %s", method, self.path)
             return rest_params, None
 
         # If the agent ID is not valid (wrong set of characters), just do nothing.
@@ -70,6 +75,8 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
 
         return rest_params, agent_id
 
+
+class ProtectedHandler(BaseHandler):
     def do_HEAD(self) -> None:
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
@@ -87,7 +94,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         """
         session = SessionManager().make_session(engine)
 
-        rest_params, agent_id = self.__validate_input("GET")
+        rest_params, agent_id = self._validate_input("GET", False)
         if not rest_params:
             return
 
@@ -148,7 +155,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         """
         session = SessionManager().make_session(engine)
 
-        rest_params, agent_id = self.__validate_input("DELETE")
+        rest_params, agent_id = self._validate_input("DELETE", False)
         if not rest_params:
             return
 
@@ -173,37 +180,7 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
         return
 
 
-class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
-    def __validate_input(self, method: str) -> Optional[str]:
-        rest_params = web_util.get_restful_params(self.path)
-        if rest_params is None:
-            web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface")
-            return None
-
-        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
-            return None
-
-        if "agents" not in rest_params:
-            web_util.echo_json_response(self, 400, "uri not supported")
-            logger.warning("%s agent returning 400 response. uri not supported: %s", method, self.path)
-            return None
-
-        agent_id = rest_params["agents"]
-
-        if agent_id is None:
-            web_util.echo_json_response(self, 400, "agent id not found in uri")
-            logger.warning("%s agent returning 400 response. agent id not found in uri %s", method, self.path)
-            return None
-
-        # If the agent ID is not valid (wrong set of characters), just
-        # do nothing.
-        if not validators.valid_agent_id(agent_id):
-            web_util.echo_json_response(self, 400, "agent_id is not valid")
-            logger.error("%s received an invalid agent ID: %s", method, agent_id)
-            return None
-
-        return agent_id
-
+class UnprotectedHandler(BaseHandler):
     def do_HEAD(self) -> None:
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
@@ -273,7 +250,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         """
         session = SessionManager().make_session(engine)
 
-        agent_id = self.__validate_input("POST")
+        _, agent_id = self._validate_input("POST", True)
         if not agent_id:
             return
 
@@ -414,7 +391,7 @@ class UnprotectedHandler(BaseHTTPRequestHandler, SessionManager):
         """
         session = SessionManager().make_session(engine)
 
-        agent_id = self.__validate_input("PUT")
+        _, agent_id = self._validate_input("PUT", True)
         if not agent_id:
             return
 
