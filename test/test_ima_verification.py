@@ -166,7 +166,7 @@ class TestIMAVerification(unittest.TestCase):
         assert running_hash is not None
         for line in lines:
             parts = line.split(" ")
-            template_hash = codecs.decode(parts[1].encode("utf-8"), "hex")
+            template_hash = bytes.fromhex(parts[1])
             running_hash = hashlib.sha1(running_hash + template_hash).digest()
             pcrval = codecs.encode(running_hash, "hex").decode("utf-8")
             ima_hash, _ = ima.process_measurement_list(agentAttestState, [line], pcrval=pcrval)

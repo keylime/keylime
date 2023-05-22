@@ -640,7 +640,7 @@ class Tpm:
         hdata = self.hashdigest(hashval_1.encode("utf-8"), hash_alg)
         assert hdata is not None
         hext = self.hashdigest(
-            codecs.decode(hashval_0, "hex_codec") + codecs.decode(hdata, "hex_codec"),
+            bytes.fromhex(hashval_0) + bytes.fromhex(hdata),
             hash_alg,
         )
         assert hext is not None
