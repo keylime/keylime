@@ -42,34 +42,6 @@ For TPM 2.0 use::
 
 This rule uses the TPM 2.0 Emulator (IBM software TPM).
 
-Vagrant
-~~~~~~~
-
-If you prefer, a :code:`Vagrantfile` is available for provisioning.
-
-Clone the repository and then simply run::
-
-    vagrant up --provider <provider> --provision
-
-For example, using libvirt::
-
-    vagrant up --provider libvirt --provision
-
-
-For example, using VirtualBox::
-
-    vagrant up --provider virtualbox --provision
-
-Once the VM is started, vagrant ssh into the VM and run `sudo su` - to
-become root.
-
-You can then start the various components using commands::
-
-    keylime_verifier
-    keylime_registrar
-    keylime_agent
-
-
 Rust agent
 ~~~~~~~~~~~~~~~
 .. note::
