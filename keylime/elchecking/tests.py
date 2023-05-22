@@ -642,7 +642,7 @@ class EvSeperatorTest(Or):
         valid_hex_values = ["00000000", "FFFFFFFF"]
         tests = []
         for value in valid_hex_values:
-            val_bytes = codecs.decode(value.encode(), "hex")
+            val_bytes = bytes.fromhex(value)
             event_test = FieldTest("Event", StringEqual(value))
             digests = {}
             for hash_alg in Hash:

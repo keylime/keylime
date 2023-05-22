@@ -8,8 +8,6 @@ Implements the templates (modes) and types as defined in:
 """
 
 import abc
-import binascii
-import codecs
 import struct
 import typing
 from typing import Any, Callable, Dict, Optional, Union
@@ -29,11 +27,11 @@ COLON_BYTE = ord(":")
 
 
 def get_START_HASH(hash_alg: Hash) -> bytes:
-    return codecs.decode(b"0" * (hash_alg.get_size() // 4), "hex")
+    return b"\x00" * (hash_alg.get_size() // 8)
 
 
 def get_FF_HASH(hash_alg: Hash) -> bytes:
-    return codecs.decode(b"f" * (hash_alg.get_size() // 4), "hex")
+    return b"\xff" * (hash_alg.get_size() // 8)
 
 
 class Validator:
@@ -79,8 +77,8 @@ class HexData(Type):
 
     def __init__(self, data: str):
         try:
-            self.data = codecs.decode(data.encode("utf-8"), "hex")
-        except binascii.Error as e:
+            self.data = bytes.fromhex(data)
+        except ValueError as e:
             raise ParserError(f"Provided data was not valid hex: {data}") from e
 
     def __str__(self) -> str:
@@ -158,8 +156,8 @@ class Digest:
         tokens = digest.split(":")
         if len(tokens) == 1:
             try:
-                self.hash = codecs.decode(tokens[0].encode("utf-8"), "hex")
-            except binascii.Error as e:
+                self.hash = bytes.fromhex(tokens[0])
+            except ValueError as e:
                 raise ParserError(f"Digest hash is not valid hex. Got: {tokens[0]}") from e
             if len(self.hash) == SHA_DIGEST_LEN:
                 self.algorithm = "sha1"
@@ -171,8 +169,8 @@ class Digest:
                 )
         elif len(tokens) == 2:
             try:
-                self.hash = codecs.decode(tokens[1].encode("utf-8"), "hex")
-            except binascii.Error as e:
+                self.hash = bytes.fromhex(tokens[1])
+            except ValueError as e:
                 raise ParserError(f"Digest hash is not valid hex. Got: {tokens[1]}") from e
             self.algorithm = tokens[0]
         else:
@@ -365,8 +363,8 @@ class Entry:
             raise ParserError(f"Cannot create Entry expected 4 tokens got: {len(tokens)}.")
         self.pcr = tokens[0]
         try:
-            self.ima_template_hash = codecs.decode(tokens[1].encode(), "hex")
-        except binascii.Error as e:
+            self.ima_template_hash = bytes.fromhex(tokens[1])
+        except ValueError as e:
             raise ParserError(f"Cannot create Entry expected 4 tokens got: {len(tokens)}.") from e
 
         mode = self._mode_lookup.get(tokens[2], None)
