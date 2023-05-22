@@ -1,4 +1,3 @@
-import codecs
 import copy
 import enum
 import functools
@@ -322,7 +321,7 @@ def _process_measurement_list(
     errors: Dict[Type[ast.Mode], int] = {}
     pcrval_bytes = b""
     if pcrval is not None:
-        pcrval_bytes = codecs.decode(pcrval.encode("utf-8"), "hex")
+        pcrval_bytes = bytes.fromhex(pcrval)
 
     if runtime_policy is not None:
         exclude_list = runtime_policy.get("excludes")
