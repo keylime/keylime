@@ -1,6 +1,5 @@
 import base64
 import binascii
-import codecs
 import hashlib
 import os
 import re
@@ -626,7 +625,7 @@ class Tpm:
         digest = algorithm.hash(payload)
         if digest is None:
             return None
-        return codecs.encode(digest, "hex").decode("utf-8")
+        return digest.hex()
 
     @staticmethod
     def start_hash(algorithm: Hash) -> str:

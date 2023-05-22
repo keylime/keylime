@@ -1,5 +1,4 @@
 import abc
-import codecs
 import re
 import typing
 
@@ -646,7 +645,7 @@ class EvSeperatorTest(Or):
             event_test = FieldTest("Event", StringEqual(value))
             digests = {}
             for hash_alg in Hash:
-                digests[str(hash_alg)] = codecs.encode(hash_alg.hash(val_bytes), "hex").decode("utf-8")
+                digests[str(hash_alg)] = hash_alg.hash(val_bytes).hex()
             tests.append(And(event_test, DigestTest(digests)))
         super().__init__(*tests)
 
@@ -675,7 +674,7 @@ class EvEfiActionTest(Test):
             event_test = FieldTest("Event", StringEqual(value))
             digests = {}
             for hash_alg in Hash:
-                digests[str(hash_alg)] = codecs.encode(hash_alg.hash(value.encode()), "hex").decode("utf-8")
+                digests[str(hash_alg)] = hash_alg.hash(value.encode()).hex()
             tests.append(And(event_test, DigestTest(digests)))
         self.test = Or(*tests)
 
