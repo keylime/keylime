@@ -1013,23 +1013,18 @@ async def invoke_get_quote(
         partial_req = "0"
 
     # TODO: remove special handling after initial upgrade
+    kwargs = {}
     if agent["ssl_context"]:
-        res = tornado_requests.request(
-            "GET",
-            f"https://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/quotes/integrity"
-            f"?nonce={params['nonce']}&mask={params['mask']}"
-            f"&partial={partial_req}&ima_ml_entry={params['ima_ml_entry']}",
-            context=agent["ssl_context"],
-            timeout=timeout,
-        )
-    else:
-        res = tornado_requests.request(
-            "GET",
-            f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/quotes/integrity"
-            f"?nonce={params['nonce']}&mask={params['mask']}"
-            f"&partial={partial_req}&ima_ml_entry={params['ima_ml_entry']}",
-            timeout=timeout,
-        )
+        kwargs["context"] = agent["ssl_context"]
+
+    res = tornado_requests.request(
+        "GET",
+        f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/quotes/integrity"
+        f"?nonce={params['nonce']}&mask={params['mask']}"
+        f"&partial={partial_req}&ima_ml_entry={params['ima_ml_entry']}",
+        **kwargs,
+        timeout=timeout,
+    )
     response = await res
 
     if response.status_code != 200:
@@ -1092,21 +1087,17 @@ async def invoke_provide_v(agent: Optional[Dict[str, Any]], timeout: float = 60.
     v_json_message = cloud_verifier_common.prepare_v(agent)
 
     # TODO: remove special handling after initial upgrade
+    kwargs = {}
     if agent["ssl_context"]:
-        res = tornado_requests.request(
-            "POST",
-            f"https://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/keys/vkey",
-            data=v_json_message,
-            context=agent["ssl_context"],
-            timeout=timeout,
-        )
-    else:
-        res = tornado_requests.request(
-            "POST",
-            f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/keys/vkey",
-            data=v_json_message,
-            timeout=timeout,
-        )
+        kwargs["context"] = agent["ssl_context"]
+
+    res = tornado_requests.request(
+        "POST",
+        f"http://{agent['ip']}:{agent['port']}/v{agent['supported_version']}/keys/vkey",
+        data=v_json_message,
+        **kwargs,
+        timeout=timeout,
+    )
 
     response = await res
 
