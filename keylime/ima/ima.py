@@ -573,8 +573,13 @@ def verify_runtime_policy(
             code=400,
         )
 
+    # validate that the runtime_policy is proper JSON
+    try:
+        runtime_policy_json = json.loads(runtime_policy)
+    except Exception as error:
+        raise ImaValidationError(message="Runtime policy is not valid JSON!", code=400) from error
+
     # detect if runtime policy is DSSE
-    runtime_policy_json = json.loads(runtime_policy)
     if runtime_policy_json.get("payload"):
         if verify_sig:
             if not signing.verify_dsse_envelope(runtime_policy, runtime_policy_key):
@@ -583,14 +588,8 @@ def verify_runtime_policy(
         else:
             runtime_policy = dsse.b64dec(runtime_policy_json["payload"])
 
-    # validate that the runtime_policy is proper JSON
-    try:
-        lists = json.loads(runtime_policy)
-    except Exception as error:
-        raise ImaValidationError(message="Runtime policy is not valid JSON!", code=400) from error
-
     # Validate exclude list contains valid regular expressions
-    _, excl_err_msg = validators.valid_exclude_list(lists.get("exclude"))
+    _, excl_err_msg = validators.valid_exclude_list(runtime_policy_json.get("exclude"))
     if excl_err_msg:
         raise ImaValidationError(
             message=f"{excl_err_msg} Exclude list regex is misformatted. Please correct the issue and try again.",
