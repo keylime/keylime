@@ -875,13 +875,13 @@ class AllowlistHandler(BaseHandler):
         self.finish()
         logger.info("DELETE returning 204 response for allowlist: %s", allowlist_name)
 
-    def __get_runtime_policy_db_format(self, runtime_policy_name: str) -> Optional[Dict[str, Any]]:
+    def __get_runtime_policy_db_format(self, runtime_policy_name: str) -> Dict[str, Any]:
         """Get the IMA policy from the request and return it in Db format"""
         content_length = len(self.request.body)
         if content_length == 0:
             web_util.echo_json_response(self, 400, "Expected non zero content length")
             logger.warning("POST returning 400 response. Expected non zero content length.")
-            return None
+            return {}
 
         runtime_policy = "{}"
 
@@ -902,7 +902,7 @@ class AllowlistHandler(BaseHandler):
         except ima.ImaValidationError as e:
             web_util.echo_json_response(self, e.code, e.message)
             logger.warning(e.message)
-            return None
+            return {}
 
         tpm_policy = json_body.get("tpm_policy")
 
@@ -912,7 +912,7 @@ class AllowlistHandler(BaseHandler):
             message = f"Runtime policy is malformatted: {e.message}"
             web_util.echo_json_response(self, e.code, message)
             logger.warning(message)
-            return None
+            return {}
 
         return runtime_policy_db_format
 
