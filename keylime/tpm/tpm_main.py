@@ -10,7 +10,7 @@ import threading
 import time
 import typing
 import zlib
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from packaging.version import Version
@@ -209,7 +209,8 @@ class tpm:
 
         return (keyblob, key)
 
-    def verify_ek(self, ekcert: bytes, tpm_cert_store: str) -> bool:
+    @staticmethod
+    def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:
         """Verify that the provided EK certificate is signed by a trusted root
         :param ekcert: The Endorsement Key certificate in DER format
         :returns: True if the certificate can be verified, false otherwise
@@ -361,7 +362,7 @@ class tpm:
         )
         failure.merge(mb_failure)
 
-        pcrs_in_quote: set[int] = set()  # PCRs in quote that were already used for some kind of validation
+        pcrs_in_quote: Set[int] = set()  # PCRs in quote that were already used for some kind of validation
 
         pcr_nums = set(pcrs_dict.keys())
 
