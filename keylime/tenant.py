@@ -1171,22 +1171,28 @@ class Tenant:
                     continue
                 self.do_cvstop()
                 raise e
+
+            mac = ""
+            ex_mac = crypto.do_hmac(self.K, challenge)
+
             if response.status_code == 200:
                 if "results" not in response_json or "hmac" not in response_json["results"]:
-                    logger.critical("Error: unexpected http response body from Cloud Agent: %s", response.status_code)
+                    logger.critical(
+                        "Error: unexpected http response body from on agent %s with port %s : %s",
+                        self.agent_ip,
+                        self.agent_port,
+                        response.status_code,
+                    )
                     self.do_cvstop()
                     break
                 mac = response_json["results"]["hmac"]
 
-                ex_mac = crypto.do_hmac(self.K, challenge)
-
                 if mac == ex_mac:
-                    logger.info("Key derivation successful")
-                else:
-                    logger.error("Key derivation failed")
-                    self.do_cvstop()
-            else:
-                keylime_logging.log_http_response(logger, logging.ERROR, response_json)
+                    logger.info("Agent on %s with port %s successfully derived key", self.agent_ip, self.agent_port)
+
+            if mac != ex_mac:
+                if response.status_code != 200:
+                    keylime_logging.log_http_response(logger, logging.ERROR, response_json)
                 numtries += 1
                 if numtries >= self.maxr:
                     logger.error("Agent on %s with port %s failed key derivation", self.agent_ip, self.agent_port)
