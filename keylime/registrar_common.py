@@ -58,12 +58,15 @@ class ProtectedHandler(BaseHTTPRequestHandler, SessionManager):
             return None, None
 
         agent_id = rest_params["agents"]
-        if agent_id is not None:
-            # If the agent ID is not valid (wrong set of characters), just do nothing.
-            if not validators.valid_agent_id(agent_id):
-                web_util.echo_json_response(self, 400, "agent_id is not valid")
-                logger.error("%s received an invalid agent ID: %s", method, agent_id)
-                return None, None
+
+        if agent_id is None:
+            return rest_params, None
+
+        # If the agent ID is not valid (wrong set of characters), just do nothing.
+        if not validators.valid_agent_id(agent_id):
+            web_util.echo_json_response(self, 400, "agent_id is not valid")
+            logger.error("%s received an invalid agent ID: %s", method, agent_id)
+            return None, None
 
         return rest_params, agent_id
 
