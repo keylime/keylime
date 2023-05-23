@@ -11,19 +11,19 @@ from keylime.failure import Component, Event, Failure
 from keylime.ima import file_signatures
 from keylime.ima.types import RuntimePolicyType
 from keylime.tpm.tpm_abstract import TPM_Utilities
-from keylime.tpm.tpm_main import tpm
+from keylime.tpm.tpm_main import Tpm
 
 # setup logging
 logger = keylime_logging.init_logging("cloudverifier_common")
 
-GLOBAL_TPM_INSTANCE: Optional[tpm] = None
+GLOBAL_TPM_INSTANCE: Optional[Tpm] = None
 DEFAULT_VERIFIER_ID: str = "default"
 
 
-def get_tpm_instance() -> tpm:
+def get_tpm_instance() -> Tpm:
     global GLOBAL_TPM_INSTANCE
     if GLOBAL_TPM_INSTANCE is None:
-        GLOBAL_TPM_INSTANCE = tpm()
+        GLOBAL_TPM_INSTANCE = Tpm()
     return GLOBAL_TPM_INSTANCE
 
 
@@ -256,7 +256,6 @@ def prepare_get_quote(agent: Dict[str, Any]) -> Dict[str, Union[str, int]]:
 
 
 def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
-
     has_mb_refstate = 0
     try:
         mb_refstate = json.loads(cast(str, agent.mb_refstate))

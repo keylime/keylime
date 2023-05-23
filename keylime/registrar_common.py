@@ -22,7 +22,7 @@ from keylime.da import record
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.registrar_db import RegistrarMain
 from keylime.tpm import tpm2_objects
-from keylime.tpm.tpm_main import tpm
+from keylime.tpm.tpm_main import Tpm
 
 logger = keylime_logging.init_logging("registrar")
 
@@ -267,7 +267,7 @@ class UnprotectedHandler(BaseHandler):
             ekcert = json_body["ekcert"]
             aik_tpm = json_body["aik_tpm"]
 
-            initialize_tpm = tpm()
+            initialize_tpm = Tpm()
 
             if ekcert is None or ekcert == "emulator":
                 logger.warning("Agent %s did not submit an ekcert", agent_id)
