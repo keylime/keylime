@@ -92,24 +92,15 @@ class Tpm:
     def __run(
         self,
         cmd: Sequence[str],
-        expectedcode: int = EXIT_SUCCESS,
-        raiseOnError: bool = True,
         lock: bool = True,
-        outputpaths: Optional[Union[List[str], str]] = None,
     ) -> cmd_exec.RetDictType:
-        # Convert single outputpath to list
-        if isinstance(outputpaths, str):
-            outputpaths = [outputpaths]
-
         numtries = 0
         while True:
             if lock:
                 with self.tpmutilLock:
-                    retDict = cmd_exec.run(
-                        cmd=cmd, expectedcode=expectedcode, raiseOnError=False, outputpaths=outputpaths
-                    )
+                    retDict = cmd_exec.run(cmd=cmd, expectedcode=EXIT_SUCCESS, raiseOnError=False)
             else:
-                retDict = cmd_exec.run(cmd=cmd, expectedcode=expectedcode, raiseOnError=False, outputpaths=outputpaths)
+                retDict = cmd_exec.run(cmd=cmd, expectedcode=EXIT_SUCCESS, raiseOnError=False)
             code = retDict["code"]
             retout = retDict["retout"]
             reterr = retDict["reterr"]
@@ -135,9 +126,9 @@ class Tpm:
             break
 
         # Don't bother continuing if TPM call failed and we're raising on error
-        if code != expectedcode and raiseOnError:
+        if code != EXIT_SUCCESS:
             raise Exception(
-                f"Command: {cmd} returned {code}, expected {expectedcode}, output {retout}, stderr {reterr}"
+                f"Command: {cmd} returned {code}, expected {EXIT_SUCCESS}, output {retout}, stderr {reterr}"
             )
 
         return retDict
