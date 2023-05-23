@@ -29,7 +29,7 @@ from keylime.tpm import tpm2_objects, tpm_abstract, tpm_util
 logger = keylime_logging.init_logging("tpm")
 
 
-class tpm:
+class Tpm:
     tools_version: str = ""
     EXIT_SUCCESS: int = 0
 
@@ -48,7 +48,7 @@ class tpm:
         code = retDict["code"]
         output = "".join(config.convert(retDict["retout"]))
         errout = "".join(config.convert(retDict["reterr"]))
-        if code != tpm.EXIT_SUCCESS:
+        if code != Tpm.EXIT_SUCCESS:
             raise Exception(
                 "Error establishing tpm2-tools version using TPM2_Startup: %s" + str(code) + ": " + str(errout)
             )
@@ -91,7 +91,7 @@ class tpm:
     def __run(
         self,
         cmd: Sequence[str],
-        expectedcode: int = EXIT_SUCCESS,
+        expectedcode: int = Tpm.EXIT_SUCCESS,
         raiseOnError: bool = True,
         lock: bool = True,
         outputpaths: Optional[Union[List[str], str]] = None,
@@ -402,7 +402,7 @@ class tpm:
                     f"unused_pcr_{config.IMA_PCR}", "IMA PCR in policy, but no measurement list provided", True
                 )
             else:
-                ima_failure = tpm.__check_ima(
+                ima_failure = Tpm.__check_ima(
                     agentAttestState,
                     pcrs_dict[config.IMA_PCR],
                     ima_measurement_list,
@@ -552,14 +552,14 @@ class tpm:
             return failure
 
         # First and foremost, the quote needs to be validated
-        pcrs_dict, err = tpm._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, str(hash_alg), compressed)
+        pcrs_dict, err = Tpm._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, str(hash_alg), compressed)
         if err:
             # If the quote validation fails we will skip all other steps therefore this failure is irrecoverable.
             failure.add_event("quote_validation", {"message": "Quote data validation", "error": err}, False)
             return failure
 
         # Only after validating the quote, the TPM clock information can be extracted from it.
-        clock_failure, current_clock_info = tpm.check_quote_timing(
+        clock_failure, current_clock_info = Tpm.check_quote_timing(
             agentAttestState.get_tpm_clockinfo(), quote, compressed
         )
         if clock_failure:
@@ -600,7 +600,7 @@ class tpm:
 
         current_clockinfo = None
 
-        clock_info_dict = tpm._tpm2_clock_info_from_quote(quote, compressed)
+        clock_info_dict = Tpm._tpm2_clock_info_from_quote(quote, compressed)
         if not clock_info_dict:
             return "_tpm2_clock_info_from_quote failed ", current_clockinfo
 
@@ -717,7 +717,7 @@ class tpm:
         Example:
             '"MokList\\0"' -> 'MokList'
         """
-        if tpm.tools_version in ["3.2", "4.0", "4.2"]:
+        if Tpm.tools_version in ["3.2", "4.0", "4.2"]:
             return
 
         escaped_chars = [
@@ -790,9 +790,9 @@ class tpm:
             return failure, None
         # pylint: enable=import-outside-toplevel
         tpm_bootlog_enrich.enrich(log_parsed_data)
-        tpm.__stringify_pcr_keys(log_parsed_data)
-        tpm.__add_boot_aggregate(log_parsed_data)
-        tpm.__unescape_eventlog(log_parsed_data)
+        Tpm.__stringify_pcr_keys(log_parsed_data)
+        Tpm.__add_boot_aggregate(log_parsed_data)
+        Tpm.__unescape_eventlog(log_parsed_data)
         return failure, log_parsed_data
 
     def _parse_mb_bootlog(self, log_b64: str) -> typing.Tuple[Failure, typing.Optional[Dict[str, Any]]]:

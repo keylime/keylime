@@ -27,8 +27,8 @@ if policy is None:
 refstate_str = args.refstate_file.read()
 refstate = json.loads(refstate_str)
 log_bin = args.eventlog_file.read()
-tpm = tpm_main.tpm()
-_, log_data = tpm.parse_binary_bootlog(log_bin)
+Tpm = tpm_main.Tpm()
+_, log_data = Tpm.parse_binary_bootlog(log_bin)
 with open("/tmp/parsed.json", "wt", encoding="utf-8") as log_data_file:
     log_data_file.write(json.dumps(log_data, indent=True))
 why_not = policy.evaluate(refstate, log_data)

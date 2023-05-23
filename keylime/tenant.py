@@ -24,7 +24,7 @@ from keylime.ip_util import bracketize_ipv6
 from keylime.requests_client import RequestsClient
 from keylime.tpm import tpm2_objects
 from keylime.tpm.tpm_abstract import TPM_Utilities
-from keylime.tpm.tpm_main import tpm
+from keylime.tpm.tpm_main import Tpm
 
 # setup logging
 logger = keylime_logging.init_logging("tenant")
@@ -95,7 +95,7 @@ class Tenant:
 
     payload: Optional[bytes] = None
 
-    tpm_instance: tpm = tpm()
+    tpm_instance: Tpm = Tpm()
 
     def __init__(self) -> None:
         """Set up required values and TLS"""

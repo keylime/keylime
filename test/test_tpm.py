@@ -4,9 +4,9 @@ import unittest
 from packaging.version import Version
 
 from keylime.common.algorithms import Hash
-from keylime.tpm.tpm_main import tpm
+from keylime.tpm.tpm_main import Tpm
 
-TPM2TOOLS_VERSION = Version(tpm().tools_version)
+TPM2TOOLS_VERSION = Version(Tpm().tools_version)
 
 # ############################################################
 # list of input challenges for get_tpm_manufacturer function
@@ -82,7 +82,7 @@ tpm_manufacturer_tests = [
 
 class TestTPM(unittest.TestCase):
     def setUp(self):
-        self.tpm = tpm()
+        self.Tpm = Tpm()
 
     @unittest.skipIf(TPM2TOOLS_VERSION < Version("4.2"), "tpm_eventlog is not available")
     def test_parse_mb_bootlog(self):
@@ -92,7 +92,7 @@ class TestTPM(unittest.TestCase):
         with open(mb_log_path, encoding="utf-8") as f:
             # Read the base64 input and remove the newlines
             b64 = "".join(f.read().splitlines())
-            pcr_hashes, boot_aggregates, measurement_data, failure = self.tpm.parse_mb_bootlog(b64, Hash.SHA256)
+            pcr_hashes, boot_aggregates, measurement_data, failure = self.Tpm.parse_mb_bootlog(b64, Hash.SHA256)
 
             self.assertFalse(
                 failure, f"Parsing of measured boot log failed with: {list(map(lambda x: x.context, failure.events))}"
