@@ -546,8 +546,6 @@ class tpm:
         if runtime_policy is None:
             runtime_policy = ima.EMPTY_RUNTIME_POLICY
 
-        agent_id = agentAttestState.agent_id
-
         failure = Failure(Component.QUOTE_VALIDATION)
         if hash_alg is None:
             failure.add_event("hash_alg_missing", "Hash algorithm cannot be empty", False)
@@ -577,7 +575,7 @@ class tpm:
         if len(pcrs_dict) == 0:
             logger.warning(
                 "Quote for agent %s does not contain any PCRs. Make sure that the TPM supports %s PCR banks",
-                agent_id,
+                agentAttestState.agent_id,
                 str(hash_alg),
             )
 

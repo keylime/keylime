@@ -256,7 +256,6 @@ def prepare_get_quote(agent: Dict[str, Any]) -> Dict[str, Union[str, int]]:
 
 
 def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
-    agent_id = agent.agent_id
 
     has_mb_refstate = 0
     try:
@@ -266,10 +265,10 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
     except Exception as e:
         logger.warning(
             'Non-fatal problem ocurred while attempting to evaluate agent %s attribute "mb_refstate" (%s). Will just consider the value of this attribute as empty',
-            agent_id,
+            agent.agent_id,
             e.args,
         )
-        logger.debug('The contents of the agent %s attribute "mb_refstate" are %s', agent_id, agent.mb_refstate)
+        logger.debug('The contents of the agent %s attribute "mb_refstate" are %s', agent.agent_id, agent.mb_refstate)
 
     has_runtime_policy = 0
     if agent.ima_policy.generator and agent.ima_policy.generator > 1:
