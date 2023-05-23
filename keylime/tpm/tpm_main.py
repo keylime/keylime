@@ -629,12 +629,12 @@ class Tpm:
         return codecs.encode(digest, "hex").decode("utf-8")
 
     @staticmethod
-    def START_HASH(algorithm: Hash) -> str:
+    def start_hash(algorithm: Hash) -> str:
         alg_size = algorithm.get_size() // 4
         return "0" * alg_size
 
     def sim_extend(self, hashval_1: str, hash_alg: Hash) -> str:
-        hashval_0 = self.START_HASH(hash_alg)
+        hashval_0 = self.start_hash(hash_alg)
 
         # compute expected value  H(0|H(data))
         hdata = self.hashdigest(hashval_1.encode("utf-8"), hash_alg)
