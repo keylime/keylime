@@ -28,10 +28,11 @@ from keylime.tpm import tpm2_objects, tpm_abstract, tpm_util
 
 logger = keylime_logging.init_logging("tpm")
 
+EXIT_SUCCESS: int = 0
+
 
 class Tpm:
     tools_version: str = ""
-    EXIT_SUCCESS: int = 0
 
     tpmutilLock: threading.Lock
 
@@ -48,7 +49,7 @@ class Tpm:
         code = retDict["code"]
         output = "".join(config.convert(retDict["retout"]))
         errout = "".join(config.convert(retDict["reterr"]))
-        if code != Tpm.EXIT_SUCCESS:
+        if code != EXIT_SUCCESS:
             raise Exception(
                 "Error establishing tpm2-tools version using TPM2_Startup: %s" + str(code) + ": " + str(errout)
             )
@@ -91,7 +92,7 @@ class Tpm:
     def __run(
         self,
         cmd: Sequence[str],
-        expectedcode: int = Tpm.EXIT_SUCCESS,
+        expectedcode: int = EXIT_SUCCESS,
         raiseOnError: bool = True,
         lock: bool = True,
         outputpaths: Optional[Union[List[str], str]] = None,
