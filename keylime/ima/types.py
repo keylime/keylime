@@ -51,6 +51,7 @@ class Rule(TypedDict):
 
 
 class Policies(TypedDict):
+    version: Required[int]
     match_on: MatchKeyType
     rules: Dict[str, Rule]
 
