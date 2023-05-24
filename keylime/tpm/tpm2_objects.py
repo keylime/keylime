@@ -555,3 +555,13 @@ def unmarshal_tpml_pcr_selection(tpml_pcr_selection: bytes) -> Tuple[Dict[int, i
         o = o + sz
 
     return selections, o
+
+
+def tpms_ecc_point_marshal(public_key: EllipticCurvePublicKey) -> bytes:
+    pn = public_key.public_numbers()
+
+    sz = (pn.x.bit_length() + 7) // 8
+    secret = struct.pack(">H", sz) + pn.x.to_bytes(sz, "big")
+
+    sz = (pn.y.bit_length() + 7) // 8
+    return secret + struct.pack(">H", sz) + pn.y.to_bytes(sz, "big")

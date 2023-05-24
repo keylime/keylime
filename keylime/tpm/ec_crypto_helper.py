@@ -1,0 +1,101 @@
+# pylint: disable=protected-access
+
+from typing import Optional
+
+from cryptography.hazmat import backends
+from cryptography.hazmat.backends.openssl.backend import Backend as OpenSSLBackend
+from cryptography.hazmat.bindings.openssl import binding
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey, EllipticCurvePublicKey
+
+
+class EcCryptoHelper:
+    instance: Optional["EcCryptoHelper"] = None
+
+    @staticmethod
+    def get_instance() -> "EcCryptoHelper":
+        """Create and return a singleton EcCryptoHelper"""
+        if not EcCryptoHelper.instance:
+            EcCryptoHelper.instance = EcCryptoHelper()
+        return EcCryptoHelper.instance
+
+    def __init__(self) -> None:
+        self.backend = backends.default_backend()
+        if not isinstance(self.backend, OpenSSLBackend):
+            raise Exception("The python cryptography default backend must be using OpenSSL")
+
+        self.binding = binding.Binding()
+        lib = self.binding.lib
+        assert lib
+
+        for func in [
+            "BN_CTX_get",
+            "BN_free",
+            "EC_KEY_get0_group",
+            "EC_POINT_new",
+            "EC_POINT_free",
+            "EC_POINT_mul",
+        ]:
+            if not hasattr(lib, func):
+                raise Exception(f"{func} not available in lib {str(dir(lib))}")
+
+        if hasattr(lib, "EC_POINT_set_affine_coordinates_GFp"):
+            self.set_affine_coordinates = lib.EC_POINT_set_affine_coordinates_GFp  # pyright: ignore
+        elif hasattr(lib, "EC_POINT_set_affine_coordinates"):
+            self.set_affine_coordinates = lib.EC_POINT_set_affine_coordinates  # pyright: ignore
+        else:
+            raise Exception(f"EC_POINT_set_affine_coordinates/GFp not available in lib {str(dir(lib))}")
+
+        if hasattr(lib, "EC_POINT_get_affine_coordinates_GFp"):
+            self.get_affine_coordinates = lib.EC_POINT_get_affine_coordinates_GFp  # pyright: ignore
+        elif hasattr(lib, "EC_POINT_get_affine_coordinates"):
+            self.get_affine_coordinates = lib.EC_POINT_get_affine_coordinates  # pyright: ignore
+        else:
+            raise Exception(f"EC_POINT_get_affine_coordinates/GFp not available in _lib [{str(dir(lib))}]")
+
+    def point_multiply_x(self, public_key: EllipticCurvePublicKey, private_key: EllipticCurvePrivateKey) -> bytes:
+        """Perform a point multiplication of the given public key with the private_key (scalar).
+        Return the x component of the result."""
+        ec_cdata = private_key._ec_key  # type: ignore
+        group = self.binding.lib.EC_KEY_get0_group(ec_cdata)  # pyright: ignore
+
+        point = self.binding.lib.EC_POINT_new(group)  # pyright: ignore
+        if point == self.binding.ffi.NULL:
+            raise Exception("EC_POINT_new(group) returned NULL")
+        result_point = self.binding.ffi.gc(point, self.binding.lib.EC_POINT_free)  # pyright: ignore
+
+        # convert the public_key into a point
+        pn = public_key.public_numbers()
+        bn_x = self.binding.ffi.gc(self.backend._int_to_bn(pn.x), self.binding.lib.BN_free)  # pyright: ignore
+        bn_y = self.binding.ffi.gc(self.backend._int_to_bn(pn.y), self.binding.lib.BN_free)  # pyright: ignore
+
+        point = self.binding.lib.EC_POINT_new(group)  # pyright: ignore
+        if point == self.binding.ffi.NULL:
+            raise Exception("EC_POINT_new(group) returned NULL")
+        pubkey_point = self.binding.ffi.gc(point, self.binding.lib.EC_POINT_free)  # pyright: ignore
+
+        # convert private key to scalar
+        privkey_scalar = self.binding.ffi.gc(
+            self.backend._int_to_bn(private_key.private_numbers().private_value),
+            self.binding.lib.BN_free,  # pyright: ignore
+        )
+
+        with self.backend._tmp_bn_ctx() as bn_ctx:
+            res = self.set_affine_coordinates(group, pubkey_point, bn_x, bn_y, bn_ctx)
+            if res != 1:
+                raise Exception("set_affine_coordinates failed")
+
+            res = self.binding.lib.EC_POINT_mul(  # pyright: ignore
+                group, result_point, self.binding.ffi.NULL, pubkey_point, privkey_scalar, bn_ctx
+            )
+            if res != 1:
+                raise Exception("EC_POINT_mul failed")
+
+            # return the x component of result_point
+            bn_x2 = self.binding.lib.BN_CTX_get(bn_ctx)  # pyright: ignore
+            res = self.get_affine_coordinates(group, result_point, bn_x2, self.binding.ffi.NULL, bn_ctx)
+            if res != 1:
+                raise Exception("get_affine_coordinates failed")
+
+            x: int = self.backend._bn_to_int(bn_x2)
+
+        return x.to_bytes((x.bit_length() + 7) >> 3, "big")
