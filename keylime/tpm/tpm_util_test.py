@@ -2,6 +2,14 @@ import base64
 import unittest
 from unittest import mock
 
+from cryptography.hazmat.primitives.asymmetric.ec import (
+    SECP256R1,
+    EllipticCurve,
+    EllipticCurvePrivateKey,
+    EllipticCurvePrivateNumbers,
+    EllipticCurvePublicNumbers,
+)
+
 from keylime.tpm.tpm_util import checkquote, makecredential
 
 
@@ -81,5 +89,42 @@ class TestTpmUtil(unittest.TestCase):
                     "badcc0de00000001004400206f0c4b08cfa00f21b474ca75623d098309c2cd7fac8d10"
                     "ae3caf0da40162496db140cc6a5ae79a2bd7c22dc52cee372f34b356bf9bcd5176fa94"
                     "239ee93191a0a75d0100"
+                ),
+            )
+
+    @staticmethod
+    def create_fixed_ec_key(curve: EllipticCurve) -> EllipticCurvePrivateKey:
+        assert isinstance(curve, SECP256R1)
+        priv = int("75548318724506252006992803713632448754009807765151974952668642988315053146586")
+        x = int("24475970435455602523615976476876273915861210750530480136577912291006924068625")
+        y = int("54663881618849781513153369976321537514677018641256406838874390754930401176808")
+        pub = EllipticCurvePublicNumbers(x, y, curve)
+        priv_numbers = EllipticCurvePrivateNumbers(priv, pub)
+        return priv_numbers.private_key()
+
+    def test_makecredential_ecc(self) -> None:
+        with mock.patch(
+            "cryptography.hazmat.primitives.asymmetric.ec.generate_private_key", TestTpmUtil.create_fixed_ec_key
+        ):
+            ek_tpm = bytes.fromhex(
+                "007a0023000b000300b20020837197674484b3f81a90cc8d46a5d724fd52d76e06520b64f2a1"
+                "da1b331469aa0006008000430010000300100020d31f0e190c36691abdc5c8cef7201139664f"
+                "93bcc45e68861a62d649d9a157d400209bf3cc57da9b2c09539cae40f0518e651b65befaab84"
+                "f26a3285d88be134b0cf"
+            )
+            challenge = bytes.fromhex("7756666e6e4574706552556d717932656e7954474c64434f576a523545654a69")
+            aik_name = bytes.fromhex("000b9f7f75b0564ea96bd70ef98baafbf6bf779641d17576bd11b5c6979273d2ba21")
+
+            credential = makecredential(ek_tpm, challenge, aik_name)
+
+            # the signature is not 'constant' due to OAEP padding
+            self.assertEqual(
+                credential,
+                bytes.fromhex(
+                    "badcc0de00000001004400207d7934f023133b07f7d9bce3062451ea4da5f1917c95e1"
+                    "42da1c3277e658f66bbea694a7c1b30d006a09b28dc534876d59b644b9223c5f3c3432"
+                    "d8bae35f3ea3fba600440020361ce888d5152797aaca04838003976967c0c0a0a0e969"
+                    "8b7b5e6e5294e21711002078daa91b35fb5efc70052a470064a96dd556bd53a784d737"
+                    "e40966edc5f36ce8"
                 ),
             )

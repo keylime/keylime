@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
 from cryptography.hazmat.primitives.ciphers import Cipher, modes
 
 from keylime import keylime_logging
-from keylime.tpm import tpm2_objects
+from keylime.tpm import ec_crypto_helper, tpm2_objects
 
 logger = keylime_logging.init_logging("tpm_util")
 
@@ -194,20 +194,22 @@ def makecredential(ek_tpm: bytes, challenge: bytes, aik_name: bytes) -> bytes:
     aik_name: name of the object (AIK)
     """
     public_key, hash_alg = tpm2_objects.pubkey_parms_from_tpm2b_public(ek_tpm)
-    # python crypto only supports encryption with RSA public key
-    if not isinstance(public_key, RSAPublicKey):
-        raise ValueError(f"Unsupported public key type {type(public_key)} for makecredential")
 
     hashfunc = tpm2_objects.HASH_FUNCS.get(hash_alg)
     if not hashfunc:
         raise ValueError(f"Unsupported hash with id {hash_alg:#x} in signature blob")
 
-    random = os.urandom(hashfunc.digest_size)
+    if isinstance(public_key, RSAPublicKey):
+        random = os.urandom(hashfunc.digest_size)
 
-    secret = public_key.encrypt(
-        random,
-        padding.OAEP(mgf=padding.MGF1(algorithm=hashfunc), algorithm=hashfunc, label=label_to_bytes("IDENTITY")),
-    )
+        secret = public_key.encrypt(
+            random,
+            padding.OAEP(mgf=padding.MGF1(algorithm=hashfunc), algorithm=hashfunc, label=label_to_bytes("IDENTITY")),
+        )
+    elif isinstance(public_key, EllipticCurvePublicKey):
+        random, secret = crypt_secret_encrypt_ecc(public_key, hashfunc)
+    else:
+        raise ValueError(f"Unsupported public key type {type(public_key)} for makecredential")
 
     credentialblob = secret_to_credential(challenge, aik_name, random, ek_tpm, hashfunc)
 
@@ -216,6 +218,27 @@ def makecredential(ek_tpm: bytes, challenge: bytes, aik_name: bytes) -> bytes:
     tail = struct.pack(f">H{len(secret)}s", len(secret), secret)
 
     return hdr + credentialblob + tail
+
+
+def crypt_secret_encrypt_ecc(public_key: EllipticCurvePublicKey, hashfunc: hashes.HashAlgorithm) -> Tuple[bytes, bytes]:
+    my_private_key = ec.generate_private_key(public_key.curve)
+
+    my_public_key = my_private_key.public_key()
+    point = tpm2_objects.tpms_ecc_point_marshal(my_public_key)
+
+    ecc_secret_x = ec_crypto_helper.EcCryptoHelper.get_instance().point_multiply_x(public_key, my_private_key)
+
+    digest_size = hashfunc.digest_size
+
+    x = my_public_key.public_numbers().x
+    party_x = x.to_bytes((x.bit_length() + 7) >> 3, "big")
+
+    x = public_key.public_numbers().x
+    party_y = x.to_bytes((x.bit_length() + 7) >> 3, "big")
+
+    data = crypt_kdfe(hashfunc, ecc_secret_x, "IDENTITY", party_x, party_y, digest_size << 3)
+
+    return data, point
 
 
 def secret_to_credential(
@@ -363,6 +386,50 @@ def crypt_kdfa(
             h.update(context)
         h.update(struct.pack(">I", size_in_bits))
         result += h.finalize()
+
+        size -= hashfunc.digest_size
+
+    return result[:size_in_bytes]
+
+
+def crypt_kdfe(
+    hashfunc: hashes.HashAlgorithm,
+    secret_x: bytes,
+    label: str,
+    party_x: bytes,
+    party_y: bytes,
+    size_in_bits: int,
+) -> bytes:
+    """TPM 2's KDFe
+
+    Parameters
+    ----------
+    hashfunc: hash function
+    secret_x: the X coordinate of the product of a public ECC key and a different private ECC key
+    label: a label to add to the digest
+    party_x: context to add to the digest
+    party_y: context to add to the digest
+    size_in_bits: how many bits of random data to generate
+    """
+    size_in_bytes = (size_in_bits + 7) >> 3
+    label_bytes = label_to_bytes(label)
+    party = party_x + party_y
+
+    ctr = 0
+    result = b""
+
+    size = size_in_bytes
+
+    while size > 0:
+        digest = hashes.Hash(hashfunc, backend=backends.default_backend())
+        ctr += 1
+        digest.update(struct.pack(">I", ctr))
+        if secret_x:
+            digest.update(secret_x)
+        digest.update(label_bytes)
+        if party:
+            digest.update(party)
+        result += digest.finalize()
 
         size -= hashfunc.digest_size
 
