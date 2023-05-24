@@ -1,7 +1,8 @@
 # pylint: disable=protected-access
 import unittest
+from typing import cast
 
-from keylime.ima import ast, ima_dm
+from keylime.ima import ast, ima_dm, types
 
 # Note that the tests depend also on ast parsing the raw data correctly.
 
@@ -42,7 +43,7 @@ table_clear = ast.Entry(
     "10 6149775a61f3e878a806554865798b62295b90d0 ima-buf sha256:da71026bb20de95fd3f9d18b2b278980dcbe227a54fa8f94c8a4c26b2b2e5e55 dm_table_clear 646d5f76657273696f6e3d342e34352e303b6e616d653d746573742c757569643d43525950542d5645524954592d63373664303733343364336134396235616230313032356433623335346466352d746573743b7461626c655f636c6561723d6e6f5f646174613b00000000000000000000000000000000000063757272656e745f6465766963655f63617061636974793d3230343830383b"
 )
 
-example_policy_verity = {
+example_policy_verity: types.Policies = {
     "version": 1,
     "match_on": "uuid",
     "rules": {
@@ -97,7 +98,7 @@ linear_rename_uuid = ast.Entry(
     "10 9f9f094b0aab1f07f967c61d0c4a18b26fad73ce ima-buf sha256:9144918395fbd350087fae06d02950c968342463734bb127533ae232bbbf1a42 dm_device_rename 646d5f76657273696f6e3d342e34352e303b6e616d653d74657374322c757569643d2c6d616a6f723d3235332c6d696e6f723d302c6d696e6f725f636f756e743d312c6e756d5f746172676574733d313b6e65775f6e616d653d74657374322c6e65775f757569643d746573745f757569643b63757272656e745f6465766963655f63617061636974793d343236383033323b"
 )
 
-example_policy_linear = {
+example_policy_linear: types.Policies = {
     "version": 1,
     "match_on": "name",
     "rules": {
@@ -135,77 +136,77 @@ example_policy_linear = {
 class TestImaDM(unittest.TestCase):
     def test_parser_table_load_verity(self):
         try:
-            ima_buf: ast.ImaBuf = table_load_verity.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_load_verity.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
 
     def test_parser_table_load_linear(self):
         try:
-            ima_buf: ast.ImaBuf = table_load_linear.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_load_linear.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
 
     def test_parser_table_load_snapshot(self):
         try:
-            ima_buf: ast.ImaBuf = table_load_snapshot.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_load_snapshot.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
 
     def test_parser_table_load_integrity(self):
         try:
-            ima_buf: ast.ImaBuf = table_load_integrity.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_load_integrity.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
 
     def test_parser_table_load_crypt(self):
         try:
-            ima_buf: ast.ImaBuf = table_load_crypt.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_load_crypt.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
 
     def test_parser_table_load_cache(self):
         try:
-            ima_buf: ast.ImaBuf = table_load_cache.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_load_cache.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
 
     def test_parser_table_load_mirror(self):
         try:
-            ima_buf: ast.ImaBuf = table_load_mirror.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_load_mirror.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
 
     def test_parser_device_resume(self):
         try:
-            ima_buf: ast.ImaBuf = device_resume.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, device_resume.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
 
     def test_parser_device_remove(self):
         try:
-            ima_buf: ast.ImaBuf = device_remove.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, device_remove.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
 
     def test_parser_device_rename(self):
         try:
-            ima_buf: ast.ImaBuf = linear_rename_name.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, linear_rename_name.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
 
     def test_parser_table_clear(self):
         try:
-            ima_buf: ast.ImaBuf = table_clear.mode
+            ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_clear.mode)
             ima_dm.parse(ima_buf.data.data.decode(), ima_buf.name.name)
         except Exception as e:
             self.fail(f"Parsing failed with {str(e)}")
@@ -214,7 +215,7 @@ class TestImaDM(unittest.TestCase):
         validator = ima_dm.DmIMAValidator(example_policy_verity)
 
         # Testing table load
-        ima_buf: ast.ImaBuf = table_load_verity.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_load_verity.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         # the table load entry itself should be valid
         self.assertFalse(
@@ -224,7 +225,7 @@ class TestImaDM(unittest.TestCase):
         self.assertTrue(validator.invalid())
 
         # Testing device resume
-        ima_buf: ast.ImaBuf = device_resume.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, device_resume.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         # the device resume entry itself should be valid
         self.assertFalse(
@@ -238,25 +239,25 @@ class TestImaDM(unittest.TestCase):
 
         # Test remove
         validator.state_load(valid_state)
-        ima_buf: ast.ImaBuf = device_remove.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, device_remove.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_device_remove.device_removed", failure.get_event_ids())
 
         # Test double load
         validator.state_load(valid_state)
-        ima_buf: ast.ImaBuf = table_load_verity.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_load_verity.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_table_load.multiple_table_loads", failure.get_event_ids())
 
         # Test target update
         validator.state_load(valid_state)
-        ima_buf: ast.ImaBuf = target_update_verity.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, target_update_verity.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_target_update.target_data_invalid", failure.get_event_ids())
 
         # Test clear
         validator.state_load(valid_state)
-        ima_buf: ast.ImaBuf = table_clear.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_clear.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_table_clear.table_cleared", failure.get_event_ids())
 
@@ -264,38 +265,38 @@ class TestImaDM(unittest.TestCase):
         validator = ima_dm.DmIMAValidator(example_policy_verity)
 
         # Resume
-        ima_buf: ast.ImaBuf = device_resume.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, device_resume.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_device_resume.resume_before_table_load", failure.get_event_ids())
 
         # Remove
-        ima_buf: ast.ImaBuf = device_remove.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, device_remove.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_device_remove.remove_before_table_load", failure.get_event_ids())
 
         # Clear
-        ima_buf: ast.ImaBuf = table_clear.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, table_clear.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_table_clear.clear_before_table_load", failure.get_event_ids())
 
         # Update
-        ima_buf: ast.ImaBuf = target_update_verity.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, target_update_verity.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_target_update.update_before_table_load", failure.get_event_ids())
 
     def test_device_rename(self):
         validator = ima_dm.DmIMAValidator(example_policy_linear)
-        ima_buf: ast.ImaBuf = linear_table_load.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, linear_table_load.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertFalse(failure)
 
-        ima_buf: ast.ImaBuf = linear_device_resume.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, linear_device_resume.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertFalse(failure)
 
         # Rename the device
         self.assertIn("test", validator.devices)
-        ima_buf: ast.ImaBuf = linear_rename_name.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, linear_rename_name.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertFalse(failure)
         # Check if the device was also moved in the validator
@@ -303,7 +304,7 @@ class TestImaDM(unittest.TestCase):
         self.assertIn("test2", validator.devices)
 
         # New uuid should be invalid
-        ima_buf: ast.ImaBuf = linear_rename_uuid.mode
+        ima_buf: ast.ImaBuf = cast(ast.ImaBuf, linear_rename_uuid.mode)
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_device_rename.new_uuid_invalid", failure.get_event_ids())
 
