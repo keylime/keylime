@@ -26,14 +26,6 @@ NULL_BYTE = ord("\0")
 COLON_BYTE = ord(":")
 
 
-def get_START_HASH(hash_alg: Hash) -> bytes:
-    return b"\x00" * (hash_alg.get_size() // 8)
-
-
-def get_FF_HASH(hash_alg: Hash) -> bytes:
-    return b"\xff" * (hash_alg.get_size() // 8)
-
-
 class Validator:
     functions: Dict[typing.Type["Mode"], Callable[..., Failure]]
 
@@ -376,9 +368,9 @@ class Entry:
         # Set correct hash for time of measure, time of use (ToMToU) errors
         # and if a file is already opened for write.
         # https://elixir.bootlin.com/linux/v5.12.12/source/security/integrity/ima/ima_main.c#L101
-        if self.ima_template_hash == get_START_HASH(ima_hash_alg):
-            self.ima_template_hash = get_FF_HASH(ima_hash_alg)
-            self.pcr_template_hash = get_FF_HASH(pcr_hash_alg)
+        if self.ima_template_hash == ima_hash_alg.get_start_hash():
+            self.ima_template_hash = ima_hash_alg.get_ff_hash()
+            self.pcr_template_hash = pcr_hash_alg.get_ff_hash()
 
     def invalid(self) -> Failure:
         failure = Failure(Component.IMA, ["validation"])
@@ -391,7 +383,7 @@ class Entry:
             )
 
         # Ignore template hash for ToMToU errors
-        if self.ima_template_hash == get_FF_HASH(self._ima_hash_alg):
+        if self.ima_template_hash == self._ima_hash_alg.get_ff_hash():
             logger.warning("Skipped template_hash validation entry with FF_HASH")
             # By default ToMToU errors are not treated as a failure
             if config.getboolean("verifier", "ignore_tomtou_errors", fallback=True):

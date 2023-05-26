@@ -3,7 +3,6 @@ import threading
 from typing import Dict, Optional, Set
 
 from keylime.common.algorithms import Hash
-from keylime.ima.ast import get_FF_HASH, get_START_HASH
 from keylime.ima.file_signatures import ImaKeyrings
 
 if sys.version_info >= (3, 7):
@@ -57,9 +56,9 @@ class TPMState:
 
         if self.pcrs[pcr_num] is None:
             if 17 <= pcr_num <= 23:
-                self.pcrs[pcr_num] = get_FF_HASH(self.hash_alg[pcr_num])
+                self.pcrs[pcr_num] = self.hash_alg[pcr_num].get_ff_hash()
             else:
-                self.pcrs[pcr_num] = get_START_HASH(self.hash_alg[pcr_num])
+                self.pcrs[pcr_num] = self.hash_alg[pcr_num].get_start_hash()
 
     def reset_pcr(self, pcr_num: int) -> None:
         """Reset a specific PCR"""
