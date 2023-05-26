@@ -6,7 +6,6 @@ import re
 import sys
 import tempfile
 import threading
-import time
 import typing
 import zlib
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
@@ -16,7 +15,7 @@ from packaging.version import Version
 
 from keylime import cert_utils, cmd_exec, config, json, keylime_logging, measured_boot
 from keylime.agentstates import AgentAttestState, TPMClockInfo
-from keylime.common import algorithms, retry
+from keylime.common import algorithms
 from keylime.common.algorithms import Hash
 from keylime.elchecking.policies import RefState
 from keylime.failure import Component, Failure
@@ -93,36 +92,14 @@ class Tpm:
         cmd: Sequence[str],
         lock: bool = True,
     ) -> cmd_exec.RetDictType:
-        numtries = 0
-        while True:
-            if lock:
-                with self.tpmutilLock:
-                    retDict = cmd_exec.run(cmd=cmd, expectedcode=EXIT_SUCCESS, raiseOnError=False)
-            else:
+        if lock:
+            with self.tpmutilLock:
                 retDict = cmd_exec.run(cmd=cmd, expectedcode=EXIT_SUCCESS, raiseOnError=False)
-            code = retDict["code"]
-            retout = retDict["retout"]
-            reterr = retDict["reterr"]
-
-            # keep trying to get quote if a PCR race condition occurred in quote
-            if cmd[0] == "tpm2_quote" and cmd_exec.list_contains_substring(
-                reterr, "Error validating calculated PCR composite with quote"
-            ):
-                numtries += 1
-                maxr = config.getint("agent", "max_retries")
-                if numtries >= maxr:
-                    logger.error("Agent did not return proper quote due to PCR race condition.")
-                    break
-                interval = config.getfloat("agent", "retry_interval")
-                exponential_backoff = config.getboolean("agent", "exponential_backoff")
-                next_retry = retry.retry_time(exponential_backoff, interval, numtries, logger)
-                logger.info(
-                    "Failed to get quote %d/%d times, trying again in %f seconds...", numtries, maxr, next_retry
-                )
-                time.sleep(next_retry)
-                continue
-
-            break
+        else:
+            retDict = cmd_exec.run(cmd=cmd, expectedcode=EXIT_SUCCESS, raiseOnError=False)
+        code = retDict["code"]
+        retout = retDict["retout"]
+        reterr = retDict["reterr"]
 
         # Don't bother continuing if TPM call failed and we're raising on error
         if code != EXIT_SUCCESS:
