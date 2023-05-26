@@ -305,12 +305,12 @@ class UnprotectedHandler(BaseHandler):
                 base64.b64decode(ek_tpm),
                 base64.b64decode(aik_tpm),
             )
-            if aik_enc is not None:
-                (blob, key) = aik_enc
-            else:
+            if aik_enc is None:
                 logger.warning("Agent %s failed encrypting AIK", agent_id)
                 web_util.echo_json_response(self, 400, "Error: failed encrypting AK")
                 return
+
+            blob, key = aik_enc
 
             # special behavior if we've registered this uuid before
             regcount = 1
