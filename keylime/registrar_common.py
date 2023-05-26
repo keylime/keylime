@@ -343,19 +343,20 @@ class UnprotectedHandler(BaseHandler):
             contact_ip, contact_port, mtls_cert = UnprotectedHandler.get_network_params(json_body, agent_id)
 
             # Add values to database
-            d: Dict[str, Any] = {}
-            d["agent_id"] = agent_id
-            d["ek_tpm"] = ek_tpm
-            d["aik_tpm"] = aik_tpm
-            d["ekcert"] = ekcert
-            d["ip"] = contact_ip
-            d["mtls_cert"] = mtls_cert
-            d["port"] = contact_port
-            d["virtual"] = int(ekcert == "virtual")
-            d["active"] = int(False)
-            d["key"] = key
-            d["provider_keys"] = {}
-            d["regcount"] = regcount
+            d: Dict[str, Any] = {
+                "agent_id": agent_id,
+                "ek_tpm": ek_tpm,
+                "aik_tpm": aik_tpm,
+                "ekcert": ekcert,
+                "ip": contact_ip,
+                "mtls_cert": mtls_cert,
+                "port": contact_port,
+                "virtual": int(ekcert == "virtual"),
+                "active": int(False),
+                "key": key,
+                "provider_keys": {},
+                "regcount": regcount,
+            }
 
             try:
                 session.add(RegistrarMain(**d))
