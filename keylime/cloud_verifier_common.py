@@ -99,11 +99,6 @@ def process_quote_response(
     enc_alg = json_response.get("enc_alg")
     sign_alg = json_response.get("sign_alg")
 
-    # Update chosen tpm and algorithms
-    agent["hash_alg"] = hash_alg
-    agent["enc_alg"] = enc_alg
-    agent["sign_alg"] = sign_alg
-
     # Ensure hash_alg is in accept_tpm_hash_alg list
     if (
         not hash_alg
@@ -118,6 +113,8 @@ def process_quote_response(
         )
         return failure
 
+    agent["hash_alg"] = hash_alg
+
     # Ensure enc_alg is in accept_tpm_encryption_algs list
     if not enc_alg or not algorithms.is_accepted(enc_alg, agent["accept_tpm_encryption_algs"]):
         logger.error("TPM Quote for agent %s is using an unaccepted encryption algorithm: %s", agent_id, enc_alg)
@@ -128,6 +125,8 @@ def process_quote_response(
         )
         return failure
 
+    agent["enc_alg"] = enc_alg
+
     # Ensure sign_alg is in accept_tpm_encryption_algs list
     if not sign_alg or not algorithms.is_accepted(sign_alg, agent["accept_tpm_signing_algs"]):
         logger.error("TPM Quote for agent %s is using an unaccepted signing algorithm: %s", agent_id, sign_alg)
@@ -137,6 +136,8 @@ def process_quote_response(
             False,
         )
         return failure
+
+    agent["sign_alg"] = sign_alg
 
     if ima_measurement_list_entry == 0:
         agentAttestState.reset_ima_attestation()
