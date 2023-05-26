@@ -627,19 +627,12 @@ class Tpm:
             return None
         return digest.hex()
 
-    @staticmethod
-    def start_hash(algorithm: Hash) -> str:
-        alg_size = algorithm.get_size() // 4
-        return "0" * alg_size
-
     def sim_extend(self, hashval_1: str, hash_alg: Hash) -> str:
-        hashval_0 = self.start_hash(hash_alg)
-
         # compute expected value  H(0|H(data))
         hdata = self.hashdigest(hashval_1.encode("utf-8"), hash_alg)
         assert hdata is not None
         hext = self.hashdigest(
-            bytes.fromhex(hashval_0) + bytes.fromhex(hdata),
+            hash_alg.get_start_hash() + bytes.fromhex(hdata),
             hash_alg,
         )
         assert hext is not None
