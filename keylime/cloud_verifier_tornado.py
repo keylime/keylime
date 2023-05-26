@@ -884,8 +884,6 @@ class AllowlistHandler(BaseHandler):
             logger.warning("POST returning 400 response. Expected non zero content length.")
             return {}
 
-        runtime_policy = "{}"
-
         json_body = json.loads(self.request.body)
 
         runtime_policy = base64.b64decode(json_body.get("runtime_policy")).decode()
