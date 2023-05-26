@@ -84,9 +84,6 @@ class Tpm:
             logger.error("TPM2-TOOLS Version %s is not supported.", tools_version[0])
             sys.exit()
 
-    def run(self, cmd: Sequence[str]) -> cmd_exec.RetDictType:
-        return self.__run(cmd, lock=False)
-
     def __run(
         self,
         cmd: Sequence[str],
