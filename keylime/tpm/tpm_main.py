@@ -621,22 +621,11 @@ class Tpm:
         return None, current_clockinfo
 
     @staticmethod
-    def hashdigest(payload: bytes, algorithm: Hash) -> Optional[str]:
-        digest = algorithm.hash(payload)
-        if digest is None:
-            return None
-        return digest.hex()
-
-    def sim_extend(self, hashval_1: str, hash_alg: Hash) -> str:
-        # compute expected value  H(0|H(data))
-        hdata = self.hashdigest(hashval_1.encode("utf-8"), hash_alg)
-        assert hdata is not None
-        hext = self.hashdigest(
-            hash_alg.get_start_hash() + bytes.fromhex(hdata),
-            hash_alg,
-        )
-        assert hext is not None
-        return hext.lower()
+    def sim_extend(hashval_1: str, hash_alg: Hash) -> str:
+        """Compute expected value  H(0|H(data))"""
+        hdata = hash_alg.hash(hashval_1.encode("utf-8"))
+        hext = hash_alg.hash(hash_alg.get_start_hash() + hdata)
+        return hext.hex()
 
     @staticmethod
     def __stringify_pcr_keys(log: Dict[str, Dict[str, Dict[str, str]]]) -> None:
