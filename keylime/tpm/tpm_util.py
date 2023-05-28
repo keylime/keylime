@@ -1,6 +1,7 @@
 import os
+import string
 import struct
-from typing import Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat import backends
@@ -11,7 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
 from cryptography.hazmat.primitives.ciphers import Cipher, modes
 
-from keylime import keylime_logging
+from keylime import config, crypto, json, keylime_logging
 from keylime.tpm import ec_crypto_helper, tpm2_objects
 
 logger = keylime_logging.init_logging("tpm_util")
@@ -434,3 +435,45 @@ def crypt_kdfe(
         size -= hashfunc.digest_size
 
     return result[:size_in_bytes]
+
+
+def check_mask(mask: Optional[str], pcr: int) -> bool:
+    if mask is None:
+        return False
+    return bool(1 << pcr & int(mask, 0))
+
+
+def random_password(length: int = 20) -> str:
+    rand = crypto.generate_random_key(length)
+    chars = string.ascii_uppercase + string.digits + string.ascii_lowercase
+    password = ""
+    for i in range(length):
+        password += chars[(rand[i]) % len(chars)]
+    return password
+
+
+def readPolicy(configval: str) -> Dict[str, Any]:
+    policy: Dict[str, Any] = json.loads(configval)
+
+    # compute PCR mask from tpm_policy
+    mask = 0
+    for key in policy:
+        if not key.isdigit() or int(key) > 24:
+            raise Exception(f"Invalid tpm policy pcr number: {key}")
+
+        if int(key) == config.TPM_DATA_PCR:
+            raise Exception(f"Invalid allowlist PCR number {key}, keylime uses this PCR to bind data.")
+        if int(key) == config.IMA_PCR:
+            raise Exception(f"Invalid allowlist PCR number {key}, this PCR is used for IMA.")
+
+        mask = mask | (1 << int(key))
+
+        # wrap it in a list if it is a singleton
+        if isinstance(policy[key], str):
+            policy[key] = [policy[key]]
+
+        # convert all hash values to lowercase
+        policy[key] = [x.lower() for x in policy[key]]
+
+    policy["mask"] = hex(mask)
+    return policy

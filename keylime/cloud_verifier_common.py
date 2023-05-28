@@ -10,7 +10,7 @@ from keylime.db.verifier_db import VerfierMain
 from keylime.failure import Component, Event, Failure
 from keylime.ima import file_signatures
 from keylime.ima.types import RuntimePolicyType
-from keylime.tpm.tpm_abstract import TPM_Utilities
+from keylime.tpm import tpm_util
 from keylime.tpm.tpm_main import Tpm
 
 # setup logging
@@ -245,7 +245,7 @@ def prepare_get_quote(agent: Dict[str, Any]) -> Dict[str, Union[str, int]]:
     This method is part of the polling loop of the thread launched on Tenant POST.
     """
     agentAttestState = get_AgentAttestStates().get_by_agent_id(agent["agent_id"])
-    agent["nonce"] = TPM_Utilities.random_password(20)
+    agent["nonce"] = tpm_util.random_password(20)
 
     tpm_policy = ast.literal_eval(agent["tpm_policy"])
     params = {
