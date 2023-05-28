@@ -7,7 +7,7 @@ from keylime import config, keylime_logging
 from keylime.cmd import convert_runtime_policy
 from keylime.ima import file_signatures, ima
 from keylime.mba import mba
-from keylime.tpm.tpm_abstract import TPM_Utilities
+from keylime.tpm import tpm_util
 
 if sys.version_info >= (3, 8):
     from typing import TypedDict
@@ -63,7 +63,7 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
     if "tpm_policy" in args and args["tpm_policy"] is not None:
         tpm_policy_str = args["tpm_policy"]
 
-    tpm_policy = TPM_Utilities.readPolicy(tpm_policy_str)
+    tpm_policy = tpm_util.readPolicy(tpm_policy_str)
     logger.info("TPM PCR Mask from policy is %s", tpm_policy["mask"])
 
     if len(args["ima_sign_verification_keys"]) > 0:
@@ -169,7 +169,7 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
             raise UserError("Invalid measured boot reference state (intended state) provided")
 
     # Set up measured boot (TPM event log) reference state
-    if TPM_Utilities.check_mask(tpm_policy["mask"], config.MEASUREDBOOT_PCRS[2]):
+    if tpm_util.check_mask(tpm_policy["mask"], config.MEASUREDBOOT_PCRS[2]):
         # Process measured boot reference state
         mb_refstate = mb_refstate_data
 

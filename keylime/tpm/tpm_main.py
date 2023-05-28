@@ -21,7 +21,7 @@ from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyrings
 from keylime.ima.types import RuntimePolicyType
 from keylime.mba import mba
-from keylime.tpm import tpm2_objects, tpm_abstract, tpm_util
+from keylime.tpm import tpm2_objects, tpm_util
 
 logger = keylime_logging.init_logging("tpm")
 
@@ -115,7 +115,7 @@ class Tpm:
 
         try:
             # write out the challenge
-            challenge_str = tpm_abstract.TPM_Utilities.random_password(32)
+            challenge_str = tpm_util.random_password(32)
             challenge = challenge_str.encode()
 
             logger.info("Encrypting AIK for UUID %s", uuid)

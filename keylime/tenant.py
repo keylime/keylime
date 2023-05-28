@@ -22,8 +22,7 @@ from keylime.cmd import user_data_encrypt
 from keylime.common import algorithms, retry, states, validators
 from keylime.ip_util import bracketize_ipv6
 from keylime.requests_client import RequestsClient
-from keylime.tpm import tpm2_objects
-from keylime.tpm.tpm_abstract import TPM_Utilities
+from keylime.tpm import tpm2_objects, tpm_util
 from keylime.tpm.tpm_main import Tpm
 
 # setup logging
@@ -995,7 +994,7 @@ class Tenant:
         Raises:
             UserError: Connection handler
         """
-        self.nonce = TPM_Utilities.random_password(20)
+        self.nonce = tpm_util.random_password(20)
 
         numtries = 0
         response = None
@@ -1123,7 +1122,7 @@ class Tenant:
 
     def do_verify(self) -> None:
         """Perform verify using a random generated challenge"""
-        challenge = TPM_Utilities.random_password(20)
+        challenge = tpm_util.random_password(20)
         numtries = 0
 
         while True:
