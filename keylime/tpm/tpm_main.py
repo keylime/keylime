@@ -457,7 +457,7 @@ class Tpm:
         tpm_policy: Optional[Union[str, Dict[str, Any]]] = None,
         ima_measurement_list: Optional[str] = None,
         runtime_policy: Optional[RuntimePolicyType] = None,
-        hash_alg: Optional[Hash] = None,
+        hash_alg: Hash = Hash.SHA256,
         ima_keyrings: Optional[ImaKeyrings] = None,
         mb_measurement_list: Optional[str] = None,
         mb_refstate: Optional[str] = None,
@@ -470,9 +470,6 @@ class Tpm:
             runtime_policy = ima.EMPTY_RUNTIME_POLICY
 
         failure = Failure(Component.QUOTE_VALIDATION)
-        if hash_alg is None:
-            failure.add_event("hash_alg_missing", "Hash algorithm cannot be empty", False)
-            return failure
 
         # First and foremost, the quote needs to be validated
         pcrs_dict, err = Tpm._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, str(hash_alg), compressed)
