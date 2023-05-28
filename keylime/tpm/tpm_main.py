@@ -142,14 +142,7 @@ class Tpm:
         return cert_utils.verify_ek(ekcert, tpm_cert_store)
 
     @staticmethod
-    def _tpm2_clock_info_from_quote(quote: str, compressed: bool) -> Dict[str, Any]:
-        """Get TPM timestamp info from quote
-        :param quote: quote data in the format 'r<b64-compressed-quoteblob>:<b64-compressed-sigblob>:<b64-compressed-pcrblob>
-        :param compressed: if the quote data is compressed with zlib or not
-        :returns: Returns a dict holding the TPMS_CLOCK_INFO fields
-        This function throws an Exception on bad input.
-        """
-
+    def _get_quote_parameters(quote: str, compressed: bool) -> Tuple[bytes, bytes, bytes]:
         if quote[0] != "r":
             raise Exception(f"Invalid quote type {quote[0]}")
         quote = quote[1:]
@@ -159,10 +152,27 @@ class Tpm:
             raise Exception(f"Quote is not compound! {quote}")
 
         quoteblob = base64.b64decode(quote_tokens[0])
+        sigblob = base64.b64decode(quote_tokens[1])
+        pcrblob = base64.b64decode(quote_tokens[2])
 
         if compressed:
             logger.warning("Decompressing quote data which is unsafe!")
             quoteblob = zlib.decompress(quoteblob)
+            sigblob = zlib.decompress(sigblob)
+            pcrblob = zlib.decompress(pcrblob)
+
+        return quoteblob, sigblob, pcrblob
+
+    @staticmethod
+    def _tpm2_clock_info_from_quote(quote: str, compressed: bool) -> Dict[str, Any]:
+        """Get TPM timestamp info from quote
+        :param quote: quote data in the format 'r<b64-compressed-quoteblob>:<b64-compressed-sigblob>:<b64-compressed-pcrblob>
+        :param compressed: if the quote data is compressed with zlib or not
+        :returns: Returns a dict holding the TPMS_CLOCK_INFO fields
+        This function throws an Exception on bad input.
+        """
+
+        quoteblob, _, _ = Tpm._get_quote_parameters(quote, compressed)
 
         try:
             return tpm2_objects.get_tpms_attest_clock_info(quoteblob)
@@ -191,23 +201,7 @@ class Tpm:
             crypto_serialization.PublicFormat.SubjectPublicKeyInfo,
         )
 
-        if quote[0] != "r":
-            raise Exception(f"Invalid quote type {quote[0]}")
-        quote = quote[1:]
-
-        quote_tokens = quote.split(":")
-        if len(quote_tokens) < 3:
-            raise Exception(f"Quote is not compound! {quote}")
-
-        quoteblob = base64.b64decode(quote_tokens[0])
-        sigblob = base64.b64decode(quote_tokens[1])
-        pcrblob = base64.b64decode(quote_tokens[2])
-
-        if compressed:
-            logger.warning("Decompressing quote data which is unsafe!")
-            quoteblob = zlib.decompress(quoteblob)
-            sigblob = zlib.decompress(sigblob)
-            pcrblob = zlib.decompress(pcrblob)
+        quoteblob, sigblob, pcrblob = Tpm._get_quote_parameters(quote, compressed)
 
         try:
             pcrs_dict = tpm_util.checkquote(aikFromRegistrar, nonce, sigblob, quoteblob, pcrblob, hash_alg)
