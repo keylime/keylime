@@ -1002,8 +1002,7 @@ async def invoke_get_quote(
     agent: Dict[str, Any], runtime_policy: str, need_pubkey: bool, timeout: float = 60.0
 ) -> None:
     failure = Failure(Component.INTERNAL, ["verifier"])
-    if agent is None:
-        raise Exception("agent deleted while being processed")
+
     params = cloud_verifier_common.prepare_get_quote(agent)
 
     partial_req = "1"
