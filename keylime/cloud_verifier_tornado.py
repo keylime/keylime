@@ -1074,10 +1074,9 @@ async def invoke_get_quote(
             asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
 
 
-async def invoke_provide_v(agent: Optional[Dict[str, Any]], timeout: float = 60.0) -> None:
+async def invoke_provide_v(agent: Dict[str, Any], timeout: float = 60.0) -> None:
     failure = Failure(Component.INTERNAL, ["verifier"])
-    if agent is None:
-        raise Exception("Agent deleted while being processed")
+
     if agent.get("pending_event") is not None:
         agent["pending_event"] = None
 
