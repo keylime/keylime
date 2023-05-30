@@ -378,7 +378,7 @@ def echo_json_response(
     handler: Any, code: int, status: Optional[str] = None, results: Optional[Dict[str, Any]] = None
 ) -> bool:
     """Takes a json package and returns it to the user w/ full HTTP headers"""
-    if handler is None or code is None:
+    if handler is None:
         return False
     if status is None:
         status = http.client.responses[code]
