@@ -1184,10 +1184,6 @@ async def notify_error(
 async def process_agent(
     agent: Dict[str, Any], new_operational_state: int, failure: Failure = Failure(Component.INTERNAL, ["verifier"])
 ) -> None:
-    # Convert to dict if the agent arg is a db object
-    if not isinstance(agent, dict):
-        agent = _from_db_obj(agent)
-
     session = get_session()
     try:  # pylint: disable=R1702
         main_agent_operational_state = agent["operational_state"]
