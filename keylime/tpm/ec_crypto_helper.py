@@ -1,6 +1,6 @@
 # pylint: disable=protected-access
 
-from typing import Optional
+from typing import Any, Optional
 
 from cryptography.hazmat import backends
 from cryptography.hazmat.backends.openssl.backend import Backend as OpenSSLBackend
@@ -52,6 +52,21 @@ class EcCryptoHelper:
         else:
             raise Exception(f"EC_POINT_get_affine_coordinates/GFp not available in _lib [{str(dir(lib))}]")
 
+    def int2bn(self, num: int) -> Any:
+        binary = num.to_bytes((num.bit_length() + 7) >> 3, "big")
+        bn = self.binding.lib.BN_bin2bn(binary, len(binary), self.binding.ffi.NULL)  # pyright: ignore
+        if bn == self.binding.ffi.NULL:
+            raise Exception("BN_bin2bn returned NULL")
+        return bn
+
+    def bn2int(self, bn: Any) -> int:
+        num_bytes = self.binding.lib.BN_num_bytes(bn)  # pyright: ignore
+        binary = self.binding.ffi.new("unsigned char[]", num_bytes)
+        binary_len = self.binding.lib.BN_bn2bin(bn, binary)  # pyright: ignore
+        if binary_len < 0:
+            raise Exception("BN_bn2int failed")
+        return int.from_bytes(self.binding.ffi.buffer(binary)[:binary_len], "big")
+
     def point_multiply_x(self, public_key: EllipticCurvePublicKey, private_key: EllipticCurvePrivateKey) -> bytes:
         """Perform a point multiplication of the given public key with the private_key (scalar).
         Return the x component of the result."""
@@ -65,8 +80,8 @@ class EcCryptoHelper:
 
         # convert the public_key into a point
         pn = public_key.public_numbers()
-        bn_x = self.binding.ffi.gc(self.backend._int_to_bn(pn.x), self.binding.lib.BN_free)  # pyright: ignore
-        bn_y = self.binding.ffi.gc(self.backend._int_to_bn(pn.y), self.binding.lib.BN_free)  # pyright: ignore
+        bn_x = self.binding.ffi.gc(self.int2bn(pn.x), self.binding.lib.BN_free)  # pyright: ignore
+        bn_y = self.binding.ffi.gc(self.int2bn(pn.y), self.binding.lib.BN_free)  # pyright: ignore
 
         point = self.binding.lib.EC_POINT_new(group)  # pyright: ignore
         if point == self.binding.ffi.NULL:
@@ -75,7 +90,7 @@ class EcCryptoHelper:
 
         # convert private key to scalar
         privkey_scalar = self.binding.ffi.gc(
-            self.backend._int_to_bn(private_key.private_numbers().private_value),
+            self.int2bn(private_key.private_numbers().private_value),
             self.binding.lib.BN_free,  # pyright: ignore
         )
 
@@ -96,6 +111,6 @@ class EcCryptoHelper:
             if res != 1:
                 raise Exception("get_affine_coordinates failed")
 
-            x: int = self.backend._bn_to_int(bn_x2)
+            x: int = self.bn2int(bn_x2)
 
         return x.to_bytes((x.bit_length() + 7) >> 3, "big")
