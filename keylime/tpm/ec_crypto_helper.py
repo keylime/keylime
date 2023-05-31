@@ -2,8 +2,6 @@
 
 from typing import Any, Optional
 
-from cryptography.hazmat import backends
-from cryptography.hazmat.backends.openssl.backend import Backend as OpenSSLBackend
 from cryptography.hazmat.bindings.openssl import binding
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey, EllipticCurvePublicKey
 
@@ -19,16 +17,16 @@ class EcCryptoHelper:
         return EcCryptoHelper.instance
 
     def __init__(self) -> None:
-        self.backend = backends.default_backend()
-        if not isinstance(self.backend, OpenSSLBackend):
-            raise Exception("The python cryptography default backend must be using OpenSSL")
-
         self.binding = binding.Binding()
         lib = self.binding.lib
         assert lib
 
         for func in [
+            "BN_CTX_end",
+            "BN_CTX_free",
             "BN_CTX_get",
+            "BN_CTX_new",
+            "BN_CTX_start",
             "BN_free",
             "EC_KEY_get0_group",
             "EC_POINT_new",
@@ -94,7 +92,11 @@ class EcCryptoHelper:
             self.binding.lib.BN_free,  # pyright: ignore
         )
 
-        with self.backend._tmp_bn_ctx() as bn_ctx:
+        bn_ctx = self.binding.lib.BN_CTX_new()  # pyright: ignore
+        if bn_ctx == self.binding.ffi.NULL:
+            raise Exception("BN_CTX_new returned NULL")
+        self.binding.lib.BN_CTX_start(bn_ctx)  # pyright: ignore
+        try:
             res = self.set_affine_coordinates(group, pubkey_point, bn_x, bn_y, bn_ctx)
             if res != 1:
                 raise Exception("set_affine_coordinates failed")
@@ -112,5 +114,8 @@ class EcCryptoHelper:
                 raise Exception("get_affine_coordinates failed")
 
             x: int = self.bn2int(bn_x2)
+        finally:
+            self.binding.lib.BN_CTX_end(bn_ctx)  # pyright: ignore
+            self.binding.lib.BN_CTX_free(bn_ctx)  # pyright: ignore
 
         return x.to_bytes((x.bit_length() + 7) >> 3, "big")
