@@ -8,9 +8,7 @@
 KEYLIME_GIT=https://github.com/keylime/keylime.git
 TPM2TSS_GIT=https://github.com/tpm2-software/tpm2-tss.git
 TPM2TOOLS_GIT=https://github.com/tpm2-software/tpm2-tools.git
-TPM2SIM_SRC=http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/download
 KEYLIME_VER="master"
-TPM4720_VER="master"
 TPM2TSS_VER="3.2.x"
 TPM2TOOLS_VER="5.1.X"
 
