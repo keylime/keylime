@@ -12,7 +12,7 @@ TPM2SIM_SRC=http://sourceforge.net/projects/ibmswtpm2/files/ibmtpm1119.tar.gz/do
 KEYLIME_VER="master"
 TPM4720_VER="master"
 TPM2TSS_VER="3.2.x"
-TPM2TOOLS_VER="5.1.X"
+TPM2TOOLS_VER="5.5"
 
 # Minimum version requirements
 MIN_PYTHON_VERSION="3.6.7"
@@ -375,6 +375,8 @@ else
     git clone $TPM2TOOLS_GIT tpm2-tools
     pushd tpm2-tools
     git checkout $TPM2TOOLS_VER
+    # cherry-pick tpm2-software/tpm2-tools@9735dc3 and tpm2-software/tpm2-tools@576a31b to cover parsing for most newer logs.
+    git cherry-pick -n 9735dc3 576a31b
     ./bootstrap
     if [[ -n $CENTOS7_TSS_FLAGS ]] ; then
         export SAPI_CFLAGS=' '
