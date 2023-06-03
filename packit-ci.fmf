@@ -76,6 +76,7 @@ adjust:
      - /functional/tpm-issuer-cert-using-ecc
      - /functional/tpm_policy-sanity-on-localhost
      - /functional/use-multiple-ima-sign-verification-keys
+     - /compatibility/basic-attestation-on-localhost-with-allowlist-excludelist
      - /upstream/run_keylime_tests
      - /setup/generate_coverage_report
 
