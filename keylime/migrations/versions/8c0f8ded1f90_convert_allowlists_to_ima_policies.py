@@ -47,7 +47,7 @@ def upgrade_cloud_verifier():
     meta = sa.MetaData()
     meta.reflect(bind=conn, only=("allowlists",))
     allowlists = meta.tables["allowlists"]
-    results = conn.execute("SELECT id, ima_policy FROM allowlists").fetchall()
+    results = conn.execute(sa.text("SELECT id, ima_policy FROM allowlists")).fetchall()
 
     # Update allowlist entries with converted IMA policies
     for old_ima_policy_id, old_ima_policy in results:
@@ -92,7 +92,7 @@ def downgrade_cloud_verifier():
     meta = sa.MetaData()
     meta.reflect(bind=conn, only=("allowlists",))
     allowlists = meta.tables["allowlists"]
-    results = conn.execute("SELECT id, ima_policy FROM allowlists").fetchall()
+    results = conn.execute(sa.text("SELECT id, ima_policy FROM allowlists")).fetchall()
 
     # Update allowlist entries with converted IMA policies
     for ima_policy_id, ima_policy in results:
