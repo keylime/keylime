@@ -217,7 +217,7 @@ def _validate_ima_ng(
                 "Hashes for file %s don't match %s not in %s",
                 path.name,
                 hex_hash,
-                runtime_policy,
+                str(accept_list),
             )
             failure.add_event(
                 "runtime_policy_hash",
