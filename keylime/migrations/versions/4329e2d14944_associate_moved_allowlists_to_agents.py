@@ -38,7 +38,7 @@ def upgrade_cloud_verifier():
     meta.reflect(bind=conn, only=("verifiermain",))
     verifiermain = meta.tables["verifiermain"]
 
-    res = conn.execute("SELECT id, name FROM allowlists")
+    res = conn.execute(sa.text("SELECT id, name FROM allowlists"))
     results = res.fetchall()
 
     # Update new foreign key column with associated items in the "allowlists" table

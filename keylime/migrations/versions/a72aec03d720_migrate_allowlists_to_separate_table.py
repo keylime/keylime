@@ -35,7 +35,7 @@ def upgrade_cloud_verifier():
     # Migrate existing agent info to the allowlists table.
     conn = op.get_bind()
 
-    res = conn.execute("SELECT agent_id, tpm_policy, allowlist FROM verifiermain")
+    res = conn.execute(sa.text("SELECT agent_id, tpm_policy, allowlist FROM verifiermain"))
     results = res.fetchall()
     old_policy = [{"name": r[0], "tpm_policy": r[1], "ima_policy": r[2]} for r in results]
 
@@ -61,7 +61,7 @@ def downgrade_cloud_verifier():
     verifiermain = meta.tables["verifiermain"]
     allowlists = meta.tables["allowlists"]
 
-    res = conn.execute("SELECT name, ima_policy FROM allowlists")
+    res = conn.execute(sa.text("SELECT name, ima_policy FROM allowlists"))
     results = res.fetchall()
 
     # Put allowlists back into the "allowlist" column, and delete from the "allowlists" database
