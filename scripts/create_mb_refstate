@@ -15,7 +15,7 @@ import sys
 
 from packaging.version import Version
 
-from keylime.tpm import tpm_main
+from keylime.mba.elparsing.tpm2_tools_elparser import parse_binary_bootlog
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 
@@ -146,12 +146,6 @@ def secureboot_enabled(events):
 
 
 def main():
-    tpm = tpm_main.Tpm()
-
-    if Version(tpm.tools_version) < Version("4.2"):
-        print(f"tpm2_eventlog is not available: tpm2-tools version {tpm.tools_version} < 4.2")
-        sys.exit(1)
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "eventlog_file",
@@ -171,7 +165,7 @@ def main():
     args = parser.parse_args()
     log_bin = args.eventlog_file.read()
 
-    failure, log_data = tpm.parse_binary_bootlog(log_bin)
+    failure, log_data = parse_binary_bootlog(log_bin)
     if failure or not log_data:
         logging.error(
             f"Parsing of binary boot measurements failed with: {list(map(lambda x: x.context, failure.events))}"

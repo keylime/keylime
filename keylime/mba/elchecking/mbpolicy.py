@@ -8,7 +8,7 @@ from keylime.mba.elchecking import tests
 logger = keylime_logging.init_logging("measured_boot")
 
 
-def evaluate_policy(
+def evaluate_bootlog(
     mb_refstate_str: Optional[str],
     mb_measurement_data: tests.Data,
     pcrs_inquote: Set[int],
