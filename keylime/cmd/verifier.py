@@ -13,6 +13,7 @@ def main() -> None:
     # Load explicitly the policy modules into Keylime for the verifier,
     # so that they are not loaded accidentally from other components
     mba.load_policy_engine()
+    mba.load_parser_engine()
     cloud_verifier_tornado.main()
 
 

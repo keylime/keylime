@@ -9,13 +9,9 @@ import re
 import sys
 import traceback
 from ctypes import CDLL, byref, c_char_p, create_string_buffer
+from typing import Any, Dict
 
 import yaml
-
-try:
-    from yaml import CSafeLoader as SafeLoader
-except ImportError:
-    from yaml import SafeLoader
 
 from keylime import config
 
@@ -31,7 +27,7 @@ class hexint(int):
     pass
 
 
-def representer(_, data):
+def representer(_: Any, data: int) -> yaml.ScalarNode:
     return yaml.ScalarNode("tag:yaml.org,2002:int", hex(data))
 
 
@@ -46,25 +42,25 @@ yaml.add_representer(hexint, representer)
 efivarlib_functions = CDLL(config.LIBEFIVAR)
 
 
-def getDevicePath(b, l):
+def getDevicePath(b: bytes, l: int) -> str:
     ret = efivarlib_functions.efidp_format_device_path(0, 0, b, l)
     if ret < 0:
-        raise Exception(f"getDevicePath: efidp_format_device_path({b}) returned {ret}")
+        raise Exception(f"getDevicePath: efidp_format_device_path({str(b)}) returned {ret}")
 
     s = create_string_buffer(ret + 1)
 
     ret = efivarlib_functions.efidp_format_device_path(s, ret + 1, b, l)
     if ret < 0:
-        raise Exception(f"getDevicePath: efidp_format_device_path({b}) returned {ret}")
+        raise Exception(f"getDevicePath: efidp_format_device_path({str(b)}) returned {ret}")
 
     return s.value.decode("utf-8")
 
 
-def getGUID(b):
+def getGUID(b: bytes) -> str:
     s = c_char_p(None)
     ret = efivarlib_functions.efi_guid_to_str(b, byref(s))
     if ret < 0:
-        raise Exception(f"getGUID: efi_guid_to_str({b}) returned {ret}")
+        raise Exception(f"getGUID: efi_guid_to_str({str(b)}) returned {ret}")
     assert isinstance(s.value, bytes)
     return s.value.decode("utf-8")  # pylint: disable=E1101
 
@@ -97,7 +93,7 @@ def getGUID(b):
 ##################################################################################
 
 
-def getKey(b, start, size):
+def getKey(b: bytes, start: int, size: int) -> Dict[str, Any]:
     key = {}
     signatureOwner = getGUID(b[start : start + 16])
     key["SignatureOwner"] = signatureOwner
@@ -129,7 +125,7 @@ def getKey(b, start, size):
 ##################################################################################
 
 
-def getVar(event, b):
+def getVar(event: Dict[str, Any], b: bytes) -> Any:
     if "UnicodeName" in event:
         if "VariableDataLength" in event:
             varlen = event["VariableDataLength"]
@@ -140,28 +136,28 @@ def getVar(event, b):
                     raise Exception(f"getVar: VariableDataLength({varlen}) is not divisible by 2")
 
                 l = int(varlen / 2)
-                r = []
+                r1 = []
                 for x in range(l):
                     d = int.from_bytes(b[x * 2 : x * 2 + 2], byteorder="little")
-                    r.append(f"Boot{d:04x}")
-                return r
+                    r1.append(f"Boot{d:04x}")
+                return r1
             # Boot#### variable
             if re.match("Boot[0-9a-fA-F]{4}", event["UnicodeName"]):
-                r = {}
+                r2 = {}
                 i = 0
                 size = 4
                 attributes = b[i : i + size]
                 d = int.from_bytes(attributes, "little") & 1
                 if d == 0:
-                    r["Enabled"] = "No"
+                    r2["Enabled"] = "No"
                 else:
-                    r["Enabled"] = "Yes"
+                    r2["Enabled"] = "Yes"
 
                 i += size
                 size = 2
                 filePathListLength = b[i : i + size]
                 d = int.from_bytes(filePathListLength, "little")
-                r["FilePathListLength"] = d
+                r2["FilePathListLength"] = str(d)
 
                 i += size
                 size = 2
@@ -174,14 +170,14 @@ def getVar(event, b):
 
                     c = w.decode("utf-16", errors="ignore")
                     description += c
-                r["Description"] = description
+                r2["Description"] = description
                 devicePath = getDevicePath(b[i:], len(b[i:]))
-                r["DevicePath"] = devicePath
-                return r
+                r2["DevicePath"] = devicePath
+                return r2
     return None
 
 
-def enrich_device_path(d: dict) -> None:
+def enrich_device_path(d: Dict[str, Any]) -> None:
     if isinstance(d.get("DevicePath"), str):
         try:
             b = bytes.fromhex(d["DevicePath"])
@@ -196,16 +192,15 @@ def enrich_device_path(d: dict) -> None:
         d["DevicePath"] = p
 
 
-def enrich_boot_variable(d: dict) -> None:
+def enrich_boot_variable(d: Dict[str, Any]) -> None:
     if isinstance(d.get("VariableData"), str):
-        b = {}
         b = bytes.fromhex(d["VariableData"])
         k = getVar(d, b)
         if k is not None:
             d["VariableData"] = k
 
 
-def enrich(log: dict) -> None:
+def enrich(log: Dict[str, Any]) -> None:
     """Make the given BIOS boot log easier to understand and process"""
     if "events" in log:
         events = log["events"]
@@ -227,12 +222,15 @@ def enrich(log: dict) -> None:
                         enrich_boot_variable(d)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("infile", nargs="?", type=argparse.FileType("r"), default=sys.stdin)
     parser.add_argument("-o", "--output", choices=("yaml", "json"), default="yaml")
     args = parser.parse_args()
-    log = yaml.load(args.infile, Loader=SafeLoader)
+    try:
+        log = yaml.load(args.infile, Loader=yaml.CSafeLoader)
+    except Exception:
+        log = yaml.load(args.infile, Loader=yaml.SafeLoader)
     try:
         enrich(log)
     except Exception:

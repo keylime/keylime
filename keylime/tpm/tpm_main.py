@@ -1,20 +1,11 @@
 import base64
-import binascii
-import hashlib
-import re
-import sys
-import tempfile
-import threading
-import typing
 import zlib
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from cryptography.hazmat.primitives import serialization as crypto_serialization
-from packaging.version import Version
 
-from keylime import cert_utils, cmd_exec, config, json, keylime_logging
+from keylime import cert_utils, config, json, keylime_logging
 from keylime.agentstates import AgentAttestState, TPMClockInfo
-from keylime.common import algorithms
 from keylime.common.algorithms import Hash
 from keylime.failure import Component, Failure
 from keylime.ima import ima
@@ -25,86 +16,8 @@ from keylime.tpm import tpm2_objects, tpm_util
 
 logger = keylime_logging.init_logging("tpm")
 
-EXIT_SUCCESS: int = 0
-
 
 class Tpm:
-    tools_version: str = ""
-
-    tpmutilLock: threading.Lock
-
-    def __init__(self) -> None:
-        super().__init__()
-        # Shared lock to serialize access to tools
-        self.tpmutilLock = threading.Lock()
-
-        self.__get_tpm2_tools()
-
-    def __get_tpm2_tools(self) -> None:
-        retDict = self.__run(["tpm2_startup", "--version"])
-
-        code = retDict["code"]
-        output = "".join(config.convert(retDict["retout"]))
-        errout = "".join(config.convert(retDict["reterr"]))
-        if code != EXIT_SUCCESS:
-            raise Exception(
-                "Error establishing tpm2-tools version using TPM2_Startup: %s" + str(code) + ": " + str(errout)
-            )
-
-        # Extract the `version="x.x.x"` from tools
-        version_str_ = re.search(r'version="([^"]+)"', output)
-        if version_str_ is None:
-            msg = f"Could not determine tpm2-tools version from TPM2_Startup output '{output}'"
-            logger.error(msg)
-            raise Exception(msg)
-        version_str = version_str_.group(1)
-        # Extract the full semver release number.
-        tools_version = version_str.split("-")
-
-        if Version(tools_version[0]) >= Version("5.4") or (
-            # Also mark first git version that introduces the change to the tpm2_eventlog format as 5.4
-            # See: https://github.com/tpm2-software/tpm2-tools/commit/c78d258b2588aee535fd17594ad2f5e808056373
-            Version(tools_version[0]) == Version("5.3")
-            and len(tools_version) > 1
-            and int(tools_version[1]) >= 24
-        ):
-            logger.info("TPM2-TOOLS Version: %s", tools_version[0])
-            self.tools_version = "5.4"
-        elif Version(tools_version[0]) >= Version("4.2"):
-            logger.info("TPM2-TOOLS Version: %s", tools_version[0])
-            self.tools_version = "4.2"
-        elif Version(tools_version[0]) >= Version("4.0.0"):
-            logger.info("TPM2-TOOLS Version: %s", tools_version[0])
-            self.tools_version = "4.0"
-        elif Version(tools_version[0]) >= Version("3.2.0"):
-            logger.info("TPM2-TOOLS Version: %s", tools_version[0])
-            self.tools_version = "3.2"
-        else:
-            logger.error("TPM2-TOOLS Version %s is not supported.", tools_version[0])
-            sys.exit()
-
-    def __run(
-        self,
-        cmd: Sequence[str],
-        lock: bool = True,
-    ) -> cmd_exec.RetDictType:
-        if lock:
-            with self.tpmutilLock:
-                retDict = cmd_exec.run(cmd=cmd, expectedcode=EXIT_SUCCESS, raiseOnError=False)
-        else:
-            retDict = cmd_exec.run(cmd=cmd, expectedcode=EXIT_SUCCESS, raiseOnError=False)
-        code = retDict["code"]
-        retout = retDict["retout"]
-        reterr = retDict["reterr"]
-
-        # Don't bother continuing if TPM call failed and we're raising on error
-        if code != EXIT_SUCCESS:
-            raise Exception(
-                f"Command: {cmd} returned {code}, expected {EXIT_SUCCESS}, output {retout}, stderr {reterr}"
-            )
-
-        return retDict
-
     @staticmethod
     def encryptAIK(uuid: str, ek_tpm: bytes, aik_tpm: bytes) -> Optional[Tuple[bytes, str]]:
         if ek_tpm is None or aik_tpm is None:
@@ -276,7 +189,7 @@ class Tpm:
         else:
             mb_refstate_data = json.loads(mb_refstate)
 
-        mb_pcrs_hashes, boot_aggregates, mb_measurement_data, mb_failure = self.parse_mb_bootlog(
+        mb_pcrs_hashes, boot_aggregates, mb_measurement_data, mb_failure = mba.parse_bootlog(
             mb_measurement_list, hash_alg
         )
         failure.merge(mb_failure)
@@ -549,201 +462,3 @@ class Tpm:
         hdata = hash_alg.hash(hashval_1.encode("utf-8"))
         hext = hash_alg.hash(hash_alg.get_start_hash() + hdata)
         return hext.hex()
-
-    @staticmethod
-    def __stringify_pcr_keys(log: Dict[str, Dict[str, Dict[str, str]]]) -> None:
-        """Ensure that the PCR indices are strings
-
-        The YAML produced by `tpm2_eventlog`, when loaded by the yaml module,
-        uses integer keys in the dicts holding PCR contents.  That does not
-        correspond to any JSON data.  This method ensures those keys are
-        strings.
-        The log is untrusted because it ultimately comes from an untrusted
-        source and has been processed by software that has had bugs."""
-        if (not isinstance(log, dict)) or "pcrs" not in log:
-            return
-        old_pcrs = log["pcrs"]
-        if not isinstance(old_pcrs, dict):
-            return
-        new_pcrs = {}
-        for hash_alg, cells in old_pcrs.items():
-            if not isinstance(cells, dict):
-                new_pcrs[hash_alg] = cells
-                continue
-            new_pcrs[hash_alg] = {str(index): val for index, val in cells.items()}
-        log["pcrs"] = new_pcrs
-        return
-
-    @staticmethod
-    def __add_boot_aggregate(log: Dict[str, Any]) -> None:
-        """Scan the boot event log and calculate possible boot aggregates.
-
-        Hashes are calculated for both sha1 and sha256,
-        as well as for 8 or 10 participant PCRs.
-
-        Technically the sha1/10PCR combination is unnecessary, since it has no
-        implementation.
-
-        Error conditions caused by improper string formatting etc. are
-        ignored. The current assumption is that the boot event log PCR
-        values are in decimal encoding, but this is liable to change."""
-        if (not isinstance(log, dict)) or "pcrs" not in log:
-            return
-        log["boot_aggregates"] = {}
-        for hashalg in log["pcrs"].keys():
-            log["boot_aggregates"][hashalg] = []
-            for maxpcr in [8, 10]:
-                try:
-                    hashclass = getattr(hashlib, hashalg)
-                    h = hashclass()
-                    for pcrno in range(0, maxpcr):
-                        pcrstrg = log["pcrs"][hashalg][str(pcrno)]
-                        pcrhex = f"{pcrstrg:0{h.digest_size*2}x}"
-                        h.update(bytes.fromhex(pcrhex))
-                    log["boot_aggregates"][hashalg].append(h.hexdigest())
-                except Exception:
-                    pass
-
-    @staticmethod
-    def __unescape_eventlog(log: Dict) -> None:  # type: ignore
-        """
-        Newer versions of tpm2-tools escapes the YAML output and including the trailing null byte.
-        See: https://github.com/tpm2-software/tpm2-tools/commit/c78d258b2588aee535fd17594ad2f5e808056373
-        This converts it back to an unescaped string.
-        Example:
-            '"MokList\\0"' -> 'MokList'
-        """
-        if Tpm.tools_version in ["3.2", "4.0", "4.2"]:
-            return
-
-        escaped_chars = [
-            ("\0", "\\0"),
-            ("\a", "\\a"),
-            ("\b", "\\b"),
-            ("\t", "\\t"),
-            ("\v", "\\v"),
-            ("\f", "\\f"),
-            ("\r", "\\r"),
-            ("\x1b", "\\e"),
-            ("'", "\\'"),
-            ("\\", "\\\\"),
-        ]
-
-        def recursive_unescape(data):  # type: ignore
-            if isinstance(data, str):
-                if data.startswith('"') and data.endswith('"'):
-                    data = data[1:-1]
-                    for orig, escaped in escaped_chars:
-                        data = data.replace(escaped, orig)
-                    data = data.rstrip("\0")
-            elif isinstance(data, dict):
-                for key, value in data.items():
-                    data[key] = recursive_unescape(value)  # type: ignore
-            elif isinstance(data, list):
-                for pos, item in enumerate(data):
-                    data[pos] = recursive_unescape(item)  # type: ignore
-            return data
-
-        recursive_unescape(log)  # type: ignore
-
-    def parse_binary_bootlog(self, log_bin: bytes) -> typing.Tuple[Failure, typing.Optional[Dict[str, Any]]]:
-        """Parse and enrich a BIOS boot log
-
-        The input is the binary log.
-        The output is the result of parsing and applying other conveniences."""
-        failure = Failure(Component.MEASURED_BOOT, ["parser"])
-        with tempfile.NamedTemporaryFile() as log_bin_file:
-            log_bin_file.write(log_bin)
-            log_bin_file.seek(0)
-            log_bin_filename = log_bin_file.name
-            try:
-                retDict_tpm2 = self.__run(["tpm2_eventlog", "--eventlog-version=2", log_bin_filename])
-            except Exception:
-                failure.add_event("tpm2_eventlog", "running tpm2_eventlog failed", True)
-                return failure, None
-        log_parsed_strs = retDict_tpm2["retout"]
-        if len(retDict_tpm2["reterr"]) > 0:
-            failure.add_event(
-                "tpm2_eventlog.warning",
-                {"context": "tpm2_eventlog exited with warnings", "data": str(retDict_tpm2["reterr"])},
-                True,
-            )
-            return failure, None
-        log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False, logger=logger)
-        if log_parsed_data is None:
-            failure.add_event("yaml", "yaml output of tpm2_eventlog could not be parsed!", True)
-            return failure, None
-        # pylint: disable=import-outside-toplevel
-        try:
-            from keylime import tpm_bootlog_enrich
-        except Exception as e:
-            logger.error("Could not load tpm_bootlog_enrich (which depends on %s): %s", config.LIBEFIVAR, str(e))
-            failure.add_event(
-                "bootlog_enrich",
-                f"Could not load tpm_bootlog_enrich (which depends on {config.LIBEFIVAR}): {str(e)}",
-                True,
-            )
-            return failure, None
-        # pylint: enable=import-outside-toplevel
-        tpm_bootlog_enrich.enrich(log_parsed_data)
-        Tpm.__stringify_pcr_keys(log_parsed_data)
-        Tpm.__add_boot_aggregate(log_parsed_data)
-        Tpm.__unescape_eventlog(log_parsed_data)
-        return failure, log_parsed_data
-
-    def _parse_mb_bootlog(self, log_b64: str) -> typing.Tuple[Failure, typing.Optional[Dict[str, Any]]]:
-        """Parse and enrich a BIOS boot log
-
-        The input is the base64 encoding of a binary log.
-        The output is the result of parsing and applying other conveniences."""
-        failure = Failure(Component.MEASURED_BOOT, ["parser"])
-        try:
-            log_bin = base64.b64decode(log_b64, validate=True)
-            failure_mb, result = self.parse_binary_bootlog(log_bin)
-            if failure_mb:
-                failure.merge(failure_mb)
-                result = None
-        except binascii.Error:
-            failure.add_event("log.base64decode", "Measured boot log could not be decoded", True)
-            result = None
-        return failure, result
-
-    def parse_mb_bootlog(
-        self, mb_measurement_list: Optional[str], hash_alg: algorithms.Hash
-    ) -> typing.Tuple[Dict[str, int], typing.Optional[Dict[str, List[str]]], Dict[str, Any], Failure]:
-        """Parse the measured boot log and return its object and the state of the PCRs
-        :param mb_measurement_list: The measured boot measurement list
-        :param hash_alg: the hash algorithm that should be used for the PCRs
-        :returns: Returns a map of the state of the PCRs, measured boot data object and True for success
-                  and False in case an error occurred
-        """
-        failure = Failure(Component.MEASURED_BOOT, ["parser"])
-        if mb_measurement_list:
-            failure_mb, mb_measurement_data = self._parse_mb_bootlog(mb_measurement_list)
-            if not mb_measurement_data:
-                failure.merge(failure_mb)
-                logger.error("Unable to parse measured boot event log. Check previous messages for a reason for error.")
-                return {}, None, {}, failure
-            log_pcrs = mb_measurement_data.get("pcrs")
-            if not isinstance(log_pcrs, dict):
-                logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)
-                failure.add_event("invalid_pcrs", {"got": log_pcrs}, True)
-                return {}, None, {}, failure
-            pcr_hashes = log_pcrs.get(str(hash_alg))
-            if (not isinstance(pcr_hashes, dict)) or not pcr_hashes:
-                logger.error(
-                    "Parse of measured boot event log has unexpected value for .pcrs.%s: %r", str(hash_alg), pcr_hashes
-                )
-                failure.add_event("invalid_pcrs_hashes", {"got": pcr_hashes}, True)
-                return {}, None, {}, failure
-            boot_aggregates = mb_measurement_data.get("boot_aggregates")
-            if (not isinstance(boot_aggregates, dict)) or not boot_aggregates:
-                logger.error(
-                    "Parse of measured boot event log has unexpected value for .boot_aggragtes: %r", boot_aggregates
-                )
-                failure.add_event("invalid_boot_aggregates", {"got": boot_aggregates}, True)
-                return {}, None, {}, failure
-
-            return pcr_hashes, boot_aggregates, mb_measurement_data, failure
-
-        return {}, None, {}, failure

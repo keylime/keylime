@@ -9,9 +9,12 @@ from keylime.common.algorithms import Hash
 # A Test can be used multiple times, even concurrently.
 
 # Data is the type of Python data that corresponds to JSON values.
-Data = typing.Union[
-    int, float, str, bool, typing.Tuple["Data", ...], typing.Mapping[str, "Data"], typing.List["Data"], None
-]
+# Data = typing.Union[
+#    int, float, str, bool, typing.Tuple["Data", ...], typing.Mapping[str, "Data"], typing.List["Data"], None
+# ]
+# GA: removing recursive definition because mypy cannot handle it.
+
+Data = object
 
 # Globals is a dict of variables for communication among tests.
 # There is a distinct dict for each top-level use of a test.
