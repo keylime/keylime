@@ -86,6 +86,10 @@ class Tenant:
 
     request_timeout: Optional[int] = None
 
+    agent_fid_str: Optional[str] = None
+    verifier_fid_str: Optional[str] = None
+    registrar_fid_str: Optional[str] = None
+
     # Context with the trusted CA certificates from the configuration
     tls_context: Optional[ssl.SSLContext] = None
 
@@ -156,6 +160,19 @@ class Tenant:
     def verifier_base_url(self) -> str:
         return f"{bracketize_ipv6(self.verifier_ip)}:{self.verifier_port}"
 
+    def set_full_id_str(self) -> None:
+        self.agent_fid_str = f"Agent {self.agent_uuid}"
+        if self.agent_ip:
+            self.agent_fid_str = f"{self.agent_fid_str} ({self.agent_ip}:{self.agent_port})"
+        self.verifier_fid_str = "Verifier"
+        if self.verifier_id:
+            self.verifier_fid_str = f"{self.verifier_fid_str} {self.verifier_id}"
+        if self.verifier_ip:
+            self.verifier_fid_str = f"{self.verifier_fid_str} ({self.verifier_ip}:{self.verifier_port})"
+        self.registrar_fid_str = "Registrar"
+        if self.registrar_ip:
+            self.registrar_fid_str = f"{self.registrar_fid_str} ({self.registrar_ip}:{self.registrar_port})"
+
     def init_add(self, args: Dict[str, Any]) -> None:
         """Set up required values. Command line options can overwrite these config values
 
@@ -195,6 +212,8 @@ class Tenant:
         if self.agent_port is None:
             raise UserError("The contact port for the agent was not specified.")
 
+        self.set_full_id_str()
+
         # Auto-detection for API version
         self.supported_version = args["supported_version"]
         if self.supported_version is None:
@@ -206,9 +225,10 @@ class Tenant:
                 if self.registrar_data["mtls_cert"] == "disabled":
                     self.enable_agent_mtls = False
                     logger.warning(
-                        "Warning: mTLS for agents is disabled: the identity of each node will be based on the properties of the TPM only. "
+                        "Warning: mTLS for %s is disabled: the identity of each node will be based on the properties of the TPM only. "
                         "Unless you have strict control of your network, it is strongly advised that remote code execution should be disabled, "
-                        'by setting "payload_script=" and "extract_payload_zip=False" under "[agent]" in agent configuration file.'
+                        'by setting "payload_script=" and "extract_payload_zip=False" under "[agent]" in agent configuration file.',
+                        self.agent_fid_str,
                     )
                     tls_context = None
                 else:
@@ -442,12 +462,14 @@ class Tenant:
         """
         if config.getboolean("tenant", "require_ek_cert"):
             if ekcert == "emulator" and config.DISABLE_EK_CERT_CHECK_EMULATOR:
-                logger.info("Not checking ekcert of TPM emulator")
+                logger.info("Not checking ekcert of TPM emulator for %s", self.agent_fid_str)
             elif ekcert is None:
-                logger.warning("No EK cert provided, require_ek_cert option in config set to True")
+                logger.warning(
+                    "No EK cert provided, require_ek_cert option in config set to True for %s", self.agent_fid_str
+                )
                 return False
             elif not self.tpm_instance.verify_ek(base64.b64decode(ekcert), config.get("tenant", "tpm_cert_store")):
-                logger.warning("Invalid EK certificate")
+                logger.warning("Invalid EK certificate for %s", self.agent_fid_str)
                 return False
 
         return True
@@ -467,11 +489,13 @@ class Tenant:
             [type] -- [description]
         """
         if self.registrar_data is None:
-            logger.warning("AIK not found in registrar, quote not validated")
+            logger.warning(
+                "AIK not found in %s, quote not validated for %s", self.registrar_fid_str, self.agent_fid_str
+            )
             return False
 
         if not self.nonce:
-            logger.warning("Nonce has not been set!")
+            logger.warning("Nonce has not been set for %s!", self.agent_fid_str)
             return False
 
         failure = self.tpm_instance.check_quote(
@@ -486,19 +510,15 @@ class Tenant:
         if failure:
             if self.registrar_data["regcount"] > 1:
                 logger.error(
-                    "WARNING: This UUID had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured or a malicious host is present. Run 'regdelete' for this agent and restart"
+                    "WARNING: %s had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured or a malicious host is present. Run 'regdelete' for this agent and restart",
+                    self.agent_fid_str,
                 )
-                sys.exit()
             return False
-
-        if self.registrar_data["regcount"] > 1:
-            logger.warning(
-                "WARNING: This UUID had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured. Run 'regdelete' for this agent and restart"
-            )
 
         if not config.getboolean("tenant", "require_ek_cert") and config.get("tenant", "ek_check_script") == "":
             logger.warning(
-                "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option. Keylime is not secure!!"
+                "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option for %s. Keylime is not secure!!",
+                self.agent_fid_str,
             )
             return True
 
@@ -518,7 +538,7 @@ class Tenant:
         if script[0] != "/":
             script = os.path.join(config.WORK_DIR, script)
 
-        logger.info("Checking EK with script %s", script)
+        logger.info("Checking EK for %s with script %s", self.agent_fid_str, script)
         # now we need to exec the script with the ek and ek cert in vars
         env = os.environ.copy()
         env["AGENT_UUID"] = self.agent_uuid
@@ -579,13 +599,13 @@ class Tenant:
 
         if response.status_code == 503:
             logger.error(
-                "Cannot connect to Verifier at %s with Port %s. Connection refused.",
-                self.verifier_ip,
-                self.verifier_port,
+                "Cannot connect to %s while adding %s. Connection refused.",
+                self.verifier_fid_str,
+                self.agent_fid_str,
             )
             sys.exit()
         elif response.status_code == 504:
-            logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
+            logger.error("%s timed out while adding %s.", self.verifier_fid_str, self.agent_fid_str)
             sys.exit()
 
         response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
@@ -597,8 +617,9 @@ class Tenant:
         elif response.status_code != 200:
             keylime_logging.log_http_response(logger, logging.ERROR, response_json)
             logger.error(
-                "POST command response: %s Unexpected response from Cloud Verifier: %s",
+                "POST command response: %s Unexpected response from %s: %s",
                 response.status_code,
+                self.verifier_fid_str,
                 response.text,
             )
             sys.exit()
@@ -612,15 +633,17 @@ class Tenant:
                     numtries += 1
                     if numtries >= self.maxr:
                         logger.error(
-                            "Agent ID %s still not added to the Verifier after %d tries",
-                            self.agent_uuid,
+                            "%s still not added to %s after %d tries",
+                            self.agent_fid_str,
+                            self.verifier_fid_str,
                             numtries,
                         )
                         sys.exit()
                     next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                     logger.info(
-                        "Agent ID %s still not added to the Verifier at try %d of %d , trying again in %s seconds...",
-                        self.agent_uuid,
+                        "%s still not added to %s at try %d/%d, trying again in %d seconds...",
+                        self.agent_fid_str,
+                        self.verifier_fid_str,
                         numtries,
                         self.maxr,
                         next_retry,
@@ -631,13 +654,16 @@ class Tenant:
 
             if added:
                 logger.info(
-                    "Agent ID %s added to the Verifier after %d tries",
-                    self.agent_uuid,
+                    "%s added to %s after %d tries",
+                    self.agent_fid_str,
+                    self.verifier_fid_str,
                     numtries,
                 )
 
     def do_cvstatus(self) -> Dict[str, Any]:
         """Perform operational state look up for agent on the verifier"""
+
+        self.set_full_id_str()
 
         do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
 
@@ -647,20 +673,25 @@ class Tenant:
 
         if response.status_code == 503:
             logger.error(
-                "Cannot connect to Verifier at %s with Port %s. Connection refused.",
-                self.verifier_ip,
-                self.verifier_port,
+                "Cannot connect to %s. Connection refused.",
+                self.verifier_fid_str,
             )
             return response_json
         if response.status_code == 504:
-            logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
+            logger.error("%s timed out.", self.verifier_fid_str)
             return response_json
         if response.status_code == 404:
+            # Marked for deletion (need to modify the code on CI tests)
             logger.info(
                 "Verifier at %s with Port %s does not have agent %s.",
                 self.verifier_ip,
                 self.verifier_port,
                 self.agent_uuid,
+            )
+            logger.info(
+                "%s does not exist on %s.",
+                self.agent_fid_str,
+                self.verifier_fid_str,
             )
             return response_json
 
@@ -671,15 +702,14 @@ class Tenant:
             operational_state = states.state_to_str(response_json["results"][self.agent_uuid]["operational_state"])
             response_json["results"][self.agent_uuid]["operational_state"] = operational_state
 
-            logger.info("Agent Info:\n%s", json.dumps(response_json["results"]))
+            logger.info("Agent Info from %s:\n%s", self.verifier_fid_str, json.dumps(response_json["results"]))
 
             return response_json
 
         logger.info(
-            "Status command response: %s. Unexpected response from Cloud Verifier %s on port %s. %s",
+            "Status command response: %s. Unexpected response from %s. %s",
             response.status_code,
-            self.verifier_ip,
-            self.verifier_port,
+            self.verifier_fid_str,
             str(response),
         )
         return response_json
@@ -693,50 +723,57 @@ class Tenant:
         if self.verifier_id is not None:
             verifier_id = self.verifier_id
 
+        self.set_full_id_str()
+
         response = do_cvstatus.get(f"/v{self.api_version}/agents/?verifier={verifier_id}", timeout=self.request_timeout)
 
         response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
 
         if response.status_code == 503:
             logger.error(
-                "Cannot connect to Verifier at %s with Port %s. Connection refused.",
-                self.verifier_ip,
-                self.verifier_port,
+                "Cannot connect to %s. Connection refused.",
+                self.verifier_fid_str,
             )
             return response_json
         if response.status_code == 504:
-            logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
+            logger.error("%s timed out.", self.verifier_fid_str)
             return response_json
         if response.status_code == 404:
             logger.info(
-                "Verifier at %s with Port %s does not have agent %s.",
-                self.verifier_ip,
-                self.verifier_port,
-                self.agent_uuid,
+                "%s does not have any agents",
+                self.verifier_fid_str,
             )
             return response_json
         if response.status_code == 200:
-            logger.info('From verifier %s port %s retrieved: "%s"', self.verifier_ip, self.verifier_port, response_json)
+            # Marked for deletion (need to modify the code on CI tests)
+            logger.info(
+                'From verifier %s port %s retrieved: "%s"\n', self.verifier_ip, self.verifier_port, response_json
+            )
+
+            logger.info(
+                "Agent list from %s retrieved: \n%s", self.verifier_fid_str, json.dumps(response_json["results"])
+            )
 
             return response
 
         logger.info(
-            "Status command response: %s. Unexpected response from Cloud Verifier %s on port %s. %s",
+            "Status command response: %s. Unexpected response from %s. %s",
             response.status_code,
-            self.verifier_ip,
-            self.verifier_port,
+            self.verifier_fid_str,
             str(response),
         )
         return response
 
     def do_cvbulkinfo(self) -> Dict[str, Any]:
-        """Perform operational state look up for agent"""
+        """Perform operational state look up for all agents"""
 
         do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
 
         verifier_id = ""
         if self.verifier_id is not None:
             verifier_id = self.verifier_id
+
+        self.set_full_id_str()
 
         response = do_cvstatus.get(
             f"/v{self.api_version}/agents/?bulk={True}&verifier={verifier_id}", timeout=self.request_timeout
@@ -754,11 +791,14 @@ class Tenant:
             return response_json
 
         raise UserError(
-            f"Bulk Status: Unexpected response from Verifier {self.verifier_ip} on port {self.verifier_port}. Response status code is {response.status_code}"
+            f"Bulk Status: Unexpected response from {self.verifier_fid_str}. Response status code is {response.status_code}"
         )
 
     def do_cvdelete(self, verifier_check: bool = True) -> None:
         """Delete agent from Verifier."""
+
+        self.set_full_id_str()
+
         if verifier_check:
             cvresponse = self.do_cvstatus()
 
@@ -768,14 +808,19 @@ class Tenant:
 
             if cvresponse["code"] == 404:
                 logger.info(
-                    "Agent ID %s deleted from Verifier",
-                    self.agent_uuid,
+                    "The %s is deleted from %s",
+                    self.agent_fid_str,
+                    self.verifier_fid_str,
                 )
                 return
 
             if self.agent_uuid in cvresponse["results"]:
                 self.verifier_ip = cvresponse["results"][self.agent_uuid]["verifier_ip"]
                 self.verifier_port = cvresponse["results"][self.agent_uuid]["verifier_port"]
+                self.verifier_id = cvresponse["results"][self.agent_uuid]["verifier_id"]
+                self.agent_ip = cvresponse["results"][self.agent_uuid]["ip"]
+                self.agent_port = cvresponse["results"][self.agent_uuid]["port"]
+                self.set_full_id_str()
 
         do_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvdelete.delete(f"/v{self.api_version}/agents/{self.agent_uuid}", timeout=self.request_timeout)
@@ -784,15 +829,15 @@ class Tenant:
 
         if response_json["code"] == 503:
             logger.error(
-                "Cannot connect to Verifier at %s with Port %s. Connection refused.",
-                self.verifier_ip,
-                self.verifier_port,
+                "Cannot connect to %s to delete %s. Connection refused.",
+                self.verifier_fid_str,
+                self.agent_fid_str,
             )
             keylime_logging.log_http_response(logger, logging.ERROR, response_json)
             sys.exit()
 
         if response_json["code"] == 504:
-            logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
+            logger.error("%s timed out while deleting %s.", self.verifier_fid_str, self.agent_fid_str)
             keylime_logging.log_http_response(logger, logging.ERROR, response_json)
             sys.exit()
 
@@ -806,15 +851,17 @@ class Tenant:
                     numtries += 1
                     if numtries >= self.maxr:
                         logger.error(
-                            "Agent ID %s still not deleted from the Verifier after %d tries",
-                            self.agent_uuid,
+                            "%s was not deleted from %s after %d tries",
+                            self.agent_fid_str,
+                            self.verifier_fid_str,
                             numtries,
                         )
                         sys.exit()
                     next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                     logger.info(
-                        "Agent ID %s still not deleted from the Verifier at try %d of %d , trying again in %s seconds...",
-                        self.agent_uuid,
+                        "%s still not deleted from %s at try %d/%d, trying again in %s seconds...",
+                        self.agent_fid_str,
+                        self.verifier_fid_str,
                         numtries,
                         self.maxr,
                         next_retry,
@@ -825,26 +872,34 @@ class Tenant:
 
             if deleted:
                 logger.info(
-                    "Agent ID %s deleted from the Verifier after %d tries",
-                    self.agent_uuid,
+                    "%s was deleted from %s after %d tries",
+                    self.agent_fid_str,
+                    self.verifier_fid_str,
                     numtries,
                 )
-
+                # Marked for deletion (need to modify the code on CI tests)
                 logger.info("Agent %s deleted from the CV", self.agent_uuid)
 
     def do_regstatus(self) -> Dict[str, Any]:
         if not self.registrar_ip or not self.registrar_port:
             raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
 
+        self.set_full_id_str()
+
         agent_info = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid, self.tls_context)
 
         if not agent_info:
             logger.info(
+                # Marked for deletion (the message should be replaced by the 3 following commented out lines)
                 "Agent %s does not exist on the registrar. Please register the agent with the registrar.",
                 self.agent_uuid,
+                # "%s does not exist on %s. Check the agent logs to for error messages while attempting to get registered.",
+                # self.agent_fid_str,
+                # self.registrar_fid_str,
             )
             response = {
                 "code": 404,
+                # Marked for deletion. The "status" field should be replaced by "status": f"{self.agent_fid_str} does not exist on {self.registrar_fid_str}.",
                 "status": f"Agent {self.agent_uuid} does not exist on "
                 f"registrar {self.registrar_ip} port {self.registrar_port}.",
                 "results": {},
@@ -852,17 +907,21 @@ class Tenant:
             logger.info(json.dumps(response))
             return response
 
+        # Marked for deletion (the "status" line need to be changed to f"registrar {self.registrar_ip} port {self.registrar_port}.")
         response = {
             "code": 200,
             "status": f"Agent {self.agent_uuid} exists on "
             f"registrar {self.registrar_ip} port {self.registrar_port}.",
             "results": {},
         }
+
         assert isinstance(response["results"], dict)
         response["results"][self.agent_uuid] = agent_info
         response["results"][self.agent_uuid]["operational_state"] = states.state_to_str(states.REGISTERED)
 
+        logger.info("Status from %s: %s", self.registrar_fid_str, response["status"])
         logger.info(json.dumps(response))
+        logger.info("Agent Info from %s:\n%s", self.registrar_fid_str, json.dumps(response["results"]))
 
         return response
 
@@ -871,13 +930,20 @@ class Tenant:
         if not self.registrar_ip or not self.registrar_port:
             raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
 
+        self.set_full_id_str()
+
         response = registrar_client.doRegistrarList(
             self.registrar_ip, self.registrar_port, tls_context=self.tls_context
         )
 
+        # Marked for deletion (need to modify the code on CI tests)
         logger.info(
-            "From registrar %s port %s retrieved %s", self.registrar_ip, self.registrar_port, json.dumps(response)
+            "From registrar %s port %s retrieved %s\n", self.registrar_ip, self.registrar_port, json.dumps(response)
         )
+        assert isinstance(response, dict)
+        assert isinstance(response["results"], dict)
+        logger.info("Agent list from %s retrieved: \n%s", self.registrar_fid_str, json.dumps(response["results"]))
+
         return response
 
     def do_regdelete(self) -> Dict[str, Any]:
@@ -903,9 +969,8 @@ class Tenant:
 
         if not isinstance(cvresponse, dict):
             logger.error(
-                "Unexpected response from Cloud Verifier %s on port %s. response %s",
-                self.verifier_ip,
-                self.verifier_port,
+                "Unexpected response from %s: %s",
+                self.verifier_fid_str,
                 str(cvresponse),
             )
             return cvresponse
@@ -916,13 +981,9 @@ class Tenant:
             return regresponse
 
         logger.error(
-            "Unknown inconsistent state between registrar %s on "
-            "port %s and verifier %s on port %s occured. Got "
-            "registrar response %s verifier response %s",
-            self.verifier_ip,
-            self.verifier_port,
-            self.registrar_ip,
-            self.registrar_port,
+            "Unknown inconsistent state between %s and %s occured. Got %s from the former and %s from the latter",
+            self.registrar_fid_str,
+            self.verifier_fid_str,
             str(regresponse),
             str(cvresponse),
         )
@@ -932,9 +993,12 @@ class Tenant:
     def do_cvreactivate(self, verifier_check: bool = True) -> Dict[str, Any]:
         """Reactive Agent."""
         if verifier_check:
-            agent_json = self.do_cvstatus()
-            self.verifier_ip = agent_json["results"][self.agent_uuid]["verifier_ip"]
-            self.verifier_port = agent_json["results"][self.agent_uuid]["verifier_port"]
+            cvresponse = self.do_cvstatus()
+            self.verifier_ip = cvresponse["results"][self.agent_uuid]["verifier_ip"]
+            self.verifier_port = cvresponse["results"][self.agent_uuid]["verifier_port"]
+            self.verifier_id = cvresponse["results"][self.agent_uuid]["verifier_id"]
+
+        self.set_full_id_str()
 
         do_cvreactivate = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvreactivate.put(
@@ -947,20 +1011,23 @@ class Tenant:
 
         if response.status_code == 503:
             logger.error(
-                "Cannot connect to Verifier at %s with Port %s. Connection refused.",
-                self.verifier_ip,
-                self.verifier_port,
+                "Cannot connect to %s. Connection refused.",
+                self.verifier_fid_str,
             )
             return response_json
         if response.status_code == 504:
-            logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
+            logger.error("%s timed out.", self.verifier_fid_str)
             return response_json
         if response.status_code == 200:
+            # Marked for deletion (need to modify the code on CI tests)
             logger.info("Agent %s re-activated", self.agent_uuid)
+            logger.info("%s re-activated", self.agent_fid_str)
             return response_json
 
         keylime_logging.log_http_response(logger, logging.ERROR, response_json)
-        logger.error("Reactivate command response: %s Unexpected response from Cloud Verifier.", response.status_code)
+        logger.error(
+            "Reactivate command response: %s Unexpected response from %s.", response.status_code, self.verifier_fid_str
+        )
         return response_json
 
     def do_cvstop(self) -> None:
@@ -969,24 +1036,27 @@ class Tenant:
         do_cvstop = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvstop.put(params, data=b"", timeout=self.request_timeout)
 
+        self.set_full_id_str()
+
         if response.status_code == 503:
             logger.error(
-                "Cannot connect to Verifier at %s with Port %s. Connection refused.",
-                self.verifier_ip,
-                self.verifier_port,
+                "Cannot connect to %s. Connection refused.",
+                self.verifier_fid_str,
             )
             sys.exit()
         elif response.status_code == 504:
-            logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
+            logger.error("%s timed out.", self.verifier_fid_str)
             sys.exit()
 
         response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
 
         if response.status_code != 200:
             keylime_logging.log_http_response(logger, logging.ERROR, response_json)
-            logger.error("Stop command response: %s Unexpected response from Cloud Verifier.", response.status_code)
+            logger.error(
+                "Stop command response: %s Unexpected response from %s.", response.status_code, self.verifier_fid_str
+            )
         else:
-            logger.info("Agent %s stopped", self.agent_uuid)
+            logger.info("%s stopped", self.agent_fid_str)
 
     def do_quote(self) -> None:
         """Perform TPM quote by GET towards Agent
@@ -1012,7 +1082,7 @@ class Tenant:
                     ) as do_quote:
                         response = do_quote.get(params, timeout=self.request_timeout)
                 else:
-                    logger.warning("Connecting to agent without using mTLS!")
+                    logger.warning("Connecting to %s without using mTLS!", self.agent_fid_str)
                     do_quote = RequestsClient(cloudagent_base_url, tls_enabled=False)
                     response = do_quote.get(params, timeout=self.request_timeout)
 
@@ -1023,15 +1093,14 @@ class Tenant:
                     numtries += 1
                     if numtries >= self.maxr:
                         logger.error(
-                            "Tenant cannot establish connection to agent on %s with port %s",
-                            self.agent_ip,
-                            self.agent_port,
+                            "Tenant cannot establish connection to %s",
+                            self.agent_fid_str,
                         )
                         sys.exit()
                     next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                     logger.info(
-                        "Tenant connection to agent at %s refused %s/%s times, trying again in %s seconds...",
-                        self.agent_ip,
+                        "Tenant connection to %s refused %s/%s times, trying again in %s seconds...",
+                        self.agent_fid_str,
                         numtries,
                         self.maxr,
                         next_retry,
@@ -1043,41 +1112,47 @@ class Tenant:
             break
 
         if response is not None and response.status_code != 200:
-            raise UserError(f"Status command response: {response.status_code} Unexpected response from Cloud Agent.")
+            raise UserError(
+                f"Status command response: {response.status_code} Unexpected response from {self.agent_fid_str}."
+            )
 
         if "results" not in response_json:
-            raise UserError(f"Error: unexpected http response body from Cloud Agent: {str(response.status_code)}")
+            raise UserError(
+                f"Error: unexpected http response body from {self.agent_fid_str}: {str(response.status_code)}"
+            )
 
         quote = response_json["results"]["quote"]
-        logger.debug("Agent_quote received quote: %s", quote)
+        logger.debug("Tenant received quote from %s: %s", self.agent_fid_str, quote)
 
         public_key = response_json["results"]["pubkey"]
-        logger.debug("Agent_quote received public key: %s", public_key)
+        logger.debug("Tenant received public key from %s: %s", self.agent_fid_str, public_key)
 
         # Ensure hash_alg is in accept_tpm_hash_algs list
         hash_alg = response_json["results"]["hash_alg"]
-        logger.debug("Agent_quote received hash algorithm: %s", hash_alg)
+        logger.debug("Tenant received hash algorithm from %s: %s", self.agent_fid_str, hash_alg)
         if not algorithms.is_accepted(
             hash_alg, config.getlist("tenant", "accept_tpm_hash_algs")
         ) or not algorithms.Hash.is_recognized(hash_alg):
-            raise UserError(f"TPM Quote is using an unaccepted hash algorithm: {hash_alg}")
+            raise UserError(f"TPM Quote from {self.agent_fid_str} is using an unaccepted hash algorithm: {hash_alg}")
 
         # Ensure enc_alg is in accept_tpm_encryption_algs list
         enc_alg = response_json["results"]["enc_alg"]
-        logger.debug("Agent_quote received encryption algorithm: %s", enc_alg)
+        logger.debug("Tenant received received encryption algorithm from %s: %s", self.agent_fid_str, enc_alg)
         if not algorithms.is_accepted(enc_alg, config.getlist("tenant", "accept_tpm_encryption_algs")):
-            raise UserError(f"TPM Quote is using an unaccepted encryption algorithm: {enc_alg}")
+            raise UserError(
+                f"TPM Quote from {self.agent_fid_str} is using an unaccepted encryption algorithm: {enc_alg}"
+            )
 
         # Ensure sign_alg is in accept_tpm_encryption_algs list
         sign_alg = response_json["results"]["sign_alg"]
-        logger.debug("Agent_quote received signing algorithm: %s", sign_alg)
+        logger.debug("Tenant received signing algorithm from %s: %s", self.agent_fid_str, sign_alg)
         if not algorithms.is_accepted(sign_alg, config.getlist("tenant", "accept_tpm_signing_algs")):
-            raise UserError(f"TPM Quote is using an unaccepted signing algorithm: {sign_alg}")
+            raise UserError(f"TPM Quote from {self.agent_fid_str} is using an unaccepted signing algorithm: {sign_alg}")
 
         if not self.validate_tpm_quote(public_key, quote, algorithms.Hash(hash_alg)):
-            raise UserError(f"TPM Quote from cloud agent is invalid for nonce: {self.nonce}")
+            raise UserError(f"TPM Quote from {self.agent_fid_str} is invalid for nonce: {self.nonce}")
 
-        logger.info("Quote from %s validated", self.agent_ip)
+        logger.info("Quote from %s validated", self.agent_fid_str)
 
         # encrypt U with the public key
         encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key), self.U)
@@ -1101,23 +1176,24 @@ class Tenant:
             ) as post_ukey:
                 response = post_ukey.post(params, json=data, timeout=self.request_timeout)
         else:
-            logger.warning("Connecting to agent without using mTLS!")
+            logger.warning("Connecting to %s without using mTLS!", self.agent_fid_str)
             post_ukey = RequestsClient(cloudagent_base_url, tls_enabled=False)
             response = post_ukey.post(params, json=data, timeout=self.request_timeout)
 
         if response.status_code == 503:
             logger.error(
-                "Cannot connect to Agent at %s with Port %s. Connection refused.", self.agent_ip, self.agent_port
+                "Cannot connect to %s to post encrypted U. Connection refused.",
+                self.agent_fid_str,
             )
             sys.exit()
         elif response.status_code == 504:
-            logger.error("Verifier at %s with Port %s timed out.", self.verifier_ip, self.verifier_port)
+            logger.error("%s timed out while posting encrypted U", self.agent_fid_str)
             sys.exit()
 
         if response.status_code != 200:
             keylime_logging.log_http_response(logger, logging.ERROR, response_json)
             raise UserError(
-                f"Posting of Encrypted U to the Cloud Agent failed with response code {response.status_code} ({response.text})"
+                f"Posting of encrypted U to {self.agent_fid_str} failed with response code {response.status_code} ({response.text})"
             )
 
     def do_verify(self) -> None:
@@ -1141,7 +1217,7 @@ class Tenant:
                             timeout=self.request_timeout,
                         )
                 else:
-                    logger.warning("Connecting to agent without using mTLS!")
+                    logger.warning("Connecting to %s without using mTLS!", self.agent_fid_str)
                     do_verify = RequestsClient(cloudagent_base_url, tls_enabled=False)
                     response = do_verify.get(
                         f"/v{self.supported_version}/keys/verify?challenge={challenge}", timeout=self.request_timeout
@@ -1153,15 +1229,13 @@ class Tenant:
                 if response is not None and response.status_code in (503, 504):
                     numtries += 1
                     if numtries >= self.maxr:
-                        logger.error(
-                            "Cannot establish connection to agent on %s with port %s", self.agent_ip, self.agent_port
-                        )
+                        logger.error("Cannot establish connection to %s", self.agent_fid_str)
                         self.do_cvstop()
                         sys.exit()
                     next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                     logger.info(
-                        "Verifier connection to agent at %s refused %s/%s times, trying again in %s seconds...",
-                        self.agent_ip,
+                        "Connection to %s refused %s/%s times, trying again in %s seconds...",
+                        self.agent_fid_str,
                         numtries,
                         self.maxr,
                         next_retry,
@@ -1177,9 +1251,8 @@ class Tenant:
             if response.status_code == 200:
                 if "results" not in response_json or "hmac" not in response_json["results"]:
                     logger.critical(
-                        "Error: unexpected http response body from on agent %s with port %s : %s",
-                        self.agent_ip,
-                        self.agent_port,
+                        "Error: unexpected http response body from %s : %s",
+                        self.agent_fid_str,
                         response.status_code,
                     )
                     self.do_cvstop()
@@ -1187,21 +1260,29 @@ class Tenant:
                 mac = response_json["results"]["hmac"]
 
                 if mac == ex_mac:
-                    logger.info("Agent on %s with port %s successfully derived key", self.agent_ip, self.agent_port)
+                    logger.info("Successful key derivation for %s", self.agent_fid_str)
 
             if mac != ex_mac:
                 if response.status_code != 200:
                     keylime_logging.log_http_response(logger, logging.ERROR, response_json)
                 numtries += 1
                 if numtries >= self.maxr:
-                    logger.error("Agent on %s with port %s failed key derivation", self.agent_ip, self.agent_port)
+                    logger.error(
+                        "Failed key derivation for %s (expected length %d, received %d",
+                        self.agent_fid_str,
+                        len(ex_mac),
+                        len(mac),
+                    )
                     self.do_cvstop()
                     sys.exit()
                 next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                 logger.info(
-                    "Key derivation not yet complete (retry %s/%s), trying again in %s seconds... (Ctrl-C to stop)",
+                    "Key derivation not yet complete for %s at try %d/%d (expected length %d, received length %d) trying again in %d seconds... (Ctrl-C to stop)",
+                    self.agent_fid_str,
                     numtries,
                     self.maxr,
+                    len(ex_mac),
+                    len(mac),
                     next_retry,
                 )
                 time.sleep(next_retry)
