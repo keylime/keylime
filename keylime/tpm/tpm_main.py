@@ -180,16 +180,7 @@ class Tpm:
         # convert all pcr num keys to integers
         pcr_allowlist = {int(k): v for k, v in list(pcr_allowlist.items())}
 
-        # temporary: to avoid a CI failure, we don't attempt to evaluate
-        # boot logs when the policy is empty. This is because the CI
-        # system currently cannot simulate MBA correctly.
-        # we parse mb_refstate here to figure out whether it's empty.
-        if not mb_refstate:
-            mb_refstate_data = None
-        else:
-            mb_refstate_data = json.loads(mb_refstate)
-
-        mb_pcrs_hashes, boot_aggregates, mb_measurement_data, mb_failure = mba.parse_bootlog(
+        mb_pcrs_hashes, boot_aggregates, mb_measurement_data, mb_failure = mba.bootlog_parse(
             mb_measurement_list, hash_alg
         )
         failure.merge(mb_failure)
@@ -252,7 +243,7 @@ class Tpm:
         # Handle measured boot PCRs only if the parsing worked
         if not mb_failure:
             for pcr_num in set(config.MEASUREDBOOT_PCRS) & pcr_nums:
-                if mb_refstate_data:
+                if mba.policy_is_valid(mb_refstate):
                     if not mb_measurement_list:
                         logger.error(
                             "Measured Boot PCR %d in policy, but no measurement list provided by agent %s",
@@ -343,8 +334,8 @@ class Tpm:
             logger.error("PCRs specified in policy not in quote (from agent %s): %s", agent_id, missing)
             failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": list(missing)}, True)
 
-        if not mb_failure and mb_refstate_data:
-            mb_policy_failure = mba.evaluate_bootlog(
+        if not mb_failure and mba.policy_is_valid(mb_refstate):
+            mb_policy_failure = mba.bootlog_evaluate(
                 mb_refstate,
                 mb_measurement_data,
                 pcrs_in_quote,

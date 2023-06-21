@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional
 from packaging.version import Version
 
 from keylime import cmd_exec, config, keylime_logging
-from keylime.common import algorithms
 from keylime.failure import Component, Failure
 
 if typing.TYPE_CHECKING:
@@ -18,10 +17,11 @@ if typing.TYPE_CHECKING:
 logger = keylime_logging.init_logging("elparsing")
 
 
-def parse_bootlog(
-    mb_measurement_list: Optional[str], hash_alg: algorithms.Hash
+def bootlog_parse(
+    mb_measurement_list: Optional[str], hash_alg: str
 ) -> typing.Tuple["MBPCRDict", "MBAgg", "MBLog", Failure]:
-    """Parse the measured boot log and return its object and the state of the PCRs
+    """
+    Parse the measured boot log and return its object and the state of the PCRs
     :param mb_measurement_list: The measured boot measurement list
     :param hash_alg: the hash algorithm that should be used for the PCRs
     :returns: Returns a map of the state of the PCRs, measured boot data object and True for success
@@ -39,11 +39,9 @@ def parse_bootlog(
             logger.error("Parse of measured boot event log has unexpected value for .pcrs: %r", log_pcrs)
             failure.add_event("invalid_pcrs", {"got": log_pcrs}, True)
             return {}, None, {}, failure
-        pcr_hashes = log_pcrs.get(str(hash_alg))
+        pcr_hashes = log_pcrs.get(hash_alg)
         if (not isinstance(pcr_hashes, dict)) or not pcr_hashes:
-            logger.error(
-                "Parse of measured boot event log has unexpected value for .pcrs.%s: %r", str(hash_alg), pcr_hashes
-            )
+            logger.error("Parse of measured boot event log has unexpected value for .pcrs.%s: %r", hash_alg, pcr_hashes)
             failure.add_event("invalid_pcrs_hashes", {"got": pcr_hashes}, True)
             return {}, None, {}, failure
         boot_aggregates = mb_measurement_data.get("boot_aggregates")
@@ -245,28 +243,29 @@ def tpm2_tools_getversion() -> str:
         and len(tools_version) > 1
         and int(tools_version[1]) >= 24
     ):
-        logger.info("TPM2-TOOLS Version: %s", tools_version[0])
         _tpm2_tools_version = "5.4"
         return _tpm2_tools_version
     if Version(tools_version[0]) == Version("5.2"):
         # GA, MaS: experimentally found that version 5.2 of the tpm2_eventlog package produces output with
         # zero-terminated strings on both centos 9 and Ubuntu 22.04.
         # Adding a separate category for tpm2_tools_version so we can control whether strings are unescaped properly.
-        logger.info("TPM2-TOOLS Version: %s", tools_version[0])
         _tpm2_tools_version = "5.2"
         return _tpm2_tools_version
     if Version(tools_version[0]) >= Version("4.2"):
-        logger.info("TPM2-TOOLS Version: %s", tools_version[0])
         _tpm2_tools_version = "4.2"
         return _tpm2_tools_version
     if Version(tools_version[0]) >= Version("4.0.0"):
-        logger.info("TPM2-TOOLS Version: %s", tools_version[0])
         _tpm2_tools_version = "4.0"
         return _tpm2_tools_version
     if Version(tools_version[0]) >= Version("3.2.0"):
-        logger.info("TPM2-TOOLS Version: %s", tools_version[0])
         _tpm2_tools_version = "3.2"
         return _tpm2_tools_version
     logger.error("TPM2-TOOLS Version %s is not supported.", tools_version[0])
     _tpm2_tools_version = "unknown"
     return _tpm2_tools_version
+
+
+toolversion = tpm2_tools_getversion()
+if toolversion == "unknown":
+    raise ValueError("TPM2-TOOLS: version cannot be determined or unsupported")
+logger.debug("mba.elparser.tpm2_tools_elparser: TPM2-TOOLS %s detected.", toolversion)

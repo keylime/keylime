@@ -40,8 +40,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    mba.load_policy_engine()
-    mba.load_parser_engine()
+    mba.load_imports()
 
     rmcb = config.get("registrar", "durable_attestation_import", fallback="")
     rmc = record.get_record_mgt_class(rmcb)

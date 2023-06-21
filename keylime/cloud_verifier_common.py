@@ -10,6 +10,7 @@ from keylime.db.verifier_db import VerfierMain
 from keylime.failure import Component, Event, Failure
 from keylime.ima import file_signatures
 from keylime.ima.types import RuntimePolicyType
+from keylime.mba import mba
 from keylime.tpm import tpm_util
 from keylime.tpm.tpm_main import Tpm
 
@@ -259,8 +260,7 @@ def prepare_get_quote(agent: Dict[str, Any]) -> Dict[str, Union[str, int]]:
 def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
     has_mb_refstate = 0
     try:
-        mb_refstate = json.loads(cast(str, agent.mb_refstate))
-        if mb_refstate and mb_refstate.keys():
+        if mba.policy_is_valid(cast(str, agent.mb_refstate)):
             has_mb_refstate = 1
     except Exception as e:
         logger.warning(

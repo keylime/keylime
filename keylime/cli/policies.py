@@ -164,7 +164,7 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
         if isinstance(args["mb_refstate"], str):
             if args["mb_refstate"] == "default":
                 args["mb_refstate"] = config.get("tenant", "mb_refstate")
-            mb_refstate_data = mba.load_policy_file(args["mb_refstate"])
+            mb_refstate_data = mba.policy_load(args["mb_refstate"])
         else:
             raise UserError("Invalid measured boot reference state (intended state) provided")
 
