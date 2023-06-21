@@ -2,11 +2,11 @@ import argparse
 import json
 import sys
 
+from keylime.mba import mba
 from keylime.mba.elparsing import tpm2_tools_elparser
 
 from . import policies
 
-policies.load_policies()
 # This main module is just for command-line based testing.
 # It implements a command to do one test.
 # Invoke it with `python3 -m $packagename`, for some value of
@@ -18,6 +18,7 @@ parser.add_argument("policy_name", choices=policies.get_policy_names())
 parser.add_argument("refstate_file", type=argparse.FileType("rt"))
 parser.add_argument("eventlog_file", type=argparse.FileType("rb"), default=sys.stdin)
 args = parser.parse_args()
+mba.load_imports()
 policy = policies.get_policy(args.policy_name)
 if policy is None:
     print(

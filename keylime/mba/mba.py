@@ -1,11 +1,36 @@
-import json
-from typing import Dict, List, Mapping, Optional, Set, Tuple
+import importlib
+from inspect import isfunction
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from keylime import config
-from keylime.common import algorithms
 from keylime.failure import Failure
-from keylime.mba.elchecking import mbpolicy, policies
-from keylime.mba.elparsing import tpm2_tools_elparser
+
+# #########
+# Pluggable MBA theory of operations
+# #########
+# This module (keylime/mba) defines all the "abstract" functions that
+# any measured boot attestation implementation has to provide:
+# * bootlog_parse
+#   * converts a boot log from binary to JSON
+#   * authenticates the log by checking the consistency of its digests
+#   * provides a set of PCRs that can be verified against the TPM quote
+#   * provides a boot aggregate for use by Keylime IMA verification.
+# * policy_load
+#   * load a policy from a file into a Python string
+#   * optionally validate that the policy is syntactically correct (this is TBD)
+# * policy_is_valid
+#   * test whether a string is valid policy
+# * bootlog_evaluate
+#   * check the parsed boot log against the loaded policy, and return a list of policy failures
+# #########
+# Upon initialization MBA loads a number of modules
+# as specified in the keylime verifier's configuration file.
+# #########
+# The implementation for each of the functions described above
+# will be chosen from the ordered list of imported modules -- the first imported
+# module in the list that implements one of these functions will be called for it.
+# #########
+
 
 # ##########
 # type definition for a measured boot log represented in Python.
@@ -21,20 +46,61 @@ MBPCRDict = Dict[str, int]
 MBAgg = Optional[Dict[str, List[str]]]
 
 # ###########
-# import/load policy engine
+# list of all imported modules for MBA.
+# ###########
+
+_mba_imports = []
+
+# ###########
+# import/load measured boot attestation imports
 # ###########
 
 
-def load_policy_engine() -> None:
+def load_imports() -> None:
     """
-    MBA API front-end for importing the policy engine.
-    No inputs, but implementation *will* read from keylime configuration files.
+    MBA API front-end for importing any modules needed by measured boot attestation.
+    No inputs.
     No outputs.
-    Side effects: policy engine is now loaded.
-    Exceptions: If the policy engine cannot be loaded.
+    Side effects: Reads from keylime configuration files.
+      After execution all imports required by MBA are loaded and initialized.
+    Exceptions: If any policy engine in the list cannot be loaded.
     """
     try:
-        policies.load_policies()
+        imports = config.getlist("verifier", "measured_boot_imports")
+        # these are the defaults
+        imports.append("keylime.mba.elchecking.elchecker")
+        imports.append("keylime.mba.elchecking.example")
+        imports.append("keylime.mba.elparsing.tpm2_tools_elparser")
+        # initialize all modules if they carry an initialization function.
+        for m in imports:
+            _mba_imports.append(importlib.import_module(m, __package__))
+    except Exception as e:
+        raise ValueError from e
+
+
+# ##########
+# parse a boot log to JSON
+# ##########
+
+
+def bootlog_parse(bootlog_b64: Optional[str], hash_alg: str) -> Tuple[MBPCRDict, MBAgg, MBLog, Failure]:
+    """
+    MBA API front-end for parsing a binary boot log.
+
+    :param bootlog_b64: a b64 encoded version of the binary boot eventlog from the agent's /sys/kernel directory
+    :param hash_alg: the expected hash algorithm to use when decoding the boot log. This is a string, something like
+    "sha1" or "sha256".
+    :returns:
+    * mb_pcrs_hashes: the expected hash values for all PCRs mentioned in the boot log, using the input hash_alg.
+    * boot_aggregates: all boot aggregates calculated by the parsed event log.
+      This typically includes the aggregate of PCRs 0 to 9, although for sha1 algorithms we only consider PCRs 0 to 7.
+    * mb_data: the actual decoded boot log, as a JSON array of events.
+    * mb_failure: a list of all failures encountered while parsing the event log.
+    """
+
+    try:
+        m = _find_implementation("bootlog_parse")
+        return m.bootlog_parse(bootlog_b64, hash_alg)  # type: ignore[no-any-return]
     except Exception as e:
         raise ValueError from e
 
@@ -44,11 +110,11 @@ def load_policy_engine() -> None:
 # ##########
 
 
-def load_policy_file(policy_path: Optional[str] = None) -> str:
+def policy_load(policy_path: Optional[str] = None) -> str:
     """
     MBA API front-end for loading an actual policy file.
-    Inputs: <optional> name of policy file to load
-    Outputs: a string defining the policy.
+    :param policy_path: <optional> name of policy file to load
+    :returns: a string defining the policy.
     Errors: if the policy file cannot be read, or contains errors, this function may
     cause exceptions.
 
@@ -56,11 +122,26 @@ def load_policy_file(policy_path: Optional[str] = None) -> str:
     """
 
     try:
-        if policy_path is None:
-            policy_path = config.get("tenant", "mb_refstate")
-        with open(policy_path, encoding="utf-8") as f:
-            mb_policy_data = json.load(f)
-            return json.dumps(mb_policy_data)
+        m = _find_implementation("policy_load")
+        return m.policy_load(policy_path)  # type: ignore[no-any-return]
+    except Exception as e:
+        raise ValueError from e
+
+
+# ##########
+# policy validator
+# ##########
+
+
+def policy_is_valid(mb_refstate: Optional[str]) -> bool:
+    """
+    MBA API front-end for checking the validity of a MBA policy (aka refstate).
+    :param mb_refstate: a string describing the policy
+    :returns: true if the string is valid policy
+    """
+    try:
+        m = _find_implementation("policy_is_valid")
+        return m.policy_is_valid(mb_refstate)  # type: ignore[no-any-return]
     except Exception as e:
         raise ValueError from e
 
@@ -70,7 +151,7 @@ def load_policy_file(policy_path: Optional[str] = None) -> str:
 # ##########
 
 
-def evaluate_bootlog(
+def bootlog_evaluate(
     policy_data: Optional[str],
     measurement_data: MBLog,
     pcrsInQuote: Set[int],
@@ -79,54 +160,28 @@ def evaluate_bootlog(
     """
     MBA API front-end for evaluating a measured boot event log against a policy.
     :param policy_data: policy definition (aka "refstate") (as a string).
-    :param measurement_data: parsed measured boot event log as produced by `parse_bootlog`
+    :param measurement_data: parsed measured boot event log as produced by `bootlog_parse`
     :param pcrsInQuote: a set of PCRs provided by the quote.
     :param agent_id: the UUID of the keylime agent sending this data.
     :returns: list of all failures encountered while evaluating the boot log against the policy.
     """
-    return mbpolicy.evaluate_bootlog(policy_data, measurement_data, pcrsInQuote, agent_id)
-
-
-# ##########
-# parser initialization
-# ##########
-
-
-def load_parser_engine() -> None:
-    """
-    MBA API front end for initializing a binary event log parser.
-    No inputs, but implementation *will* read from keylime configuration files.
-    No returns.
-    Side effects: parser engine is loaded.
-    Exceptions raised: gives the opportunity to the system to raise errors
-    if the event log parser cannot be loaded/initialized.
-    """
     try:
-        tpm2_tools_version = tpm2_tools_elparser.tpm2_tools_getversion()
-        if tpm2_tools_version == "unknown":
-            raise ValueError("TPM2-TOOLS: version cannot be determined or unsupported")
+        m = _find_implementation("bootlog_evaluate")
+        return m.bootlog_evaluate(policy_data, measurement_data, pcrsInQuote, agent_id)  # type: ignore[no-any-return]
     except Exception as e:
         raise ValueError from e
 
 
-# ##########
-# parsing a boot log
-# ##########
+# ###########
+# MBA internal function: find an implementation for pluggable functions.
+# ###########
 
 
-def parse_bootlog(bootlog_b64: Optional[str], hash_alg: algorithms.Hash) -> Tuple[MBPCRDict, MBAgg, MBLog, Failure]:
+def _find_implementation(functionname: str) -> Any:
     """
-    MBA API front-end for parsing a binary boot log.
-
-    :param bootlog_b64: a b64 encoded version of the binary boot eventlog from the agent's /sys/kernel directory
-    :param hash_alg: the expected hash algorithm to use when decoding the boot log. This may result in an error
-    if the hash algorithm was not actually used in the boot log.
-
-    :returns:
-    * mb_pcrs_hashes: the expected hash values for all PCRs mentioned in the boot log, using the input hash_alg.
-    * boot_aggregates: all boot aggregates calculated by the parsed event log.
-      This typically includes the aggregate of PCRs 0 to 9, although for sha1 algorithms we only consider PCRs 0 to 7.
-    * mb_data: the actual decoded boot log, as a JSON array of events.
-    * mb_failure: a list of all failures encountered while parsing the event log.
+    This function finds the correct implementation for any of the pluggable functions in MBA
     """
-    return tpm2_tools_elparser.parse_bootlog(bootlog_b64, hash_alg)
+    for m in _mba_imports:
+        if hasattr(m, functionname) and isfunction(getattr(m, functionname)):
+            return m
+    raise ValueError(f"No implementation for function {functionname} found among measured boot imports")

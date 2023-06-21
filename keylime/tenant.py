@@ -21,6 +21,7 @@ from keylime.cli import options, policies
 from keylime.cmd import user_data_encrypt
 from keylime.common import algorithms, retry, states, validators
 from keylime.ip_util import bracketize_ipv6
+from keylime.mba import mba
 from keylime.requests_client import RequestsClient
 from keylime.tpm import tpm2_objects, tpm_util
 from keylime.tpm.tpm_main import Tpm
@@ -155,6 +156,8 @@ class Tenant:
             logger.info("TLS is enabled.")
         else:
             logger.warning("TLS is disabled.")
+
+        mba.load_imports()
 
     @property
     def verifier_base_url(self) -> str:

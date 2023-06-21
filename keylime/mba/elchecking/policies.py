@@ -1,8 +1,5 @@
 import abc
-import importlib
 import typing
-
-from keylime import config
 
 from . import tests
 
@@ -101,12 +98,3 @@ def evaluate(policy_name: str, refstate: RefState, eventlog: tests.Data) -> str:
     """
     tester = refstate_to_test(policy_name, refstate)
     return tester.why_not({}, eventlog)
-
-
-def load_policies() -> None:
-    imports = config.getlist("verifier", "measured_boot_imports")
-    imports.append(".example")
-    if imports:
-        for imp in imports:
-            if imp:
-                importlib.import_module(imp, __package__)

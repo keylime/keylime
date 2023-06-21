@@ -10,10 +10,8 @@ def main() -> None:
     if config.has_option("verifier", "auto_migrate_db") and config.getboolean("verifier", "auto_migrate_db"):
         apply("cloud_verifier")
 
-    # Load explicitly the policy modules into Keylime for the verifier,
-    # so that they are not loaded accidentally from other components
-    mba.load_policy_engine()
-    mba.load_parser_engine()
+    # Explicitly load and initialize measured boot components
+    mba.load_imports()
     cloud_verifier_tornado.main()
 
 
