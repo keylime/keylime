@@ -598,59 +598,51 @@ class Tenant:
         )
 
         if response.status_code == 503:
-            logger.error(
-                "Cannot connect to %s while adding %s. Connection refused.",
-                self.verifier_fid_str,
-                self.agent_fid_str,
+            raise UserError(
+                f"Cannot connect to {self.verifier_fid_str} while adding {self.agent_fid_str}. Connection refused."
             )
-            sys.exit()
-        elif response.status_code == 504:
+
+        if response.status_code == 504:
             logger.error("%s timed out while adding %s.", self.verifier_fid_str, self.agent_fid_str)
-            sys.exit()
+            raise UserError(f"{self.verifier_fid_str} timed out while adding {self.agent_fid_str}")
 
         response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
 
         if response.status_code == 409:
-            # this is a conflict, need to update or delete it
-            print(response_json)
-            sys.exit()
-        elif response.status_code != 200:
-            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
-            logger.error(
-                "POST command response: %s Unexpected response from %s: %s",
-                response.status_code,
-                self.verifier_fid_str,
-                response.text,
+            raise UserError(
+                f'{self.verifier_fid_str} responded indicating a conflict for agent {self.agent_fid_str}. Run "delete" or "update" first.'
             )
-            sys.exit()
-        else:
-            numtries = 0
-            added = False
 
-            while not added:
-                reponse_json = self.do_cvstatus()
-                if reponse_json["code"] != 200:
-                    numtries += 1
-                    if numtries >= self.maxr:
-                        logger.error(
-                            "%s still not added to %s after %d tries",
-                            self.agent_fid_str,
-                            self.verifier_fid_str,
-                            numtries,
-                        )
-                        sys.exit()
-                    next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
-                    logger.info(
-                        "%s still not added to %s at try %d/%d, trying again in %d seconds...",
-                        self.agent_fid_str,
-                        self.verifier_fid_str,
-                        numtries,
-                        self.maxr,
-                        next_retry,
+        if response.status_code != 200:
+            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
+            raise UserError(
+                f"POST command response: {response.status_code} Unexpected response from {self.verifier_fid_str}: {response.text}",
+            )
+
+        numtries = 0
+        added = False
+
+        while not added:
+            reponse_json = self.do_cvstatus(not_found_fail=False)
+            if reponse_json["code"] != 200:
+                numtries += 1
+                if numtries >= self.maxr:
+                    raise UserError(
+                        f"{self.agent_fid_str} still not added to {self.verifier_fid_str} after ${numtries} tries"
                     )
-                    time.sleep(next_retry)
-                else:
-                    added = True
+
+                next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
+                logger.info(
+                    "%s still not added to %s at try %d/%d, trying again in %d seconds...",
+                    self.agent_fid_str,
+                    self.verifier_fid_str,
+                    numtries,
+                    self.maxr,
+                    next_retry,
+                )
+                time.sleep(next_retry)
+            else:
+                added = True
 
             if added:
                 logger.info(
@@ -660,7 +652,7 @@ class Tenant:
                     numtries,
                 )
 
-    def do_cvstatus(self) -> Dict[str, Any]:
+    def do_cvstatus(self, not_found_fail: bool = True) -> Dict[str, Any]:
         """Perform operational state look up for agent on the verifier"""
 
         self.set_full_id_str()
@@ -672,14 +664,12 @@ class Tenant:
         response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
 
         if response.status_code == 503:
-            logger.error(
-                "Cannot connect to %s. Connection refused.",
-                self.verifier_fid_str,
-            )
-            return response_json
+            raise UserError(f"Cannot connect to {self.verifier_fid_str}. Connection refused.")
+
         if response.status_code == 504:
             logger.error("%s timed out.", self.verifier_fid_str)
-            return response_json
+            raise UserError("{self.verifier_fid_str} timed out.")
+
         if response.status_code == 404:
             # Marked for deletion (need to modify the code on CI tests)
             logger.info(
@@ -688,11 +678,9 @@ class Tenant:
                 self.verifier_port,
                 self.agent_uuid,
             )
-            logger.info(
-                "%s does not exist on %s.",
-                self.agent_fid_str,
-                self.verifier_fid_str,
-            )
+            if not_found_fail:
+                raise UserError(f"{self.agent_fid_str} does not exist on {self.verifier_fid_str}.")
+
             return response_json
 
         if response.status_code == 200:
@@ -706,13 +694,16 @@ class Tenant:
 
             return response_json
 
-        logger.info(
-            "Status command response: %s. Unexpected response from %s. %s",
-            response.status_code,
-            self.verifier_fid_str,
-            str(response),
+        # EVALUATE DELETION
+        #        logger.info(
+        #            "Status command response: %s. Unexpected response from %s. %s",
+        #            response.status_code,
+        #            self.verifier_fid_str,
+        #            str(response),
+        #        )
+        raise UserError(
+            f"Status command response: {response.status_code}. Unexpected response from {self.verifier_fid_str} while checking status for {self.agent_fid_str} : {response}"
         )
-        return response_json
 
     def do_cvlist(self) -> Union[requests.Response, Dict[str, Any]]:
         """List all agent statuses in cloudverifier"""
@@ -744,6 +735,7 @@ class Tenant:
                 self.verifier_fid_str,
             )
             return response_json
+
         if response.status_code == 200:
             # Marked for deletion (need to modify the code on CI tests)
             logger.info(
@@ -756,13 +748,9 @@ class Tenant:
 
             return response
 
-        logger.info(
-            "Status command response: %s. Unexpected response from %s. %s",
-            response.status_code,
-            self.verifier_fid_str,
-            str(response),
+        raise UserError(
+            f"Status command response: {response.status_code}. Unexpected response from {self.verifier_fid_str} while providing agent list : {response}"
         )
-        return response
 
     def do_cvbulkinfo(self) -> Dict[str, Any]:
         """Perform operational state look up for all agents"""
@@ -791,7 +779,7 @@ class Tenant:
             return response_json
 
         raise UserError(
-            f"Bulk Status: Unexpected response from {self.verifier_fid_str}. Response status code is {response.status_code}"
+            f"Status command response: {response.status_code}. Unexpected response from {self.verifier_fid_str} while providing bulk status for all agents : {response}"
         )
 
     def do_cvdelete(self, verifier_check: bool = True) -> None:
@@ -800,7 +788,7 @@ class Tenant:
         self.set_full_id_str()
 
         if verifier_check:
-            cvresponse = self.do_cvstatus()
+            cvresponse = self.do_cvstatus(not_found_fail=False)
 
             if not isinstance(cvresponse, dict):
                 keylime_logging.log_http_response(logger, logging.ERROR, cvresponse)
@@ -828,35 +816,43 @@ class Tenant:
         response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
 
         if response_json["code"] == 503:
-            logger.error(
-                "Cannot connect to %s to delete %s. Connection refused.",
-                self.verifier_fid_str,
-                self.agent_fid_str,
+            # EVALUATE DELETION
+            #            logger.error(
+            #                "Cannot connect to %s to delete %s. Connection refused.",
+            #                self.verifier_fid_str,
+            #                self.agent_fid_str,
+            #            )
+            #            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
+            raise UserError(
+                f"Cannot connect to {self.verifier_fid_str} to delete {self.agent_fid_str}. Connection refused."
             )
-            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
-            sys.exit()
 
         if response_json["code"] == 504:
-            logger.error("%s timed out while deleting %s.", self.verifier_fid_str, self.agent_fid_str)
-            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
-            sys.exit()
+            # EVALUATE DELETION
+            #            logger.error("%s timed out while deleting %s.", self.verifier_fid_str, self.agent_fid_str)
+            #            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
+            raise UserError(f"{self.verifier_fid_str} timed out while deleting {self.agent_fid_str}.")
 
         if response_json["code"] == 202:
             numtries = 0
             deleted = False
 
             while not deleted:
-                reponse_json = self.do_cvstatus()
+                reponse_json = self.do_cvstatus(not_found_fail=False)
                 if reponse_json["code"] != 404:
                     numtries += 1
                     if numtries >= self.maxr:
-                        logger.error(
-                            "%s was not deleted from %s after %d tries",
-                            self.agent_fid_str,
-                            self.verifier_fid_str,
-                            numtries,
+                        # EVALUATE DELETION
+                        #                        logger.error(
+                        #                            "%s was not deleted from %s after %d tries",
+                        #                            self.agent_fid_str,
+                        #                            self.verifier_fid_str,
+                        #                            numtries,
+                        #                        )
+                        raise UserError(
+                            f"{self.agent_fid_str,} was not deleted from {self.verifier_fid_str} after %d tries"
                         )
-                        sys.exit()
+
                     next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                     logger.info(
                         "%s still not deleted from %s at try %d/%d, trying again in %s seconds...",
@@ -904,8 +900,11 @@ class Tenant:
                 f"registrar {self.registrar_ip} port {self.registrar_port}.",
                 "results": {},
             }
+            # should be DEBUG # EVALUATE DELETION
             logger.info(json.dumps(response))
-            return response
+            raise UserError(
+                f"{self.agent_fid_str} does not exist on {self.registrar_fid_str}. Check the agent logs to for error messages while attempting to get registered."
+            )
 
         # Marked for deletion (the "status" line need to be changed to f"registrar {self.registrar_ip} port {self.registrar_port}.")
         response = {
@@ -920,6 +919,7 @@ class Tenant:
         response["results"][self.agent_uuid]["operational_state"] = states.state_to_str(states.REGISTERED)
 
         logger.info("Status from %s: %s", self.registrar_fid_str, response["status"])
+        # should be DEBUG
         logger.info(json.dumps(response))
         logger.info("Agent Info from %s:\n%s", self.registrar_fid_str, json.dumps(response["results"]))
 
@@ -1010,25 +1010,20 @@ class Tenant:
         response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
 
         if response.status_code == 503:
-            logger.error(
-                "Cannot connect to %s. Connection refused.",
-                self.verifier_fid_str,
-            )
-            return response_json
+            raise UserError(f"Cannot connect to {self.verifier_fid_str}. Connection refused.")
+
         if response.status_code == 504:
-            logger.error("%s timed out.", self.verifier_fid_str)
-            return response_json
+            raise UserError(f"{self.verifier_fid_str} timed out.")
+
         if response.status_code == 200:
             # Marked for deletion (need to modify the code on CI tests)
             logger.info("Agent %s re-activated", self.agent_uuid)
             logger.info("%s re-activated", self.agent_fid_str)
             return response_json
 
-        keylime_logging.log_http_response(logger, logging.ERROR, response_json)
-        logger.error(
-            "Reactivate command response: %s Unexpected response from %s.", response.status_code, self.verifier_fid_str
+        raise UserError(
+            f"Reactivate command response: {response.status_code} Unexpected response from {self.verifier_fid_str}."
         )
-        return response_json
 
     def do_cvstop(self) -> None:
         """Stop declared active agent"""
@@ -1039,24 +1034,19 @@ class Tenant:
         self.set_full_id_str()
 
         if response.status_code == 503:
-            logger.error(
-                "Cannot connect to %s. Connection refused.",
-                self.verifier_fid_str,
-            )
-            sys.exit()
-        elif response.status_code == 504:
-            logger.error("%s timed out.", self.verifier_fid_str)
-            sys.exit()
+            raise UserError(f"Cannot connect to {self.verifier_fid_str}. Connection refused.")
 
-        response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
+        if response.status_code == 504:
+            # EVALUATE DELETION
+            #            logger.error("%s timed out.", self.verifier_fid_str)
+            raise UserError(f"{self.verifier_fid_str} timed out.")
 
         if response.status_code != 200:
-            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
-            logger.error(
-                "Stop command response: %s Unexpected response from %s.", response.status_code, self.verifier_fid_str
+            raise UserError(
+                f"Stop command response: {response.status_code} Unexpected response from {self.verifier_fid_str}."
             )
-        else:
-            logger.info("%s stopped", self.agent_fid_str)
+
+        logger.info("%s stopped", self.agent_fid_str)
 
     def do_quote(self) -> None:
         """Perform TPM quote by GET towards Agent
@@ -1092,11 +1082,8 @@ class Tenant:
                 if response is None or response.status_code in (503, 504):
                     numtries += 1
                     if numtries >= self.maxr:
-                        logger.error(
-                            "Tenant cannot establish connection to %s",
-                            self.agent_fid_str,
-                        )
-                        sys.exit()
+                        raise UserError(f"Tenant cannot establish connection to {self.agent_fid_str}") from e
+
                     next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                     logger.info(
                         "Tenant connection to %s refused %s/%s times, trying again in %s seconds...",
@@ -1113,7 +1100,7 @@ class Tenant:
 
         if response is not None and response.status_code != 200:
             raise UserError(
-                f"Status command response: {response.status_code} Unexpected response from {self.agent_fid_str}."
+                f"TPM Quote command response: {response.status_code} Unexpected response from {self.agent_fid_str}."
             )
 
         if "results" not in response_json:
@@ -1181,14 +1168,10 @@ class Tenant:
             response = post_ukey.post(params, json=data, timeout=self.request_timeout)
 
         if response.status_code == 503:
-            logger.error(
-                "Cannot connect to %s to post encrypted U. Connection refused.",
-                self.agent_fid_str,
-            )
-            sys.exit()
-        elif response.status_code == 504:
-            logger.error("%s timed out while posting encrypted U", self.agent_fid_str)
-            sys.exit()
+            raise UserError(f"Cannot connect to {self.agent_fid_str} to post encrypted U. Connection refused.")
+
+        if response.status_code == 504:
+            raise UserError(f"{self.agent_fid_str} timed out while posting encrypted U")
 
         if response.status_code != 200:
             keylime_logging.log_http_response(logger, logging.ERROR, response_json)
@@ -1229,9 +1212,9 @@ class Tenant:
                 if response is not None and response.status_code in (503, 504):
                     numtries += 1
                     if numtries >= self.maxr:
-                        logger.error("Cannot establish connection to %s", self.agent_fid_str)
                         self.do_cvstop()
-                        sys.exit()
+                        raise UserError(f"Cannot establish connection to {self.agent_fid_str}") from e
+
                     next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                     logger.info(
                         "Connection to %s refused %s/%s times, trying again in %s seconds...",
@@ -1250,13 +1233,11 @@ class Tenant:
 
             if response.status_code == 200:
                 if "results" not in response_json or "hmac" not in response_json["results"]:
-                    logger.critical(
-                        "Error: unexpected http response body from %s : %s",
-                        self.agent_fid_str,
-                        response.status_code,
-                    )
                     self.do_cvstop()
-                    break
+                    raise UserError(
+                        f"Error: unexpected http response body from {self.agent_fid_str} : {response.status_code}"
+                    )
+
                 mac = response_json["results"]["hmac"]
 
                 if mac == ex_mac:
@@ -1267,14 +1248,18 @@ class Tenant:
                     keylime_logging.log_http_response(logger, logging.ERROR, response_json)
                 numtries += 1
                 if numtries >= self.maxr:
-                    logger.error(
-                        "Failed key derivation for %s (expected length %d, received %d",
-                        self.agent_fid_str,
-                        len(ex_mac),
-                        len(mac),
-                    )
+                    # EVALUATE DELETION
+                    #                    logger.error(
+                    #                        "Failed key derivation for %s (expected length %d, received %d",
+                    #                        self.agent_fid_str,
+                    #                        len(ex_mac),
+                    #                        len(mac),
+                    #                    )
                     self.do_cvstop()
-                    sys.exit()
+                    raise UserError(
+                        f"Failed key derivation for {self.agent_fid_str} (expected length {len(ex_mac)}, received {len(mac)})"
+                    )
+
                 next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                 logger.info(
                     "Key derivation not yet complete for %s at try %d/%d (expected length %d, received length %d) trying again in %d seconds... (Ctrl-C to stop)",
