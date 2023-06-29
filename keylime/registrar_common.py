@@ -289,6 +289,22 @@ class UnprotectedHandler(BaseHandler):
 
             ekcert = json_body["ekcert"]
             aik_tpm = json_body["aik_tpm"]
+            iak_tpm = ""
+            idevid_tpm = ""
+            iak_attest = b""
+            iak_sign = b""
+            # Check if IDevID and IAK are received
+            # If not it is reported with logger info, but this behaviour will change when configuration requirements are added
+            idevid_received = False
+            if "iak_tpm" in json_body:
+                iak_tpm = json_body["iak_tpm"]
+                idevid_tpm = json_body["idevid_tpm"]
+                iak_attest = base64.b64decode(json_body["iak_attest"])
+                iak_sign = base64.b64decode(json_body["iak_sign"])
+                logger.info("IDevID and IAK received")
+                idevid_received = True
+            else:
+                logger.info("No IDevID/IAK received")
 
             if ekcert is None or ekcert == "emulator":
                 logger.warning("Agent %s did not submit an ekcert", agent_id)
@@ -321,11 +337,17 @@ class UnprotectedHandler(BaseHandler):
                 return
 
             # try to encrypt the AIK
-            aik_enc = Tpm.encryptAIK(
-                agent_id,
-                base64.b64decode(ek_tpm),
-                base64.b64decode(aik_tpm),
-            )
+            # verify AIK and attestation data with IAK if IAK and IDevID received
+            aik_verified = False
+            if idevid_received:
+                aik_verified = Tpm.verify_aik_with_iak(
+                    agent_id, base64.b64decode(aik_tpm), base64.b64decode(iak_tpm), iak_attest, iak_sign
+                )
+            if not aik_verified and idevid_received:
+                logger.warning("Agent %s failed to verify AIK with IAK", agent_id)
+                web_util.echo_json_response(self, 400, "Error: failed verifying AK with IAK")
+                return
+            aik_enc = Tpm.encrypt_aik_with_ek(agent_id, base64.b64decode(ek_tpm), base64.b64decode(aik_tpm))
             if aik_enc is None:
                 logger.warning("Agent %s failed encrypting AIK", agent_id)
                 web_util.echo_json_response(self, 400, "Error: failed encrypting AK")
@@ -369,6 +391,8 @@ class UnprotectedHandler(BaseHandler):
                 "ek_tpm": ek_tpm,
                 "aik_tpm": aik_tpm,
                 "ekcert": ekcert,
+                "iak_tpm": iak_tpm,
+                "idevid_tpm": idevid_tpm,
                 "ip": contact_ip,
                 "mtls_cert": mtls_cert,
                 "port": contact_port,

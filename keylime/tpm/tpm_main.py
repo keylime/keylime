@@ -1,8 +1,12 @@
 import base64
+import struct
 import zlib
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization as crypto_serialization
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
 from keylime import cert_utils, config, json, keylime_logging
 from keylime.agentstates import AgentAttestState, TPMClockInfo
@@ -19,7 +23,7 @@ logger = keylime_logging.init_logging("tpm")
 
 class Tpm:
     @staticmethod
-    def encryptAIK(uuid: str, ek_tpm: bytes, aik_tpm: bytes) -> Optional[Tuple[bytes, str]]:
+    def encrypt_aik_with_ek(uuid: str, ek_tpm: bytes, aik_tpm: bytes) -> Optional[Tuple[bytes, str]]:
         if ek_tpm is None or aik_tpm is None:
             logger.error("Missing parameters for encryptAIK")
             return None
@@ -31,7 +35,7 @@ class Tpm:
             challenge_str = tpm_util.random_password(32)
             challenge = challenge_str.encode()
 
-            logger.info("Encrypting AIK for UUID %s", uuid)
+            logger.info("Encrypting AIK with EK for UUID %s", uuid)
 
             # read in the aes key
             key = base64.b64encode(challenge).decode("utf-8")
@@ -40,11 +44,63 @@ class Tpm:
             keyblob = base64.b64encode(credentialblob)
 
         except Exception as e:
-            logger.error("Error encrypting AIK: %s", str(e))
+            logger.error("Error encrypting AIK with EK: %s", str(e))
             logger.exception(e)
             raise
 
         return (keyblob, key)
+
+    @staticmethod
+    def verify_aik_with_iak(uuid: str, aik_tpm: bytes, iak_tpm: bytes, iak_attest: bytes, iak_sign: bytes) -> bool:
+        attest_body = iak_attest.split(b"\x00$")[1]
+
+        # check UUID in certify matches UUID registering
+        if attest_body[: len(uuid)] != bytes(uuid, "utf-8"):
+            logger.warning("Agent %s AIK verification failed, uuid does not match attest info", uuid)
+            return False
+
+        # check aik in certify matches aik being registered
+        if tpm2_objects.get_tpm2b_public_name(aik_tpm) != attest_body[len(uuid) + 27 : len(uuid) + 61].hex():
+            logger.warning(" Agent %s AIK verification failed, name of aik does not match attest info", uuid)
+            return False
+
+        # generate digest of attest info
+        digest, hashfunc = tpm_util.crypt_hash(iak_attest, iak_sign[2:4])
+
+        # process iak pub key and import into tpm, get pub key context from tpm
+        sig_alg, _, sig_size = struct.unpack_from(">HHH", iak_sign, 0)
+        iakpub = tpm2_objects.pubkey_from_tpm2b_public(iak_tpm)
+
+        if not isinstance(iakpub, (RSAPublicKey, EllipticCurvePublicKey)):
+            raise ValueError(f"Unsupported key type {type(iakpub).__name__}")
+
+        if isinstance(iakpub, RSAPublicKey):
+            if sig_alg in [tpm2_objects.TPM_ALG_RSASSA, tpm2_objects.TPM_ALG_RSAPSS]:
+                try:
+                    (signature,) = struct.unpack_from(f"{sig_size}s", iak_sign, 6)
+                    tpm_util.verify(iakpub, signature, digest, hashfunc, sig_alg, int(sig_size / 8))
+                    logger.info("Agent %s AIK verified with IAK", uuid)
+                    return True
+                except InvalidSignature:
+                    logger.error("Agent %s AIK verification failed with IAK (RSA)", uuid)
+                    return False
+
+            else:
+                raise ValueError(f"Unsupported quote signature algorithm '{sig_alg:#x}' for RSA keys")
+
+        if isinstance(iakpub, EllipticCurvePublicKey):
+            if sig_alg in [tpm2_objects.TPM_ALG_ECDSA]:
+                try:
+                    der_sig = tpm_util.ecdsa_der_from_tpm(iak_sign)
+                    tpm_util.verify(iakpub, der_sig, digest, hashfunc)
+                    logger.info("Agent %s AIK verified with IAK", uuid)
+                    return True
+                except InvalidSignature:
+                    logger.error("Agent %s AIK verification failed with IAK (ECC)", uuid)
+                    return False
+            else:
+                raise ValueError(f"Unsupported quote signature algorithm '{sig_alg:#x}' for EC keys")
+        return False
 
     @staticmethod
     def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:

@@ -36,6 +36,7 @@
 #  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+import binascii
 import os
 import string
 import struct
@@ -57,12 +58,63 @@ logger = keylime_logging.init_logging("tpm_util")
 SupportedKeyTypes = Union[RSAPublicKey, EllipticCurvePublicKey]
 
 
-def verify(pubkey: SupportedKeyTypes, sig: bytes, digest: bytes, hashfunc: hashes.HashAlgorithm) -> None:
+def verify(
+    pubkey: SupportedKeyTypes,
+    sig: bytes,
+    digest: bytes,
+    hashfunc: hashes.HashAlgorithm,
+    sigalg: int = tpm2_objects.TPM_ALG_RSASSA,
+    saltlen: int = 0,
+) -> None:
     """Do signature verification with the given public key"""
     if isinstance(pubkey, RSAPublicKey):
-        pubkey.verify(sig, digest, padding.PKCS1v15(), Prehashed(hashfunc))
+        if sigalg == tpm2_objects.TPM_ALG_RSAPSS:
+            pubkey.verify(
+                sig, digest, padding.PSS(mgf=padding.MGF1(hashfunc), salt_length=saltlen), Prehashed(hashfunc)
+            )
+        elif sigalg == tpm2_objects.TPM_ALG_RSASSA:
+            pubkey.verify(sig, digest, padding.PKCS1v15(), Prehashed(hashfunc))
+        else:
+            raise Exception("Unsupported singature scheme")
     elif isinstance(pubkey, EllipticCurvePublicKey):
         pubkey.verify(sig, digest, ec.ECDSA(Prehashed(hashfunc)))
+    else:
+        raise Exception("Unsupported singature scheme")
+
+
+def der_int(int_bytes: bytes) -> bytes:
+    from_bytes = int.from_bytes(int_bytes, "big")
+    hex_enc = f"{from_bytes:x}".encode()
+    if len(hex_enc) % 2:
+        hex_enc = b"0" + hex_enc
+    encoded_int = binascii.unhexlify(hex_enc)
+    first = encoded_int[0]
+    if first <= 0x7F:
+        return b"\x02" + der_len(len(encoded_int)) + encoded_int
+    return b"\x02" + der_len(len(encoded_int) + 1) + b"\x00" + encoded_int
+
+
+def der_len(encoded_int_len: int) -> bytes:
+    if encoded_int_len < 0x80:
+        return bytes((encoded_int_len,))
+    hex_enc = f"{encoded_int_len:x}".encode()
+    if len(hex_enc) % 2:
+        hex_enc = b"0" + hex_enc
+    bin_str = binascii.unhexlify(hex_enc)
+    return bytes((0x80 | len(bin_str),)) + bin_str
+
+
+def ecdsa_der_from_tpm(sigblob: bytes) -> bytes:
+    _, _, sig_size_r = struct.unpack_from(">HHH", sigblob, 0)
+    sig_r = sigblob[6 : 6 + sig_size_r]
+    encoded_sig_r = der_int(sig_r)
+    sigblob = sigblob[6 + sig_size_r :]
+    sig_size_s = struct.unpack_from(">H", sigblob, 0)[0]
+    sig_s = sigblob[2 : 2 + sig_size_s]
+    encoded_sig_s = der_int(sig_s)
+    total_size = len(encoded_sig_r) + len(encoded_sig_s)
+    der_sig = bytes.fromhex(f"30{total_size:x}") + encoded_sig_r + encoded_sig_s
+    return der_sig
 
 
 def __get_pcrs_from_blob(pcrblob: bytes) -> Tuple[int, Dict[int, int], List[bytes]]:
@@ -462,6 +514,23 @@ def crypt_kdfe(
         size -= hashfunc.digest_size
 
     return result[:size_in_bytes]
+
+
+def crypt_hash(data: bytes, hash_alg: bytes) -> Tuple[bytes, hashes.HashAlgorithm]:
+    """TPM_Hash implementation
+
+    Parameters
+    ----------
+    data: data to be hashed
+    hash_alg: hashing algorithm to be used
+    """
+    hashfunc = tpm2_objects.HASH_FUNCS.get(int.from_bytes(hash_alg, "big"))
+    if not hashfunc:
+        raise ValueError("Unsupported hash in signature blob")
+    digest = hashes.Hash(hashfunc)
+    digest.update(data)
+
+    return digest.finalize(), hashfunc
 
 
 def check_mask(mask: Optional[str], pcr: int) -> bool:
