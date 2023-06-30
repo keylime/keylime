@@ -1,4 +1,15 @@
 FROM _source_keylime_base:_version_ AS keylime_tenant
+
+# install latest stable kubectl version - required for Kubernetes init job in the helm charts
+RUN export GOARCH="$( uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' )" && \
+    export KUBERNETES_RELEASE="$( curl -L -s https://dl.k8s.io/release/stable.txt )" && \
+    curl -LO "https://dl.k8s.io/release/${KUBERNETES_RELEASE}/bin/linux/${GOARCH}/kubectl" && \
+    curl -LO "https://dl.k8s.io/${KUBERNETES_RELEASE}/bin/linux/${GOARCH}/kubectl.sha256" && \
+    echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check && \
+    rm -v kubectl.sha256 && \
+    install -v -o root -g root -m 0755 kubectl /usr/bin/kubectl && \
+    rm -v kubectl
+
 LABEL version="_version_" description="Keylime Tenant - Bootstrapping and Maintaining Trust in the Cloud"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 
