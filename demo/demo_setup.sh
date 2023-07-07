@@ -264,8 +264,8 @@ if [[ "$IMA_ENABLE" -eq "1" ]] ; then
     # Generating IMA allowlist
     echo
     echo "=================================================================================="
-    echo $'\t\t\t\tGenerating IMA allowlist'
+    echo $'\t\t\t\tGenerating Runtime Policy'
     echo "=================================================================================="
     cd $KEYLIME_DIR/scripts
-    ./create_runtime_policy.sh allowlist.txt
+    ./create_runtime_policy.sh -o runtime_policy.json
 fi

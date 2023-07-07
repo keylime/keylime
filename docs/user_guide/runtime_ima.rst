@@ -90,19 +90,33 @@ Keylime provides two helper scripts for getting started.
 
 Create Runtime Policy from a Running System
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The first script generates a runtime policy from the :code:`initramfs`, IMA log and
-files located on the root filesystem of a running system.
+The first script generates a runtime policy from the :code:`initramfs`, IMA log
+(just for the :code:`boot aggregate`) and files located on the root filesystem of a running
+system.
 
 The :code:`create_runtime_policy.sh` script is `available here <https://github.com/keylime/keylime/blob/master/scripts/create_runtime_policy.sh>`_
 
 Run the script as follows::
 
-  # create_runtime_policy.sh -o [filename] -h [hash-algo]
+  # create_runtime_policy.sh -o runtime_policy_keylime.json 
+  
+For more options see the help page :code:`create_runtime_policy.sh`::
 
-With :code:`[hash-algo]` being :code:`sha1sum`, :code:`sha256sum` (note, you need the OpenSSL app
-installed to have the shasum CLI applications available).
+    Usage: $0 -o/--output_file FILENAME [-a/--algo ALGO] [-x/--ramdisk-location PATH] [-y/--boot_aggregate-location PATH] [-z/--rootfs-location PATH] [-e/--exclude_list FILENAME] [-s/--skip-path PATH]"
 
-This will then result in `[filename]` being available for agent provisioning.
+    optional arguments:
+    -a/--algo                    (checksum algorithmi to be used, default: sha1sum)
+    -x/--ramdisk-location        (path to initramdisk, default: /boot/, set to "none" to skip)
+    -y/--boot_aggregate-location (path for IMA log, used for boot aggregate extraction, default: /sys/kernel/security/ima/ascii_runtime_measurements, set to "none" to skip)
+    -z/--rootfs-location         (path to root filesystem, default: /, cannot be skipped)
+    -e/--exclude_list            (filename containing a list of paths to be excluded (i.e., verifier will not try to match checksums), default: none)
+    -s/--skip-path               (comma-separated path list, files found there will not have checksums calculated, default: none)
+    -h/--help                    show this message and exit
+
+Note: note, you need the OpenSSL installed to have the sha*sum CLI executables available
+
+The resulting `runtime_policy_keylime.json` file can be directly used by
+:code:`keylime_tenant` (option :code:`--runtime-policy`)
 
 .. warning::
     It’s best practice to create the runtime policy in a secure environment.
@@ -122,7 +136,7 @@ A basic policy can be easily created by using a IMA measurement log from system:
 
   keylime_create_policy -m /path/to/ascii_runtime_measurements -o runtime_policy.json
 
-For the more options see the help page :code:`keylime_create_policy -h`::
+For more options see the help page :code:`keylime_create_policy -h`::
 
     usage: keylime_create_policy [-h] [-B BASE_POLICY] [-k] [-b] [-a ALLOWLIST] [-m IMA_MEASUREMENT_LIST] [-i IGNORED_KEYRINGS] [-o OUTPUT] [--no-hashes] [-A IMA_SIGNATURE_KEYS]
 
