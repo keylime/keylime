@@ -171,13 +171,6 @@ def checkquote(
     if retDict["attested.quote.pcrDigest"] != compare_digest:
         raise Exception("The digest used for quoting is different than the one that was calculated")
 
-    digest = hashes.Hash(hashfunc, backend=backends.default_backend())
-    digest.update(quoteblob)
-    quoteblob_digest = digest.finalize()
-
-    if quoteblob_digest != quote_digest:
-        raise Exception("The digest of the quoteblob differs from the quote's digest")
-
     return pcrs_dict
 
 
