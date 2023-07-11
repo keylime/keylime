@@ -4,6 +4,7 @@ import ipaddress
 import os
 import signal
 import socket
+import ssl
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -77,6 +78,24 @@ class BaseHandler(BaseHTTPRequestHandler, SessionManager):
 
 
 class ProtectedHandler(BaseHandler):
+    def handle(self) -> None:
+        """ Need to perform SSL handshake here, as do_handshake_on_connect=False for non-blocking SSL socket """
+        while True:
+            try:
+                self.request.do_handshake()
+                break
+            except ssl.SSLWantReadError:
+                select.select([sock], [], [])
+            except ssl.SSLWantWriteError:
+                select.select([], [sock], [])
+            except ssl.SSLError as e:
+                logger.error("SSL connection error: %s", e)
+                return
+            except Exception as e:
+                logger.error("General communication failure: %s", e)
+                return
+        BaseHTTPRequestHandler.handle(self)
+
     def do_HEAD(self) -> None:
         """HEAD not supported"""
         web_util.echo_json_response(self, 405, "HEAD not supported")
@@ -483,7 +502,7 @@ def start(host: str, tlsport: int, port: int) -> None:
     protected_server = RegistrarServer((host, tlsport), ProtectedHandler)
     context = web_util.init_mtls("registrar", logger=logger)
     if context is not None:
-        protected_server.socket = context.wrap_socket(protected_server.socket, server_side=True)
+        protected_server.socket = context.wrap_socket(protected_server.socket, server_side=True, do_handshake_on_connect=False)
     thread_protected_server = threading.Thread(target=protected_server.serve_forever)
 
     # Set up the unprotected registrar server
