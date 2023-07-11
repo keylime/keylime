@@ -2,6 +2,7 @@ import base64
 import unittest
 from unittest import mock
 
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ec import (
     SECP256R1,
     EllipticCurve,
@@ -59,6 +60,26 @@ class TestTpmUtil(unittest.TestCase):
             checkquote(aikblob, nonce, sigblob, quoteblob, pcrblob, "sha256")
         except Exception as e:
             self.fail(f"checkquote failed with {e}")
+
+        # test bad input
+        bad_quoteblob = bytearray(quoteblob)
+        bad_quoteblob[5] ^= 0x1
+        with self.assertRaises(InvalidSignature):
+            checkquote(aikblob, nonce, sigblob, bad_quoteblob, pcrblob, "sha256")
+
+        l = list(nonce)
+        l[0] = "a"
+        bad_nonce = "".join(l)
+        with self.assertRaises(Exception):
+            checkquote(aikblob, bad_nonce, sigblob, quoteblob, pcrblob, "sha256")
+
+        bad_pcrblob = bytearray(pcrblob)
+        bad_pcrblob[5] ^= 0x1
+        with self.assertRaises(Exception):
+            checkquote(aikblob, nonce, sigblob, quoteblob, bad_pcrblob, "sha256")
+
+        with self.assertRaises(ValueError):
+            checkquote(aikblob, nonce, sigblob, quoteblob, pcrblob, "sha1")
 
     @staticmethod
     def not_random(numbytes: int) -> bytes:

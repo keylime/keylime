@@ -3,7 +3,6 @@ import string
 import struct
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import hashes, hmac, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, padding
@@ -155,10 +154,7 @@ def checkquote(
     digest.update(quoteblob)
     quote_digest = digest.finalize()
 
-    try:
-        verify(pubkey, signature, quote_digest, hashfunc)
-    except InvalidSignature:
-        logger.error("Invalid quote signature!")
+    verify(pubkey, signature, quote_digest, hashfunc)
 
     # Check that reported nonce is expected one
     retDict = tpm2_objects.unmarshal_tpms_attest(quoteblob)
