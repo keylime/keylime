@@ -250,7 +250,9 @@ class UnprotectedHandler(BaseHandler):
             try:
                 port = int(port)
                 if port < 1 or port > 65535:
-                    logger.warning("Contact port for agent %s is not a number between 1 and got: %s.", agent_id, port)
+                    logger.warning(
+                        "Contact port for agent %s is not a number between 1 and 65535 got: %s.", agent_id, port
+                    )
                     port = None
             except ValueError:
                 logger.warning("Contact port for agent %s is not a valid number got: %s.", agent_id, port)
@@ -447,7 +449,16 @@ class UnprotectedHandler(BaseHandler):
                     logger.error("SQLAlchemy Error: %s", e)
                     raise
             else:
-                raise Exception(f"Auth tag {auth_tag} does not match expected value {ex_mac}")
+                if agent_id and session.query(RegistrarMain).filter_by(agent_id=agent_id).delete():
+                    try:
+                        session.commit()
+                    except SQLAlchemyError as e:
+                        logger.error("SQLAlchemy Error: %s", e)
+                        raise
+
+                raise Exception(
+                    f"Auth tag {auth_tag} for agent {agent_id} does not match expected value. The agent has been deleted from database, and a restart of it will be required"
+                )
 
             web_util.echo_json_response(self, 200, "Success")
             logger.info("PUT activated: %s", agent_id)
