@@ -142,7 +142,7 @@ do
         shift
 done
 
-if ! valid_algo $ALGO; then
+if ! valid_algo $ALGO
 then
     echo "Invalid hash function argument: pick from \"${ALGO_LIST[@]}\""
     exit 1
