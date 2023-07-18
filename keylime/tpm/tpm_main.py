@@ -163,6 +163,7 @@ class Tpm:
         mb_measurement_list: Optional[str],
         mb_refstate: Optional[str],
         hash_alg: Hash,
+        count: int,
     ) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
 
@@ -335,13 +336,32 @@ class Tpm:
             failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": list(missing)}, True)
 
         if not mb_failure and mba.policy_is_valid(mb_refstate):
-            mb_policy_failure = mba.bootlog_evaluate(
-                mb_refstate,
-                mb_measurement_data,
-                pcrs_in_quote,
-                agentAttestState.get_agent_id(),
-            )
-            failure.merge(mb_policy_failure)
+            mb_evaluate = config.get("verifier", "measured_boot_evaluate", fallback="once")
+
+            # Value of measured_boot_evaluate can be only 'once' or 'always'
+            if mb_evaluate not in ("once", "always"):
+                logger.error("Invalid value %s of measured_boot_evaluate", mb_evaluate)
+                failure.add_event(
+                    "invalid_measured_boot_evaluate", "correct value of measured_boot_evaluate is required", True
+                )
+
+            if mb_evaluate == "always":
+                mb_policy_failure = mba.bootlog_evaluate(
+                    mb_refstate,
+                    mb_measurement_data,
+                    pcrs_in_quote,
+                    agentAttestState.get_agent_id(),
+                )
+                failure.merge(mb_policy_failure)
+
+            elif mb_evaluate == "once" and count == 0:
+                mb_policy_failure = mba.bootlog_evaluate(
+                    mb_refstate,
+                    mb_measurement_data,
+                    pcrs_in_quote,
+                    agentAttestState.get_agent_id(),
+                )
+                failure.merge(mb_policy_failure)
 
         return failure
 
@@ -360,6 +380,7 @@ class Tpm:
         mb_measurement_list: Optional[str] = None,
         mb_refstate: Optional[str] = None,
         compressed: bool = False,
+        count: int = -1,
     ) -> Failure:
         if tpm_policy is None:
             tpm_policy = {}
@@ -408,6 +429,7 @@ class Tpm:
             mb_measurement_list,
             mb_refstate,
             hash_alg,
+            count,
         )
 
     @staticmethod

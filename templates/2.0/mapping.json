@@ -319,6 +319,11 @@
                 "option": "measured_boot_imports",
                 "default": "[]"
             },
+	    "measured_boot_evaluate": {
+                "section": "cloud_verifier",
+                "option": "measured_boot_evaluate",
+                "default": "once"
+            },
             "severity_labels": {
                 "section": "cloud_verifier",
                 "option": "severity_labels",
