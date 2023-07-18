@@ -158,6 +158,15 @@ measured_boot_policy_name = {{ verifier.measured_boot_policy_name }}
 # The default value for this config item is the empty list.
 measured_boot_imports = {{ verifier.measured_boot_imports }}
 
+# This is used to manage the number of times measure boot attestation
+# is done. In other words, it controls the number of times the call
+# to the measure boot policy engine is made to evaluate the boot log
+# against the policy specified.
+# Here are its possible values and number of bootlog evaluations.
+# once (default)  : Bootlog evaluation will be done for only one time.
+# always          : Bootlog evaluation will always be done (i.e. for unlimited times).
+measured_boot_evaluate = {{ verifier.measured_boot_evaluate }}
+
 # Severity labels for revocation events strictly ordered from least severity to
 # highest severtiy.
 severity_labels = {{ verifier.severity_labels }}

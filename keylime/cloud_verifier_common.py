@@ -200,6 +200,7 @@ def process_quote_response(
         mb_measurement_list,
         agent["mb_refstate"],
         compressed=(agent["supported_version"] == "1.0"),
+        count=agent["attestation_count"],
     )  # TODO: change this to always False after initial update
     failure.merge(quote_validation_failure)
 
