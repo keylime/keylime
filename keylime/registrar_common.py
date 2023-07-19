@@ -2,6 +2,7 @@ import base64
 import http.server
 import ipaddress
 import os
+import select
 import signal
 import socket
 import ssl
@@ -79,15 +80,16 @@ class BaseHandler(BaseHTTPRequestHandler, SessionManager):
 
 class ProtectedHandler(BaseHandler):
     def handle(self) -> None:
-        """ Need to perform SSL handshake here, as do_handshake_on_connect=False for non-blocking SSL socket """
+        """Need to perform SSL handshake here, as
+        do_handshake_on_connect=False for non-blocking SSL socket"""
         while True:
             try:
                 self.request.do_handshake()
                 break
             except ssl.SSLWantReadError:
-                select.select([sock], [], [])
+                select.select([self.request], [], [])
             except ssl.SSLWantWriteError:
-                select.select([], [sock], [])
+                select.select([], [self.request], [])
             except ssl.SSLError as e:
                 logger.error("SSL connection error: %s", e)
                 return
