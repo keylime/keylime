@@ -135,7 +135,9 @@ Cloud verifier (CV)
           "cloudagent_ip": "127.0.0.1",
           "cloudagent_port": 9002,
           "tpm_policy": "{\"22\": [\"0000000000000000000000000000000000000001\", \"0000000000000000000000000000000000000000000000000000000000000001\", \"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001\", \"ffffffffffffffffffffffffffffffffffffffff\", \"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\", \"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"], \"15\": [\"0000000000000000000000000000000000000000\", \"0000000000000000000000000000000000000000000000000000000000000000\", \"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"], \"mask\": \"0x408000\"}",
-          "vtpm_policy": "{\"23\": [\"ffffffffffffffffffffffffffffffffffffffff\", \"0000000000000000000000000000000000000000\"], \"15\": [\"0000000000000000000000000000000000000000\"], \"mask\": \"0x808000\"}",
+          "ak_tpm": "ARgAAQALAAUAcgAAABAAFAALCAAAAAAAAQDjZ4J2HO7ekIONAX/eYIzt7ziiVAqE/1D7I9oEwIE88dIfqH0FQLJAg8u3+ZOgsJDQr9HiMhZRPhv8hRuia8ULdAomyOFA1cVzlBF+xcPUEemOIofbvcBNAoTY/x49r8LpqAEUBBiUeOniQbjfRaV2S5cEAA92wHLQAPLF9Sbf3zNxCnbhtRkEi6C3NYl8/FJqyu5Z9vvwEBBOFFTPasAxMtPm6a+Z5KJ4rDflipfaVcUvTKLIBRI7wkuXqhTR8BeIByK9upQ3iBo+FbYjWSf+BaN+wodMNgPbzxyL+tuxVqiPefBbv+sTWVxmYfo5i84FlbNOAW3APH8c+jZ3tgbt",
+          "mtls_cert": "-----BEGIN CERTIFICATE----- (...) -----END CERTIFICATE-----",
+          "runtime_policy_name": null,
           "runtime_policy": "",
           "runtime_policy_sig": "",
           "runtime_policy_key": "",
@@ -166,7 +168,9 @@ Cloud verifier (CV)
     :<json string cloudagent_ip: Agents contact ip address for the CV.
     :<json string cloudagent_port: Agents contact port for the CV.
     :<json string tpm_policy: Static PCR policy and mask for TPM. Is a string encoded dictionary that also includes a `mask` for which PCRs should be included in a quote.
-    :<json string vtpm_policy: Static PCR policy and mask for vTPM. Same as `tpm_policy`.
+    :<json string ak_tpm: AK of the agent, base64-encoded, same as `aik_tpm` in the registrar.
+    :<json string mtls_cert: MTLS certificate of the agent, PEM encoded, same as in the registrar.
+    :<json string runtime_policy_name: Optional. If specified with a `runtime_policy` it is saved under that name, if specified without, then the policy with that name is loaded.
     :<json string runtime_policy: Runtime policy JSON object, base64 encoded.
     :<json string runtime_policy_sig: Optional runtime policy detached signature, base64-encoded. Must also provide `runtime_policy_key`.
     :<json string runtime_policy_key: Optional runtime policy detached signature key, base64-encoded. Must also provide `runtime_policy_sig`.
@@ -572,18 +576,6 @@ Cloud Registrar
 
 
     :<json string auth_tag: hmac containing the challenge from `blob` and the `agent_id`.
-
-.. http:put::  /v2.1/agents/{agent_id:UUID}/vactivate
-
-    Activate virtual (vTPM) agent `agent_id`
-
-    **Requires JSON Body**:
-
-    .. sourcecode:: js
-
-        {
-          "deepquote" : b64
-        }
 
 
 Changelog
