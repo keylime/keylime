@@ -128,17 +128,25 @@ case "$ID" in
         esac
     ;;
 
-    fedora)
+    fedora | anolis)
         echo "${ID} selected."
         PACKAGE_MGR=$(command -v dnf)
         PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
-        PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel swig python3-pyyaml python3-zmq python3-cryptography python3-tornado python3-requests python3-gpg yaml-cpp-devel procps-ng python3-psutil python3-lark-parser python3-alembic"
+        PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel python3-pyyaml python3-zmq python3-cryptography python3-tornado python3-requests python3-gpg yaml-cpp-devel procps-ng python3-psutil python3-lark-parser python3-alembic"
         if [ "$(uname -m)" = "x86_64" ]; then
             PYTHON_DEPS+=" efivar-devel"
         fi
         BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
-        if [[ ${VERSION_ID} -ge 30 ]] ; then
-        # if fedora 30 or greater, then using TPM2 tool packages
+        if [ "${ID}" = "anolis" ]; then
+            pip3 install setuptools_rust
+            BUILD_TOOLS+=" rust cargo"
+        elif [ "${ID}" = "fedora" ]; then
+            PYTHON_DEPS+=" swig"
+        fi
+
+        MAJOR_VERSION_ID=$(echo ${VERSION_ID} | awk -F '.' '{print$1}')
+	if ([[ "${ID}" = "fedora" ]] && [[ "${MAJOR_VERSION_ID}" -ge 30 ]]) || ([[ "${ID}" = "anolis" ]] && [[ "${MAJOR_VERSION_ID}" -ge 23 ]]) ; then
+        # if fedora 30/anolis 23 or greater, then using TPM2 tool packages
             TPM2_TOOLS_PKGS="tpm2-tools tpm2-tss tss2"
             NEED_BUILD_TOOLS=0
         else
