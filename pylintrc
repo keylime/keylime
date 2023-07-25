@@ -10,3 +10,4 @@ ignored-modules=zmq,alembic.op,alembic.context,cryptography.hazmat.primitives.as
 
 [LOGGING]
 enable=logging
+test
