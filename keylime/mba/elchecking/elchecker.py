@@ -89,10 +89,10 @@ def bootlog_evaluate(
     # if there are any PCRs in the policy that are not in the quote, we canot evaluate.
     mb_pcrs_policy = mb_policy.get_relevant_pcrs()
     missing_pcrs = list(mb_pcrs_policy.difference(pcrs_inquote))
+    reason = None
     if len(missing_pcrs) > 0:
         logger.error("PCRs specified for policy %s not in quote: %s", mb_policy_name, str(missing_pcrs))
         failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": missing_pcrs}, True)
-
     # evaluate the policy
     else:
         try:
