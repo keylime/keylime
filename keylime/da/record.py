@@ -86,8 +86,11 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
         if self.rcd_fmt == "pickle":
             serialized_record_object = pickle.dumps(manipulated_record_object)
 
-        if self.rcd_fmt == "json":
+        elif self.rcd_fmt == "json":
             serialized_record_object = json.dumps(manipulated_record_object, indent=4).encode("utf-8")
+
+        else:
+            raise Exception("Unknown or unsupported record format")
 
         if self.rcd_enc == "base64":
             serialized_record_object = base64.b64encode(serialized_record_object)
@@ -105,9 +108,12 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
         if self.rcd_fmt == "pickle":
             deserialized_record_object = pickle.loads(manipulated_record_object)
 
-        if self.rcd_fmt == "json":
+        elif self.rcd_fmt == "json":
             deserialized_record_object = manipulated_record_object.decode("utf-8")
             deserialized_record_object = json.loads(deserialized_record_object)
+
+        else:
+            raise Exception("Unknown or unsupported record format")
 
         return deserialized_record_object
 
