@@ -22,7 +22,6 @@ ignore = [
     "keylime/backport_dataclasses.py",
     "keylime/mba/elchecking/example.py",
     "keylime/migrations/versions/",
-    "keylime/da/examples/tsa_rfc3161.py",
     "keylime/da/examples/sqldb.py",
     "keylime/da/examples/redis.py",
     "keylime/da/examples/file.py",
