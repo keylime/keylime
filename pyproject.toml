@@ -26,7 +26,6 @@ ignore = [
     "keylime/da/examples/sqldb.py",
     "keylime/da/examples/redis.py",
     "keylime/da/examples/file.py",
-    "keylime/da/record.py",
     "test/data/template-invalid-adjust/2.0/adjust.py",
 ]
 reportMissingImports = false
