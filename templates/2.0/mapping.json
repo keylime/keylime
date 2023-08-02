@@ -207,7 +207,7 @@
             "registrar_port": {
                 "section": "cloud_verifier",
                 "option": "registrar_port",
-                "default": "8881"
+                "default": "8891"
             },
             "tls_dir": {
                 "section": "cloud_verifier",
