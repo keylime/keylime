@@ -26,9 +26,8 @@ from cryptography.hazmat import backends
 try:
     import rpm
 
-    HAS_RPM = True
 except ModuleNotFoundError:
-    HAS_RPM = False
+    rpm = None
 
 from keylime.common import validators
 from keylime.ima import file_signatures, ima
@@ -218,6 +217,8 @@ def process_exclude_list_file(exclude_list_file: str, excludes: List[str]) -> Tu
 
 def analyze_rpm_pkg(pkg: PathLike_str) -> Dict[str, List[str]]:
     """Analyze a single RPM package."""
+    if rpm is None:
+        raise Exception("rpm module is not available")
     ts = rpm.TransactionSet()
     ts.setVSFlags(rpm.RPMVSF_MASK_NOSIGNATURES | rpm.RPMVSF_MASK_NODIGESTS)
 
@@ -238,6 +239,9 @@ def analyze_rpm_pkg_url(url: str) -> Dict[str, List[Any]]:
     # first a sizeable blob, adjusted from the median of some repo
     # analysis, and if the hdrFromFdno fails, try to expand it
     # iteratively.
+
+    if rpm is None:
+        raise Exception("rpm module is not available")
 
     # Hide errors while fetching partial headers
     rpm.setLogFile(open(os.devnull, "wb"))  # pylint: disable=consider-using-with
@@ -535,7 +539,7 @@ def main() -> None:
     if ret:
         sys.exit(ret)
 
-    if (args.local_repo or args.remote_repo) and not HAS_RPM:
+    if (args.local_repo or args.remote_repo) and rpm is None:
         print('To analyze RPM repositories the "rpm" Python module is required', file=sys.stderr)
         sys.exit(1)
 
