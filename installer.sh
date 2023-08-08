@@ -182,7 +182,7 @@ esac
 # Command line params
 STUB=0
 KEYLIME_DIR=
-while getopts ":shckmp:" opt; do
+while getopts ":hkmp:" opt; do
     case $opt in
         k) STUB=1 ;;
         p)
