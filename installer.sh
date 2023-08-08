@@ -182,8 +182,11 @@ esac
 # Command line params
 STUB=0
 KEYLIME_DIR=
-while getopts ":hkmp:" opt; do
+# LISTEN_ALL_IPS=1 means than will set the binding and listening IP about the agent, verifier, and registrar server as 0.0.0.0
+LISTEN_ALL_IPS=0
+while getopts ":hikmp:" opt; do
     case $opt in
+        i) LISTEN_ALL_IPS=1 ;;
         k) STUB=1 ;;
         p)
             KEYLIME_DIR=$OPTARG
@@ -196,6 +199,7 @@ while getopts ":hkmp:" opt; do
         h)
             echo "Usage: $0 [option...]"
             echo "Options:"
+            echo $'-i \t\t\t\t Set the default listen IP as 0.0.0.0 rather than 127.0.0.1 for all components(agent, verifier, and registrar)'
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
             echo $'-m \t\t\t\t Use modern TPM 2.0 libraries; this is the default'
             echo $'-p PATH \t\t\t Use PATH as Keylime path'
@@ -418,6 +422,13 @@ echo "==========================================================================
 mkdir -p /etc/keylime
 mkdir -p config
 python3 -m keylime.cmd.convert_config --defaults --out config --templates templates
+
+# set the default binding and listening IP about the agent, verifier, and registrar server as 0.0.0.0 when LISTEN_ALL_IPS is set 1
+if [[ "$LISTEN_ALL_IPS" -eq "1" ]] ; then
+    for comp in "agent" "verifier" "registrar"; do
+        sed -i 's/^ip = "127.0.0.1"/ip = "0.0.0.0"/' config/$comp.conf
+    done
+fi
 
 for comp in "agent" "verifier" "tenant" "registrar" "ca" "logging"; do
     mkdir -p /etc/keylime/$comp.conf.d
