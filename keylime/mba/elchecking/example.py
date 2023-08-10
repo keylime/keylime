@@ -75,7 +75,6 @@ shim_authcode_sha256_no_secureboot = tests.obj_test(
     kernel_cmdline=tests.type_test(str),
 )
 
-
 allowed_kernel_list_test_no_secureboot = tests.list_test(shim_authcode_sha256_no_secureboot)
 
 
@@ -303,6 +302,20 @@ class Example(policies.Policy):
                 ),
             ),
         )
+        # edk2 measures up to 4 of those events, where we do not have a good way to get a reference
+        # See:
+        # - https://github.com/keylime/keylime/issues/1393
+        # - https://github.com/tianocore/edk2/commit/935343cf1639a28530904a1e8d73d6517a07cbff
+        dispatcher.set(
+            (1, "EV_PLATFORM_CONFIG_FLAGS"),
+            tests.Or(
+                tests.OnceTest(tests.AcceptAll()),
+                tests.OnceTest(tests.AcceptAll()),
+                tests.OnceTest(tests.AcceptAll()),
+                tests.OnceTest(tests.AcceptAll()),
+            ),
+        )
+
         dispatcher.set((4, "EV_EFI_ACTION"), tests.EvEfiActionTest(4))
         for pcr in range(8):
             dispatcher.set((pcr, "EV_SEPARATOR"), tests.EvSeperatorTest())
