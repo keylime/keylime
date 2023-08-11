@@ -461,6 +461,177 @@ The verifier log should now indicating a bad file signature::
   keylime.cloudverifier - WARNING - agent D432FBB3-D2F1-4A97-9EF7-75BD81C00000 failed, stopping polling
 
 
+Using Key Learning to Verify Files
+----------------------------------
+
+Note: The following has been tested with RHEL 9.3 and keylime 7.3. It is
+      work-in-progress on CentOS and Fedora.
+
+Using key learning to verify files requires that files logged by IMA are
+appropriately signed. If files are not signed or have a bad signature then
+they must be either in the exclude list of the runtime policy or their hashes
+must be part of the runtime policy. It should also be noted that IMA signature
+verification provides lock-down of a system and ensures the provenance of
+files from a trusted source but, unlike file hashes, does not provide
+protection for file renaming or replacing files and signatures with other
+versions (downgrading).
+
+For the following setup we use RHEL 9.3 since this distribution carries file
+signatures in its rpm packages and the Dracut scripts have been added to load
+the IMA signature verification keys onto the :code:`.ima` keyring.
+
+All below steps are run as `root`.
+
+To ensure that file signatures are installed when packages are installed,
+run the following command::
+
+   dnf -y install rpm-plugin-ima
+
+Since some packages did not carry file signatures until recently, update
+all packages to ensure that the signatures are installed::
+
+   dnf -y update
+
+In case the system was previously not installed with file signatures, run
+the following command to reinstall all packages with file signatures::
+
+   dnf -y reinstall \*
+
+To verify whether a particular file has its file signature installed use
+the following command to display the contents of :code:`security.ima`. If
+nothing is displayed then this file misses its file signature::
+
+   getfattr -m ^security.ima -e hex --dump /usr/bin/bash
+
+We must setup the system with the kernel command line option
+:code:`ima_template=ima-sig` so that IMA signatures become part of the measurement
+log. It is not necessary to enable signature enforcement on the system, measuring
+executed applications is sufficient for the purpose of 'key learning'. For
+this we edit :code:`/etc/default/grub` and adjust the following line::
+
+   GRUB_CMDLINE_LINUX="rhgb quiet ima_template=ima-sig"
+
+Then run the following command to update the kernel command line options::
+
+   grub2-mkconfig -o /boot/grub2/grub.conf   # grub.cfg on CentOS/RHEL
+
+Set the following IMA policy in :code:`/etc/ima/ima-policy` when systemd
+will load the policy::
+
+   # PROC_SUPER_MAGIC
+   dont_measure fsmagic=0x9fa0
+   # SYSFS_MAGIC
+   dont_measure fsmagic=0x62656572
+   # DEBUGFS_MAGIC
+   dont_measure fsmagic=0x64626720
+   # TMPFS_MAGIC
+   dont_measure fsmagic=0x01021994
+   # RAMFS_MAGIC
+   dont_measure fsmagic=0x858458f6
+   # SECURITYFS_MAGIC
+   dont_measure fsmagic=0x73636673
+   # SELINUX_MAGIC
+   dont_measure fsmagic=0xf97cff8c
+   # CGROUP_SUPER_MAGIC
+   dont_measure fsmagic=0x27e0eb
+   # OVERLAYFS_MAGIC
+   # when containers are used we almost always want to ignore them
+   dont_measure fsmagic=0x794c7630
+
+   # Measure and log keys loaded onto the .ima keyring
+   measure func=KEY_CHECK keyrings=.ima
+   # Measure and log executables
+   measure func=BPRM_CHECK
+   # Measure and log shared libraries
+   measure func=FILE_MMAP mask=MAY_EXEC
+
+Copy IMA signature verification key(s) so that Dracut scripts can load
+the keys onto the :code:`.ima` keyring early during system startup::
+
+   mkdir -p /etc/keys/ima
+   cp /usr/share/doc/kernel-keys/$(uname -r)/ima.cer /etc/keys/ima # RHEL/CentOS
+
+Enable the IMA Dracut scripts in the initramfs::
+
+   dracut --kver $(uname -r) --force --add integrity
+
+Then reboot the system::
+
+   reboot
+
+Once the system has been rebooted it must show at least two entries in the IMA
+log where keys were loaded onto the .ima keyring:
+
+   grep -E " \.ima " /sys/kernel/security/ima/ascii_runtime_measurements
+
+The first entry represents the Linux kernel signing key and the second entry
+is the IMA file signing key.
+
+We now create the policy::
+
+   grep \
+     -E "(boot_aggregate| ima-buf )" \
+     /sys/kernel/security/ima/ascii_runtime_measurements > trimmed_ima_log
+
+   keylime_create_policy -k -m ./trimmed_ima_log -o mypolicy.json
+
+The 1st command creates a trimmed-down IMA measurement log that only
+contains the boot_aggregate and ima-buf entries. The latter show the key(s)
+that were loaded onto the :code:`.ima` keyring.
+
+The 2nd command creates the runtime policy that holds the boot_aggregate
+entry and a hash over keys that were loaded onto the .ima keyring. This
+hash is used to verify that only trusted keys are learned.
+
+We can now start to monitor this system::
+
+   touch payload  # create empty payload for example purposes
+   keylime_tenant -c update --uuid <agent-uuid> -f payload --runtime-policy ./mypolicy.json
+
+In case the verification of the system fails we need to inspect the
+verifier log and add those files to the :code:`trimmed_ima_log` that failed
+verification. Assuming files with the filename pattern :code:`livesys` failed
+verification we repeat the steps above as follows by adding files
+with the file pattern :code:`livesys` to the trimmed log. These files will then
+be verified using their hashes rather than signatures. Another possibility
+would be to add these files to the list of excluded files.
+We may need to repeat the following steps until the system passes
+verification::
+
+
+   grep \
+     -E "(boot_aggregate| ima-buf |livesys)" \
+     /sys/kernel/security/ima/ascii_runtime_measurements > trimmed_ima_log
+
+   keylime_create_policy -k -m ./trimmed_ima_log -o mypolicy.json
+
+   keylime_tenant -c update --uuid <agent-uuid> -f payload --runtime-policy ./mypolicy.json
+
+
+To trigger a verification failure an unsigned application can be started::
+
+   cat <<EOF > test.sh
+   #!/usr/bin/env bash
+   echo Test
+   EOF
+
+   chmod 0755 test.sh
+
+   ./test.sh
+
+To re-enable the verification of the system the policy needs to be updated
+to contain :code:`test.sh` and possibly all other applications that are not
+signed:
+
+   grep \
+     -E "(boot_aggregate| ima-buf |test\.sh)" \
+     /sys/kernel/security/ima/ascii_runtime_measurements > trimmed_ima_log
+
+   keylime_create_policy -k -m ./trimmed_ima_log -o mypolicy.json
+
+   keylime_tenant -c update --uuid <agent-uuid> -f payload --runtime-policy ./mypolicy.json
+
+
 Legacy allowlist and excludelist Format
 ---------------------------------------
 Since Keylime 6.6.0 the old JSON and flat file formats for runtime policies are deprecated.
