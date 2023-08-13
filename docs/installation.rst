@@ -94,7 +94,7 @@ The following Python packages are required:
 * pyzmq>=14.4
 * pyyaml>=3.11
 * requests>=2.6
-* sqlalchemy>=1.3
+* sqlalchemy>=1.3.12
 * alembic>=1.1.0
 * packaging>=20.0
 * psutil>=5.4.2
