@@ -132,32 +132,32 @@ def notify_webhook(tosend: Dict[str, Any]) -> None:
     def worker_webhook(tosend: Dict[str, Any], url: str) -> None:
         interval = config.getfloat("verifier", "retry_interval")
         exponential_backoff = config.getboolean("verifier", "exponential_backoff")
-        session = requests.session()
-        logger.info("Sending revocation event via webhook...")
-        for i in range(config.getint("verifier", "max_retries")):
-            next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
-            try:
-                response = session.post(url, json=tosend, timeout=5)
-                if response.status_code in [200, 202]:
-                    break
+        with requests.Session() as session:
+            logger.info("Sending revocation event via webhook...")
+            for i in range(config.getint("verifier", "max_retries")):
+                next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
+                try:
+                    response = session.post(url, json=tosend, timeout=5)
+                    if response.status_code in [200, 202]:
+                        break
 
-                logger.debug(
-                    "Unable to publish revocation message %d times via webhook, "
-                    "trying again in %d seconds. "
-                    "Server returned status code: %s",
-                    i,
-                    next_retry,
-                    response.status_code,
-                )
-            except requests.exceptions.RequestException as e:
-                logger.debug(
-                    "Unable to publish revocation message %d times via webhook, trying again in %d seconds: %s",
-                    i,
-                    next_retry,
-                    e,
-                )
+                    logger.debug(
+                        "Unable to publish revocation message %d times via webhook, "
+                        "trying again in %d seconds. "
+                        "Server returned status code: %s",
+                        i,
+                        next_retry,
+                        response.status_code,
+                    )
+                except requests.exceptions.RequestException as e:
+                    logger.debug(
+                        "Unable to publish revocation message %d times via webhook, trying again in %d seconds: %s",
+                        i,
+                        next_retry,
+                        e,
+                    )
 
-            time.sleep(next_retry)
+                time.sleep(next_retry)
 
     w = functools.partial(worker_webhook, tosend, url)
     t = threading.Thread(target=w, daemon=True)
