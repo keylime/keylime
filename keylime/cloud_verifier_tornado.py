@@ -51,7 +51,7 @@ except SQLAlchemyError as err:
     sys.exit(1)
 
 try:
-    rmc = record.get_record_mgt_class(config.get("registrar", "durable_attestation_import", fallback=""))
+    rmc = record.get_record_mgt_class(config.get("verifier", "durable_attestation_import", fallback=""))
     if rmc:
         rmc = rmc("verifier")
 except record.RecordManagementException as rme:
