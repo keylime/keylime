@@ -32,6 +32,7 @@ from keylime import (
 )
 from keylime.agentstates import AgentAttestState, AgentAttestStates
 from keylime.common import retry, states, validators
+from keylime.common.version import str_to_version
 from keylime.da import record
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist
@@ -998,6 +999,80 @@ class AllowlistHandler(BaseHandler):
         raise NotImplementedError()
 
 
+async def update_agent_api_version(agent: Dict[str, Any], timeout: float = 60.0) -> Union[Dict[str, Any], None]:
+    agent_id = agent["agent_id"]
+
+    logger.info("Agent %s API version bump detected, trying to update stored API version", agent_id)
+    kwargs = {}
+    if agent["ssl_context"]:
+        kwargs["context"] = agent["ssl_context"]
+
+    res = tornado_requests.request(
+        "GET",
+        f"http://{agent['ip']}:{agent['port']}/version",
+        **kwargs,
+        timeout=timeout,
+    )
+    response = await res
+
+    if response.status_code != 200:
+        logger.warning(
+            "Could not get agent %s supported API version, Error: %s",
+            agent["agent_id"],
+            response.status_code,
+        )
+        return None
+
+    try:
+        json_response = json.loads(response.body)
+        new_version = json_response["results"]["supported_version"]
+        old_version = agent["supported_version"]
+
+        # Only update the API version to use if it is supported by the verifier
+        if new_version in keylime_api_version.all_versions():
+            new_version_tuple = str_to_version(new_version)
+            old_version_tuple = str_to_version(old_version)
+
+            assert new_version_tuple, f"Agent {agent_id} version {new_version} is invalid"
+            assert old_version_tuple, f"Agent {agent_id} version {old_version} is invalid"
+
+            # Check that the new version is greater than current version
+            if new_version_tuple <= old_version_tuple:
+                logger.warning(
+                    "Agent %s API version %s is lower or equal to previous version %s",
+                    agent_id,
+                    new_version,
+                    old_version,
+                )
+                return None
+
+            logger.info("Agent %s new API version %s is supported", agent_id, new_version)
+            session = get_session()
+            agent["supported_version"] = new_version
+
+            # Remove keys that should not go to the DB
+            agent_db = dict(agent)
+            for key in exclude_db:
+                if key in agent_db:
+                    del agent_db[key]
+
+            session.query(VerfierMain).filter_by(agent_id=agent_id).update(agent_db)  # pyright: ignore
+            session.commit()
+        else:
+            logger.warning("Agent %s new API version %s is not supported", agent_id, new_version)
+            return None
+
+    except SQLAlchemyError as e:
+        logger.error("SQLAlchemy Error updating API version for agent %s: %s", agent_id, e)
+        return None
+    except Exception as e:
+        logger.exception(e)
+        return None
+
+    logger.info("Agent %s API version updated to %s", agent["agent_id"], agent["supported_version"])
+    return agent
+
+
 async def invoke_get_quote(
     agent: Dict[str, Any], runtime_policy: str, need_pubkey: bool, timeout: float = 60.0
 ) -> None:
@@ -1028,15 +1103,43 @@ async def invoke_get_quote(
         # this is a connection error, retry get quote
         if response.status_code in [408, 500, 599]:
             asyncio.ensure_future(process_agent(agent, states.GET_QUOTE_RETRY))
-        else:
-            # catastrophic error, do not continue
-            logger.critical(
-                "Unexpected Get Quote response error for cloud agent %s, Error: %s",
-                agent["agent_id"],
-                response.status_code,
-            )
-            failure.add_event("no_quote", "Unexpected Get Quote reponse from agent", False)
-            asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
+            return
+
+        if response.status_code == 400:
+            try:
+                json_response = json.loads(response.body)
+                if "API version not supported" in json_response["status"]:
+                    update = update_agent_api_version(agent)
+                    updated = await update
+
+                    if updated:
+                        asyncio.ensure_future(process_agent(updated, states.GET_QUOTE_RETRY))
+                    else:
+                        logger.warning("Could not update stored agent %s API version", agent["agent_id"])
+                        failure.add_event(
+                            "version_not_supported",
+                            {"context": "Agent API version not supported", "data": json_response},
+                            False,
+                        )
+                        asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
+                    return
+
+            except Exception as e:
+                logger.exception(e)
+                failure.add_event(
+                    "exception", {"context": "Agent caused the verifier to throw an exception", "data": str(e)}, False
+                )
+                asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
+                return
+
+        # catastrophic error, do not continue
+        logger.critical(
+            "Unexpected Get Quote response error for cloud agent %s, Error: %s",
+            agent["agent_id"],
+            response.status_code,
+        )
+        failure.add_event("no_quote", "Unexpected Get Quote reponse from agent", False)
+        asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
     else:
         try:
             json_response = json.loads(response.body)
@@ -1100,15 +1203,43 @@ async def invoke_provide_v(agent: Dict[str, Any], timeout: float = 60.0) -> None
     if response.status_code != 200:
         if response.status_code in [408, 500, 599]:
             asyncio.ensure_future(process_agent(agent, states.PROVIDE_V_RETRY))
-        else:
-            # catastrophic error, do not continue
-            logger.critical(
-                "Unexpected Provide V response error for cloud agent %s, Error: %s",
-                agent["agent_id"],
-                response.status_code,
-            )
-            failure.add_event("no_v", {"message": "Unexpected provide V response", "data": response.status_code}, False)
-            asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
+            return
+
+        if response.status_code == 400:
+            try:
+                json_response = json.loads(response.body)
+                if "API version not supported" in json_response["status"]:
+                    update = update_agent_api_version(agent)
+                    updated = await update
+
+                    if updated:
+                        asyncio.ensure_future(process_agent(updated, states.PROVIDE_V_RETRY))
+                    else:
+                        logger.warning("Could not update stored agent %s API version", agent["agent_id"])
+                        failure.add_event(
+                            "version_not_supported",
+                            {"context": "Agent API version not supported", "data": json_response},
+                            False,
+                        )
+                        asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
+                    return
+
+            except Exception as e:
+                logger.exception(e)
+                failure.add_event(
+                    "exception", {"context": "Agent caused the verifier to throw an exception", "data": str(e)}, False
+                )
+                asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
+                return
+
+        # catastrophic error, do not continue
+        logger.critical(
+            "Unexpected Provide V response error for cloud agent %s, Error: %s",
+            agent["agent_id"],
+            response.status_code,
+        )
+        failure.add_event("no_v", {"message": "Unexpected provide V response", "data": response.status_code}, False)
+        asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
     else:
         asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
 
@@ -1134,6 +1265,24 @@ async def invoke_notify_error(agent: Dict[str, Any], tosend: Dict[str, Any], tim
             agent["agent_id"],
         )
     elif response.status_code != 200:
+        if response.status_code == 400:
+            try:
+                json_response = json.loads(response.body)
+                if "API version not supported" in json_response["status"]:
+                    update = update_agent_api_version(agent)
+                    updated = await update
+
+                    if updated:
+                        asyncio.ensure_future(invoke_notify_error(updated, tosend))
+                    else:
+                        logger.warning("Could not update stored agent %s API version", agent["agent_id"])
+
+                    return
+
+            except Exception as e:
+                logger.exception(e)
+                return
+
         logger.warning(
             "Unexpected Notify Revocation response error for cloud agent %s, Error: %s",
             agent["agent_id"],
