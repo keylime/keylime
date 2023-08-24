@@ -28,7 +28,7 @@ adjust:
     - how: shell
       order: 30
       script:
-       - rpm -Uv https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm https://dl.fedoraproject.org/pub/epel/epel-next-release-latest-9.noarch.rpm
+       - rpm -q epel-release || rpm -Uv https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm https://dl.fedoraproject.org/pub/epel/epel-next-release-latest-9.noarch.rpm
  - when: distro == centos-stream-8
    enabled: 0
 
