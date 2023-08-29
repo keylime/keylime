@@ -95,7 +95,7 @@ class Signature(HexData):
         _, _, _, _, sig_size = struct.unpack(fmt, self.data[:hdrlen])
 
         if hdrlen + sig_size != len(self.data):
-            raise ParserError("Invalid signature: malformed header")
+            raise ParserError(f"Invalid signature: malformed header ({hdrlen} + {sig_size} != {len(self.data)})")
 
 
 class Buffer(HexData):
@@ -269,8 +269,9 @@ class ImaSig(Mode):
         """Create the Signature object if the hexstring is a valid signature"""
         try:
             return Signature(hexstring)
-        except ParserError:
-            pass
+        except ParserError as e:
+            if hexstring:
+                logger.error("Failed to parse signature %s : %s", hexstring, e)
         return None
 
     def bytes(self) -> bytes:
