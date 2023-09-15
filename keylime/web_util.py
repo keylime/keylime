@@ -413,7 +413,7 @@ def get_restful_params(urlstring: str) -> Dict[str, Union[str, None]]:
 
     # If first token looks like an API version, validate it and make sure it's supported
     api_version = "0"
-    if path_tokens[0] and len(path_tokens[0]) >= 0 and re.match(r"^v?[0-9]+(\.[0-9]+)?", path_tokens[0]):
+    if path_tokens[0] and len(path_tokens[0]) > 0 and re.match(r"^v?[0-9]+(\.[0-9]+)?", path_tokens[0]):
         version = keylime_api_version.normalize_version(path_tokens[0])
 
         if keylime_api_version.is_supported_version(version):
