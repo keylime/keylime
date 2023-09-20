@@ -71,7 +71,7 @@
      }
  }
 
- Check "scripts/templates/2.0/mapping.json" file for an example.
+ Check "templates/2.0/mapping.json" file for an example.
 
  The idea is to provide new templates, mapping, and adjust script for new
  versions of the configuration, allowing the user to easily convert from a
