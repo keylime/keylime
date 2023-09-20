@@ -590,11 +590,6 @@
                 "option": "auto_migrate_db",
                 "default": "True"
             },
-            "prov_db_filename": {
-                "section": "registrar",
-                "option": "prov_db_filename",
-                "default": "provider_reg_data.sqlite"
-            },
             "durable_attestation_import" : {
                 "section": "registrar",
                 "option": "durable_attestation_import",
