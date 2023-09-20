@@ -285,10 +285,13 @@ def pubkey_parms_from_tpm2b_public(
     (_, sym_parms) = _extract_tpm2b(public[8:])
     # Ignore the non-asym-alg parameters
     (sym_alg,) = struct.unpack(">H", sym_parms[0:2])
+    (scheme_alg,) = struct.unpack(">H", sym_parms[2:4])
     # Ignore the sym_mode and keybits (4 bytes), possibly symmetric (2) and sign
     #  scheme (2)
-    to_skip = 4 + 2  # sym_mode, keybits and sign scheme
+    to_skip = 4  # sym_mode, keybits
     if sym_alg != TPM2_ALG_NULL:
+        to_skip = to_skip + 2
+    if scheme_alg != TPM2_ALG_NULL:
         to_skip = to_skip + 2
     asym_parms = sym_parms[to_skip:]
 

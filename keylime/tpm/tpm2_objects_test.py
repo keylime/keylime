@@ -262,6 +262,21 @@ class TestTpm2Objects(unittest.TestCase):
         self.assertEqual(new_ec_pubkey_n.x, correct_ec_pubkey_n.x)
         self.assertEqual(new_ec_pubkey_n.y, correct_ec_pubkey_n.y)
 
+    def test_pubkey_from_tpm2b_public_rsa_2(self) -> None:
+        # This key has Null set for the RSA scheme algorithm
+        test_pubkey_bytes = base64.b64decode(
+            "ATYAAQALAAQA8gAgrWs6IoT9aYoHEL9cwbm98V4lMuP2AfpLk6ao+o3leeoAEAAQCA"
+            "AAAAAAAQCUcktf2f6TOoVE94USfvExBIRumw5AOD2ahxDLXvYgTZoCEfIo4B1y/9o5"
+            "4aKs8eclm1ez1huCcSklaI07MQnSFv+YgmMsmGd9CQNe0b5uL9nGXDDHVEUeRERj/i"
+            "ZU82KEiXMYGs/8RfocrdFihsSKD/Xmgary+HU1HwkxWWPHYtFRLTlQgrqKJ1CckUaf"
+            "BHKyWvjjRLEhZC0YOZWAtbGN3bOJZ3FzBV21lx7e7RsBxBwUhQrRPbWh6UTb/lKBn8"
+            "pQgRLqb/wB5m99O7HzpKIy/trAQDnalPg2izgt7MByesMwTpJ0KGlwo69xus/UaE9a"
+            "apMZTnYR6W2mM2H6vrKl"
+        )
+        new_rsa_pubkey, name_alg = pubkey_parms_from_tpm2b_public(test_pubkey_bytes)
+        self.assertIsInstance(new_rsa_pubkey, rsa.RSAPublicKey)
+        self.assertEqual(name_alg, TPM_ALG_SHA256)
+
     def test_pubkey_from_tpm2b_public_ec_without_encryption(self) -> None:
         new_ec_pubkey = pubkey_from_tpm2b_public(
             bytes.fromhex(
