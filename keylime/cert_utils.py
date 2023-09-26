@@ -2,7 +2,7 @@ import io
 import os.path
 import subprocess
 import sys
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from cryptography import exceptions as crypto_exceptions
 from cryptography import x509
@@ -11,10 +11,12 @@ from cryptography.hazmat.primitives.asymmetric import ec, padding
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.x509 import Certificate
+from cryptography.x509.oid import ExtensionOID
 from pyasn1.codec.der import decoder, encoder
-from pyasn1_modules import pem, rfc2459
+from pyasn1_modules import pem, rfc2459, rfc4108
 
 from keylime import keylime_logging, tpm_ek_ca
+from keylime.tpm import tpm2_objects
 
 # Issue #944 -- python-cryptography won't parse malformed certs,
 # such as some Nuvoton ones we have encountered in the field.
@@ -23,6 +25,11 @@ from keylime import keylime_logging, tpm_ek_ca
 # Here we provide some helpers that use pyasn1 to parse the certificates
 # when parsing them with python-cryptography fails, and in this case, we
 # try to read the parsed certificate again into python-cryptograhy.
+
+# These OIDs are taken from the SubjectAltName from section 8.1 of the TPM 2.0 Keys for Device Identity and Attestation
+# https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf
+OID_HW_MODULE_NAME = "1.3.6.1.5.5.7.8.4"
+OID_HWTYPE_TPM = "2.23.133.1.2"
 
 logger = keylime_logging.init_logging("cert_utils")
 
@@ -58,10 +65,11 @@ def x509_pem_cert(pem_cert_data: str) -> Certificate:
         return x509.load_der_x509_certificate(data=encoder.encode(pyasn1_cert), backend=default_backend())
 
 
-def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:
-    """Verify that the provided EK certificate is signed by a trusted root
-    :param ekcert: The Endorsement Key certificate in DER format
+def verify_cert(cert: Certificate, tpm_cert_store: str, cert_type: str = "") -> bool:
+    """Verify that the provided certificate is signed by a trusted root
+    :param cert: The certificate as a cryptography.x509.Certificate
     :param tpm_cert_store: The path for the TPM certificate store
+    :param cert_type: Type of certificate as string for logging
     :returns: True if the certificate can be verified, False otherwise
     """
     try:
@@ -71,28 +79,27 @@ def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:
         return False
 
     try:
-        ek509 = x509_der_cert(ekcert)
         for cert_file, pem_cert in trusted_certs.items():
             signcert = x509_pem_cert(pem_cert)
-            if ek509.issuer != signcert.subject:
+            if cert.issuer != signcert.subject:
                 continue
 
             signcert_pubkey = signcert.public_key()
             try:
                 if isinstance(signcert_pubkey, RSAPublicKey):
-                    assert ek509.signature_hash_algorithm is not None
+                    assert cert.signature_hash_algorithm is not None
                     signcert_pubkey.verify(
-                        ek509.signature,
-                        ek509.tbs_certificate_bytes,
+                        cert.signature,
+                        cert.tbs_certificate_bytes,
                         padding.PKCS1v15(),
-                        ek509.signature_hash_algorithm,
+                        cert.signature_hash_algorithm,
                     )
                 elif isinstance(signcert_pubkey, EllipticCurvePublicKey):
-                    assert ek509.signature_hash_algorithm is not None
+                    assert cert.signature_hash_algorithm is not None
                     signcert_pubkey.verify(
-                        ek509.signature,
-                        ek509.tbs_certificate_bytes,
-                        ec.ECDSA(ek509.signature_hash_algorithm),
+                        cert.signature,
+                        cert.tbs_certificate_bytes,
+                        ec.ECDSA(cert.signature_hash_algorithm),
                     )
                 else:
                     logger.warning("Unsupported public key type: %s", type(signcert_pubkey))
@@ -100,15 +107,52 @@ def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:
             except crypto_exceptions.InvalidSignature:
                 continue
 
-            logger.debug("EK cert matched cert: %s", cert_file)
+            logger.debug("Cert to verify matched cert: %s", cert_file)
             return True
     except Exception as err:
         # Log the exception so we don't lose the raw message
         logger.exception(err)
-        raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?").with_traceback(sys.exc_info()[2])
+        raise Exception(f"Error processing {cert_type} certificate.").with_traceback(sys.exc_info()[2])
 
-    logger.error("No Root CA matched EK Certificate")
+    logger.error("No Root CA matched %s Certificate", cert_type)
     return False
+
+
+def check_tpm_origin(cert: Certificate, cert_type: str = "") -> bool:
+    """Verify that the provided certificate is from a TPM according to the SAN
+    :param cert: The certificate as a cryptography.x509.Certificate
+    :param cert_type: Type of certificate as string for logging
+    :returns: True if the certificate came from a TPM
+    """
+    san_ext = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+    assert isinstance(san_ext.value, x509.SubjectAlternativeName)
+    othername = san_ext.value.get_values_for_type(x509.OtherName)[0]
+    if othername.type_id.dotted_string != OID_HW_MODULE_NAME:
+        logger.error("%s Certificate did not contain the HW module name. This may not have come from a TPM.", cert_type)
+        return False
+    decoded_on, _ = decoder.decode(othername.value, asn1Spec=rfc4108.HardwareModuleName())
+    if str(decoded_on["hwType"]) != OID_HWTYPE_TPM:
+        logger.error(
+            "%s Certificate did not contain the correct hwType OID in SubjectAltName. This may not have come from a TPM.",
+            cert_type,
+        )
+        return False
+    return True
+
+
+def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:
+    """Verify that the provided EK certificate is signed by a trusted root
+    :param ekcert: The Endorsement Key certificate in DER format
+    :param tpm_cert_store: The path for the TPM certificate store
+    :returns: True if the certificate can be verified, False otherwise
+    """
+    try:
+        ek509 = x509_der_cert(ekcert)
+    except Exception as e:
+        # Log the exception so we don't lose the raw message
+        logger.exception(e)
+        raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?").with_traceback(sys.exc_info()[2])
+    return verify_cert(ek509, tpm_cert_store, "EK")
 
 
 def verify_ek_script(script: Optional[str], env: Optional[Dict[str, str]], cwd: Optional[str]) -> bool:
@@ -146,3 +190,33 @@ def verify_ek_script(script: Optional[str], env: Optional[Dict[str, str]], cwd: 
         logger.error("Error while trying to run external check script to validate EK: %s", err)
         return False
     return True
+
+
+def iak_idevid_cert_checks(
+    idevid_cert: bytes, iak_cert: bytes, tpm_cert_store: str
+) -> Tuple[str, Optional[tpm2_objects.pubkey_type], Optional[tpm2_objects.pubkey_type]]:
+    idevid_cert_509 = x509_der_cert(idevid_cert)
+    iak_cert_509 = x509_der_cert(iak_cert)
+    # NEEDS CRYPTO >= 38.0.0
+    idevid_pub = idevid_cert_509.public_key()
+    iak_pub = iak_cert_509.public_key()
+
+    if not isinstance(idevid_pub, RSAPublicKey) or isinstance(idevid_pub, EllipticCurvePublicKey):
+        return "Error: IDevID certificate does not contain an RSA or EC public key", None, None
+    if not isinstance(iak_pub, RSAPublicKey) or isinstance(iak_pub, EllipticCurvePublicKey):
+        return "Error: IAK certificate does not contain an RSA or EC public key", None, None
+
+    if not verify_cert(idevid_cert_509, tpm_cert_store, "IDevID"):
+        return "Error: IDevID certificate could not be verified", None, None
+    logger.debug("IDevID cert verified.")
+    if not verify_cert(iak_cert_509, tpm_cert_store, "IAK"):
+        return "Error: IAK certificate could not be verified", None, None
+    logger.debug("IAK cert verified.")
+
+    # TPM cert checks
+    if not check_tpm_origin(idevid_cert_509, "IDevID"):
+        return "Error: IDevID certificate might not be from a TPM", None, None
+    if not check_tpm_origin(iak_cert_509, "IAK"):
+        return "Error: IAK certificate might not be from a TPM", None, None
+    logger.debug("IDevID and IAK seem to come from a TPM")
+    return "", idevid_pub, iak_pub

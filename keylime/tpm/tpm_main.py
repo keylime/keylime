@@ -51,7 +51,9 @@ class Tpm:
         return (keyblob, key)
 
     @staticmethod
-    def verify_aik_with_iak(uuid: str, aik_tpm: bytes, iak_tpm: bytes, iak_attest: bytes, iak_sign: bytes) -> bool:
+    def verify_aik_with_iak(
+        uuid: str, aik_tpm: bytes, iak_pub: tpm2_objects.pubkey_type, iak_attest: bytes, iak_sign: bytes
+    ) -> bool:
         attest_body = iak_attest.split(b"\x00$")[1]
 
         # check UUID in certify matches UUID registering
@@ -69,16 +71,15 @@ class Tpm:
 
         # process iak pub key and import into tpm, get pub key context from tpm
         sig_alg, _, sig_size = struct.unpack_from(">HHH", iak_sign, 0)
-        iakpub = tpm2_objects.pubkey_from_tpm2b_public(iak_tpm)
 
-        if not isinstance(iakpub, (RSAPublicKey, EllipticCurvePublicKey)):
-            raise ValueError(f"Unsupported key type {type(iakpub).__name__}")
+        if not isinstance(iak_pub, (RSAPublicKey, EllipticCurvePublicKey)):
+            raise ValueError(f"Unsupported key type {type(iak_pub).__name__}")
 
-        if isinstance(iakpub, RSAPublicKey):
+        if isinstance(iak_pub, RSAPublicKey):
             if sig_alg in [tpm2_objects.TPM_ALG_RSASSA, tpm2_objects.TPM_ALG_RSAPSS]:
                 try:
                     (signature,) = struct.unpack_from(f"{sig_size}s", iak_sign, 6)
-                    tpm_util.verify(iakpub, signature, digest, hashfunc, sig_alg, int(sig_size / 8))
+                    tpm_util.verify(iak_pub, signature, digest, hashfunc, sig_alg, int(sig_size / 8))
                     logger.info("Agent %s AIK verified with IAK", uuid)
                     return True
                 except InvalidSignature:
@@ -88,11 +89,11 @@ class Tpm:
             else:
                 raise ValueError(f"Unsupported quote signature algorithm '{sig_alg:#x}' for RSA keys")
 
-        if isinstance(iakpub, EllipticCurvePublicKey):
+        if isinstance(iak_pub, EllipticCurvePublicKey):
             if sig_alg in [tpm2_objects.TPM_ALG_ECDSA]:
                 try:
                     der_sig = tpm_util.ecdsa_der_from_tpm(iak_sign)
-                    tpm_util.verify(iakpub, der_sig, digest, hashfunc)
+                    tpm_util.verify(iak_pub, der_sig, digest, hashfunc)
                     logger.info("Agent %s AIK verified with IAK", uuid)
                     return True
                 except InvalidSignature:

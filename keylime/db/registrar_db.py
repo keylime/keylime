@@ -20,6 +20,8 @@ class RegistrarMain(Base):
     ek_tpm = Column(String(500))
     iak_tpm = Column(String(500))
     idevid_tpm = Column(String(500))
+    iak_cert = Column(String(2048))
+    idevid_cert = Column(String(2048))
     mtls_cert = Column(String(2048), nullable=True)
     virtual = Column(Integer)
     ip = Column(String(15), nullable=True)
