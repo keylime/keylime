@@ -13,6 +13,8 @@ from ipaddress import IPv6Address, ip_address
 from socketserver import ThreadingMixIn
 from typing import Any, Dict, Optional, Tuple, Union, cast
 
+import cryptography
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound  # pyright: ignore
@@ -289,22 +291,86 @@ class UnprotectedHandler(BaseHandler):
 
             ekcert = json_body["ekcert"]
             aik_tpm = json_body["aik_tpm"]
-            iak_tpm = ""
-            idevid_tpm = ""
+            iak_tpm = b""
+            idevid_tpm = b""
+            idevid_cert = ""
+            iak_cert = ""
             iak_attest = b""
             iak_sign = b""
-            # Check if IDevID and IAK are received
-            # If not it is reported with logger info, but this behaviour will change when configuration requirements are added
+            tpm_identity = config.get("registrar", "tpm_identity", fallback="default")
+            idevid_required = tpm_identity == "iak_idevid"
+            ek_required = tpm_identity == "ek_cert"
+
+            # Check cryptography version before iak and idevid checks
+            # If idevid is required in config but version is <38.0.0 then stop
+            # If idevid is not required and version is <38.0.0, only the ek will be allowed to be used in registration
+            if int(cryptography.__version__.split(".", maxsplit=1)[0]) < 38:
+                if idevid_required:
+                    logger.warning(
+                        "IAK and IDevID required in config (tpm_identity) but cryptography version too early (<38.0.0)"
+                    )
+                    web_util.echo_json_response(self, 400, "Config not compatible with cryptography version")
+                    return
+                logger.info("Cryptography version <38.0.0 so only EK will be used to register.")
+                ek_required = True
+
+            # If IDevID and IAK are required in the config:
+            #  -Check if IDevID and IAK are received along with their certificates
+            #  -Check if certificates are trusted
+            #  -Make sure the agent has generated the same keys as used in the certificates
             idevid_received = False
-            if "iak_tpm" in json_body:
-                iak_tpm = json_body["iak_tpm"]
-                idevid_tpm = json_body["idevid_tpm"]
+            if not ek_required and "iak_tpm" in json_body:
+                # These would currently just be overwritten by keys in the certs
+                # We will want to use them when the option to send from the agent without including certs is added.
+                # iak_tpm_pub = tpm2_objects.pubkey_from_tpm2b_public(base64.b64decode(json_body["iak_tpm"]))
+                # idevid_tpm_pub = tpm2_objects.pubkey_from_tpm2b_public(base64.b64decode(json_body["idevid_tpm"]))
                 iak_attest = base64.b64decode(json_body["iak_attest"])
                 iak_sign = base64.b64decode(json_body["iak_sign"])
                 logger.info("IDevID and IAK received")
+                idevid_cert = json_body["idevid_cert"]
+                iak_cert = json_body["iak_cert"]
                 idevid_received = True
-            else:
-                logger.info("No IDevID/IAK received")
+
+                # IDevID and IAK cert checks, this requires crypto>=38.0.0
+                # Here we are checking the types of keys in the certificates, checking the certs are valid, and checking they are from a TPM
+                error, idevid_tpm_pub, iak_tpm_pub = cert_utils.iak_idevid_cert_checks(
+                    base64.b64decode(idevid_cert), base64.b64decode(iak_cert), config.get("tenant", "tpm_cert_store")
+                )
+
+                if iak_tpm_pub is None or idevid_tpm_pub is None:
+                    logger.warning(
+                        "POST for %s returning 400 response. Error in IAK and IDevID certificate checks: %s",
+                        agent_id,
+                        error,
+                    )
+                    web_util.echo_json_response(self, 400, error)
+                    return
+
+                iak_tpm = base64.b64encode(
+                    iak_tpm_pub.public_bytes(
+                        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+                    )
+                )
+                idevid_tpm = base64.b64encode(
+                    idevid_tpm_pub.public_bytes(
+                        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+                    )
+                )
+
+                # verify AIK and attestation data with IAK if IAK and IDevID received and required
+                aik_verified = False
+                if idevid_received:
+                    aik_verified = Tpm.verify_aik_with_iak(
+                        agent_id, base64.b64decode(aik_tpm), iak_tpm_pub, iak_attest, iak_sign
+                    )
+                if not aik_verified and idevid_required:
+                    logger.warning("Agent %s failed to verify AIK with IAK", agent_id)
+                    web_util.echo_json_response(self, 400, "Error: failed verifying AK with IAK")
+                    return
+            elif idevid_required:
+                logger.warning("Agent %s did not provide an IDevID/IAK", agent_id)
+                web_util.echo_json_response(self, 400, "Error: no IDevID/IAK received")
+                return
 
             if ekcert is None or ekcert == "emulator":
                 logger.warning("Agent %s did not submit an ekcert", agent_id)
@@ -337,16 +403,6 @@ class UnprotectedHandler(BaseHandler):
                 return
 
             # try to encrypt the AIK
-            # verify AIK and attestation data with IAK if IAK and IDevID received
-            aik_verified = False
-            if idevid_received:
-                aik_verified = Tpm.verify_aik_with_iak(
-                    agent_id, base64.b64decode(aik_tpm), base64.b64decode(iak_tpm), iak_attest, iak_sign
-                )
-            if not aik_verified and idevid_received:
-                logger.warning("Agent %s failed to verify AIK with IAK", agent_id)
-                web_util.echo_json_response(self, 400, "Error: failed verifying AK with IAK")
-                return
             aik_enc = Tpm.encrypt_aik_with_ek(agent_id, base64.b64decode(ek_tpm), base64.b64decode(aik_tpm))
             if aik_enc is None:
                 logger.warning("Agent %s failed encrypting AIK", agent_id)
@@ -393,6 +449,8 @@ class UnprotectedHandler(BaseHandler):
                 "ekcert": ekcert,
                 "iak_tpm": iak_tpm,
                 "idevid_tpm": idevid_tpm,
+                "iak_cert": iak_cert,
+                "idevid_cert": idevid_cert,
                 "ip": contact_ip,
                 "mtls_cert": mtls_cert,
                 "port": contact_port,
