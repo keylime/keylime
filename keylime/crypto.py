@@ -24,8 +24,10 @@ def rsa_import_pubkey(pubkey: Union[str, bytes]) -> RSAPublicKey:
     """
     if isinstance(pubkey, bytes):
         public_key = serialization.load_pem_public_key(pubkey, backend=default_backend())
-    else:
+    elif isinstance(pubkey, str):
         public_key = serialization.load_pem_public_key(pubkey.encode("utf-8"), backend=default_backend())
+    else:
+        raise TypeError(f"Unsupported raw pubkey data passed to rsa_import_pubkey: {type(pubkey).__name__}")
     if not isinstance(public_key, RSAPublicKey):
         raise Exception(f"Given public key is not an RSA public key but of type {type(public_key).__name__}")
     return public_key
@@ -37,8 +39,10 @@ def rsa_import_privkey(privkey: Union[str, bytes], password: Optional[bytes] = N
     """
     if isinstance(privkey, bytes):
         private_key = serialization.load_pem_private_key(privkey, password, backend=default_backend())
-    else:
+    elif isinstance(privkey, str):
         private_key = serialization.load_pem_private_key(privkey.encode("utf-8"), password, backend=default_backend())
+    else:
+        raise TypeError(f"Unsupported raw privkey data passed to rsa_import_privkey: {type(privkey).__name__}")
     if not isinstance(private_key, RSAPrivateKey):
         raise Exception(f"Given private key is not an RSA private key but of type {type(private_key).__name__}")
     return private_key
