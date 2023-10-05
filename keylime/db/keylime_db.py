@@ -103,9 +103,9 @@ class SessionManager:
         To use: session = self.make_session(engine)
         """
         self.engine = engine
-        MySession = scoped_session(sessionmaker())
+        my_session = scoped_session(sessionmaker())
         try:
-            MySession.configure(bind=self.engine)  # type: ignore
-        except SQLAlchemyError as e:
-            logger.error("Error creating SQL session manager %s", e)
-        return cast(Session, MySession())
+            my_session.configure(bind=self.engine)  # type: ignore
+        except SQLAlchemyError as err:
+            logger.error("Error creating SQL session manager %s", err)
+        return cast(Session, my_session())
