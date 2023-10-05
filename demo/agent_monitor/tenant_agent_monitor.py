@@ -33,7 +33,7 @@ sys.path.insert(0, "../../keylime/")
 
 logger = keylime_logging.init_logging("agent_monitor")
 
-initscript = None
+INIT_SCRIPT = None
 
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -125,17 +125,17 @@ class AgentsHandler(BaseHandler):
                     ssl.match_hostname(client_cert, agent_id)
 
                     # Execute specified script if all is well
-                    global initscript
-                    if initscript is not None and initscript != "":
+                    global INIT_SCRIPT
+                    if INIT_SCRIPT is not None and INIT_SCRIPT != "":
 
                         def initthread():
                             import subprocess
 
-                            logger.debug("Executing specified script: %s" % initscript)
+                            logger.debug("Executing specified script: %s" % INIT_SCRIPT)
                             env = os.environ.copy()
                             env["AGENT_UUID"] = agent_id
                             proc = subprocess.Popen(
-                                ["/bin/sh", initscript],
+                                ["/bin/sh", INIT_SCRIPT],
                                 env=env,
                                 shell=False,
                                 stdout=subprocess.PIPE,
@@ -148,18 +148,18 @@ class AgentsHandler(BaseHandler):
                                     break
                                 logger.debug("init-output: %s" % line.strip())
 
-                        t = threading.Thread(target=initthread)
-                        t.start()
+                        thread = threading.Thread(target=initthread)
+                        thread.start()
 
                     keylime.web_util.echo_json_response(self, 200, "Success", json_body)
                     logger.info("POST returning 200 response for Agent Monitor connection as " + agent_id)
             else:
                 keylime.web_util.echo_json_response(self, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
-        except Exception as e:
-            keylime.web_util.echo_json_response(self, 400, "Exception error: %s" % e)
-            logger.warning("POST returning 400 response. Exception error: %s" % e)
-            logger.exception(e)
+        except Exception as err:
+            keylime.web_util.echo_json_response(self, 400, "Exception error: %s" % err)
+            logger.warning("POST returning 400 response. Exception error: %s" % err)
+            logger.exception(err)
 
     def put(self):
         """This method handles the PUT requests to add agents to the Agent Monitor.
@@ -240,8 +240,8 @@ def main(argv=sys.argv):
         args.ca_dir = common.CA_WORK_DIR
 
     # Make initscript available to tornado callback
-    global initscript
-    initscript = args.script
+    global INIT_SCRIPT
+    INIT_SCRIPT = args.script
 
     logger.info("Starting Agent Monitor (tornado) on port " + args.port + ", use <Ctrl-C> to stop")
 

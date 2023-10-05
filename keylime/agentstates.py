@@ -218,12 +218,12 @@ class AgentAttestStates:
         """Get an agent's state given its id"""
 
         with self.map_lock:
-            agentAttestState = self.map.get(agent_id)
-            if not agentAttestState:
-                agentAttestState = AgentAttestState(agent_id)
-                self.map[agent_id] = agentAttestState
+            agent_attest_state = self.map.get(agent_id)
+            if not agent_attest_state:
+                agent_attest_state = AgentAttestState(agent_id)
+                self.map[agent_id] = agent_attest_state
 
-        return agentAttestState
+        return agent_attest_state
 
     def delete_by_agent_id(self, agent_id: str) -> None:
         """Delete an agent's state given its id"""

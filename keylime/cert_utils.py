@@ -35,8 +35,8 @@ def x509_der_cert(der_cert_data: bytes) -> Certificate:
     """
     try:
         return x509.load_der_x509_certificate(data=der_cert_data, backend=default_backend())
-    except Exception as e:
-        logger.warning("Failed to parse DER data with python-cryptography: %s", e)
+    except Exception as err:
+        logger.warning("Failed to parse DER data with python-cryptography: %s", err)
         pyasn1_cert = decoder.decode(der_cert_data, asn1Spec=rfc2459.Certificate())[0]
         return x509.load_der_x509_certificate(data=encoder.encode(pyasn1_cert), backend=default_backend())
 
@@ -49,8 +49,8 @@ def x509_pem_cert(pem_cert_data: str) -> Certificate:
     """
     try:
         return x509.load_pem_x509_certificate(data=pem_cert_data.encode("utf-8"), backend=default_backend())
-    except Exception as e:
-        logger.warning("Failed to parse PEM data with python-cryptography: %s", e)
+    except Exception as err:
+        logger.warning("Failed to parse PEM data with python-cryptography: %s", err)
         # Let's read the DER bytes from the base-64 PEM.
         der_data = pem.readPemFromFile(io.StringIO(pem_cert_data))
         # Now we can load it as we do in x509_der_cert().
@@ -66,8 +66,8 @@ def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:
     """
     try:
         trusted_certs = tpm_ek_ca.cert_loader(tpm_cert_store)
-    except Exception as e:
-        logger.warning("Error loading trusted certificates from the TPM cert store: %s", e)
+    except Exception as err:
+        logger.warning("Error loading trusted certificates from the TPM cert store: %s", err)
         return False
 
     try:
@@ -102,9 +102,9 @@ def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:
 
             logger.debug("EK cert matched cert: %s", cert_file)
             return True
-    except Exception as e:
+    except Exception as err:
         # Log the exception so we don't lose the raw message
-        logger.exception(e)
+        logger.exception(err)
         raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?").with_traceback(sys.exc_info()[2])
 
     logger.error("No Root CA matched EK Certificate")
@@ -142,7 +142,7 @@ def verify_ek_script(script: Optional[str], env: Optional[Dict[str, str]], cwd: 
         logger.debug("External check script successfully to validated EK")
         if proc.stdout is not None:
             logger.info("ek_check output: %s", proc.stdout.decode("utf-8"))
-    except subprocess.CalledProcessError as e:
-        logger.error("Error while trying to run external check script to validate EK: %s", e)
+    except subprocess.CalledProcessError as err:
+        logger.error("Error while trying to run external check script to validate EK: %s", err)
         return False
     return True

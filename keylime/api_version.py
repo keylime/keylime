@@ -16,9 +16,9 @@ def current_version() -> str:
     return CURRENT_VERSION
 
 
-def latest_minor_version(v: VersionType) -> str:
+def latest_minor_version(version_type: VersionType) -> str:
     try:
-        v_obj = version.parse(str(v))
+        v_obj = version.parse(str(version_type))
     except version.InvalidVersion:
         return "0"
     if not isinstance(v_obj, version.Version):
@@ -34,29 +34,29 @@ def all_versions() -> List[str]:
     return VERSIONS.copy()
 
 
-def is_supported_version(v: VersionType) -> bool:
+def is_supported_version(version_type: VersionType) -> bool:
     try:
-        v_obj = version.parse(str(v))
+        v_obj = version.parse(str(version_type))
     except version.InvalidVersion:
         return False
     return v_obj.base_version in VERSIONS
 
 
-def is_deprecated_version(v: VersionType) -> bool:
+def is_deprecated_version(version_type: VersionType) -> bool:
     try:
-        v_obj = version.parse(str(v))
+        v_obj = version.parse(str(version_type))
     except version.InvalidVersion:
         return False
-    return is_supported_version(v) and v_obj.base_version in DEPRECATED_VERSIONS
+    return is_supported_version(version_type) and v_obj.base_version in DEPRECATED_VERSIONS
 
 
-def normalize_version(v: VersionType) -> str:
-    v = str(v)
-    v = v.strip("/")
+def normalize_version(version_type: VersionType) -> str:
+    version_type = str(version_type)
+    version_type = version_type.strip("/")
     try:
-        base_version = version.parse(v).base_version
+        base_version = version.parse(version_type).base_version
     except version.InvalidVersion:
-        return v
+        return version_type
     # if the base version is a single number, get the latest minor version
     if "." not in base_version:
         latest_minor = latest_minor_version(base_version)
@@ -65,18 +65,18 @@ def normalize_version(v: VersionType) -> str:
     return base_version
 
 
-def major(v: VersionType) -> int:
+def major(version_type: VersionType) -> int:
     try:
-        v_obj = version.parse(str(v))
+        v_obj = version.parse(str(version_type))
     except version.InvalidVersion:
         return 0
     assert isinstance(v_obj, version.Version)
     return v_obj.major
 
 
-def minor(v: VersionType) -> int:
+def minor(version_type: VersionType) -> int:
     try:
-        v_obj = version.parse(str(v))
+        v_obj = version.parse(str(version_type))
     except version.InvalidVersion:
         return 0
     assert isinstance(v_obj, version.Version)
@@ -93,6 +93,6 @@ def log_api_versions(logger: Logger) -> None:
         logger.info("Deprecated API versions (soon to be removed): " + ", ".join(DEPRECATED_VERSIONS))
 
 
-def validate_version(v: str) -> bool:
+def validate_version(version_type: str) -> bool:
     pattern = re.compile(r"\d.\d")
-    return re.fullmatch(pattern, v) is not None
+    return re.fullmatch(pattern, version_type) is not None
