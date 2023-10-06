@@ -8,7 +8,7 @@ from keylime.agentstates import AgentAttestState, AgentAttestStates, TPMClockInf
 from keylime.common import algorithms
 from keylime.db.verifier_db import VerfierMain
 from keylime.failure import Component, Event, Failure
-from keylime.ima import file_signatures
+from keylime.ima import file_signatures, ima
 from keylime.ima.types import RuntimePolicyType
 from keylime.mba import mba
 from keylime.tpm import tpm_util
@@ -272,7 +272,7 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         logger.debug('The contents of the agent %s attribute "mb_refstate" are %s', agent.agent_id, agent.mb_refstate)
 
     has_runtime_policy = 0
-    if agent.ima_policy.generator and agent.ima_policy.generator > 1:
+    if agent.ima_policy.generator and agent.ima_policy.generator > ima.RUNTIME_POLICY_GENERATOR.EmptyAllowList:
         has_runtime_policy = 1
 
     response = {
