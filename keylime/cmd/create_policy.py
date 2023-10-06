@@ -6,6 +6,7 @@ import argparse
 import binascii
 import collections
 import copy
+import datetime
 import gzip
 import json
 import multiprocessing
@@ -583,6 +584,9 @@ def main() -> None:
         policy[key] = {k: sorted(list(set(v))) for k, v in policy[key].items()}  # type: ignore
     policy["excludes"] = sorted(list(set(policy["excludes"])))
     policy["ima"]["ignored_keyrings"] = sorted(list(set(policy["ima"]["ignored_keyrings"])))
+
+    policy["meta"]["generator"] = ima.RUNTIME_POLICY_GENERATOR.LegacyAllowList
+    policy["meta"]["timestamp"] = str(datetime.datetime.now())
 
     try:
         ima.validate_runtime_policy(policy)
