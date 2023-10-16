@@ -509,6 +509,9 @@ def verify_runtime_policy(
             logger.info("Runtime policy passed DSSE signature verification")
         else:
             runtime_policy = dsse.b64dec(runtime_policy_json["payload"])
+    else:
+        if verify_sig:
+            raise ImaValidationError(message="Runtime policy is not signed!", code=400)
 
     # Validate exclude list contains valid regular expressions
     _, excl_err_msg = validators.valid_exclude_list(runtime_policy_json.get("exclude"))
