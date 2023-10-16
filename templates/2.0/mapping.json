@@ -342,7 +342,7 @@
             "require_allow_list_signatures": {
                 "section": "cloud_verifier",
                 "option": "require_allow_list_signatures",
-                "default": "True"
+                "default": "False"
             },
             "durable_attestation_import" : {
                 "section": "cloud_verifier",
