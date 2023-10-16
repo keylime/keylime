@@ -372,7 +372,7 @@
             "require_allow_list_signatures": {
                 "section": "verifier",
                 "option": "require_allow_list_signatures",
-                "default": "True"
+                "default": "False"
             },
             "durable_attestation_import": {
                 "section": "verifier",
