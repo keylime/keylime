@@ -1,13 +1,17 @@
 import ast
 import configparser
+import logging
 import re
 from configparser import RawConfigParser
+from logging import Logger
 from typing import Dict, List, Optional, Tuple
 
 from keylime.common.version import str_to_version
 
 
-def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=unused-argument
+def adjust(
+    config: RawConfigParser, mapping: Dict, logger: Logger = logging.getLogger(__name__)
+) -> None:  # pylint: disable=unused-argument
     """
     Process the configuration intermediary representation adjusting some of the
     values following changes to the configuration files semantics.
@@ -20,7 +24,7 @@ def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=u
     the values are replaced in the templates
     """
 
-    print("Adjusting configuration")
+    logger.debug("Adjusting configuration")
 
     # Dictionary defining values to replace
     replace = {
@@ -74,7 +78,7 @@ def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=u
                 raise Exception("Invalid version number found in old configuration")
 
         except (configparser.NoOptionError, configparser.NoSectionError):
-            print(f"No version found in old configuration for {section}, using '1.0'")
+            logger.debug("No version found in old configuration for %s, using '1.0'", section)
             config_version = (1, 0)
 
         mapping_version = str_to_version(mapping["version"])
@@ -93,7 +97,9 @@ def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=u
                     if section in config and option in config[section] and config[section][option] == to_replace:
                         # Replace the value
                         config[section][option] = value[to_replace]
-                        print(f'[{section}] In "{option}", replaced "{to_replace}" ' f'with "{value[to_replace]}"')
+                        logger.debug(
+                            '[%s] In "%s", replaced "%s" with "%s"', section, option, to_replace, value[to_replace]
+                        )
 
         if section in tolist:
             for option in tolist[section]:
@@ -115,9 +121,11 @@ def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=u
                             config[section][option] = str(list(v))
 
                     except Exception as e:
-                        print(
-                            f"[{section}] In option '{option}', failed to parse "
-                            f"'{value}' as python type, trying manual splitting"
+                        logger.debug(
+                            "[%s] In option '%s', failed to parse '%s' as python type, trying manual splitting",
+                            section,
+                            option,
+                            value,
                         )
 
                         # Eliminate surrounding spaces and brackets, if present
@@ -131,7 +139,9 @@ def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=u
 
                         config[section][option] = str(v)
 
-                    print(f"[{section}] For option '{option}', converted '{value}' to " f"'{config[section][option]}'")
+                    logger.debug(
+                        "[%s] For option '%s', converted '%s' to '%s'", section, option, value, config[section][option]
+                    )
 
         # Other special adjustments
 
@@ -142,7 +152,7 @@ def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=u
                 if config[section] and option in config[section]:
                     # Replace the value with lowecase form
                     config[section][option] = config[section][option].lower()
-                    print(f'[agent] Converted option "{option}" to lower case')
+                    logger.debug('[agent] Converted option "%s" to lower case', option)
 
         if section == "verifier":
             if config["verifier"]["tls_dir"] == "generate":
@@ -156,14 +166,18 @@ def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=u
                 ]:
                     if not config["verifier"][o] == "default":
                         config["verifier"][o] = "default"
-                        print(f"[verifier] Replaced option '{o}' with 'default' as " f"'tls_dir' is set as 'generate'")
+                        logger.debug(
+                            "[verifier] Replaced option '%s' with 'default' as 'tls_dir' is set as 'generate'", o
+                        )
 
         if section == "registrar":
             if config["registrar"]["tls_dir"] == "generate":
                 for o in ["server_key", "server_cert", "trusted_client_ca"]:
                     if not config["registrar"][o] == "default":
                         config["registrar"][o] = "default"
-                        print(f"[registrar] Replaced option '{o}' with 'default' as " f"'tls_dir' is set as 'generate'")
+                        logger.debug(
+                            "[registrar] Replaced option '%s' with 'default' as 'tls_dir' is set as 'generate'", o
+                        )
 
         if section == "tenant":
             # If the tenant's 'trusted_server_ca' is set as 'default' and both the
@@ -184,7 +198,7 @@ def adjust(config: RawConfigParser, mapping: Dict) -> None:  # pylint: disable=u
                             config["tenant"][
                                 "trusted_server_ca"
                             ] = "['/var/lib/keylime/cv_ca/cacert.crt', '/var/lib/keylime/reg_ca/cacert.crt']"
-                            print(
-                                f"[tenant] For option 'trusted_server_ca', replaced 'default' with "
-                                f"'{config['tenant']['trusted_server_ca']}'"
+                            logger.debug(
+                                "[tenant] For option 'trusted_server_ca', replaced 'default' with '%s'",
+                                config["tenant"]["trusted_server_ca"],
                             )

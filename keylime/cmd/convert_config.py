@@ -83,9 +83,12 @@ import configparser
 import importlib.util
 import itertools
 import json
+import logging
 import os
 import shutil
 from configparser import RawConfigParser
+from logging import Logger
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 from jinja2 import Template
@@ -124,14 +127,14 @@ if "KEYLIME_LOGGING_CONFIG" in os.environ:
     CONFIG_FILES.insert(0, os.environ["KEYLIME_LOGGING_CONFIG"])
 
 
-def get_config(config_files: List[List[str]]) -> RawConfigParser:
+def get_config(config_files: List[List[str]], logger: Logger = logging.getLogger(__name__)) -> RawConfigParser:
     """
     Read configuration files and merge them together
     """
 
     flat = [s for ss in config_files for s in ss]
     if not flat:
-        print(f"No input provided: using {CONFIG_FILES} as input")
+        logger.debug("No input provided: using %s as input", CONFIG_FILES)
         files = list(x for x in CONFIG_FILES if os.path.exists(x))
     else:
         files = list(x for x in set(flat) if os.path.exists(x))
@@ -140,17 +143,17 @@ def get_config(config_files: List[List[str]]) -> RawConfigParser:
 
     if not files:
         # The configuration files doesn't exist, try old file
-        print("Could not find configuration files, trying to find old configuration")
+        logger.debug("Could not find configuration files, trying to find old configuration")
         files = list(x for x in OLD_CONFIG_FILES if os.path.exists(x))
 
     config = configparser.RawConfigParser()
     if not files:
-        print("Could not find configuration files in default locations. Using default values for all options")
+        logger.info("Could not find configuration files in default locations. Using default values for all options")
     else:
         # Validate that at least one config file was successfully read
         read_files = config.read(files)
         if read_files:
-            print(f"Successfully read configuration from {read_files}")
+            logger.info("Successfully read configuration from %s", read_files)
         else:
             raise Exception(
                 f"Could not parse any configuration from {files}, please check the files syntax and permissions"
@@ -159,7 +162,13 @@ def get_config(config_files: List[List[str]]) -> RawConfigParser:
     return config
 
 
-def output_component(component: str, config: RawConfigParser, template: str, outfile: str) -> None:
+def output_component(
+    component: str,
+    config: RawConfigParser,
+    template: str,
+    outfile: str,
+    logger: Logger = logging.getLogger(__name__),
+) -> None:
     """
     Output the configuration file for a component
     """
@@ -168,10 +177,10 @@ def output_component(component: str, config: RawConfigParser, template: str, out
         try:
             shutil.copyfile(outfile, outfile + ".bkp")
         except Exception as e:
-            print(f"Could not create backup file {outfile + '.bkp'}, aborting: {e}")
+            logger.error("Could not create backup file %s, aborting: %s", outfile + ".bkp", e)
             return
 
-    print(f"Writing {component} configuration to {outfile}")
+    logger.info("Writing %s configuration to %s", component, outfile)
 
     with open(template, "r", encoding="utf-8") as tf:
         t = tf.read()
@@ -184,7 +193,13 @@ def output_component(component: str, config: RawConfigParser, template: str, out
             print(r, file=o)
 
 
-def output(components: List[str], config: RawConfigParser, templates: str, outdir: str) -> None:
+def output(
+    components: List[str],
+    config: RawConfigParser,
+    templates: str,
+    outdir: str,
+    logger: Logger = logging.getLogger(__name__),
+) -> None:
     """
     Output the requested files using a template
     """
@@ -203,7 +218,7 @@ def output(components: List[str], config: RawConfigParser, templates: str, outdi
         # Set output path
         o = os.path.join(outdir, f"{component}.conf")
 
-        output_component(component, config, t, o)
+        output_component(component, config, t, o, logger=logger)
 
 
 def needs_update(component: str, old_config: RawConfigParser, new_version: Tuple[int, int]) -> bool:
@@ -228,8 +243,8 @@ def process_mapping(
     old_config: RawConfigParser,
     templates: str,
     mapping_file: str,
-    debug: Optional[bool] = False,
     target: Optional[Tuple[int, int]] = None,
+    logger: Logger = logging.getLogger(__name__),
 ) -> RawConfigParser:
     """
     Apply the transformations from the provided mapping file to the
@@ -255,7 +270,7 @@ def process_mapping(
     # On the line below, mypy will complain about incompatible type of
     # new_version, but new_version cannot be None. Ignore the check.
     if not any(map(lambda c: needs_update(c, old_config, new_version), components)):
-        print(f"Skipping version {mapping['version']}")
+        logger.info("Skipping version %s", mapping["version"])
         # Strip quotes in case the old config was a TOML file
         strip_quotes(old_config)
         return old_config
@@ -269,7 +284,7 @@ def process_mapping(
             f"Could not find directory {version_dir} for version " f"{mapping['version']} set in {mapping_file}"
         )
 
-    print(f"Applying mapping from file {mapping_file} version {mapping['version']}")
+    logger.debug(f"Applying mapping from file {mapping_file} version {mapping['version']}")
 
     new = configparser.RawConfigParser()
 
@@ -292,7 +307,7 @@ def process_mapping(
                     raise Exception("Invalid version number found in old configuration")
 
             except (configparser.NoOptionError, configparser.NoSectionError):
-                print(f"No version found in old configuration for {component}, using '1.0'")
+                logger.debug("No version found in old configuration for %s, using '1.0'", component)
                 old_version = (1, 0)
         else:
             # If the old_version does not contain the component from the
@@ -324,7 +339,9 @@ def process_mapping(
             try:
                 new[component][option] = old_config.get(info["section"], info["option"])
             except Exception as e:
-                print(f"[{component}] {e} not found: Using default value \"{info['default']}\" for \"{option}\"")
+                logger.debug(
+                    '[%s] %s not found: Using default value "%s" for "%s"', component, e, info["default"], option
+                )
                 new[component][option] = info["default"]
 
         # Set the resulting version for the component
@@ -337,7 +354,7 @@ def process_mapping(
     adjust_script = os.path.abspath(os.path.join(version_dir, "adjust.py"))
     if os.path.isfile(adjust_script):
         try:
-            print(f"Applying adjustment from {adjust_script}")
+            logger.debug("Applying adjustment from %s", adjust_script)
 
             # Dynamically load adjust script
             spec = importlib.util.spec_from_file_location("adjust", adjust_script)
@@ -350,17 +367,13 @@ def process_mapping(
 
             spec.loader.exec_module(module)
 
+            logging.getLogger("adjust").setLevel(logger.getEffectiveLevel())
+
             # Run adjust function from adjust script
             execute = getattr(module, "adjust")
             execute(new, mapping)
         except Exception as e:
-            print(f"Failed while running adjustment from {adjust_script}: {e}")
-
-    if debug:
-        out = {}
-        for s in new.sections():
-            out[s] = dict(new.items(s))
-        print(json.dumps(out, indent=4))
+            logger.warning("Failed while running adjustment from %s: %s", adjust_script, e)
 
     return new
 
@@ -370,7 +383,7 @@ def process_versions(
     templates: str,
     old_config: RawConfigParser,
     target_version: Optional[str] = None,
-    debug: Optional[bool] = False,
+    logger: Logger = logging.getLogger(__name__),
 ) -> RawConfigParser:
     """
     Apply the transformations from the mappings for each version found in the
@@ -406,7 +419,7 @@ def process_versions(
             m = os.path.join(p, "mapping.json")
             if os.path.isfile(m):
                 # Apply transformation for the mapping
-                new = process_mapping(components, old_config, templates, m, debug=debug, target=target)
+                new = process_mapping(components, old_config, templates, m, target=target, logger=logger)
                 old_config = new
             else:
                 raise Exception(f"Could not find mapping {m}")
@@ -421,6 +434,14 @@ def process_versions(
 
 
 def main() -> None:
+    logging.basicConfig(
+        datefmt="%Y-%m-%d %H:%M:%S",
+        format="%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO,
+    )
+
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(description="Split keylime configuration" "file into individual files")
 
     parser.add_argument(
@@ -437,7 +458,7 @@ def main() -> None:
 
     parser.add_argument(
         "--debug",
-        help="Print resulting config after each " "applied mapping in JSON format",
+        help="Raise log level to DEBUG",
         default=False,
         action="store_true",
     )
@@ -499,6 +520,9 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+
     if not args.out:
         if os.geteuid() == 0:
             out_dir = "/etc/keylime"
@@ -522,7 +546,7 @@ def main() -> None:
         clean = set(component_list)
         for c in clean:
             if not c in COMPONENTS:
-                print(f"Unknown component {c}, skipping")
+                logger.debug("Unknown component %s, skipping", c)
         components = list(clean.intersection(COMPONENTS))
 
     if args.version and not str_to_version(args.version):
@@ -534,13 +558,13 @@ def main() -> None:
     if not os.path.isdir(args.templates):
         raise Exception(f"File {args.templates} is not a directory")
 
-    print(f"Using templates from directory {args.templates}")
+    logger.debug("Using templates from directory %s", args.templates)
 
     if args.defaults:
         old_config = configparser.RawConfigParser()
     else:
         # Get old configuration
-        old_config = get_config(args.input)
+        old_config = get_config(args.input, logger=logger)
 
     # Strip quotes in case the old config was a TOML file
     # This is necessary to allow detecting if the processing modified the config
@@ -551,22 +575,22 @@ def main() -> None:
             mapping_file = args.mapping
 
             # Apply the single mapping provided
-            config = process_mapping(components, old_config, args.templates, mapping_file, debug=args.debug)
+            config = process_mapping(components, old_config, args.templates, mapping_file, logger=logger)
         else:
             raise Exception(f"Could not find provided mapping {args.mapping}")
     else:
         # Apply transformations from the templates in the templates directory
         # If a target version is provided, stop when reaching the target
-        config = process_versions(components, args.templates, old_config, target_version=args.version, debug=args.debug)
+        config = process_versions(components, args.templates, old_config, target_version=args.version, logger=logger)
 
     if config != old_config:
-        output(components, config, args.templates, out_dir)
+        output(components, config, args.templates, out_dir, logger=logger)
     else:
-        print("Configuration is up-to-date")
+        logger.info("Configuration is up-to-date")
         if args.out or component_list:
             # If the output directory or component list were specified, write the files even when
             # up-to-date
-            output(components, config, args.templates, out_dir)
+            output(components, config, args.templates, out_dir, logger=logger)
 
 
 if __name__ == "__main__":
