@@ -1,12 +1,9 @@
 import configparser
 import importlib
+import logging
 import os
-import sys
 import tempfile
 import unittest
-from contextlib import contextmanager
-from io import StringIO
-from typing import Generator, Tuple
 
 from keylime.cmd import convert_config
 
@@ -15,17 +12,6 @@ CONFIG_DIR = os.path.abspath(os.path.join(DATA_DIR, "config"))
 TEMPLATES_DIR = os.path.abspath(os.path.join(DATA_DIR, "templates"))
 MAPPINGS_DIR = os.path.abspath(os.path.join(DATA_DIR, "mappings"))
 COMPONENTS = ["comp1", "comp2"]
-
-
-@contextmanager
-def captured_output() -> Generator[Tuple[StringIO, StringIO], None, None]:
-    new_out, new_err = StringIO(), StringIO()
-    old_out, old_err = sys.stdout, sys.stderr
-    try:
-        sys.stdout, sys.stderr = new_out, new_err
-        yield sys.stdout, sys.stderr
-    finally:
-        sys.stdout, sys.stderr = old_out, old_err
 
 
 class TestConvertConfig(unittest.TestCase):
@@ -202,8 +188,9 @@ class TestConvertConfig(unittest.TestCase):
         # Use sanity mapping (default)
         mapping = os.path.join(MAPPINGS_DIR, "sanity.json")
 
-        with captured_output() as (out, _):
-            result = convert_config.process_mapping(COMPONENTS, config, TEMPLATES_DIR, mapping)
+        with self.assertLogs("process_mapping", level="DEBUG") as cm:
+            l = logging.getLogger("process_mapping")
+            result = convert_config.process_mapping(COMPONENTS, config, TEMPLATES_DIR, mapping, logger=l)
 
         self.assertTrue(isinstance(result, configparser.RawConfigParser))
 
@@ -222,7 +209,9 @@ class TestConvertConfig(unittest.TestCase):
 
         # Check that when the component does not have a version, the smallest
         # number is used
-        self.assertTrue("No version found in old configuration for comp1, using '1.0'" in out.getvalue())
+        self.assertTrue(
+            "DEBUG:process_mapping:No version found in old configuration for comp1, using '1.0'" in cm.output
+        )
 
     def test_process_non_existing_mapping(self) -> None:
         """Check that non-existing mapping raises Exception"""
@@ -259,11 +248,13 @@ class TestConvertConfig(unittest.TestCase):
         config["comp2"]["version"] = "3.0"
         mapping = os.path.join(MAPPINGS_DIR, "sanity.json")
 
-        with captured_output() as (out, _):
-            result = convert_config.process_mapping(COMPONENTS, config, TEMPLATES_DIR, mapping)
+        with self.assertLogs("already_updated", level="DEBUG") as cm:
+            l = logging.getLogger("already_updated")
+            result = convert_config.process_mapping(COMPONENTS, config, TEMPLATES_DIR, mapping, logger=l)
             self.assertEqual(result, config)
+
         # Check that the output shows that the updated version was skipped
-        self.assertTrue("Skipping version 3.0" in out.getvalue())
+        self.assertTrue("INFO:already_updated:Skipping version 3.0" in cm.output)
 
     def test_process_mapping_missing_version(self) -> None:
         """Check that missing version in templates directory raises exception"""
