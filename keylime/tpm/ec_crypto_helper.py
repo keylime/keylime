@@ -59,11 +59,11 @@ class EcCryptoHelper:
 
     def bn2int(self, bn: Any) -> int:
         num_bytes = self.binding.lib.BN_num_bytes(bn)  # pyright: ignore
-        binary = self.binding.ffi.new("unsigned char[]", num_bytes)
+        binary = self.binding.ffi.new("unsigned char[]", num_bytes)  # pyright: ignore
         binary_len = self.binding.lib.BN_bn2bin(bn, binary)  # pyright: ignore
         if binary_len < 0:
             raise Exception("BN_bn2int failed")
-        return int.from_bytes(self.binding.ffi.buffer(binary)[:binary_len], "big")
+        return int.from_bytes(self.binding.ffi.buffer(binary)[:binary_len], "big")  # pyright: ignore
 
     def point_multiply_x(self, public_key: EllipticCurvePublicKey, private_key: EllipticCurvePrivateKey) -> bytes:
         """Perform a point multiplication of the given public key with the private_key (scalar).
@@ -87,7 +87,7 @@ class EcCryptoHelper:
         pubkey_point = self.binding.ffi.gc(point, self.binding.lib.EC_POINT_free)  # pyright: ignore
 
         # convert private key to scalar
-        privkey_scalar = self.binding.ffi.gc(
+        privkey_scalar = self.binding.ffi.gc(  # pyright: ignore
             self.int2bn(private_key.private_numbers().private_value),
             self.binding.lib.BN_free,  # pyright: ignore
         )
