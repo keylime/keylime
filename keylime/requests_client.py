@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 
 import requests
 from requests.adapters import DEFAULT_POOLBLOCK, HTTPAdapter
-from requests.packages.urllib3.poolmanager import PoolManager  # pylint: disable=import-error
+from requests.packages.urllib3.poolmanager import PoolManager  # type: ignore  # pylint: disable=import-error
 
 
 class RequestsClient:
