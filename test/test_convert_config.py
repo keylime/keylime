@@ -414,3 +414,113 @@ class TestConvertConfig(unittest.TestCase):
             self.assertEqual(result.get("comp1", "test_option"), "current")
             self.assertEqual(result.get("comp1", "test_adjust"), "adjusted 3.0")
             self.assertEqual(result.get("subcomp1", "suboption"), "current")
+
+    def test_update_add(self) -> None:
+        """Test mapping update adding options"""
+        # Use default configuration files
+        config = configparser.RawConfigParser()
+        config.add_section("comp1")
+        config["comp1"]["version"] = "3.0"
+        config["comp1"]["unused_option"] = "unused"
+        config.add_section("subcomp1")
+        config["subcomp1"]["unused_option"] = "unused"
+        config.add_section("comp2")
+        config["comp2"]["version"] = "3.0"
+        config["comp2"]["unused_option"] = "unused"
+        config.add_section("subcomp2")
+        config["subcomp2"]["unused_option"] = "unused"
+
+        template = os.path.join(DATA_DIR, "templates-update-add")
+        self.assertTrue(os.path.exists(template))
+
+        result = convert_config.process_versions(COMPONENTS, template, config)
+
+        # Check that the new options were properly added
+        self.assertTrue("added_option" in result["comp1"])
+        self.assertTrue("added_option" in result["subcomp1"])
+        self.assertTrue("added_option" in result["comp2"])
+        self.assertTrue("added_option" in result["subcomp2"])
+
+        # Check that the version of the components were updated
+        self.assertEqual("3.1", result.get("comp1", "version"))
+        self.assertEqual("3.1", result.get("subcomp1", "version"))
+        self.assertEqual("3.1", result.get("comp2", "version"))
+        self.assertEqual("3.1", result.get("subcomp2", "version"))
+
+    def test_update_remove(self) -> None:
+        """Test mapping update removing options"""
+        config = configparser.RawConfigParser()
+        config.add_section("comp1")
+        config["comp1"]["version"] = "1.0"
+        config["comp1"]["unused_option"] = "unused"
+        config.add_section("subcomp1")
+        config["subcomp1"]["version"] = "1.0"
+        config["subcomp1"]["unused_option"] = "unused"
+        config.add_section("comp2")
+        config["comp2"]["version"] = "1.0"
+        config["comp2"]["unused_option"] = "unused"
+        config.add_section("subcomp2")
+        config["subcomp2"]["version"] = "1.0"
+        config["subcomp2"]["unused_option"] = "unused"
+
+        template = os.path.join(DATA_DIR, "templates-update-remove")
+        self.assertTrue(os.path.exists(template))
+
+        result = convert_config.process_versions(COMPONENTS, template, config)
+
+        # Check that options were removed from the result
+        self.assertTrue("unused_option" not in result["comp1"])
+        self.assertTrue("unused_option" not in result["subcomp1"])
+        self.assertTrue("unused_option" not in result["comp2"])
+        self.assertTrue("unused_option" not in result["subcomp2"])
+
+        # Check that the versions of the components were updated
+        self.assertEqual("3.1", result.get("comp1", "version"))
+        self.assertEqual("3.1", result.get("subcomp1", "version"))
+        self.assertEqual("3.1", result.get("comp2", "version"))
+        self.assertEqual("3.1", result.get("subcomp2", "version"))
+
+    def test_update_replace(self) -> None:
+        """Test mapping update replacing options"""
+        config = configparser.RawConfigParser()
+        config.add_section("comp1")
+        config["comp1"]["version"] = "1.0"
+        config["comp1"]["old_option"] = "old_value"
+        config.add_section("subcomp1")
+        config["subcomp1"]["version"] = "1.0"
+        config["subcomp1"]["old_option"] = "old_value"
+        config.add_section("comp2")
+        config["comp2"]["version"] = "1.0"
+        config["comp2"]["old_option"] = "old_value"
+        config.add_section("subcomp2")
+        config["subcomp2"]["version"] = "1.0"
+        config["subcomp2"]["old_option"] = "old_value"
+
+        template = os.path.join(DATA_DIR, "templates-update-replace")
+        self.assertTrue(os.path.exists(template))
+
+        result = convert_config.process_versions(COMPONENTS, template, config)
+
+        # Check that options with the old name are not present
+        self.assertTrue("old_option" not in result["comp1"])
+        self.assertTrue("old_option" not in result["subcomp1"])
+        self.assertTrue("old_option" not in result["comp2"])
+        self.assertTrue("old_option" not in result["subcomp2"])
+
+        # Check that options with the new name are present
+        self.assertTrue("new_option" in result["comp1"])
+        self.assertTrue("new_option" in result["subcomp1"])
+        self.assertTrue("new_option" in result["comp2"])
+        self.assertTrue("new_option" in result["subcomp2"])
+
+        # Check that the values of the options were kept
+        self.assertEqual("old_value", result.get("comp1", "new_option"))
+        self.assertEqual("old_value", result.get("subcomp1", "new_option"))
+        self.assertEqual("old_value", result.get("comp2", "new_option"))
+        self.assertEqual("old_value", result.get("subcomp2", "new_option"))
+
+        # Check that the version of the components were updated
+        self.assertEqual("3.1", result.get("comp1", "version"))
+        self.assertEqual("3.1", result.get("subcomp1", "version"))
+        self.assertEqual("3.1", result.get("comp2", "version"))
+        self.assertEqual("3.1", result.get("subcomp2", "version"))

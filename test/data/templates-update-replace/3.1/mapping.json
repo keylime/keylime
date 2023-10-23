@@ -1,0 +1,42 @@
+{
+    "version": "3.1",
+    "type": "update",
+    "components": {
+        "comp1": {
+            "replace": {
+                "old_option": {
+                    "section": "comp1",
+                    "option": "new_option",
+                    "default": "new_default"
+                }
+            }
+        },
+        "subcomp1": {
+            "replace": {
+                "old_option": {
+                    "section": "subcomp1",
+                    "option": "new_option",
+                    "default": "new_default"
+                }
+            }
+        },
+        "comp2": {
+            "replace": {
+                "old_option": {
+                    "section": "comp2",
+                    "option": "new_option",
+                    "default": "new_default"
+                }
+            }
+        },
+        "subcomp2": {
+            "replace": {
+                "old_option": {
+                    "section": "subcomp2",
+                    "option": "new_option",
+                    "default": "new_default"
+                }
+            }
+        }
+    }
+}

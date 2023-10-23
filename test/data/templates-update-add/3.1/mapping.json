@@ -1,0 +1,30 @@
+{
+    "version": "3.1",
+    "type": "update",
+    "components": {
+        "comp1": {
+            "add": {
+                "added_option": "default"
+            }
+        },
+        "subcomp1": {
+            "add": {
+                "added_option": "default"
+            }
+        },
+        "comp2": {
+            "add": {
+                "added_option": "default"
+            }
+        },
+        "subcomp2": {
+            "add": {
+                "added_option": "default"
+            }
+        }
+    },
+    "subcomponents": {
+        "subcomp1": "comp1",
+        "subcomp2": "comp2"
+    }
+}
