@@ -6,12 +6,21 @@
  process is controlled by the "mapping" dictionary, provided through a JSON
  file.
 
+ ## Full mapping
+
+ The full mapping dictionary has the "type" field set as "full".  Mappings
+ without a "type" field are processed as if they were full mappings to support
+ older versions of the mapping were the "type" field is missing.
+
  This dictionary maps the name of the new option to a dictionary with the info
  from the old configuration file format.
 
  The dictionary has the following fields:
  * "version": The mapping version. Should match the target configuration version
  number
+ * "type": The mapping type. For the full mapping, this should be set as "full".
+ If this field is missing, the mapping will be treated as a full mapping for
+ compatibility
  * "components": A dictionary which keys are the components for which the
  configuration files should be generated. The keys in the "components"
  dictionary should match the template file names without the extension (e.g.
@@ -40,6 +49,7 @@
 
  {
      "version": "1.0",
+     "type": "full",
      "components": {
          "a_component": {
              "some_option": {
@@ -73,6 +83,90 @@
 
  Check "templates/2.0/mapping.json" file for an example.
 
+ ## Update mapping
+
+ This mapping dictionary is used to modify a configuration without listing all
+ the options. Changes can be donemade through operations, specified as
+ dictionaries.
+
+ The dictionary has the following fields:
+
+ * "version": The mapping version. Should match the target configuration version
+ number
+ * "type": The mapping type. For the update mapping, this should be set as
+ "update". If this field is missing, the mapping will be treated as a full
+ mapping for compatibility
+ * "components": A dictionary which keys are the components for which the
+ operations are performed. For each component, a dictionary with operations as
+ keys and operands as values should be provided. For each operation the operands
+ should be provided using the correct dictionary format.
+
+ The supported operations are:
+
+ * Add a new option
+
+ To add optios, the component to be modified in the mapping should contain the
+ "add" field set with a dictionary mapping the option name to be added to the
+ default value to set. Example:
+
+ {
+     "version": "3.1",
+     "type": "update",
+     "components": {
+         "comp_a": {
+             "add": {
+                 "new_option": "value",
+                 "new_option2": "value2"
+             }
+         }
+     }
+ }
+
+ * Remove an option
+
+ To remove options, the component to be modified in the mapping should contain
+ the "remove" field set with a list of options names to be removed. Example:
+
+ {
+     "version": "3.1",
+     "type": "update",
+     "components": {
+         "comp_a": {
+             "remove": ["unused_option", "another_unused_option"]
+         }
+     }
+ }
+
+ * Replace an option
+
+ To replace options, the component to be modified in the mapping should contain
+ the "replace" field set with a dictionary mapping names to be replaced to a
+ dictionary specifying the section to receive the replacement, the new option
+ name, and the default value. Example:
+
+ {
+     "version": "3.1",
+     "type": "update",
+     "components": {
+         "comp_a": {
+             "replace": {
+                 "old_option_to_replace": {
+                     "section": "new_section",
+                     "option": "new_option",
+                     "default": "value"
+                 },
+                 "old_value": {
+                     "section": "other_section",
+                     "option": "other_new_option",
+                     "default": "value"
+                 }
+             }
+         }
+     }
+ }
+
+ Multiple operations can be performed through the same update mapping.
+
  The idea is to provide new templates, mapping, and adjust script for new
  versions of the configuration, allowing the user to easily convert from a
  version of the configuration file to the next.
@@ -89,8 +183,7 @@ import re
 import shutil
 from configparser import RawConfigParser
 from logging import Logger
-from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from jinja2 import Template
 
@@ -241,6 +334,10 @@ def output(
 
 
 def needs_update(component: str, old_config: RawConfigParser, new_version: Tuple[int, int]) -> bool:
+    """
+    Returns whether an update is necessary for a given component and version
+    """
+
     if component in old_config and "version" in old_config[component]:
         old_version = str_to_version(old_config[component]["version"])
         if old_version and old_version >= new_version:
@@ -257,53 +354,19 @@ def strip_quotes(config: RawConfigParser) -> None:
             config[k][o] = config[k][o].strip('" ')
 
 
-def process_mapping(
-    components: List[str],
+def process_full_mapping(
+    mapping: Dict[str, Any],
     old_config: RawConfigParser,
-    templates: str,
-    mapping_file: str,
     target: Optional[Tuple[int, int]] = None,
     logger: Logger = logging.getLogger(__name__),
 ) -> RawConfigParser:
     """
-    Apply the transformations from the provided mapping file to the
-    configuration dictionary
+    Process full mapping
     """
-
-    with open(mapping_file, "r", encoding="utf-8") as f:
-        try:
-            mapping = json.loads(f.read())
-        except Exception as e:
-            raise Exception(f"Could not load mapping file {mapping_file}: {e}") from e
-
-    if not mapping["version"]:
-        raise Exception('Malformed mapping: no "version" set')
-
-    if not mapping["components"]:
-        raise Exception('Malformed mapping: no "components" set')
 
     new_version = str_to_version(mapping["version"])
     if not new_version:
         raise Exception(f"Invalid version number in mapping: {mapping['version']}")
-
-    # On the line below, mypy will complain about incompatible type of
-    # new_version, but new_version cannot be None. Ignore the check.
-    if not any(map(lambda c: needs_update(c, old_config, new_version), components)):
-        logger.info("Skipping version %s", mapping["version"])
-        # Strip quotes in case the old config was a TOML file
-        strip_quotes(old_config)
-        return old_config
-
-    # Search for the directory containing the templates for the version set in
-    # the mapping
-    version_dir = os.path.join(templates, mapping["version"])
-
-    if not os.path.isdir(version_dir):
-        raise Exception(
-            f"Could not find directory {version_dir} for version " f"{mapping['version']} set in {mapping_file}"
-        )
-
-    logger.debug(f"Applying mapping from file {mapping_file} version {mapping['version']}")
 
     new = configparser.RawConfigParser()
 
@@ -365,6 +428,206 @@ def process_mapping(
 
         # Set the resulting version for the component
         new[component]["version"] = mapping["version"]
+
+    return new
+
+
+def update_options(
+    new: RawConfigParser, mapping: Dict[str, Any], component: str, logger: Logger = logging.getLogger(__name__)
+) -> None:
+    """
+    Process updates to a single component
+    """
+
+    operations = mapping[component]
+
+    if "add" in operations:
+        to_add = operations["add"]
+        for option in to_add:
+            if option in new[component]:
+                logger.debug('[%s]: Skipped adding already existing option "%s"', component, option)
+                continue
+            new[component][option] = to_add[option]
+            logger.debug('[%s]: Added new option "%s" = "%s"', component, option, to_add[option])
+    if "remove" in operations:
+        to_remove = operations["remove"]
+        for option in to_remove:
+            if option not in new[component]:
+                logger.debug('[%s]: Skipped removing unexisting option "%s"', component, option)
+                continue
+            new[component].pop(option)
+            logger.debug('[%s]: Removed option "%s"', component, option)
+    if "replace" in operations:
+        to_replace = operations["replace"]
+        for old_option in to_replace:
+            new_option = to_replace[old_option]
+            # Check if the new option name is present and get the value from the
+            # mapping
+            if "section" not in new_option:
+                raise Exception(f'[{component}] Malformed mapping: missing "section" in {old_option} replacement')
+
+            # Check if the new option name is present and get the value from the
+            # mapping
+            if "option" not in new_option:
+                raise Exception(f'[{component}] Malformed mapping: missing "option" in {old_option} replacement')
+
+            # Check if the new option dafault value is present and get from the
+            # mapping
+            if "default" not in new_option:
+                raise Exception(f'[{component}] Malformed mapping: missing "default" in {old_option} replacement')
+
+            new_section = new_option["section"]
+            new_name = new_option["option"]
+            default = new_option["default"]
+
+            # If the option to be replace is not present, do not try to remove
+            # and use the default value for the newly added option
+            if old_option not in new[component]:
+                logger.debug('[%s]: Skipped removing unexisting option "%s"', component, old_option)
+                value = default
+            else:
+                # If the section was not present in old config, add the new
+                # section
+                if new_section not in new:
+                    new.add_section(new_section)
+                    logger.info("Added new section [%s]", new_section)
+
+                # If the new option is already present, skip
+                if new_name in new[new_section]:
+                    logger.debug('[%s]: Skipped adding already existing option "%s"', new_section, new_name)
+                    continue
+
+                # Get the old value to preserve
+                value = new[component].pop(old_option)
+
+            # Add the new option preserving the old value
+            new[new_section][new_name] = value
+            logger.debug('[%s]: Added option "%s" = "%s"', new_section, new_name, value)
+
+
+def process_update_mapping(
+    mapping: Dict[str, Any],
+    old_config: RawConfigParser,
+    target: Optional[Tuple[int, int]] = None,
+    logger: Logger = logging.getLogger(__name__),
+) -> RawConfigParser:
+    """
+    Process update mapping
+    """
+    new_version = str_to_version(mapping["version"])
+    if not new_version:
+        raise Exception(f"Invalid version number in mapping: {mapping['version']}")
+
+    new = configparser.RawConfigParser()
+
+    for component in old_config:
+        # Copy the component from the old config
+        new[component] = dict(old_config[component])
+
+        # Only components in the mapping are modified
+        if component in mapping["components"]:
+            if "subcomponents" in mapping and component in mapping["subcomponents"]:
+                # If the component is a subcomponent, use the version from the
+                # component
+                version_component = mapping["subcomponents"][component]
+            else:
+                version_component = component
+
+            found_version = old_config.get(version_component, "version")
+            old_version = str_to_version(found_version)
+
+            if not old_version:
+                raise Exception(f"Invalid version number in {version_component}")
+
+            # Skip versions lower than the current version
+            if old_version >= new_version:
+                continue
+
+            # Stop if the version reached the target
+            if target:
+                if old_version >= target:
+                    continue
+
+            # Apply operations for each found option
+            update_options(new, mapping["components"], component, logger=logger)
+
+        # Set the resulting version for the component
+        new[component]["version"] = mapping["version"]
+
+    # Process sections added via update mapping
+    for component in (x for x in mapping["components"] if x not in old_config):
+        operations = mapping["components"][component]
+        if "add" not in operations:
+            logger.warning('Missing "add" operation in new section "[%s]"', component)
+
+        for i in (x for x in operations if x != "add"):
+            logger.warning('Bogus "%s" operation in new section "[%s]"', i, component)
+
+        new.add_section(component)
+        logger.info('Added new section "[%s]"', component)
+        update_options(new, mapping["components"], component, logger=logger)
+
+    return new
+
+
+def process_mapping(
+    components: List[str],
+    old_config: RawConfigParser,
+    templates: str,
+    mapping_file: str,
+    target: Optional[Tuple[int, int]] = None,
+    logger: Logger = logging.getLogger(__name__),
+) -> RawConfigParser:
+    """
+    Apply the transformations from the provided mapping file to the
+    configuration dictionary
+    """
+
+    with open(mapping_file, "r", encoding="utf-8") as f:
+        try:
+            mapping = json.loads(f.read())
+        except Exception as e:
+            raise Exception(f"Could not load mapping file {mapping_file}: {e}") from e
+
+    if not mapping["version"]:
+        raise Exception('Malformed mapping: no "version" set')
+
+    if not mapping["components"]:
+        raise Exception('Malformed mapping: no "components" set')
+
+    new_version = str_to_version(mapping["version"])
+    if not new_version:
+        raise Exception(f"Invalid version number in mapping: {mapping['version']}")
+
+    if not any(map(lambda c: needs_update(c, old_config, new_version), components)):
+        logger.info("Skipping version %s", mapping["version"])
+        # Strip quotes in case the old config was a TOML file
+        strip_quotes(old_config)
+        return old_config
+
+    # Search for the directory containing the templates for the version set in
+    # the mapping
+    version_dir = os.path.join(templates, mapping["version"])
+
+    if not os.path.isdir(version_dir):
+        raise Exception(
+            f"Could not find directory {version_dir} for version " f"{mapping['version']} set in {mapping_file}"
+        )
+
+    logger.debug("Applying mapping from file %s version %s ", mapping_file, mapping["version"])
+
+    if "type" in mapping:
+        t = mapping["type"]
+        if t == "full":
+            new = process_full_mapping(mapping, old_config, target, logger=logger)
+        elif t == "update":
+            new = process_update_mapping(mapping, old_config, target, logger=logger)
+        else:
+            raise Exception("Invalid mapping type")
+    else:
+        # When the mapping type is not defined, treat as full mapping to handle
+        # older mapping versions
+        new = process_full_mapping(mapping, old_config, target, logger)
 
     # Strip quotes from all options
     strip_quotes(new)
