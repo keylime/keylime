@@ -524,3 +524,51 @@ class TestConvertConfig(unittest.TestCase):
         self.assertEqual("3.1", result.get("subcomp1", "version"))
         self.assertEqual("3.1", result.get("comp2", "version"))
         self.assertEqual("3.1", result.get("subcomp2", "version"))
+
+    def test_update_mixed_corner_cases(self) -> None:
+        """Test some corner cases on update"""
+
+        config = configparser.RawConfigParser()
+        config.add_section("comp1")
+        config["comp1"]["version"] = "1.0"
+        config["comp1"]["existing_option"] = "old_value"
+        config["comp1"]["other_existing"] = "old_value"
+        config["comp1"]["to_replace"] = "old_value"
+
+        template = os.path.join(DATA_DIR, "templates-update-corner-cases")
+        self.assertTrue(os.path.exists(template))
+
+        with self.assertLogs("corner_cases", level="DEBUG") as cm:
+            l = logging.getLogger("corner_cases")
+            result = convert_config.process_versions(COMPONENTS, template, config, logger=l)
+
+        # Check that adding existing option does not choke the update and the old
+        # value is preserved
+        self.assertTrue(
+            'DEBUG:corner_cases:[comp1]: Skipped adding already existing option "existing_option"' in cm.output
+        )
+        self.assertEqual("old_value", result.get("comp1", "existing_option"))
+
+        # Check that removing non-existing options does not choke the processing
+        self.assertTrue(
+            'DEBUG:corner_cases:[comp1]: Skipped removing unexisting option "non_existing_option"' in cm.output
+        )
+
+        # Check that replacing an option with an already existing option results
+        # on the replaced option removed and existing option value preserved
+        self.assertTrue('DEBUG:corner_cases:[comp1]: Skipped removing unexisting option "non_existing"' in cm.output)
+        self.assertEqual("old_value", result.get("comp1", "other_existing"))
+
+        # Check that replacing non-existing option results in option added with
+        # default value
+        self.assertTrue('DEBUG:corner_cases:[comp1]: Skipped removing unexisting option "non_existing"' in cm.output)
+        self.assertEqual("new_value", result.get("comp1", "non_existing_replacement"))
+
+        # Check that new sections and options are added correctly
+        self.assertTrue('INFO:corner_cases:Added new section "[new_comp]"' in cm.output)
+        self.assertTrue('DEBUG:corner_cases:[new_comp]: Added new option "new_option" = "new_value"' in cm.output)
+        self.assertEqual("new_value", result.get("new_comp", "new_option"))
+
+        # Check that bogus operations in new sections generate warnings
+        self.assertTrue('WARNING:corner_cases:Bogus "remove" operation in new section "[new_comp]"' in cm.output)
+        self.assertTrue('WARNING:corner_cases:Bogus "replace" operation in new section "[new_comp]"' in cm.output)

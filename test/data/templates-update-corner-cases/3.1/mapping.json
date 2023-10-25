@@ -1,0 +1,33 @@
+{
+    "version": "3.1",
+    "type": "update",
+    "components": {
+        "comp1": {
+            "add": {
+                "existing_option": "new_value"
+            },
+            "remove": ["non_existing_option"],
+            "replace": {
+                "to_replace": {
+                    "section": "comp1",
+                    "option": "other_existing",
+                    "default": "new_value"
+                },
+                "non_existing": {
+                    "section": "comp1",
+                    "option": "non_existing_replacement",
+                    "default": "new_value"
+                }
+            }
+        },
+        "new_comp": {
+            "add": {
+                "new_option": "new_value"
+            },
+            "replace": {
+            },
+            "remove": []
+        }
+    }
+}
+
