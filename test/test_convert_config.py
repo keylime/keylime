@@ -572,3 +572,69 @@ class TestConvertConfig(unittest.TestCase):
         # Check that bogus operations in new sections generate warnings
         self.assertTrue('WARNING:corner_cases:Bogus "remove" operation in new section "[new_comp]"' in cm.output)
         self.assertTrue('WARNING:corner_cases:Bogus "replace" operation in new section "[new_comp]"' in cm.output)
+
+    def test_update_invalid_mapping_type(self) -> None:
+        """Test that invalid mapping type causes an exception to be raised"""
+
+        config = configparser.RawConfigParser()
+        config.add_section("comp1")
+        config["comp1"]["version"] = "1.0"
+        config["comp1"]["option"] = "old_value"
+
+        template = os.path.join(DATA_DIR, "templates-invalid-mapping-type")
+        self.assertRaises(Exception, convert_config.process_versions, COMPONENTS, template, config)
+
+    def test_update_invalid_mapping_version(self) -> None:
+        """Test that invalid version causes an exception to be raised"""
+
+        config = configparser.RawConfigParser()
+        config.add_section("comp1")
+        config["comp1"]["version"] = "1.0"
+        config["comp1"]["option"] = "old_value"
+
+        template = os.path.join(DATA_DIR, "templates-invalid-mapping-version")
+        self.assertRaises(Exception, convert_config.process_versions, COMPONENTS, template, config)
+
+    def test_update_invalid_component_version(self) -> None:
+        """Test that invalid version causes an exception to be raised"""
+
+        config = configparser.RawConfigParser()
+        config.add_section("comp1")
+        config["comp1"]["version"] = "invalid_version"
+        config["comp1"]["option"] = "old_value"
+
+        template = os.path.join(DATA_DIR, "templates-update-corner-cases")
+        self.assertRaises(Exception, convert_config.process_versions, COMPONENTS, template, config)
+
+    def test_update_missing_section(self) -> None:
+        """Test that missing section in replace causes an exception to be raised"""
+
+        config = configparser.RawConfigParser()
+        config.add_section("comp1")
+        config["comp1"]["version"] = "1.0"
+        config["comp1"]["option"] = "old_value"
+
+        template = os.path.join(DATA_DIR, "templates-update-missing-section")
+        self.assertRaises(Exception, convert_config.process_versions, COMPONENTS, template, config)
+
+    def test_update_missing_option(self) -> None:
+        """Test that missing option in replace causes an exception to be raised"""
+
+        config = configparser.RawConfigParser()
+        config.add_section("comp1")
+        config["comp1"]["version"] = "1.0"
+        config["comp1"]["option"] = "old_value"
+
+        template = os.path.join(DATA_DIR, "templates-update-missing-option")
+        self.assertRaises(Exception, convert_config.process_versions, COMPONENTS, template, config)
+
+    def test_update_missing_default(self) -> None:
+        """Test that missing default in replace causes an exception to be raised"""
+
+        config = configparser.RawConfigParser()
+        config.add_section("comp1")
+        config["comp1"]["version"] = "1.0"
+        config["comp1"]["option"] = "old_value"
+
+        template = os.path.join(DATA_DIR, "templates-update-missing-default")
+        self.assertRaises(Exception, convert_config.process_versions, COMPONENTS, template, config)
