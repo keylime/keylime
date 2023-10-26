@@ -1,0 +1,15 @@
+{
+    "version": "3.1",
+    "type": "invalid_type",
+    "components": {
+        "comp1": {
+            "replace": {
+                "option": {
+                    "option": "new_option",
+                    "default": "value"
+                }
+            }
+        }
+    }
+}
+

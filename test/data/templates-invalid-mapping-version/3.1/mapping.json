@@ -1,0 +1,9 @@
+{
+    "version": "invalid_version",
+    "type": "update",
+    "components": {
+        "comp1": {
+        }
+    }
+}
+
