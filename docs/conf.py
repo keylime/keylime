@@ -26,7 +26,7 @@ AUTHOR = "Keylime Developers"
 # The short X.Y version
 VERSION = ""
 # The full version, including alpha/beta/rc tags
-RELEASE = "7.6.0"
+RELEASE = "7.7.0"
 
 
 # -- General configuration ---------------------------------------------------
