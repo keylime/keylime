@@ -148,9 +148,9 @@ def verify_ek(ekcert: bytes, tpm_cert_store: str) -> bool:
     """
     try:
         ek509 = x509_der_cert(ekcert)
-    except Exception as e:
+    except Exception as err:
         # Log the exception so we don't lose the raw message
-        logger.exception(e)
+        logger.exception(err)
         raise Exception("Error processing ek/ekcert. Does this TPM have a valid EK?").with_traceback(sys.exc_info()[2])
     return verify_cert(ek509, tpm_cert_store, "EK")
 
