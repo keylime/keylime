@@ -80,6 +80,69 @@ MS5jcnQwCgYIKoZIzj0EAwIDSAAwRQIgcNiZkn7poyk6J8Y1Cnwz4nV7YGPb5pBesBg6bk9n6KIC
 IQCE/jkHb/aPP/T3GtfLNHAdHL4JnofAbsDEuLQxAseeZA==
 """
 
+# These two certs are for testing the iak_idevid_cert_checks() function
+# This is an IDevID cert with RSA PSS key that requires crypto >=38
+idevid_der = """\
+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
+"""
+
+iak_der = """\
+MIIF9DCCA9ygAwIBAgICEAEwDQYJKoZIhvcNAQEMBQAwbjELMAkGA1UEBhMCR0IxEDAOBgNVBAgM
+B0VuZ2xhbmQxEjAQBgNVBAoMCUlzYWFjIEhQRTEVMBMGA1UECwwMSXNhYWMgSFBFIENBMSIwIAYD
+VQQDDBlJc2FhYyBIUEUgSW50ZXJtZWRpYXRlIENBMB4XDTIzMDgyMzEwMTczNFoXDTI2MDUxODEw
+MTczNFowXzELMAkGA1UEBhMCR0IxEDAOBgNVBAgMB0VuZ2xhbmQxEjAQBgNVBAoMCUlzYWFjIEhQ
+RTEVMBMGA1UECwwMSXNhYWMgSFBFIENBMRMwEQYDVQQDDApQMzg0NzEtQjIxMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlHJLX9n+kzqFRPeFEn7xMQSEbpsOQDg9mocQy172IE2aAhHy
+KOAdcv/aOeGirPHnJZtXs9YbgnEpJWiNOzEJ0hb/mIJjLJhnfQkDXtG+bi/Zxlwwx1RFHkREY/4m
+VPNihIlzGBrP/EX6HK3RYobEig/15oGq8vh1NR8JMVljx2LRUS05UIK6iidQnJFGnwRyslr440Sx
+IWQtGDmVgLWxjd2ziWdxcwVdtZce3u0bAcQcFIUK0T21oelE2/5SgZ/KUIES6m/8AeZvfTux86Si
+Mv7awEA52pT4Nos4LezAcnrDME6SdChpcKOvcbrP1GhPWmqTGU52EeltpjNh+r6ypQIDAQABo4IB
+qTCCAaUwCQYDVR0TBAIwADARBglghkgBhvhCAQEEBAMCBkAwMwYJYIZIAYb4QgENBCYWJE9wZW5T
+U0wgR2VuZXJhdGVkIFNlcnZlciBDZXJ0aWZpY2F0ZTAdBgNVHQ4EFgQUMYn/EfkIH/HTSUXgLssl
+6IjQ0XkwgZEGA1UdIwSBiTCBhoAUmAAOKZfGn7MnFQAcB6s5Est2bsKhaqRoMGYxCzAJBgNVBAYT
+AkdCMRAwDgYDVQQIDAdFbmdsYW5kMRIwEAYDVQQKDAlJc2FhYyBIUEUxFTATBgNVBAsMDElzYWFj
+IEhQRSBDQTEaMBgGA1UEAwwRSXNhYWMgSFBFIFJvb3QgQ0GCAhAAMA4GA1UdDwEB/wQEAwIFoDAT
+BgNVHSUEDDAKBggrBgEFBQcDATB4BgNVHREEcTBvoG0GCCsGAQUFBwgEoGEwXwYFZ4EFAQIEVlNU
+TSA6MUFEQjk5NEFCNThCRTU3QTBDQzlCOTAwRTc4NTFFMUE0M0MwODY2MDo0RDA3QkI1N0Q5RTNB
+NjQ1RDc4MTkxRjEyRDFDNzhCQkJBMkMyMEFFMA0GCSqGSIb3DQEBDAUAA4ICAQAm/ipQETo/lyC6
+y0McIqR3qZzLe7cSaZEXUiuav+k7Db/nvNeDbgPKhepThjBk/AMZgxGTuDEftVQOn3+wM4uUSwLX
+jf4XlD9usaWqKqUilrt0QLFKOM+qKBM+j5EJGCLBkVxnmsEdhTa1vf5uHZVRKhmld885r1In3hIW
+tXTW/cSrXyAeoDRy0qKV/tWSJGQbc/biHrq1YG1nAliIiVxHfX3S5QNw1jkdSCoL6Y0O7cr9DOwb
+5tj+vpQrqpFpyUGNYrCwaiZ4vOKY4SY9+x5g6LiNa2dIVBe5ihM9FCnnzDYZBCRE8TygojWY6lju
+GnwmbQAX6Az/EavrQ51kpTsgrizX8meJzPYxAj2YRj9IRjO78SP9LgUKb420AocVt5sRo4+EhI+t
+PqQ2RWK38nMP3HcW9VMxiRNmlb9xkcsbXw1pFnX/dlI+YRZaWREU3fFI1CQjk3ebujjWTcp1X753
+9EH6Bp5s+qE14JYsV5WqQsshTmHTfdQkV9QOweArjlLeL1MlL/S6cuE4Pc5giUoqFj11n6S/H9Te
+wZSAsdm+F02pUnR2yf0ge83mFbOfFvVH6qTiBAfu5cmcinUYuxrGCpe8viOyJ2IkKSzNGvl7CZRo
+Ap5d9wr462Gq3kzXcIW3K6kUJDcboy267Ndl6pcC0Rng/z/p1WdibbcSXfkhVw==
+"""
+
 
 def has_strict_x509_parsing():
     """Indicates whether python-cryptography has strict x509 parsing."""
@@ -88,6 +151,14 @@ def has_strict_x509_parsing():
     # when parsing x509 certificates.
     PYCRYPTO_STRICT_X509_MAJOR = 35
     return int(cryptography.__version__.split(".", maxsplit=1)[0]) >= PYCRYPTO_STRICT_X509_MAJOR
+
+
+def has_rsa_pss_compatibility():
+    """Indicates whether python-cryptography can process RSASSA-PSS. If this test fails IAK and IDevID will not be used to register unless cryptography is updated."""
+
+    # Major release where python-cryptography could process RSA PSS
+    PYCRYPTO_PSS_X509_MAJOR = 38
+    return int(cryptography.__version__.split(".", maxsplit=1)[0]) >= PYCRYPTO_PSS_X509_MAJOR
 
 
 def expectedFailureIf(condition):
@@ -174,3 +245,23 @@ class Cert_Utils_Test(unittest.TestCase):
         # And now we try a bad TPM cert store.
         env["TPM_CERT_STORE"] = "/some/bad/directory"
         self.assertFalse(cert_utils.verify_ek_script(script, env, cwd))
+
+    @unittest.skipUnless(
+        has_rsa_pss_compatibility(), "Cryptography earlier than v38.0.0 does not support RSAPSS from x509"
+    )
+    def test_iak_idevid_cert_checks(self):
+        # This test is expected to fail with python cryptography version earlier than 38
+        # Test for the iak_idevid_cert checks, which checks the public key type in the certs,
+        # verifies the certs, and checks they are from a TPM
+        # Check that we fail agianst the current cert store
+        error, _, _ = cert_utils.iak_idevid_cert_checks(
+            base64.b64decode(idevid_der), base64.b64decode(iak_der), CERT_STORE_DIR
+        )
+        self.assertTrue(error == "Error: IDevID certificate could not be verified")
+
+        # Check that we succeed against the test cert store
+        TEST_CERT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "test-data/files/idevid-test-ca"))
+        error, _, _ = cert_utils.iak_idevid_cert_checks(
+            base64.b64decode(idevid_der), base64.b64decode(iak_der), TEST_CERT_DIR
+        )
+        self.assertTrue(error == "")
