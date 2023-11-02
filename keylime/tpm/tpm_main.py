@@ -51,10 +51,9 @@ class Tpm:
         return (keyblob, key)
 
     @staticmethod
-    def verify_aik_with_iak(
-        uuid: str, aik_tpm: bytes, iak_pub: tpm2_objects.pubkey_type, iak_attest: bytes, iak_sign: bytes
-    ) -> bool:
+    def verify_aik_with_iak(uuid: str, aik_tpm: bytes, iak_tpm: bytes, iak_attest: bytes, iak_sign: bytes) -> bool:
         attest_body = iak_attest.split(b"\x00$")[1]
+        iak_pub = tpm2_objects.pubkey_from_tpm2b_public(iak_tpm)
 
         # check UUID in certify matches UUID registering
         if attest_body[: len(uuid)] != bytes(uuid, "utf-8"):
