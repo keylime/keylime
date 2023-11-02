@@ -1,14 +1,21 @@
+import contextvars
 import logging
 from logging import Logger
 from logging import config as logging_config
-from typing import Any, Callable, Dict
+from typing import TYPE_CHECKING, Any, Callable, Dict
 
 from keylime import config
+
+if TYPE_CHECKING:
+    from logging import LogRecord
 
 try:
     logging_config.fileConfig(config.get_config("logging"))
 except KeyError:
     logging.basicConfig(format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s", level=logging.DEBUG)
+
+
+request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id")
 
 
 def set_log_func(loglevel: int, logger: Logger) -> Callable[..., None]:
@@ -45,8 +52,33 @@ def log_http_response(logger: Logger, loglevel: int, response_body: Dict[str, An
     return True
 
 
+def annotate_logger(logger: Logger) -> None:
+    request_id_filter = RequestIDFilter()
+
+    for handler in logger.handlers:
+        handler.addFilter(request_id_filter)
+
+
 def init_logging(loggername: str) -> Logger:
     logger = logging.getLogger(f"keylime.{loggername}")
     logging.getLogger("requests").setLevel(logging.WARNING)
 
+    # Disable default Tornado logs, as we are outputting more detail to the 'keylime.web' logger
+    logging.getLogger("tornado.general").disabled = True
+    logging.getLogger("tornado.access").disabled = True
+    logging.getLogger("tornado.application").disabled = True
+
+    # Add metadata to root logger, so that it is inherited by all
+    annotate_logger(logging.getLogger())
+
     return logger
+
+
+class RequestIDFilter(logging.Filter):
+    def filter(self, record: "LogRecord") -> bool:
+        reqid = request_id_var.get("")
+
+        record.reqid = reqid
+        record.reqidf = f"(reqid={reqid})" if reqid else ""
+
+        return True

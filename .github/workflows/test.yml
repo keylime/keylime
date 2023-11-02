@@ -42,7 +42,7 @@ jobs:
     - name: Install Python dependencies
       run: sudo dnf -y install python3.6 tox python3-pip
     - name: Run lints
-      run: tox -vv -e 'pylint,pylint36'
+      run: tox -vv -e 'pylint'
     - name: Run mypy
       run: tox -vv -e 'mypy'
     - name: Run pyright

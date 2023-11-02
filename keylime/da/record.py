@@ -46,9 +46,9 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
     def record_create(
         self,
         agent_data: Dict[Any, Any],
-        attestation_data: Dict[Any, Any],
+        attestation_data: Optional[Dict[Any, Any]],
         mb_policy_data: Optional[str],
-        runtime_policy_data: Dict[Any, Any],
+        runtime_policy_data: Optional[Dict[Any, Any]],
         service: str = "auto",
         signed_attributes: str = "auto",
     ) -> None:

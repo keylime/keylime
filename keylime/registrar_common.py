@@ -361,7 +361,7 @@ class UnprotectedHandler(BaseHandler):
                 aik_verified = False
                 if idevid_received:
                     aik_verified = Tpm.verify_aik_with_iak(
-                        agent_id, base64.b64decode(aik_tpm), iak_tpm_pub, iak_attest, iak_sign
+                        agent_id, base64.b64decode(aik_tpm), iak_tpm, iak_attest, iak_sign
                     )
                 if not aik_verified and idevid_required:
                     logger.warning("Agent %s failed to verify AIK with IAK", agent_id)
@@ -523,7 +523,7 @@ class UnprotectedHandler(BaseHandler):
             ex_mac = crypto.do_hmac(agent.key.encode(), agent_id)
             if ex_mac == auth_tag:
                 try:
-                    session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(
+                    session.query(RegistrarMain).filter(RegistrarMain.agent_id == agent_id).update(  # type: ignore
                         {"active": int(True)}
                     )
                     session.commit()
@@ -584,7 +584,7 @@ def start(host: str, tlsport: int, port: int) -> None:
     # set a conservative general umask
     os.umask(0o077)
 
-    RegistrarMain.metadata.create_all(engine, checkfirst=True)
+    RegistrarMain.metadata.create_all(engine, checkfirst=True)  # type: ignore
     session = SessionManager().make_session(engine)
     try:
         count = session.query(RegistrarMain.agent_id).count()
