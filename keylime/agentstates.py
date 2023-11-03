@@ -1,6 +1,6 @@
 import sys
 import threading
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Tuple
 
 from keylime.common.algorithms import Hash
 from keylime.ima.file_signatures import ImaKeyrings
@@ -92,6 +92,7 @@ class AgentAttestState:
     ima_pcrs: Set[int]
     ima_keyring: ImaKeyrings
     ima_dm_state: Optional[bytes]
+    quote_progress: Optional[Tuple[int, int]]
 
     def __init__(self, agent_id: str) -> None:
         """constructor"""
@@ -110,18 +111,22 @@ class AgentAttestState:
 
         self.ima_dm_state = None
 
+        # quote_progress later consists of tuple(pcr_match_line, log length)
+        self.quote_progress = None
+
     def get_agent_id(self) -> str:
         """Get the agent_id"""
         return self.agent_id
 
     def reset_ima_attestation(self) -> None:
         """Reset the IMA attestation state to start over with 1st entry
-        ad start over with learning the keys"""
+        and start over with learning the keys"""
         self.next_ima_ml_entry = 0
         for pcr_num in self.ima_pcrs:
             self.tpm_state.reset_pcr(pcr_num)
         self.set_boottime(0)
         self.ima_keyrings = ImaKeyrings()
+        self.quote_progress = None
 
     def update_ima_attestation(self, pcr_num: int, pcr_value: bytes, num_ml_entries: int) -> None:
         """Update the attestation by remembering the new PCR value and the
@@ -193,6 +198,37 @@ class AgentAttestState:
 
     def set_ima_dm_state(self, state: bytes) -> None:
         self.ima_dm_state = state
+
+    def check_quote_progress(self, pcr_match_line: int, log_length: int) -> bool:
+        """Check whether the quote is making forward-progress.
+        Return False if the previous quote has not caught up with the log
+        from the previous report (previous lag).
+        pcr_match_line must be a number >= 0 and <= log_length. An empty log
+        has length 0. If the quote matches the state of the PCRs without
+        replaying any further log entries, then this match occurs at
+        pcr_match_line = 0 (which is at the same log entry as before). If 'n'
+        lines were replayed, then the match occurred at line 'n'.
+        """
+
+        if not self.quote_progress:
+            # set initial state
+            self.quote_progress = (pcr_match_line, log_length)
+            return True
+
+        prev_pcr_match_line, prev_log_length = self.quote_progress
+        self.quote_progress = (pcr_match_line, log_length)
+
+        # quote caught up with log?
+        if pcr_match_line == log_length:
+            return True
+
+        prev_lag = prev_log_length - prev_pcr_match_line
+
+        # Insufficient quote forward-progress means that the quote was lagging
+        # before and now the PCR(s) did not catch up with the previous lag.
+        if prev_lag > 0 and pcr_match_line < prev_lag:
+            return False
+        return True
 
 
 class AgentAttestStates:
