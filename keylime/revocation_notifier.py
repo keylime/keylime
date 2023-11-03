@@ -32,9 +32,12 @@ def start_broker() -> None:
         raise Exception("install PyZMQ for 'zeromq' in 'enabled_revocation_notifications' option") from error
 
     def worker() -> None:
+        def sig_handler(*_: Any) -> None:
+            sys.exit(0)
+
         # do not receive signals form the parent process
         os.setpgrp()
-        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+        signal.signal(signal.SIGTERM, sig_handler)
         dir_name = os.path.dirname(_SOCKET_PATH)
         if not os.path.exists(dir_name):
             os.makedirs(dir_name, 0o700)
