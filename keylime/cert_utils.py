@@ -80,7 +80,11 @@ def verify_cert(cert: Certificate, tpm_cert_store: str, cert_type: str = "") -> 
 
     try:
         for cert_file, pem_cert in trusted_certs.items():
-            signcert = x509_pem_cert(pem_cert)
+            try:
+                signcert = x509_pem_cert(pem_cert)
+            except Exception as err:
+                logger.warning("Ignoring certificate file %s due to error: %s", cert_file, str(err))
+                continue
             if cert.issuer != signcert.subject:
                 continue
 
