@@ -288,6 +288,9 @@ def _process_measurement_list(
         }
     )
 
+    pcr_match_line = -1
+    log_length = 0
+
     # Iterative attestation may send us no log [len(lines) == 1]; compare last know PCR 10 state
     # against current PCR state.
     # Since IMA's append to the log and PCR extend as well as Keylime's retrieval of the quote, reading
@@ -296,6 +299,7 @@ def _process_measurement_list(
     # the PCR may lag the log by several entries.
     if not found_pcr:
         found_pcr = running_hash == pcrval_bytes
+        pcr_match_line = 0
 
     for linenum, line in enumerate(lines):
         # remove only the newline character, as there can be the space
@@ -304,6 +308,8 @@ def _process_measurement_list(
         line = line.strip("\n")
         if line == "":
             continue
+
+        log_length += 1
 
         try:
             entry = ast.Entry(line, ima_validator, ima_hash_alg=ima_log_hash_alg, pcr_hash_alg=hash_alg)
@@ -321,6 +327,7 @@ def _process_measurement_list(
                 # End of list should equal pcr value
                 found_pcr = running_hash == pcrval_bytes
                 if found_pcr:
+                    pcr_match_line = linenum + 1
                     logger.debug("Found match at linenum %s", linenum + 1)
                     # We always want to have the very last line for the attestation, so
                     # we keep the previous runninghash, which is not the last one!
@@ -336,6 +343,9 @@ def _process_measurement_list(
     if not found_pcr:
         logger.error("IMA measurement list does not match TPM PCR %s", pcrval)
         failure.add_event("pcr_mismatch", f"IMA measurement list does not match TPM PCR {pcrval}", True)
+    elif not agentAttestState.check_quote_progress(pcr_match_line, log_length):
+        logger.error("PCR quote did not make progress to catch up with the log")
+        failure.add_event("quote_progress", "PCR quote did not make progress to catch up with log", True)
 
     # Check if any validators failed
     if sum(errors.values()) > 0:
