@@ -66,6 +66,7 @@ adjust:
      - /functional/durable-attestion-sanity-on-localhost
      - /functional/ek-cert-use-ek_check_script
      - /functional/ek-cert-use-ek_handle-custom-ca_certs
+     - /functional/iak-idevid-register-with-certificates
      - /functional/install-rpm-with-ima-signature
      - /functional/keylime-non-default-ports
      - /functional/keylime_tenant-commands-on-localhost
