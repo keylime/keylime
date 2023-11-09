@@ -226,7 +226,9 @@ def get_config(component: str) -> RawConfigParser:
                         raise Exception(f"Invalid component {component}")
 
                     for d in (x for x in CONFIG_SNIPPETS_DIRS[component] if os.path.exists(x)):
-                        snippets = sorted(filter(os.path.isfile, (os.path.join(d, f) for f in os.listdir(d) if f)))
+                        snippets = sorted(
+                            [os.path.join(d, f) for f in os.listdir(d) if f and os.path.isfile(os.path.join(d, f))]
+                        )
                         applied_snippets = _config[component].read(snippets)
                         if applied_snippets:
                             base_logger.info("Applied configuration snippets from %s", d)
