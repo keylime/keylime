@@ -205,9 +205,9 @@ def iak_idevid_cert_checks(
     idevid_pub = idevid_cert_509.public_key()
     iak_pub = iak_cert_509.public_key()
 
-    if not isinstance(idevid_pub, RSAPublicKey) or isinstance(idevid_pub, EllipticCurvePublicKey):
+    if not isinstance(idevid_pub, (RSAPublicKey, EllipticCurvePublicKey)):
         return "Error: IDevID certificate does not contain an RSA or EC public key", None, None
-    if not isinstance(iak_pub, RSAPublicKey) or isinstance(iak_pub, EllipticCurvePublicKey):
+    if not isinstance(iak_pub, (RSAPublicKey, EllipticCurvePublicKey)):
         return "Error: IAK certificate does not contain an RSA or EC public key", None, None
 
     if not verify_cert(idevid_cert_509, tpm_cert_store, "IDevID"):
