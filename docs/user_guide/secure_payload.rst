@@ -86,7 +86,7 @@ be put into the certification package zip and securely delivered to the Agent.
 
 This mode of operation also natively supports certificate revocation. If the Keylime
 Verifier detects an Agent that no longer satisfies its integrity policy (e.g., it booted
-an authorized kernel or ran an unauthorized binary not on the IMA allowlist), it
+an unauthorized kernel or ran an unauthorized binary not on the IMA allowlist), it
 will create a signed revocation notification.  These revocation notifications are
 signed by a special certificate/private key called the RevocationNotifier.  Keylime
 will automatically create this certificate and pass it to the verifier when you add
