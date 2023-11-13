@@ -2,8 +2,9 @@ Contributing
 ============
 
 When contributing any keylime repository, please first discuss the change you wish
-to make via an issue in the relevant repository for your change or email to the
-`keylime mailing list <https://groups.io/g/keylime>`_
+to make via an issue in the relevant repository for your change or ask the
+community in the ``#keylime`` channel on the `CNCF Slack workspace
+<https://slack.cncf.io/>`_
 
 Pull Request Process
 ~~~~~~~~~~~~~~~~~~~~
@@ -122,8 +123,7 @@ Python Keylime with a TPM emulator can be deployed using Docker.
 Since this docker configuration uses a TPM emulator, it should only be
 used for development or testing and NOT in production.
 
-Please see either the Dockerfiles
-`here <https://github.com/keylime/keylime/tree/master/docker/ci>`_ or our
-local CI script
-`here <https://github.com/keylime/keylime/blob/master/.ci/run_local.sh>`_
+Please see either the
+`Dockerfiles <https://github.com/keylime/keylime/tree/master/docker/ci>`_ or our
+`local CI script <https://github.com/keylime/keylime/blob/master/.ci/run_local.sh>`_
 which will automate the build and pull of Keylime.
