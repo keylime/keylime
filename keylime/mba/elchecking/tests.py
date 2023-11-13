@@ -457,7 +457,7 @@ class DigestTest(DigestsTest):
         super().__init__([good_digest])
 
 
-StrOrRE = typing.Union[str, typing.Pattern]
+StrOrRE = typing.Union[str, typing.Pattern[str]]
 
 
 class VariableTest(Test):
