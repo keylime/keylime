@@ -254,7 +254,7 @@ def process_mapping(
 
     # On the line below, mypy will complain about incompatible type of
     # new_version, but new_version cannot be None. Ignore the check.
-    if not any(map(lambda c: needs_update(c, old_config, new_version), components)):  # type: ignore
+    if not any(map(lambda c: needs_update(c, old_config, new_version), components)):
         print(f"Skipping version {mapping['version']}")
         # Strip quotes in case the old config was a TOML file
         strip_quotes(old_config)
