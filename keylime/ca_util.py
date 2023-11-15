@@ -43,6 +43,7 @@ from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey
 from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.x509 import Certificate
 
 from keylime import ca_impl_openssl as ca_impl
@@ -148,6 +149,25 @@ def cmd_mkcert(workingdir: str, name: str, password: Optional[str] = None) -> No
         logger.error("ERROR: Cert does not validate against CA")
     finally:
         os.umask(mask)
+        os.chdir(cwd)
+
+
+def cmd_import_priv(workingdir: str, priv_pem_file: str, lastserial: int) -> None:
+    cwd = os.getcwd()
+    try:
+        with open(priv_pem_file, "rb") as priv_pem:
+            pem = priv_pem.read()
+        fs_util.ch_dir(workingdir)
+        priv = read_private(False)
+        private_key = load_pem_private_key(pem, None, default_backend())
+        priv[0]["ca"] = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        priv[0]["lastserial"] = int(lastserial) + 1
+        write_private(priv)
+    finally:
         os.chdir(cwd)
 
 
@@ -384,7 +404,7 @@ def main(argv: List[str] = sys.argv) -> None:  # pylint: disable=dangerous-defau
         action="store",
         dest="command",
         required=True,
-        help="valid commands are init,create,pkg,revoke,listen",
+        help="valid commands are init,create,pkg,revoke,listen,import-priv",
     )
     parser.add_argument("-n", "--name", action="store", help="the common name of the certificate to create")
     parser.add_argument("-d", "--dir", action="store", help="use a custom directory to store certificates and keys")
@@ -395,7 +415,10 @@ def main(argv: List[str] = sys.argv) -> None:  # pylint: disable=dangerous-defau
         default=False,
         help="create cert packages with unprotected private keys and write them to disk.  USE WITH CAUTION!",
     )
-
+    parser.add_argument(
+        "-f", "--file", action="store", default="ca-private.pem", help="file path of the private key of the CA cert"
+    )
+    parser.add_argument("-s", "--serial", action="store", help="last serial number the CA has used")
     args = parser.parse_args(argv[1:])
 
     if args.dir is None:
@@ -436,6 +459,13 @@ def main(argv: List[str] = sys.argv) -> None:  # pylint: disable=dangerous-defau
             sys.exit(-1)
         ask_password(None)
         cmd_revoke(workingdir, args.name)
+    elif args.command == "import-priv":
+        if args.serial is None:
+            logger.error("you must pass in the last serial number the CA has used using -s (or --serial)")
+            parser.print_help()
+            sys.exit(-1)
+        ask_password(None)
+        cmd_import_priv(workingdir, args.file, args.serial)
     else:
         logger.error("Invalid command: %s", args.command)
         parser.print_help()
