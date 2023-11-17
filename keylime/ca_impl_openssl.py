@@ -97,7 +97,7 @@ def mk_cacert(name: Optional[str] = None) -> Tuple[Certificate, RSAPrivateKey, R
             [
                 x509.DistributionPoint(
                     full_name=[
-                        x509.UniformResourceIdentifier("http://localhost/crl.pem"),
+                        x509.UniformResourceIdentifier(config.get("ca", "cert_crl_dist")),
                     ],
                     relative_name=None,
                     reasons=None,
@@ -161,7 +161,7 @@ def mk_signed_cert(
             [
                 x509.DistributionPoint(
                     full_name=[
-                        x509.UniformResourceIdentifier("http://localhost/crl.pem"),
+                        x509.UniformResourceIdentifier(config.get("ca", "cert_crl_dist")),
                     ],
                     relative_name=None,
                     reasons=None,
