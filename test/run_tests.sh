@@ -119,7 +119,6 @@ fi
 
 if [[ "$USER_MODE" -ne "0" ]] ; then
     echo -e "Packages '$PYTHON_DEPS' are required for this script.  Please manually install them, or run this script as root." 1>&2
-    exit 1
 fi
 
 echo
