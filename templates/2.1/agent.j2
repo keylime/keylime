@@ -179,7 +179,7 @@ ek_handle = "{{ agent.ek_handle }}"
 # iak_idevid_name_alg:        sha256, sm3_256, sha384, sha512
 # iak_idevid_template:        H-1, H-2, H-3, H-4, H-5
 # Leave template as "" in order to use asymmetric and name algorithm options
-enable_iak_idevid = "{{ agent.enable_iak_idevid }}"
+enable_iak_idevid = {{ agent.enable_iak_idevid }}
 iak_idevid_asymmetric_alg = "{{ agent.iak_idevid_asymmetric_alg }}"
 iak_idevid_name_alg = "{{ agent.iak_idevid_name_alg }}"
 iak_idevid_template = "{{ agent.iak_idevid_template }}"
