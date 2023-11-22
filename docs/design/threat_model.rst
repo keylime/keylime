@@ -27,7 +27,7 @@ require to trust arbitrary EFI applications during the boot process because it c
 executed.
 
 
-The threat model includes that an adversary has full control over the network and can either sent rouge messages,
+The threat model includes that an adversary has full control over the network and can either sent rogue messages,
 drop or modify them. Also the Keylime agent and running operating system itself is not deemed trustworthy by default.
 Only after the successful initial attestation the system is deemed trustworthy, but still can leave the trusted state
 at any moment and is therefore continuously attested.
