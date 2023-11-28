@@ -23,16 +23,20 @@ To allow IDevID and IAK registration, the registrar needs to be, at minimum, loa
 Registrar
 ^^^^^^^^^
 
-The certificates for the authority that signed the registering device's IAK and IDevID need to be added to the ``TPM_CERT_STORE``, the default location being ``/var/lib/keylime/tpm_cert_store``.
+The certificates for the authority that signed the registering device's IAK and IDevID need to be added to the ``TPM_CERT_STORE``, the default location being ``/var/lib/keylime/tpm_cert_store``. The cert store can hold certificates fom multiple authorities if you have devices from different manufacturers. Keylime will look through the store until a match is detected.
 
-With the manufacturer certificates added, the Keylime registrar will accept IDevIDs and IAKs received from agents during registration. In this default configuration, the registrar will not prevent for an agent from registering with just an EK instead (and no IDevID and IAK). To disable this behaviour and make the use of IDevID and IAK a requirement for registering devices, the configuration option ``tpm_identity`` needs to be changed:
+With the manufacturer certificates added, the Keylime registrar will accept IDevIDs and IAKs received from agents during registration. In the default configuration, the registrar will not prevent an agent from registering with just an EK instead (and no IDevID and IAK). To disable this behaviour and make the use of IDevID and IAK a requirement for registering devices, the configuration option ``tpm_identity`` needs to be changed, either by modifying ``registrar.conf``:
 
     tpm_identity = iak_idevid
+
+or alternatively by overriding the configuration option by setting the ``KEYLIME_REGISTRAR_TPM_IDENTITY`` environment variable.
 
 Agent
 ^^^^^
 
 For the agent to use its IDevID and IAK to register, the IAK and IDevID certificates need to be added to the ``keylime_dir`` and named ``iak-cert.crt`` and ``idevid-cert.crt`` respectively. Alternatively, the ``iak_cert`` and ``idevid_cert`` configuration options can be set to absolute paths or filenames relative to the ``keylime_dir``.
+
+As with the registrar, the configuration options can either be set in the config file, ``agent.conf`` for the agent, or overridden using environment variables.
 
 Next, the functionality should be enabled by changing ``enable_iak_idevid`` to ``true``. Finally, the template used by the certificates needs to be specified. If the wrong template is chosen, the agent will fail to match the regenerated keys against the imported certificates and registration will fail.
 
@@ -50,6 +54,8 @@ H-4         ECC NIST P521    SHA512
 H-5         ECC SM2 P256     SM3_256
 ==========  ===============  ==========
 
+.. note::
+    This will be changed in an upcoming patch, where the templates will be detected from the certificates the agent loads.
 
 .. [#] IEEE Standard for Local and Metropolitan Area Networks - Secure Device Identity, https://standards.ieee.org/standard/802_1AR-2018.html  
 .. [#tcg] TPM 2.0 Keys for Device Identity and Attestation, https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf
