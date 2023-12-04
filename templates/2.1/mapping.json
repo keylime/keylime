@@ -195,7 +195,7 @@
             "iak_idevid_template": {
                 "section": "agent",
                 "option": "iak_idevid_template",
-                "default": "H-1"
+                "default": "detect"
             },
             "iak_cert": {
                 "section": "agent",
