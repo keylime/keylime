@@ -38,9 +38,14 @@ For the agent to use its IDevID and IAK to register, the IAK and IDevID certific
 
 As with the registrar, the configuration options can either be set in the config file, ``agent.conf`` for the agent, or overridden using environment variables.
 
-Next, the functionality should be enabled by changing ``enable_iak_idevid`` to ``true``. Finally, the template used by the certificates needs to be specified. If the wrong template is chosen, the agent will fail to match the regenerated keys against the imported certificates and registration will fail.
+Next, the functionality should be enabled by changing ``enable_iak_idevid`` to ``true``. Finally, if using a standard template, the ``iak_idevid_template`` configuration option should be left with the default value ``detect``. This will cause the Keylime agent to detect what template was used from the imported certificates. With all this complete your agent should be ready to register using its IDevID and IAK.
 
-The template should be set using the ``iak_idevid_template`` configuration option. As an alternative, the ``iak_idevid_asymmetric_alg`` and ``iak_idevid_name_alg`` options are available to manually set the algorithms, but this is not recommended, and **these options are ignored** if ``iak_idevid_template`` has been set.
+.. note::
+    The following information can be used to manually set either the template or the individual algorithms and should not be required for the majority of users. The detect function mentioned above should be used instead.
+
+The template used by the certificates can also be manually specified. If the wrong template is chosen, the agent will fail to match the regenerated keys against the imported certificates and registration will fail.
+
+The template should be set using the ``iak_idevid_template`` configuration option. As an alternative, the ``iak_idevid_template`` option can be set to ``manual`` and the ``iak_idevid_asymmetric_alg`` and ``iak_idevid_name_alg`` options can be used to manually set the algorithms, but this is not recommended, and **these options are ignored** if ``iak_idevid_template`` is not set to ``manual``.
 
 Template definitions can be found in section 7.3.4 of [#tcg]_. If you don't know what template your IAK and IDevID use, the following table can be used to match your algorithms to a template:
 
@@ -54,8 +59,6 @@ H-4         ECC NIST P521    SHA512
 H-5         ECC SM2 P256     SM3_256
 ==========  ===============  ==========
 
-.. note::
-    This will be changed in an upcoming patch, where the templates will be detected from the certificates the agent loads.
 
 .. [#] IEEE Standard for Local and Metropolitan Area Networks - Secure Device Identity, https://standards.ieee.org/standard/802_1AR-2018.html  
 .. [#tcg] TPM 2.0 Keys for Device Identity and Attestation, https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf
