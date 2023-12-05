@@ -49,7 +49,9 @@ extensions = [
     "sphinx-prompt",
     "recommonmark",
     "notfound.extension",
+    "sphinxcontrib.bibtex",
 ]
+bibtex_bibfiles = ["publications.bib"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]

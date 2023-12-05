@@ -30,6 +30,7 @@ what the goals of Keylime are and how they are implemented.
    installation
    user_guide
    design
+   publications
    rest_apis
    developers
    security
