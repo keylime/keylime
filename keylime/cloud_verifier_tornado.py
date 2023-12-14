@@ -35,7 +35,7 @@ from keylime.common import retry, states, validators
 from keylime.common.version import str_to_version
 from keylime.da import record
 from keylime.db.keylime_db import DBEngineManager, SessionManager
-from keylime.db.verifier_db import VerfierMain, VerifierAllowlist
+from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpolicy
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
 
@@ -97,7 +97,6 @@ def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, Any]:
         "public_key",
         "tpm_policy",
         "meta_data",
-        "mb_refstate",
         "ima_sign_verification_keys",
         "revocation_key",
         "accept_tpm_hash_algs",
@@ -174,6 +173,7 @@ def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
     get_AgentAttestStates().delete_by_agent_id(agent_id)
     session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
     session.query(VerifierAllowlist).filter_by(name=agent_id).delete()
+    session.query(VerifierMbpolicy).filter_by(name=agent_id).delete()
     session.commit()
 
 
@@ -371,7 +371,10 @@ class AgentsHandler(BaseHandler):
                             VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                         )
                     )
-                    .filter_by(agent_id=agent_id)  # pyright: ignore
+                    .options(  # type: ignore
+                        joinedload(VerfierMain.mb_policy).load_only(VerifierMbpolicy.mb_policy)  # pyright: ignore
+                    )
+                    .filter_by(agent_id=agent_id)
                     .one_or_none()
                 )
             except SQLAlchemyError as e:
@@ -395,7 +398,10 @@ class AgentsHandler(BaseHandler):
                                 VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                             )
                         )
-                        .filter_by(verifier_id=rest_params["verifier"])  # pyright: ignore
+                        .options(  # type: ignore
+                            joinedload(VerfierMain.mb_policy).load_only(VerifierMbpolicy.mb_policy)  # pyright: ignore
+                        )
+                        .filter_by(verifier_id=rest_params["verifier"])
                         .all()
                     )
                 else:
@@ -406,7 +412,10 @@ class AgentsHandler(BaseHandler):
                                 VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                             )
                         )
-                        .all()  # pyright: ignore
+                        .options(  # type: ignore
+                            joinedload(VerfierMain.mb_policy).load_only(VerifierMbpolicy.mb_policy)  # pyright: ignore
+                        )
+                        .all()
                     )
 
                 json_response = {}
@@ -515,7 +524,6 @@ class AgentsHandler(BaseHandler):
                         "public_key": "",
                         "tpm_policy": json_body["tpm_policy"],
                         "meta_data": json_body["metadata"],
-                        "mb_refstate": json_body["mb_refstate"],
                         "ima_sign_verification_keys": json_body["ima_sign_verification_keys"],
                         "revocation_key": json_body["revocation_key"],
                         "accept_tpm_hash_algs": json_body["accept_tpm_hash_algs"],
@@ -674,10 +682,27 @@ class AgentsHandler(BaseHandler):
                             logger.error("SQLAlchemy Error while updating ima policy for agent ID %s: %s", agent_id, e)
                             raise
 
+                    # Handle measured boot policy
+                    mb_policy = json_body["mb_refstate"]
+                    mb_policy_stored = None
+                    try:
+                        mb_policy_db_format: Dict[str, Any] = {}
+                        mb_policy_db_format["name"] = agent_id
+                        mb_policy_db_format["mb_policy"] = mb_policy
+                        mb_policy_stored = VerifierMbpolicy(**mb_policy_db_format)
+                        session.add(mb_policy_stored)
+                        session.commit()
+                    except SQLAlchemyError as e:
+                        logger.error("SQLAlchemy Error while updating mb_policy for agent ID %s: %s", agent_id, e)
+                        raise
+
                     # Write the agent to the database, attaching associated stored policy
                     try:
                         assert runtime_policy_stored
-                        session.add(VerfierMain(**agent_data, ima_policy=runtime_policy_stored))  # pyright: ignore
+                        assert mb_policy_stored
+                        session.add(
+                            VerfierMain(**agent_data, ima_policy=runtime_policy_stored, mb_policy=mb_policy_stored)
+                        )
                         session.commit()
                     except SQLAlchemyError as e:
                         logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
@@ -1072,7 +1097,7 @@ async def update_agent_api_version(agent: Dict[str, Any], timeout: float = 60.0)
 
 
 async def invoke_get_quote(
-    agent: Dict[str, Any], runtime_policy: str, need_pubkey: bool, timeout: float = 60.0
+    agent: Dict[str, Any], mb_policy: Optional[str], runtime_policy: str, need_pubkey: bool, timeout: float = 60.0
 ) -> None:
     failure = Failure(Component.INTERNAL, ["verifier"])
 
@@ -1148,10 +1173,11 @@ async def invoke_get_quote(
             agentAttestState = get_AgentAttestStates().get_by_agent_id(agent["agent_id"])
 
             if rmc:
-                rmc.record_create(agent, json_response, runtime_policy)
+                rmc.record_create(agent, json_response, mb_policy, runtime_policy)
 
             failure = cloud_verifier_common.process_quote_response(
                 agent,
+                mb_policy,
                 ima.deserialize_runtime_policy(runtime_policy),
                 json_response["results"],
                 agentAttestState,
@@ -1335,8 +1361,13 @@ async def process_agent(
         try:
             stored_agent = (
                 session.query(VerfierMain)
-                .options(joinedload(VerfierMain.ima_policy).load_only(VerifierAllowlist.checksum))  # type: ignore
-                .filter_by(agent_id=str(agent["agent_id"]))  # pyright: ignore
+                .options(  # type: ignore
+                    joinedload(VerfierMain.ima_policy).load_only(VerifierAllowlist.checksum)  # pyright: ignore
+                )
+                .options(  # type: ignore
+                    joinedload(VerfierMain.mb_policy).load_only(VerifierMbpolicy.mb_policy)  # pyright: ignore
+                )
+                .filter_by(agent_id=str(agent["agent_id"]))
                 .first()
             )
         except SQLAlchemyError as e:
@@ -1408,6 +1439,11 @@ async def process_agent(
         # Load agent's IMA policy
         runtime_policy = verifier_read_policy_from_cache(stored_agent)
 
+        # Get agent's measured boot policy
+        mb_policy = None
+        if stored_agent.mb_policy is not None:
+            mb_policy = stored_agent.mb_policy.mb_policy
+
         # If agent was in a failed state we check if we either stop polling
         # or just add it again to the event loop
         if new_operational_state in [states.FAILED, states.INVALID_QUOTE]:
@@ -1415,14 +1451,14 @@ async def process_agent(
                 logger.warning("Agent %s failed, stopping polling", agent["agent_id"])
                 return
 
-            await invoke_get_quote(agent, runtime_policy, False, timeout=timeout)
+            await invoke_get_quote(agent, mb_policy, runtime_policy, False, timeout=timeout)
             return
 
         # if new, get a quote
         if main_agent_operational_state == states.START and new_operational_state == states.GET_QUOTE:
             agent["num_retries"] = 0
             agent["operational_state"] = states.GET_QUOTE
-            await invoke_get_quote(agent, runtime_policy, True, timeout=timeout)
+            await invoke_get_quote(agent, mb_policy, runtime_policy, True, timeout=timeout)
             return
 
         if main_agent_operational_state == states.GET_QUOTE and new_operational_state == states.PROVIDE_V:
@@ -1439,14 +1475,14 @@ async def process_agent(
             interval = config.getfloat("verifier", "quote_interval")
             agent["operational_state"] = states.GET_QUOTE
             if interval == 0:
-                await invoke_get_quote(agent, runtime_policy, False, timeout=timeout)
+                await invoke_get_quote(agent, mb_policy, runtime_policy, False, timeout=timeout)
             else:
                 logger.debug(
                     "Setting up callback to check agent ID %s again in %f seconds", agent["agent_id"], interval
                 )
 
                 pending = tornado.ioloop.IOLoop.current().call_later(
-                    interval, invoke_get_quote, agent, runtime_policy, False, timeout=timeout  # type: ignore  # due to python <3.9
+                    interval, invoke_get_quote, agent, mb_policy, runtime_policy, False, timeout=timeout  # type: ignore  # due to python <3.9
                 )
                 agent["pending_event"] = pending
             return
@@ -1481,7 +1517,7 @@ async def process_agent(
                     next_retry,
                 )
                 tornado.ioloop.IOLoop.current().call_later(
-                    next_retry, invoke_get_quote, agent, runtime_policy, True, timeout=timeout  # type: ignore  # due to python <3.9
+                    next_retry, invoke_get_quote, agent, mb_policy, runtime_policy, True, timeout=timeout  # type: ignore  # due to python <3.9
                 )
             return
 

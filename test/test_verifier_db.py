@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload
 
 from keylime import json
 from keylime.db.keylime_db import SessionManager
-from keylime.db.verifier_db import VerfierMain, VerifierAllowlist
+from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpolicy
 
 # BEGIN TEST DATA
 
@@ -42,6 +42,11 @@ test_allowlist_data = {
     "ima_policy": '{"allowlist": {"/boot/System.map-5.1.17-300.fc30.x86_64": ["bdc084cc61c67dada53ff92c3235fbc774eace36aceb11967718399837e36485"], "/boot/vmlinuz-5.0.9-301.fc30.x86_64": ["187e65c35f449df145b57940cb73606623ab1eccc352f5b0d9b64c4d2ad3be58"], "/boot/initramfs-5.1.15-300.fc30.x86_64.img": ["7fb94b644d95de6ed2f70c247cf9a572027815b8f6a00b8c5f7b9fd2feef0ff1"], "/boot/config-5.0.9-301.fc30.x86_64": ["540f7b2732b8018be45dcfdf737fa6e51d9f5924d85b6c1987ddb4215260b49f"], "boot_aggregate": ["0000000000000000000000000000000000000000"]}, "exclude": ["/*"]}',
 }
 
+test_mbpolicy_data = {
+    "name": "test-mbpolicy",
+    "mb_policy": '[{"kernel_plain_sha256": "0x5c6120cddb77ba236333081e69ac4f790d6983a899047df0e728bf1ab2b84afc", "initrd_plain_sha256": "0xa1457f95224f364ab3c12f5ce24190d8c5cc0ba2e17259a2556e3a860259a96c" }]',
+}
+
 agent_id = "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"
 
 TENANT_FAILED = 10
@@ -58,8 +63,10 @@ class TestVerfierDB(unittest.TestCase):
 
     def populate_tables(self):
         allowlist = VerifierAllowlist(**test_allowlist_data)
+        mbpolicy = VerifierMbpolicy(**test_mbpolicy_data)
         self.session.add(allowlist)
-        self.session.add(VerfierMain(**test_data, ima_policy=allowlist))
+        self.session.add(mbpolicy)
+        self.session.add(VerfierMain(**test_data, ima_policy=allowlist, mb_policy=mbpolicy))
         self.session.commit()
 
     def test_01_add_allowlist(self):
@@ -145,6 +152,28 @@ class TestVerfierDB(unittest.TestCase):
         self.session.commit()
         allowlist = self.session.query(VerifierAllowlist).filter_by(name="test-allowlist").first()
         self.assertIsNone(allowlist)
+
+    def test_09_add_mbpolicy(self):
+        mbpolicy = self.session.query(VerifierMbpolicy).filter_by(name="test-mbpolicy").one()
+        self.assertEqual(mbpolicy.name, "test-mbpolicy")
+        self.assertEqual(mbpolicy.mb_policy, test_mbpolicy_data["mb_policy"])
+
+    def test_10_delete_mbpolicy(self):
+        # can't delete mbpolicies attached to agents
+        with self.assertRaises(Exception) as context:
+            self.session.query(VerifierMbpolicy).filter_by(name="test-mbpolicy").delete()
+        self.assertTrue("FOREIGN KEY constraint failed" in str(context.exception))
+
+        # unassign this mbpolicy from the agent
+        agent = self.session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+        assert agent
+        agent.mb_policy_id = None  # type: ignore
+        self.session.commit()
+        # now delete
+        self.session.query(VerifierMbpolicy).filter_by(name="test-mbpolicy").delete()
+        self.session.commit()
+        mbpolicy = self.session.query(VerifierMbpolicy).filter_by(name="test-mbpolicy").first()
+        self.assertIsNone(mbpolicy)
 
     def tearDown(self):
         self.session.close()

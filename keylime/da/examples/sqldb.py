@@ -64,7 +64,13 @@ class RecordManagement(BaseRecordManagement):
         return agent_list
 
     def record_create(
-        self, agent_data, attestation_data, runtime_policy_data=None, service="auto", signed_attributes="auto"
+        self,
+        agent_data,
+        attestation_data,
+        mb_policy_data=None,
+        runtime_policy_data=None,
+        service="auto",
+        signed_attributes="auto",
     ):
         agentid = agent_data["agent_id"]
         recordtime = str(int(time.time()))
@@ -73,7 +79,7 @@ class RecordManagement(BaseRecordManagement):
         # create the record, and sign it.
         record_object = {}
         self.record_signature_create(record_object, agent_data, attestation_data, service, signed_attributes)
-        rcrd = self.base_record_create(record_object, agent_data, attestation_data, runtime_policy_data)
+        rcrd = self.base_record_create(record_object, agent_data, attestation_data, mb_policy_data, runtime_policy_data)
 
         d = {"time": recordtime, "agentid": agentid, "record": rcrd}
 

@@ -104,6 +104,7 @@ def main() -> None:
             agent = attestation_record["agent"]
             json_response = attestation_record["json_response"]
             runtime_policy = json.loads(attestation_record["runtime_policy"])
+            mb_policy = json.loads(attestation_record["mb_policy"])
 
             logger.info(
                 "----------- Attesting data (quote and logs from %s, captured by verifier %s (%s:%s)",
@@ -121,7 +122,7 @@ def main() -> None:
                     p_tpm_ts = agent["tpm_clockinfo"]["clock"]
 
             failure = cloud_verifier_common.process_quote_response(
-                agent, runtime_policy, json_response["results"], agentAttestState
+                agent, mb_policy, runtime_policy, json_response["results"], agentAttestState
             )
 
             if "tpm_clockinfo" in agent:
