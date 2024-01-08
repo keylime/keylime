@@ -22,23 +22,23 @@ The following components can be configured:
       - Default base config file
       - Default snippets directory
     * - agent
-      - ``/var/keylime/agent.conf``
-      - ``/var/keylime/agent.conf.d``
+      - ``/etc/keylime/agent.conf``
+      - ``/etc/keylime/agent.conf.d``
     * - verifier
-      - ``/var/keylime/verifier.conf``
-      - ``/var/keylime/verifier.conf.d``
+      - ``/etc/keylime/verifier.conf``
+      - ``/etc/keylime/verifier.conf.d``
     * - registrar
-      - ``/var/keylime/registrar.conf``
-      - ``/var/keylime/registrar.conf.d``
+      - ``/etc/keylime/registrar.conf``
+      - ``/etc/keylime/registrar.conf.d``
     * - tenant
-      - ``/var/keylime/tenant.conf``
-      - ``/var/keylime/tenant.conf.d``
+      - ``/etc/keylime/tenant.conf``
+      - ``/etc/keylime/tenant.conf.d``
     * - ca
-      - ``/var/keylime/ca.conf``
-      - ``/var/keylime/ca.conf.d``
+      - ``/etc/keylime/ca.conf``
+      - ``/etc/keylime/ca.conf.d``
     * - logging
-      - ``/var/keylime/logging.conf``
-      - ``/var/keylime/logging.conf.d``
+      - ``/etc/keylime/logging.conf``
+      - ``/etc/keylime/logging.conf.d``
 
 The next sections contain details of the configuration files
 
@@ -91,7 +91,7 @@ that the snippets are required to be valid INI (or TOML in the case of the
 agent) files.
 
 For example, the following snippet placed in
-``/var/keylime/verifier.conf.d/0001-ip.conf`` can override the default verifier ip
+``/etc/keylime/verifier.conf.d/0001-ip.conf`` can override the default verifier ip
 address:
 
 .. code-block:: ini
