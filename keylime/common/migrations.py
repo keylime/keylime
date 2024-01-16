@@ -19,4 +19,4 @@ def apply(db_name: Optional[str]) -> None:
 
     alembic_args.extend(["upgrade", "head"])
 
-    alembic.config.main(argv=alembic_args)  # type: ignore
+    alembic.config.main(argv=alembic_args)
