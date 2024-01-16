@@ -104,7 +104,7 @@ def obj_test(**field_tests: typing.Callable[[typing.Any], bool]) -> typing.Calla
 class AcceptAll(Test):
     """Every value passes this test"""
 
-    def why_not(self, _: Globals, subject: Data) -> str:
+    def why_not(self, globs: Globals, subject: Data) -> str:
         return ""
 
 
@@ -117,7 +117,7 @@ class RejectAll(Test):
             raise Exception(f"the truth value of {why!r} is false")
         self.why = why
 
-    def why_not(self, _: Globals, subject: Data) -> str:
+    def why_not(self, globs: Globals, subject: Data) -> str:
         return self.why
 
 
@@ -361,7 +361,7 @@ class IntEqual(Test):
         type_test(int)(expected)
         self.expected = expected
 
-    def why_not(self, _: Globals, subject: Data) -> str:
+    def why_not(self, globs: Globals, subject: Data) -> str:
         if not isinstance(subject, int):
             return "is not a int"
         if subject == self.expected:
@@ -377,7 +377,7 @@ class StringEqual(Test):
         type_test(str)(expected)
         self.expected = expected
 
-    def why_not(self, _: Globals, subject: Data) -> str:
+    def why_not(self, globs: Globals, subject: Data) -> str:
         if not isinstance(subject, str):
             return "is not a str"
         if subject == self.expected:
@@ -392,7 +392,7 @@ class RegExp(Test):
         super().__init__()
         self.regexp = re.compile(pattern, flags)
 
-    def why_not(self, _: Globals, subject: Data) -> str:
+    def why_not(self, globs: Globals, subject: Data) -> str:
         if not isinstance(subject, str):
             return "is not a str"
         if self.regexp.fullmatch(subject):
@@ -422,7 +422,7 @@ class DigestsTest(Test):
                 else:
                     self.good_digests[alg] = {hash_val}
 
-    def why_not(self, _: Globals, subject: Data) -> str:
+    def why_not(self, globs: Globals, subject: Data) -> str:
         if not isinstance(subject, dict):
             return "is not a dict"
         if "Digests" not in subject:
