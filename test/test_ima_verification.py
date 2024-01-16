@@ -8,6 +8,7 @@ import copy
 import hashlib
 import os
 import unittest
+from typing import List, cast
 
 from keylime import json
 from keylime.agentstates import AgentAttestState
@@ -100,17 +101,18 @@ class TestIMAVerification(unittest.TestCase):
 
     def test_measurment_verification(self):
         """Test IMA measurement list verification"""
-        lines = MEASUREMENTS.splitlines()
+        _measurements = MEASUREMENTS.splitlines()
+        measurements = cast(List[str], _measurements)
 
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines)
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), measurements)
         self.assertTrue(not failure, "Validation should always work when no allowlist and no keyring is specified")
 
         # test with list with JSON
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines, RUNTIME_POLICY_TEST)
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), measurements, RUNTIME_POLICY_TEST)
         self.assertTrue(not failure)
 
         # No files are in the allowlist -> this should fail
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines, ima.EMPTY_RUNTIME_POLICY)
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), measurements, ima.EMPTY_RUNTIME_POLICY)
         self.assertTrue(failure)
 
     def test_signature_verification(self):
@@ -118,11 +120,12 @@ class TestIMAVerification(unittest.TestCase):
         curdir = os.path.dirname(os.path.abspath(__file__))
         keydir = os.path.join(curdir, "data", "ima_keys")
 
-        lines = SIGNATURES.split("\n")
+        _signatures = SIGNATURES.split("\n")
+        signatures = cast(List[str], _signatures)
 
         # empty keyring
         keyrings = file_signatures.ImaKeyrings()
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines, ima_keyrings=keyrings)
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), signatures, ima_keyrings=keyrings)
         self.assertTrue(failure)
 
         tenant_keyring = file_signatures.ImaKeyring()
@@ -133,9 +136,9 @@ class TestIMAVerification(unittest.TestCase):
         pubkey, keyidv2 = file_signatures.get_pubkey_from_file(rsakeyfile)
         assert pubkey is not None
         tenant_keyring.add_pubkey(pubkey, keyidv2)
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines[0:1], ima_keyrings=keyrings)
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), signatures[0:1], ima_keyrings=keyrings)
         self.assertTrue(not failure)
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines[1:2], ima_keyrings=keyrings)
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), signatures[1:2], ima_keyrings=keyrings)
         self.assertTrue(failure)
 
         # add key for 2nd entry; 1st & 2nd entries must be verifiable
@@ -143,7 +146,7 @@ class TestIMAVerification(unittest.TestCase):
         pubkey, keyidv2 = file_signatures.get_pubkey_from_file(eckeyfile)
         assert pubkey is not None
         tenant_keyring.add_pubkey(pubkey, keyidv2)
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), lines[0:2], ima_keyrings=keyrings)
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), signatures[0:2], ima_keyrings=keyrings)
         self.assertTrue(not failure)
 
     def test_ima_buf_verification(self):
@@ -185,8 +188,11 @@ class TestIMAVerification(unittest.TestCase):
         ima_keyrings = file_signatures.ImaKeyrings()
         empty_keyring = file_signatures.ImaKeyring()
 
+        _combined = COMBINED.splitlines()
+        combined = cast(List[str], _combined)
+
         # every entry is covered by the allowlist and there's no keyring -> this should pass
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), COMBINED.splitlines(), RUNTIME_POLICY_TEST)
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), combined, RUNTIME_POLICY_TEST)
         self.assertTrue(not failure)
 
         curdir = os.path.dirname(os.path.abspath(__file__))
@@ -206,73 +212,80 @@ class TestIMAVerification(unittest.TestCase):
         ima_keyrings.set_tenant_keyring(tenant_keyring)
 
         # entries are not covered by a exclude list -> this should fail
-        _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), COMBINED.splitlines(), ima_keyrings=ima_keyrings
-        )
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), combined, ima_keyrings=ima_keyrings)
         self.assertTrue(failure)
 
         # all entries are either covered by allow list or by signature verification -> this should pass
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), COMBINED.splitlines(), RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings
+            AgentAttestState("1"), combined, RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings
         )
         self.assertTrue(not failure)
 
+        _signatures = SIGNATURES.splitlines()
+        signatures = cast(List[str], _signatures)
+
         # the signature is valid but the hash in the allowlist is wrong -> this should pass
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), SIGNATURES.splitlines(), RUNTIME_POLICY_WRONG, ima_keyrings=ima_keyrings
+            AgentAttestState("1"), signatures, RUNTIME_POLICY_WRONG, ima_keyrings=ima_keyrings
         )
         self.assertTrue(not failure)
 
         # the signature is valid and the file is not in the allowlist -> this should pass
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), SIGNATURES.splitlines(), ima.EMPTY_RUNTIME_POLICY, ima_keyrings=ima_keyrings
+            AgentAttestState("1"), signatures, ima.EMPTY_RUNTIME_POLICY, ima_keyrings=ima_keyrings
         )
         self.assertTrue(not failure)
 
         # the signature is invalid but the correct hash is in the allowlist -> this should pass
         ima_keyrings.set_tenant_keyring(empty_keyring)
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), SIGNATURES.splitlines(), RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings
+            AgentAttestState("1"), signatures, RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings
         )
         self.assertTrue(not failure)
 
+        _measurements = MEASUREMENTS.splitlines()
+        measurements = cast(List[str], _measurements)
+
         # the file has no signature but the hash is correct -> this should pass
-        _, failure = ima.process_measurement_list(AgentAttestState("1"), MEASUREMENTS.splitlines(), RUNTIME_POLICY_TEST)
+        _, failure = ima.process_measurement_list(AgentAttestState("1"), measurements, RUNTIME_POLICY_TEST)
         self.assertTrue(not failure)
 
         # All files are in the exclude list but hashes are invalid -> this should pass
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), MEASUREMENTS.splitlines(), RUNTIME_POLICY_WRONG_WITH_EXCLUDES
+            AgentAttestState("1"), measurements, RUNTIME_POLICY_WRONG_WITH_EXCLUDES
         )
         self.assertTrue(not failure)
 
         # All files are in the exclude list and their signatures are invalid -> this should pass
         ima_keyrings.set_tenant_keyring(tenant_keyring)
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), SIGNATURES.splitlines(), RUNTIME_POLICY_WITH_EXCLUDES, ima_keyrings=ima_keyrings
+            AgentAttestState("1"), signatures, RUNTIME_POLICY_WITH_EXCLUDES, ima_keyrings=ima_keyrings
         )
         self.assertTrue(not failure)
 
         # All files are in the exclude list but hashes or signatures are invalid -> this should pass
         _, failure = ima.process_measurement_list(
             AgentAttestState("1"),
-            MEASUREMENTS.splitlines(),
+            measurements,
             RUNTIME_POLICY_WRONG_WITH_EXCLUDES,
             ima_keyrings=ima_keyrings,
         )
         self.assertTrue(not failure)
 
+        _bad_signatures = BAD_SIGNATURES.splitlines()
+        bad_signatures = cast(List[str], _bad_signatures)
+
         # The signature is malformatted and the file is in the exclude list -> this must not pass
         ima_keyrings.set_tenant_keyring(empty_keyring)
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), BAD_SIGNATURES.splitlines(), RUNTIME_POLICY_WITH_EXCLUDES, ima_keyrings=ima_keyrings
+            AgentAttestState("1"), bad_signatures, RUNTIME_POLICY_WITH_EXCLUDES, ima_keyrings=ima_keyrings
         )
         self.assertTrue(failure)
 
         # The signature is malformatted and the file is in the accept list -> this must not pass
         ima_keyrings.set_tenant_keyring(empty_keyring)
         _, failure = ima.process_measurement_list(
-            AgentAttestState("1"), BAD_SIGNATURES.splitlines(), RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings
+            AgentAttestState("1"), bad_signatures, RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings
         )
         self.assertTrue(failure)
 
