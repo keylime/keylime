@@ -371,7 +371,7 @@ class AgentsHandler(BaseHandler):
                             VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                         )
                     )
-                    .filter_by(agent_id=agent_id)
+                    .filter_by(agent_id=agent_id)  # pyright: ignore
                     .one_or_none()
                 )
             except SQLAlchemyError as e:
@@ -395,7 +395,7 @@ class AgentsHandler(BaseHandler):
                                 VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                             )
                         )
-                        .filter_by(verifier_id=rest_params["verifier"])
+                        .filter_by(verifier_id=rest_params["verifier"])  # pyright: ignore
                         .all()
                     )
                 else:
@@ -406,7 +406,7 @@ class AgentsHandler(BaseHandler):
                                 VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
                             )
                         )
-                        .all()
+                        .all()  # pyright: ignore
                     )
 
                 json_response = {}
@@ -417,9 +417,7 @@ class AgentsHandler(BaseHandler):
             else:
                 if ("verifier" in rest_params) and (rest_params["verifier"] != ""):
                     json_response_list = (
-                        session.query(VerfierMain.agent_id)
-                        .filter_by(verifier_id=rest_params["verifier"])  # type: ignore
-                        .all()
+                        session.query(VerfierMain.agent_id).filter_by(verifier_id=rest_params["verifier"]).all()
                     )
                 else:
                     json_response_list = session.query(VerfierMain.agent_id).all()
@@ -679,7 +677,7 @@ class AgentsHandler(BaseHandler):
                     # Write the agent to the database, attaching associated stored policy
                     try:
                         assert runtime_policy_stored
-                        session.add(VerfierMain(**agent_data, ima_policy=runtime_policy_stored))
+                        session.add(VerfierMain(**agent_data, ima_policy=runtime_policy_stored))  # pyright: ignore
                         session.commit()
                     except SQLAlchemyError as e:
                         logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
@@ -752,7 +750,7 @@ class AgentsHandler(BaseHandler):
                 # do stuff for terminate
                 logger.debug("Stopping polling on %s", agent_id)
                 try:
-                    session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update(
+                    session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).update(  # pyright: ignore
                         {"operational_state": states.TENANT_FAILED}
                     )
                     session.commit()
@@ -1337,10 +1335,8 @@ async def process_agent(
         try:
             stored_agent = (
                 session.query(VerfierMain)
-                .options(  # type: ignore
-                    joinedload(VerfierMain.ima_policy).load_only(VerifierAllowlist.checksum)  # pyright: ignore
-                )
-                .filter_by(agent_id=str(agent["agent_id"]))
+                .options(joinedload(VerfierMain.ima_policy).load_only(VerifierAllowlist.checksum))  # type: ignore
+                .filter_by(agent_id=str(agent["agent_id"]))  # pyright: ignore
                 .first()
             )
         except SQLAlchemyError as e:
@@ -1580,7 +1576,7 @@ def main() -> None:
     # set a conservative general umask
     os.umask(0o077)
 
-    VerfierMain.metadata.create_all(engine, checkfirst=True)
+    VerfierMain.metadata.create_all(engine, checkfirst=True)  # pyright: ignore
     session = get_session()
     try:
         query_all = session.query(VerfierMain).all()
