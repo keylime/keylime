@@ -53,7 +53,7 @@ class EcCryptoHelper:
     def int2bn(self, num: int) -> Any:
         binary = num.to_bytes((num.bit_length() + 7) >> 3, "big")
         bn = self.binding.lib.BN_bin2bn(binary, len(binary), self.binding.ffi.NULL)  # pyright: ignore
-        if bn == self.binding.ffi.NULL:
+        if bn == self.binding.ffi.NULL:  # pyright: ignore
             raise Exception("BN_bin2bn returned NULL")
         return bn
 
@@ -72,7 +72,7 @@ class EcCryptoHelper:
         group = self.binding.lib.EC_KEY_get0_group(ec_cdata)  # pyright: ignore
 
         point = self.binding.lib.EC_POINT_new(group)  # pyright: ignore
-        if point == self.binding.ffi.NULL:
+        if point == self.binding.ffi.NULL:  # pyright: ignore
             raise Exception("EC_POINT_new(group) returned NULL")
         result_point = self.binding.ffi.gc(point, self.binding.lib.EC_POINT_free)  # pyright: ignore
 
@@ -82,7 +82,7 @@ class EcCryptoHelper:
         bn_y = self.binding.ffi.gc(self.int2bn(pn.y), self.binding.lib.BN_free)  # pyright: ignore
 
         point = self.binding.lib.EC_POINT_new(group)  # pyright: ignore
-        if point == self.binding.ffi.NULL:
+        if point == self.binding.ffi.NULL:  # pyright: ignore
             raise Exception("EC_POINT_new(group) returned NULL")
         pubkey_point = self.binding.ffi.gc(point, self.binding.lib.EC_POINT_free)  # pyright: ignore
 
@@ -93,7 +93,7 @@ class EcCryptoHelper:
         )
 
         bn_ctx = self.binding.lib.BN_CTX_new()  # pyright: ignore
-        if bn_ctx == self.binding.ffi.NULL:
+        if bn_ctx == self.binding.ffi.NULL:  # pyright: ignore
             raise Exception("BN_CTX_new returned NULL")
         self.binding.lib.BN_CTX_start(bn_ctx)  # pyright: ignore
         try:
@@ -102,14 +102,16 @@ class EcCryptoHelper:
                 raise Exception("set_affine_coordinates failed")
 
             res = self.binding.lib.EC_POINT_mul(  # pyright: ignore
-                group, result_point, self.binding.ffi.NULL, pubkey_point, privkey_scalar, bn_ctx
+                group, result_point, self.binding.ffi.NULL, pubkey_point, privkey_scalar, bn_ctx  # pyright: ignore
             )
             if res != 1:
                 raise Exception("EC_POINT_mul failed")
 
             # return the x component of result_point
             bn_x2 = self.binding.lib.BN_CTX_get(bn_ctx)  # pyright: ignore
-            res = self.get_affine_coordinates(group, result_point, bn_x2, self.binding.ffi.NULL, bn_ctx)
+            res = self.get_affine_coordinates(
+                group, result_point, bn_x2, self.binding.ffi.NULL, bn_ctx  # pyright: ignore
+            )
             if res != 1:
                 raise Exception("get_affine_coordinates failed")
 
