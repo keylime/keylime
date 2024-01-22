@@ -670,6 +670,7 @@ class EvEfiActionTest(Test):
     """Test for valid EV_EFI_ACTION entry values"""
 
     _expected_strings = {
+        1: ["Entering ROM Based Setup"],
         4: ["Calling EFI Application from Boot Option", "Returning from EFI Application from Boot Option"],
         5: [
             "Exit Boot Services Invocation",

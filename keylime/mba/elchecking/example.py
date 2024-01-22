@@ -387,6 +387,7 @@ class Example(policies.Policy):
             ),
         )
         dispatcher.set((5, "EV_EFI_ACTION"), tests.EvEfiActionTest(5))
+        dispatcher.set((1, "EV_EFI_ACTION"), tests.EvEfiActionTest(1))
         # Accept all UEFI_GPT_DATA. We only expect one entry for that.
         dispatcher.set((5, "EV_EFI_GPT_EVENT"), tests.OnceTest(tests.AcceptAll()))
         events_test = tests.FieldTest(
