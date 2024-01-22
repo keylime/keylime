@@ -184,6 +184,8 @@ class Example(policies.Policy):
         )
         # We only expect one EV_NO_ACTION event at the start.
         dispatcher.set((0, "EV_NO_ACTION"), tests.OnceTest(tests.AcceptAll()))
+        dispatcher.set((1, "EV_CPU_MICROCODE"), tests.OnceTest(tests.AcceptAll()))
+        dispatcher.set((1, "EV_EFI_HANDOFF_TABLES2"), tests.OnceTest(tests.AcceptAll()))
         dispatcher.set((0, "EV_S_CRTM_VERSION"), events_final.get("s_crtms"))
         dispatcher.set((0, "EV_EFI_PLATFORM_FIRMWARE_BLOB"), events_final.get("platform_firmware_blobs"))
         dispatcher.set((7, "EV_EFI_VARIABLE_DRIVER_CONFIG"), vd_driver_config)
@@ -291,6 +293,7 @@ class Example(policies.Policy):
                 )
             ),
         )
+        vd_authority.set("605dab50-e046-4300-abb6-3dd810dd8b23", "MokListRT", tests.OnceTest(tests.AcceptAll()))
 
         # A list of allowed digests for firmware from device driver appears
         # in PCR2, event type EV_EFI_BOOT_SERVICES_DRIVER. Here we will just
