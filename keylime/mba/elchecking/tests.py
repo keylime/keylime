@@ -551,6 +551,19 @@ class KeySubset(IterateTest):
         )
 
 
+class KeySubsetMulti(IterateTest):
+    def __init__(self, sig_types: typing.List[str], keys: typing.Iterable[typing.Mapping[str, str]]):
+        tests = [
+            And(
+                FieldTest("SignatureType", StringEqual(sig_type)),
+                FieldTest("Keys", IterateTest(SignatureSetMember(keys))),
+            )
+            for sig_type in sig_types
+        ]
+
+        super().__init__(Or(*tests))
+
+
 class FieldsMismatchError(Exception):
     """Represents a mismatch between expected and actual sets of field names."""
 

@@ -229,8 +229,14 @@ class Example(policies.Policy):
         )
         db_test = tests.OnceTest(
             tests.Or(
-                tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["db"])),
-                tests.KeySubset("a5c059a1-94e4-4aa7-87b5-ab155c2bf072", sigs_strip0x(refstate["db"])),
+                tests.KeySubsetMulti(
+                    ["a159c0a5-e494-a74a-87b5-ab155c2bf072", "2616c4c1-4c50-9240-aca9-41f936934328"],
+                    sigs_strip0x(refstate["db"]),
+                ),
+                tests.KeySubsetMulti(
+                    ["a5c059a1-94e4-4aa7-87b5-ab155c2bf072", "c1c41626-504c-4092-aca9-41f936934328"],
+                    sigs_strip0x(refstate["db"]),
+                ),
             )
         )
         vd_driver_config.set(
