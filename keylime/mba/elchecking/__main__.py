@@ -12,13 +12,12 @@ from . import policies
 # Invoke it with `python3 -m $packagename`, for some value of
 # `$packagename` that works with your `$PYTHONPATH`.
 
-
+mba.load_imports()
 parser = argparse.ArgumentParser()
 parser.add_argument("policy_name", choices=policies.get_policy_names())
 parser.add_argument("refstate_file", type=argparse.FileType("rt"))
 parser.add_argument("eventlog_file", type=argparse.FileType("rb"), default=sys.stdin)
 args = parser.parse_args()
-mba.load_imports()
 policy = policies.get_policy(args.policy_name)
 if policy is None:
     print(
