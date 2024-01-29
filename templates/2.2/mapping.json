@@ -1,0 +1,12 @@
+{
+    "version": "2.2",
+    "type": "update",
+    "components": {
+        "agent": {
+            "add" : {
+                "ima_ml_path": "default",
+                "measuredboot_ml_path": "default"
+            }
+        }
+    }
+}
