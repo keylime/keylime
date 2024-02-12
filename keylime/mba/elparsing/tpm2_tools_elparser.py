@@ -165,12 +165,14 @@ def __unescape_eventlog(log: Dict) -> None:  # type: ignore
     ]
 
     def recursive_unescape(data):  # type: ignore
-        if isinstance(data, str):
-            if data.startswith('"') and data.endswith('"'):
+        if isinstance(data, str) and data:
+            # Older tpm2-tools versions quote add additional quotes
+            if Version(tpm2_tools_version) < Version("5.6") and data.startswith('"') and data.endswith('"'):
                 data = data[1:-1]
-                for orig, escaped in escaped_chars:
-                    data = data.replace(escaped, orig)
-                data = data.rstrip("\0")
+            for orig, escaped in escaped_chars:
+                data = data.replace(escaped, orig)
+            if data.endswith("\0"):
+                data = data[:-1]
         elif isinstance(data, dict):
             for key, value in data.items():
                 data[key] = recursive_unescape(value)  # type: ignore
@@ -236,6 +238,9 @@ def tpm2_tools_getversion() -> str:
     version_str = version_str_.group(1)
     # Extract the full semver release number.
     tools_version = version_str.split("-")
+    if Version(tools_version[0]) >= Version("5.6"):
+        _tpm2_tools_version = "5.6"
+        return _tpm2_tools_version
     if Version(tools_version[0]) >= Version("5.4") or (
         # Also mark first git version that introduces the change to the tpm2_eventlog format as 5.4
         # See: https://github.com/tpm2-software/tpm2-tools/commit/c78d258b2588aee535fd17594ad2f5e808056373
