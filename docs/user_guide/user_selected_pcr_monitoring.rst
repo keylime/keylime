@@ -21,18 +21,15 @@ How to use
 Select which PCRs you would like Keylime to measure, by using the `tpm2_pcrread` from the `tpm2-tools <https://github.com/tpm2-software/tpm2-tools>`_
 tool.
 
-Now you can set the PCR values as a JSON data structure in either the `keylime.conf` file::
+You can add a node to using `keylime_tenant`::
+    # First create a payload to send to the agent (in our case this is empty)
+    touch payload
 
-    tpm_policy = {"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}
-
-Or you can add a node to using `keylime_tenant`::
-
-    keylime_tenant -v 127.0.0.1 -t 127.0.0.1 -f /root/excludes.txt \
-    --uuid D432FBB3-D2F1-4A97-9EF7-75BD81C00000 \
-    --allowlist /root/allowlist.txt \
-    --exclude /root/exclude.txt \
-    --tpm_policy  {"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]} \
-    -c add
+    # Now actually add the node
+    keylime_tenant -c add \
+    --uuid d432fbb3-d2f1-4a97-9ef7-75bd81c00000 \
+    -f payload \
+    --tpm_policy '{"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}'
 
 rhboot shim-loader
 ------------------
