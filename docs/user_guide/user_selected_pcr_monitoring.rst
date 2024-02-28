@@ -23,13 +23,9 @@ tool.
 
 You can add a node to using `keylime_tenant`::
 
-    # First create a payload to send to the agent (in our case this is empty)
-    touch payload
-
     # Now actually add the node
     keylime_tenant -c add \
     --uuid d432fbb3-d2f1-4a97-9ef7-75bd81c00000 \
-    -f payload \
     --tpm_policy '{"22":["0000000000000000000000000000000000000001","0000000000000000000000000000000000000000000000000000000000000001","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001","ffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}'
 
 rhboot shim-loader

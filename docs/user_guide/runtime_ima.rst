@@ -310,8 +310,7 @@ Now that we have our runtime policy available, we can send it to the verifier.
 Using the :code:`keylime_tenant` we can send the runtime policy as
 follows::
 
-  touch payload  # create empty payload for example purposes
-  keylime_tenant -c add --uuid <agent-uuid> -f payload --runtime-policy /path/to/policy.json
+  keylime_tenant -c add --uuid <agent-uuid> --runtime-policy /path/to/policy.json
 
 .. note::
   If your agent is already registered, you can use :code:`-c update`
