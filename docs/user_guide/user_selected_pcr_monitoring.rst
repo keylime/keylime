@@ -22,6 +22,7 @@ Select which PCRs you would like Keylime to measure, by using the `tpm2_pcrread`
 tool.
 
 You can add a node to using `keylime_tenant`::
+
     # First create a payload to send to the agent (in our case this is empty)
     touch payload
 
