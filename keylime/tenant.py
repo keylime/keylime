@@ -307,11 +307,9 @@ class Tenant:
             self.runtime_policy_key,
         ) = policies.process_policy(cast(policies.ArgsType, args))
 
-        # if none
-        if args["file"] is None and args["keyfile"] is None and args["ca_dir"] is None:
-            raise UserError(
-                "You must specify one of -k, -f, or --cert to specify the key/contents to be securely delivered to the agent"
-            )
+        # Check if verify flag is not set when no payload is added
+        if args["verify"] and not (args["file"] or args["ca_dir"] or args["keyfile"]):
+            raise UserError("--verify only works when a payload is provided to the agent via -k, -f, or --cert")
 
         if args["keyfile"] is not None:
             if args["file"] is not None or args["ca_dir"] is not None:
@@ -570,7 +568,7 @@ class Tenant:
 
     def do_cvadd(self) -> None:
         """Initiate v, agent_id and ip and initiate the cloudinit sequence"""
-        b64_v = base64.b64encode(self.V).decode("utf-8")
+        b64_v = base64.b64encode(self.V).decode("utf-8") if self.V else None
         logger.debug("b64_v: %s", b64_v)
         assert self.registrar_data
         data = {
@@ -1144,43 +1142,44 @@ class Tenant:
 
         logger.info("Quote from %s validated", self.agent_fid_str)
 
-        # encrypt U with the public key
-        encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key), self.U)
+        if self.U:
+            # encrypt U with the public key
+            encrypted_U = crypto.rsa_encrypt(crypto.rsa_import_pubkey(public_key), self.U)
 
-        b64_encrypted_u = base64.b64encode(encrypted_U)
-        logger.debug("b64_encrypted_u: %s", b64_encrypted_u.decode("utf-8"))
-        data = {"encrypted_key": b64_encrypted_u.decode("utf-8"), "auth_tag": self.auth_tag}
+            b64_encrypted_u = base64.b64encode(encrypted_U)
+            logger.debug("b64_encrypted_u: %s", b64_encrypted_u.decode("utf-8"))
+            data = {"encrypted_key": b64_encrypted_u.decode("utf-8"), "auth_tag": self.auth_tag}
 
-        if self.payload is not None:
-            data["payload"] = self.payload.decode("utf-8")
+            if self.payload is not None:
+                data["payload"] = self.payload.decode("utf-8")
 
-        # post encrypted U back to CloudAgent
-        params = f"/v{self.supported_version}/keys/ukey"
-        cloudagent_base_url = f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}"
+            # post encrypted U back to CloudAgent
+            params = f"/v{self.supported_version}/keys/ukey"
+            cloudagent_base_url = f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}"
 
-        if self.enable_agent_mtls and self.registrar_data and self.registrar_data["mtls_cert"]:
-            with RequestsClient(
-                cloudagent_base_url,
-                self.enable_agent_mtls,
-                tls_context=self.agent_tls_context,
-            ) as post_ukey:
+            if self.enable_agent_mtls and self.registrar_data and self.registrar_data["mtls_cert"]:
+                with RequestsClient(
+                    cloudagent_base_url,
+                    self.enable_agent_mtls,
+                    tls_context=self.agent_tls_context,
+                ) as post_ukey:
+                    response = post_ukey.post(params, json=data, timeout=self.request_timeout)
+            else:
+                logger.warning("Connecting to %s without using mTLS!", self.agent_fid_str)
+                post_ukey = RequestsClient(cloudagent_base_url, tls_enabled=False)
                 response = post_ukey.post(params, json=data, timeout=self.request_timeout)
-        else:
-            logger.warning("Connecting to %s without using mTLS!", self.agent_fid_str)
-            post_ukey = RequestsClient(cloudagent_base_url, tls_enabled=False)
-            response = post_ukey.post(params, json=data, timeout=self.request_timeout)
 
-        if response.status_code == 503:
-            raise UserError(f"Cannot connect to {self.agent_fid_str} to post encrypted U. Connection refused.")
+            if response.status_code == 503:
+                raise UserError(f"Cannot connect to {self.agent_fid_str} to post encrypted U. Connection refused.")
 
-        if response.status_code == 504:
-            raise UserError(f"{self.agent_fid_str} timed out while posting encrypted U")
+            if response.status_code == 504:
+                raise UserError(f"{self.agent_fid_str} timed out while posting encrypted U")
 
-        if response.status_code != 200:
-            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
-            raise UserError(
-                f"Posting of encrypted U to {self.agent_fid_str} failed with response code {response.status_code} ({response.text})"
-            )
+            if response.status_code != 200:
+                keylime_logging.log_http_response(logger, logging.ERROR, response_json)
+                raise UserError(
+                    f"Posting of encrypted U to {self.agent_fid_str} failed with response code {response.status_code} ({response.text})"
+                )
 
     def do_verify(self) -> None:
         """Perform verify using a random generated challenge"""

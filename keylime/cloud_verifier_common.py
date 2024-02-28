@@ -82,7 +82,7 @@ def process_quote_response(
 
     # if no public key provided, then ensure we have cached it
     if received_public_key is None:
-        if agent.get("public_key", "") == "" or agent.get("b64_encrypted_V", "") == "":
+        if agent.get("public_key", "") == "" or (agent.get("v") and agent.get("b64_encrypted_V", "") == ""):
             logger.error("agent %s did not provide public key and no key or encrypted_v was cached at CV", agent_id)
             failure.add_event(
                 "no_pubkey",

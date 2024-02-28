@@ -517,7 +517,7 @@ class AgentsHandler(BaseHandler):
                 else:
                     json_body = json.loads(self.request.body)
                     agent_data = {
-                        "v": json_body["v"],
+                        "v": json_body.get("v", None),
                         "ip": json_body["cloudagent_ip"],
                         "port": int(json_body["cloudagent_port"]),
                         "operational_state": states.START,
@@ -1567,7 +1567,11 @@ async def process_agent(
         if main_agent_operational_state == states.GET_QUOTE and new_operational_state == states.PROVIDE_V:
             agent["num_retries"] = 0
             agent["operational_state"] = states.PROVIDE_V
-            await invoke_provide_v(agent)
+            # Only deploy V key if actually set
+            if agent.get("v"):
+                await invoke_provide_v(agent)
+            else:
+                await process_agent(agent, states.GET_QUOTE)
             return
 
         if (
