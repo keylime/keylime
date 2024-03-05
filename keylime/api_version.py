@@ -6,9 +6,9 @@ from packaging import version
 
 VersionType = Union[int, float, str]
 
-CURRENT_VERSION: str = "2.1"
-VERSIONS: List[str] = ["1.0", "2.0", "2.1"]
-LATEST_VERSIONS: Dict[str, str] = {"1": "1.0", "2": "2.1"}
+CURRENT_VERSION: str = "2.2"
+VERSIONS: List[str] = ["1.0", "2.0", "2.1", "2.2"]
+LATEST_VERSIONS: Dict[str, str] = {"1": "1.0", "2": "2.2"}
 DEPRECATED_VERSIONS: List[str] = ["1.0"]
 
 

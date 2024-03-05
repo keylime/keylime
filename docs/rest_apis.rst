@@ -266,27 +266,45 @@ Cloud verifier (CV)
           "results": {}
         }
 
+.. http:get::  /v2.1/verify/identity
 
-Cloud Agent
-~~~~~~~~~~~
+    Verify the identity of a node monitored by keylime
 
-.. http:get::  /v2.1/keys/pubkey
+    **Example request**:
 
-    Retrieves agents public key.
+    .. sourcecode:: url
+
+        /v2.1/verify/identity?agent_uuid=e1ef9f28-be55-47b0-a6c1-8bef90294b93&hash_alg=sha256&nonce=DGHFH6EQVYGKP7YHNVEAFQQR5TN4W4JA&quote=r/1RDR4AYACIACzy[...]
+
+    :<url query parameter agent_uuid: The UUID of the Agent being verified.
+    :<url query parameter hash_alg: The hash algorithm used by the Keylime agent and TPM.
+    :<url query parameter nonce: The onetime nonce being used for identity verification.
+    :<url query parameter quote: The TPM quoted nonce from the Keylime agent.
+
 
     **Example response**:
 
-    .. sourcecode:: json
+    Code    int    `json:"code"`
+    Status  string `json:"status"`
+    Results struct {
+        Valid int `json:"valid"`
+    } `json:"results"`
 
+
+    .. sourcecode:: json
         {
           "code": 200,
           "status": "Success",
           "results": {
-            "pubkey": "-----BEGIN PUBLIC KEY----- (...) -----END PUBLIC KEY-----\n"
+            "valid": 1
           }
         }
 
-    :>json string pubkey: Public rsa key of the agent used for encrypting V and U key.
+    :<json int valid: A boolean 1 for valid, 0 for invalid identity.
+
+
+Cloud Agent
+~~~~~~~~~~~
 
 .. http:get::  /version
 
@@ -305,6 +323,50 @@ Cloud Agent
         }
 
     :>json string supported_version: The latest version the agent supports.
+
+.. http:get::  /v2.1/agent/info
+
+    Retrieves information about an agent
+
+    **Example response**:
+
+    .. sourcecode:: json
+
+        {
+          "code": 200,
+          "status": "Success",
+          "results": {
+            "agent_uuid": "e1ef9f28-be55-47b0-a6c1-8bef90294b93",
+            "tpm_hash_alg": "sha256",
+            "tpm_enc_alg": "rsa",
+            "tpm_sign_alg": "rsassa",
+            "ak_handle": "1078035599"
+          }
+        }
+
+    :>json string agent_uuid: The UUID of the agent.
+    :>json string tpm_hash_alg: The hashing algorithm used by this agent's TPM device.
+    :>json string tpm_enc_alg: The encryption algorithm used by this agent's TPM device.
+    :>json string tpm_sign_alg: The signing algorithm used by this agent's TPM device.
+    :>json string ak: The Attestation Key handle of the TPM device used by this agent.
+
+.. http:get::  /v2.1/keys/pubkey
+
+    Retrieves agents public key.
+
+    **Example response**:
+
+    .. sourcecode:: json
+
+        {
+          "code": 200,
+          "status": "Success",
+          "results": {
+            "pubkey": "-----BEGIN PUBLIC KEY----- (...) -----END PUBLIC KEY-----\n"
+          }
+        }
+
+    :>json string pubkey: Public rsa key of the agent used for encrypting V and U key.
 
 .. http:post::  /v2.1/keys/vkey
 

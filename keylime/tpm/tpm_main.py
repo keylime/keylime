@@ -438,6 +438,8 @@ class Tpm:
         mb_refstate: Optional[str] = None,
         compressed: bool = False,
         count: int = -1,
+        skip_pcr_check: bool = False,
+        skip_clock_check: bool = False,
     ) -> Failure:
         if tpm_policy is None:
             tpm_policy = {}
@@ -454,40 +456,44 @@ class Tpm:
             failure.add_event("quote_validation", {"message": "Quote data validation", "error": err}, False)
             return failure
 
-        # Only after validating the quote, the TPM clock information can be extracted from it.
-        clock_failure, current_clock_info = Tpm.check_quote_timing(
-            agentAttestState.get_tpm_clockinfo(), quote, compressed
-        )
-        if clock_failure:
-            failure.add_event(
-                "quote_validation",
-                {"message": "Validation of clockinfo from quote using tpm2-tools", "data": clock_failure},
-                False,
+        if not skip_clock_check:
+            # Only after validating the quote, the TPM clock information can be extracted from it.
+            clock_failure, current_clock_info = Tpm.check_quote_timing(
+                agentAttestState.get_tpm_clockinfo(), quote, compressed
             )
-            return failure
-        if current_clock_info:
-            agentAttestState.set_tpm_clockinfo(current_clock_info)
+            if clock_failure:
+                failure.add_event(
+                    "quote_validation",
+                    {"message": "Validation of clockinfo from quote using tpm2-tools", "data": clock_failure},
+                    False,
+                )
+                return failure
+            if current_clock_info:
+                agentAttestState.set_tpm_clockinfo(current_clock_info)
 
-        if len(pcrs_dict) == 0:
-            logger.warning(
-                "Quote for agent %s does not contain any PCRs. Make sure that the TPM supports %s PCR banks",
-                agentAttestState.agent_id,
-                str(hash_alg),
+        if not skip_pcr_check:
+            if len(pcrs_dict) == 0:
+                logger.warning(
+                    "Quote for agent %s does not contain any PCRs. Make sure that the TPM supports %s PCR banks",
+                    agentAttestState.agent_id,
+                    str(hash_alg),
+                )
+
+            return self.check_pcrs(
+                agentAttestState,
+                tpm_policy,
+                pcrs_dict,
+                data,
+                ima_measurement_list,
+                runtime_policy,
+                ima_keyrings,
+                mb_measurement_list,
+                mb_refstate,
+                hash_alg,
+                count,
             )
 
-        return self.check_pcrs(
-            agentAttestState,
-            tpm_policy,
-            pcrs_dict,
-            data,
-            ima_measurement_list,
-            runtime_policy,
-            ima_keyrings,
-            mb_measurement_list,
-            mb_refstate,
-            hash_alg,
-            count,
-        )
+        return failure
 
     @staticmethod
     def check_quote_timing(
