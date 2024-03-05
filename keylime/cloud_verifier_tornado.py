@@ -1022,6 +1022,109 @@ class AllowlistHandler(BaseHandler):
         raise NotImplementedError()
 
 
+class VerifyIdentityHandler(BaseHandler):
+    def head(self) -> None:
+        """HEAD not supported"""
+        web_util.echo_json_response(self, 405, "HEAD not supported")
+
+    def delete(self) -> None:
+        """DELETE not supported"""
+        web_util.echo_json_response(self, 405, "DELETE not supported")
+
+    def post(self) -> None:
+        """POST not supported"""
+        web_util.echo_json_response(self, 405, "POST not supported")
+
+    def put(self) -> None:
+        """PUT not supported"""
+        web_util.echo_json_response(self, 405, "PUT not supported")
+
+    def get(self) -> None:
+        """This method handles the GET requests to verify an identity quote from an agent.
+
+        This is useful for 3rd party tools and integrations to independently verify the state of an agent.
+        """
+        session = get_session()
+
+        # validate the parameters of our request
+        if self.request.uri is None:
+            web_util.echo_json_response(self, 400, "URI not specified")
+            return
+
+        rest_params = web_util.get_restful_params(self.request.uri)
+        if rest_params is None:
+            web_util.echo_json_response(self, 405, "Not Implemented: Use /verify/identity interface")
+            return
+
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
+            return
+
+        if "verify" not in rest_params and rest_params["verify"] != "identity":
+            web_util.echo_json_response(self, 400, "uri not supported")
+            logger.warning("GET returning 400 response. uri not supported: %s", self.request.path)
+            return
+
+        # make sure we have all of the necessary parameters: agent_uuid, quote and nonce
+        agent_id = rest_params.get("agent_uuid")
+        if agent_id is None or agent_id == "":
+            web_util.echo_json_response(self, 400, "missing query parameter 'agent_uuid'")
+            logger.warning("GET returning 400 response. missing query parameter 'agent_uuid'")
+            return
+
+        quote = rest_params.get("quote")
+        if quote is None or quote == "":
+            web_util.echo_json_response(self, 400, "missing query parameter 'quote'")
+            logger.warning("GET returning 400 response. missing query parameter 'quote'")
+            return
+
+        nonce = rest_params.get("nonce")
+        if nonce is None or nonce == "":
+            web_util.echo_json_response(self, 400, "missing query parameter 'nonce'")
+            logger.warning("GET returning 400 response. missing query parameter 'nonce'")
+            return
+
+        hash_alg = rest_params.get("hash_alg")
+        if hash_alg is None or hash_alg == "":
+            web_util.echo_json_response(self, 400, "missing query parameter 'hash_alg'")
+            logger.warning("GET returning 400 response. missing query parameter 'hash_alg'")
+            return
+
+        # get the agent information from the DB
+        agent = None
+        try:
+            agent = (
+                session.query(VerfierMain)
+                .options(  # type: ignore
+                    joinedload(VerfierMain.ima_policy).load_only(
+                        VerifierAllowlist.checksum, VerifierAllowlist.generator  # pyright: ignore
+                    )
+                )
+                .filter_by(agent_id=agent_id)
+                .one_or_none()
+            )
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
+
+        if agent is not None:
+            agentAttestState = get_AgentAttestStates().get_by_agent_id(agent_id)
+            failure = cloud_verifier_common.process_verify_identity_quote(
+                agent, quote, nonce, hash_alg, agentAttestState
+            )
+            if failure:
+                failure_contexts = "; ".join(x.context for x in failure.events)
+                web_util.echo_json_response(self, 200, "Success", {"valid": 0, "reason": failure_contexts})
+                logger.info("GET returning 200, but validation failed")
+            else:
+                web_util.echo_json_response(self, 200, "Success", {"valid": 1})
+                logger.info("GET returning 200, validation successful")
+        else:
+            web_util.echo_json_response(self, 404, "agent id not found")
+            logger.info("GET returning 404, agaent not found")
+
+    def data_received(self, chunk: Any) -> None:
+        raise NotImplementedError()
+
+
 async def update_agent_api_version(agent: Dict[str, Any], timeout: float = 60.0) -> Union[Dict[str, Any], None]:
     agent_id = agent["agent_id"]
 
@@ -1638,6 +1741,7 @@ def main() -> None:
 
     app = tornado.web.Application(
         [
+            (r"/v?[0-9]+(?:\.[0-9]+)?/verify/identity", VerifyIdentityHandler),
             (r"/v?[0-9]+(?:\.[0-9]+)?/agents/.*", AgentsHandler),
             (r"/v?[0-9]+(?:\.[0-9]+)?/allowlists/.*", AllowlistHandler),
             (r"/versions?", VersionHandler),

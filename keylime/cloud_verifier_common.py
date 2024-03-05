@@ -321,3 +321,59 @@ def prepare_error(agent: Dict[str, Any], msgtype: str = "revocation", event: Opt
     else:
         tosend["signature"] = b""
     return tosend
+
+
+def process_verify_identity_quote(
+    agent: VerfierMain,
+    quote: str,
+    nonce: str,
+    hash_alg: str,
+    agentAttestState: AgentAttestState,
+) -> Failure:
+    """Validates a quote for an agent given an identity quote and a nonce.
+
+    This method is useful to validate a quote received from a 3rd party/integration
+    """
+    failure = Failure(Component.QUOTE_VALIDATION)
+
+    # Ensure hash_alg is recognized
+    if not hash_alg or not algorithms.Hash.is_recognized(hash_alg):
+        failure.add_event(
+            "invalid_hash_alg",
+            {"message": f"TPM Quote is using an unrecognized hash algorithm: {hash_alg}", "data": hash_alg},
+            False,
+        )
+        return failure
+
+    public_key = agent.public_key
+    ak_tpm = agent.ak_tpm
+    assert public_key is not None
+    assert ak_tpm is not None
+
+    # check the quote, but policy checks since we only care about identity
+    logger.info("Checking identity quote for agent %s", agent.agent_id)
+    try:
+        quote_failure = get_tpm_instance().check_quote(
+            agentAttestState,
+            nonce,
+            public_key,  # pyright: ignore
+            quote,
+            ak_tpm,  # pyright: ignore
+            {},  # skip tpm_policy check for identity quotes
+            None,  # skip ima_measurement_list check for identity quotes
+            None,  # skip runtime_policy check for identity quotes
+            algorithms.Hash(hash_alg),
+            None,  # skip ima_keyrings
+            None,  # skip mb_measurement_list
+            None,  # skip mb_refstate
+            skip_clock_check=True,
+            skip_pcr_check=True,
+        )
+        failure.merge(quote_failure)
+    except Exception as e:
+        logger.error("Error verifying quote: %s", str(e))
+        failure.add_event("invalid_quote", {"message": f"Quote validation failed: {e}"}, False)
+        return failure
+
+    # ok we're done
+    return failure
