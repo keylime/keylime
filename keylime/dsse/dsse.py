@@ -63,7 +63,7 @@ def b64dec(m_str: str) -> bytes:
         try:
             decoded = base64.b64decode(m, validate=True)
         except binascii.Error:
-            decoded = base64.b64decode(m, altchars="-_", validate=True)  # type: ignore
+            decoded = base64.b64decode(m, altchars="-_", validate=True)
     return decoded
 
 
