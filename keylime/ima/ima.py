@@ -501,6 +501,11 @@ def verify_runtime_policy(
     except Exception as error:
         raise ImaValidationError(message="Runtime policy is not valid JSON!", code=400) from error
 
+    if verify_sig and not runtime_policy_key:
+        raise ImaValidationError(
+            message="Runtime policy signature verification required but no key was given!", code=401
+        )
+
     # detect if runtime policy is DSSE
     if runtime_policy_json.get("payload"):
         if verify_sig:
