@@ -27,7 +27,7 @@ author = "Keylime Developers"
 # The short X.Y version
 version = ""
 # The full version, including alpha/beta/rc tags
-release = "7.9.0"
+release = "7.10.0"
 
 
 # -- General configuration ---------------------------------------------------
