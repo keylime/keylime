@@ -12,7 +12,7 @@ context:
 prepare:
  - how: shell
    script:
-    - ln -s $(pwd) /var/tmp/keylime_sources
+    - test -e /var/tmp/keylime_sources || ln -s $(pwd) /var/tmp/keylime_sources
     - systemctl disable --now dnf-makecache.service || true
     - systemctl disable --now dnf-makecache.timer || true
     - dnf makecache
@@ -121,3 +121,43 @@ adjust:
      - /functional/basic-attestation-with-custom-certificates
      - /functional/basic-attestation-without-mtls
      - /functional/basic-attestation-with-unpriviledged-agent
+
+
+## Container test plan enabling additional test scenarios
+
+/e2e_containers:
+
+  summary: run keylime container tests scenarios
+
+  environment+:
+    AGENT_DOCKERFILE: Dockerfile.upstream.c9s
+    VERIFIER_DOCKERFILE: Dockerfile.upstream.c9s
+    REGISTRAR_DOCKERFILE: Dockerfile.upstream.c9s
+
+  discover:
+    how: fmf
+    url: https://github.com/RedHat-SP-Security/keylime-tests
+    ref: main
+    test:
+     # we do setup two emulated TPM devices
+     - /setup/configure_swtpm_device
+     - /setup/configure_swtpm_device
+     - /setup/install_upstream_keylime
+     - /setup/install_rust_keylime_from_copr
+     # change IMA policy to simple and run one attestation scenario
+     # this is to utilize also a different parser
+     - /setup/configure_kernel_ima_module/ima_policy_simple
+     - /functional/basic-attestation-on-localhost
+     - /container/functional/keylime_ipv6_multihost
+     - /container/functional/keylime_all_in_container-basic-attestation
+
+  prepare+:
+   - how: shell
+     script:
+      # change /var/tmp/... context so we won't face issue container_t accessing it
+      - chcon -R -u system_u -r object_r -t container_file_t $(pwd) /var/tmp/keylime_sources
+ 
+  adjust+:
+    - when: distro != centos-stream-9
+      enabled: false
+
