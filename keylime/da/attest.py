@@ -6,6 +6,7 @@ from datetime import datetime
 
 from keylime import cloud_verifier_common, config, keylime_logging
 from keylime.da import record
+from keylime.ima import ima
 from keylime.mba import mba
 
 logger = keylime_logging.init_logging("durable_attestation_fetch_and_replay")
@@ -103,8 +104,14 @@ def main() -> None:
         for attestation_record in attestation_record_list:
             agent = attestation_record["agent"]
             json_response = attestation_record["json_response"]
-            runtime_policy = json.loads(attestation_record["runtime_policy"])
-            mb_policy = json.loads(attestation_record["mb_policy"])
+            if "runtime_policy" in attestation_record:
+                runtime_policy = json.loads(attestation_record["runtime_policy"])
+            else:
+                runtime_policy = ima.EMPTY_RUNTIME_POLICY
+            if "mb_policy" in attestation_record:
+                mb_policy = attestation_record["mb_policy"]
+            else:
+                mb_policy = None
 
             logger.info(
                 "----------- Attesting data (quote and logs from %s, captured by verifier %s (%s:%s)",
