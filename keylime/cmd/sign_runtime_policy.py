@@ -1,6 +1,6 @@
 import argparse
 import sys
-from typing import NoReturn, Union
+from typing import NoReturn, Optional, Union
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -78,22 +78,24 @@ def main() -> None:
     if not args.keypath:
         args.keypath = "keylime-ecdsa-key"
 
-    private_key = None
+    private_key: Optional[ec.EllipticCurvePrivateKey] = None
     if args.keyfile:
         with open(args.keyfile, "rb") as pem_in:
             pemlines = pem_in.read()
-        private_key = load_pem_private_key(pemlines, None, default_backend())
+        privkey = load_pem_private_key(pemlines, None, default_backend())
+        if not isinstance(privkey, ec.EllipticCurvePrivateKey):
+            print("Only elliptic curve keys are supported!")
+            sys.exit(1)
+        private_key = privkey
 
     signer: Union[dsse.Signer, None] = None
     if args.backend == "ecdsa":
         if private_key:
-            assert isinstance(private_key, ec.EllipticCurvePrivateKey)
             signer = ecdsa.Signer(private_key)
         else:
             signer = ecdsa.Signer.create(args.keypath)
     elif args.backend == "x509":
         if private_key:
-            assert isinstance(private_key, ec.EllipticCurvePrivateKey)
             signer = x509.Signer(private_key, certificate_path=args.certificate_output_file)
         else:
             signer = x509.Signer.create(args.keypath, certificate_path=args.certificate_output_file)
