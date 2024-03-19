@@ -83,6 +83,7 @@ adjust:
      - /functional/use-multiple-ima-sign-verification-keys
      - /regression/cve-2023-38200
      - /regression/cve-2023-38201
+     - /regression/CVE-2023-3674
      - /regression/issue-1380-agent-removed-and-re-added
      - /regression/keylime-agent-option-override-through-envvar
      - /sanity/keylime-secure_mount
