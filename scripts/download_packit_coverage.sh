@@ -141,7 +141,7 @@ echo "TF_TESTLOG=${TF_TESTLOG}"
 # parse the URL of coverage XML file and download it
 curl --retry 5 -s "${TF_TESTLOG}" &> ${TMPFILE}
 for REPORT in coverage.packit.xml coverage.testsuite.xml coverage.unittests.xml; do
-    COVERAGE_URL=$( grep "$REPORT report is available at" ${TMPFILE} | grep -E -o "https://.*\.xml" )
+    COVERAGE_URL=$( grep "$REPORT report is available at" ${TMPFILE} | grep -E -o "https?://[^[:space:]]*" )
     echo "COVERAGE_URL=${COVERAGE_URL}"
 
     if [ -z "${COVERAGE_URL}" ]; then
@@ -150,6 +150,6 @@ for REPORT in coverage.packit.xml coverage.testsuite.xml coverage.unittests.xml;
     fi
 
     # download the file
-    curl --retry 5 -L -O ${COVERAGE_URL}
+    curl -L -o "${REPORT}" "${COVERAGE_URL}"
 done
 rm ${TMPFILE}
