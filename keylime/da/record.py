@@ -47,11 +47,12 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
         self,
         agent_data: Dict[Any, Any],
         attestation_data: Dict[Any, Any],
+        mb_policy_data: Optional[str],
         runtime_policy_data: Dict[Any, Any],
         service: str = "auto",
         signed_attributes: str = "auto",
     ) -> None:
-        """Takes agent data, attestation data, ima policy data, serialize, optionally encodes it and writes to a persistent data store"""
+        """Takes agent data, attestation data, mb policy data, ima policy data, serialize, optionally encodes it and writes to a persistent data store"""
 
     def get_record_type(self, service: str) -> str:
         """Determine which "service", (initial) registration or attestation is used)"""
@@ -141,6 +142,7 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
         record_object: Dict[Any, Any],
         agent_data: Dict[Any, Any],
         attestation_data: Dict[Any, Any],
+        mb_policy_data: Optional[str],
         runtime_policy_data: Dict[Any, Any],
     ) -> Dict[Any, Any]:
         """Assemble record to be created on persistent datastore"""
@@ -155,6 +157,9 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
 
         if attestation_data:
             sanitized_and_assembled_record_object["json_response"] = attestation_data
+
+        if mb_policy_data:
+            sanitized_and_assembled_record_object["mb_policy"] = mb_policy_data
 
         if runtime_policy_data:
             sanitized_and_assembled_record_object["runtime_policy"] = runtime_policy_data
@@ -192,10 +197,13 @@ class BaseRecordManagement(metaclass=abc.ABCMeta):
         record_object: Dict[Any, Any],
         agent_data: Dict[Any, Any],
         attestation_data: Dict[Any, Any],
+        mb_policy_data: Optional[str],
         runtime_policy_data: Dict[Any, Any],
     ) -> Union[bytes, Dict[Any, Any]]:
         """Prepares record to be stored on persistent datastore"""
-        record_assembled = self.record_assemble(record_object, agent_data, attestation_data, runtime_policy_data)
+        record_assembled = self.record_assemble(
+            record_object, agent_data, attestation_data, mb_policy_data, runtime_policy_data
+        )
 
         record_assembled[self.svc + "_timestamp"] = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
 

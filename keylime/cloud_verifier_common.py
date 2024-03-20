@@ -1,7 +1,7 @@
 import ast
 import base64
 import time
-from typing import Any, Dict, Optional, Union, cast
+from typing import Any, Dict, Optional, Union
 
 from keylime import config, crypto, json, keylime_logging
 from keylime.agentstates import AgentAttestState, AgentAttestStates, TPMClockInfo
@@ -10,7 +10,6 @@ from keylime.db.verifier_db import VerfierMain
 from keylime.failure import Component, Event, Failure
 from keylime.ima import file_signatures, ima
 from keylime.ima.types import RuntimePolicyType
-from keylime.mba import mba
 from keylime.tpm import tpm_util
 from keylime.tpm.tpm_main import Tpm
 
@@ -34,6 +33,7 @@ def get_AgentAttestStates() -> AgentAttestStates:
 
 def process_quote_response(
     agent: Dict[str, Any],
+    mb_policy: Optional[str],
     runtime_policy: RuntimePolicyType,
     json_response: Dict[str, Any],
     agentAttestState: AgentAttestState,
@@ -198,7 +198,7 @@ def process_quote_response(
         algorithms.Hash(hash_alg),
         ima_keyrings,
         mb_measurement_list,
-        agent["mb_refstate"],
+        mb_policy,
         compressed=(agent["supported_version"] == "1.0"),
         count=agent["attestation_count"],
     )  # TODO: change this to always False after initial update
@@ -260,16 +260,8 @@ def prepare_get_quote(agent: Dict[str, Any]) -> Dict[str, Union[str, int]]:
 
 def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
     has_mb_refstate = 0
-    try:
-        if mba.policy_is_valid(cast(str, agent.mb_refstate)):
-            has_mb_refstate = 1
-    except Exception as e:
-        logger.warning(
-            'Non-fatal problem ocurred while attempting to evaluate agent %s attribute "mb_refstate" (%s). Will just consider the value of this attribute as empty',
-            agent.agent_id,
-            e.args,
-        )
-        logger.debug('The contents of the agent %s attribute "mb_refstate" are %s', agent.agent_id, agent.mb_refstate)
+    if agent.mb_policy.mb_policy is not None:
+        has_mb_refstate = 1
 
     has_runtime_policy = 0
     if agent.ima_policy.generator and agent.ima_policy.generator > ima.RUNTIME_POLICY_GENERATOR.EmptyAllowList:
