@@ -1,7 +1,7 @@
 """Convert registrar column types 
 
 Revision ID: 330024be7bef
-Revises: 160f932fde5b
+Revises: 9d2f6fab52b1
 Create Date: 2024-02-15 11:48:41.458971
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "330024be7bef"
-down_revision = "160f932fde5b"
+down_revision = "9d2f6fab52b1"
 branch_labels = None
 depends_on = None
 
