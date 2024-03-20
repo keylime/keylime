@@ -4,6 +4,7 @@ import re
 from abc import ABC, abstractmethod
 from types import MappingProxyType
 
+from sqlalchemy.dialects.sqlite import dialect as sqlite_dialect
 from sqlalchemy.types import PickleType
 
 from keylime.models.base.errors import FieldValueInvalid, UndefinedField
@@ -208,18 +209,29 @@ class BasicModel(ABC):
         if name not in self.__class__.fields:
             raise UndefinedField(f"field '{name}' does not exist in model '{self.__class__.__name__}'")
 
-        self._changes[name] = value
+        # Reset the errors for the field to an empty list
         self._errors[name] = list()
 
+        # Get Field instance for name in order to obtain its type (TypeEngine object)
         field = self.__class__.fields[name]
+        # Get processor which translates values of the given type to a format which can be stored in a DB
+        bind_processor = field.type.bind_processor(sqlite_dialect())
+        # Get processor which translates values retrieved by a DB query according to the field type
+        result_processor = field.type.result_processor(sqlite_dialect(), None)
 
-        if isinstance(field.type, PickleType):
-            try:
-                field.type.pickler.dumps(value)
-            except:
-                self._add_error(name, "is of an incorrect type")
-        elif getattr(type, "python_type", None):
-            if not isinstance(value, field.type.python_type):
+        try:
+            # Process incoming value as if it were to be stored in a DB (if type requires inbound processing)
+            value = bind_processor(value) if bind_processor else value
+            # Process resulting value as if it were being retrieved from a DB (if type requires outbound processing)
+            value = result_processor(value) if result_processor else value
+            # Add value (processed according to the field type) to the model instance's collection of changes
+            self._changes[name] = value
+        except:
+            # If the above mock DB storage and retrieval fails, the incoming value is of an incorrect type for the field
+            if hasattr(field.type, "type_mismatch_msg") and not callable(getattr(field.type, "type_mismatch_msg")):
+                # Some custom types provide a special "invalid type" message
+                self._add_error(name, field.type.type_mismatch_msg)
+            else:
                 self._add_error(name, "is of an incorrect type")
 
     def cast_changes(self, changes, permitted={}):
@@ -273,7 +285,7 @@ class BasicModel(ABC):
             value = self.values.get(field) or ""
 
             try:
-                base64.b64decode(value)
+                base64.b64decode(value, validate=True)
             except binascii.Error:
                 self._add_error(field, msg)
 

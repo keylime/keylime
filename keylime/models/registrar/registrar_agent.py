@@ -4,8 +4,6 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from keylime import cert_utils, config, crypto
-from keylime.db.registrar_db import JSONPickleType
-from keylime.json import JSONPickler
 from keylime.models.base import *
 from keylime.tpm import tpm2_objects
 from keylime.tpm.tpm_main import Tpm
@@ -20,33 +18,35 @@ class RegistrarAgent(PersistableModel):
         # The endorsement key (EK) of the TPM
         cls._field("ek_tpm", String(500))
         # The endorsement key (EK) certificate used to verify the TPM as genuine
-        cls._field("ekcert", Text, nullable=True)
+        cls._field("ekcert", Certificate, nullable=True)
         # The attestation key (AK) used by Keylime to prepare TPM quotes
         cls._field("aik_tpm", String(500))
         # The initial attestation key (IAK) used when registering with a DevID
         cls._field("iak_tpm", String(500))
         # The initial attestation key (IAK) certificate used to verify IAK authenticity
-        cls._field("iak_cert", Text, nullable=True)
+        cls._field("iak_cert", Certificate, nullable=True)
         # The signing key used as initial device identity (IDevID) key
         cls._field("idevid_tpm", String(500))
         # The initial device identity (IDevID) certificate used to verify IDevID authenticity
-        cls._field("idevid_cert", Text, nullable=True)
+        cls._field("idevid_cert", Certificate, nullable=True)
         # The HMAC key used to verify the response produced by TPM2_ActivateCredential to bind the AK to the EK
         cls._field("key", String(45))
         # Indicates that the AK has successfully been bound to the EK
         cls._field("active", Boolean)
-        # Indicates that the agent is running in a VM without an EKcert
-        cls._field("virtual", Boolean)
 
         # The details used to establish connections to the agent when operating in pull mode
         cls._field("ip", String(15), nullable=True)
         cls._field("port", Integer, nullable=True)
-        cls._field("mtls_cert", Text, nullable=True)
+        cls._field("mtls_cert", Certificate, nullable=True)
 
         # The number of times the agent has registered over its lifetime
         cls._field("regcount", Integer)
 
-        cls._field("provider_keys", JSONPickleType(pickler=JSONPickler))
+        # NO LONGER USED:
+        # Indicates that the agent is running in a cloud VM and that the EKcert is not available from NVRAM
+        cls._field("virtual", Boolean)
+        # Information about the cloud VM (including the EKcert obtained out of band from the cloud provider)
+        cls._field("provider_keys", Dictionary)
 
     @classmethod
     def empty(cls):
@@ -54,17 +54,17 @@ class RegistrarAgent(PersistableModel):
         agent.provider_keys = {}
         return agent
 
-    def _check_key_against_cert(self, tpm_key_field, cert_field, empty_values=(None,)):
+    def _check_key_against_cert(self, tpm_key_field, cert_field):
         tpm_key = self.changes.get(tpm_key_field)
         cert = self.changes.get(cert_field)
 
         # If key or certificate is not present in the pending changes, skip checking the key against the certificate
-        if tpm_key in (None, *empty_values) or cert in (None, *empty_values):
+        if not tpm_key or not cert:
             return
 
-        # Convert TPM key to a public key object
+        # Convert TPM key structure to a public key object and extract the raw key byte string
         try:
-            tpm_pub = tpm2_objects.pubkey_from_tpm2b_public(base64.b64decode(tpm_key))
+            tpm_pub = tpm2_objects.pubkey_from_tpm2b_public(base64.b64decode(tpm_key, validate=True))
             tpm_pub_bytes = tpm_pub.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
         except:
             self._add_error(tpm_key_field, "must be a valid TPM2B_PUBLIC structure")
@@ -75,14 +75,9 @@ class RegistrarAgent(PersistableModel):
             self._add_error(tpm_key_field, "must contain a valid RSA or EC public key")
             return
 
-        # Parse X.509 certificate and extract public key
-        try:
-            cert = cert_utils.x509_der_cert(base64.b64decode(cert, validate=True))
-            cert_pub = cert.public_key()
-            cert_pub_bytes = cert_pub.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-        except:
-            self._add_error(cert_field, "must be a valid binary X.509 certificate encoded in Base64")
-            return
+        # Extract public key bytes from certificate
+        cert_pub = cert.public_key()
+        cert_pub_bytes = cert_pub.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
 
         # Check that the public key obtained from the TPM matches the public key contained in the certificate
         if tpm_pub_bytes != cert_pub_bytes:
@@ -103,7 +98,7 @@ class RegistrarAgent(PersistableModel):
             self._add_error(cert_field, "must contain a certificate issued by a CA present in the trust store")
 
     def _bind_ak_to_iak(self, iak_attest, iak_sign):
-        # The ak-iak binding should only be verified if either aik_tpm or iak_tpm is changed
+        # The ak-iak binding should only be verified when either aik_tpm or iak_tpm is changed
         if "aik_tpm" not in self.changes or "iak_tpm" not in self.changes:
             return
 
@@ -128,7 +123,7 @@ class RegistrarAgent(PersistableModel):
 
     def _check_ek(self):
         # Check that the EK public keys from the TPM match the public keys contained in the EK certificate
-        self._check_key_against_cert("ek_tpm", "ekcert", empty_values=(None, "emulator"))
+        self._check_key_against_cert("ek_tpm", "ekcert")
 
         # The current behaviour of the registrar is not to perform any verification of the EK certificate against
         # trusted TPM manufacturer certificates. This responsibility is left to the tenant. A future PR will add
@@ -175,8 +170,6 @@ class RegistrarAgent(PersistableModel):
             self.validate_required(["iak_cert", "idevid_cert"])
 
     def _prepare_status_flags(self):
-        self.virtual = self.ekcert == "virtual"
-
         if "ek_tpm" in self.changes or "aik_tpm" in self.changes:
             self.active = False
 
@@ -192,7 +185,9 @@ class RegistrarAgent(PersistableModel):
     def update(self, data):
         # Bind key-value pairs ('data') to those fields which are meant to be externally changeable
         self.cast_changes(
-            data, ["agent_id", "ek_tpm", "ekcert", "aik_tpm", "iak_tpm", "idevid_tpm", "ip", "port", "mtls_cert"]
+            data,
+            ["agent_id", "ek_tpm", "ekcert", "aik_tpm", "iak_tpm", "iak_cert", "idevid_tpm", "idevid_cert", "ip"]
+            + ["port", "mtls_cert"],
         )
 
         # Verify EK as valid
@@ -204,19 +199,12 @@ class RegistrarAgent(PersistableModel):
 
         # Basic validation of values
         self.validate_required(["aik_tpm"])
-        self.validate_base64(["ek_tpm", "ekcert", "aik_tpm", "iak_tpm", "iak_cert", "idevid_tpm", "idevid_cert"])
-        self.validate_base64(["mtls_cert"])
+        self.validate_base64(["ek_tpm", "aik_tpm", "iak_tpm", "idevid_tpm"])
 
-        # Determine and set 'virtual' and 'active' flags
+        # Determine and set the 'active' flag
         self._prepare_status_flags()
         # Increment number of registrations if appropriate
         self._prepare_regcount()
-
-    def commit_changes(self):
-        if da_manager.backend:
-            da_manager.backend.record_create(super().render(), None, None)
-
-        return super().commit_changes()
 
     def produce_ak_challenge(self):
         if not self.ek_tpm or not self.aik_tpm:

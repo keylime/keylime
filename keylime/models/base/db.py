@@ -10,6 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, registry, scoped_session, sessionmaker
 
 from keylime import config, keylime_logging
+from keylime.models.base.errors import BackendMissing
 
 logger = keylime_logging.init_logging("keylime_db")
 
@@ -92,22 +93,22 @@ class DBManager:
 
     @property
     def service(self) -> Optional[str]:
-        if not self._registry:
-            raise NoEngineError("cannot access the service for a DBManager before a call to db_manager.make_engine()")
+        if not self._service:
+            raise BackendMissing("cannot access the service for a DBManager before a call to db_manager.make_engine()")
 
         return self._service
 
     @property
     def engine(self) -> Engine:
-        if not self._registry:
-            raise NoEngineError("cannot access the engine for a DBManager before a call to db_manager.make_engine()")
+        if not self._engine:
+            raise BackendMissing("cannot access the engine for a DBManager before a call to db_manager.make_engine()")
 
         return self._engine
 
     @property
     def registry(self) -> registry:
         if not self._registry:
-            raise NoEngineError("cannot access the registry for a DBManager before a call to db_manager.make_engine()")
+            raise BackendMissing("cannot access the registry for a DBManager before a call to db_manager.make_engine()")
 
         return self._registry
 
@@ -116,7 +117,7 @@ class DBManager:
         To use: session = self.session()
         """
         if not self._registry:
-            raise NoEngineError("cannot access the session for a DBManager before a call to db_manager.make_engine()")
+            raise BackendMissing("cannot access the session for a DBManager before a call to db_manager.make_engine()")
 
         if not self._scoped_session:
             self._scoped_session = scoped_session(sessionmaker())
@@ -139,14 +140,6 @@ class DBManager:
         except:
             session.rollback()
             raise
-
-
-class DBManagerError(Exception):
-    pass
-
-
-class NoEngineError(DBManagerError):
-    pass
 
 
 # Create a global DBManager which can be referenced from any module

@@ -32,3 +32,11 @@ class FieldNonNullable(FieldValueInvalid):
 
 class FieldTypeMismatch(FieldValueInvalid):
     pass
+
+
+class StorageManagerError(Exception):
+    pass
+
+
+class BackendMissing(StorageManagerError):
+    pass
