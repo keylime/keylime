@@ -172,6 +172,25 @@ class Certificate(TypeDecorator):
 
         # Cast outgoing value from DB to Certificate object
         return Certificate.cast(value)
+    
+    def render_object(self, value):
+        """Prepares certificate object for output (typically in an HTTP response). This method is called with a 
+        ``cryptography.x509.Certificate`` object as argument whenever a call is made to ``record.render()`` where
+        ``record`` has a field of type Certificate.
+
+        :raises: :class:`TypeError`: ``value`` is not of type ``str``, ``bytes`` or ``cryptography.x509.Certificate``
+        :raises: :class:`ValueError`: ``value`` does not contain data which is interpretable as a certificate
+
+        :returns: A string containing the certificate in PEM format
+        """
+
+        if not value:
+            return None
+
+        # Cast value to Certificate object
+        cert = Certificate.cast(value)
+        # Render certificate in PEM format
+        return cert.public_bytes(Encoding.PEM).decode("utf-8")
 
     @property
     def type_mismatch_msg(self):

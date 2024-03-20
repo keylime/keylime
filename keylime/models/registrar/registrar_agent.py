@@ -236,9 +236,15 @@ class RegistrarAgent(PersistableModel):
 
     def render(self, only=None):
         if not only:
-            only = ["agent_id", "ek_tpm", "ekcert", "aik_tpm", "mtls_cert", "ip", "port", "regcount"]
+            only = ["agent_id", "ek_tpm", "aik_tpm", "mtls_cert", "ip", "port", "regcount"]
 
             if self.virtual:
                 only.append("provider_keys")
 
-        return super().render(only)
+        output = super().render(only)
+
+        # When operating in pull mode, ekcert is encoded as Base64 instead of PEM
+        if self.ekcert:
+            output["ekcert"] = base64.b64encode(self.ekcert.public_bytes(Encoding.DER)).decode("utf-8")
+
+        return output

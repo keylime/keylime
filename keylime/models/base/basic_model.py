@@ -194,10 +194,18 @@ class BasicModel(ABC):
         return repr
 
     def render(self, only=None):
-        data = {name: getattr(self, name) for name in self.__class__.fields.keys()}
+        data = {}
 
-        if only:
-            data = {name: data[name] for name in only}
+        for name, field in self.__class__.fields.items():
+            if only and name not in only:
+                continue
+
+            value = getattr(self, name)
+
+            if hasattr(field.type, "render_object") and callable(getattr(field.type, "render_object")):
+                value = field.type.render_object(value)
+
+            data[name] = value
 
         return data
 
