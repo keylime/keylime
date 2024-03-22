@@ -357,6 +357,7 @@ def strip_quotes(config: RawConfigParser) -> None:
 def process_full_mapping(
     mapping: Dict[str, Any],
     old_config: RawConfigParser,
+    use_defaults: bool,
     target: Optional[Tuple[int, int]] = None,
     logger: Logger = logging.getLogger(__name__),
 ) -> RawConfigParser:
@@ -419,7 +420,11 @@ def process_full_mapping(
             #     "default": value to use in case the option is missing
             info = m[option]
             try:
-                new[component][option] = old_config.get(info["section"], info["option"])
+                if use_defaults:
+                    new[component][option] = info["default"]
+                else:
+                    # Preserve the old value
+                    new[component][option] = old_config.get(info["section"], info["option"])
             except Exception as e:
                 logger.debug(
                     '[%s] %s not found: Using default value "%s" for "%s"', component, e, info["default"], option
@@ -433,7 +438,11 @@ def process_full_mapping(
 
 
 def update_options(
-    new: RawConfigParser, mapping: Dict[str, Any], component: str, logger: Logger = logging.getLogger(__name__)
+    new: RawConfigParser,
+    mapping: Dict[str, Any],
+    component: str,
+    use_defaults: bool,
+    logger: Logger = logging.getLogger(__name__),
 ) -> None:
     """
     Process updates to a single component
@@ -492,22 +501,21 @@ def update_options(
                     new.add_section(new_section)
                     logger.info("Added new section [%s]", new_section)
 
-                # If the new option is already present, skip
-                if new_name in new[new_section]:
-                    logger.debug('[%s]: Skipped adding already existing option "%s"', new_section, new_name)
-                    continue
+                if use_defaults:
+                    value = default
+                else:
+                    # Get the old value to preserve
+                    value = new[component].pop(old_option)
 
-                # Get the old value to preserve
-                value = new[component].pop(old_option)
-
-            # Add the new option preserving the old value
+            # Add the new option
             new[new_section][new_name] = value
-            logger.debug('[%s]: Added option "%s" = "%s"', new_section, new_name, value)
+            logger.debug('[%s]: Set option "%s" = "%s"', new_section, new_name, value)
 
 
 def process_update_mapping(
     mapping: Dict[str, Any],
     old_config: RawConfigParser,
+    use_defaults: bool,
     target: Optional[Tuple[int, int]] = None,
     logger: Logger = logging.getLogger(__name__),
 ) -> RawConfigParser:
@@ -549,7 +557,7 @@ def process_update_mapping(
                     continue
 
             # Apply operations for each found option
-            update_options(new, mapping["components"], component, logger=logger)
+            update_options(new, mapping["components"], component, use_defaults, logger=logger)
 
         # Set the resulting version for the component
         new[component]["version"] = mapping["version"]
@@ -565,7 +573,7 @@ def process_update_mapping(
 
         new.add_section(component)
         logger.info('Added new section "[%s]"', component)
-        update_options(new, mapping["components"], component, logger=logger)
+        update_options(new, mapping["components"], component, use_defaults, logger=logger)
 
     return new
 
@@ -575,6 +583,7 @@ def process_mapping(
     old_config: RawConfigParser,
     templates: str,
     mapping_file: str,
+    use_defaults: bool,
     target: Optional[Tuple[int, int]] = None,
     logger: Logger = logging.getLogger(__name__),
 ) -> RawConfigParser:
@@ -619,15 +628,15 @@ def process_mapping(
     if "type" in mapping:
         t = mapping["type"]
         if t == "full":
-            new = process_full_mapping(mapping, old_config, target, logger=logger)
+            new = process_full_mapping(mapping, old_config, use_defaults, target, logger=logger)
         elif t == "update":
-            new = process_update_mapping(mapping, old_config, target, logger=logger)
+            new = process_update_mapping(mapping, old_config, use_defaults, target, logger=logger)
         else:
             raise Exception("Invalid mapping type")
     else:
         # When the mapping type is not defined, treat as full mapping to handle
         # older mapping versions
-        new = process_full_mapping(mapping, old_config, target, logger)
+        new = process_full_mapping(mapping, old_config, use_defaults, target, logger)
 
     # Strip quotes from all options
     strip_quotes(new)
@@ -664,6 +673,7 @@ def process_versions(
     components: List[str],
     templates: str,
     old_config: RawConfigParser,
+    use_defaults: bool,
     target_version: Optional[str] = None,
     logger: Logger = logging.getLogger(__name__),
 ) -> RawConfigParser:
@@ -701,7 +711,7 @@ def process_versions(
             m = os.path.join(p, "mapping.json")
             if os.path.isfile(m):
                 # Apply transformation for the mapping
-                new = process_mapping(components, old_config, templates, m, target=target, logger=logger)
+                new = process_mapping(components, old_config, templates, m, use_defaults, target=target, logger=logger)
                 old_config = new
             else:
                 raise Exception(f"Could not find mapping {m}")
@@ -857,13 +867,15 @@ def main() -> None:
             mapping_file = args.mapping
 
             # Apply the single mapping provided
-            config = process_mapping(components, old_config, args.templates, mapping_file, logger=logger)
+            config = process_mapping(components, old_config, args.templates, mapping_file, args.defaults, logger=logger)
         else:
             raise Exception(f"Could not find provided mapping {args.mapping}")
     else:
         # Apply transformations from the templates in the templates directory
         # If a target version is provided, stop when reaching the target
-        config = process_versions(components, args.templates, old_config, target_version=args.version, logger=logger)
+        config = process_versions(
+            components, args.templates, old_config, args.defaults, target_version=args.version, logger=logger
+        )
 
     if config != old_config:
         output(components, config, args.templates, out_dir, logger=logger)
