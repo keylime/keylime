@@ -1,0 +1,15 @@
+{
+    "version": "2.3",
+    "type": "update",
+    "components": {
+        "verifier": {
+            "replace" : {
+                "require_allow_list_signatures": {
+                    "section": "verifier",
+                    "option": "require_allow_list_signatures",
+                    "default": "False"
+                }
+            }
+        }
+    }
+}

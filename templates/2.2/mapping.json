@@ -7,11 +7,6 @@
                 "ima_ml_path": "default",
                 "measuredboot_ml_path": "default"
             }
-        },
-        "verifier": {
-            "add" : {
-                "require_allow_list_signatures": "False"
-            }
         }
     }
 }
