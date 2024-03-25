@@ -10,6 +10,34 @@
                     "default": "False"
                 }
             }
+        },
+        "revocations": {
+            "replace": {
+                "enabled_revocation_notifications": {
+                    "section": "revocations",
+                    "option": "enabled_revocation_notifications",
+                    "default": "['agent']"
+                }
+            }
+        },
+        "tenant": {
+            "replace" : {
+                "accept_tpm_hash_algs": {
+                    "section": "tenant",
+                    "option": "accept_tpm_hash_algs",
+                    "default": "['sha512', 'sha384', 'sha256']"
+                },
+                "accept_tpm_encryption_algs": {
+                    "section": "tenant",
+                    "option": "accept_tpm_encryption_algs",
+                    "default": "['ecc', 'rsa']"
+                },
+                "accept_tpm_signing_algs": {
+                    "section": "tenant",
+                    "option": "accept_tpm_signing_algs",
+                    "default": "['ecschnorr', 'rsassa']"
+                }
+            }
         }
     }
 }

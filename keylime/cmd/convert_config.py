@@ -495,17 +495,17 @@ def update_options(
                 logger.debug('[%s]: Skipped removing unexisting option "%s"', component, old_option)
                 value = default
             else:
-                # If the section was not present in old config, add the new
-                # section
-                if new_section not in new:
-                    new.add_section(new_section)
-                    logger.info("Added new section [%s]", new_section)
-
                 if use_defaults:
                     value = default
                 else:
                     # Get the old value to preserve
                     value = new[component].pop(old_option)
+
+            # If the section was not present in old config, add the new
+            # section
+            if new_section not in new:
+                new.add_section(new_section)
+                logger.info("Added new section [%s]", new_section)
 
             # Add the new option
             new[new_section][new_name] = value
