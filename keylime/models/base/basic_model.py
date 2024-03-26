@@ -4,9 +4,6 @@ import re
 from abc import ABC, abstractmethod
 from types import MappingProxyType
 
-from sqlalchemy.dialects.sqlite import dialect as sqlite_dialect
-from sqlalchemy.types import PickleType
-
 from keylime.models.base.errors import FieldValueInvalid, UndefinedField
 from keylime.models.base.field import ModelField
 
@@ -220,27 +217,15 @@ class BasicModel(ABC):
         # Reset the errors for the field to an empty list
         self._errors[name] = list()
 
-        # Get Field instance for name in order to obtain its type (TypeEngine object)
+        # Get Field instance for name in order to obtain its type (ModelType object)
         field = self.__class__.fields[name]
-        # Get processor which translates values of the given type to a format which can be stored in a DB
-        bind_processor = field.type.bind_processor(sqlite_dialect())
-        # Get processor which translates values retrieved by a DB query according to the field type
-        result_processor = field.type.result_processor(sqlite_dialect(), None)
 
         try:
-            # Process incoming value as if it were to be stored in a DB (if type requires inbound processing)
-            value = bind_processor(value) if bind_processor else value
-            # Process resulting value as if it were being retrieved from a DB (if type requires outbound processing)
-            value = result_processor(value) if result_processor else value
-            # Add value (processed according to the field type) to the model instance's collection of changes
-            self._changes[name] = value
+            # Attempt to cast incoming value to field's declared type
+            self._changes[name] = field.type.cast(value)
         except:
-            # If the above mock DB storage and retrieval fails, the incoming value is of an incorrect type for the field
-            if hasattr(field.type, "type_mismatch_msg") and not callable(getattr(field.type, "type_mismatch_msg")):
-                # Some custom types provide a special "invalid type" message
-                self._add_error(name, field.type.type_mismatch_msg)
-            else:
-                self._add_error(name, "is of an incorrect type")
+            # If above casting fails, produce a type mismatch message and add it the field's list of errors
+            self._add_error(name, field.type.generate_error_msg(value))
 
     def cast_changes(self, changes, permitted={}):
         for name, value in changes.items():

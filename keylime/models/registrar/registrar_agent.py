@@ -37,7 +37,7 @@ class RegistrarAgent(PersistableModel):
         # The details used to establish connections to the agent when operating in pull mode
         cls._field("ip", String(15), nullable=True)
         cls._field("port", Integer, nullable=True)
-        cls._field("mtls_cert", Certificate, nullable=True)
+        cls._field("mtls_cert", OneOf(Certificate, "disabled"), nullable=True)
 
         # The number of times the agent has registered over its lifetime
         cls._field("regcount", Integer)

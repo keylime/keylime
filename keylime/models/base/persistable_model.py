@@ -3,12 +3,7 @@ from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import relationship
 
 from keylime.models.base import BasicModel
-from keylime.models.base.associations import (
-    AssociatedRecordSet,
-    BelongsToAssociation,
-    HasManyAssociation,
-    HasOneAssociation,
-)
+from keylime.models.base.associations import BelongsToAssociation, HasManyAssociation, HasOneAssociation
 from keylime.models.base.db import db_manager
 from keylime.models.base.errors import FieldValueInvalid, QueryInvalid, SchemaInvalid
 
@@ -133,9 +128,11 @@ class PersistableModel(BasicModel):
         if not isinstance(column_args, tuple):
             column_args = (column_args,)
 
-        cls.__db_columns.append(Column(name, type, *column_args, nullable=nullable, primary_key=primary_key))
+        field = super()._new_field(name, type, nullable)
+        db_type = field.type.get_db_type(db_manager.engine.dialect)
+        cls.__db_columns.append(Column(name, db_type, *column_args, nullable=nullable, primary_key=primary_key))
 
-        return super()._new_field(name, type, nullable)
+        return field
 
     @classmethod
     def _field(cls, name, type, nullable=False, primary_key=False):
@@ -357,9 +354,9 @@ class PersistableModel(BasicModel):
     def _init_from_mapping(self, mapping_inst, process_associations):
         self._db_mapping_inst = mapping_inst
 
-        for name in self.__class__.fields.keys():
+        for name, field in self.__class__.fields.items():
             value = getattr(mapping_inst, name)
-            self.change(name, value)
+            self.change(name, field.type.db_load(value, db_manager.engine.dialect))
 
         if process_associations:
             for name, association in self.__class__.associations.items():
@@ -394,7 +391,9 @@ class PersistableModel(BasicModel):
 
         for name, value in self._changes.items():
             self._record_values[name] = value
-            setattr(self._db_mapping_inst, name, value)
+
+            field = self.__class__.fields[name]
+            setattr(self._db_mapping_inst, name, field.type.db_dump(value, db_manager.engine.dialect))
 
         with db_manager.session_context() as session:
             session.add(self._db_mapping_inst)

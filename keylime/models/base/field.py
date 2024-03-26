@@ -1,27 +1,30 @@
 from inspect import isclass
 
-from sqlalchemy.types import PickleType, TypeEngine
+from sqlalchemy.types import TypeEngine
 
 from keylime.models.base.errors import FieldDefinitionInvalid
+from keylime.models.base.type import ModelType
 
 
 class ModelField:
     _name: str
-    _type: TypeEngine
+    _type: ModelType
     _nullable: bool
 
     def __init__(self, name, type, nullable=False):
-        if isclass(type):
-            type = type()
-
         self._name = name
-        self._type = type
         self._nullable = nullable
 
-        if not isinstance(type, TypeEngine):
+        if isinstance(type, ModelType):
+            self._type = type
+        elif isclass(type) and issubclass(type, ModelType):
+            self._type = type()  # type: ignore
+        elif isinstance(type, TypeEngine) or (isclass(type) and issubclass(type, TypeEngine)):
+            self._type = ModelType(type)
+        else:
             raise FieldDefinitionInvalid(
-                f"field '{name}' cannot be defined with type '{type}' as this is not a SQLAlchemy datatype "
-                f"inheriting from 'sqlalchemy.types.TypeEngine'"
+                f"field '{name}' cannot be defined with type '{type}' as this is neither a ModelType subclass/instance "
+                f"nor a SQLAlchemy data type inheriting from 'sqlalchemy.types.TypeEngine'"
             )
 
     def __get__(self, obj, objtype=None):
@@ -45,12 +48,12 @@ class ModelField:
         return self._type
 
     @property
-    def nullable(self):
-        return self._nullable
-
-    @property
-    def python_type(self):
+    def native_type(self):
         try:
-            return self.type.python_type
+            return self.type.native_type
         except:
             return None
+
+    @property
+    def nullable(self):
+        return self._nullable
