@@ -223,6 +223,9 @@ transparency_log_sign_algo = {{ verifier.transparency_log_sign_algo }}
 # will mean no signing should be done.
 signed_attributes = {{ verifier.signed_attributes }}
 
+# Require that allowlists are signed with a key passed via the tenant tool
+require_allow_list_signatures = {{ verifier.require_allow_list_signatures }}
+
 [revocations]
 
 # List of revocation notification methods to enable.

@@ -190,7 +190,7 @@ class TestConvertConfig(unittest.TestCase):
 
         with self.assertLogs("process_mapping", level="DEBUG") as cm:
             l = logging.getLogger("process_mapping")
-            result = convert_config.process_mapping(COMPONENTS, config, TEMPLATES_DIR, mapping, logger=l)
+            result = convert_config.process_mapping(COMPONENTS, config, TEMPLATES_DIR, mapping, False, logger=l)
 
         self.assertTrue(isinstance(result, configparser.RawConfigParser))
 
@@ -250,7 +250,7 @@ class TestConvertConfig(unittest.TestCase):
 
         with self.assertLogs("already_updated", level="DEBUG") as cm:
             l = logging.getLogger("already_updated")
-            result = convert_config.process_mapping(COMPONENTS, config, TEMPLATES_DIR, mapping, logger=l)
+            result = convert_config.process_mapping(COMPONENTS, config, TEMPLATES_DIR, mapping, False, logger=l)
             self.assertEqual(result, config)
 
         # Check that the output shows that the updated version was skipped
@@ -335,7 +335,7 @@ class TestConvertConfig(unittest.TestCase):
 
         config = convert_config.get_config([[]])
 
-        result = convert_config.process_versions(COMPONENTS, TEMPLATES_DIR, config)
+        result = convert_config.process_versions(COMPONENTS, TEMPLATES_DIR, config, False)
 
         value = result.get("comp1", "test_option")
         # Check that the file was correctly parsed
@@ -357,7 +357,7 @@ class TestConvertConfig(unittest.TestCase):
         """Check that the update stops at the target version, when it is set"""
 
         config = convert_config.get_config([[]])
-        result = convert_config.process_versions(COMPONENTS, TEMPLATES_DIR, config, target_version="2.0")
+        result = convert_config.process_versions(COMPONENTS, TEMPLATES_DIR, config, False, target_version="2.0")
         self.assertEqual(result.get("comp1", "version"), "2.0")
         self.assertEqual(result.get("comp2", "version"), "2.0")
 
@@ -382,7 +382,7 @@ class TestConvertConfig(unittest.TestCase):
 
         config = convert_config.get_config([[toml]])
 
-        result = convert_config.process_versions(["comp1"], TEMPLATES_DIR, config)
+        result = convert_config.process_versions(["comp1"], TEMPLATES_DIR, config, False)
         self.assertEqual(result.get("comp1", "version"), "3.0")
         self.assertEqual(result.get("comp1", "test_option"), "current")
         self.assertEqual(result.get("comp1", "test_adjust"), "adjusted 3.0")
@@ -408,7 +408,7 @@ class TestConvertConfig(unittest.TestCase):
             self.assertEqual(quoted.get("comp1", "test_adjust"), '"adjusted 3.0"')
             self.assertEqual(quoted.get("subcomp1", "suboption"), '"current"')
 
-            result = convert_config.process_versions(["comp1"], TEMPLATES_DIR, quoted)
+            result = convert_config.process_versions(["comp1"], TEMPLATES_DIR, quoted, False)
 
             # Check that the result doesn't come with surrounding quotes
             self.assertEqual(result.get("comp1", "test_option"), "current")
@@ -433,7 +433,7 @@ class TestConvertConfig(unittest.TestCase):
         template = os.path.join(DATA_DIR, "templates-update-add")
         self.assertTrue(os.path.exists(template))
 
-        result = convert_config.process_versions(COMPONENTS, template, config)
+        result = convert_config.process_versions(COMPONENTS, template, config, False)
 
         # Check that the new options were properly added
         self.assertTrue("added_option" in result["comp1"])
@@ -466,7 +466,7 @@ class TestConvertConfig(unittest.TestCase):
         template = os.path.join(DATA_DIR, "templates-update-remove")
         self.assertTrue(os.path.exists(template))
 
-        result = convert_config.process_versions(COMPONENTS, template, config)
+        result = convert_config.process_versions(COMPONENTS, template, config, False)
 
         # Check that options were removed from the result
         self.assertTrue("unused_option" not in result["comp1"])
@@ -499,7 +499,7 @@ class TestConvertConfig(unittest.TestCase):
         template = os.path.join(DATA_DIR, "templates-update-replace")
         self.assertTrue(os.path.exists(template))
 
-        result = convert_config.process_versions(COMPONENTS, template, config)
+        result = convert_config.process_versions(COMPONENTS, template, config, False)
 
         # Check that options with the old name are not present
         self.assertTrue("old_option" not in result["comp1"])
@@ -540,7 +540,7 @@ class TestConvertConfig(unittest.TestCase):
 
         with self.assertLogs("corner_cases", level="DEBUG") as cm:
             l = logging.getLogger("corner_cases")
-            result = convert_config.process_versions(COMPONENTS, template, config, logger=l)
+            result = convert_config.process_versions(COMPONENTS, template, config, False, logger=l)
 
         # Check that adding existing option does not choke the update and the old
         # value is preserved

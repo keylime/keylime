@@ -25,7 +25,7 @@ class keylime_build(build_py):  # pylint: disable=too-many-ancestors
             # all options
             old_config = configparser.RawConfigParser()
             templates_dir = os.path.join(setup_dir, "templates")
-            config = convert.process_versions(convert.COMPONENTS, templates_dir, old_config)
+            config = convert.process_versions(convert.COMPONENTS, templates_dir, old_config, True)
             convert.output(convert.COMPONENTS, config, templates_dir, config_dir)
 
         build_py.run(self)
