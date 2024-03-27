@@ -356,7 +356,7 @@ class PersistableModel(BasicModel):
 
         for name, field in self.__class__.fields.items():
             value = getattr(mapping_inst, name)
-            self.change(name, field.type.db_load(value, db_manager.engine.dialect))
+            self._record_values[name] = field.type.db_load(value, db_manager.engine.dialect)
 
         if process_associations:
             for name, association in self.__class__.associations.items():
@@ -365,8 +365,6 @@ class PersistableModel(BasicModel):
                 if association_mapping != None:
                     value = association.other_model(association_mapping, process_associations=False)
                     setattr(self, name, value)
-
-        self._force_commit_changes()
 
     def _init_from_dict(self, data, process_associations):
         self._db_mapping_inst = self.__class__.db_mapping()  # type: ignore

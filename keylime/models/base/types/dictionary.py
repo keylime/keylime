@@ -76,14 +76,14 @@ class Dictionary(ModelType):
 
         elif isinstance(value, str):
             try:
-                value = json.loads(value)
+                dictionary = json.loads(value)
             except json.JSONDecodeError:
                 raise ValueError(f"string value cast to dictionary is not valid JSON: '{value}'")
 
-            if not isinstance(value, dict):
+            if not isinstance(dictionary, dict):
                 raise ValueError(f"string value cast to dictionary is not a valid JSON object: '{value}'")
 
-            return value
+            return dictionary
 
         else:
             raise TypeError(
@@ -97,5 +97,9 @@ class Dictionary(ModelType):
     def _dump(self, value):
         # Cast incoming value to dict object
         dictionary = self.cast(value)
+
+        if not dictionary:
+            return None
+
         # Save in DB as JSON
         return json.dumps(dictionary)
