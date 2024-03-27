@@ -98,7 +98,7 @@ Cloud verifier (CV)
     :>json int code: HTTP status code
     :>json string status: Status as string
     :>json int operational_state: Current state of the agent in the CV. Defined in https://github.com/keylime/keylime/blob/master/keylime/common/states.py
-    :>json string v: V key for payload base64 encoded. Decoded length is 32 bytes
+    :>json string v: V key for payload base64 encoded or null. Decoded length is 32 bytes
     :>json string ip: Agents contact ip address for the CV
     :>json string port: Agents contact port for the CV
     :>json string tpm_policy: Static PCR policy and mask for TPM
@@ -164,7 +164,7 @@ Cloud verifier (CV)
 
 
 
-    :<json string v: V key for payload base64 encoded. Decoded length is 32 bytes.
+    :<json string v: (Optional) V key for payload base64 encoded. Decoded length is 32 bytes.
     :<json string cloudagent_ip: Agents contact ip address for the CV.
     :<json string cloudagent_port: Agents contact port for the CV.
     :<json string tpm_policy: Static PCR policy and mask for TPM. Is a string encoded dictionary that also includes a `mask` for which PCRs should be included in a quote.
