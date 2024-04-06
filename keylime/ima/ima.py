@@ -295,6 +295,7 @@ def _process_measurement_list(
             policy.ImaSignatureCheck: functools.partial(policy.ima_signature_check_eval, ima_keyrings),
             policy.FileHashes: functools.partial(policy.filehashesfilter_eval),
             policy.FileNames: functools.partial(policy.filenamefilter_eval),
+            policy.LearnKeys: functools.partial(policy.learn_keys_eval, ima_keyrings),
         }
     )
 

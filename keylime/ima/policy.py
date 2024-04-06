@@ -160,6 +160,10 @@ class ABCPolicy(ABC):
     def get_map(self, mapname: str) -> Optional[Dict[str, List[str]]]:
         pass
 
+    @abstractmethod
+    def get_runtime_policy(self) -> Optional[RuntimePolicyType]:
+        pass
+
 
 class ABCRule(ABC):
     rulename: str
@@ -263,7 +267,9 @@ class FileHashes(ABCRule):
 
     @staticmethod
     def from_string(rawparams: str) -> ABCRule:
-        parameters = kvps_to_dict(rawparams, ["map-ref", "target"], ["map-ref", "target"], [["map-ref", "target"]], "FILE-HASHES")
+        parameters = kvps_to_dict(
+            rawparams, ["map-ref", "target"], ["map-ref", "target"], [["map-ref", "target"]], "FILE-HASHES"
+        )
         target = target_to_eval_result(parameters["target"][0])
         return FileHashes(rawparams, parameters, target)
 
@@ -340,13 +346,111 @@ def ima_signature_check_eval(
     return ImaSignatureCheck.eval(ima_keyrings, digest, path, signature), None
 
 
+class LearnKeys(ABCRule):
+    """LearnKeys represents a 'LEARN-KEYS [ignored-list-ref=<ignore-list>] [allowed-hashes-ref=<hashes-list>]' rule"""
+
+    parameters: Dict[str, List[str]]
+    ignored_keyrings: List[str]
+    allowed_hashes: Dict[str, List[str]]  # a key's hash must be in this dict (key = keyring name)
+
+    def __init__(self, rawparams: str, parameters: Dict[str, List[str]]) -> None:
+        super().__init__("LEARN-KEYS", rawparams)
+        self.parameters = parameters
+        self.ignored_keyrings = []
+        self.allowed_hashes = {}
+
+    @staticmethod
+    def from_string(rawparams: str) -> ABCRule:
+        parameters = kvps_to_dict(
+            rawparams,
+            ["ignored-keyrings-ref", "allowed-hashes-ref"],
+            ["ignored-keyrings-ref", "allowed-hashes-ref"],
+            None,
+            "LEARN-KEYS",
+        )
+        return LearnKeys(rawparams, parameters)
+
+    def setup(self, policy: ABCPolicy) -> None:
+        runtime_policy = policy.get_runtime_policy()
+        if runtime_policy:
+            ignore_keyrings = self.parameters.get("ignored-keyrings-ref", [""])[0]
+            if ignore_keyrings:
+                ik = runtime_policy.get("ima", {}).get(ignore_keyrings, [])
+                if not isinstance(ik, list):
+                    raise IMAPolicyError("Referenced ignored-keyrings-ref {ignore_list} is not a list")
+                self.ignored_keyrings = ik
+
+            allowed_hashes = self.parameters.get("allowed-hashes-ref", [""])[0]
+            if allowed_hashes:
+                ah = runtime_policy.get(allowed_hashes, [])
+                if not isinstance(ah, dict):
+                    raise IMAPolicyError("Referenced allowed-hashes-ref {allowed_hashes} is not a dictionary")
+                self.allowed_hashes = ah
+
+    def eval(
+        self,
+        ima_keyrings: Optional[file_signatures.ImaKeyrings],
+        digest: ast.Digest,
+        path: ast.Name,
+        data: Optional[ast.Buffer],
+    ) -> Tuple[EvalResult, Optional[Failure]]:
+        if not data:
+            return EvalResult.SKIP, None
+        failure = Failure(Component.IMA)
+
+        # Is data.data a key?
+        try:
+            pubkey, keyidv2 = file_signatures.get_pubkey(data.data)
+        except ValueError as ve:
+            failure.add_event("invalid_key", f"key from {path.name} does not have a supported key: {ve}", True)
+            return EvalResult.SKIP, failure
+
+        if pubkey:
+            if "*" not in self.ignored_keyrings and path.name not in self.ignored_keyrings:
+                accept_list = self.allowed_hashes.get(path.name, None)
+                if not accept_list:
+                    allowed_hashes = self.parameters.get("allowed-hashes", "<allowed-hashes not given in rule>")
+                    failure.add_event("not_in_allowlist", f"Keyring not found in {allowed_hashes}: {path.name}", True)
+                    return EvalResult.REJECT, failure
+                hex_hash = digest.hash.hex()
+                if hex_hash not in accept_list:
+                    failure.add_event(
+                        "runtime_policy_hash",
+                        {
+                            "message": "Hash for key not found in runtime policy",
+                            "got": hex_hash,
+                            "expected": accept_list,
+                        },
+                        True,
+                    )
+                    return EvalResult.REJECT, failure
+                if ima_keyrings is not None:
+                    ima_keyrings.add_pubkey_to_keyring(pubkey, path.name, keyidv2=keyidv2)
+                    return EvalResult.ACCEPT, None
+
+        return EvalResult.SKIP, failure
+
+
+def learn_keys_eval(
+    ima_keyrings: Optional[file_signatures.ImaKeyrings],
+    digest: ast.Digest,
+    path: ast.Name,
+    _signature: Optional[ast.Signature],
+    data: Optional[ast.Buffer],
+    rule: LearnKeys,
+) -> Tuple[EvalResult, Optional[Failure]]:
+    return rule.eval(ima_keyrings, digest, path, data)
+
+
 class IMAPolicy(ABCPolicy):
     MAPPINGS: Dict[str, Type[ABCRule]] = {
         "IMA-SIGNATURE-CHECK": ImaSignatureCheck,
         "FILE-HASHES": FileHashes,
         "FILE-NAMES": FileNames,
+        "LEARN-KEYS": LearnKeys,
     }
     DEFAULT_POLICY_STR: str = (
+        "LEARN-KEYS: ignored-keyrings-ref=ignored_keyrings allowed-hashes-ref=keyrings\n"
         "FILE-NAMES: regex-ref=excludes\n"
         "IMA-SIGNATURE-CHECK\n"
         "FILE-HASHES: map-ref=digests target=ACCEPT\n"
@@ -453,3 +557,6 @@ class IMAPolicy(ABCPolicy):
         if not isinstance(rmap, dict):
             raise IMAPolicyError(f"Referenced map '{mapname}' is not a map")
         return rmap
+
+    def get_runtime_policy(self) -> Optional[RuntimePolicyType]:
+        return self.runtime_policy
