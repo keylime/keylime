@@ -637,7 +637,11 @@ class IMAPolicy(ABCPolicy):
             regexlist: List[str] = []
 
             if self.runtime_policy:
-                rlist = self.runtime_policy.get("excludes", None)
+                default: Optional[List[str]] = None
+                # Exception for built-in DEFAULT_POLICY
+                if listname == "filters":
+                    default = []
+                rlist = self.runtime_policy.get(listname, default)
                 if rlist is None:
                     raise IMAPolicyError(f"A regular expression list with name '{listname}' is not available")
                 if not isinstance(rlist, list):
@@ -650,7 +654,11 @@ class IMAPolicy(ABCPolicy):
     def get_map(self, mapname: str) -> Optional[Dict[str, List[str]]]:
         if not self.runtime_policy:
             return {}
-        rmap = self.runtime_policy.get(mapname, None)
+        default: Optional[Dict[str, List[str]]] = None
+        # Exception for built-in DEFAULT_POLICY
+        if mapname == "rejects":
+            default = {}
+        rmap = self.runtime_policy.get(mapname, default)
         if rmap is None:
             raise IMAPolicyError(f"A map with name '{mapname}' is not available")
         if not isinstance(rmap, dict):

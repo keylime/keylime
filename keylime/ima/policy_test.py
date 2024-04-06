@@ -1,7 +1,7 @@
 import unittest
 
 from keylime.ima.ima import EMPTY_RUNTIME_POLICY
-from keylime.ima.policy import CompiledRegexList, EvalResult, IMAPolicy
+from keylime.ima.policy import CompiledRegexList, EvalResult, IMAPolicy, IMAPolicyError
 
 
 class CompiledRegexListTest(unittest.TestCase):
@@ -35,3 +35,12 @@ class IMAPolicyTest(unittest.TestCase):
         self.assertIsInstance(exclude_list, CompiledRegexList)
         assert isinstance(exclude_list, CompiledRegexList)  # for pyright
         self.assertEqual(len(exclude_list), 0)
+
+        self.assertIsInstance(ima_policy.get_map("digests"), type({}))
+        self.assertIsInstance(ima_policy.get_map("rejects"), type({}))
+        with self.assertRaises(IMAPolicyError):
+            ima_policy.get_map("foobar")
+
+        self.assertIsInstance(ima_policy.get_regex_list("filters"), CompiledRegexList)
+        with self.assertRaises(IMAPolicyError):
+            ima_policy.get_regex_list("foobar")

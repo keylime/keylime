@@ -537,6 +537,8 @@ def main() -> None:
             policy["excludes"] = base_policy.get("excludes", [])
             policy["keyrings"] = base_policy.get("keyrings", {})
             policy["ima-buf"] = base_policy.get("ima-buf", {})
+            if base_policy.get("rejects") is not None:
+                policy["rejects"] = base_policy.get("rejects", {})
             ignored_keyrings = base_policy.get("ima", {}).get("ignored_keyrings", [])
             policy["ima"]["ignored_keyrings"] = ignored_keyrings
             policy["verification-keys"] = base_policy.get("verification-keys", "")
