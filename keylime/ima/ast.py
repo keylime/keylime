@@ -10,7 +10,7 @@ Implements the templates (modes) and types as defined in:
 import abc
 import struct
 import typing
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from keylime import config, keylime_logging
 from keylime.common.algorithms import Hash
@@ -46,16 +46,6 @@ class Validator:
 
 class ParserError(TypeError):
     """Is thrown when a type could not be constructed successfully."""
-
-
-class Mode(abc.ABC):
-    @abc.abstractmethod
-    def is_data_valid(self, validator: Validator) -> Failure:
-        pass
-
-    @abc.abstractmethod
-    def bytes(self) -> bytes:
-        pass
 
 
 class Type(abc.ABC):
@@ -195,6 +185,20 @@ class Digest:
         )
 
 
+class Mode(abc.ABC):
+    @abc.abstractmethod
+    def is_data_valid(self, validator: Validator) -> Failure:
+        pass
+
+    @abc.abstractmethod
+    def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
+        pass
+
+    @abc.abstractmethod
+    def bytes(self) -> bytes:
+        pass
+
+
 class Ima(Mode):
     """
     Class for "ima". Contains the digest and a path.
@@ -215,6 +219,9 @@ class Ima(Mode):
 
     def is_data_valid(self, validator: Validator) -> Failure:
         return validator.get_validator(type(self))(self.digest, self.path)
+
+    def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
+        return self.digest, self.path, None, None
 
 
 class ImaNg(Mode):
@@ -237,6 +244,9 @@ class ImaNg(Mode):
 
     def is_data_valid(self, validator: Validator) -> Failure:
         return validator.get_validator(type(self))(self.digest, self.path)
+
+    def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
+        return self.digest, self.path, None, None
 
 
 class ImaSig(Mode):
@@ -286,6 +296,9 @@ class ImaSig(Mode):
     def is_data_valid(self, validator: Validator) -> Failure:
         return validator.get_validator(type(self))(self.digest, self.path, self.signature)
 
+    def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
+        return self.digest, self.path, self.signature, None
+
 
 class ImaBuf(Mode):
     """
@@ -318,6 +331,9 @@ class ImaBuf(Mode):
 
     def is_data_valid(self, validator: Validator) -> Failure:
         return validator.get_validator(type(self))(self.digest, self.name, self.data)
+
+    def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
+        return self.digest, self.name, None, self.data
 
 
 class Entry:
@@ -405,5 +421,8 @@ class Entry:
             failure.add_event("no_validator", "No validator specified", True)
             return failure
 
-        failure.merge(self.mode.is_data_valid(self._validator))
+        # failure.merge(self.mode.is_data_valid(self._validator))
         return failure
+
+    def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
+        return self.mode.get_params()
