@@ -52,16 +52,13 @@ def _true(*_):
     return Failure(Component.DEFAULT)
 
 
-AlwaysTrueValidator = ast.Validator({ast.Ima: _true, ast.ImaNg: _true, ast.ImaSig: _true, ast.ImaBuf: _true})
-
-
 class TestImaAst(unittest.TestCase):
     def test_valid_entry_construction(self):
         hash_alg = Hash.SHA1
         for name, (expected_mode, data) in VALID_ENTRIES.items():
             err = None
             try:
-                entry = ast.Entry(data, AlwaysTrueValidator, ima_hash_alg=hash_alg, pcr_hash_alg=hash_alg)
+                entry = ast.Entry(data, ima_hash_alg=hash_alg, pcr_hash_alg=hash_alg)
                 self.assertTrue(entry.pcr == "10", f"Expected pcr 10 for {name}. Got: {entry.pcr}")
                 self.assertTrue(
                     isinstance(entry.mode, expected_mode)  # pylint: disable=isinstance-second-argument-not-valid-type

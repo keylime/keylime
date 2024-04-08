@@ -10,7 +10,7 @@ Implements the templates (modes) and types as defined in:
 import abc
 import struct
 import typing
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from keylime import config, keylime_logging
 from keylime.common.algorithms import Hash
@@ -24,24 +24,6 @@ MD5_DIGEST_LEN = 16
 
 NULL_BYTE = ord("\0")
 COLON_BYTE = ord(":")
-
-
-class Validator:
-    functions: Dict[typing.Type["Mode"], Callable[..., Failure]]
-
-    def __init__(self, functions: Dict[typing.Type["Mode"], Callable[..., Failure]]):
-        self.functions = functions
-
-    def get_validator(self, class_type: typing.Type["Mode"]) -> Callable[..., Failure]:
-        validator = self.functions.get(class_type, None)
-        if validator is None:
-            logger.warning("No validator was implemented for: %s. Using always false validator!", class_type)
-            failure = Failure(Component.IMA, ["validation"])
-            failure.add_event(
-                "no_validator", f"No validator was implemented for: {class_type} . Using always false validator!", True
-            )
-            return lambda *_: failure
-        return validator
 
 
 class ParserError(TypeError):
@@ -187,10 +169,6 @@ class Digest:
 
 class Mode(abc.ABC):
     @abc.abstractmethod
-    def is_data_valid(self, validator: Validator) -> Failure:
-        pass
-
-    @abc.abstractmethod
     def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
         pass
 
@@ -217,9 +195,6 @@ class Ima(Mode):
     def bytes(self) -> bytes:
         return self.digest.struct() + self.path.struct()
 
-    def is_data_valid(self, validator: Validator) -> Failure:
-        return validator.get_validator(type(self))(self.digest, self.path)
-
     def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
         return self.digest, self.path, None, None
 
@@ -241,9 +216,6 @@ class ImaNg(Mode):
 
     def bytes(self) -> bytes:
         return self.digest.struct() + self.path.struct()
-
-    def is_data_valid(self, validator: Validator) -> Failure:
-        return validator.get_validator(type(self))(self.digest, self.path)
 
     def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
         return self.digest, self.path, None, None
@@ -293,9 +265,6 @@ class ImaSig(Mode):
             output += self.signature.struct()
         return output
 
-    def is_data_valid(self, validator: Validator) -> Failure:
-        return validator.get_validator(type(self))(self.digest, self.path, self.signature)
-
     def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
         return self.digest, self.path, self.signature, None
 
@@ -329,9 +298,6 @@ class ImaBuf(Mode):
     def bytes(self) -> bytes:
         return self.digest.struct() + self.name.struct() + self.data.struct()
 
-    def is_data_valid(self, validator: Validator) -> Failure:
-        return validator.get_validator(type(self))(self.digest, self.name, self.data)
-
     def get_params(self) -> Tuple[Digest, Name, Optional[Signature], Optional[Buffer]]:
         return self.digest, self.name, None, self.data
 
@@ -346,7 +312,6 @@ class Entry:
     pcr_template_hash: bytes
     mode: Mode
     _bytes: bytes
-    _validator: Optional[Validator]
     _ima_hash_alg: Hash
     _pcr_hash_alg: Hash
 
@@ -360,11 +325,9 @@ class Entry:
     def __init__(
         self,
         data: str,
-        validator: Optional[Validator] = None,
         ima_hash_alg: Hash = Hash.SHA1,
         pcr_hash_alg: Hash = Hash.SHA1,
     ):
-        self._validator = validator
         self._ima_hash_alg = ima_hash_alg
         self._pcr_hash_alg = pcr_hash_alg
         tokens = data.split(" ", maxsplit=3)
@@ -416,9 +379,6 @@ class Entry:
                 },
                 True,
             )
-            return failure
-        if self._validator is None:
-            failure.add_event("no_validator", "No validator specified", True)
             return failure
 
         # failure.merge(self.mode.is_data_valid(self._validator))

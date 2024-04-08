@@ -3,7 +3,7 @@ import enum
 import functools
 import hashlib
 import json
-from typing import Any, Dict, List, Optional, Pattern, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 import jsonschema
 
@@ -13,7 +13,7 @@ from keylime.common import algorithms, validators
 from keylime.common.algorithms import Hash
 from keylime.dsse import dsse
 from keylime.failure import Component, Failure
-from keylime.ima import ast, file_signatures, ima_dm, policy
+from keylime.ima import ast, ima_dm, policy
 from keylime.ima.file_signatures import ImaKeyrings
 from keylime.ima.types import RuntimePolicyType
 
@@ -104,118 +104,6 @@ RUNTIME_POLICY_SCHEMA = {
 }
 
 
-def _validate_ima_ng(
-    exclude_regex: Optional[Pattern[str]],
-    runtime_policy: Optional[RuntimePolicyType],
-    digest: ast.Digest,
-    path: ast.Name,
-    hash_types: str = "digests",
-) -> Failure:
-    failure = Failure(Component.IMA, ["validation", "ima-ng"])
-    if runtime_policy is not None:
-        if exclude_regex is not None and exclude_regex.match(path.name):
-            logger.debug("IMA: ignoring excluded path %s", path)
-            return failure
-
-        accept_list = runtime_policy[hash_types].get(path.name, None)  # type: ignore
-        if accept_list is None:
-            logger.warning("File not found in allowlist: %s", path.name)
-            failure.add_event("not_in_allowlist", f"File not found in allowlist: {path.name}", True)
-            return failure
-
-        hex_hash = digest.hash.hex()
-        if hex_hash not in accept_list:
-            logger.warning(
-                "Hashes for file %s don't match %s not in %s",
-                path.name,
-                hex_hash,
-                str(accept_list),
-            )
-            failure.add_event(
-                "runtime_policy_hash",
-                {
-                    "message": "Hash not found in runtime policy",
-                    "got": hex_hash,
-                    "expected": accept_list,
-                },
-                True,
-            )
-            return failure
-
-    return failure
-
-
-def _validate_ima_sig(
-    exclude_regex: Optional[Pattern[str]],
-    ima_keyrings: Optional[file_signatures.ImaKeyrings],
-    runtime_policy: Optional[RuntimePolicyType],
-    digest: ast.Digest,
-    path: ast.Name,
-    signature: ast.Signature,
-) -> Failure:
-    failure = Failure(Component.IMA, ["validator", "ima-sig"])
-    if ima_keyrings and signature:
-        if exclude_regex is not None and exclude_regex.match(path.name):
-            logger.debug("IMA: ignoring excluded path %s", path.name)
-            return failure
-
-        if ima_keyrings.integrity_digsig_verify(signature.data, digest.hash, digest.algorithm):
-            logger.debug("signature for file %s is good", path)
-            return failure
-
-    # If signature validation failed check if the runtime_policy matches
-    if runtime_policy is not None:
-        logger.debug("signature for file %s could not be validated. Trying runtime_policy.", path.name)
-        return _validate_ima_ng(exclude_regex, runtime_policy, digest, path)
-
-    # If we don't have a runtime_policy and don't have a keyring we just ignore the validation.
-    if ima_keyrings is None:
-        return failure
-
-    logger.warning("signature verification for file %s failed and no runtime_policy is available", path.name)
-    failure.add_event("invalid_signature", f"signature for file {path.name} could not be validated", True)
-    return failure
-
-
-def _validate_ima_buf(
-    exclude_regex: Optional[Pattern[str]],
-    runtime_policy: Optional[RuntimePolicyType],
-    ima_keyrings: Optional[file_signatures.ImaKeyrings],
-    dm_validator: Optional[ima_dm.DmIMAValidator],
-    digest: ast.Digest,
-    path: ast.Name,
-    data: ast.Buffer,
-) -> Failure:
-    failure = Failure(Component.IMA)
-    # Is data.data a key?
-    try:
-        pubkey, keyidv2 = file_signatures.get_pubkey(data.data)
-    except ValueError as ve:
-        failure.add_event("invalid_key", f"key from {path.name} does not have a supported key: {ve}", True)
-        return failure
-
-    if pubkey:
-        ignored_keyrings = []
-        if runtime_policy:
-            ignored_keyrings = runtime_policy.get("ima", {}).get("ignored_keyrings", [])
-
-        if "*" not in ignored_keyrings and path.name not in ignored_keyrings:
-            failure = _validate_ima_ng(exclude_regex, runtime_policy, digest, path, hash_types="keyrings")
-            if not failure:
-                # Add the key only now that it's validated (no failure)
-                if ima_keyrings is not None:
-                    ima_keyrings.add_pubkey_to_keyring(pubkey, path.name, keyidv2=keyidv2)
-    # Check if this is a device mapper entry only if we have a validator for that
-    elif dm_validator is not None and path.name in dm_validator.valid_names:
-        failure = dm_validator.validate(digest, path, data)
-    else:
-        # handling of generic ima-buf entries that for example carry a hash in the buf field
-        failure = _validate_ima_ng(exclude_regex, runtime_policy, digest, path, hash_types="ima-buf")
-
-    # Anything else evaluates to true for now
-    return failure
-
-
 def _process_measurement_list(
     agentAttestState: AgentAttestState,
     lines: List[str],
@@ -237,11 +125,6 @@ def _process_measurement_list(
     if pcrval is not None:
         pcrval_bytes = bytes.fromhex(pcrval)
 
-    if runtime_policy is not None:
-        exclude_list = runtime_policy.get("excludes")
-    else:
-        exclude_list = None
-
     ima_log_hash_alg = algorithms.Hash.SHA1
     if runtime_policy is not None:
         try:
@@ -260,13 +143,6 @@ def _process_measurement_list(
                 if val not in runtime_policy["digests"]["boot_aggregate"]:
                     runtime_policy["digests"]["boot_aggregate"].append(val)
 
-    exclude_list_compiled_regex, err_msg = validators.valid_exclude_list(exclude_list)
-    if err_msg:
-        # This should not happen as the exclude list has already been validated
-        # by the verifier before acceping it. This is a safety net just in case.
-        err_msg += " Exclude list will be ignored."
-        logger.error(err_msg)
-
     # Setup device mapper validation
     dm_validator = None
     if runtime_policy is not None:
@@ -278,17 +154,6 @@ def _process_measurement_list(
             # Only load state when using incremental attestation
             if agentAttestState.get_next_ima_ml_entry() != 0:
                 dm_validator.state_load(dm_state)
-
-    ima_validator = ast.Validator(
-        {
-            ast.ImaSig: functools.partial(_validate_ima_sig, exclude_list_compiled_regex, ima_keyrings, runtime_policy),
-            ast.ImaNg: functools.partial(_validate_ima_ng, exclude_list_compiled_regex, runtime_policy),
-            ast.Ima: functools.partial(_validate_ima_ng, exclude_list_compiled_regex, runtime_policy),
-            ast.ImaBuf: functools.partial(
-                _validate_ima_buf, exclude_list_compiled_regex, runtime_policy, ima_keyrings, dm_validator
-            ),
-        }
-    )
 
     ima_evaluator = policy.Evaluator(
         {
@@ -324,7 +189,7 @@ def _process_measurement_list(
         log_length += 1
 
         try:
-            entry = ast.Entry(line, ima_validator, ima_hash_alg=ima_log_hash_alg, pcr_hash_alg=hash_alg)
+            entry = ast.Entry(line, ima_hash_alg=ima_log_hash_alg, pcr_hash_alg=hash_alg)
 
             # update hash
             running_hash = hash_alg.hash(running_hash + entry.pcr_template_hash)
