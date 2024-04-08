@@ -7,7 +7,7 @@ from typing import Callable, Dict, List, Optional, Pattern, Tuple, Type
 from keylime import keylime_logging
 from keylime.common import validators
 from keylime.failure import Component, Failure
-from keylime.ima import ast, file_signatures
+from keylime.ima import ast, file_signatures, ima_dm
 from keylime.ima.file_signatures import ImaKeyrings
 from keylime.ima.types import RuntimePolicyType
 
@@ -206,6 +206,53 @@ class Evaluator:
             )
             return lambda *_: (EvalResult.SKIP, failure)
         return evaluator
+
+
+class DeviceMapperCheck(ABCRule):
+    """
+    DeviceMapperCheck represents a 'DEVICE-MAPPER-CHECK' rule.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("DEVICE-MAPPER-CHECK", "")
+
+    @staticmethod
+    def from_string(rawparams: str) -> ABCRule:
+        if len(rawparams) > 0:
+            raise IMAPolicyError("DEVICE-MAPPER-CHECK does not support any parameters")
+        return ImaSignatureCheck()
+
+    def setup(self, policy: ABCPolicy) -> None:
+        pass
+
+    @staticmethod
+    def eval(
+        dm_validator: Optional[ima_dm.DmIMAValidator],
+        digest: ast.Digest,
+        path: ast.Name,
+        data: Optional[ast.Buffer],
+    ) -> Tuple[EvalResult, Optional[Failure]]:
+        if not data:
+            return EvalResult.SKIP, None
+
+        if dm_validator and path.name in dm_validator.valid_names:
+            failure = dm_validator.validate(digest, path, data)
+            if failure:
+                return EvalResult.REJECT, failure
+            return EvalResult.ACCEPT, None
+
+        return EvalResult.SKIP, None
+
+
+def device_mapper_check_eval(
+    dm_validator: Optional[ima_dm.DmIMAValidator],
+    digest: ast.Digest,
+    path: ast.Name,
+    _signature: Optional[ast.Signature],
+    data: Optional[ast.Buffer],
+    _rule: DeviceMapperCheck,
+) -> Tuple[EvalResult, Optional[Failure]]:
+    return DeviceMapperCheck.eval(dm_validator, digest, path, data)
 
 
 class FileNames(ABCRule):
@@ -444,6 +491,7 @@ def learn_keys_eval(
 
 class IMAPolicy(ABCPolicy):
     MAPPINGS: Dict[str, Type[ABCRule]] = {
+        "DEVICE-MAPPER-CHECK": DeviceMapperCheck,
         "IMA-SIGNATURE-CHECK": ImaSignatureCheck,
         "FILE-HASHES": FileHashes,
         "FILE-NAMES": FileNames,
@@ -451,6 +499,7 @@ class IMAPolicy(ABCPolicy):
     }
     DEFAULT_POLICY_STR: str = (
         "LEARN-KEYS: ignored-keyrings-ref=ignored_keyrings allowed-hashes-ref=keyrings\n"
+        "DEVICE-MAPPER-CHECK\n"
         "FILE-NAMES: regex-ref=excludes\n"
         "IMA-SIGNATURE-CHECK\n"
         "FILE-HASHES: map-ref=digests target=ACCEPT\n"
