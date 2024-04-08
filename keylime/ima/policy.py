@@ -575,7 +575,9 @@ class IMAPolicy(ABCPolicy):
         # a runtime_policy or ima_keyrings is given leave an error message.
         # Without both the log entry would 'pass'.
         if self.runtime_policy:
-            failure.add_event("not_in_policy", f"File not accepted by policy: {path.name}", True)
+            # FIXME: historical error message ...
+            logger.warning("File not found in allowlist: %s", path.name)
+            failure.add_event("not_in_allowlist", f"File not found in allowlist: {path.name}", True)
         if ima_keyrings:
             failure.add_event("invalid_signature", f"signature for file {path.name} could not be validated", True)
 
