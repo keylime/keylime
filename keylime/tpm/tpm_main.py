@@ -79,7 +79,7 @@ class Tpm:
             if sig_alg in [tpm2_objects.TPM_ALG_RSASSA, tpm2_objects.TPM_ALG_RSAPSS]:
                 try:
                     (signature,) = struct.unpack_from(f"{sig_size}s", iak_sign, 6)
-                    tpm_util.verify(iak_pub, signature, digest, hashfunc, sig_alg, int(sig_size / 8))
+                    tpm_util.verify(iak_pub, signature, digest, hashfunc, sig_alg, hashfunc.digest_size)
                     logger.info("Agent %s AIK verified with IAK", uuid)
                     return True
                 except InvalidSignature:
