@@ -9,7 +9,7 @@ from keylime.common import algorithms
 from keylime.db.verifier_db import VerfierMain
 from keylime.failure import Component, Event, Failure
 from keylime.ima import file_signatures, ima
-from keylime.ima.types import RuntimePolicyType
+from keylime.ima.policy import IMAPolicy
 from keylime.tpm import tpm_util
 from keylime.tpm.tpm_main import Tpm
 
@@ -34,7 +34,7 @@ def get_AgentAttestStates() -> AgentAttestStates:
 def process_quote_response(
     agent: Dict[str, Any],
     mb_policy: Optional[str],
-    runtime_policy: RuntimePolicyType,
+    ima_policy: IMAPolicy,
     json_response: Dict[str, Any],
     agentAttestState: AgentAttestState,
 ) -> Failure:
@@ -178,7 +178,11 @@ def process_quote_response(
     if agent["ima_sign_verification_keys"]:
         verification_key_string = agent["ima_sign_verification_keys"]
     else:
-        verification_key_string = runtime_policy["verification-keys"]
+        runtime_policy = ima_policy.get_runtime_policy()
+        if runtime_policy is not None:
+            verification_key_string = runtime_policy["verification-keys"]
+        else:
+            verification_key_string = ""
 
     tenant_keyring = file_signatures.ImaKeyring.from_string(verification_key_string)
     ima_keyrings.set_tenant_keyring(tenant_keyring)
@@ -194,7 +198,7 @@ def process_quote_response(
         agent["ak_tpm"],
         agent["tpm_policy"],
         ima_measurement_list,
-        runtime_policy,
+        ima_policy,
         algorithms.Hash(hash_alg),
         ima_keyrings,
         mb_measurement_list,

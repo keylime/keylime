@@ -7,6 +7,7 @@ from datetime import datetime
 from keylime import cloud_verifier_common, config, keylime_logging
 from keylime.da import record
 from keylime.ima import ima
+from keylime.ima.policy import IMAPolicy
 from keylime.mba import mba
 
 logger = keylime_logging.init_logging("durable_attestation_fetch_and_replay")
@@ -108,6 +109,7 @@ def main() -> None:
                 runtime_policy = json.loads(attestation_record["runtime_policy"])
             else:
                 runtime_policy = ima.EMPTY_RUNTIME_POLICY
+            ima_policy = IMAPolicy.from_runtime_policy(runtime_policy)
             if "mb_policy" in attestation_record:
                 mb_policy = attestation_record["mb_policy"]
             else:
@@ -129,7 +131,7 @@ def main() -> None:
                     p_tpm_ts = agent["tpm_clockinfo"]["clock"]
 
             failure = cloud_verifier_common.process_quote_response(
-                agent, mb_policy, runtime_policy, json_response["results"], agentAttestState
+                agent, mb_policy, ima_policy, json_response["results"], agentAttestState
             )
 
             if "tpm_clockinfo" in agent:

@@ -108,7 +108,7 @@ def _process_measurement_list(
     agentAttestState: AgentAttestState,
     lines: List[str],
     hash_alg: Hash,
-    runtime_policy: Optional[RuntimePolicyType] = None,
+    ima_policy: policy.IMAPolicy,
     pcrval: Optional[str] = None,
     ima_keyrings: Optional[ImaKeyrings] = None,
     boot_aggregates: Optional[Dict[str, List[str]]] = None,
@@ -117,7 +117,7 @@ def _process_measurement_list(
     running_hash = agentAttestState.get_pcr_state(config.IMA_PCR, hash_alg)
     assert running_hash
 
-    ima_policy = policy.IMAPolicy.from_runtime_policy(runtime_policy)
+    runtime_policy = ima_policy.get_runtime_policy()
 
     found_pcr = pcrval is None
     errors: Dict[Type[ast.Mode], int] = {}
@@ -242,7 +242,7 @@ def _process_measurement_list(
 def process_measurement_list(
     agentAttestState: AgentAttestState,
     lines: List[str],
-    runtime_policy: Optional[RuntimePolicyType] = None,
+    ima_policy: policy.IMAPolicy,
     pcrval: Optional[str] = None,
     ima_keyrings: Optional[ImaKeyrings] = None,
     boot_aggregates: Optional[Dict[str, List[str]]] = None,
@@ -254,7 +254,7 @@ def process_measurement_list(
             agentAttestState,
             lines,
             hash_alg,
-            runtime_policy=runtime_policy,
+            ima_policy=ima_policy,
             pcrval=pcrval,
             ima_keyrings=ima_keyrings,
             boot_aggregates=boot_aggregates,

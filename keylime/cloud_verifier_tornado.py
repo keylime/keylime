@@ -38,6 +38,7 @@ from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpolicy
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
+from keylime.ima.policy import IMAPolicy
 
 logger = keylime_logging.init_logging("verifier")
 
@@ -1175,10 +1176,12 @@ async def invoke_get_quote(
             if rmc:
                 rmc.record_create(agent, json_response, mb_policy, runtime_policy)
 
+            ima_policy = IMAPolicy.from_runtime_policy(ima.deserialize_runtime_policy(runtime_policy))
+
             failure = cloud_verifier_common.process_quote_response(
                 agent,
                 mb_policy,
-                ima.deserialize_runtime_policy(runtime_policy),
+                ima_policy,
                 json_response["results"],
                 agentAttestState,
             )

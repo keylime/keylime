@@ -14,7 +14,7 @@ from keylime.common.algorithms import Hash
 from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyrings
-from keylime.ima.types import RuntimePolicyType
+from keylime.ima.policy import IMAPolicy
 from keylime.mba import mba
 from keylime.tpm import tpm2_objects, tpm_util
 
@@ -187,7 +187,7 @@ class Tpm:
         agentAttestState: AgentAttestState,
         pcrval: str,
         ima_measurement_list: str,
-        runtime_policy: RuntimePolicyType,
+        ima_policy: IMAPolicy,
         ima_keyrings: Optional[ImaKeyrings],
         boot_aggregates: Optional[Dict[str, List[str]]],
         hash_alg: Hash,
@@ -197,7 +197,7 @@ class Tpm:
         _, ima_failure = ima.process_measurement_list(
             agentAttestState,
             ima_measurement_list.split("\n"),
-            runtime_policy,
+            ima_policy,
             pcrval=pcrval,
             ima_keyrings=ima_keyrings,
             boot_aggregates=boot_aggregates,
@@ -215,7 +215,7 @@ class Tpm:
         pcrs_dict: Dict[int, str],
         data: str,
         ima_measurement_list: Optional[str],
-        runtime_policy: RuntimePolicyType,
+        ima_policy: IMAPolicy,
         ima_keyrings: Optional[ImaKeyrings],
         mb_measurement_list: Optional[str],
         mb_refstate: Optional[str],
@@ -287,7 +287,7 @@ class Tpm:
                     agentAttestState,
                     pcrs_dict[config.IMA_PCR],
                     ima_measurement_list,
-                    runtime_policy,
+                    ima_policy,
                     ima_keyrings,
                     boot_aggregates,
                     hash_alg,
@@ -431,7 +431,7 @@ class Tpm:
         aikTpmFromRegistrar: str,
         tpm_policy: Optional[Union[str, Dict[str, Any]]] = None,
         ima_measurement_list: Optional[str] = None,
-        runtime_policy: Optional[RuntimePolicyType] = None,
+        ima_policy: Optional[IMAPolicy] = None,
         hash_alg: Hash = Hash.SHA256,
         ima_keyrings: Optional[ImaKeyrings] = None,
         mb_measurement_list: Optional[str] = None,
@@ -442,8 +442,8 @@ class Tpm:
         if tpm_policy is None:
             tpm_policy = {}
 
-        if runtime_policy is None:
-            runtime_policy = ima.EMPTY_RUNTIME_POLICY
+        if ima_policy is None:
+            ima_policy = IMAPolicy.from_runtime_policy(ima.EMPTY_RUNTIME_POLICY)
 
         failure = Failure(Component.QUOTE_VALIDATION)
 
@@ -481,7 +481,7 @@ class Tpm:
             pcrs_dict,
             data,
             ima_measurement_list,
-            runtime_policy,
+            ima_policy,
             ima_keyrings,
             mb_measurement_list,
             mb_refstate,
