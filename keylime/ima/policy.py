@@ -323,47 +323,69 @@ def filenamefilter_eval(
 
 class FileHashes(ABCRule):
     """
-    FileHashes represents a 'FILE-HASHES: map-ref=<mapname> target=<ACCEPT|REJECT>' rule.
+    FileHashes represents a
+    'FILE-HASHES: map-ref=<mapname>|[filename=<filename> hash=<hash> [hash=<hash> ...]] target=<ACCEPT|REJECT>'
+    rule.
     """
 
     parameters: Dict[str, List[str]]
     target: EvalResult
     filehashesmap: Optional[Dict[str, List[str]]]
+    filedigestsmap: Optional[Dict[str, List[ast.Digest]]]
 
     def __init__(self, rawparams: str, parameters: Dict[str, List[str]], target: EvalResult):
         super().__init__("FILE-HASHES", rawparams)
         self.parameters = parameters
         self.target = target
         self.filehashesmap = {}
+        self.filedigestsmap = {}
 
     @staticmethod
     def from_string(rawparams: str) -> ABCRule:
         parameters = kvps_to_dict(
-            rawparams, ["map-ref", "target"], ["map-ref", "target"], [["map-ref", "target"]], "FILE-HASHES"
+            rawparams,
+            ["map-ref", "target", "filename", "hash"],
+            ["map-ref", "target", "filename"],
+            [["map-ref", "target"], ["filename", "hash", "target"]],
+            "FILE-HASHES",
         )
         target = target_to_eval_result(parameters["target"][0])
         return FileHashes(rawparams, parameters, target)
 
     def setup(self, policy: ABCPolicy) -> None:
-        self.filehashesmap = policy.get_map(self.parameters["map-ref"][0])
+        check_mutually_exclusive(
+            list(self.parameters.keys()), [["map-ref", "filename"], ["map-ref", "hash"]], "FILE-HASHES"
+        )
+        if "map-ref" in self.parameters:
+            self.filehashesmap = policy.get_map(self.parameters["map-ref"][0])
+        elif "filename" in self.parameters and "hash" in self.parameters:
+            digests = [ast.Digest(digest) for digest in self.parameters["hash"]]
+            self.filedigestsmap = {self.parameters["filename"][0]: digests}
 
     def eval(self, digest: ast.Digest, path: ast.Name) -> Tuple[EvalResult, Optional[Failure]]:
-        if not self.filehashesmap:
-            return EvalResult.SKIP, None
+        ret = EvalResult.SKIP
 
-        hashes_list = self.filehashesmap.get(path.name, None)
-        if not hashes_list:
-            return EvalResult.SKIP, None
+        if self.filehashesmap:
+            hashes_list = self.filehashesmap.get(path.name, None)
+            if not hashes_list:
+                return EvalResult.SKIP, None
 
-        hex_hash = digest.hash.hex()
-        if hex_hash in hashes_list:
-            if self.target in [EvalResult.REJECT]:
-                failure = Failure(Component.IMA)
-                failure.add_event("rejected_by_file_hashes_rule", f"{path.name} was rejected by FILE-HASHES rule", True)
-                return self.target, failure
-            return self.target, None
+            if digest.hash.hex() in hashes_list:
+                ret = self.target
+        elif self.filedigestsmap:
+            digests_list = self.filedigestsmap.get(path.name, None)
+            if not digests_list:
+                return EvalResult.SKIP, None
 
-        return EvalResult.SKIP, None
+            if digest in digests_list:
+                ret = self.target
+
+        if ret in [EvalResult.REJECT]:
+            failure = Failure(Component.IMA)
+            failure.add_event("rejected_by_file_hashes_rule", f"{path.name} was rejected by FILE-HASHES rule", True)
+            return self.target, failure
+
+        return ret, None
 
 
 def filehashesfilter_eval(

@@ -520,3 +520,59 @@ class TestIMAVerification(unittest.TestCase):
             AgentAttestState("1"), signatures, IMAPolicy.from_runtime_policy(runtime_policy)
         )
         self.assertTrue(failure)
+
+    def test_ima_policy_rule_file_hashes(self):
+        """Test with IMA policy rules using FILE-HASHES in the runtime policy"""
+
+        runtime_policy = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
+        for bad in [
+            "FILE-HASHES: filename=/foo hash=d33d5d13792292e202dbf69a6f1b07bc8a02f01424db8489ba7bb7d43c0290ef",
+            "FILE-HASHES: target=TEST filename=/foo hash=d33d5d13792292e202dbf69a6f1b07bc8a02f01424db8489ba7bb7d43c0290ef",
+            "FILE-HASHES: target=ACCEPT filename=/foo",
+        ]:
+            runtime_policy["rules"] = bad
+            with self.assertRaises(IMAPolicyError):
+                IMAPolicy.from_runtime_policy(runtime_policy)
+
+        _signatures = SIGNATURES.split("\n")
+        signatures = cast(List[str], _signatures)
+
+        # All files and matching hashes accepted -> must succeed
+        rules = "FILE-HASHES: target=ACCEPT filename=/usr/bin/dd hash=sha256:d33d5d13792292e202dbf69a6f1b07bc8a02f01424db8489ba7bb7d43c0290ef\n"
+        rules += "FILE-HASHES: target=ACCEPT filename=/usr/bin/zmore hash=sha256:b8ae0b8dd04a5935cd8165aa2260cd11b658bd71629bdb52256a675a1f73907b\n"
+        runtime_policy["rules"] = rules
+
+        _, failure = ima.process_measurement_list(
+            AgentAttestState("1"), signatures, IMAPolicy.from_runtime_policy(runtime_policy)
+        )
+        self.assertTrue(not failure)
+
+        # One file accepted by name match, other by file hash -> must succeed
+        rules = "FILE-NAMES: regex=ACCEPT:/usr/bin/dd\n"
+        rules += "FILE-HASHES: target=ACCEPT filename=/usr/bin/zmore hash=sha256:b8ae0b8dd04a5935cd8165aa2260cd11b658bd71629bdb52256a675a1f73907b\n"
+        runtime_policy["rules"] = rules
+
+        _, failure = ima.process_measurement_list(
+            AgentAttestState("1"), signatures, IMAPolicy.from_runtime_policy(runtime_policy)
+        )
+        self.assertTrue(not failure)
+
+        # One file accepted by name match, other by file hash -> must succeed
+        rules = "FILE-NAMES: regex=ACCEPT:/usr/bin/dd\n"
+        rules += "FILE-HASHES: target=ACCEPT filename=/usr/bin/zmore hash=sha256:0000000000000000000000000000000000000000000000000000000000000000 hash=sha256:b8ae0b8dd04a5935cd8165aa2260cd11b658bd71629bdb52256a675a1f73907b\n"
+        runtime_policy["rules"] = rules
+
+        _, failure = ima.process_measurement_list(
+            AgentAttestState("1"), signatures, IMAPolicy.from_runtime_policy(runtime_policy)
+        )
+        self.assertTrue(not failure)
+
+        # One file rejected by name match, other by file hash -> must fail
+        rules = "FILE-NAMES: regex=REJECT:/usr/bin/dd\n"
+        rules += "FILE-HASHES: target=ACCEPT filename=/usr/bin/zmore hash=sha256:b8ae0b8dd04a5935cd8165aa2260cd11b658bd71629bdb52256a675a1f73907b\n"
+        runtime_policy["rules"] = rules
+
+        _, failure = ima.process_measurement_list(
+            AgentAttestState("1"), signatures, IMAPolicy.from_runtime_policy(runtime_policy)
+        )
+        self.assertTrue(failure)
