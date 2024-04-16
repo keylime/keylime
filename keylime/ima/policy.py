@@ -73,6 +73,22 @@ def kvps_to_dict(
     return result
 
 
+def check_mutually_exclusive(keys: List[str], exclusions_list: List[List[str]], rulename: str) -> None:
+    """
+    Check for mutually excluse keys by checking all list of mutually exclusive
+    keys in the exclusions_list.
+    """
+    for exclusion_list in exclusions_list:
+        ctr = 0
+        for exclusion in exclusion_list:
+            if exclusion in keys:
+                ctr += 1
+                if ctr == 2:
+                    raise IMAPolicyError(
+                        f"{rulename} contains mutually exclusive paramers {', '.join(exclusion_list)}."
+                    )
+
+
 def target_to_eval_result(target: str) -> EvalResult:
     try:
         return TARGET_TO_EVAL_RESULT[target]
@@ -257,7 +273,9 @@ def device_mapper_check_eval(
 
 class FileNames(ABCRule):
     """
-    FileNames represents a 'FILE-NAMES: regex-ref=<listname>' rule. The listname refers to a list
+    FileNames represents a
+    'FILE-NAMES: regex-ref=<listname>|[regex=<regex> [regex=<regex> ...]]'
+    rule. The listname refers to a list
     where each entry is a regex prefixed by eiter ACCEPT: or REJECT:
     """
 
@@ -270,11 +288,17 @@ class FileNames(ABCRule):
 
     @staticmethod
     def from_string(rawparams: str) -> ABCRule:
-        parameters = kvps_to_dict(rawparams, ["regex-ref"], ["regex-ref"], [["regex-ref"]], "FILE-NAMES")
+        parameters = kvps_to_dict(
+            rawparams, ["regex-ref", "regex"], ["regex-ref"], [["regex-ref"], ["regex"]], "FILE-NAMES"
+        )
         return FileNames(rawparams, parameters)
 
     def setup(self, policy: ABCPolicy) -> None:
-        self.comp_regex_list = policy.get_regex_list(self.parameters["regex-ref"][0])
+        check_mutually_exclusive(list(self.parameters.keys()), [["regex-ref", "regex"]], "FILE-NAMES")
+        if "regex-ref" in self.parameters:
+            self.comp_regex_list = policy.get_regex_list(self.parameters["regex-ref"][0])
+        elif "regex" in self.parameters:
+            self.comp_regex_list = CompiledRegexList.from_list(self.parameters["regex"])
 
     def eval(self, path: ast.Name) -> Tuple[EvalResult, Optional[Failure]]:
         if not self.comp_regex_list:

@@ -13,7 +13,7 @@ from typing import List, cast
 from keylime import json
 from keylime.agentstates import AgentAttestState
 from keylime.ima import file_signatures, ima
-from keylime.ima.policy import IMAPolicy
+from keylime.ima.policy import IMAPolicy, IMAPolicyError
 from keylime.ima.types import RuntimePolicyType
 
 # BEGIN TEST DATA
@@ -462,3 +462,61 @@ class TestIMAVerification(unittest.TestCase):
             "68e1d012e3f193dcde955e6ffbbc80e22b0f8778",
             "Runtime policy sample hash is correct",
         )
+
+    def test_ima_policy_rule_file_names(self):
+        """Test with IMA policy rules using FILE-NAMES in the runtime policy"""
+
+        runtime_policy = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
+
+        for bad in ["FILE-NAMES: regex=ACCEPT:/foo regex-ref=excludes", "FILE-NAMES: ", "FILE-NAME: regex=/foo"]:
+            runtime_policy["rules"] = bad
+            with self.assertRaises(IMAPolicyError):
+                IMAPolicy.from_runtime_policy(runtime_policy)
+
+        _signatures = SIGNATURES.split("\n")
+        signatures = cast(List[str], _signatures)
+
+        # Due to missing rule for /usr/bin/zmore this will fail
+        rules = "FILE-NAMES: regex=ACCEPT:/usr/bin/dd\n"
+        runtime_policy["rules"] = rules
+
+        _, failure = ima.process_measurement_list(
+            AgentAttestState("1"), signatures, IMAPolicy.from_runtime_policy(runtime_policy)
+        )
+        self.assertTrue(failure)
+
+        # This will succeed now with additional rule for /usr/bin/zmore
+        rules += "FILE-NAMES: regex=ACCEPT:/usr/bin/zmore\n"
+        runtime_policy["rules"] = rules
+
+        _, failure = ima.process_measurement_list(
+            AgentAttestState("1"), signatures, IMAPolicy.from_runtime_policy(runtime_policy)
+        )
+        self.assertTrue(not failure)
+
+        # This will succeed with 2 regex
+        rules = "FILE-NAMES: regex=ACCEPT:/usr/bin/dd regex=ACCEPT:/usr/bin/zmore\n"
+        runtime_policy["rules"] = rules
+
+        _, failure = ima.process_measurement_list(
+            AgentAttestState("1"), signatures, IMAPolicy.from_runtime_policy(runtime_policy)
+        )
+        self.assertTrue(not failure)
+
+        # This will succeed with a single regex
+        rules = "FILE-NAMES: regex=ACCEPT:/usr/bin/(dd|zmore)\n"
+        runtime_policy["rules"] = rules
+
+        _, failure = ima.process_measurement_list(
+            AgentAttestState("1"), signatures, IMAPolicy.from_runtime_policy(runtime_policy)
+        )
+        self.assertTrue(not failure)
+
+        # This will fail with a single regex
+        rules = "FILE-NAMES: regex=REJECT:/usr/bin/(dd|zmore)\n"
+        runtime_policy["rules"] = rules
+
+        _, failure = ima.process_measurement_list(
+            AgentAttestState("1"), signatures, IMAPolicy.from_runtime_policy(runtime_policy)
+        )
+        self.assertTrue(failure)
