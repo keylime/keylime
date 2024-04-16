@@ -82,5 +82,6 @@ RuntimePolicyType = TypedDict(
         "ima": Required[RPImaType],
         "ima-buf": Required[Dict[str, List[str]]],
         "verification-keys": Required[str],
+        "rules": NotRequired[str],
     },
 )

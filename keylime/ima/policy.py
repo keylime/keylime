@@ -548,6 +548,8 @@ class IMAPolicy(ABCPolicy):
     def from_runtime_policy(runtime_policy: Optional[RuntimePolicyType]) -> "IMAPolicy":
         # Currently RuntimePolicyType does not carry a policy with rules
         # so use the default built-in policy
+        if runtime_policy and "rules" in runtime_policy:
+            return IMAPolicy.from_string(runtime_policy["rules"], runtime_policy)
         return IMAPolicy.from_string(IMAPolicy.DEFAULT_POLICY_STR, runtime_policy)
 
     def eval(

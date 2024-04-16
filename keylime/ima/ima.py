@@ -21,7 +21,7 @@ logger = keylime_logging.init_logging("ima")
 
 
 # The version of the IMA policy format that is supported by this keylime release
-RUNTIME_POLICY_CURRENT_VERSION = 1
+RUNTIME_POLICY_CURRENT_VERSION = 2
 
 
 class RUNTIME_POLICY_GENERATOR(enum.IntEnum):
@@ -52,6 +52,7 @@ EMPTY_RUNTIME_POLICY: RuntimePolicyType = {
     "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1", "dm_policy": None},
     "ima-buf": {},
     "verification-keys": "",
+    # rules: "",
 }
 
 
@@ -87,6 +88,7 @@ RUNTIME_POLICY_SCHEMA = {
         },
         "ima-buf": {"$ref": "#/definitions/digests-object"},
         "verification-keys": {"type": "string"},
+        "rules": {"type": "string"},
     },
     "definitions": {
         "digests-object": {
