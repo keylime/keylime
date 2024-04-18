@@ -218,7 +218,7 @@ class Tpm:
         runtime_policy: Optional[RuntimePolicyType],
         ima_keyrings: Optional[ImaKeyrings],
         mb_measurement_list: Optional[str],
-        mb_refstate: Optional[str],
+        mb_policy: Optional[str],
         hash_alg: Hash,
         count: int,
     ) -> Failure:
@@ -301,7 +301,7 @@ class Tpm:
         # Handle measured boot PCRs only if the parsing worked
         if not mb_failure:
             for pcr_num in set(config.MEASUREDBOOT_PCRS) & pcr_nums:
-                if mba.policy_is_valid(mb_refstate):
+                if mba.policy_is_valid(mb_policy):
                     if not mb_measurement_list:
                         logger.error(
                             "Measured Boot PCR %d in policy, but no measurement list provided by agent %s",
@@ -392,7 +392,7 @@ class Tpm:
             logger.error("PCRs specified in policy not in quote (from agent %s): %s", agent_id, missing)
             failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": list(missing)}, True)
 
-        if not mb_failure and mba.policy_is_valid(mb_refstate):
+        if not mb_failure and mba.policy_is_valid(mb_policy):
             mb_evaluate = config.get("verifier", "measured_boot_evaluate", fallback="once")
 
             # Value of measured_boot_evaluate can be only 'once' or 'always'
@@ -404,7 +404,7 @@ class Tpm:
 
             if mb_evaluate == "always":
                 mb_policy_failure = mba.bootlog_evaluate(
-                    mb_refstate,
+                    mb_policy,
                     mb_measurement_data,
                     pcrs_in_quote,
                     agentAttestState.get_agent_id(),
@@ -413,7 +413,7 @@ class Tpm:
 
             elif mb_evaluate == "once" and count == 0:
                 mb_policy_failure = mba.bootlog_evaluate(
-                    mb_refstate,
+                    mb_policy,
                     mb_measurement_data,
                     pcrs_in_quote,
                     agentAttestState.get_agent_id(),
@@ -435,7 +435,7 @@ class Tpm:
         hash_alg: Hash = Hash.SHA256,
         ima_keyrings: Optional[ImaKeyrings] = None,
         mb_measurement_list: Optional[str] = None,
-        mb_refstate: Optional[str] = None,
+        mb_policy: Optional[str] = None,
         compressed: bool = False,
         count: int = -1,
         skip_pcr_check: bool = False,
@@ -488,7 +488,7 @@ class Tpm:
                 runtime_policy,
                 ima_keyrings,
                 mb_measurement_list,
-                mb_refstate,
+                mb_policy,
                 hash_alg,
                 count,
             )

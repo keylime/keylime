@@ -259,9 +259,9 @@ def prepare_get_quote(agent: Dict[str, Any]) -> Dict[str, Union[str, int]]:
 
 
 def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
-    has_mb_refstate = 0
+    has_mb_policy = 0
     if agent.mb_policy.mb_policy is not None:
-        has_mb_refstate = 1
+        has_mb_policy = 1
 
     has_runtime_policy = 0
     if agent.ima_policy.generator and agent.ima_policy.generator > ima.RUNTIME_POLICY_GENERATOR.EmptyAllowList:
@@ -274,7 +274,7 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         "port": agent.port,
         "tpm_policy": agent.tpm_policy,
         "meta_data": agent.meta_data,
-        "has_mb_refstate": has_mb_refstate,
+        "has_mb_refstate": has_mb_policy,
         "has_runtime_policy": has_runtime_policy,
         "accept_tpm_hash_algs": agent.accept_tpm_hash_algs,
         "accept_tpm_encryption_algs": agent.accept_tpm_encryption_algs,

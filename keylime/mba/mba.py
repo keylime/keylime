@@ -106,7 +106,7 @@ def bootlog_parse(bootlog_b64: Optional[str], hash_alg: str) -> Tuple[MBPCRDict,
 
 
 # ##########
-# read a policy definition (aka "refstate") from a file.
+# read a policy definition (aka "mb_policy") from a file.
 # ##########
 
 
@@ -133,15 +133,15 @@ def policy_load(policy_path: Optional[str] = None) -> str:
 # ##########
 
 
-def policy_is_valid(mb_refstate: Optional[str]) -> bool:
+def policy_is_valid(mb_policy: Optional[str]) -> bool:
     """
-    MBA API front-end for checking the validity of a MBA policy (aka refstate).
-    :param mb_refstate: a string describing the policy
+    MBA API front-end for checking the validity of a MBA policy (aka mb_policy).
+    :param mb_policy: a string describing the policy
     :returns: true if the string is valid policy
     """
     try:
         m = _find_implementation("policy_is_valid")
-        return m.policy_is_valid(mb_refstate)  # type: ignore[no-any-return]
+        return m.policy_is_valid(mb_policy)  # type: ignore[no-any-return]
     except Exception as e:
         raise ValueError from e
 
@@ -159,7 +159,7 @@ def bootlog_evaluate(
 ) -> Failure:
     """
     MBA API front-end for evaluating a measured boot event log against a policy.
-    :param policy_data: policy definition (aka "refstate") (as a string).
+    :param policy_data: policy definition (aka "mb_policy") (as a string).
     :param measurement_data: parsed measured boot event log as produced by `bootlog_parse`
     :param pcrsInQuote: a set of PCRs provided by the quote.
     :param agent_id: the UUID of the keylime agent sending this data.
@@ -185,3 +185,18 @@ def _find_implementation(functionname: str) -> Any:
         if hasattr(m, functionname) and isfunction(getattr(m, functionname)):
             return m
     raise ValueError(f"No implementation for function {functionname} found among measured boot imports")
+
+
+# ###########
+# MB policy to store into the database
+# ###########
+
+
+def mb_policy_db_contents(mb_policy_name: str, mb_policy: Optional[str]) -> Dict[str, Any]:
+    """Assembles a mb_policy dictionary to be written into the database"""
+    mb_policy_db_format: Dict[str, Any] = {}
+
+    mb_policy_db_format["name"] = mb_policy_name
+    mb_policy_db_format["mb_policy"] = mb_policy
+
+    return mb_policy_db_format

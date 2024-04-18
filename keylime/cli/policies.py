@@ -27,7 +27,8 @@ class ArgsType(TypedDict):
     runtime_policy_name: str
     runtime_policy_sig_key: Optional[str]
     runtime_policy_checksum: str
-    mb_refstate: Optional[str]
+    mb_policy: Optional[str]
+    mb_policy_name: str
 
 
 logger = keylime_logging.init_logging("cli.policies")
@@ -51,10 +52,11 @@ def enforce_pcrs(tpm_policy: Dict[str, Any], protected_pcrs: List[int], pcr_use:
             sys.exit(1)
 
 
-def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, Optional[str], str, str]:
+def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, str, Optional[str], str, str]:
     tpm_policy_str = "{}"
     runtime_policy_name = ""
-    mb_refstate = None
+    mb_policy = None
+    mb_policy_name = ""
     ima_sign_verification_keys: Optional[str] = ""
     runtime_policy = ""
     runtime_policy_key = ""
@@ -150,9 +152,9 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
         # Auto-enable IMA (or-bit mask)
         tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << config.IMA_PCR))
 
-    # Read command-line path string TPM event log (measured boot) reference state
-    mb_refstate_data = None
-    if "mb_refstate" in args and args["mb_refstate"] is not None:
+    # Read command-line path string for measured boot policy
+    mb_policy_data = None
+    if "mb_policy" in args and args["mb_policy"] is not None:
         enforce_pcrs(tpm_policy, config.MEASUREDBOOT_PCRS, "measured boot")
 
         # Auto-enable TPM event log mesured boot (or-bit mask)
@@ -161,21 +163,29 @@ def process_policy(args: ArgsType) -> Tuple[Dict[str, Any], Optional[str], str, 
 
         logger.info("TPM PCR Mask automatically modified is %s to include IMA/Event log PCRs", tpm_policy["mask"])
 
-        if isinstance(args["mb_refstate"], str):
-            if args["mb_refstate"] == "default":
-                args["mb_refstate"] = config.get("tenant", "mb_refstate")
-            mb_refstate_data = mba.policy_load(args["mb_refstate"])
+        if isinstance(args["mb_policy"], str):
+            if args["mb_policy"] == "default":
+                args["mb_policy"] = config.get("tenant", "mb_refstate")
+            mb_policy_data = mba.policy_load(args["mb_policy"])
         else:
-            raise UserError("Invalid measured boot reference state (intended state) provided")
+            raise UserError("Invalid measured boot policy provided")
 
     # Set up measured boot (TPM event log) reference state
     if tpm_util.check_mask(tpm_policy["mask"], config.MEASUREDBOOT_PCRS[2]):
-        # Process measured boot reference state
-        mb_refstate = mb_refstate_data
+        # Process measured boot policy
+        mb_policy = mb_policy_data
+
+    # Store measured boot policy name
+    if "mb_policy_name" in args and args["mb_policy_name"] is not None:
+        mb_policy_name = args["mb_policy_name"]
+        # Auto-enable TPM event log mesured boot (or-bit mask)
+        for _pcr in config.MEASUREDBOOT_PCRS:
+            tpm_policy["mask"] = hex(int(tpm_policy["mask"], 0) | (1 << _pcr))
 
     return (
         tpm_policy,
-        mb_refstate,
+        mb_policy,
+        mb_policy_name,
         runtime_policy_name,
         ima_sign_verification_keys,
         runtime_policy,

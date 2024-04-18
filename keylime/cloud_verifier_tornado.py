@@ -38,6 +38,7 @@ from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpolicy
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
+from keylime.mba import mba
 
 logger = keylime_logging.init_logging("verifier")
 
@@ -683,20 +684,74 @@ class AgentsHandler(BaseHandler):
                             raise
 
                     # Handle measured boot policy
-                    mb_policy = json_body["mb_refstate"]
-                    mb_policy_stored = None
-                    try:
-                        mb_policy_db_format: Dict[str, Any] = {}
-                        mb_policy_db_format["name"] = agent_id
-                        mb_policy_db_format["mb_policy"] = mb_policy
-                        mb_policy_stored = VerifierMbpolicy(**mb_policy_db_format)
-                        session.add(mb_policy_stored)
-                        session.commit()
-                    except SQLAlchemyError as e:
-                        logger.error("SQLAlchemy Error while updating mb_policy for agent ID %s: %s", agent_id, e)
-                        raise
+                    # - No name, mb_policy   : store mb_policy using agent UUID as name
+                    # - Name, no mb_policy   : fetch existing mb_policy from DB
+                    # - Name, mb_policy      : store mb_policy using name
 
-                    # Write the agent to the database, attaching associated stored policy
+                    mb_policy_name = json_body["mb_policy_name"]
+                    mb_policy = json_body["mb_policy"]
+                    mb_policy_stored = None
+
+                    if mb_policy_name:
+                        try:
+                            mb_policy_stored = (
+                                session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).one_or_none()
+                            )
+                        except SQLAlchemyError as e:
+                            logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
+                            raise
+
+                        # Prevent overwriting existing mb_policy with name provided in request
+                        if mb_policy and mb_policy_stored:
+                            web_util.echo_json_response(
+                                self,
+                                409,
+                                f"mb_policy with name {mb_policy_name} already exists. Please use a different name or delete the mb_policy from the verifier.",
+                            )
+                            logger.warning("mb_policy with name %s already exists", mb_policy_name)
+                            return
+
+                        # Return error if the mb_policy is neither provided nor stored.
+                        if not mb_policy and not mb_policy_stored:
+                            web_util.echo_json_response(
+                                self, 404, f"Could not find mb_policy with name {mb_policy_name}!"
+                            )
+                            logger.warning("Could not find mb_policy with name %s", mb_policy_name)
+                            return
+
+                    else:
+                        # Use the UUID of the agent
+                        mb_policy_name = agent_id
+                        try:
+                            mb_policy_stored = (
+                                session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).one_or_none()
+                            )
+                        except SQLAlchemyError as e:
+                            logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
+                            raise
+
+                        # Prevent overwriting existing mb_policy
+                        if mb_policy and mb_policy_stored:
+                            web_util.echo_json_response(
+                                self,
+                                409,
+                                f"mb_policy with name {mb_policy_name} already exists. You can delete the mb_policy from the verifier.",
+                            )
+                            logger.warning("mb_policy with name %s already exists", mb_policy_name)
+                            return
+
+                    # Store the policy into database if not stored
+                    if mb_policy_stored is None:
+                        try:
+                            mb_policy_db_format = mba.mb_policy_db_contents(mb_policy_name, mb_policy)
+                            mb_policy_stored = VerifierMbpolicy(**mb_policy_db_format)
+                            session.add(mb_policy_stored)
+                            session.commit()
+                        except SQLAlchemyError as e:
+                            logger.error("SQLAlchemy Error while updating mb_policy for agent ID %s: %s", agent_id, e)
+                            raise
+
+                    # Write the agent to the database, attaching associated stored ima_policy and mb_policy
                     try:
                         assert runtime_policy_stored
                         assert mb_policy_stored
@@ -1120,6 +1175,224 @@ class VerifyIdentityHandler(BaseHandler):
         else:
             web_util.echo_json_response(self, 404, "agent id not found")
             logger.info("GET returning 404, agaent not found")
+
+    def data_received(self, chunk: Any) -> None:
+        raise NotImplementedError()
+
+
+class MbpolicyHandler(BaseHandler):
+    def head(self) -> None:
+        web_util.echo_json_response(self, 400, "Mbpolicy handler: HEAD Not Implemented")
+
+    def __validate_input(self, method: str) -> Tuple[bool, Optional[str]]:
+        """Validate the input"""
+
+        if self.request.uri is None:
+            web_util.echo_json_response(self, 400, "Invalid URL")
+            return False, None
+        rest_params = web_util.get_restful_params(self.request.uri)
+        if rest_params is None or "mbpolicies" not in rest_params:
+            web_util.echo_json_response(self, 400, "Invalid URL")
+            return False, None
+
+        if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
+            return False, None
+
+        mb_policy_name = rest_params["mbpolicies"]
+        if mb_policy_name is None and method != "GET":
+            web_util.echo_json_response(self, 400, "Invalid URL")
+            logger.warning("%s returning 400 response: %s", method, self.request.path)
+            return False, None
+
+        return True, mb_policy_name
+
+    def get(self) -> None:
+        """Get a mb_policy or list of names of mbpolicies
+
+        GET /mbpolicies/[name]
+        name is required to get a mb_policy but not for getting the names of the mbpolicies.
+        """
+
+        params_valid, mb_policy_name = self.__validate_input("GET")
+        if not params_valid:
+            return
+
+        session = get_session()
+        if mb_policy_name is None:
+            try:
+                names_mbpolicies = session.query(VerifierMbpolicy.name).all()
+            except SQLAlchemyError as e:
+                logger.error("SQLAlchemy Error: %s", e)
+                web_util.echo_json_response(self, 500, "Failed to get names of mbpolicies")
+                raise
+
+            names_response = []
+            for name in names_mbpolicies:
+                names_response.append(name[0])
+            web_util.echo_json_response(self, 200, "Success", {"mbpolicy names": names_response})
+
+        else:
+            try:
+                mbpolicy = session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).one()
+            except NoResultFound:
+                web_util.echo_json_response(self, 404, f"Measured boot policy {mb_policy_name} not found")
+                return
+            except SQLAlchemyError as e:
+                logger.error("SQLAlchemy Error: %s", e)
+                web_util.echo_json_response(self, 500, "Failed to get mb_policy")
+                raise
+
+            response = {}
+            response["name"] = getattr(mbpolicy, "name", None)
+            response["mb_policy"] = getattr(mbpolicy, "mb_policy", None)
+            web_util.echo_json_response(self, 200, "Success", response)
+
+    def delete(self) -> None:
+        """Delete a mb_policy
+
+        DELETE /mbpolicies/{name}
+        """
+
+        params_valid, mb_policy_name = self.__validate_input("DELETE")
+        if not params_valid or mb_policy_name is None:
+            return
+
+        session = get_session()
+        try:
+            mbpolicy = session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).one()
+        except NoResultFound:
+            web_util.echo_json_response(self, 404, f"Measured boot policy {mb_policy_name} not found")
+            return
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error: %s", e)
+            web_util.echo_json_response(self, 500, "Failed to get mb_policy")
+            raise
+
+        try:
+            agent = session.query(VerfierMain).filter_by(mb_policy_id=mbpolicy.id).one_or_none()
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error: %s", e)
+            raise
+        if agent is not None:
+            web_util.echo_json_response(
+                self,
+                409,
+                f"Can't delete mb_policy as it's currently in use by agent {agent.agent_id}",
+            )
+            return
+
+        try:
+            session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).delete()
+            session.commit()
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error: %s", e)
+            session.close()
+            web_util.echo_json_response(self, 500, f"Database error: {e}")
+            raise
+
+        # NOTE(kaifeng) 204 Can not have response body, but current helper
+        # doesn't support this case.
+        self.set_status(204)
+        self.set_header("Content-Type", "application/json")
+        self.finish()
+        logger.info("DELETE returning 204 response for mb_policy: %s", mb_policy_name)
+
+    def __get_mb_policy_db_format(self, mb_policy_name: str) -> Dict[str, Any]:
+        """Get the measured boot policy from the request and return it in Db format"""
+
+        content_length = len(self.request.body)
+        if content_length == 0:
+            web_util.echo_json_response(self, 400, "Expected non zero content length")
+            logger.warning("POST returning 400 response. Expected non zero content length.")
+            return {}
+
+        json_body = json.loads(self.request.body)
+        mb_policy = json_body.get("mb_policy")
+        mb_policy_db_format = mba.mb_policy_db_contents(mb_policy_name, mb_policy)
+
+        return mb_policy_db_format
+
+    def post(self) -> None:
+        """Create a mb_policy
+
+        POST /mbpolicies/{name}
+        body: ...
+        """
+
+        params_valid, mb_policy_name = self.__validate_input("POST")
+        if not params_valid or mb_policy_name is None:
+            return
+
+        mb_policy_db_format = self.__get_mb_policy_db_format(mb_policy_name)
+        if not mb_policy_db_format:
+            return
+
+        session = get_session()
+        # don't allow overwritting
+        try:
+            mbpolicy_count = session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).count()
+            if mbpolicy_count > 0:
+                web_util.echo_json_response(
+                    self, 409, f"Measured boot policy with name {mb_policy_name} already exists"
+                )
+                logger.warning("Measured boot policy with name %s already exists", mb_policy_name)
+                return
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error: %s", e)
+            raise
+
+        try:
+            # Add the data
+            session.add(VerifierMbpolicy(**mb_policy_db_format))
+            session.commit()
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error: %s", e)
+            raise
+
+        web_util.echo_json_response(self, 201)
+        logger.info("POST returning 201")
+
+    def put(self) -> None:
+        """Update an mb_policy
+
+        PUT /mbpolicies/{name}
+        body: ...
+        """
+
+        params_valid, mb_policy_name = self.__validate_input("PUT")
+        if not params_valid or mb_policy_name is None:
+            return
+
+        mb_policy_db_format = self.__get_mb_policy_db_format(mb_policy_name)
+        if not mb_policy_db_format:
+            return
+
+        session = get_session()
+        # don't allow creating a new policy
+        try:
+            mbpolicy_count = session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).count()
+            if mbpolicy_count != 1:
+                web_util.echo_json_response(
+                    self, 409, f"Measured boot policy with name {mb_policy_name} does not already exist"
+                )
+                logger.warning("Measured boot policy with name %s does not already exist", mb_policy_name)
+                return
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error: %s", e)
+            raise
+
+        try:
+            # Update the named mb_policy
+            session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).update(
+                mb_policy_db_format  # pyright: ignore
+            )
+            session.commit()
+        except SQLAlchemyError as e:
+            logger.error("SQLAlchemy Error: %s", e)
+            raise
+
+        web_util.echo_json_response(self, 201)
+        logger.info("PUT returning 201")
 
     def data_received(self, chunk: Any) -> None:
         raise NotImplementedError()
@@ -1748,6 +2021,7 @@ def main() -> None:
             (r"/v?[0-9]+(?:\.[0-9]+)?/verify/identity", VerifyIdentityHandler),
             (r"/v?[0-9]+(?:\.[0-9]+)?/agents/.*", AgentsHandler),
             (r"/v?[0-9]+(?:\.[0-9]+)?/allowlists/.*", AllowlistHandler),
+            (r"/v?[0-9]+(?:\.[0-9]+)?/mbpolicies/.*", MbpolicyHandler),
             (r"/versions?", VersionHandler),
             (r".*", MainHandler),
         ]
