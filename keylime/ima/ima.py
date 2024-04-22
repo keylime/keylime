@@ -21,7 +21,7 @@ logger = keylime_logging.init_logging("ima")
 
 
 # The version of the IMA policy format that is supported by this keylime release
-RUNTIME_POLICY_CURRENT_VERSION = 2
+RUNTIME_POLICY_CURRENT_VERSION = 1
 
 
 class RUNTIME_POLICY_GENERATOR(enum.IntEnum):
