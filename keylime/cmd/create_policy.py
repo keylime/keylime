@@ -32,6 +32,7 @@ except ModuleNotFoundError:
 
 from keylime.common import validators
 from keylime.ima import file_signatures, ima
+from keylime.ima.policy import IMAPolicy, IMAPolicyError
 from keylime.ima.types import RuntimePolicyType
 from keylime.signing import verify_signature_from_file
 from keylime.types import PathLike_str
@@ -504,6 +505,14 @@ def main() -> None:
     )
     parser.add_argument("-l", "--local-repo", metavar="REPO", type=pathlib.Path, help="Local repo directory")
     parser.add_argument("-r", "--remote-repo", metavar="URL", help="Remote repo directory")
+    parser.add_argument(
+        "-R",
+        "--set-rules",
+        action="store",
+        dest="rules_file",
+        default=None,
+        help="IMA policy rules file to copy into the runtime policy",
+    )
 
     args = parser.parse_args()
 
@@ -531,6 +540,8 @@ def main() -> None:
             ignored_keyrings = base_policy.get("ima", {}).get("ignored_keyrings", [])
             policy["ima"]["ignored_keyrings"] = ignored_keyrings
             policy["verification-keys"] = base_policy.get("verification-keys", "")
+            if base_policy.get("rules") is not None:
+                policy["rules"] = base_policy["rules"]
         except (PermissionError, FileNotFoundError) as ex:
             print(f"An error occurred while loading the policy: {ex}", file=sys.stderr)
             ret = 1
@@ -579,6 +590,16 @@ def main() -> None:
 
     policy = process_signature_verification_keys(args.ima_signature_keys, policy)
 
+    if args.rules_file:
+        try:
+            with open(args.rules_file, "r", encoding="utf-8") as fobj:
+                policy["rules"] = fobj.read()
+        except (PermissionError, FileNotFoundError) as ex:
+            print(f"An error occurred while loading the policy: {ex}", file=sys.stderr)
+            ret = 1
+    if ret:
+        sys.exit(ret)
+
     # Ensure we only have unique values in lists
     for key in ["digests", "ima-buf", "keyrings"]:
         policy[key] = {k: sorted(list(set(v))) for k, v in policy[key].items()}  # type: ignore
@@ -592,6 +613,12 @@ def main() -> None:
         ima.validate_runtime_policy(policy)
     except ima.ImaValidationError as ex:
         print(f"Base policy is not a valid runtime policy: {ex}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        IMAPolicy.from_runtime_policy(policy)
+    except IMAPolicyError as ex:
+        print(f"Policy is invalid: {ex}", file=sys.stderr)
         sys.exit(1)
 
     jsonpolicy = json.dumps(policy)
