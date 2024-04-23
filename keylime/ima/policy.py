@@ -18,6 +18,8 @@ class EvalResult(Enum):
     ACCEPT = 1
     REJECT = 2
     SKIP = 3  # move to next rules
+    DEBUG_ON = 4
+    DEBUG_OFF = 5
 
 
 TARGET_TO_EVAL_RESULT: Dict[str, EvalResult] = {
@@ -222,6 +224,40 @@ class Evaluator:
             )
             return lambda *_: (EvalResult.SKIP, failure)
         return evaluator
+
+
+class Debug(ABCRule):
+    """
+    Debug represents a 'DEBUG [mode=on|off]' rule.
+    """
+
+    def __init__(self, rawparams: str, parameters: Dict[str, List[str]]) -> None:
+        super().__init__("DEBUG", rawparams)
+        self.parameters = parameters
+
+    @staticmethod
+    def from_string(rawparams: str) -> ABCRule:
+        parameters = kvps_to_dict(rawparams, ["mode"], ["mode"], None, "DEBUG")
+        return Debug(rawparams, parameters)
+
+    def setup(self, policy: ABCPolicy) -> None:
+        pass
+
+    def eval(self) -> EvalResult:
+        mode_list = self.parameters.get("mode")
+        if mode_list is not None and len(mode_list) > 0:
+            mode = mode_list[0].lower()
+            if mode == "on":
+                return EvalResult.DEBUG_ON
+            if mode == "off":
+                return EvalResult.DEBUG_OFF
+        return EvalResult.DEBUG_ON
+
+
+def debug_eval(
+    _digest: ast.Digest, _path: ast.Name, _signature: Optional[ast.Signature], _data: Optional[ast.Buffer], rule: Debug
+) -> Tuple[EvalResult, Optional[Failure]]:
+    return rule.eval(), None
 
 
 class DeviceMapperCheck(ABCRule):
@@ -537,6 +573,7 @@ def learn_keys_eval(
 
 class IMAPolicy(ABCPolicy):
     MAPPINGS: Dict[str, Type[ABCRule]] = {
+        "DEBUG": Debug,
         "DEVICE-MAPPER-CHECK": DeviceMapperCheck,
         "IMA-SIGNATURE-CHECK": ImaSignatureCheck,
         "FILE-HASHES": FileHashes,
@@ -609,10 +646,24 @@ class IMAPolicy(ABCPolicy):
     ) -> Failure:
         """Evaluate the policy against an IMA log entry"""
         failure = Failure(Component.IMA, ["ima-policy"])
+        debug = False
 
         for rule in self.rules:
             res, rule_failure = evaluator.get_evaluator(type(rule))(digest, path, signature, data, rule)
-            logger.debug("%s -> %s", rule, res)
+
+            if debug:
+                logger.info("%s -> %s", rule, res)
+            if res == EvalResult.DEBUG_ON:
+                debug = True
+                line = f"Input: {digest} {path}"
+                if signature:
+                    line += f" {signature}"
+                elif data:
+                    line += f" {data}"
+                logger.info(line)
+            elif res == EvalResult.DEBUG_OFF:
+                debug = False
+
             if rule_failure:
                 failure.merge(rule_failure)
 

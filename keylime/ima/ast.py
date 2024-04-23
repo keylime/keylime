@@ -46,7 +46,7 @@ class HexData(Type):
             raise ParserError(f"Provided data was not valid hex: {data}") from e
 
     def __str__(self) -> str:
-        return self.data.decode("utf-8")
+        return self.data.hex()
 
     def struct(self) -> bytes:
         return struct.pack(f"<I{len(self.data)}s", len(self.data), self.data)
@@ -139,6 +139,9 @@ class Digest:
             self.algorithm = tokens[0]
         else:
             raise ParserError(f"Cannot create Digest expected 1 or 2 tokens got: {len(tokens)} for {digest}")
+
+    def __str__(self) -> str:
+        return f"{self.algorithm}:{self.hash.hex()}"
 
     def struct(self) -> bytes:
         # The legacy format "d" has fixed length, so it does not contain a length attribute

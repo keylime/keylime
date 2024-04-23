@@ -163,6 +163,7 @@ def _process_measurement_list(
 
     ima_evaluator = policy.Evaluator(
         {
+            policy.Debug: functools.partial(policy.debug_eval),
             policy.DeviceMapperCheck: functools.partial(policy.device_mapper_check_eval, dm_validator),
             policy.ImaSignatureCheck: functools.partial(policy.ima_signature_check_eval, ima_keyrings),
             policy.FileHashes: functools.partial(policy.filehashesfilter_eval),
