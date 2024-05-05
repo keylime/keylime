@@ -21,7 +21,7 @@ logger = keylime_logging.init_logging("ima")
 
 
 # The version of the IMA policy format that is supported by this keylime release
-RUNTIME_POLICY_CURRENT_VERSION = 1
+RUNTIME_POLICY_CURRENT_VERSION = 2
 
 
 class RUNTIME_POLICY_GENERATOR(enum.IntEnum):
@@ -47,6 +47,7 @@ EMPTY_RUNTIME_POLICY: RuntimePolicyType = {
     },
     "release": 0,
     "digests": {},
+    "rejects": {},  # optional; added in v2
     "excludes": [],
     "keyrings": {},
     "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1", "dm_policy": None},
@@ -74,6 +75,7 @@ RUNTIME_POLICY_SCHEMA = {
         },
         "release": {"type": "integer", "minimum": 0},
         "digests": {"$ref": "#/definitions/digests-object"},
+        "rejects": {"$ref": "#/definitions/digests-object"},  # optional; added in v2
         "excludes": {"type": "array", "items": {"type": "string"}},
         "keyrings": {"$ref": "#/definitions/digests-object"},
         "ima": {
@@ -112,7 +114,18 @@ def _validate_ima_ng(
     hash_types: str = "digests",
 ) -> Failure:
     failure = Failure(Component.IMA, ["validation", "ima-ng"])
+
     if runtime_policy is not None:
+        rejects = runtime_policy.get("rejects", None)
+        if rejects is not None:
+            reject_list = rejects.get(path.name, None)
+            if reject_list is not None:
+                hex_hash = digest.hash.hex()
+                if hex_hash in reject_list:
+                    logger.warning("File found in list of rejected files: %s", path.name)
+                    failure.add_event("in_rejects", f"File found in list of rejected files: {path.name}", True)
+                    return failure
+
         if exclude_regex is not None and exclude_regex.match(path.name):
             logger.debug("IMA: ignoring excluded path %s", path)
             return failure
@@ -552,3 +565,23 @@ def validate_runtime_policy(runtime_policy: RuntimePolicyType) -> None:
     except Exception as error:
         msg = str(error).split("\n", 1)[0]
         raise ImaValidationError(message=f"{msg}", code=400) from error
+
+
+def trim_runtime_policy(runtime_policy: RuntimePolicyType, validate: bool) -> None:
+    """
+    Optionally validate the given policy and then trim it and set its (minimum)
+    version.
+    """
+    if validate:
+        validate_runtime_policy(runtime_policy)
+
+    rejects = runtime_policy.get("rejects", None)
+    if rejects is not None and len(rejects) == 0:
+        del runtime_policy["rejects"]
+
+    # Determine version of policy
+    runtime_policy["meta"]["version"] = 1
+
+    # V2: 'rejects'
+    if runtime_policy.get("rejects"):
+        runtime_policy["meta"]["version"] = 2

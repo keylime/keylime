@@ -589,7 +589,7 @@ def main() -> None:
     policy["meta"]["timestamp"] = str(datetime.datetime.now())
 
     try:
-        ima.validate_runtime_policy(policy)
+        ima.trim_runtime_policy(policy, True)
     except ima.ImaValidationError as ex:
         print(f"Base policy is not a valid runtime policy: {ex}", file=sys.stderr)
         sys.exit(1)
