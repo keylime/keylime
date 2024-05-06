@@ -504,6 +504,12 @@ def main() -> None:
     )
     parser.add_argument("-l", "--local-repo", metavar="REPO", type=pathlib.Path, help="Local repo directory")
     parser.add_argument("-r", "--remote-repo", metavar="URL", help="Remote repo directory")
+    parser.add_argument(
+        "--add-rejects",
+        action="store_true",
+        dest="add_rejects",
+        help="Add data from local repo (e.g., RPMs with CVEs) to list of rejected files; requires --local-repo option",
+    )
 
     args = parser.parse_args()
 
@@ -531,6 +537,7 @@ def main() -> None:
             ignored_keyrings = base_policy.get("ima", {}).get("ignored_keyrings", [])
             policy["ima"]["ignored_keyrings"] = ignored_keyrings
             policy["verification-keys"] = base_policy.get("verification-keys", "")
+            policy["rejects"] = base_policy.get("rejects", {})
         except (PermissionError, FileNotFoundError) as ex:
             print(f"An error occurred while loading the policy: {ex}", file=sys.stderr)
             ret = 1
@@ -549,7 +556,10 @@ def main() -> None:
     if args.allowlist:
         policy["digests"], ret = process_flat_allowlist(args.allowlist, policy["digests"])
     elif args.local_repo:
-        policy["digests"], ret = analize_local_repo(args.local_repo, policy["digests"])
+        if args.add_rejects:
+            policy["rejects"], ret = analize_local_repo(args.local_repo, policy.get("rejects", {}))
+        else:
+            policy["digests"], ret = analize_local_repo(args.local_repo, policy["digests"])
     elif args.remote_repo:
         policy["digests"], ret = analize_remote_repo(args.remote_repo, policy["digests"])
     elif not args.no_hashes:
