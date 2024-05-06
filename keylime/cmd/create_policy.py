@@ -510,6 +510,12 @@ def main() -> None:
         dest="add_rejects",
         help="Add data from local repo (e.g., RPMs with CVEs) to list of rejected files; requires --local-repo option",
     )
+    parser.add_argument(
+        "--reject-list",
+        action="store",
+        dest="rejectlist",
+        help="Add files and hashes from a (trimmed) IMA measurement list to the reject list",
+    )
 
     args = parser.parse_args()
 
@@ -569,6 +575,11 @@ def main() -> None:
 
     if args.exclude_list_file:
         policy["excludes"], ret = process_exclude_list_file(args.exclude_list_file, policy["excludes"])
+    if ret:
+        sys.exit(ret)
+
+    if args.rejectlist:
+        policy["rejects"], ret = get_hashes_from_measurement_list(args.rejectlist, policy.get("rejects", {}))
     if ret:
         sys.exit(ret)
 
