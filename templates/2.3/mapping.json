@@ -38,6 +38,14 @@
                     "default": "['ecschnorr', 'rsassa']"
                 }
             }
+        },
+        "agent": {
+            "add" : {
+                "idevid_password": "",
+                "idevid_handle": "",
+                "iak_password": "",
+                "iak_handle": ""
+            }
         }
     }
 }
