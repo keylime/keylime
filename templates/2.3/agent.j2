@@ -169,7 +169,10 @@ tpm_signing_alg = "{{ agent.tpm_signing_alg }}"
 # create a new EK upon startup, and neither will it flush the EK upon exit.
 ek_handle = "{{ agent.ek_handle }}"
 
-# Enable IDevID and IAK usage and set their algorithms.
+# Enable IDevID and IAK usage 
+enable_iak_idevid = {{ agent.enable_iak_idevid }}
+
+# Select IDevID and IAK templates or algorithms for regenerating the keys.
 # By default the template will be detected automatically from the certificates. This will happen in iak_idevid_template is left empty or set as "default" or "detect".
 # Choosing a template will override the name and asymmetric algorithm choices. To use these choices, set iak_idevid_template to "manual"
 # Templates are specified in the TCG document found here, section 7.3.4: 
@@ -179,11 +182,19 @@ ek_handle = "{{ agent.ek_handle }}"
 # iak_idevid_template:        default, detect, H-1, H-2, H-3, H-4, H-5, manual
 # iak_idevid_asymmetric_alg:   rsa, ecc
 # iak_idevid_name_alg:        sha256, sm3_256, sha384, sha512
-enable_iak_idevid = {{ agent.enable_iak_idevid }}
 iak_idevid_template = "{{ agent.iak_idevid_template }}"
 # In order for these values to be used, set the iak_idevid_template option to manual
 iak_idevid_asymmetric_alg = "{{ agent.iak_idevid_asymmetric_alg }}"
 iak_idevid_name_alg = "{{ agent.iak_idevid_name_alg }}"
+
+# Alternatively if the keys are persisted, provide the handles for their location below, and optionally their passwords.
+# If handles are provided, they will take priority over templates/algorithms selected above.
+# To use a hex password, use the prefix "hex:" at the start of the password.
+idevid_password = "{{ agent.idevid_password }}"
+idevid_handle = "{{ agent.idevid_handle }}"
+
+iak_password = "{{ agent.iak_password }}"
+iak_handle = "{{ agent.iak_handle }}"
 
 # The name of the file containing the X509 IAK certificate.
 # If set as "default", the "iak-cert.crt" value is used
