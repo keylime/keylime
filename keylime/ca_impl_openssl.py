@@ -117,6 +117,8 @@ def mk_cacert(name: Optional[str] = None) -> Tuple[Certificate, RSAPrivateKey, R
             encipher_only=False,
             decipher_only=False,
         ),
+        # Required by RFC 5280 (section 4.2.1.1) and enforced by default in Python 3.13 and up
+        x509.AuthorityKeyIdentifier.from_issuer_public_key(pubkey),  # type: ignore
     ]
 
     for ext in extensions:
@@ -169,6 +171,8 @@ def mk_signed_cert(
                 ),
             ]
         ),
+        # Required by RFC 5280 (section 4.2.1.1) and enforced by default in Python 3.13 and up
+        x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key()),  # type: ignore
     ]
 
     for ext in extensions:
