@@ -89,40 +89,46 @@ def mk_cacert(name: Optional[str] = None) -> Tuple[Certificate, RSAPrivateKey, R
     # Extensions.
     extensions = [
         # Basic Constraints.
-        x509.BasicConstraints(ca=True, path_length=None),
+        (x509.BasicConstraints(ca=True, path_length=None), True),
         # Subject Key Identifier.
-        x509.SubjectKeyIdentifier.from_public_key(pubkey),
+        (x509.SubjectKeyIdentifier.from_public_key(pubkey), False),
         # CRL Distribution Points.
-        x509.CRLDistributionPoints(
-            [
-                x509.DistributionPoint(
-                    full_name=[
-                        x509.UniformResourceIdentifier(config.get("ca", "cert_crl_dist")),
-                    ],
-                    relative_name=None,
-                    reasons=None,
-                    crl_issuer=None,
-                ),
-            ]
+        (
+            x509.CRLDistributionPoints(
+                [
+                    x509.DistributionPoint(
+                        full_name=[
+                            x509.UniformResourceIdentifier(config.get("ca", "cert_crl_dist")),
+                        ],
+                        relative_name=None,
+                        reasons=None,
+                        crl_issuer=None,
+                    ),
+                ]
+            ),
+            False,
         ),
         # Key Usage.
-        x509.KeyUsage(
-            key_cert_sign=True,
-            crl_sign=True,
-            digital_signature=False,
-            content_commitment=False,
-            key_encipherment=False,
-            data_encipherment=False,
-            key_agreement=False,
-            encipher_only=False,
-            decipher_only=False,
+        (
+            x509.KeyUsage(
+                key_cert_sign=True,
+                crl_sign=True,
+                digital_signature=False,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            True,
         ),
         # Required by RFC 5280 (section 4.2.1.1) and enforced by default in Python 3.13 and up
-        x509.AuthorityKeyIdentifier.from_issuer_public_key(pubkey),  # type: ignore
+        (x509.AuthorityKeyIdentifier.from_issuer_public_key(pubkey), False),
     ]
 
-    for ext in extensions:
-        cert_req = cert_req.add_extension(ext, critical=False)
+    for ext, critical in extensions:
+        cert_req = cert_req.add_extension(ext, critical)
 
     cert = cert_req.sign(
         private_key=privkey,
