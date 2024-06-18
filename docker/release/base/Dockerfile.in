@@ -1,4 +1,4 @@
-FROM fedora:37 AS keylime_base
+FROM index.docker.io/library/fedora:37@sha256:de153a3928b8901ad05d8d3314a1f7680570979bd2c04c4562b817daa8358a33 AS keylime_base
 LABEL version="_version_" description="Keylime Base - Only used as an base image for derived packages"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 
