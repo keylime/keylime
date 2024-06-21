@@ -219,54 +219,62 @@ class Tenant:
 
         # Auto-detection for API version
         self.supported_version = args["supported_version"]
-        if self.supported_version is None:
-            # Default to 1.0 if the agent did not send a mTLS certificate
-            if self.registrar_data.get("mtls_cert", None) is None:
-                self.supported_version = "1.0"
+        # Default to 1.0 if the agent did not send a mTLS certificate
+        if self.registrar_data.get("mtls_cert", None) is None and self.supported_version is None:
+            self.supported_version = "1.0"
+        else:
+            # Try to connect to the agent to get supported version
+            if self.registrar_data["mtls_cert"] == "disabled":
+                self.enable_agent_mtls = False
+                logger.warning(
+                    "Warning: mTLS for %s is disabled: the identity of each node will be based on the properties of the TPM only. "
+                    "Unless you have strict control of your network, it is strongly advised that remote code execution should be disabled, "
+                    'by setting "payload_script=" and "extract_payload_zip=False" under "[agent]" in agent configuration file.',
+                    self.agent_fid_str,
+                )
+                tls_context = None
             else:
-                # Try to connect to the agent to get supported version
-                if self.registrar_data["mtls_cert"] == "disabled":
-                    self.enable_agent_mtls = False
-                    logger.warning(
-                        "Warning: mTLS for %s is disabled: the identity of each node will be based on the properties of the TPM only. "
-                        "Unless you have strict control of your network, it is strongly advised that remote code execution should be disabled, "
-                        'by setting "payload_script=" and "extract_payload_zip=False" under "[agent]" in agent configuration file.',
-                        self.agent_fid_str,
+                # Store the agent self-signed certificate as a string
+                self.verify_custom = self.registrar_data["mtls_cert"]
+
+                if not self.agent_tls_context:
+                    self.agent_tls_context = web_util.generate_tls_context(
+                        self.client_cert,
+                        self.client_key,
+                        self.trusted_server_ca,
+                        self.client_key_password,
+                        self.verify_server_cert,
+                        is_client=True,
+                        ca_cert_string=self.verify_custom,
+                        logger=logger,
                     )
-                    tls_context = None
-                else:
-                    # Store the agent self-signed certificate as a string
-                    self.verify_custom = self.registrar_data["mtls_cert"]
+                tls_context = self.agent_tls_context
 
-                    if not self.agent_tls_context:
-                        self.agent_tls_context = web_util.generate_tls_context(
-                            self.client_cert,
-                            self.client_key,
-                            self.trusted_server_ca,
-                            self.client_key_password,
-                            self.verify_server_cert,
-                            is_client=True,
-                            ca_cert_string=self.verify_custom,
-                            logger=logger,
-                        )
-                    tls_context = self.agent_tls_context
-
-                with RequestsClient(
-                    f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}",
-                    tls_enabled=self.enable_agent_mtls,
-                    tls_context=tls_context,
-                ) as get_version:
+            with RequestsClient(
+                f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}",
+                tls_enabled=self.enable_agent_mtls,
+                tls_context=tls_context,
+            ) as get_version:
+                try:
                     res = get_version.get("/version")
-                    if res and res.status_code == 200:
-                        try:
-                            data = res.json()
-                            api_version = data["results"]["supported_version"]
-                            if keylime_api_version.validate_version(api_version):
-                                self.supported_version = api_version
-                            else:
-                                logger.warning("API version provided by the agent is not valid")
-                        except (TypeError, KeyError):
-                            pass
+                except requests.exceptions.SSLError as ssl_error:
+                    if "TLSV1_ALERT_UNKNOWN_CA" in str(ssl_error):
+                        raise UserError(
+                            "Keylime agent does not recognize mTLS certificate form tenant. "
+                            "Check if agents trusted_client_ca is configured correctly"
+                        ) from ssl_error
+
+                    raise ssl_error from ssl_error
+                if res and res.status_code == 200:
+                    try:
+                        data = res.json()
+                        api_version = data["results"]["supported_version"]
+                        if keylime_api_version.validate_version(api_version) and self.supported_version is None:
+                            self.supported_version = api_version
+                        else:
+                            logger.warning("API version provided by the agent is not valid")
+                    except (TypeError, KeyError):
+                        pass
 
         if self.supported_version is None:
             api_version = keylime_api_version.current_version()
