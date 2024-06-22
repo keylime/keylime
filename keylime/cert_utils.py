@@ -34,6 +34,25 @@ OID_HWTYPE_TPM = "2.23.133.1.2"
 logger = keylime_logging.init_logging("cert_utils")
 
 
+def is_x509_cert(cert_data: bytes) -> bool:
+    """
+    Determine wheter the data passed is a valid x509 cert.
+
+    :param cert_data: bytes to check
+    :return: bool, indicating whether the provided input is a valid cert
+    """
+    try:
+        x509_pem_cert(cert_data.decode("UTF-8"))
+        return True
+    except Exception:
+        try:
+            x509_der_cert(cert_data)
+            return True
+        except Exception:
+            return False
+        return False
+
+
 def x509_der_cert(der_cert_data: bytes) -> Certificate:
     """Load an x509 certificate provided in DER format
     :param der_cert_data: the DER bytes of the certificate
