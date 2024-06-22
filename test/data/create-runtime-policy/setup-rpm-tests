@@ -1,0 +1,331 @@
+#!/bin/bash
+set -euo pipefail
+
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2024 Red Hat, Inc.
+
+die() {
+    echo "${0} ERROR: ${1}" >&2
+    exit "${2:-1}"
+}
+
+BASEDIR=${1:-}
+if [ -z "${BASEDIR}" ] || [ ! -d "${BASEDIR}" ]; then
+    die "Please specify a valid directory to use for setting up the dummy rpms"
+fi
+
+BASEDIR="$(realpath "${BASEDIR}")"
+
+# rpmbuild
+RPMBUILD="${BASEDIR}"/rpmbuild
+SPECDIR="${RPMBUILD}"/SPECS
+SRCDIR="${RPMBUILD}"/SOURCES
+BUILDDIR="${RPMBUILD}"/BUILD
+BUILDROOTDIR="${RPMBUILD}"/BUILDROOT
+RPMSDIR="${RPMBUILD}"/RPMS
+SRPMSDIR="${RPMBUILD}"/SRPMS
+SPECFILE="${BASEDIR}"/dummy-template.spec
+EMPTY_SPECFILE="${BASEDIR}"/dummy-empty-template.spec
+
+MACROS_RC="${BASEDIR}"/rpmbuild-macros
+MACROS_RC_SIG="${BASEDIR}"/rpmbuild-macros-sig
+# gpg
+GPGDIR_RSA="${BASEDIR}"/gnupg/rsa
+GPGDIR_ECC="${BASEDIR}"/gnupg/ecc
+GPGRSA="gpg --homedir ${GPGDIR_RSA} --batch --yes"
+GPGECC="gpg --homedir ${GPGDIR_ECC} --batch --yes"
+
+# IMA signing keys.
+IMA_KEYSDIR="${BASEDIR}"/ima-keys
+IMA_KEYS_CFG="${IMA_KEYSDIR}"/config
+IMA_PRIV_KEY="${IMA_KEYSDIR}"/privkey.pem
+IMA_PUB_KEY="${IMA_KEYSDIR}"/pubkey.pem
+IMA_KEYS_CERT_DER="${IMA_KEYSDIR}"/x509.der
+
+# test repositories
+RPM_REPO_UNSIGNED="${BASEDIR}"/repo/unsigned
+RPM_REPO_SIGNED_ECC="${BASEDIR}"/repo/signed-ecc
+RPM_REPO_SIGNED_RSA="${BASEDIR}"/repo/signed-rsa
+RPM_REPO_SIGNED_MISMATCH="${BASEDIR}"/repo/signed-mismatch
+RPM_REPO_SIGNED_NO_REPOMD="${BASEDIR}"/repo/no-repomd
+RPM_REPO_SIGNED_NO_KEY="${BASEDIR}"/repo/signed-no-key
+RPM_REPO_FILELIST_EXT_MISMATCH="${BASEDIR}"/repo/filelist-ext-mismatch
+RPM_REPO_UNSUPPORTED_COMPRESSION="${BASEDIR}"/repo/unsupported-compression
+
+sanity_check() {
+    # We need the following programs available for this to work.
+    _progs="gpg rpmbuild rpmsign createrepo_c openssl"
+    for _p in ${_progs}; do
+        command -v "${_p}" >/dev/null || die "'${_p}' NOT available" 77
+    done
+}
+
+create_ima_keys() {
+    mkdir -p "${IMA_KEYSDIR}"
+
+    cat << EOF > "${IMA_KEYS_CFG}"
+[ req ]
+default_bits = 3072
+default_md = sha256
+distinguished_name = req_distinguished_name
+prompt = no
+string_mask = utf8only
+x509_extensions = myexts
+
+[ req_distinguished_name ]
+O = Keylime Test Suite
+CN = Executable Signing Key
+emailAddress = keylime@example.com
+
+[ myexts ]
+basicConstraints=critical,CA:FALSE
+keyUsage=digitalSignature
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid
+EOF
+
+    openssl req -x509 -new -nodes -utf8 -days 90 -batch -x509 \
+        -config "${IMA_KEYS_CFG}" -outform DER \
+        -out "${IMA_KEYS_CERT_DER}" -keyout "${IMA_PRIV_KEY}"
+    openssl rsa -pubout -in "${IMA_PRIV_KEY}" -out "${IMA_PUB_KEY}"
+}
+
+create_gpg_rsa_key() {
+    mkdir -p "${GPGDIR_RSA}"
+    chmod 700 "${GPGDIR_RSA}"
+
+    ${GPGRSA} --gen-key <<EOF
+%no-protection
+Key-Type: RSA
+Key-Length: 3072
+Subkey-Type: RSA
+Subkey-Length: 3072
+Name-Real: Keylime Test Suite
+Name-Email: keylime@example.com
+Expire-Date: 0
+EOF
+}
+
+create_gpg_ecc_key() {
+    mkdir -p "${GPGDIR_ECC}"
+    chmod 700 "${GPGDIR_ECC}"
+
+    ${GPGECC} --gen-key <<EOF
+%no-protection
+Key-Type:  ECDSA
+Key-Curve: nistp256
+Subkey-Type: ECDH
+Subkey-Curve: nistp256
+Name-Real: Keylime Test Suite
+Name-Email: keylime@example.com
+Expire-Date: 0
+EOF
+}
+
+create_keys() {
+    [ -d "${GPGDIR_RSA}" ] || create_gpg_rsa_key
+    [ -d "${GPGDIR_ECC}" ] || create_gpg_ecc_key
+    [ -d "${IMA_KEYSDIR}" ] || create_ima_keys
+}
+
+save_spec_template() {
+    _dst="${1}"
+cat << EOF > "${_dst}"
+%global source_date_epoch_from_changelog 0
+Name: DUMMY-%{dummy_name}
+Version: %{dummy_version}
+Release: %{dummy_release}
+Summary: Dummy package for testing purposes
+Provides: %{dummy_name}
+BuildArch: noarch
+License: CC0
+%description
+Dummy package for testing purposes, not intended to be installed.
+%install
+mkdir -p %{buildroot}%{_bindir}
+printf 'foo' > %{buildroot}%{_bindir}/dummy-foobar
+mkdir -p %{buildroot}%{_sysconfdir}
+printf 'bar' > %{buildroot}%{_sysconfdir}/dummy-foobar.conf
+%files
+%{_bindir}/dummy-foobar
+%{_sysconfdir}/dummy-foobar.conf
+EOF
+}
+
+save_empty_spec_template() {
+    _dst="${1}"
+cat << EOF > "${_dst}"
+%global source_date_epoch_from_changelog 0
+Name: DUMMY-%{dummy_name}
+Version: %{dummy_version}
+Release: %{dummy_release}
+Summary: Dummy package for testing purposes
+Provides: %{dummy_name}
+BuildArch: noarch
+License: CC0
+%description
+Dummy package for testing purposes, not intended to be installed.
+%files
+EOF
+}
+
+create_rpmbuild_macros() {
+    _dst="${1}"
+cat << EOF > "${_dst}"
+%_sourcedir ${SRCDIR}
+%_rpmdir ${RPMSDIR}
+%_srcrpmdir ${SRPMSDIR}
+%_specdir ${SPECDIR}
+%_builddir ${BUILDDIR}
+EOF
+}
+
+create_rpmbuild_macros_sig() {
+    _dst="${1}"
+    create_rpmbuild_macros "${_dst}"
+
+    cat << EOF >> "${_dst}"
+%_signature ${GPGRSA}
+%_gpg_path ${GPGDIR_RSA}
+%_gpg_name keylime@example.com
+%_gpgbin /usr/bin/gpg2
+%__gpg_sign_cmd %{__gpg} ${GPGRSA} --force-v3-sigs --verbose --no-armor --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}'
+%_file_signing_key ${IMA_PRIV_KEY}
+EOF
+}
+
+create_rpm() {
+    _name="${1}"
+    _version="${2}"
+    _rel="${3}"
+    _spec="${4}"
+    _signed=${5:-}
+
+    _macros="${MACROS_RC}"
+    [ -n "${_signed}" ] && _macros="${MACROS_RC_SIG}"
+
+    rpmbuild --define "dummy_name ${_name}" \
+             --define "dummy_version ${_version}" \
+             --define "dummy_release ${_rel}" \
+             --load="${_macros}" \
+             -bb "${_spec}"
+
+    # Make sure rpm was created at the right place.
+    # From the following commit, it seems rpmbuild will not honor
+    # the custom settings defined via the macros and will build
+    # into ~/rpmbuild regardless.
+    # https://github.com/rpm-software-management/rpm/commit/96467dce18f264b278e17ffe1859c88d9b5aa4b6
+    _pkgname="DUMMY-${_name}-${_version}-${_rel}.noarch.rpm"
+
+    _expected_pkg="${RPMSDIR}/noarch/${_pkgname}"
+    [ -e "${_expected_pkg}" ] && return 0
+
+    # OK, the package was not built where it should. Let us see if
+    # it was built in ~/rpmbuild instead, and if that is the case,
+    # copy it to the expected location.
+    _bad_location_pkg="${HOME}/rpmbuild/RPMS/noarch/${_pkgname}"
+    if [ -e "${_bad_location_pkg}" ]; then
+        echo "WARNING: the package ${_pkgname} was built into ~/rpmbuild despite rpmbuild being instructed to build it at a different location. Probably a fallout from https://github.com/rpm-software-management/rpm/commit/96467dce" >&2
+        install -D -m644 "${_bad_location_pkg}" "${_expected_pkg}"
+        return 0
+    fi
+
+    # Should not be here.
+    return 1
+}
+
+prepare_rpms() {
+    save_spec_template "${SPECFILE}"
+    save_empty_spec_template "${EMPTY_SPECFILE}"
+
+    # Create the required rpmbuild directories.
+    mkdir -p "${SPECDIR}" "${SRCDIR}" "${BUILDDIR}" \
+             "${BUILDROOTDIR}" "${RPMSDIR}" "${SRPMSDIR}"
+
+    # And the directories for the repositories.
+    for _repodir in "${RPM_REPO_UNSIGNED}" \
+                    "${RPM_REPO_SIGNED_RSA}" \
+                    "${RPM_REPO_SIGNED_ECC}" \
+                    "${RPM_REPO_SIGNED_MISMATCH}"; do
+        [ -d "${_repodir}" ] && rm -rf "${_repodir}"
+        mkdir -p "${_repodir}"
+    done
+
+    # Now let us build the RPMs.
+    create_rpmbuild_macros "${MACROS_RC}"
+    create_rpmbuild_macros_sig "${MACROS_RC_SIG}"
+    _version=42.0.0
+    _rel=el42
+    for _pn in foo bar; do
+        create_rpm "${_pn}" "${_version}" "${_rel}" "${SPECFILE}"
+    done
+
+    # Create an empty rpm as well.
+    create_rpm "empty" "${_version}" "${_rel}" "${EMPTY_SPECFILE}"
+
+    # And copy them to the "unsigned" repo.
+    find "${RPMSDIR}" -type f -name '*.rpm' -exec cp {} "${RPM_REPO_UNSIGNED}"/ \;
+    pushd "${RPM_REPO_UNSIGNED}" >/dev/null
+        createrepo_c --general-compress-type=gz .
+    popd >/dev/null
+
+    # Now we can copy the content over to the signed versions.
+    for _repodir in "${RPM_REPO_SIGNED_RSA}" \
+                    "${RPM_REPO_SIGNED_ECC}"; do
+        cp -a "${RPM_REPO_UNSIGNED}"/* "${_repodir}"/
+    done
+
+    # For ${RPM_REPO_SIGNED_RSA}", let us also pass --filelist-ext
+    # to createrepo_c.
+    pushd "${RPM_REPO_SIGNED_RSA}" >/dev/null
+        createrepo_c --general-compress-type=gz --filelists-ext .
+    popd >/dev/null
+
+    # Sign the repo metadata for the signed repos with both an RSA
+    # and an ECC gpg key..
+    ${GPGRSA} --detach-sign \
+              --armor "${RPM_REPO_SIGNED_RSA}"/repodata/repomd.xml
+    ${GPGRSA} --output "${RPM_REPO_SIGNED_RSA}"/repodata/repomd.xml.key \
+              --armor --export keylime@example.com
+
+    ${GPGECC} --detach-sign \
+              --armor "${RPM_REPO_SIGNED_ECC}"/repodata/repomd.xml
+    ${GPGECC} --output "${RPM_REPO_SIGNED_ECC}"/repodata/repomd.xml.key \
+              --armor --export keylime@example.com
+
+    # For the mismatched one, let's use the asc file from the RSA repo
+    # and the key from the ECC one.
+    cp "${RPM_REPO_SIGNED_RSA}"/* -a "${RPM_REPO_SIGNED_MISMATCH}"/
+    cp -f "${RPM_REPO_SIGNED_ECC}"/repodata/repomd.xml.key \
+        "${RPM_REPO_SIGNED_MISMATCH}"/repodata/repomd.xml.key
+
+    # A repo without the repomd.xml file.
+    mkdir -p "${RPM_REPO_SIGNED_NO_REPOMD}"/repodata/
+
+    # Now a signed repo without the key.
+    mkdir -p "${RPM_REPO_SIGNED_NO_KEY}"
+    cp "${RPM_REPO_SIGNED_RSA}"/* -a "${RPM_REPO_SIGNED_NO_KEY}"/
+    rm -f "${RPM_REPO_SIGNED_NO_KEY}"/repodata/repomd.xml.key
+
+    # And a repo without the filelists-ext file, although it indicates
+    # it has one.
+    mkdir -p "${RPM_REPO_FILELIST_EXT_MISMATCH}"
+    cp "${RPM_REPO_SIGNED_RSA}"/* -a "${RPM_REPO_FILELIST_EXT_MISMATCH}"/
+    rm -f "${RPM_REPO_FILELIST_EXT_MISMATCH}"/repodata/*-filelists-ext.xml*
+
+    # Add a repo using non-supported compression for the files.
+    # We currently support only gzip.
+    mkdir -p "${RPM_REPO_UNSUPPORTED_COMPRESSION}"
+    find "${RPMSDIR}" -type f -name '*.rpm' -exec cp {} "${RPM_REPO_UNSUPPORTED_COMPRESSION}"/ \;
+    pushd "${RPM_REPO_UNSUPPORTED_COMPRESSION}" >/dev/null
+        createrepo_c --general-compress-type=xz .
+    popd >/dev/null
+
+    # Now let us add IMA signatures to the rpms in RPM_REPO_SIGNED_RSA.
+    find "${RPM_REPO_SIGNED_RSA}" -type f -name '*.rpm' -exec \
+        rpmsign --load="${MACROS_RC_SIG}" --addsign --signfiles {} \;
+}
+
+sanity_check
+create_keys
+prepare_rpms

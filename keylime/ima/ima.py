@@ -552,3 +552,8 @@ def validate_runtime_policy(runtime_policy: RuntimePolicyType) -> None:
     except Exception as error:
         msg = str(error).split("\n", 1)[0]
         raise ImaValidationError(message=f"{msg}", code=400) from error
+
+
+def empty_policy() -> RuntimePolicyType:
+    """Return an empty runtime policy."""
+    return copy.deepcopy(EMPTY_RUNTIME_POLICY)
