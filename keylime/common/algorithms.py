@@ -45,6 +45,28 @@ class Hash(str, enum.Enum):
     def get_ff_hash(self) -> bytes:
         return b"\xff" * (self.get_size() // 8)
 
+    def hexdigest_len(self) -> int:
+        return len(self.__hashfn(b"").hexdigest())
+
+    def file_digest(self, filepath: str) -> str:
+        """
+        Calculate the digest of the specified file.
+
+        :param filepath: the path of the file to calculate the digest
+        :return: str, the hex digest of the specified file
+        """
+        _BUFFER_SIZE = 65535
+        alg = "sm3" if self.value == "sm3_256" else self.value
+        hasher = hashlib.new(alg)
+        with open(filepath, "rb") as f:
+            while True:
+                data = f.read(_BUFFER_SIZE)
+                if not data:
+                    break
+                hasher.update(data)
+
+        return hasher.hexdigest()
+
     def __str__(self) -> str:
         return self.value
 
