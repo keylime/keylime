@@ -71,24 +71,22 @@ class Hash(str, enum.Enum):
         return self.value
 
 
-class Encrypt:
+class Encrypt(str, enum.Enum):
     RSA = "rsa"
     ECC = "ecc"
-    supported_algorithms = (RSA, ECC)
 
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
-        return algorithm in Encrypt.supported_algorithms
+        return algorithm in list(Encrypt)
 
 
-class Sign:
+class Sign(str, enum.Enum):
     RSASSA = "rsassa"
     RSAPSS = "rsapss"
     ECDSA = "ecdsa"
     ECDAA = "ecdaa"
     ECSCHNORR = "ecschnorr"
-    supported_algorithms = (RSASSA, RSAPSS, ECDSA, ECDAA, ECSCHNORR)
 
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
-        return algorithm in Sign.supported_algorithms
+        return algorithm in list(Sign)
