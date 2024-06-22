@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from keylime.common.algorithms import Hash
+from keylime.common.algorithms import Encrypt, Hash, Sign
 
 
 class TestHash(unittest.TestCase):
@@ -95,4 +95,66 @@ class TestHash(unittest.TestCase):
                 mfile.write(contents)
 
             for c in test_cases:
-                self.assertEqual(Hash(c["hash"]).file_digest(targetfile), c["digest"])
+                self.assertEqual(Hash(c["hash"]).file_digest(targetfile), c["digest"], msg=f"hash = {c['hash']}")
+
+
+class TestEncrypt(unittest.TestCase):
+    def test_is_recognized(self):
+        test_cases = [
+            {
+                "enc": "foobar",
+                "valid": False,
+            },
+            {
+                "enc": "rsa",
+                "valid": True,
+            },
+            {
+                "enc": "",
+                "valid": False,
+            },
+            {
+                "enc": "ecc",
+                "valid": True,
+            },
+        ]
+
+        for c in test_cases:
+            self.assertEqual(Encrypt.is_recognized(c["enc"]), c["valid"], msg=f"enc = {c['enc']}")
+
+
+class TestSign(unittest.TestCase):
+    def test_is_recognized(self):
+        test_cases = [
+            {
+                "sign": "foobar",
+                "valid": False,
+            },
+            {
+                "sign": "rsassa",
+                "valid": True,
+            },
+            {
+                "sign": "rsapss",
+                "valid": True,
+            },
+            {
+                "sign": "",
+                "valid": False,
+            },
+            {
+                "sign": "ecdsa",
+                "valid": True,
+            },
+            {
+                "sign": "ecdaa",
+                "valid": True,
+            },
+            {
+                "sign": "ecschnorr",
+                "valid": True,
+            },
+        ]
+
+        for c in test_cases:
+            self.assertEqual(Sign.is_recognized(c["sign"]), c["valid"], msg=f"sign = {c['sign']}")
