@@ -81,6 +81,7 @@ def upgrade_cloud_verifier():
                     logger.info("Runtime policy field '%s' not found in existing allowlist; using default value", key)
                 else:
                     new_ima_policy[key] = alist_json[key]
+        ima.trim_runtime_policy(new_ima_policy, False)
         new_ima_policy = json.dumps(new_ima_policy)
 
         conn.execute(allowlists.update().where(allowlists.c.id == old_ima_policy_id).values(ima_policy=new_ima_policy))

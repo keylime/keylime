@@ -77,6 +77,7 @@ RuntimePolicyType = TypedDict(
         "meta": Required[RPMetaType],
         "release": NotRequired[int],
         "digests": Required[Dict[str, List[str]]],
+        "rejects": NotRequired[Dict[str, List[str]]],  # added in v2
         "excludes": Required[List[str]],
         "keyrings": Required[Dict[str, List[str]]],
         "ima": Required[RPImaType],
