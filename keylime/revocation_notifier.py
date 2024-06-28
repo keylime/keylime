@@ -9,8 +9,9 @@ from typing import Any, Callable, Dict, Optional, Set
 
 import requests
 
-from keylime import config, crypto, json, keylime_logging
+from keylime import config, crypto, json, keylime_logging, web_util
 from keylime.common import retry
+from keylime.requests_client import RequestsClient
 
 logger = keylime_logging.init_logging("revocation_notifier")
 broker_proc: Optional[Process] = None
@@ -112,7 +113,10 @@ def notify(tosend: Dict[str, Any]) -> None:
                 exponential_backoff = config.getboolean("verifier", "exponential_backoff")
                 next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
                 logger.debug(
-                    "Unable to publish revocation message %d times, trying again in %f seconds: %s", i, next_retry, e
+                    "Unable to publish revocation message %d times, trying again in %f seconds: %s",
+                    i,
+                    next_retry,
+                    e,
                 )
                 time.sleep(next_retry)
         mysock.close()
@@ -135,30 +139,50 @@ def notify_webhook(tosend: Dict[str, Any]) -> None:
     def worker_webhook(tosend: Dict[str, Any], url: str) -> None:
         interval = config.getfloat("verifier", "retry_interval")
         exponential_backoff = config.getboolean("verifier", "exponential_backoff")
-        with requests.Session() as session:
-            logger.info("Sending revocation event via webhook...")
-            for i in range(config.getint("verifier", "max_retries")):
-                next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
-                try:
-                    response = session.post(url, json=tosend, timeout=5, verify=requests.utils.DEFAULT_CA_BUNDLE_PATH)
-                    if response.status_code in [200, 202]:
-                        break
 
-                    logger.debug(
-                        "Unable to publish revocation message %d times via webhook, "
-                        "trying again in %d seconds. "
-                        "Server returned status code: %s",
-                        i,
-                        next_retry,
-                        response.status_code,
-                    )
-                except requests.exceptions.RequestException as e:
-                    logger.debug(
-                        "Unable to publish revocation message %d times via webhook, trying again in %d seconds: %s",
-                        i,
-                        next_retry,
-                        e,
-                    )
+        max_retries = config.getint("verifier", "max_retries")
+        if max_retries <= 0:
+            logger.info("Invalid value found in 'max_retries' option for verifier, using default value")
+            max_retries = 5
+
+        # Get TLS options from the configuration
+        (cert, key, trusted_ca, key_password), verify_server_cert = web_util.get_tls_options(
+            "verifier", is_client=True, logger=logger
+        )
+
+        # Generate the TLS context using the obtained options
+        tls_context = web_util.generate_tls_context(cert, key, trusted_ca, key_password, is_client=True, logger=logger)
+
+        logger.info("Sending revocation event via webhook to %s ...", url)
+        for i in range(max_retries):
+            next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
+
+            with RequestsClient(
+                url,
+                verify_server_cert,
+                tls_context,
+            ) as client:
+                try:
+                    res = client.post("", json=tosend, timeout=5)
+                except requests.exceptions.SSLError as ssl_error:
+                    if "TLSV1_ALERT_UNKNOWN_CA" in str(ssl_error):
+                        logger.warning(
+                            "Keylime does not recognize certificate from peer. Check if verifier 'trusted_server_ca' is configured correctly"
+                        )
+
+                    raise ssl_error from ssl_error
+
+                if res and res.status_code in [200, 202]:
+                    break
+
+                logger.debug(
+                    "Unable to publish revocation message %d times via webhook, "
+                    "trying again in %d seconds. "
+                    "Server returned status code: %s",
+                    i + 1,
+                    next_retry,
+                    res.status_code,
+                )
 
                 time.sleep(next_retry)
 
@@ -170,7 +194,11 @@ def notify_webhook(tosend: Dict[str, Any]) -> None:
 cert_key = None
 
 
-def process_revocation(revocation: Dict[str, Any], callback: Callable[[Dict[str, Any]], None], cert_path: str) -> None:
+def process_revocation(
+    revocation: Dict[str, Any],
+    callback: Callable[[Dict[str, Any]], None],
+    cert_path: str,
+) -> None:
     global cert_key
 
     if cert_key is None:
@@ -182,10 +210,17 @@ def process_revocation(revocation: Dict[str, Any], callback: Callable[[Dict[str,
             cert_key = crypto.x509_import_pubkey(certpem)
 
     if cert_key is None:
-        logger.warning("Unable to check signature of revocation message: %s not available", cert_path)
+        logger.warning(
+            "Unable to check signature of revocation message: %s not available",
+            cert_path,
+        )
     elif "signature" not in revocation or revocation["signature"] == "none":
         logger.warning("No signature on revocation message from server")
-    elif not crypto.rsa_verify(cert_key, revocation["msg"].encode("utf-8"), revocation["signature"].encode("utf-8")):
+    elif not crypto.rsa_verify(
+        cert_key,
+        revocation["msg"].encode("utf-8"),
+        revocation["signature"].encode("utf-8"),
+    ):
         logger.error("Invalid revocation message siganture %s", revocation)
     else:
         message = json.loads(revocation["msg"])
