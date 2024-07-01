@@ -140,7 +140,7 @@ def notify_webhook(tosend: Dict[str, Any]) -> None:
             for i in range(config.getint("verifier", "max_retries")):
                 next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
                 try:
-                    response = session.post(url, json=tosend, timeout=5)
+                    response = session.post(url, json=tosend, timeout=5, verify=requests.utils.DEFAULT_CA_BUNDLE_PATH)
                     if response.status_code in [200, 202]:
                         break
 
