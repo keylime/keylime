@@ -28,6 +28,12 @@ tpm2-abrmd \
     --flush-all \
     --allow-root &
 
+
+# Add extra dependencies for the tests.
+# FIXME: this should likely go into the container image, which
+# is also using an EOL'ed Fedora distro.
+dnf install rpm-build rpm-sign createrepo_c -y
+
 # Create test user
 useradd -s /sbin/nologin -g tss keylime
 

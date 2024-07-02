@@ -265,3 +265,54 @@ class Cert_Utils_Test(unittest.TestCase):
             base64.b64decode(idevid_der), base64.b64decode(iak_der), TEST_CERT_DIR
         )
         self.assertTrue(error == "")
+
+    def test_is_x509_cert(self):
+        test_cases = [
+            {
+                "data": b"",
+                "valid": False,
+            },
+            {
+                "data": base64.b64decode(
+                    """MIIDyDCCArCgAwIBAgIBATANBgkqhkiG9w0BAQsFADBzMQswCQYDVQQGEwJVUzEm
+MCQGA1UEAwwdS2V5bGltZSBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkxCzAJBgNVBAgM
+Ak1BMRIwEAYDVQQHDAlMZXhpbmd0b24xDjAMBgNVBAoMBU1JVExMMQswCQYDVQQL
+DAI1MzAeFw0yNDA2MjIxMjAxMDFaFw0zNDA2MjAxMjAxMDFaMHMxCzAJBgNVBAYT
+AlVTMSYwJAYDVQQDDB1LZXlsaW1lIENlcnRpZmljYXRlIEF1dGhvcml0eTELMAkG
+A1UECAwCTUExEjAQBgNVBAcMCUxleGluZ3RvbjEOMAwGA1UECgwFTUlUTEwxCzAJ
+BgNVBAsMAjUzMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwgO1/Evq
+wn0bJwu3aQ9mhgZ8rA6mGx7IFTCncJx1pFg4WIviFBoFydJhvvdxWw5eavXUNoXK
+/EjTEX8RRV/nw/JF2b8Cq2Ypn/Apzjx7TSUFS17A/CidR/+nDEiqfm1OIgzFkG0L
+eXLKn3MbkWmyM1LkamizbzM4PSfDpPJyQ+QNWZfaSebLP+a41HFWVyxMYAGnOxlv
+uIjjG32uB+2l2lwiHVq5WPzeQyIlF5I/k4rE2EyLaLyQvyzVkMuM/HVfsWw/WhYJ
+DM3Z9ZLpL9kEi/d/ytI21jlXkNJFyrh3xudhi9yrvYkRLj90UtCcEXXxsivq5G32
+T7via4I0yfkaZwIDAQABo2cwZTAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBRd6bco
+tMXw+7u2Jed12DefJa/TtDApBgNVHR8EIjAgMB6gHKAahhhodHRwOi8vbG9jYWxo
+b3N0L2NybC5wZW0wCwYDVR0PBAQDAgEGMA0GCSqGSIb3DQEBCwUAA4IBAQAAnRAU
+ZujKyl76ZQHE5sbA2oc7Gl13Ki9rj8SjkpkLr0kufaf3fEr89Mk6DDelyqb3YYd3
+Is8m8OKPhtA1CBQKph/FYPTV0PUozp7/Tn0qDxRDGVO819Dxe99mwwOh0d0LhH6A
+ZWhPWPde+NevjfO3AMQs6F0FrxyJlqV46Gc1ipCLrP6N3nujpIIfu+UJMQ4kiYGT
+hlXUEWpfno1blCRGDzyYL86rthQN6ZD+Zj9L2YrfsA2P0sdxFAIBI3KQ5TMVCP/t
+LApSvvVeV19fEod6DUYTYBuGkQAD1b88q8/J9NDeSWgfEB6UWEDY0vygHiiRF7iw
+VMuvlCzEwd8V/FIw"""
+                ),
+                "valid": True,
+            },
+            {
+                "data": base64.b64decode(st_sha256_with_rsa_der),
+                "valid": True,
+            },
+            {
+                "data": f"-----BEGIN CERTIFICATE-----\n{st_sha256_with_rsa_der}\n-----END CERTIFICATE-----".encode(
+                    "UTF-8"
+                ),
+                "valid": True,
+            },
+            {
+                "data": b"foobar",
+                "valid": False,
+            },
+        ]
+
+        for index, c in enumerate(test_cases):
+            self.assertEqual(cert_utils.is_x509_cert(c["data"]), c["valid"], msg=f"index is {index}")

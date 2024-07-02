@@ -1,0 +1,161 @@
+#!/bin/bash
+set -euo pipefail
+
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2024 Red Hat, Inc.
+
+BASEDIR=${1:-}
+if [ -z "${BASEDIR}" ] || [ ! -d "${BASEDIR}" ]; then
+    echo "Please specify a valid directory to use for setting up the dummy initrds" >&2
+    exit 1
+fi
+
+TREE="${BASEDIR}"/tree
+CPIO="${BASEDIR}"/main.cpio
+EARLY_CPIO="${BASEDIR}"/early
+OUTDIR="${BASEDIR}"/initrd
+INITRD_PREFIX="${OUTDIR}"/initramfs-keylime
+DUMMY_ROOTFS="${BASEDIR}"/dummy-rootfs
+
+build_fedora_like_early_tree() {
+    [ -n "${TREE}" ] \
+        || die "Please indicate the dummy initrd tree in the TREE variable"
+
+    # Let's first create a dummy tree to serve as our "initrd".
+    [ -d "${TREE}" ] && rm -rf "${TREE}"
+    mkdir -p "${TREE}"
+
+    printf '1\n' > "${TREE}"/early_cpio
+}
+
+build_debian_like_early_tree() {
+    [ -n "${TREE}" ] \
+        || die "Please indicate the dummy initrd tree in the TREE variable"
+
+    # Let's first create a dummy tree to serve as our "initrd".
+    [ -d "${TREE}" ] && rm -rf "${TREE}"
+    mkdir -p "${TREE}"
+
+    mkdir -p "${TREE}"/kernel/x86/microcode
+    printf 'foobar\n' > "${TREE}"/kernel/x86/microcode/GenuineFooBar.bin
+}
+
+
+build_dummy_tree() {
+    [ -n "${TREE}" ] \
+        || die "Please indicate the dummy initrd tree in the TREE variable"
+
+    # Let's first create a dummy tree to serve as our "initrd".
+    [ -d "${TREE}" ] && rm -rf "${TREE}"
+    mkdir -p "${TREE}"
+
+    # Now let's populate it.
+    mkdir -p "${TREE}"/{dev,var/tmp,usr/{bin,sbin,lib,lib64}}
+
+    ln -s usr/bin "${TREE}"/bin
+    ln -s usr/sbin "${TREE}"/sbin
+    ln -s usr/lib "${TREE}"/lib
+    ln -s usr/lib64 "${TREE}"/lib64
+
+    # Add also a couple of dummy scripts.
+    # foo: sha256:18eb0ba043d6fc5b06b6f785b4a411fa0d6d695c4a08d2497e8b07c4043048f7
+    printf '#!/bin/sh\necho foo\n' > "${TREE}"/usr/bin/foo
+    # bar: sha256:dd2ccf6ebfabbca501864a3ec5aebecfadd69d717ea9d9ddd509b49471d039db
+    printf '#!/bin/sh\necho bar\n' > "${TREE}"/usr/sbin/bar
+    # foobar.so: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    printf '' > "${TREE}"/usr/lib/foobar.so
+    # foobar.so: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    printf '' > "${TREE}"/usr/lib64/foobar64.so
+
+    printf '' > "${TREE}/dev/foo bar"
+    # Add a named pipe/FIFO as well.
+    mknod "${TREE}"/usr/fifo p
+}
+
+make_early_cpio() {
+    for distro in fedora debian; do
+        cpio_f="build_${distro}_like_early_tree"
+
+        "${cpio_f}"
+        (
+            cd "${TREE}" && find . -print0 | sort -z \
+                | cpio --null --quiet -o -H newc \
+                > "${EARLY_CPIO}-${distro}.cpio"
+        )
+    done
+}
+
+make_cpio() {
+    build_dummy_tree
+    # Let's build the CPIO file here too.
+    (
+        cd "${TREE}" && find . -print0 | sort -z \
+            | cpio --null --quiet -o -H newc > "${CPIO}"
+    )
+    build_debian_like_early_tree
+}
+
+build_dummy_rootfs() {
+    mkdir -p "${DUMMY_ROOTFS}"/{dev,var/tmp,usr/{bin,sbin,lib,lib64},tmp,root,home/foobar}
+    # All dummy files with sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    printf '' > "${DUMMY_ROOTFS}"/dev/foobar-sdaX
+    printf '' > "${DUMMY_ROOTFS}"/var/tmp/foobar
+    printf '' > "${DUMMY_ROOTFS}"/usr/bin/foobar-bin
+    printf '' > "${DUMMY_ROOTFS}"/usr/sbin/foobar-sbin
+    printf '' > "${DUMMY_ROOTFS}"/usr/lib/foobar.so
+    printf '' > "${DUMMY_ROOTFS}"/usr/lib64/foobar64.so
+    printf '' > "${DUMMY_ROOTFS}"/usr/lib64/foobar-temp
+    printf '' > "${DUMMY_ROOTFS}"/root/foobar-root
+    printf '' > "${DUMMY_ROOTFS}"/home/foobar/non-root
+
+    if [ "${EUID}" -eq 0 ]; then
+        # Running as root, let's make sure at least home
+        # is not owned by root.
+        chown 0:0 -R "${DUMMY_ROOTFS}"/
+        chown 1000:1000 -R "${DUMMY_ROOTFS}"/home/
+    fi
+}
+
+build_dummy_rootfs
+make_early_cpio
+make_cpio
+
+# Now let's compress our CPIO.
+[ -d "${OUTDIR}" ] && rm -rf "${OUTDIR}"
+mkdir -p "${OUTDIR}"
+
+# Let's get info on the compression available.
+c_missing=
+compression=
+for c in cat gzip zstd bzip2 xz lzma lz4 lzop; do
+    if ! command -v "${c}" >/dev/null 2>/dev/null; then
+        c_missing="${c_missing} ${c}"
+        continue
+    fi
+    compression="${compression} ${c}"
+done
+
+if [ -n "${c_missing}" ]; then
+    echo "WARN: not testing with the following compression because it was not found in the path:${c_missing}" >&2
+fi
+
+for distro in debian fedora; do
+    for compress in ${compression}; do
+        if ! command -v "${compress}" >/dev/null 2>/dev/null; then
+            echo "WARN: not compressing with '${compress}' because it was not found in the PATH" >&2
+            continue
+        fi
+
+        cmd="${compress} -c"
+        [ "${compress}"  = "cat" ] && cmd="${compress}"
+
+        # Version concatenated with the early_cpio.
+        dst="${INITRD_PREFIX}-early-${distro}-${compress}".img
+        cp "${EARLY_CPIO}-${distro}".cpio "${dst}"
+        ${cmd} < "${CPIO}" >> "${dst}"
+
+        # Without the early_cpio.
+        dst="${INITRD_PREFIX}-${distro}-${compress}".img
+        ${cmd} < "${CPIO}" >> "${dst}"
+    done
+done
