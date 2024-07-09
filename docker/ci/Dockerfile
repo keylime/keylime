@@ -5,9 +5,9 @@
 # It is not recommended for use beyond testing scenarios.
 ##############################################################################
 
-FROM quay.io/fedora/fedora:37-x86_64@sha256:eab075950eeef382b80b6c2ffb693381e6a7c507d3337949197c37ad244842e9
+FROM quay.io/fedora/fedora:40-x86_64@sha256:6ddf7ca1459428ea737090ffd4c7560c0463c2d7af8c32732fae878afa90b8a4
 MAINTAINER Luke Hinds <lhinds@redhat.com>
-LABEL version="1.1.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
+LABEL version="1.2.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
 # environment variables
 ARG BRANCH=master
