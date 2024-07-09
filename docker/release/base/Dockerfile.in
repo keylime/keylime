@@ -1,13 +1,12 @@
-FROM index.docker.io/library/fedora:37@sha256:de153a3928b8901ad05d8d3314a1f7680570979bd2c04c4562b817daa8358a33 AS keylime_base
+FROM fedora:40@sha256:6ddf7ca1459428ea737090ffd4c7560c0463c2d7af8c32732fae878afa90b8a4 AS keylime_base
 LABEL version="_version_" description="Keylime Base - Only used as an base image for derived packages"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 
 RUN dnf -y install dnf-plugins-core git efivar-libs efivar-devel && dnf -y builddep tpm2-tools 
-RUN git clone -b 5.5 https://github.com/tpm2-software/tpm2-tools.git && \
+RUN git clone -b 5.7 https://github.com/tpm2-software/tpm2-tools.git && \
     cd tpm2-tools && \
     git config user.email "main@keylime.groups.io" && \
     git config user.name "Keylime" && \
-    git cherry-pick 9735dc332b782ce94371aff8746ce6a68094b038 576a31bcc910da517067b29667f45fbe78e812e0 && \
     ./bootstrap && \
     ./configure && \
     make && make install && \
