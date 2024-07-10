@@ -25,6 +25,7 @@ RUN dnf groupinstall -y \
 # Packaged dependencies
 ENV PKGS_DEPS="automake \
 clang clang-devel \
+createrepo_c \
 czmq-devel \
 dbus \
 dbus-daemon \
@@ -59,6 +60,8 @@ python3-virtualenv \
 python3-yaml \
 python3-zmq \
 redhat-rpm-config \
+rpm-build \
+rpm-sign \
 rust clippy cargo \
 swtpm \
 swtpm-tools \
