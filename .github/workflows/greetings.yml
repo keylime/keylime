@@ -6,7 +6,7 @@ jobs:
   greeting:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/first-interaction@fb2402657b4a28582200150d0a145671d0e50597 # v1
+    - uses: actions/first-interaction@3c71ce730280171fd1cfb57c00c774f8998586f7 # v1
       continue-on-error: true
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
