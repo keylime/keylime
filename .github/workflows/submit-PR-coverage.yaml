@@ -11,7 +11,7 @@ jobs:
       run:
         working-directory: scripts
     steps:
-    - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v3
     - name: Wait for Packit tests to finish and download coverage.xml file
       run: ./download_packit_coverage.sh
       env:
