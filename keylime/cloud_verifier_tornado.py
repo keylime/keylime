@@ -856,53 +856,67 @@ class AllowlistHandler(BaseHandler):
     def head(self) -> None:
         web_util.echo_json_response(self, 400, "Allowlist handler: HEAD Not Implemented")
 
-    def __validate_input(self, method: str) -> Optional[str]:
+    def __validate_input(self, method: str) -> Tuple[bool, Optional[str]]:
         """Validate the input"""
         if self.request.uri is None:
             web_util.echo_json_response(self, 400, "Invalid URL")
-            return None
+            return False, None
         rest_params = web_util.get_restful_params(self.request.uri)
         if rest_params is None or "allowlists" not in rest_params:
             web_util.echo_json_response(self, 400, "Invalid URL")
-            return None
+            return False, None
 
         if not web_util.validate_api_version(self, cast(str, rest_params["api_version"]), logger):
-            return None
+            return False, None
 
         runtime_policy_name = rest_params["allowlists"]
-        if runtime_policy_name is None:
+        if runtime_policy_name is None and method != "GET":
             web_util.echo_json_response(self, 400, "Invalid URL")
-            if method not in ["POST", "PUT"]:
-                logger.warning("%s returning 400 response: %s", method, self.request.path)
-            return None
+            logger.warning("%s returning 400 response: %s", method, self.request.path)
+            return False, None
 
-        return runtime_policy_name
+        return True, runtime_policy_name
 
     def get(self) -> None:
-        """Get an allowlist
+        """Get an allowlist or names of allowlists
 
-        GET /allowlists/{name}
+        GET /allowlists/[name]
+        name is required to get an allowlist but not for getting the names of the allowlists.
         """
-        allowlist_name = self.__validate_input("GET")
-        if allowlist_name is None:
+        params_valid, allowlist_name = self.__validate_input("GET")
+        if not params_valid:
             return
 
         session = get_session()
-        try:
-            allowlist = session.query(VerifierAllowlist).filter_by(name=allowlist_name).one()
-        except NoResultFound:
-            web_util.echo_json_response(self, 404, f"Runtime policy {allowlist_name} not found")
-            return
-        except SQLAlchemyError as e:
-            logger.error("SQLAlchemy Error: %s", e)
-            web_util.echo_json_response(self, 500, "Failed to get allowlist")
-            raise
+        if allowlist_name is None:
+            try:
+                names_allowlists = session.query(VerifierAllowlist.name).all()
+            except SQLAlchemyError as e:
+                logger.error("SQLAlchemy Error: %s", e)
+                web_util.echo_json_response(self, 500, "Failed to get names of allowlists")
+                raise
 
-        response = {}
-        for field in ("name", "tpm_policy"):
-            response[field] = getattr(allowlist, field, None)
-        response["runtime_policy"] = getattr(allowlist, "ima_policy", None)
-        web_util.echo_json_response(self, 200, "Success", response)
+            names_response = []
+            for name in names_allowlists:
+                names_response.append(name[0])
+            web_util.echo_json_response(self, 200, "Success", {"runtimepolicy names": names_response})
+
+        else:
+            try:
+                allowlist = session.query(VerifierAllowlist).filter_by(name=allowlist_name).one()
+            except NoResultFound:
+                web_util.echo_json_response(self, 404, f"Runtime policy {allowlist_name} not found")
+                return
+            except SQLAlchemyError as e:
+                logger.error("SQLAlchemy Error: %s", e)
+                web_util.echo_json_response(self, 500, "Failed to get allowlist")
+                raise
+
+            response = {}
+            for field in ("name", "tpm_policy"):
+                response[field] = getattr(allowlist, field, None)
+            response["runtime_policy"] = getattr(allowlist, "ima_policy", None)
+            web_util.echo_json_response(self, 200, "Success", response)
 
     def delete(self) -> None:
         """Delete an allowlist
@@ -910,8 +924,8 @@ class AllowlistHandler(BaseHandler):
         DELETE /allowlists/{name}
         """
 
-        allowlist_name = self.__validate_input("DELETE")
-        if allowlist_name is None:
+        params_valid, allowlist_name = self.__validate_input("DELETE")
+        if not params_valid or allowlist_name is None:
             return
 
         session = get_session()
@@ -1000,8 +1014,8 @@ class AllowlistHandler(BaseHandler):
         body: {"tpm_policy": {..} ...
         """
 
-        runtime_policy_name = self.__validate_input("POST")
-        if runtime_policy_name is None:
+        params_valid, runtime_policy_name = self.__validate_input("POST")
+        if not params_valid or runtime_policy_name is None:
             return
 
         runtime_policy_db_format = self.__get_runtime_policy_db_format(runtime_policy_name)
@@ -1038,8 +1052,8 @@ class AllowlistHandler(BaseHandler):
         body: {"tpm_policy": {..} ...
         """
 
-        runtime_policy_name = self.__validate_input("PUT")
-        if runtime_policy_name is None:
+        params_valid, runtime_policy_name = self.__validate_input("PUT")
+        if not params_valid or runtime_policy_name is None:
             return
 
         runtime_policy_db_format = self.__get_runtime_policy_db_format(runtime_policy_name)
