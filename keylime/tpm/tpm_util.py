@@ -49,9 +49,11 @@ from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
 from cryptography.hazmat.primitives.ciphers import Cipher, modes
+from cryptography.hazmat.primitives.kdf.concatkdf import ConcatKDFHash
+from cryptography.hazmat.primitives.kdf.kbkdf import KBKDFHMAC, CounterLocation, Mode
 
 from keylime import config, crypto, json, keylime_logging
-from keylime.tpm import ec_crypto_helper, tpm2_objects
+from keylime.tpm import tpm2_objects
 
 logger = keylime_logging.init_logging("tpm_util")
 
@@ -306,7 +308,7 @@ def crypt_secret_encrypt_ecc(public_key: EllipticCurvePublicKey, hashfunc: hashe
     my_public_key = my_private_key.public_key()
     point = tpm2_objects.tpms_ecc_point_marshal(my_public_key)
 
-    ecc_secret_x = ec_crypto_helper.EcCryptoHelper.get_instance().point_multiply_x(public_key, my_private_key)
+    ecc_secret_x = my_private_key.exchange(ec.ECDH(), public_key)
 
     digest_size = hashfunc.digest_size
 
@@ -449,27 +451,20 @@ def crypt_kdfa(
     size_in_bits: how many bits of random data to generate
     """
     size_in_bytes = (size_in_bits + 7) >> 3
-    label_bytes = label_to_bytes(label)
     context = context_u + context_v
 
-    ctr = 0
-    result = b""
-
-    size = size_in_bytes
-
-    while size > 0:
-        h = hmac.HMAC(key, hashfunc)
-        ctr += 1
-        h.update(struct.pack(">I", ctr))
-        h.update(label_bytes)
-        if context:
-            h.update(context)
-        h.update(struct.pack(">I", size_in_bits))
-        result += h.finalize()
-
-        size -= hashfunc.digest_size
-
-    return result[:size_in_bytes]
+    kdf = KBKDFHMAC(
+        algorithm=hashfunc,
+        mode=Mode.CounterMode,
+        length=size_in_bytes,
+        rlen=4,
+        llen=4,
+        location=CounterLocation.BeforeFixed,
+        label=bytes(label, "UTF-8"),
+        context=context,
+        fixed=None,
+    )
+    return kdf.derive(key)
 
 
 def crypt_kdfe(
@@ -493,27 +488,14 @@ def crypt_kdfe(
     """
     size_in_bytes = (size_in_bits + 7) >> 3
     label_bytes = label_to_bytes(label)
-    party = party_x + party_y
+    otherinfo = label_bytes + party_x + party_y
 
-    ctr = 0
-    result = b""
-
-    size = size_in_bytes
-
-    while size > 0:
-        digest = hashes.Hash(hashfunc, backend=backends.default_backend())
-        ctr += 1
-        digest.update(struct.pack(">I", ctr))
-        if secret_x:
-            digest.update(secret_x)
-        digest.update(label_bytes)
-        if party:
-            digest.update(party)
-        result += digest.finalize()
-
-        size -= hashfunc.digest_size
-
-    return result[:size_in_bytes]
+    kdf = ConcatKDFHash(
+        algorithm=hashfunc,
+        length=size_in_bytes,
+        otherinfo=otherinfo,
+    )
+    return kdf.derive(secret_x)
 
 
 def crypt_hash(data: bytes, hash_alg: bytes) -> Tuple[bytes, hashes.HashAlgorithm]:
