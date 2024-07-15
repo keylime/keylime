@@ -21,16 +21,22 @@ jobs:
       run: ls coverage*
     - name: Upload coverage.unittests.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@f32b3a3741e1053eb607407145bc9619351dc93b # v2
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         files: scripts/coverage.unittests.xml
         flags: unittests
     - name: Upload coverage.testsuite.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@f32b3a3741e1053eb607407145bc9619351dc93b # v2
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         files: scripts/coverage.testsuite.xml
         flags: testsuite
     - name: Upload coverage.packit.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@f32b3a3741e1053eb607407145bc9619351dc93b # v2
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         files: scripts/coverage.packit.xml
         flags: packit-e2e
