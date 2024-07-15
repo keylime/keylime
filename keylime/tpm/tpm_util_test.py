@@ -1,8 +1,10 @@
 import base64
+import os
 import unittest
 from unittest import mock
 
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.ec import (
     SECP256R1,
     EllipticCurve,
@@ -10,8 +12,10 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePrivateNumbers,
     EllipticCurvePublicNumbers,
 )
+from cryptography.hazmat.primitives.kdf.concatkdf import ConcatKDFHash
+from cryptography.hazmat.primitives.kdf.kbkdf import KBKDFHMAC, CounterLocation, Mode
 
-from keylime.tpm.tpm_util import checkquote, makecredential
+from keylime.tpm.tpm_util import checkquote, crypt_kdfa, crypt_kdfe, label_to_bytes, makecredential
 
 
 class TestTpmUtil(unittest.TestCase):
@@ -149,3 +153,81 @@ class TestTpmUtil(unittest.TestCase):
                     "e40966edc5f36ce8"
                 ),
             )
+
+    def test_kdfa(self) -> None:
+        hashfunc = hashes.SHA256()
+        size_in_bits = 256
+        size_in_bytes = (256 + 7) >> 3
+
+        context_u = b"contextU"
+        context_v = b"contextV"
+
+        context = context_u + context_v
+        label = "label"
+
+        secret = os.urandom(16)
+
+        # Derive the key using python-cryptography
+        kdf = KBKDFHMAC(
+            algorithm=hashfunc,
+            mode=Mode.CounterMode,
+            length=size_in_bytes,
+            rlen=4,
+            llen=4,
+            location=CounterLocation.BeforeFixed,
+            label=bytes(label, "UTF-8"),
+            context=context,
+            fixed=None,
+        )
+        result_kdf = kdf.derive(secret)
+
+        # Derive the key using the local implementation
+        result_crypt_kdfa = crypt_kdfa(
+            hashfunc,
+            secret,
+            label,
+            context_u,
+            context_v,
+            size_in_bits,
+        )
+
+        # Verify the results are the same
+        self.assertEqual(result_crypt_kdfa, result_kdf)
+
+    def test_kdfe(self) -> None:
+        hashfunc = hashes.SHA256()
+        size_in_bits = 256
+        size_in_bytes = (256 + 7) >> 3
+
+        party_x = b"contextU"
+        party_y = b"contextV"
+
+        label = "label"
+        label_bytes = label_to_bytes(label)
+
+        secret = os.urandom(16)
+        size_in_bytes = (size_in_bits + 7) >> 3
+        label_bytes = label_to_bytes(label)
+
+        otherinfo = label_bytes + party_x + party_y
+
+        # Derive the key using python-cryptography
+        kdf = ConcatKDFHash(
+            algorithm=hashfunc,
+            length=size_in_bytes,
+            otherinfo=otherinfo,
+        )
+        kdf_result = kdf.derive(secret)
+
+        # Derive the key using the local implementation
+        result_crypt_kdfe = crypt_kdfe(
+            hashfunc=hashfunc,
+            secret_x=secret,
+            label=label,
+            party_x=party_x,
+            party_y=party_y,
+            size_in_bits=size_in_bits,
+        )
+
+        # Verify the results are the same
+        self.assertEqual(kdf_result, result_crypt_kdfe)
