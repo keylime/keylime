@@ -5,6 +5,7 @@ from unittest import mock
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import (
     SECP256R1,
     EllipticCurve,
@@ -15,6 +16,7 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
 from cryptography.hazmat.primitives.kdf.concatkdf import ConcatKDFHash
 from cryptography.hazmat.primitives.kdf.kbkdf import KBKDFHMAC, CounterLocation, Mode
 
+from keylime.tpm import ec_crypto_helper
 from keylime.tpm.tpm_util import checkquote, crypt_kdfa, crypt_kdfe, label_to_bytes, makecredential
 
 
@@ -129,7 +131,8 @@ class TestTpmUtil(unittest.TestCase):
 
     def test_makecredential_ecc(self) -> None:
         with mock.patch(
-            "cryptography.hazmat.primitives.asymmetric.ec.generate_private_key", TestTpmUtil.create_fixed_ec_key
+            "cryptography.hazmat.primitives.asymmetric.ec.generate_private_key",
+            TestTpmUtil.create_fixed_ec_key,
         ):
             ek_tpm = bytes.fromhex(
                 "007a0023000b000300b20020837197674484b3f81a90cc8d46a5d724fd52d76e06520b64f2a1"
@@ -231,3 +234,29 @@ class TestTpmUtil(unittest.TestCase):
 
         # Verify the results are the same
         self.assertEqual(kdf_result, result_crypt_kdfe)
+
+    def test_ecdh(self) -> None:
+        # Emulate the key received from a remote peer
+        remote_key = ec.generate_private_key(ec.SECP384R1())
+        remote_public = remote_key.public_key()
+
+        # Emulate local ephemeral key generation on the same curve
+        my_private_key = ec.generate_private_key(remote_public.curve)
+        my_public_key = my_private_key.public_key()
+
+        # Calculate the EC point multiplication using the local implementation
+        result_point_multiply_x = ec_crypto_helper.EcCryptoHelper.get_instance().point_multiply_x(
+            remote_public, my_private_key
+        )
+
+        # Calculate the EC point multiplication using the python cryptography
+        # ECDH implementation
+        result_ecdh = my_private_key.exchange(ec.ECDH(), remote_public)
+
+        # Verify that both are the same
+        self.assertEqual(result_point_multiply_x, result_ecdh)
+
+        # Emulate the key the peer would obtain and check that are the same
+        remote_derived = remote_key.exchange(ec.ECDH(), my_public_key)
+        self.assertEqual(remote_derived, result_ecdh)
+        self.assertEqual(remote_derived, result_point_multiply_x)
