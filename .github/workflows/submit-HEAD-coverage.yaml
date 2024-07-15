@@ -25,21 +25,21 @@ jobs:
     - name: List downloaded files
       run: ls coverage*
     - name: Upload coverage.unittests.xml report to Codecov with GitHub Action
-      uses: codecov/codecov-action@f32b3a3741e1053eb607407145bc9619351dc93b # v2
+      uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         files: coverage.unittests.xml
         flags: unittests
     - name: Upload coverage.testsuite.xml report to Codecov with GitHub Action
-      uses: codecov/codecov-action@f32b3a3741e1053eb607407145bc9619351dc93b # v2
+      uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         files: coverage.testsuite.xml
         flags: testsuite
     - name: Upload coverage.packit.xml report to Codecov with GitHub Action
-      uses: codecov/codecov-action@f32b3a3741e1053eb607407145bc9619351dc93b # v2
+      uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
