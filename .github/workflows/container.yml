@@ -30,7 +30,7 @@ jobs:
 
       - name: Generate docker metadata for keylime_base
         id: meta_base
-        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v4
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime_base
@@ -41,7 +41,7 @@ jobs:
 
       - name: Generate docker metadata for keylime_verifier
         id: meta_verifier
-        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v4
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime_verifier
@@ -52,7 +52,7 @@ jobs:
 
       - name: Generate docker metadata for keylime_registrar
         id: meta_registrar
-        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v4
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime_registrar
@@ -63,7 +63,7 @@ jobs:
 
       - name: Generate docker metadata for keylime_tenant
         id: meta_tenant
-        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v4
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime_tenant
