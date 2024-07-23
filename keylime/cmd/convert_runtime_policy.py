@@ -123,9 +123,6 @@ def update_runtime_policy(
     policy: RuntimePolicyType, excludelist_path: Optional[str] = None, verification_keys: Optional[List[str]] = None
 ) -> RuntimePolicyType:
     if policy["meta"]["version"] < ima.RUNTIME_POLICY_CURRENT_VERSION:
-        print(
-            f"Provided policy has version {policy['meta']['version']}; latest policy has version {ima.RUNTIME_POLICY_CURRENT_VERSION}. Updating to latest version."
-        )
         updated_policy: RuntimePolicyType = copy.deepcopy(ima.EMPTY_RUNTIME_POLICY)
         updated_policy["meta"]["timestamp"] = str(datetime.datetime.now())
         updated_policy["meta"]["generator"] = ima.RUNTIME_POLICY_GENERATOR.CompatibleAllowList
@@ -214,6 +211,7 @@ def main() -> None:
     policy_out = update_runtime_policy(
         policy, excludelist_path=args.excludelist, verification_keys=args.verification_keys
     )
+    ima.trim_runtime_policy(policy_out, False)
     with open(args.output_file, "wb") as f:
         f.write(json.dumps(policy_out).encode())
 

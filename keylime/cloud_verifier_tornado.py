@@ -632,6 +632,7 @@ class AgentsHandler(BaseHandler):
                     if not runtime_policy_name and not runtime_policy:
                         logger.info("IMA policy data not provided with request! Using default empty IMA policy.")
                         runtime_policy = json.dumps(cast(Dict[str, Any], ima.EMPTY_RUNTIME_POLICY))
+                        ima.trim_runtime_policy(runtime_policy, False)
 
                     if runtime_policy:
                         runtime_policy_key_bytes = signing.get_runtime_policy_keys(
