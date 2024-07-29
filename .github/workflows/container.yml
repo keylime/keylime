@@ -19,25 +19,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v3
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
       - name: Log in to the Container registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v2
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.QUAY_USER }}
           password: ${{ secrets.QUAY_TOKEN }}
-
-      - name: Generate docker metadata for keylime_base
-        id: meta_base
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v4
-        with:
-          images: |
-            ${{ env.IMAGE_BASE }}/keylime_base
-          tags: |
-            type=ref,enable=true,priority=600,prefix=,suffix=,event=branch
-            type=ref,enable=true,priority=600,prefix=,suffix=,event=tag
-            type=sha,prefix=sha-
 
       - name: Generate docker metadata for keylime_verifier
         id: meta_verifier
@@ -72,19 +61,15 @@ jobs:
             type=ref,enable=true,priority=600,prefix=,suffix=,event=tag
             type=sha,prefix=sha-
 
+      - name: Install skopeo and jq
+        run: sudo apt-get install -y skopeo jq
+
+      - name: Get digest of the latest version of the base image
+        run: echo "BASE_DIGEST=$(skopeo inspect docker://${{ env.IMAGE_BASE }}/keylime_base:master | jq '.Digest')" >> "$GITHUB_ENV"
+
       - name: Prepare dockerfiles
         run: |
-          cd docker/release && ./generate-files.sh "${{ steps.meta_base.outputs.version }}" "${{ env.IMAGE_BASE }}/"
-
-      - name: Build and push base
-        id: build_base
-        uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v4
-        with:
-          context: .
-          file: docker/release/base/Dockerfile
-          push: true
-          tags: ${{ steps.meta_base.outputs.tags }}
-          labels: ${{ steps.meta_base.outputs.labels }}
+          cd docker/release && ./generate-files.sh "${{ steps.meta_base.outputs.version }}" "${{ env.IMAGE_BASE }}/" "#{{ env.BASE_DIGEST }}"
 
       - name: Build and push registrar
         id: build_registrar

@@ -1,4 +1,4 @@
-FROM _source_keylime_base:_version_ AS keylime_verifier
+FROM _source_keylime_base_digest_ AS keylime_verifier
 LABEL version="_version_" description="Keylime Verifier - Bootstrapping and Maintaining Trust in the Cloud"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 

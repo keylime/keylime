@@ -1,4 +1,4 @@
-FROM _source_keylime_base:_version_ AS keylime_registrar
+FROM _source_keylime_base_digest_ AS keylime_registrar
 LABEL version="_version_" description="Keylime Registrar - Bootstrapping and Maintaining Trust in the Cloud"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 
