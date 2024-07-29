@@ -1,0 +1,52 @@
+name: Create PR updating containers base image
+
+on:
+  workflow_dispatch:
+    branches:
+      - master
+  schedule:
+    - cron: "0 0 1 * *"
+
+env:
+  FEDORA_IMAGE: quay.io/fedora/fedora
+  TAG: latest
+  IMAGE_BASE: quay.io/keylime
+
+jobs:
+  update-base-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+
+      - name: Install skopeo and jq
+        run: sudo apt-get install -y skopeo jq
+
+      - name: Get hash of the latest stable version of Fedora
+        run: echo "FEDORA_HASH=$(skopeo inspect docker://${{ env.FEDORA_IMAGE }}:${{ env.TAG }} | jq '.Digest')" >> "$GITHUB_ENV"
+
+      - name: Update the Dockerfile template
+        run: |
+          cd docker/release/base
+          sed -i "s#\(FROM \)[^ ]*#\1${{ env.FEDORA_IMAGE }}@${{ env.FEDORA_HASH }}#" Dockerfile.in
+
+      - name: Get current date for message
+        id: date
+        run: echo "DATE=$(date +"%Y-%m-%d")" >> "$GITHUB_ENV"
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c
+        with:
+          add-paths: docker/release/base/Dockerfile.in
+          title: "[Automatic] Update Keylime base image (${{ env.DATE }})"
+          body: |
+            Automatically update the Keylime base image using:
+
+            Base image: ${{ env.FEDORA_IMAGE }}@${{ env.FEDORA_HASH }}
+          commit-message: |
+            [Automatic] Update Keylime base image ${{ env.DATE }}
+
+            Automatically update the Keylime base image using:
+
+            Base image: ${{ env.FEDORA_IMAGE }}@${{ env.FEDORA_HASH }}
+

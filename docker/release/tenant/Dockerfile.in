@@ -1,4 +1,4 @@
-FROM _source_keylime_base:_version_ AS keylime_tenant
+FROM _source_keylime_base_digest_ AS keylime_tenant
 
 # install latest stable kubectl version - required for Kubernetes init job in the helm charts
 RUN export GOARCH="$( uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' )" && \
