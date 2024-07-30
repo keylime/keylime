@@ -69,7 +69,7 @@ jobs:
 
       - name: Prepare dockerfiles
         run: |
-          cd docker/release && ./generate-files.sh "${{ steps.meta_base.outputs.version }}" "${{ env.IMAGE_BASE }}/" "#{{ env.BASE_DIGEST }}"
+          cd docker/release && ./generate-files.sh "${{ steps.meta_base.outputs.version }}" "${{ env.IMAGE_BASE }}/" "${{ env.BASE_DIGEST }}"
 
       - name: Build and push registrar
         id: build_registrar
