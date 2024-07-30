@@ -39,6 +39,7 @@ jobs:
         with:
           add-paths: docker/release/base/Dockerfile.in
           title: "[Automatic] Update Keylime base image (${{ env.DATE }})"
+          signoff: true
           body: |
             Automatically update the Keylime base image using:
 
