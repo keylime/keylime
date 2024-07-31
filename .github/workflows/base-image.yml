@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - docker/release/base/Dockerfile.in
+      - docker/ci/Dockerfile
   workflow_dispatch:
 
 env:
@@ -39,10 +40,23 @@ jobs:
             type=schedule,pattern={{date 'YYYYMMDD'}}
             type=raw,monthly
 
+      - name: Generate docker metadata for CI image
+        id: meta_ci
+        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175
+        with:
+          images: |
+            ${{ env.IMAGE_BASE }}/keylime-ci
+          tags: |
+            type=ref,enable=true,priority=600,prefix=,suffix=,event=branch
+            type=ref,enable=true,priority=600,prefix=,suffix=,event=tag
+            type=sha,prefix=sha-
+            type=schedule,pattern={{date 'YYYYMMDD'}}
+            type=raw,monthly
+
       - name: Prepare Dockerfile
         run: |
-          cd docker/release/base
-          sed "s#_version_#${{ steps.meta_base.outputs.version }}#" "Dockerfile.in" > Dockerfile
+          sed "s#_version_#${{ steps.meta_base.outputs.version }}#" "docker/release/base/Dockerfile.in" > docker/release/base/Dockerfile
+          sed -i "s#\(LABEL version=\)[^ ]*#\1\"${{ steps.meta_ci.outputs.version }}\"#" docker/ci/Dockerfile
 
       - name: Build and push base image
         id: build
@@ -53,4 +67,14 @@ jobs:
           push: true
           tags: ${{ steps.meta_base.outputs.tags }}
           labels: ${{ steps.meta_base.outputs.labels }}
+
+      - name: Build and push CI image
+        id: build
+        uses: docker/build-push-action@0a97817b6ade9f46837855d676c4cca3a2471fc9
+        with:
+          context: .
+          file: docker/ci/Dockerfile
+          push: true
+          tags: ${{ steps.meta_ci.outputs.tags }}
+          labels: ${{ steps.meta_ci.outputs.labels }}
 
