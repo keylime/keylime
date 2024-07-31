@@ -1,4 +1,6 @@
 dbus-python
+# modules required for pylint
+setuptools
 # packages required for mypy
 sqlalchemy-stubs
 typed-ast
