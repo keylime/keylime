@@ -1,5 +1,5 @@
 # Python dependencies only required for running the tests.
 
 coverage==4.5.2
-green==2.13.0
+green==4.0.2  # Python 3.12+ requires this.
 pytest-asyncio==0.10.0
