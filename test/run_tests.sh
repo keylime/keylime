@@ -191,15 +191,20 @@ echo "==========================================================================
 echo $'\t\t\tRunning Unit Tests'
 echo "=================================================================================="
 # Run separate unit tests
+# Newer versions of pytest exit with status 5 to indicate no tests were
+# collected to run: https://github.com/pytest-dev/pytest/pull/817
+PYTEST_NO_TESTS_RAN=5
 python3 -m unittest discover -s keylime/ima -p '*_test.py' -v
-if [ $? -ne 0 ]; then
-    echo "Error: Unit tests failed"
+_ret=$?
+if [ ${_ret} -ne 0 ] && [ ${_ret} -ne ${PYTEST_NO_TESTS_RAN} ]; then
+    echo "Error(keylime/ima): Unit tests failed"
     exit 1
 fi
 
 python3 -m unittest discover -s keylime/tpm -p '*_test.py' -v
-if [ $? -ne 0 ]; then
-    echo "Error: Unit tests failed"
+_ret=$?
+if [ ${_ret} -ne 0 ] && [ ${_ret} -ne ${PYTEST_NO_TESTS_RAN} ]; then
+    echo "Error(keylime/tpm): Unit tests failed"
     exit 1
 fi
 
