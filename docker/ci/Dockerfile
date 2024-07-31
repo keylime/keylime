@@ -51,6 +51,7 @@ procps \
 python3-cryptography \
 python3-dbus \
 python3-devel \
+python3-gpg \
 python3-pip \
 python3-requests \
 python3-setuptools \
