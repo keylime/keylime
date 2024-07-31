@@ -59,7 +59,6 @@ jobs:
           sed -i "s#\(LABEL version=\)[^ ]*#\1\"${{ steps.meta_ci.outputs.version }}\"#" docker/ci/Dockerfile
 
       - name: Build and push base image
-        id: build
         uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445
         with:
           context: .
@@ -69,8 +68,7 @@ jobs:
           labels: ${{ steps.meta_base.outputs.labels }}
 
       - name: Build and push CI image
-        id: build
-        uses: docker/build-push-action@0a97817b6ade9f46837855d676c4cca3a2471fc9
+        uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445
         with:
           context: .
           file: docker/ci/Dockerfile
