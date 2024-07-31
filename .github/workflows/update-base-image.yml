@@ -25,10 +25,10 @@ jobs:
       - name: Get hash of the latest stable version of Fedora
         run: echo "FEDORA_HASH=$(skopeo inspect docker://${{ env.FEDORA_IMAGE }}:${{ env.TAG }} | jq '.Digest')" >> "$GITHUB_ENV"
 
-      - name: Update the Dockerfile template
+      - name: Update the Dockerfile template and CI Dockerfile
         run: |
-          cd docker/release/base
-          sed -i "s#\(FROM \)[^ ]*#\1${{ env.FEDORA_IMAGE }}@${{ env.FEDORA_HASH }}#" Dockerfile.in
+          sed -i "s#\(FROM \)[^ ]*#\1${{ env.FEDORA_IMAGE }}@${{ env.FEDORA_HASH }}#" docker/release/base/Dockerfile.in
+          sed -i "s#\(FROM \)[^ ]*#\1${{ env.FEDORA_IMAGE }}@${{ env.FEDORA_HASH }}#" docker/ci/Dockerfile
 
       - name: Get current date for message
         id: date
