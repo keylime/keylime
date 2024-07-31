@@ -6,7 +6,7 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from keylime import cert_utils, config, crypto, keylime_logging
-from keylime.models.base import *
+from keylime.models.base import Boolean, Certificate, Dictionary, Integer, OneOf, PersistableModel, String, da_manager
 from keylime.tpm import tpm2_objects
 from keylime.tpm.tpm_main import Tpm
 
@@ -254,13 +254,13 @@ class RegistrarAgent(PersistableModel):
 
     def _prepare_status_flags(self):
         if "ek_tpm" in self.changes or "aik_tpm" in self.changes:
-            self.active = False
+            self.active = False  # pylint: disable=attribute-defined-outside-init
 
     def _prepare_regcount(self):
         reg_fields = ("ek_tpm", "ekcert", "aik_tpm", "iak_tpm", "iak_cert", "idevid_tpm", "idevid_cert")
 
-        if self.regcount is None:
-            self.regcount = 0
+        if self.regcount is None:  # pylint: disable=access-member-before-definition
+            self.regcount = 0  # pylint: disable=attribute-defined-outside-init
 
         if any(field in reg_fields for field in self.changes) and self.changes_valid:
             self.regcount += 1
