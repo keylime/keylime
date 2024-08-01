@@ -28,7 +28,7 @@ jobs:
       - name: Update the Dockerfile template and CI Dockerfile
         run: |
           sed -i "s#\(FROM \)[^ ]*#\1${{ env.FEDORA_IMAGE }}@${{ env.FEDORA_HASH }}#" docker/release/base/Dockerfile.in
-          sed -i "s#\(FROM \)[^ ]*#\1${{ env.FEDORA_IMAGE }}@${{ env.FEDORA_HASH }}#" docker/ci/Dockerfile
+          sed -i "s#\(FROM \).*#\1${{ env.FEDORA_IMAGE }}@${{ env.FEDORA_HASH }}#" docker/ci/Dockerfile
 
       - name: Get current date for message
         id: date
@@ -37,7 +37,9 @@ jobs:
       - name: Create pull request
         uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c
         with:
-          add-paths: docker/release/base/Dockerfile.in
+          add-paths: |
+            docker/release/base/Dockerfile.in
+            docker/ci/Dockerfile
           title: "[Automatic] Update Keylime base image (${{ env.DATE }})"
           signoff: true
           body: |
