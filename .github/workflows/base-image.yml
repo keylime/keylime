@@ -52,6 +52,7 @@ jobs:
             type=sha,prefix=sha-
             type=schedule,pattern={{date 'YYYYMMDD'}}
             type=raw,monthly
+            type=raw,latest
 
       - name: Prepare Dockerfile
         run: |
