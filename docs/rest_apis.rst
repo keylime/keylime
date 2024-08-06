@@ -229,14 +229,15 @@ Cloud verifier (CV)
     :<json string runtime_policy_key: Optional runtime policy detached signature key, base64-encoded. Must also provide `runtime_policy_sig`.
 
 
-.. http:get::  /v2.1/allowlists/{runtime_policy_name:string}
+.. http:get::  /v2.1/allowlists/[runtime_policy_name:string]
 
-    Retrieve named runtime policy `runtime_policy_name` from CV.
+    Retrieve list of named runtime policies or runtime policy for a `runtime_policy_name` from CV.
 
-    **Example response**:
+    **Example responses**:
 
     .. sourcecode:: json
 
+    Retrieve runtime policy if the name is provided.
         {
           "code": 200,
           "status": "Success",
@@ -250,6 +251,16 @@ Cloud verifier (CV)
     :<json string name: Name of the requested IMA policy.
     :<json string tpm_policy: Static PCR policy and mask for TPM. Is a string encoded dictionary that also includes a `mask` for which PCRs should be included in a quote.
     :<json string runtime_policy: Runtime policy JSON object, base64 encoded.
+
+    Otherwise, retrieve list of names of the runtime policies.
+        {
+          "code": 200,
+          "status": "Success",
+          "results": {
+            "runtimepolicy names": [\"runtimepolicyname1\", \"runetimepolicyname2\"]
+          }
+        }
+    :<json string runtimepolicy names: List of names of the runtime policies.
 
 
 .. http:delete::  /v2.1/allowlist/{runtime_policy_name:string}
