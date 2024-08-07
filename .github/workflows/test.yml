@@ -40,9 +40,9 @@ jobs:
     - name: Install build dependencies
       run: sudo dnf -y install swig
     - name: Install Python dependencies
-      run: sudo dnf -y install python3.6 tox python3-pip
+      run: sudo dnf -y install python3.10 tox python3-pip
     - name: Run lints
-      run: tox -vv -e 'pylint'
+      run: tox -vv -e 'pylint,pylint310'
     - name: Run mypy
       run: tox -vv -e 'mypy'
     - name: Run pyright

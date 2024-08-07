@@ -1,3 +1,4 @@
+import re
 import ssl
 from typing import Any, Dict, Optional
 
@@ -15,6 +16,10 @@ class RequestsClient:
         ignore_hostname: bool = True,
         **kwargs: Any,
     ) -> None:
+        # Remove eventual "http?://" from the base url
+        if base_url.startswith("http"):
+            base_url = re.sub(r"https?://", "", base_url)
+
         if tls_enabled:
             self.base_url = f"https://{base_url}"
         else:
