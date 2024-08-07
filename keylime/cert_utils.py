@@ -76,7 +76,10 @@ def x509_pem_cert(pem_cert_data: str) -> Certificate:
     try:
         return x509.load_pem_x509_certificate(data=pem_cert_data.encode("utf-8"), backend=default_backend())
     except Exception as err:
-        logger.warning("Failed to parse PEM data with python-cryptography: %s", err)
+        logger.warning(
+            "Failed to parse PEM data with python-cryptography (might not be strictly conforming to DER ASN.1 encoding): %s",
+            err,
+        )
         # Let's read the DER bytes from the base-64 PEM.
         der_data = pem.readPemFromFile(io.StringIO(pem_cert_data))
         # Now we can load it as we do in x509_der_cert().
