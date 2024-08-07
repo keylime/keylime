@@ -158,7 +158,7 @@ class Tenant:
         else:
             logger.warning("TLS is disabled.")
 
-        mba.load_imports()
+        mba.load_imports(skip_custom_policies=True)
 
     @property
     def verifier_base_url(self) -> str:
