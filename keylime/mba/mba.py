@@ -56,17 +56,20 @@ _mba_imports = []
 # ###########
 
 
-def load_imports() -> None:
+def load_imports(skip_custom_policies: Optional[bool] = False) -> None:
     """
     MBA API front-end for importing any modules needed by measured boot attestation.
-    No inputs.
+    :param skip_custom_policies: may be used to prevent the loading of custom policies.
     No outputs.
     Side effects: Reads from keylime configuration files.
       After execution all imports required by MBA are loaded and initialized.
     Exceptions: If any policy engine in the list cannot be loaded.
     """
     try:
-        imports = config.getlist("verifier", "measured_boot_imports")
+        imports: List[Any] = []
+        if not skip_custom_policies:
+            # import custom policies
+            imports = config.getlist("verifier", "measured_boot_imports")
         # these are the defaults
         imports.append("keylime.mba.elchecking.elchecker")
         imports.append("keylime.mba.elchecking.example")
