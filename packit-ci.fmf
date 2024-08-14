@@ -87,6 +87,7 @@ adjust:
      - /regression/issue-1380-agent-removed-and-re-added
      - /regression/keylime-agent-option-override-through-envvar
      - /sanity/keylime-secure_mount
+     - /sanity/opened-conf-files
      - /upstream/run_keylime_tests
      - /setup/generate_coverage_report
 
