@@ -207,6 +207,49 @@ class Tpm:
             logger.debug("IMA measurement list of agent %s validated", agentAttestState.get_agent_id())
         return failure
 
+    def _check_data_pcr(self, agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote):
+        
+        #TODO change fallback to pull
+        if config.get("verifier", "mode", fallback="push") == "push":
+            return
+          
+        agent_id = agentAttestState.get_agent_id()
+        pcr_nums = set(pcrs_dict.keys())
+        print("\n\n*********pcr_nums before hardcoding:", pcr_nums)
+
+
+        ##### TODO remove this debug Hardcoding PCR list
+        pcr_nums = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}
+        print("\n\n*********pcr_nums afer hardcoding:", pcr_nums)
+
+        if config.TPM_DATA_PCR in pcr_nums and data is not None:
+            expectedval = self.sim_extend(data, hash_alg)
+            if expectedval != pcrs_dict[config.TPM_DATA_PCR]:
+                logger.error(
+                    "PCR #%s: invalid bind data %s from quote (from agent %s) does not match expected value %s",
+                    config.TPM_DATA_PCR,
+                    pcrs_dict[config.TPM_DATA_PCR],
+                    agent_id,
+                    expectedval,
+                )
+                failure.add_event(
+                    f"invalid_pcr_{config.TPM_DATA_PCR}",
+                    {"got": pcrs_dict[config.TPM_DATA_PCR], "expected": expectedval},
+                    True,
+                )
+            pcrs_in_quote.add(config.TPM_DATA_PCR)
+        else:
+            logger.error(
+                "Binding PCR #%s was not included in the quote (from agent %s), but is required",
+                config.TPM_DATA_PCR,
+                agent_id,
+            )
+            failure.add_event(
+                f"missing_pcr_{config.TPM_DATA_PCR}",
+                f"Data PCR {config.TPM_DATA_PCR} is missing in quote, but is required",
+                True,
+            )
+    
     def check_pcrs(
         self,
         agentAttestState: AgentAttestState,
@@ -240,40 +283,21 @@ class Tpm:
         mb_pcrs_hashes, boot_aggregates, mb_measurement_data, mb_failure = mba.bootlog_parse(
             mb_measurement_list, hash_alg
         )
+
         failure.merge(mb_failure)
 
         pcrs_in_quote: Set[int] = set()  # PCRs in quote that were already used for some kind of validation
 
         pcr_nums = set(pcrs_dict.keys())
+        print("\n\n*********pcr_nums before hardcoding:", pcr_nums)
+
+
+        ##### TODO remoce this added for debug Hardcoding PCR list
+        pcr_nums = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}
 
         # Validate data PCR
-        if config.TPM_DATA_PCR in pcr_nums and data is not None:
-            expectedval = self.sim_extend(data, hash_alg)
-            if expectedval != pcrs_dict[config.TPM_DATA_PCR]:
-                logger.error(
-                    "PCR #%s: invalid bind data %s from quote (from agent %s) does not match expected value %s",
-                    config.TPM_DATA_PCR,
-                    pcrs_dict[config.TPM_DATA_PCR],
-                    agent_id,
-                    expectedval,
-                )
-                failure.add_event(
-                    f"invalid_pcr_{config.TPM_DATA_PCR}",
-                    {"got": pcrs_dict[config.TPM_DATA_PCR], "expected": expectedval},
-                    True,
-                )
-            pcrs_in_quote.add(config.TPM_DATA_PCR)
-        else:
-            logger.error(
-                "Binding PCR #%s was not included in the quote (from agent %s), but is required",
-                config.TPM_DATA_PCR,
-                agent_id,
-            )
-            failure.add_event(
-                f"missing_pcr_{config.TPM_DATA_PCR}",
-                f"Data PCR {config.TPM_DATA_PCR} is missing in quote, but is required",
-                True,
-            )
+        self._check_data_pcr(agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote)
+
         # Check for ima PCR
         if config.IMA_PCR in pcr_nums:
             if ima_measurement_list is None:
@@ -531,6 +555,13 @@ class Tpm:
 
         return None, current_clockinfo
 
+    @staticmethod
+    def get_pcrs_from_quote(quote, compressed):
+        _, sigblob, pcrblob = Tpm._get_quote_parameters(quote, compressed)
+        _, hash_alg, _ = struct.unpack_from(">HHH", sigblob, 0)
+        _, pcrs_dict = getattr(tpm_util, "__get_and_hash_pcrs")(pcrblob, hash_alg)
+        return pcrs_dict
+    
     @staticmethod
     def sim_extend(hashval_1: str, hash_alg: Hash) -> str:
         """Compute expected value  H(0|H(data))"""
