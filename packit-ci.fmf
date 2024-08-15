@@ -41,8 +41,8 @@ adjust:
 
   discover:
     how: fmf
-    url: https://github.com/ansasaki/keylime-tests
-    ref: tls_on_webhook
+    url: https://github.com/RedHat-SP-Security/keylime-tests
+    ref: main
     test:
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
