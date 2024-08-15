@@ -70,7 +70,7 @@ class Controller:
     FormParams: TypeAlias = Union[QueryParams, MultipartParams]
     JSONConvertible: TypeAlias = Union[str, int, float, bool, None, "JSONObjectConvertible", "JSONArrayConvertible"]
     JSONObjectConvertible: TypeAlias = Mapping[str, JSONConvertible]
-    JSONArrayConvertible: TypeAlias = Sequence[JSONConvertible]
+    JSONArrayConvertible: TypeAlias = Sequence[JSONConvertible]  # pyright: ignore[reportInvalidTypeForm]
     Params: TypeAlias = Mapping[
         str, Union[str, bytes, Sequence[str | bytes], JSONObjectConvertible, JSONArrayConvertible]
     ]
