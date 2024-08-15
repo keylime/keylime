@@ -185,7 +185,7 @@ def mk_signed_cert(
         cert_req = cert_req.add_extension(ext, critical=False)
 
     cert = cert_req.sign(
-        private_key=ca_privkey,
+        private_key=ca_privkey,  # pyright: ignore[reportArgumentType]
         algorithm=hashes.SHA256(),
         backend=default_backend(),
     )
