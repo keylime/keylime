@@ -1,4 +1,4 @@
-FROM quay.io/fedora/fedora@"sha256:5b0aea5317aab3d3066612f7c8ee37e86284942179fb53ebcb9f008ea309e813" AS keylime_base
+FROM quay.io/fedora/fedora@sha256:a1906442319eea646dcc420cf2f18611fc90357af9d7505faad998e101102525 AS keylime_base
 LABEL version="_version_" description="Keylime Base - Only used as an base image for derived packages"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 
