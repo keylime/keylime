@@ -62,7 +62,9 @@ def assertDigestsEqual(d1, d2):
     for file in d1_unique:
         unittest.TestCase().assertTrue(file in d2_unique)
         unittest.TestCase().assertEqual(
-            len(d1_unique[file]), len(d2_unique[file]), msg=f"number of files/digests for {file}"
+            len(d1_unique[file]),
+            len(d2_unique[file]),
+            msg=f"number of files/digests for {file}",
         )
 
         for d in d1_unique[file]:
@@ -79,7 +81,10 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
         setup_script = os.path.abspath(os.path.join(HELPER_DIR, "setup-initrd-tests"))
 
         result = subprocess.run(
-            [setup_script, cls.dirpath], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False
+            [setup_script, cls.dirpath],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
         )
         print("STDOUT:", result.stdout.decode("UTF-8"), file=sys.stderr)
         print("STDERR:", result.stderr.decode("UTF-8"), file=sys.stderr)
@@ -216,7 +221,11 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
 
         file_path = os.path.join(r.contents(), "usr/bin/foo")
         test_cases = [
-            {"file": file_path, "alg": "sha1", "digest": "a26ce416a048883cd6ca8e890f6b0a62a8031e8a"},
+            {
+                "file": file_path,
+                "alg": "sha1",
+                "digest": "a26ce416a048883cd6ca8e890f6b0a62a8031e8a",
+            },
             {
                 "file": file_path,
                 "alg": "sha384",
@@ -452,7 +461,11 @@ foobar.so(.*)?
             },
             {"a": {}, "b": {"file": ["checksum"]}, "expected": {"file": ["checksum"]}},
             {"a": {"file": ["checksum"]}, "b": {}, "expected": {"file": ["checksum"]}},
-            {"a": {"file": ["checksum"]}, "b": {"file": ["checksum"]}, "expected": {"file": ["checksum"]}},
+            {
+                "a": {"file": ["checksum"]},
+                "b": {"file": ["checksum"]},
+                "expected": {"file": ["checksum"]},
+            },
             {
                 "a": {"file": ["checksum-1"]},
                 "b": {"file": ["checksum-2"]},
@@ -461,7 +474,10 @@ foobar.so(.*)?
             {
                 "a": {"file": ["checksum-1", "checksum-2", "checksum-3"]},
                 "b": {"file": ["checksum-2"], "file-2": ["checksum-4"]},
-                "expected": {"file": ["checksum-1", "checksum-2", "checksum-3"], "file-2": ["checksum-4"]},
+                "expected": {
+                    "file": ["checksum-1", "checksum-2", "checksum-3"],
+                    "file-2": ["checksum-4"],
+                },
             },
         ]
         for c in test_cases:
@@ -525,21 +541,28 @@ foobar.so(.*)?
         self.assertFalse(ok)
         self.assertEqual(len(hashes), 0)
 
-    def test_merge_base_policy(self):
+    def test_update_base_policy(self):
         # TODO: add now some actual good cases, to test the more
         # important flow.
         # XXX: Need to clarify whether "verification-keys" is correct
         # being a single string instead of an array of strings.
         test_cases = [
+            # Base policy is an invalid JSON
             {
                 "base-policy": "not-valid-json",
-                "policy": ima.empty_policy(),
                 "expected": None,
             },
+            # Base policy is a valid JSON with a field matching the current
+            # format, but with an invalid content according to current schema
+            {
+                "base-policy": '{"valid": "json", "verification-keys": "invalid"}',
+                "expected": None,
+            },
+            # Base policy is a valid JSON without any matching field against the
+            # current schema
             {
                 "base-policy": '{"valid": "json", "invalid": "policy"}',
-                "policy": ima.empty_policy(),
-                "expected": None,
+                "expected": ima.empty_policy(),
             },
         ]
 
@@ -549,9 +572,81 @@ foobar.so(.*)?
                 with open(base_policy, "w", encoding="UTF-8") as mfile:
                     mfile.write(c["base-policy"])
 
-                policy = create_runtime_policy.merge_base_policy(c["policy"], base_policy)
+                policy = create_runtime_policy.update_base_policy(base_policy)
                 self.assertEqual(policy, c["expected"])
 
         # Try non-existing file.
-        policy = create_runtime_policy.merge_base_policy(ima.empty_policy(), "/some/invalid/non/existing/policy/here")
+        policy = create_runtime_policy.update_base_policy("/some/invalid/non/existing/policy/here")
         self.assertEqual(policy, None)
+
+    def test_get_digest_algorithm_from_hex(self):
+        """Test that the algorithm guessing works as expected"""
+
+        test_cases = [
+            {
+                "digest": "0001020304050607080900010203040506070809",
+                "expected_algorithm": "sha1",
+            },
+            {
+                "digest": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+                "expected_algorithm": "sha256",
+            },
+            {
+                "digest": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",
+                "expected_algorithm": "sha384",
+            },
+            {
+                "digest": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+                "expected_algorithm": "sha512",
+            },
+            {
+                "digest": "0001020304050607080900",
+                "expected_algorithm": "unknown",
+            },
+        ]
+
+        for case in test_cases:
+            algorithm = create_runtime_policy._get_digest_algorithm_from_hex(  # pylint: disable=protected-access
+                case["digest"]
+            )
+            self.assertEqual(algorithm, case["expected_algorithm"])
+
+    def test_get_digest_algorithm_from_map_list(self):
+        """Test that the algorithm guessing works as expected"""
+
+        test_cases = [
+            {
+                "digests": {"key": ["0001020304050607080900010203040506070809"]},
+                "expected_algorithm": "sha1",
+            },
+            {
+                "digests": {"key": ["000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"]},
+                "expected_algorithm": "sha256",
+            },
+            {
+                "digests": {
+                    "key": [
+                        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f"
+                    ]
+                },
+                "expected_algorithm": "sha384",
+            },
+            {
+                "digests": {
+                    "key": [
+                        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+                    ]
+                },
+                "expected_algorithm": "sha512",
+            },
+            {
+                "digests": {"key": ["0001020304050607080900"]},
+                "expected_algorithm": "unknown",
+            },
+        ]
+
+        for case in test_cases:
+            algorithm = create_runtime_policy._get_digest_algorithm_from_map_list(  # pylint: disable=protected-access
+                case["digests"]
+            )
+            self.assertEqual(algorithm, case["expected_algorithm"])

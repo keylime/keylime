@@ -13,7 +13,7 @@ import logging
 import os
 import pathlib
 from importlib import util
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, TextIO, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TextIO, Tuple
 
 import psutil
 
@@ -43,6 +43,13 @@ IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
 IGNORED_KEYRINGS: List[str] = []
 DEFAULT_FILE_DIGEST_ALGORITHM = algorithms.Hash.SHA256
 
+# This is to follow IMA default
+# See in keylime/ima/ima.py
+DEFAULT_IMA_TEMPLATE_DIGEST_ALGORITHM = algorithms.Hash.SHA1
+
+# This is used to indicate that the algorithm guessing could not identify the
+# algorithm from the output length
+UNKNOWN_ALGORITHM = "unknown"
 
 BASE_EXCLUDE_DIRS: List[str] = [
     "/sys",
@@ -306,7 +313,7 @@ def boot_aggregate_parse(line: str) -> Tuple[str, str]:
     """
     alg, digest, fpath, ok = process_ima_sig_ima_ng_line(line)
     if not ok or fpath != "boot_aggregate":
-        return "unknown", ""
+        return UNKNOWN_ALGORITHM, ""
     return alg, digest
 
 
@@ -518,19 +525,20 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
     return runtime_p
 
 
-def merge_base_policy(policy: RuntimePolicyType, base_policy_file: str) -> Optional[RuntimePolicyType]:
-    """Merge a base policy to another."""
+def update_base_policy(base_policy_file: str) -> Optional[RuntimePolicyType]:
+    """Update the base policy to the latest policy format"""
+
+    policy = None
+
     try:
         with open(base_policy_file, "r", encoding="UTF-8") as fobj:
             basepol = fobj.read()
-        base_policy: RuntimePolicyType = json.loads(basepol)
 
-        try:
-            ima.validate_runtime_policy(base_policy)
-        except ima.ImaValidationError as ex:
-            errmsg = f"Base policy is not a valid runtime policy: {ex}"
-            logger.error(errmsg)
-            return None
+        # Load as a plain JSON without type. Do not assume it is a valid policy
+        base_policy = json.loads(basepol)
+
+        # Get an instance of the latest policy format to import the data
+        policy = ima.empty_policy()
 
         # Cherry-pick from base policy what is supported and merge into policy
         policy["digests"] = merge_maplists(policy["digests"], base_policy.get("digests", {}))
@@ -538,16 +546,26 @@ def merge_base_policy(policy: RuntimePolicyType, base_policy_file: str) -> Optio
         policy["keyrings"] = merge_maplists(policy["keyrings"], base_policy.get("keyrings", {}))
         policy["ima-buf"] = merge_maplists(policy["ima-buf"], base_policy.get("ima-buf", {}))
 
+        policy["ima"]["log_hash_alg"] = base_policy.get("ima", {}).get(
+            "log_hash_alg", DEFAULT_IMA_TEMPLATE_DIGEST_ALGORITHM
+        )
         ignored_keyrings = base_policy.get("ima", {}).get("ignored_keyrings", [])
         policy["ima"]["ignored_keyrings"] = merge_lists(policy["ima"]["ignored_keyrings"], ignored_keyrings)
-
         policy["verification-keys"] = base_policy.get("verification-keys", "")
     except (PermissionError, FileNotFoundError) as ex:
         errmsg = f"An error occurred while loading the policy: {ex}"
         logger.error(errmsg)
         return None
     except json.decoder.JSONDecodeError as ex:
-        errmsg = f"An error occurred while converting the policy to a JSON object: {ex}"
+        errmsg = f"An error occurred while parsing a JSON object from file {base_policy_file}: {ex}"
+        logger.error(errmsg)
+        return None
+
+    # Validate that the resulting policy is a valid policy
+    try:
+        ima.validate_runtime_policy(policy)
+    except ima.ImaValidationError as ex:
+        errmsg = f"Could not convert the provided base policy to a valid runtime policy: {ex}"
         logger.error(errmsg)
         return None
 
@@ -737,64 +755,155 @@ def process_signature_verification_keys(verification_keys: List[str], policy: Ru
     return policy
 
 
+def _get_digest_algorithm_from_hex(hexstring: str) -> str:
+    """Try to identify the algorithm used to generate the provided value by length"""
+    for alg in list(algorithms.Hash):
+        if len(hexstring) == algorithms.Hash(alg).hexdigest_len():
+            return str(alg)
+    return UNKNOWN_ALGORITHM
+
+
+def _get_digest_algorithm_from_map_list(maplist: Dict[str, List[str]]) -> str:
+    """Assuming all digests in the policy uses the same algorithm, get the first
+    digest and try to obtain the algorithm from its length"""
+
+    algo = UNKNOWN_ALGORITHM
+    if maplist:
+        digest_list = next(iter(maplist.values()))
+        if digest_list:
+            digest = digest_list[0]
+            if digest:
+                algo = _get_digest_algorithm_from_hex(digest)
+    return algo
+
+
 def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyType]:
     """Create a runtime policy from the input arguments."""
+    policy = None
     algo = None
-    if args.algo and not (args.ramdisk_dir or args.rootfs):
-        logger.warning(
-            "You need to specify at least one of --ramdisk-dir or --rootfs to use a custom checksum algorithm"
-        )
+    base_policy_algo = None
+    allowlist_algo = None
+    ima_measurement_list_algo = None
 
-    policy = ima.empty_policy()
+    allowlist_digests: Dict[str, List[str]] = {}
+    ima_digests: Dict[str, List[str]] = {}
+    rootfs_digests: Dict[str, List[str]] = {}
+    ramdisk_digests: Dict[str, List[str]] = {}
+    local_rpm_digests: Dict[str, List[str]] = {}
+    remote_rpm_digests: Dict[str, List[str]] = {}
 
+    # If a base policy was provided, try to parse the file as JSON and import
+    # the values to the current policy format.
+    # Otherwise, use an empty policy as the base policy
     if args.base_policy:
-        merged_policy = merge_base_policy(policy, cast(str, args.base_policy))
-        if not merged_policy:
-            logger.error("Unable to merge base policy")
+        policy = update_base_policy(args.base_policy)
+        if not policy:
             return None
-        policy = merged_policy
+
+        digests = policy.get("digests", {})
+
+        # Try to get the digest algorithm from the lenght of the digest
+        base_policy_algo = _get_digest_algorithm_from_map_list(digests)
+    else:
+        policy = ima.empty_policy()
+
+    if args.algo:
+        if not (args.ramdisk_dir or args.rootfs):
+            logger.warning(
+                "You need to specify at least one of --ramdisk-dir or --rootfs to use a custom digest algorithm"
+            )
 
     if args.allowlist:
-        policy["digests"], ok = process_flat_allowlist(args.allowlist, policy["digests"])
+        allowlist_digests, ok = process_flat_allowlist(args.allowlist, {})
+        if not ok:
+            return None
+
+        # Try to get the digest algorithm from the lenght of the digest
+        allowlist_algo = _get_digest_algorithm_from_map_list(allowlist_digests)
+
+    if args.use_measurement_list:
+        try:
+            # If not set, try to get the digest algorithm from the boot_aggregate.
+            ima_measurement_list_algo, _ = boot_aggregate_from_file(args.ima_measurement_list)
+        except Exception:
+            ima_measurement_list_algo = UNKNOWN_ALGORITHM
+
+        logger.debug("Measurement list is %s", args.ima_measurement_list)
+        ima_digests = {}
+        ima_digests, ok = get_hashes_from_measurement_list(args.ima_measurement_list, ima_digests)
         if not ok:
             return None
 
     if _has_rpm and rpm_repo:
         if args.local_rpm_repo:
             # FIXME: pass the IMA sigs as well.
-            policy["digests"], _imasigs, ok = rpm_repo.analyze_local_repo(
-                args.local_rpm_repo, digests=policy["digests"]
+            local_rpm_digests = {}
+            local_rpm_digests, _imasigs, ok = rpm_repo.analyze_local_repo(
+                args.local_rpm_repo, digests=local_rpm_digests
             )
             if not ok:
                 return None
         if args.remote_rpm_repo:
             # FIXME: pass the IMA sigs as well.
-            policy["digests"], _imasigs, ok = rpm_repo.analyze_remote_repo(
-                args.remote_rpm_repo, digests=policy["digests"]
+            remote_rpm_digests = {}
+            remote_rpm_digests, _imasigs, ok = rpm_repo.analyze_remote_repo(
+                args.remote_rpm_repo, digests=remote_rpm_digests
             )
             if not ok:
                 return None
 
-    if args.use_measurement_list:
-        if not algo:
-            # Need to find the algo from the boot_aggregate.
-            algo, _ = boot_aggregate_from_file(args.ima_measurement_list)
+    # Use the same digest algorithm used by the provided inputs, following the
+    # priority order: --algo > base policy > allowlist > IMA measurement list
+    for a, source in [
+        (args.algo, "--algo option"),
+        (base_policy_algo, "base policy"),
+        (allowlist_algo, "allowlist"),
+        (ima_measurement_list_algo, "IMA measurement list"),
+    ]:
+        # Skip unset options
+        if not a or a == UNKNOWN_ALGORITHM:
+            continue
 
-        logger.debug("Measurement list is %s", args.ima_measurement_list)
-        policy["digests"], ok = get_hashes_from_measurement_list(args.ima_measurement_list, policy["digests"])
-        if not ok:
-            return None
-
-    if not algo or algo == "unknown":
-        if args.algo:
-            algo = args.algo
+        # If the algorithm was previously set, check it against the algorithm
+        # from the current source
+        if algo:
+            if a != algo:
+                logger.warning(
+                    "The digest algorithm in the %s does not match the previously set '%s' algorithm", source, algo
+                )
+                return None
         else:
-            algo = DEFAULT_FILE_DIGEST_ALGORITHM
+            if a not in algorithms.Hash:
+                logger.warning("Invalid digests algorithm %s in the %s", a, source)
+                continue
+
+            algo = a
+            logger.debug("Using digest algorithm '%s' obtained from the %s", a, source)
+
+    if not algo:
+        logger.debug("Using default digest algorithm %s", DEFAULT_FILE_DIGEST_ALGORITHM)
+        algo = DEFAULT_FILE_DIGEST_ALGORITHM
 
     if args.ramdisk_dir:
-        policy["digests"] = get_initrds_digests(args.ramdisk_dir, policy["digests"], algo)
+        ramdisk_digests = {}
+        ramdisk_digests = get_initrds_digests(args.ramdisk_dir, ramdisk_digests, algo)
+
     if args.rootfs:
-        policy["digests"] = get_rootfs_digests(args.rootfs, args.skip_path, policy["digests"], algo)
+        rootfs_digests = {}
+        rootfs_digests = get_rootfs_digests(args.rootfs, args.skip_path, rootfs_digests, algo)
+
+    # Combine all obtained digests
+    for digests in [
+        allowlist_digests,
+        ima_digests,
+        rootfs_digests,
+        ramdisk_digests,
+        local_rpm_digests,
+        remote_rpm_digests,
+    ]:
+        if not digests:
+            continue
+        policy["digests"] = merge_maplists(policy["digests"], digests)
 
     if args.exclude_list_file:
         policy["excludes"], ok = process_exclude_list_file(args.exclude_list_file, policy["excludes"])
