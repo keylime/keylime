@@ -4,6 +4,7 @@ Copyright 2024 Red Hat, Inc.
 """
 
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -292,7 +293,7 @@ checksum-4 \
 
     def test_path_digest_owned_by_root(self):
         homedir = os.path.join(self.dirpath, "dummy-rootfs", "home")
-        fpath = os.path.join(homedir, "foobar", "non-root")
+        fpath = os.path.join("/", "foobar", "non-root")  # homedir becomes the rootfs "/"
 
         test_cases = [
             {
@@ -310,6 +311,12 @@ checksum-4 \
             for ff in digests:
                 self.assertTrue(ff in c["path"])
             assertDigestsEqual(digests, c["checksum"])
+
+    def test_rootfs_absolute_path(self):
+        homedir = os.path.join(self.dirpath, "dummy-rootfs", "home")
+        digests = create_runtime_policy.path_digests(homedir)
+        for ff in digests:
+            self.assertFalse(pathlib.PurePath(ff).is_relative_to(homedir))
 
     def test_path_digest_dirs_to_exclude(self):
         rootfsdir = os.path.join(self.dirpath, "dummy-rootfs")
