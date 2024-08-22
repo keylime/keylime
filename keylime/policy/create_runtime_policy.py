@@ -150,7 +150,7 @@ def path_digests(
     alg: str = algorithms.Hash.SHA256,
     dirs_to_exclude: Optional[List[str]] = None,
     digests: Optional[Dict[str, List[str]]] = None,
-    remove_prefix: bool = False,
+    remove_prefix: bool = True,
     only_owned_by_root: bool = False,
     match_rootfs: bool = False,
 ) -> Dict[str, List[str]]:
@@ -169,34 +169,39 @@ def path_digests(
     if digests is None:
         digests = {}
 
+    absfpath = os.path.abspath(str(*fdirpath))
+    if not os.path.isdir(absfpath):
+        logger.error("Invalid rootfs, %s is not a directory", absfpath)
+        return digests
+
     # Let's first check if the root is not marked to be excluded.
-    if match_rootfs or dirs_to_exclude:
-        if dirs_to_exclude is None:
-            dirs_to_exclude = []
+    if dirs_to_exclude is None:
+        dirs_to_exclude = []
 
-        if match_rootfs:
-            dirs_to_exclude.extend(exclude_dirs_based_on_rootfs(dirs_to_exclude))
+    if match_rootfs:
+        dirs_to_exclude.extend(exclude_dirs_based_on_rootfs(dirs_to_exclude))
 
-        for to_exclude in dirs_to_exclude:
-            if str(*fdirpath).startswith(to_exclude):
-                # Okay, nothing to do here, since the root
-                # is marked to be excluded.
-                return digests
+    for to_exclude in dirs_to_exclude:
+        if pathlib.PurePath(absfpath).is_relative_to(os.path.abspath(to_exclude)):
+            # Okay, nothing to do here, since the root
+            # is marked to be excluded.
+            logger.debug("The rootfs %s is excluded because it matches or is within %s", absfpath, to_exclude)
+            return digests
 
     subdirs = []
-    for f in os.scandir(str(*fdirpath)):
+    prefix_size = len(absfpath)
+    if absfpath == "/":  # There is no prefix at root ("/").
+        remove_prefix = False
+        prefix_size = 0
+
+    for f in os.scandir(absfpath):
         if f.is_dir():
-            exclude = False
-            if dirs_to_exclude:
-                for to_exclude in dirs_to_exclude:
-                    if f.path.startswith(to_exclude):
-                        exclude = True
-                        break
-            if not exclude:
+            relpath = f.path[prefix_size:]
+            if relpath not in dirs_to_exclude:
                 subdirs.append(pathlib.Path(f.path).resolve().as_posix())
         if f.is_file():
             ok, fkey, fdigest = _calculate_digest(
-                str(*fdirpath), pathlib.Path(f.path).as_posix(), alg, remove_prefix, only_owned_by_root
+                absfpath, pathlib.Path(f.path).as_posix(), alg, remove_prefix, only_owned_by_root
             )
             if ok:
                 if fkey not in digests:
@@ -206,7 +211,7 @@ def path_digests(
     for d in subdirs:
         for fname in pathlib.Path(d).glob("**/*"):
             dst_file = fname.as_posix()
-            ok, fkey, fdigest = _calculate_digest(str(*fdirpath), dst_file, alg, remove_prefix, only_owned_by_root)
+            ok, fkey, fdigest = _calculate_digest(absfpath, dst_file, alg, remove_prefix, only_owned_by_root)
             if ok:
                 if fkey not in digests:
                     digests[fkey] = []
