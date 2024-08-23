@@ -259,12 +259,13 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
 
         super().__setattr__(name, value)
 
-    def __getattribute__(self, name: str) -> Any:
+    # TODO: Uncomment
+    """ def __getattribute__(self, name: str) -> Any:
         try:
             return super().__getattribute__(name)
         except AttributeError:
             msg = f"model '{type(self).__name__}' does not define a field or attribute with name '{name}'"
-            raise AttributeError(msg) from None
+            raise AttributeError(msg) from None """
 
     def __repr__(self) -> str:
         """Returns a code-like string representation of the model instance

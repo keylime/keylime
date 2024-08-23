@@ -73,11 +73,6 @@ def upgrade_cloud_verifier():
         conn.execute(attestations.update().where(attestations.c.agent_id == agent_id).values(**{"next_ima_offset": next_ima_ml_entry}))
         conn.execute(attestations.update().where(attestations.c.agent_id == agent_id).values(**{"quote_received": last_received_quote}))
 
-    """ with op.batch_alter_table("verifiermain") as batch_op:
-        batch_op.drop_column("hash_alg")
-        batch_op.drop_column("enc_alg")
-        batch_op.drop_column("sign_alg") """
-
 
 def downgrade_cloud_verifier():
     op.drop_table("attestations")

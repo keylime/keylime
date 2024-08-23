@@ -1,6 +1,7 @@
 import time
 import json
 from typing import Optional
+from sqlalchemy import Enum
 
 from keylime.models.base import *
 from keylime.tpm import tpm_util
@@ -33,7 +34,8 @@ class Attestation(PersistableModel):
     @classmethod
     def _schema(cls):
         cls._persist_as("attestations")
-        #cls._belongs_to("agent", VerifierAgent, inverse_of="attestations", preload = False)
+        # TODO: Uncomment
+        # cls._belongs_to("agent", VerifierAgent, inverse_of="attestations", preload = False)
         cls._field("agent_id", String(80), primary_key = True)
         cls._field("nonce", String(20))
         cls._field("nonce_created", Integer, primary_key = True)
@@ -64,7 +66,7 @@ class Attestation(PersistableModel):
 
     @classmethod
     def get_last_successful(cls, agent_id):
-        return Attestation.get_one(agent_id = agent_id, status = "VERIFIED")
+        return Attestation.get(agent_id = agent_id, status = "VERIFIED")
 
     def _set_status(self):
         
@@ -133,6 +135,8 @@ class Attestation(PersistableModel):
         ima_events = data.get("ima_events") or None
         mb_events = data.get("mb_events") or None
         ak_tpm = data.get("ak_tpm") or agent.ak_tpm
+        # TODO remove hardcoded tpm_policy
+        tpm_policy = '{"mask":"0xfffe"}'
 
         if not self.changes_valid:
             raise ValueError("Attestation object cannot be verified as it has pending changes with errors")
@@ -176,7 +180,7 @@ class Attestation(PersistableModel):
             pub_key,
             self.quote,
             ak_tpm,
-            '{"mask":"0xfffe"}',
+            tpm_policy,
             ima_events,
             runtime_policy,
             algorithms.Hash(self.hash_alg),
@@ -200,7 +204,7 @@ class Attestation(PersistableModel):
             agent.tpm_clockinfo = json.dumps(agentAttestState.get_tpm_clockinfo().to_dict())
             agent.last_successful_attestation = int(time.time())
             logger.info("Quote for agent '%s':", self.agent_id)
-
+                       
         self.commit_changes()
 
     def render(self, only=None):
@@ -215,7 +219,7 @@ class Attestation(PersistableModel):
             if not self.agent_id:
                 return None
             
-            attestation = Attestation.get_one(agent_id = self.agent_id, status = "VERIFIED")
+            attestation = Attestation.get(agent_id = self.agent_id, status = "VERIFIED")
 
             if not attestation:
                 return None

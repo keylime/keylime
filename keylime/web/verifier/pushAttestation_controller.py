@@ -95,7 +95,6 @@ class PushAttestation(Controller):
 
     def update(self, agent_id, **params):
         last_attestation = Attestation.get_last(agent_id = agent_id)
-        #last_attestation = Attestation.get_one(agent_id = agent_id, status = "RECEIVED")
         current_timestamp = int(time.time())
 
         # TODO: Replace with calls to VerifierAgent.get(...) and IMAPolicy.get(...)
@@ -128,8 +127,6 @@ class PushAttestation(Controller):
                     msgs.append(f"{field} {error}")
             self.respond(400, "Bad Request", {"errors": msgs})
             return
-        
-        # TODO add last_successful_attestation to verifiermain
         
         session.add(agent)
         session.commit()
