@@ -5,19 +5,22 @@ Attestation Security
 .. role:: raw-html(raw)
   :format: html
 
+.. |s-space| replace:: :raw-html:`<p><small></small></p>`
+
 Keylime's core purpose is to verify the attested state of a system. The verification outcome (whether the attestation
 is verified or not) may be used in various ways by the end user by integrating Keylime into their wider infrastructure,
 for instance:
 
-.. container:: complex
-
   * to produce alerts if an unauthorised change occurs somewhere in a user's fleet of machines (e.g., boot order is
     so configured that a server boots from an external drive);
+    |s-space|
 
   * to authenticate a workload based on the state of the workload and the node on which it is running, in service of
     zero-trust principles; or
+    |s-space|
 
   * to release keys from a key broker to unlock an encrypted data store once the data store system has been verified.
+    |s-space|
 
 As a result, a user must have faith that the verification outcome reported by Keylime is correct for the specific system
 in question. It is crucial therefore to understand the security architecture and characteristics of Keylime and
