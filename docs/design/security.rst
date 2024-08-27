@@ -9,16 +9,15 @@ Keylime's core purpose is to verify the attested state of a system. The verifica
 is verified or not) may be used in various ways by the end user by integrating Keylime into their wider infrastructure,
 for instance:
 
+.. container:: complex
+
   * to produce alerts if an unauthorised change occurs somewhere in a user's fleet of machines (e.g., boot order is
     so configured that a server boots from an external drive);
-    :raw-html:`<br><br>`
 
   * to authenticate a workload based on the state of the workload and the node on which it is running, in service of
     zero-trust principles; or
-    :raw-html:`<br><br>`
 
   * to release keys from a key broker to unlock an encrypted data store once the data store system has been verified.
-    :raw-html:`<br><br>`
 
 As a result, a user must have faith that the verification outcome reported by Keylime is correct for the specific system
 in question. It is crucial therefore to understand the security architecture and characteristics of Keylime and
@@ -60,13 +59,15 @@ It is important to note that attesting environments are not required to be entir
 fact, often share components. This is illustrated by the diagram below showing UEFI and `IMA`_ attestation being
 performed on the same node:
 
-.. image:: ../assets/attesting-environments-diagram.svg
-  :width: 542
+.. figure:: ../assets/attesting-environments-diagram.svg
+  :width: 600
   :align: center
   :alt: Diagram showing two different attesting environments on a single system with a single underlying foundation. The
     UEFI firmware and bootloader are unique to the UEFI attesting environment while the Linux kernel is unique to the
     IMA attesting environment. But the same processor microcode, hardware platform (motherboard, CPU, memory, etc.) and TPM
     are shared by both.
+
+  **Figure 1:** Overlapping Attesting Environments
 
 The red shaded area shows the attesting environment which attests the boot state, whereas the blue shaded area shows the
 attesting environment used to attest the integrity of files using IMA. The overlapping purple area contains the
@@ -91,13 +92,15 @@ any extensions or integrations, and the configuration of the system by the user.
 As such, contributors to the Keylime project and users of Keylime alike need to consider the resulting *chain of trust*
 when these units are composed together. To show this, a possible deployment is given in the below figure:
 
-.. image:: ../assets/trust-chain-diagram.svg
+.. figure:: ../assets/trust-chain-diagram.svg
   :width: 721
   :align: center
   :alt: Diagram showing the various components used to produce an attestation in a given Keylime deployment. The
     baseboard management controller (BMC) loads the processor microcode and UEFI firmware. The firmware measures the
     bootloader which in turn measures the kernel. As such, the trusted hardware is used to establish trust in the
     software components which produce the attestation.
+
+  **Figure 2:** Example Keylime Deployment with UEFI and IMA Verification
 
 In this example, the user has installed the Keylime agent on a node which identifies itself to an instance of the
 Keylime registrar and delivers evidence to a separate Keylime verifier instance. As in the diagram from the previous 
@@ -229,8 +232,8 @@ the agent ID, and enrol the AK with the verifier. Neither the registrar, the ten
 the identity of the node by default.
 
 .. note::
-    Notice in the previous diagram that there is no chain of trust from a trust anchor to the Keylime agent. This means
-    that the Keylime agent cannot be trusted to report the correct agent ID to the registrar.
+    Notice in the previous diagram (Figure 2) that there is no chain of trust from a trust anchor to the Keylime agent.
+    This means that the Keylime agent cannot be trusted to report the correct agent ID to the registrar.
 
 If the user wishes to rely solely on the EK as identity for the attested node, they are expected to manually verify the
 EK out of band themselves **before** enrolling the node for verification. This can be done `using tpm2-tools`_.
@@ -312,6 +315,7 @@ policies). Attacks which rely on modification of an attesting environment (such 
 excluded.
 
 
+:raw-html:`<br><br>`
 
 ----
 
