@@ -745,14 +745,13 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
         )
 
     algo = args.algo
-    if args.algo == "":
-        # Need to find the algo from the boot_aggregate.
-        algo, _ = boot_aggregate_from_file(args.ima_measurement_list)
+    if algo == "":
+        algo = FALLBACK_HASH_ALGO
 
     policy = ima.empty_policy()
 
-    # Set hash algo.
-    policy["ima"]["log_hash_alg"] = algo
+    # Set the algorithm for the template-hash; the kernel currently hardcodes it to sha1.
+    policy["ima"]["log_hash_alg"] = "sha1"
 
     if args.base_policy:
         merged_policy = merge_base_policy(policy, cast(str, args.base_policy))
