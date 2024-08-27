@@ -31,8 +31,8 @@ verification engine) depends heavily on the particular deployment.
 .. _platform configuration registers (PCRs): ../user_guide/user_selected_pcr_monitoring.html
 
 
-Attestation Security Terminology
---------------------------------
+Attestation Terminology
+-----------------------
 
 At a high level, an attested node consists of a number of |attesting environments|_ which each consist of a stack of
 software and the hardware it runs on. These collect *claims* about the state of the attested node (claims are also
@@ -40,7 +40,7 @@ called *measurements*) and produce *evidence* that these claims may be believabl
 claims, is what is usually referred to as an *attestation*). The evidence is authenticated cryptographically such that
 it can be verified to have been produced, at least in part, by a specific component.
 
-An attesting environment can be further split into a *measuring environment* and a *certifying environment*[1]_. The
+An attesting environment can be further split into a *measuring environment* and a *certifying environment*[#]_. The
 measuring environment collects claims/measurements and the certifying environment acts as a witness, certifying that it
 has seen the claims/measurements. For example, during boot with `UEFI`_, the firmware produces a log of events which are
 measured into the TPM. Later, the TPM may be asked to certify the sequence of events which it received (this
@@ -54,7 +54,12 @@ It is important to note that attesting environments are not required to be entir
 fact, often share components. This is illustrated by the diagram below showing UEFI and `IMA`_ attestation being
 performed on the same node:
 
-TODO: Add figure
+.. image:: assets/attesting-environments-diagram.png
+  :width: 542
+  :alt: Diagram showing two different attesting environments on a single system with a single underlying foundation. The
+  UEFI firmware and bootloader are unique to the UEFI attesting environment while the Linux kernel is unique to the IMA
+  attesting environment. But the same processor microcode, hardware platform (motherboard, CPU, memory, etc.) and TPM
+  are shared by both.
 
 The red shaded area shows the attesting environment which attests the boot state, whereas the blue shaded area shows the
 attesting environment used to attest the integrity of files using IMA. The overlapping purple area contains the
@@ -67,8 +72,8 @@ components common to both. In both attesting environments, the certifying enviro
 .. |attesting environments| replace:: *attesting environments*
 
 
-Trust Anchors
--------------
+Trust Relationships
+-------------------
 
 The trust that a user chooses to place in the verification results produced by a deployment of Keylime should derive
 from their trust in specific system components (*trust anchors*) and the cryptographic means by which this trust is
@@ -79,12 +84,17 @@ any extensions or integrations, and the configuration of the system by the user.
 As such, contributors to the Keylime project and users of Keylime alike need to consider the resulting *chain of trust*
 when these units are composed together. To show this, a possible deployment is given in the below figure:
 
-TODO: Add figure
+.. image:: assets/trust-chain-diagram.png
+  :width: 542
+  :alt: Diagram showing the various components used to produce an attestation in a given Keylime deployment. The
+  baseboard management controller (BMC) loads the processor microcode and UEFI firmware. The firmware measures the
+  bootloader which in turn measures the kernel. As such, the trusted hardware is used to establish trust in the software
+  components which produce the attestation.
 
 In this example, the user has installed the Keylime agent on a node which identifies itself to an instance of the
 Keylime registrar and delivers evidence to a separate Keylime verifier instance. As in the diagram from the previous 
 section, the node is able to attest the contents of its UEFI boot log and the integrity of specific files using Linux
-IMA. The user has configured the verifier with a certain *verification policy*[2]_ which it will use to evaluate the
+IMA. The user has configured the verifier with a certain *verification policy*[#]_ which it will use to evaluate the
 evidence received in each periodic attestation.
 
 When the attested node boots, the UEFI firmware and the bootloader each have their turn to execute in the boot sequence.
@@ -117,8 +127,8 @@ In both cases, trust in every component of the attesting environment can be esta
 trust anchors. Therefore, the attesting environment as a whole can be trusted.
 
 
-The Role of Verification in the Chain of Trust
-----------------------------------------------
+Verification as a Trust Anchor
+------------------------------
 
 In the previous example, a chain of trust is formed in large part by virtue of Secure Boot, a UEFI feature which
 authenticates each component in the boot sequence. However, Secure Boot is imperfect. A motivated attacker can replace
@@ -136,7 +146,7 @@ can check this against a set of *reference values* of legitimate, up-to-date boo
 .. note::
     The behaviour of UEFI when it loads the bootloader, including what logs are produced, is described in section 7 of
     the `TCG PC Client Platform Firmware Profile Specification`_. You should verify the hash of every EFI application
-    launched as part of the boot process.
+    launched as part of the boot process to establish a complete chain of trust.
 
 .. _TCG PC Client Platform Firmware Profile Specification: https://trustedcomputinggroup.org/resource/pc-client-specific-platform-firmware-profile-specification/
 
@@ -149,8 +159,8 @@ environment. The attesting environment which produces a node's IMA log, for inst
 attesting environment which produces the UEFI log containing the hash of the kernel is trusted.
 
 
-Virtual TPMs
-------------
+Virtual TPMs as Trust Anchors
+-----------------------------
 
 Keylime can perform TPM-based attestation using any device, physical or virtual, which implements the `TPM 2.0`_
 standard. Ideally, the TPM should have a chain of trust which is rooted in hardware.
@@ -184,7 +194,7 @@ Whatever key is used to sign an attestation therefore needs to be bound to the i
 that binding needs to be performed by a trusted entity. The binding may be transitive so that the attestation signing
 key is bound to another key which itself is bound to the attested node.
 
-In Keylime, attestations can be bound to the attested node in a number of different ways.
+In Keylime, attestations can be bound to the attested node in a number of different ways:
 
 Binding to a TPM Endorsement Key
 """"""""""""""""""""""""""""""""
@@ -275,7 +285,7 @@ throughout the network.
 The Capabilities of the Adversary
 """""""""""""""""""""""""""""""""
 
-For our adversary, we consider a typical network-based (Dolev-Yao) attacker[3]_ which exercises full control over the
+For our adversary, we consider a typical network-based (Dolev-Yao) attacker[#]_ which exercises full control over the
 network and can intercept, block and modify all messages but cannot break cryptographic primitives (all cryptography is
 assumed perfect). Because we need to consider attacks in which the adversary is resident on a node to be verified, we
 extend the "network" to include channels between the agent and any attesting environment (for TPM-based attestation,
@@ -295,18 +305,19 @@ excluded.
 
 
 
-.. [1] *Attesting environments*, *claims*, and *evidence* are the terms preferred by the IETF's Remote Attestation
+----
+
+.. [#] *Attesting environments*, *claims*, and *evidence* are the terms preferred by the IETF's Remote Attestation
    Procedures (RATS) working group in their architecture specification, `RFC 9334`_. Although they do not explicitly 
    divide attesting environments into a *measuring environment* and *certifying environment* as we do here, separating
    claims collection and certification of claims into separate components is contemplated in section 3.1.
 
-.. _RFC 9334: https://datatracker.ietf.org/doc/html/rfc9334
-
-.. [2] It is common for a verification policy to perform verification of evidence against a separate set of *reference
+.. [#] It is common for a verification policy to perform verification of evidence against a separate set of *reference
    values* or *reference measurements*. For the purposes of this page, we consider that any reference values are part of
    the verification policy itself, as the distinction should not impact security analysis.
 
-.. [3] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
+.. [#] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
    security of public key protocols"`_.
 
+.. _RFC 9334: https://datatracker.ietf.org/doc/html/rfc9334
 .. _"On the security of public key protocols": http://www.cs.huji.ac.il/~dolev/pubs/dolev-yao-ieee-01056650.pdf
