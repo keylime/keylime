@@ -292,8 +292,8 @@ Security Goals
 
 We give the main security property for Keylime by stating what a successful adversary must achieve:
 
-    A valid attack against Keylime is one in which an adversary can cause a mismatch between a verification outcome
-    reported by a verifier and the correct, expected verification outcome for the verified node.
+    **A valid attack against Keylime is one in which an adversary can cause a mismatch between a verification outcome
+    reported by a verifier and the correct, expected verification outcome for the verified node.**
 
 This includes attacks in which:
 
@@ -331,7 +331,7 @@ policies). Attacks which rely on modification of an attesting environment (such 
 excluded.
 
 
-:raw-html:`<br><br>`
+:raw-html:`<br>`
 
 ----
 
