@@ -8,8 +8,10 @@ for instance:
 
   * to produce alerts if an unauthorised change occurs somewhere in a user's fleet of machines (e.g., boot order is
     so configured that a server boots from an external drive);
+
   * to authenticate a workload based on the state of the workload and the node on which it is running, in service of
     zero-trust principles; or
+
   * to release keys from a key broker to unlock an encrypted data store once the data store system has been verified.
 
 As a result, a user must have faith that the verification outcome reported by Keylime is correct for the specific system
@@ -38,17 +40,12 @@ called *measurements*) and produce *evidence* that these claims may be believabl
 claims, is what is usually referred to as an *attestation*). The evidence is authenticated cryptographically such that
 it can be verified to have been produced, at least in part, by a specific component.
 
-An attesting environment can be further split into a *measuring environment* and a *certifying environment* [#]_. The
+An attesting environment can be further split into a *measuring environment* and a *certifying environment*[1]_. The
 measuring environment collects claims/measurements and the certifying environment acts as a witness, certifying that it
 has seen the claims/measurements. For example, during boot with `UEFI`_, the firmware produces a log of events which are
 measured into the TPM. Later, the TPM may be asked to certify the sequence of events which it received (this
 certification is also known as a *quote*). In this situation, the measuring environment consists of UEFI and the
 hardware platform it is running on, and the certifying environment is the TPM.
-
-.. [#] *Attesting environments*, *claims*, and *evidence* are the terms preferred by the IETF's Remote Attestation
-   Procedures (RATS) working group in their architecture specification, `RFC 9334`_. Although they do not explicitly 
-   divide attesting environments into a *measuring environment* and *certifying environment* as we do here, separating
-   claims collection and certification of claims into separate components is contemplated in section 3.1.
 
 In some cases, the measuring environment and certifying environment could be the same. When attesting certain trusted
 execution environments (TEEs), for example, the TEE hardware may perform both the measuring and certifying tasks.
@@ -65,7 +62,6 @@ components common to both. In both attesting environments, the certifying enviro
 
 .. _UEFI: https://en.wikipedia.org/wiki/UEFI
 .. _IMA: https://www.redhat.com/en/blog/how-use-linux-kernels-integrity-measurement-architecture
-.. _RFC 9334: https://datatracker.ietf.org/doc/html/rfc9334
 .. _section 3.1: https://datatracker.ietf.org/doc/html/rfc9334#section-3.1
 .. _attesting environments: https://datatracker.ietf.org/doc/html/rfc9334#section-3.1
 .. |attesting environments| replace:: *attesting environments*
@@ -88,12 +84,8 @@ TODO: Add figure
 In this example, the user has installed the Keylime agent on a node which identifies itself to an instance of the
 Keylime registrar and delivers evidence to a separate Keylime verifier instance. As in the diagram from the previous 
 section, the node is able to attest the contents of its UEFI boot log and the integrity of specific files using Linux
-IMA. The user has configured the verifier with a certain *verification policy*[#]_ which it will use to evaluate the
+IMA. The user has configured the verifier with a certain *verification policy*[2]_ which it will use to evaluate the
 evidence received in each periodic attestation.
-
-.. [#] It is common for a verification policy to perform verification of evidence against a separate set of *reference
-   values* or *reference measurements*. For the purposes of this page, we consider that any reference values are part of
-   the verification policy itself, as the distinction should not impact security analysis.
 
 When the attested node boots, the UEFI firmware and the bootloader each have their turn to execute in the boot sequence.
 They both write entries to the boot log and, for each log entry, update registers in the TPM with a hash of that entry.
@@ -223,9 +215,9 @@ the identity of the node by default.
     that the Keylime agent cannot be trusted to report the correct agent ID to the registrar.
 
 If the user wishes to rely solely on the EK as identity for the attested node, they are expected to manually verify the
-EK out of band themselves **before** enrolling the node for verification. This can be done `using tpm2_tools`_.
+EK out of band themselves **before** enrolling the node for verification. This can be done `using tpm2-tools`_.
 
-.. _using tpm2_tools: https://github.com/tpm2-software/tpm2-tools/blob/master/man/tpm2_getekcertificate.1.md
+.. _using tpm2-tools: https://github.com/tpm2-software/tpm2-tools/blob/master/man/tpm2_getekcertificate.1.md
 
 Other Identity Binding Options
 """"""""""""""""""""""""""""""
@@ -252,7 +244,9 @@ In the design of a secure system, it is prudent to define a threat model in term
 attacker. This has a number of advantages, not limited to the following:
 
   * users are clear on the security properties they can expect from the system;
+
   * developers have agreement on which attacks are in scope and which are out of scope; and
+
   * the protocols utilised naturally lend themselves to analysis by outside parties.
 
 In lieu of a full formal model, we give a plain English description, translatable to formal definitions, in the
@@ -270,6 +264,7 @@ This includes attacks in which:
 
   * verification of a node is reported as having passed when the policy for the node should have resulted in a
     verification failure; or
+
   * verification of a node is reported as having failed when the policy for the node should have resulted in a
     successful verification.
 
@@ -280,7 +275,7 @@ throughout the network.
 The Capabilities of the Adversary
 """""""""""""""""""""""""""""""""
 
-For our adversary, we consider a typical network-based (Dolev-Yao) attacker[#]_ which exercises full control over the
+For our adversary, we consider a typical network-based (Dolev-Yao) attacker[3]_ which exercises full control over the
 network and can intercept, block and modify all messages but cannot break cryptographic primitives (all cryptography is
 assumed perfect). Because we need to consider attacks in which the adversary is resident on a node to be verified, we
 extend the "network" to include channels between the agent and any attesting environment (for TPM-based attestation,
@@ -288,11 +283,6 @@ this includes communication between the TPM and the agent).
 
 The adversary cannot corrupt (i.e., take control of, or impersonate) the verifier, registrar, tenant or any attesting
 environment, but has full control over the rest of the system, including the nodes' filesystem and memory.
-
-.. [#] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
-   security of public key protocols"`_.
-
-.. _"On the security of public key protocols": http://www.cs.huji.ac.il/~dolev/pubs/dolev-yao-ieee-01056650.pdf
 
 Exclusions
 """"""""""
@@ -302,3 +292,21 @@ a node's attesting environments (including IMA and UEFI logs) are necessarily ou
 attacks which are made possible by incorrect configuration by the user (this includes incorrectly specified verification
 policies). Attacks which rely on modification of an attesting environment (such as by using a UEFI bootkit) are also
 excluded.
+
+
+
+.. [1] *Attesting environments*, *claims*, and *evidence* are the terms preferred by the IETF's Remote Attestation
+   Procedures (RATS) working group in their architecture specification, `RFC 9334`_. Although they do not explicitly 
+   divide attesting environments into a *measuring environment* and *certifying environment* as we do here, separating
+   claims collection and certification of claims into separate components is contemplated in section 3.1.
+
+.. _RFC 9334: https://datatracker.ietf.org/doc/html/rfc9334
+
+.. [2] It is common for a verification policy to perform verification of evidence against a separate set of *reference
+   values* or *reference measurements*. For the purposes of this page, we consider that any reference values are part of
+   the verification policy itself, as the distinction should not impact security analysis.
+
+.. [3] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
+   security of public key protocols"`_.
+
+.. _"On the security of public key protocols": http://www.cs.huji.ac.il/~dolev/pubs/dolev-yao-ieee-01056650.pdf
