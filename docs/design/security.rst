@@ -11,14 +11,14 @@ for instance:
 
   * to produce alerts if an unauthorised change occurs somewhere in a user's fleet of machines (e.g., boot order is
     so configured that a server boots from an external drive);
-    :raw-html:`<br>`
+    :raw-html:`<br><br>`
 
   * to authenticate a workload based on the state of the workload and the node on which it is running, in service of
     zero-trust principles; or
-    :raw-html:`<br>`
+    :raw-html:`<br><br>`
 
   * to release keys from a key broker to unlock an encrypted data store once the data store system has been verified.
-    :raw-html:`<br>`
+    :raw-html:`<br><br>`
 
 As a result, a user must have faith that the verification outcome reported by Keylime is correct for the specific system
 in question. It is crucial therefore to understand the security architecture and characteristics of Keylime and
@@ -62,6 +62,7 @@ performed on the same node:
 
 .. image:: ../assets/attesting-environments-diagram.svg
   :width: 542
+  :align: center
   :alt: Diagram showing two different attesting environments on a single system with a single underlying foundation. The
     UEFI firmware and bootloader are unique to the UEFI attesting environment while the Linux kernel is unique to the
     IMA attesting environment. But the same processor microcode, hardware platform (motherboard, CPU, memory, etc.) and TPM
@@ -92,6 +93,7 @@ when these units are composed together. To show this, a possible deployment is g
 
 .. image:: ../assets/trust-chain-diagram.svg
   :width: 721
+  :align: center
   :alt: Diagram showing the various components used to produce an attestation in a given Keylime deployment. The
     baseboard management controller (BMC) loads the processor microcode and UEFI firmware. The firmware measures the
     bootloader which in turn measures the kernel. As such, the trusted hardware is used to establish trust in the
@@ -188,8 +190,8 @@ In a confidential computing scenario, a vTPM may be running in a trusted executi
 attested and verified to be secure by virtue of the memory-protection guarantees granted by the CPU.
 
 
-Node Identity
--------------
+Platform Identity
+-----------------
 
 Fundamentally, the job of a verifier is to accept evidence from nodes on a network and apply the appropriate
 verification policy to produce a verification outcome for each node. As different nodes may have different policies, it
