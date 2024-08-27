@@ -2,17 +2,23 @@
 Attestation Security
 ====================
 
+.. role:: raw-html(raw)
+  :format: html
+
 Keylime's core purpose is to verify the attested state of a system. The verification outcome (whether the attestation
 is verified or not) may be used in various ways by the end user by integrating Keylime into their wider infrastructure,
 for instance:
 
   * to produce alerts if an unauthorised change occurs somewhere in a user's fleet of machines (e.g., boot order is
     so configured that a server boots from an external drive);
+    :raw-html:`<br>`
 
   * to authenticate a workload based on the state of the workload and the node on which it is running, in service of
     zero-trust principles; or
+    :raw-html:`<br>`
 
   * to release keys from a key broker to unlock an encrypted data store once the data store system has been verified.
+    :raw-html:`<br>`
 
 As a result, a user must have faith that the verification outcome reported by Keylime is correct for the specific system
 in question. It is crucial therefore to understand the security architecture and characteristics of Keylime and
@@ -40,7 +46,7 @@ called *measurements*) and produce *evidence* that these claims may be believabl
 claims, is what is usually referred to as an *attestation*). The evidence is authenticated cryptographically such that
 it can be verified to have been produced, at least in part, by a specific component.
 
-An attesting environment can be further split into a *measuring environment* and a *certifying environment*[#]_. The
+An attesting environment can be further split into a *measuring environment* and a *certifying environment* [1]_. The
 measuring environment collects claims/measurements and the certifying environment acts as a witness, certifying that it
 has seen the claims/measurements. For example, during boot with `UEFI`_, the firmware produces a log of events which are
 measured into the TPM. Later, the TPM may be asked to certify the sequence of events which it received (this
@@ -94,7 +100,7 @@ when these units are composed together. To show this, a possible deployment is g
 In this example, the user has installed the Keylime agent on a node which identifies itself to an instance of the
 Keylime registrar and delivers evidence to a separate Keylime verifier instance. As in the diagram from the previous 
 section, the node is able to attest the contents of its UEFI boot log and the integrity of specific files using Linux
-IMA. The user has configured the verifier with a certain *verification policy*[#]_ which it will use to evaluate the
+IMA. The user has configured the verifier with a certain *verification policy* [2]_ which it will use to evaluate the
 evidence received in each periodic attestation.
 
 When the attested node boots, the UEFI firmware and the bootloader each have their turn to execute in the boot sequence.
@@ -285,7 +291,7 @@ throughout the network.
 The Capabilities of the Adversary
 """""""""""""""""""""""""""""""""
 
-For our adversary, we consider a typical network-based (Dolev-Yao) attacker[#]_ which exercises full control over the
+For our adversary, we consider a typical network-based (Dolev-Yao) attacker [3]_ which exercises full control over the
 network and can intercept, block and modify all messages but cannot break cryptographic primitives (all cryptography is
 assumed perfect). Because we need to consider attacks in which the adversary is resident on a node to be verified, we
 extend the "network" to include channels between the agent and any attesting environment (for TPM-based attestation,
@@ -307,16 +313,18 @@ excluded.
 
 ----
 
-.. [#] *Attesting environments*, *claims*, and *evidence* are the terms preferred by the IETF's Remote Attestation
+**Footnotes:**
+
+.. [1] *Attesting environments*, *claims*, and *evidence* are the terms preferred by the IETF's Remote Attestation
    Procedures (RATS) working group in their architecture specification, `RFC 9334`_. Although they do not explicitly 
    divide attesting environments into a *measuring environment* and *certifying environment* as we do here, separating
    claims collection and certification of claims into separate components is contemplated in section 3.1.
 
-.. [#] It is common for a verification policy to perform verification of evidence against a separate set of *reference
+.. [2] It is common for a verification policy to perform verification of evidence against a separate set of *reference
    values* or *reference measurements*. For the purposes of this page, we consider that any reference values are part of
    the verification policy itself, as the distinction should not impact security analysis.
 
-.. [#] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
+.. [3] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
    security of public key protocols"`_.
 
 .. _RFC 9334: https://datatracker.ietf.org/doc/html/rfc9334
