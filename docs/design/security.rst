@@ -350,7 +350,7 @@ attesting environment (such as by using a UEFI bootkit) are also excluded.
    the verification policy itself, as the distinction should not impact security analysis.
 
 .. [3] The function of the TPM here is to provide assurance that the UEFI log file made available to the Keylime agent
-   through the OS contain the same log entries that were produced at boot time and thus have not been tampered with by
+   through the OS contains the same log entries that were produced at boot time and thus have not been tampered with by
    something other than the firmware or bootloader.
    
    This assurance comes from (1) the fact that while a TPM register only contains a hash produced for the final log
