@@ -57,7 +57,7 @@ It is important to note that attesting environments are not required to be entir
 fact, often share components. This is illustrated by the diagram below showing UEFI and `IMA`_ attestation being
 performed on the same node:
 
-[TODO: Add figure]
+TODO: Add figure
 
 The red shaded area shows the attesting environment which attests the boot state, whereas the blue shaded area shows the
 attesting environment used to attest the integrity of files using IMA. The overlapping purple area contains the
@@ -83,7 +83,7 @@ any extensions or integrations, and the configuration of the system by the user.
 As such, contributors to the Keylime project and users of Keylime alike need to consider the resulting *chain of trust*
 when these units are composed together. To show this, a possible deployment is given in the below figure:
 
-[TODO: Add figure]
+TODO: Add figure
 
 In this example, the user has installed the Keylime agent on a node which identifies itself to an instance of the
 Keylime registrar and delivers evidence to a separate Keylime verifier instance. As in the diagram from the previous 
@@ -292,7 +292,7 @@ environment, but has full control over the rest of the system, including the nod
 .. [#] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
    security of public key protocols"`_.
 
-.. _On the security of public key protocols: http://www.cs.huji.ac.il/~dolev/pubs/dolev-yao-ieee-01056650.pdf
+.. _"On the security of public key protocols": http://www.cs.huji.ac.il/~dolev/pubs/dolev-yao-ieee-01056650.pdf
 
 Exclusions
 """"""""""
