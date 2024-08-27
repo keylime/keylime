@@ -103,7 +103,7 @@ when these units are composed together. To show this, a possible deployment is g
     bootloader which in turn measures the kernel. As such, the trusted hardware is used to establish trust in the
     software components which produce the attestation.
 
-  **Figure 2:** Example Keylime Deployment with UEFI and IMA Verification
+  **Figure 2:** Example Keylime Deployment Performing UEFI and IMA Verification
 
 In this example, the user has installed the Keylime agent on a node which identifies itself to an instance of the
 Keylime registrar and delivers evidence to a separate Keylime verifier instance. As in the diagram from the previous 
@@ -141,8 +141,8 @@ In both cases, trust in every component of the attesting environment can be esta
 trust anchors. Therefore, the attesting environment as a whole can be trusted.
 
 
-Verification as a Trust Anchor
-------------------------------
+Chaining Trust Across Attesting Environments
+--------------------------------------------
 
 In the previous example, a chain of trust is formed in large part by virtue of Secure Boot, a UEFI feature which
 authenticates each component in the boot sequence. However, Secure Boot is imperfect. A motivated attacker can replace
@@ -173,15 +173,18 @@ environment. The attesting environment which produces a node's IMA log, for inst
 attesting environment which produces the UEFI log containing the hash of the kernel is trusted.
 
 
-Virtual TPMs as Trust Anchors
------------------------------
+Software Certifying Environments and Virtual TPMs
+-------------------------------------------------
 
-Keylime can perform TPM-based attestation using any device, physical or virtual, which implements the `TPM 2.0`_
-standard. Ideally, the TPM should have a chain of trust which is rooted in hardware.
+All our examples up to now have used a hardware certifying environment in the form of a TPM which is part of the
+hardware platform of the attested node. However, Keylime can perform TPM-based attestation using any TPM-like device,
+physical or virtual, which implements the `TPM 2.0`_ standard. In the ideal scenario, whatever TPM is used should have a
+chain of trust which is rooted in hardware.
 
-However, there are situations in which only a TPM implemented in, and secured by, software is available. Such a virtual
-TPM (vTPM) needs to be located on a trusted system. For example, when attesting a VM running in a cloud environment, you
-may choose to trust a vTPM provided by your cloud services provider (CSP) and running as part of the hypervisor.
+That said, there are situations in which only a TPM implemented in, and secured by, software is available. Such a
+virtual TPM (vTPM) needs to be located on a trusted system. For example, when attesting a VM running in a cloud
+environment, you may choose to trust a vTPM provided by your cloud services provider (CSP) and running as part of the
+hypervisor.
 
 .. note::
     Keylime was originally developed to attest VMs using the deep quotes provided by `vTPM support in Xen`_, for which
@@ -193,7 +196,9 @@ may choose to trust a vTPM provided by your cloud services provider (CSP) and ru
 .. _TPM 2.0: https://trustedcomputinggroup.org/resource/tpm-library-specification/
 
 In a confidential computing scenario, a vTPM may be running in a trusted execution environment (TEE) which has been
-attested and verified to be secure by virtue of the memory-protection guarantees granted by the CPU.
+attested and verified to be secure by virtue of the memory-protection guarantees granted by the CPU. In such case, the
+CPU would act as a hardware trust anchor and trust in the software certifying environment provided by the vTPM would be
+established transitively in the manner described in the previous section.
 
 
 Platform Identity
@@ -201,8 +206,8 @@ Platform Identity
 
 Fundamentally, the job of a verifier is to accept evidence from nodes on a network and apply the appropriate
 verification policy to produce a verification outcome for each node. As different nodes may have different policies, it
-is important that the verifier is able to reliably identify and authenticate each node. Otherwise, an attacker could
-cause the wrong verification policy to be applied to a node.
+is important that the verifier is able to reliably identify and authenticate the underlying platform. Otherwise, an
+attacker could cause the wrong verification policy to be applied to a node.
 
 Whatever key is used to sign an attestation therefore needs to be bound to the individual node in question. Further,
 that binding needs to be performed by a trusted entity. The binding may be transitive so that the attestation signing
@@ -253,12 +258,15 @@ less fragile and therefore may be better from an operations perspective:
     to this identity which itself is bound to the EK by the device manufacturer. The user simply needs to provide its
     IDevID and IAK certificates, which contain the serial number of the device or other user-facing identifying
     information, and the manufacturer's CA certificates.
+    |s-space|
 
   * The user may construct an inventory database mapping node identifiers chosen by the user (e.g., hostnames) to an AK
     or EK. This database can be consulted before a node is added to the verifier by mechanisms available in Keylime.
+    |s-space|
 
   * The user may set up their own automatic process to verify possession of an AK or EK as well as the identity of the
     node through a protocol like ACME or other procedure and add the node to the verifier only if these checks pass.
+    |s-space|
 
 
 Threat Model
@@ -268,10 +276,13 @@ In the design of a secure system, it is prudent to define a threat model in term
 attacker. This has a number of advantages, not limited to the following:
 
   * users are clear on the security properties they can expect from the system;
+    |s-space|
 
   * developers have agreement on which attacks are in scope and which are out of scope; and
+    |s-space|
 
   * the protocols utilised naturally lend themselves to analysis by outside parties.
+    |s-space|
 
 In lieu of a full formal model, we give a plain English description, translatable to formal definitions, in the
 subsections below.
@@ -288,9 +299,11 @@ This includes attacks in which:
 
   * verification of a node is reported as having passed when the policy for the node should have resulted in a
     verification failure; or
+    |s-space|
 
   * verification of a node is reported as having failed when the policy for the node should have resulted in a
     successful verification.
+    |s-space|
 
 The latter is important to consider because, depending on how Keylime is used (e.g., if Keylime results are consumed by
 another system or used for authentication of non-person entities), this could be exploited to trigger cascading failures
