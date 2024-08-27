@@ -32,7 +32,7 @@ verification engine) depends heavily on the particular deployment.
     of `file system integrity`_ as recorded in Linux IMA logs, and of a TPM's `platform configuration registers (PCRs)`_
     directly. As Keylime may support other forms of attestation in the future, e.g., attestations produced by various
     trusted execution environments (TEEs), this page attempts to be agnostic as to the attestation technology being
-    used, in so far as is possible, but does use such concrete examples to illustrate general concepts.
+    used in so far as is possible but does use UEFI and IMA attestation examples to illustrate the general concepts.
 
 .. _boot state: ../user_guide/use_measured_boot.html
 .. _file system integrity: ../user_guide/runtime_ima.html
@@ -43,7 +43,7 @@ Attestation Terminology
 -----------------------
 
 At a high level, an attested node consists of a number of |attesting environments|_ which each consist of a stack of
-software and the hardware it runs on. These collect *claims* about the state of the attested node (claims are also
+software and hardware. These collect *claims* about the state of the attested node (claims are also
 called *measurements*) and produce *evidence* that these claims may be believable (a collection of evidence, including
 claims, is what is usually referred to as an *attestation*). The evidence is authenticated cryptographically such that
 it can be verified to have been produced, at least in part, by a specific component.
@@ -93,7 +93,7 @@ which produces the attestation evidence (collectively, the *attesting environmen
 any extensions or integrations, and the configuration of the system by the user.
 
 As such, contributors to the Keylime project and users of Keylime alike need to consider the resulting *chain of trust*
-when these units are composed together. To show this, a possible deployment is given in the below figure:
+when these units are composed together. To demonstrate this concept, a possible deployment is given in the below figure:
 
 .. figure:: ../assets/trust-chain-diagram.svg
   :width: 721
@@ -113,8 +113,8 @@ evidence received in each periodic attestation.
 
 When the attested node boots, the UEFI firmware and the bootloader each have their turn to execute in the boot sequence.
 They both write entries to the boot log and, for each log entry, update registers in the TPM with a hash of that entry.
-Nothing in the operation of the TPM ensures that the log entries accurately describe the events which took place at boot
-time, so the firmware and bootloader must be trusted to be honest when writing to the log.
+Nothing in the operation of the TPM ensures that the log entries **accurately** describe the events which took place at
+boot time [3]_, so the firmware and bootloader must be trusted to be honest when writing to the log.
 
 As any software component, the firmware and bootloader are subject to modification by legitimate users (e.g., when
 performing an update) and malicious parties. But because the node in question has a Baseboard Management Controller
@@ -125,7 +125,7 @@ only launch the bootloader if it is correctly signed by an authorised OS vendor.
 .. note::
     The BMC may also perform authentication of certain hardware components, but this depends on the platform. We are
     therefore treating the entire hardware platform as a trust anchor in this example. As hardware manufacturers adopt
-    `SPDM`_, authentication of hardware will become more commonplace.
+    `SPDM`_, authentication of hardware is expected to become more commonplace.
 
 .. _SPDM: https://www.dmtf.org/standards/spdm
 
@@ -179,7 +179,7 @@ Software Certifying Environments and Virtual TPMs
 All our examples up to now have used a hardware certifying environment in the form of a TPM which is part of the
 hardware platform of the attested node. However, Keylime can perform TPM-based attestation using any TPM-like device,
 physical or virtual, which implements the `TPM 2.0`_ standard. In the ideal scenario, whatever TPM is used should have a
-chain of trust which is rooted in hardware.
+chain of trust which is rooted in hardware [4]_.
 
 That said, there are situations in which only a TPM implemented in, and secured by, software is available. Such a
 virtual TPM (vTPM) needs to be located on a trusted system. For example, when attesting a VM running in a cloud
@@ -188,8 +188,8 @@ hypervisor.
 
 .. note::
     Keylime was originally developed to attest VMs using the deep quotes provided by `vTPM support in Xen`_, for which
-    the root of trust was a hardware TPM. However, support beyond `TPM 1.2`_ was never implemented. vTPMs provided by
-    most hypervisors today no longer have a chain of trust rooted in hardware.
+    the root of trust was a hardware TPM. However, support beyond `TPM 1.2`_ was never implemented. The vTPMs provided
+    by most hypervisors today no longer have a chain of trust rooted in hardware.
 
 .. _vTPM support in Xen: https://xenbits.xenproject.org/docs/unstable/man/xen-vtpm.7.html
 .. _TPM 1.2: https://trustedcomputinggroup.org/resource/tpm-main-specification/
@@ -197,7 +197,7 @@ hypervisor.
 
 In a confidential computing scenario, a vTPM may be running in a trusted execution environment (TEE) which has been
 attested and verified to be secure by virtue of the memory-protection guarantees granted by the CPU. In such case, the
-CPU would act as a hardware trust anchor and trust in the software certifying environment provided by the vTPM would be
+CPU would act as a hardware trust anchor. Trust in the software certifying environment provided by the vTPM would be
 established transitively in the manner described in the previous section.
 
 
@@ -208,6 +208,10 @@ Fundamentally, the job of a verifier is to accept evidence from nodes on a netwo
 verification policy to produce a verification outcome for each node. As different nodes may have different policies, it
 is important that the verifier is able to reliably identify and authenticate the underlying platform. Otherwise, an
 attacker could cause the wrong verification policy to be applied to a node.
+
+Depending on the specific deployment, this could have the affect of causing verification of a node to succeed when it
+should have failed. Or, alternatively, causing verification to fail when it should have succeeded, giving rise to a
+denial of service (DoS) scenario.
 
 Whatever key is used to sign an attestation therefore needs to be bound to the individual node in question. Further,
 that binding needs to be performed by a trusted entity. The binding may be transitive so that the attestation signing
@@ -227,8 +231,8 @@ device in which the TPM is installed (the EK certificate does not contain any su
 design choice by the Trusted Computing Group (TCG) which produces the TPM standard.
 
 .. note::
-    The TPM 2.0 spec says that a binding must be established between the TPM and the platform before you can trust a TPM
-    quote, but does not provide a built-in way to do so. This is covered in `part 1, section 9.4.3.3`_ of the
+    The TPM 2.0 spec says that **a binding must be established** between the TPM and the platform before you can trust a
+    TPM quote, but does not provide a built-in way to do so. This is covered in `part 1, section 9.4.3.3`_ of the
     specification.
 
 .. _part 1, section 9.4.3.3: https://trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-1-Architecture-01.07-2014-03-13.pdf#%5B%7B%22num%22%3A466%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C70%2C698%2C0%5D
@@ -312,7 +316,7 @@ throughout the network.
 The Capabilities of the Adversary
 """""""""""""""""""""""""""""""""
 
-For our adversary, we consider a typical network-based (Dolev-Yao) attacker [3]_ which exercises full control over the
+For our adversary, we consider a typical network-based (Dolev-Yao) attacker [5]_ which exercises full control over the
 network and can intercept, block and modify all messages but cannot break cryptographic primitives (all cryptography is
 assumed perfect). Because we need to consider attacks in which the adversary is resident on a node to be verified, we
 extend the "network" to include channels between the agent and any attesting environment (for TPM-based attestation,
@@ -326,9 +330,8 @@ Exclusions
 
 Attacks which exploit poorly-defined verification policies or deficiencies in the information which can be obtained from
 a node's attesting environments (including IMA and UEFI logs) are necessarily out of scope. Additionally, we exclude
-attacks which are made possible by incorrect configuration by the user (this includes incorrectly specified verification
-policies). Attacks which rely on modification of an attesting environment (such as by using a UEFI bootkit) are also
-excluded.
+attacks which are made possible by incorrect configuration by the user. Attacks which rely on modification of an
+attesting environment (such as by using a UEFI bootkit) are also excluded.
 
 
 :raw-html:`<br>`
@@ -346,8 +349,22 @@ excluded.
    values* or *reference measurements*. For the purposes of this page, we consider that any reference values are part of
    the verification policy itself, as the distinction should not impact security analysis.
 
-.. [3] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
+.. [3] The function of the TPM here is to provide assurance that the UEFI log file made available to the Keylime agent
+   through the OS contain the same log entries that were produced at boot time and thus have not been tampered with by
+   something other than the firmware or bootloader.
+   
+   This assurance comes from (1) the fact that while a TPM register only contains a hash produced for the final log
+   entry in a sequence of entries, that hash is cryptographically chained to every previous hash and therefore every
+   previous log entry in the sequence and (2) the registers which record the boot log hashes cannot be reset while the
+   system is powered on. The mechanism by which hashes are chained is described in `part 1, section 11.4.7`_ of the TPM
+   2.0 spec.
+
+.. [4] This is because attacks against hardware are considerably more difficult to pull off than attacks which exploit
+   vulnerabilities in software. Certain hardware designs can also make a number of physical attacks impractical.
+
+.. [5] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
    security of public key protocols"`_.
 
 .. _RFC 9334: https://datatracker.ietf.org/doc/html/rfc9334
+.. _part 1, section 11.4.7: https://trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-1-Architecture-01.07-2014-03-13.pdf#%5B%7B%22num%22%3A537%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C70%2C232%2C0%5D
 .. _"On the security of public key protocols": http://www.cs.huji.ac.il/~dolev/pubs/dolev-yao-ieee-01056650.pdf
