@@ -60,12 +60,12 @@ It is important to note that attesting environments are not required to be entir
 fact, often share components. This is illustrated by the diagram below showing UEFI and `IMA`_ attestation being
 performed on the same node:
 
-.. image:: assets/attesting-environments-diagram.png
+.. image:: ../assets/attesting-environments-diagram.svg
   :width: 542
   :alt: Diagram showing two different attesting environments on a single system with a single underlying foundation. The
-  UEFI firmware and bootloader are unique to the UEFI attesting environment while the Linux kernel is unique to the IMA
-  attesting environment. But the same processor microcode, hardware platform (motherboard, CPU, memory, etc.) and TPM
-  are shared by both.
+    UEFI firmware and bootloader are unique to the UEFI attesting environment while the Linux kernel is unique to the
+    IMA attesting environment. But the same processor microcode, hardware platform (motherboard, CPU, memory, etc.) and TPM
+    are shared by both.
 
 The red shaded area shows the attesting environment which attests the boot state, whereas the blue shaded area shows the
 attesting environment used to attest the integrity of files using IMA. The overlapping purple area contains the
@@ -90,12 +90,12 @@ any extensions or integrations, and the configuration of the system by the user.
 As such, contributors to the Keylime project and users of Keylime alike need to consider the resulting *chain of trust*
 when these units are composed together. To show this, a possible deployment is given in the below figure:
 
-.. image:: assets/trust-chain-diagram.png
-  :width: 542
+.. image:: ../assets/trust-chain-diagram.svg
+  :width: 721
   :alt: Diagram showing the various components used to produce an attestation in a given Keylime deployment. The
-  baseboard management controller (BMC) loads the processor microcode and UEFI firmware. The firmware measures the
-  bootloader which in turn measures the kernel. As such, the trusted hardware is used to establish trust in the software
-  components which produce the attestation.
+    baseboard management controller (BMC) loads the processor microcode and UEFI firmware. The firmware measures the
+    bootloader which in turn measures the kernel. As such, the trusted hardware is used to establish trust in the
+    software components which produce the attestation.
 
 In this example, the user has installed the Keylime agent on a node which identifies itself to an instance of the
 Keylime registrar and delivers evidence to a separate Keylime verifier instance. As in the diagram from the previous 
