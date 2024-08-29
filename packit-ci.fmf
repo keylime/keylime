@@ -44,6 +44,7 @@ adjust:
     url: https://github.com/RedHat-SP-Security/keylime-tests
     ref: main
     test:
+     - /setup/apply_workarounds
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
      - /setup/install_rust_keylime_from_copr
@@ -116,6 +117,7 @@ adjust:
     url: https://github.com/RedHat-SP-Security/keylime-tests
     ref: main
     test:
+     - /setup/apply_workarounds
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
      - /setup/install_rust_keylime_from_copr
