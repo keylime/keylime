@@ -350,7 +350,7 @@ checksum-4 \
             },
             {
                 "line": "",
-                "valid": False,
+                "valid": True,
             },
         ]
 
@@ -383,7 +383,7 @@ foobar.so(.*)?
 
 """,
                 "expected": [],
-                "valid": False,
+                "valid": True,
             },
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
