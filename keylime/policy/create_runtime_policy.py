@@ -588,7 +588,7 @@ def get_hashes_from_measurement_list(
 def process_exclude_list_line(line: str) -> Tuple[str, bool]:
     """Validate an exclude list line."""
     if not line:
-        return "", False
+        return "", True
 
     _, validator_msg = validators.valid_exclude_list([line])
     if validator_msg:
@@ -612,6 +612,9 @@ def process_exclude_list_file(exclude_list_file: str, excludes: List[str]) -> Tu
                 line, ok = process_exclude_list_line(line.strip())
                 if not ok:
                     return [], False
+                # Skip empty lines.
+                if len(line) == 0:
+                    continue
 
                 excludes.append(line)
     except (PermissionError, FileNotFoundError) as ex:
