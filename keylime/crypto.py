@@ -155,11 +155,11 @@ def generate_random_key(size: int = 32) -> bytes:
 
 
 def strbitxor(a: bytes, b: bytes) -> bytes:
-    a = bytearray(a)
-    b = bytearray(b)
-    retval = bytearray(len(b))
-    for i, _ in enumerate(a):
-        retval[i] = a[i] ^ b[i]
+    a_bytes = bytearray(a)
+    b_bytes = bytearray(b)
+    retval = bytearray(len(b_bytes))
+    for i, _ in enumerate(a_bytes):
+        retval[i] = a_bytes[i] ^ b_bytes[i]
     return bytes(retval)
 
 
