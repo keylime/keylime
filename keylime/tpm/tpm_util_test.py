@@ -65,7 +65,7 @@ class TestTpmUtil(unittest.TestCase):
         bad_quoteblob = bytearray(quoteblob)
         bad_quoteblob[5] ^= 0x1
         with self.assertRaises(InvalidSignature):
-            checkquote(aikblob, nonce, sigblob, bad_quoteblob, pcrblob, "sha256")
+            checkquote(aikblob, nonce, sigblob, bytes(bad_quoteblob), pcrblob, "sha256")
 
         l = list(nonce)
         l[0] = "a"
@@ -76,7 +76,7 @@ class TestTpmUtil(unittest.TestCase):
         bad_pcrblob = bytearray(pcrblob)
         bad_pcrblob[5] ^= 0x1
         with self.assertRaises(Exception):
-            checkquote(aikblob, nonce, sigblob, quoteblob, bad_pcrblob, "sha256")
+            checkquote(aikblob, nonce, sigblob, quoteblob, bytes(bad_pcrblob), "sha256")
 
         with self.assertRaises(ValueError):
             checkquote(aikblob, nonce, sigblob, quoteblob, pcrblob, "sha1")
