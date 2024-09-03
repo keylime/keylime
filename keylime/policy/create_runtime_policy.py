@@ -41,7 +41,7 @@ logger = logging.getLogger("policy.create_runtime_policy")
 
 IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
 IGNORED_KEYRINGS: List[str] = []
-FALLBACK_HASH_ALGO = algorithms.Hash.SHA256
+DEFAULT_FILE_DIGEST_ALGORITHM = algorithms.Hash.SHA256
 
 
 BASE_EXCLUDE_DIRS: List[str] = [
@@ -147,7 +147,7 @@ def _calculate_digest(
 
 def path_digests(
     *fdirpath: str,
-    alg: str = algorithms.Hash.SHA256,
+    alg: str = DEFAULT_FILE_DIGEST_ALGORITHM,
     dirs_to_exclude: Optional[List[str]] = None,
     digests: Optional[Dict[str, List[str]]] = None,
     remove_prefix: bool = True,
@@ -304,12 +304,9 @@ def boot_aggregate_parse(line: str) -> Tuple[str, str]:
     :return: tuple with two values, the algorithm used and the digest of the
              boot aggregate
     """
-    def_alg = FALLBACK_HASH_ALGO
-    def_agg = "0" * algorithms.Hash(def_alg).hexdigest_len()
-
     alg, digest, fpath, ok = process_ima_sig_ima_ng_line(line)
     if not ok or fpath != "boot_aggregate":
-        return def_alg, def_agg
+        return "unknown", ""
     return alg, digest
 
 
@@ -322,16 +319,11 @@ def boot_aggregate_from_file(
     :param ascii_runtime_file: a string indicating the file where we should read the boot aggregate from. The default is /sys/kernel/security/ima/ascii_runtime_measurements.
     :return: str, the boot aggregate
     """
+    line = ""
     with open(ascii_runtime_file, "r", encoding="UTF-8") as f:
-        agg = f.readline().strip("\n")
-        if agg.endswith(" boot_aggregate"):
-            alg, digest, _, ok = process_ima_sig_ima_ng_line(agg)
-            if ok:
-                return alg, digest
+        line = f.readline().strip("\n")
 
-    def_alg = FALLBACK_HASH_ALGO
-    def_agg = "0" * algorithms.Hash(def_alg).hexdigest_len()
-    return def_alg, def_agg
+    return boot_aggregate_parse(line)
 
 
 def list_initrds(basedir: str = "/boot") -> List[str]:
@@ -747,19 +739,13 @@ def process_signature_verification_keys(verification_keys: List[str], policy: Ru
 
 def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyType]:
     """Create a runtime policy from the input arguments."""
+    algo = None
     if args.algo and not (args.ramdisk_dir or args.rootfs):
         logger.warning(
             "You need to specify at least one of --ramdisk-dir or --rootfs to use a custom checksum algorithm"
         )
 
-    algo = args.algo
-    if algo == "":
-        algo = FALLBACK_HASH_ALGO
-
     policy = ima.empty_policy()
-
-    # Set the algorithm for the template-hash; the kernel currently hardcodes it to sha1.
-    policy["ima"]["log_hash_alg"] = "sha1"
 
     if args.base_policy:
         merged_policy = merge_base_policy(policy, cast(str, args.base_policy))
@@ -790,10 +776,21 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
                 return None
 
     if args.use_measurement_list:
+        if not algo:
+            # Need to find the algo from the boot_aggregate.
+            algo, _ = boot_aggregate_from_file(args.ima_measurement_list)
+
         logger.debug("Measurement list is %s", args.ima_measurement_list)
         policy["digests"], ok = get_hashes_from_measurement_list(args.ima_measurement_list, policy["digests"])
         if not ok:
             return None
+
+    if not algo or algo == "unknown":
+        if args.algo:
+            algo = args.algo
+        else:
+            algo = DEFAULT_FILE_DIGEST_ALGORITHM
+
     if args.ramdisk_dir:
         policy["digests"] = get_initrds_digests(args.ramdisk_dir, policy["digests"], algo)
     if args.rootfs:

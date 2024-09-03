@@ -158,10 +158,8 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
             )
 
     def test_boot_aggregate(self):
-        default_alg = "sha256"
-        default_aggregate = "0" * algorithms.Hash(default_alg).hexdigest_len()
         test_cases = [
-            {"input": "", "boot_aggregate": default_aggregate, "alg": default_alg},
+            {"input": "", "boot_aggregate": "", "alg": "unknown"},
             {
                 "input": "10 0000000000000000000000000000000000000000 ima 0000000000000000000000000000000000000000 boot_aggregate",
                 "boot_aggregate": "0000000000000000000000000000000000000000",
@@ -174,8 +172,8 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
             },
             {
                 "input": "FOO BAR",
-                "boot_aggregate": default_aggregate,
-                "alg": default_alg,
+                "boot_aggregate": "",
+                "alg": "unknown",
             },
             {
                 "input": "10 8d814e778e1fca7c551276523ac44455da1dc420 ima-ng sha256:0bc72531a41dbecb38557df75af4bc194e441e71dc677c659a1b179ac9b3e6ba boot_aggregate",
@@ -188,7 +186,7 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
             agg_file = os.path.join(tmpdir, "measurements")
             for c in test_cases:
                 alg, aggregate = create_runtime_policy.boot_aggregate_parse(c["input"])
-                self.assertEqual(alg, c["alg"])
+                self.assertEqual(alg, c["alg"], msg=f"alg={alg}, digest={aggregate}")
                 self.assertEqual(aggregate, c["boot_aggregate"])
 
                 # Now parsing it from a file.
@@ -209,8 +207,8 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
         ]
         for line in bad_entries:
             alg, aggregate = create_runtime_policy.boot_aggregate_parse(line)
-            self.assertEqual(alg, default_alg, msg=f"line = {line}")
-            self.assertEqual(aggregate, default_aggregate, msg=f"line = {line}")
+            self.assertEqual(alg, "unknown", msg=f"line = {line}")
+            self.assertEqual(aggregate, "", msg=f"line = {line}")
 
     def test_file_digest(self):
         initrd_file = os.path.join(self.dirpath, "initrd", "initramfs-keylime-fedora-cat.img")
