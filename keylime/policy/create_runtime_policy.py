@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import pathlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from importlib import util
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, TextIO, Tuple
 
@@ -108,9 +109,7 @@ def exclude_dirs_based_on_rootfs(dirs_to_exclude: List[str]) -> List[str]:
     return trimmed_dirs
 
 
-def _calculate_digest(
-    prefix: str, fpath: str, alg: str, remove_prefix: bool, only_owned_by_root: bool
-) -> Tuple[bool, str, str]:
+def _calculate_digest(prefix: str, fpath: str, alg: str, remove_prefix: bool) -> Tuple[bool, str, str]:
     """
     Filter the specified file to decide if we should calculate its digest.
 
@@ -127,22 +126,12 @@ def _calculate_digest(
     :param fpath: str inficating the path for the file
     :param alg: int, digest algorithm
     :param remove_prefix: boolean that indicates whether the displayed file should have its prefix removed
-    :param only_owned_by_root: boolean to indicate whether it should calculate the digest only if the file is owned by root
     :return: Tuple of boolean, str and str, indicating whether this method calculated the digest, the file name and its digest, respectively
     """
-    if not os.path.isfile(fpath) or os.path.isdir(fpath):
-        return False, "", ""
-
-    if only_owned_by_root:
-        # Skipping files not not owned by root (uid 0).
-        st = os.stat(fpath, follow_symlinks=False)
-
-        if st.st_uid != 0:
-            return False, "", ""
 
     # Let's take care of removing the prefix, if requested.
     fkey = fpath
-    if remove_prefix:
+    if remove_prefix and (str(prefix) != "/"):
         fkey = fkey[len(str(prefix)) :]
 
     # IMA replaces spaces with underscores in the log, so we do
@@ -150,6 +139,58 @@ def _calculate_digest(
     fkey = fkey.replace(" ", "_")
 
     return True, fkey, algorithms.Hash(alg).file_digest(fpath)
+
+
+def _get_all_files(
+    root_dir: str, prefix: str, dirs_to_exclude: Optional[List[str]] = None, only_owned_by_root: bool = False
+) -> List[str]:
+    """Find all files inside a directory recursively, skipping the directories
+    marked to be excluded and files not owned by root, if requested.
+    It is expected that root_dir and prefix are absolute paths."""
+
+    if not dirs_to_exclude:
+        dirs_to_exclude = []
+
+    paths = set()
+    subdirs = []
+    with os.scandir(root_dir) as it:
+        for entry in it:
+            # Skip symlinks
+            if entry.is_symlink():
+                continue
+
+            # If the entry is a file, add to the set of paths
+            if entry.is_file():
+                # Skipping files not not owned by root (uid 0), if requested.
+                if only_owned_by_root:
+                    try:
+                        st = os.stat(entry.path, follow_symlinks=False)
+                        if st.st_uid != 0:
+                            continue
+                    except FileNotFoundError:
+                        logger.debug("Could not find '%s', skipping", entry.path)
+                        continue
+
+                paths.add(entry.path)
+                continue
+
+            # For directories, add the entry to the subdirectories
+            if entry.is_dir():
+                relpath = entry.path
+                if prefix != "/" and entry.path.startswith(prefix):
+                    relpath = entry.path[len(prefix) :]
+
+                # Skip directories marked to be excluded from the search
+                if relpath in dirs_to_exclude:
+                    logger.debug("Skipping '%s' that matches a directory path to exclude", entry.path)
+                    continue
+
+                subdirs.append(entry.path)
+
+    for d in subdirs:
+        paths.update(_get_all_files(d, prefix, dirs_to_exclude, only_owned_by_root))
+
+    return list(paths)
 
 
 def path_digests(
@@ -178,7 +219,7 @@ def path_digests(
 
     absfpath = os.path.abspath(str(*fdirpath))
     if not os.path.isdir(absfpath):
-        logger.error("Invalid rootfs, %s is not a directory", absfpath)
+        logger.error("Invalid path, %s is not a directory", absfpath)
         return digests
 
     # Let's first check if the root is not marked to be excluded.
@@ -188,34 +229,34 @@ def path_digests(
     if match_rootfs:
         dirs_to_exclude.extend(exclude_dirs_based_on_rootfs(dirs_to_exclude))
 
-    subdirs = []
-    prefix_size = len(absfpath)
-    if absfpath == "/":  # There is no prefix at root ("/").
-        remove_prefix = False
-        prefix_size = 0
+    # Get the paths to all files contained in the directory, recursively
+    paths = _get_all_files(absfpath, absfpath, dirs_to_exclude, only_owned_by_root)
 
-    for f in os.scandir(absfpath):
-        if f.is_dir():
-            relpath = f.path[prefix_size:]
-            if relpath not in dirs_to_exclude:
-                subdirs.append(pathlib.Path(f.path).resolve().as_posix())
-        if f.is_file():
-            ok, fkey, fdigest = _calculate_digest(
-                absfpath, pathlib.Path(f.path).as_posix(), alg, remove_prefix, only_owned_by_root
+    logger.debug("obtained %d paths", len(paths))
+
+    futures = []
+    with ThreadPoolExecutor() as executor:
+        for p in paths:
+            futures.append(
+                executor.submit(
+                    _calculate_digest,
+                    absfpath,
+                    pathlib.Path(p).as_posix(),
+                    alg,
+                    remove_prefix,
+                )
             )
-            if ok:
-                if fkey not in digests:
-                    digests[fkey] = []
-                digests[fkey].append(fdigest)
 
-    for d in subdirs:
-        for fname in pathlib.Path(d).glob("**/*"):
-            dst_file = fname.as_posix()
-            ok, fkey, fdigest = _calculate_digest(absfpath, dst_file, alg, remove_prefix, only_owned_by_root)
-            if ok:
-                if fkey not in digests:
-                    digests[fkey] = []
-                digests[fkey].append(fdigest)
+        for f in as_completed(futures):
+            try:
+                ok, fkey, fdigest = f.result()
+                if ok:
+                    if fkey not in digests:
+                        digests[fkey] = []
+                    digests[fkey].append(fdigest)
+            except Exception:
+                logger.debug("Failed to calculate a digest")
+                continue
 
     return digests
 
