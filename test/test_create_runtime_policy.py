@@ -650,3 +650,45 @@ foobar.so(.*)?
                 case["digests"]
             )
             self.assertEqual(algorithm, case["expected_algorithm"])
+
+    def test_rootfs_with_symbolic_links(self):
+        test_cases = [
+            # Test that symlinks and files in the excluded directory are ignored
+            {
+                "dirs": ["root", "root/excluded", "root/included", "root/included/nested_excluded"],
+                "files": ["root/a", "root/included/b", "root/excluded/c", "root/included/nested_excluded/d", "outside"],
+                "symlinks": [
+                    ("root/sa", "root/a"),
+                    ("root/sb", "root/excluded/c"),
+                    ("root/sc", "outside"),
+                    ("root/sd", "root/included/nested_excluded/d"),
+                ],
+                "root": "root",
+                "dirs_to_exclude": ["/excluded", "/included/nested_excluded"],
+                "algorithm": "sha256",
+                "expected_out": {
+                    "/a": ["f86309c6fecb020efe59a73666162b69e43035da434c7c92df293553810e9907"],
+                    "/included/b": ["5b5b4bcb3b77ca3017d9f3ff9424f777389116c70e4b57c88a3ee857182a3d43"],
+                },
+            },
+        ]
+
+        for case in test_cases:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                for d in case["dirs"]:
+                    os.makedirs(os.path.join(tmpdir, d))
+
+                for f in case["files"]:
+                    with open(os.path.join(tmpdir, f), "w", encoding="UTF-8") as fd:
+                        fd.write(f"some content in {f}")
+
+                for symlink, target in case["symlinks"]:
+                    os.symlink(os.path.join(tmpdir, target), os.path.join(tmpdir, symlink))
+
+                digests = create_runtime_policy.path_digests(
+                    os.path.join(tmpdir, case["root"]),
+                    alg=case["algorithm"],
+                    dirs_to_exclude=case["dirs_to_exclude"],
+                )
+
+                self.assertEqual(digests, case["expected_out"])
