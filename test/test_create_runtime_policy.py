@@ -3,6 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2024 Red Hat, Inc.
 """
 
+import argparse
 import os
 import pathlib
 import shutil
@@ -692,3 +693,97 @@ foobar.so(.*)?
                 )
 
                 self.assertEqual(digests, case["expected_out"])
+
+    def test_digest_algorithm_priority(self):
+        """Test that the priority for the algorithm selection follows the
+        expected source order: --algo option > base policy > allowlist > ima log"""
+
+        test_cases = []
+
+        rootfs = os.path.join(HELPER_DIR, "rootfs")
+        # Prepare test cases
+        for algo in ["sha1", "sha256", "sha384", "sha512"]:
+            base_policy = os.path.join(HELPER_DIR, f"policy-{algo}")
+            allowlist = os.path.join(HELPER_DIR, f"allowlist-{algo}")
+            ima_log = os.path.join(HELPER_DIR, f"ima-log-{algo}")
+
+            # Case where the algorithm from the IMA measurement list should be
+            # kept
+            test_cases.append(
+                {
+                    "algo_opt": [],
+                    "base_policy": [],
+                    "allowlist": [],
+                    "ima_log": ["--use-ima-measurement-list", "--ima-measurement-list", ima_log],
+                    "rootfs": [],
+                    "expected_algo": f"{algo}",
+                    "expected_source": "IMA measurement list",
+                }
+            )
+
+            # Cases where the algorithm from the allowlist should be kept
+            for il in [[], ["--use-ima-measurement-list", "--ima-measurement-list", ima_log]]:
+                for rfs in [[], ["--rootfs", rootfs]]:
+                    test_cases.append(
+                        {
+                            "algo_opt": [],
+                            "base_policy": [],
+                            "allowlist": ["--allowlist", allowlist],
+                            "ima_log": il,
+                            "rootfs": rfs,
+                            "expected_algo": f"{algo}",
+                            "expected_source": "allowlist",
+                        }
+                    )
+
+                    # Cases where the algorithm from the base policy should be kept
+                    for al in [[], ["--allowlist", allowlist]]:
+                        test_cases.append(
+                            {
+                                "algo_opt": [],
+                                "base_policy": ["--base-policy", base_policy],
+                                "allowlist": al,
+                                "ima_log": il,
+                                "rootfs": rfs,
+                                "expected_algo": f"{algo}",
+                                "expected_source": "base policy",
+                            }
+                        )
+
+                        # Cases where the algorithm from the --algo option should be kept
+                        for bp in [[], ["--base-policy", base_policy]]:
+                            test_cases.append(
+                                {
+                                    "algo_opt": ["--algo", algo],
+                                    "base_policy": bp,
+                                    "allowlist": al,
+                                    "ima_log": il,
+                                    "rootfs": ["--rootfs", rootfs],
+                                    "expected_algo": f"{algo}",
+                                    "expected_source": "--algo option",
+                                }
+                            )
+
+        # Create an argument parser
+        parent_parser = argparse.ArgumentParser(add_help=False)
+        main_parser = argparse.ArgumentParser()
+        subparser = main_parser.add_subparsers(title="actions")
+        parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
+
+        for case in test_cases:
+            cli_args = []
+            # Prepare argument input
+            for k in ["algo_opt", "base_policy", "allowlist", "ima_log", "rootfs"]:
+                cli_args.extend(case.get(k, []))
+
+            args = parser.parse_args(cli_args)
+            expected_algo = case["expected_algo"]
+            expected_source = case["expected_source"]
+
+            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
+                _policy = create_runtime_policy.create_runtime_policy(args)
+
+                self.assertIn(
+                    f"DEBUG:policy.create_runtime_policy:Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
+                    logs.output,
+                )
