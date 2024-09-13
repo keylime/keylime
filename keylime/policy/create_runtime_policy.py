@@ -188,13 +188,6 @@ def path_digests(
     if match_rootfs:
         dirs_to_exclude.extend(exclude_dirs_based_on_rootfs(dirs_to_exclude))
 
-    for to_exclude in dirs_to_exclude:
-        if pathlib.PurePath(absfpath).is_relative_to(os.path.abspath(to_exclude)):
-            # Okay, nothing to do here, since the root
-            # is marked to be excluded.
-            logger.debug("The rootfs %s is excluded because it matches or is within %s", absfpath, to_exclude)
-            return digests
-
     subdirs = []
     prefix_size = len(absfpath)
     if absfpath == "/":  # There is no prefix at root ("/").
@@ -643,9 +636,31 @@ def get_rootfs_digests(
     rootfs: str, skip_path: Optional[str], hashes_map: Dict[str, List[str]], algo: str
 ) -> Dict[str, List[str]]:
     """Calculate digests for files under a directory."""
+
+    abs_rootfs = os.path.abspath(rootfs)
+
     dirs_to_exclude = []
+
+    # Preprocess the directories to skip, ignoring those outside the rootfs and
+    # removing the prefix from those that are under the rootfs
     if skip_path:
-        dirs_to_exclude = skip_path.split(",")
+        for d in skip_path.split(","):
+            abs_d = os.path.abspath(d)
+
+            if pathlib.PurePath(abs_rootfs).is_relative_to(abs_d):
+                # Okay, nothing to do here, since the root is marked to be
+                # skipped
+                logger.debug("The rootfs %s is excluded because it matches or is within %s", abs_rootfs, abs_d)
+                return {}
+
+            if not pathlib.PurePath(d).is_relative_to(rootfs):
+                logger.warning("Ignoring directory '%s' that should be skipped, but it is not under '%s'", d, rootfs)
+            else:
+                # Remove the prefix to make it consistent with other excluded
+                # directories
+                if abs_rootfs != "/" and abs_d.startswith(abs_rootfs):
+                    dirs_to_exclude.append(abs_d[len(abs_rootfs) :])
+
     dirs_to_exclude.extend(BASE_EXCLUDE_DIRS)
     hashes_map = path_digests(
         rootfs,
