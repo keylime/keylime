@@ -173,7 +173,7 @@ Github issue to report any potential security bugs.
 
 ## Project Meetings
 
-We meet on the fourth Wednesday each month @ 15:30 GMT to 16:30. Anyone is welcome to join the meeting.
+We meet on the fourth Wednesday each month @ 16:00 UK time (GMT/BST) to 17:00. Anyone is welcome to join the meeting.
 
 The meeting is normally announced on [CNCF chat (Slack)](https://cloud-native.slack.com/archives/C01ARE2QUTZ)
 
