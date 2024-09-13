@@ -330,19 +330,19 @@ checksum-4 \
         homedir = os.path.join(rootfsdir, "home")
 
         digests = create_runtime_policy.path_digests(homedir)
-        self.assertEqual(len(digests), 1)
+        self.assertEqual(len(digests), 1, msg=f"digests = {digests}")
 
         digests = create_runtime_policy.path_digests(homedir, dirs_to_exclude=None)
-        self.assertEqual(len(digests), 1)
+        self.assertEqual(len(digests), 1, msg=f"digests={digests}, dirs_to_exclude=None")
 
         digests = create_runtime_policy.path_digests(homedir, dirs_to_exclude=[])
-        self.assertEqual(len(digests), 1)
+        self.assertEqual(len(digests), 1, msg=f"digests = {digests}, dirs_to_exclude=[]")
 
-        digests = create_runtime_policy.path_digests(homedir, dirs_to_exclude=[homedir])
-        self.assertEqual(len(digests), 0)
+        digests = create_runtime_policy.path_digests(homedir, dirs_to_exclude=["/foobar"])
+        self.assertEqual(len(digests), 0, msg=f"digests = {digests}, dirs_to_exclude=['/foobar']")
 
-        digests = create_runtime_policy.path_digests(homedir, dirs_to_exclude=[rootfsdir])
-        self.assertEqual(len(digests), 0)
+        digests = create_runtime_policy.path_digests(homedir, dirs_to_exclude=["/non-existing"])
+        self.assertEqual(len(digests), 1, msg=f"digests = {digests}, dirs_to_exclude=['/non-existing']")
 
     def test_process_exclude_list(self):
         test_cases = [
