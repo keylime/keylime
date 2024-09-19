@@ -15,7 +15,7 @@ from . import policies, tests
 # containing the following.
 # scrtm_and_bios - list of allowed {
 #    scrtm - digest for PCR 0 event type EV_S_CRTM_VERSION
-#    platform_firmware - sequence of digest for PCR 0 event type EV_EFI_PLATFORM_FIRMWARE_BLOB
+#    platform_firmware - sequence of digest for PCR 0 event type EV_EFI_PLATFORM_FIRMWARE_BLOB/EV_EFI_PLATFORM_FIRMWARE_BLOB2
 # }
 # pk - list of allowed PK keys
 # kek - list of allowed KEK keys
@@ -188,6 +188,7 @@ class Example(policies.Policy):
         dispatcher.set((1, "EV_EFI_HANDOFF_TABLES2"), tests.OnceTest(tests.AcceptAll()))
         dispatcher.set((0, "EV_S_CRTM_VERSION"), events_final.get("s_crtms"))
         dispatcher.set((0, "EV_EFI_PLATFORM_FIRMWARE_BLOB"), events_final.get("platform_firmware_blobs"))
+        dispatcher.set((0, "EV_EFI_PLATFORM_FIRMWARE_BLOB2"), events_final.get("platform_firmware_blobs"))
         dispatcher.set((7, "EV_EFI_VARIABLE_DRIVER_CONFIG"), vd_driver_config)
         secure_boot_test = tests.FieldTest("Enabled", tests.StringEqual("Yes"))
         if not has_secureboot:
