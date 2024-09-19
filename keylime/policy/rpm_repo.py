@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 
-"""Analyze local and remote RPM repositories."""
+"""
+Analyze local and remote RPM repositories.
+
+SPDX-License-Identifier: Apache-2.0
+Copyright 2024 Red Hat, Inc.
+"""
 
 import gzip
 import logging
