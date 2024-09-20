@@ -327,11 +327,8 @@ def process_ima_sig_ima_ng_line(line: str) -> Tuple[str, str, str, bool]:
     else:
         csum = csum_hash[0]
         # Lets attempt to detect the alg by len.
-        for dig_alg in list(algorithms.Hash):
-            if len(csum) == algorithms.Hash(dig_alg).hexdigest_len():
-                alg = dig_alg
-                break
-        if not alg:
+        alg = _get_digest_algorithm_from_hex(csum)
+        if alg == UNKNOWN_ALGORITHM:
             errmsg = f"skipping line that using old 'ima' template because it was not possible to identify the hash alg: {line}"
             logger.debug(errmsg)
             return ret
