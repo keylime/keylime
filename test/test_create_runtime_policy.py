@@ -165,7 +165,7 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
 
     def test_boot_aggregate(self):
         test_cases = [
-            {"input": "", "boot_aggregate": "", "alg": "unknown"},
+            {"input": "", "boot_aggregate": "", "alg": "invalid"},
             {
                 "input": "10 0000000000000000000000000000000000000000 ima 0000000000000000000000000000000000000000 boot_aggregate",
                 "boot_aggregate": "0000000000000000000000000000000000000000",
@@ -179,7 +179,7 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
             {
                 "input": "FOO BAR",
                 "boot_aggregate": "",
-                "alg": "unknown",
+                "alg": "invalid",
             },
             {
                 "input": "10 8d814e778e1fca7c551276523ac44455da1dc420 ima-ng sha256:0bc72531a41dbecb38557df75af4bc194e441e71dc677c659a1b179ac9b3e6ba boot_aggregate",
@@ -213,7 +213,7 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
         ]
         for line in bad_entries:
             alg, aggregate = create_runtime_policy.boot_aggregate_parse(line)
-            self.assertEqual(alg, "unknown", msg=f"line = {line}")
+            self.assertEqual(alg, "invalid", msg=f"line = {line}")
             self.assertEqual(aggregate, "", msg=f"line = {line}")
 
     def test_file_digest(self):
@@ -602,7 +602,7 @@ foobar.so(.*)?
             },
             {
                 "digest": "0001020304050607080900",
-                "expected_algorithm": "unknown",
+                "expected_algorithm": "invalid",
             },
         ]
 
@@ -642,7 +642,7 @@ foobar.so(.*)?
             },
             {
                 "digests": {"key": ["0001020304050607080900"]},
-                "expected_algorithm": "unknown",
+                "expected_algorithm": "invalid",
             },
         ]
 
@@ -702,7 +702,7 @@ foobar.so(.*)?
 
         rootfs = os.path.join(HELPER_DIR, "rootfs")
         # Prepare test cases
-        for algo in ["sha1", "sha256", "sha384", "sha512"]:
+        for algo in ["sha1", "sha256", "sha384", "sha512", "sm3_256"]:
             base_policy = os.path.join(HELPER_DIR, f"policy-{algo}")
             allowlist = os.path.join(HELPER_DIR, f"allowlist-{algo}")
             ima_log = os.path.join(HELPER_DIR, f"ima-log-{algo}")
@@ -724,31 +724,37 @@ foobar.so(.*)?
             # Cases where the algorithm from the allowlist should be kept
             for il in [[], ["--ima-measurement-list", ima_log]]:
                 for rfs in [[], ["--rootfs", rootfs]]:
-                    test_cases.append(
-                        {
-                            "algo_opt": [],
-                            "base_policy": [],
-                            "allowlist": ["--allowlist", allowlist],
-                            "ima_log": il,
-                            "rootfs": rfs,
-                            "expected_algo": f"{algo}",
-                            "expected_source": "allowlist",
-                        }
-                    )
-
-                    # Cases where the algorithm from the base policy should be kept
-                    for al in [[], ["--allowlist", allowlist]]:
+                    # Skip the exceptional cases when the algorithm from the
+                    # allowlist is ambiguous
+                    if algo not in [algorithms.Hash.SHA256, algorithms.Hash.SM3_256]:
                         test_cases.append(
                             {
                                 "algo_opt": [],
-                                "base_policy": ["--base-policy", base_policy],
-                                "allowlist": al,
+                                "base_policy": [],
+                                "allowlist": ["--allowlist", allowlist],
                                 "ima_log": il,
                                 "rootfs": rfs,
                                 "expected_algo": f"{algo}",
-                                "expected_source": "base policy",
+                                "expected_source": "allowlist",
                             }
                         )
+
+                    # Cases where the algorithm from the base policy should be kept
+                    for al in [[], ["--allowlist", allowlist]]:
+                        # Skip the exceptional cases when the algorithm from the
+                        # base policy is ambiguous
+                        if algo not in [algorithms.Hash.SHA256, algorithms.Hash.SM3_256]:
+                            test_cases.append(
+                                {
+                                    "algo_opt": [],
+                                    "base_policy": ["--base-policy", base_policy],
+                                    "allowlist": al,
+                                    "ima_log": il,
+                                    "rootfs": rfs,
+                                    "expected_algo": f"{algo}",
+                                    "expected_source": "base policy",
+                                }
+                            )
 
                         # Cases where the algorithm from the --algo option should be kept
                         for bp in [[], ["--base-policy", base_policy]]:
@@ -787,3 +793,77 @@ foobar.so(.*)?
                     f"DEBUG:policy.create_runtime_policy:Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
                     logs.output,
                 )
+
+    def test_digest_algorithm_priority_exceptions(self):
+        """Test priority algorithms exceptions"""
+
+        test_cases = []
+
+        bp_sha256 = os.path.join(HELPER_DIR, "policy-sha256")
+        bp_sm3 = os.path.join(HELPER_DIR, "policy-sm3_256")
+        al_sha256 = os.path.join(HELPER_DIR, "allowlist-sha256")
+        al_sm3 = os.path.join(HELPER_DIR, "allowlist-sm3_256")
+
+        # Prepare test cases
+        for algo in ["sha256", "sm3_256"]:
+            ima_log = os.path.join(HELPER_DIR, f"ima-log-{algo}")
+
+            for bp in [[], ["--base-policy", bp_sha256], ["--base-policy", bp_sm3]]:
+                for al in [[], ["--allowlist", al_sha256], ["--allowlist", al_sm3]]:
+                    test_cases.append(
+                        {
+                            "base_policy": bp,
+                            "allowlist": al,
+                            "ima_log": ["--ima-measurement-list", ima_log],
+                            "expected_algo": f"{algo}",
+                            "expected_source": "IMA measurement list",
+                            "expected_mismatch": False,
+                        }
+                    )
+
+        # Prepare test cases
+        for algo in ["sha1", "sha384", "sha512"]:
+            ima_log = os.path.join(HELPER_DIR, f"ima-log-{algo}")
+
+            for bp in [["--base-policy", bp_sha256], ["--base-policy", bp_sm3]]:
+                for al in [["--allowlist", al_sha256], ["--allowlist", al_sm3]]:
+                    test_cases.append(
+                        {
+                            "base_policy": bp,
+                            "allowlist": al,
+                            "ima_log": ["--ima-measurement-list", ima_log],
+                            "expected_algo": "sha256_or_sm3_256",
+                            "expected_source": "",
+                            "expected_mismatch": True,
+                        }
+                    )
+
+        # Create an argument parser
+        parent_parser = argparse.ArgumentParser(add_help=False)
+        main_parser = argparse.ArgumentParser()
+        subparser = main_parser.add_subparsers(title="actions")
+        parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
+
+        for case in test_cases:
+            cli_args = []
+            # Prepare argument input
+            for k in ["base_policy", "allowlist", "ima_log"]:
+                cli_args.extend(case.get(k, []))
+
+            args = parser.parse_args(cli_args)
+            expected_algo = case["expected_algo"]
+            expected_source = case["expected_source"]
+
+            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
+                _policy = create_runtime_policy.create_runtime_policy(args)
+
+                if case["expected_mismatch"]:
+                    self.assertIn(
+                        f"WARNING:policy.create_runtime_policy:The digest algorithm in the IMA measurement list does not match the previously set '{expected_algo}' algorithm",
+                        logs.output,
+                    )
+                else:
+                    self.assertIn(
+                        f"DEBUG:policy.create_runtime_policy:Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
+                        logs.output,
+                    )
