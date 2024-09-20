@@ -51,9 +51,13 @@ DEFAULT_FILE_DIGEST_ALGORITHM = algorithms.Hash.SHA256
 # See in keylime/ima/ima.py
 DEFAULT_IMA_TEMPLATE_DIGEST_ALGORITHM = algorithms.Hash.SHA1
 
+# This is used to indicate that the algorithm guessing identified a valid output
+# length, but it corresponds to more than one supported algorithm
+SHA256_OR_SM3 = "sha256_or_sm3_256"
+
 # This is used to indicate that the algorithm guessing could not identify the
 # algorithm from the output length
-UNKNOWN_ALGORITHM = "unknown"
+INVALID_ALGORITHM = "invalid"
 
 BASE_EXCLUDE_DIRS: List[str] = [
     "/sys",
@@ -324,7 +328,7 @@ def process_ima_sig_ima_ng_line(line: str) -> Tuple[str, str, str, bool]:
         csum = csum_hash[0]
         # Lets attempt to detect the alg by len.
         alg = _get_digest_algorithm_from_hex(csum)
-        if alg == UNKNOWN_ALGORITHM:
+        if alg == INVALID_ALGORITHM:
             errmsg = f"skipping line that using old 'ima' template because it was not possible to identify the hash alg: {line}"
             logger.debug(errmsg)
             return ret
@@ -343,7 +347,7 @@ def boot_aggregate_parse(line: str) -> Tuple[str, str]:
     """
     alg, digest, fpath, ok = process_ima_sig_ima_ng_line(line)
     if not ok or fpath != "boot_aggregate":
-        return UNKNOWN_ALGORITHM, ""
+        return INVALID_ALGORITHM, ""
     return alg, digest
 
 
@@ -804,14 +808,14 @@ def _get_digest_algorithm_from_hex(hexstring: str) -> str:
     for alg in list(algorithms.Hash):
         if len(hexstring) == algorithms.Hash(alg).hexdigest_len():
             return str(alg)
-    return UNKNOWN_ALGORITHM
+    return INVALID_ALGORITHM
 
 
 def _get_digest_algorithm_from_map_list(maplist: Dict[str, List[str]]) -> str:
     """Assuming all digests in the policy uses the same algorithm, get the first
     digest and try to obtain the algorithm from its length"""
 
-    algo = UNKNOWN_ALGORITHM
+    algo = INVALID_ALGORITHM
     if maplist:
         digest_list = next(iter(maplist.values()))
         if digest_list:
@@ -848,6 +852,11 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
 
         # Try to get the digest algorithm from the lenght of the digest
         base_policy_algo = _get_digest_algorithm_from_map_list(digests)
+
+        # If the guessed algorithm was SHA-256, it is actually ambiguous as it
+        # could be also SM3_256. Set as SHA256_OR_SM3
+        if base_policy_algo == algorithms.Hash.SHA256:
+            base_policy_algo = SHA256_OR_SM3
     else:
         policy = ima.empty_policy()
 
@@ -865,6 +874,11 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
         # Try to get the digest algorithm from the lenght of the digest
         allowlist_algo = _get_digest_algorithm_from_map_list(allowlist_digests)
 
+        # If the guessed algorithm was SHA-256, it is actually ambiguous as it
+        # could be also SM3_256. Set as SHA256_OR_SM3
+        if allowlist_algo == algorithms.Hash.SHA256:
+            allowlist_algo = SHA256_OR_SM3
+
     if args.ima_measurement_list != EMPTY_IMA_MEASUREMENT_LIST:
         ima_list = args.ima_measurement_list
         if ima_list is None:
@@ -880,7 +894,7 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
             # If not set, try to get the digest algorithm from the boot_aggregate.
             ima_measurement_list_algo, _ = boot_aggregate_from_file(ima_list)
         except Exception:
-            ima_measurement_list_algo = UNKNOWN_ALGORITHM
+            ima_measurement_list_algo = INVALID_ALGORITHM
 
         ima_digests = {}
         ima_digests, ok = get_hashes_from_measurement_list(ima_list, ima_digests)
@@ -905,6 +919,9 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
             if not ok:
                 return None
 
+    # Flag to indicate whether the operation should be aborted
+    abort = False
+
     # Use the same digest algorithm used by the provided inputs, following the
     # priority order: --algo > base policy > allowlist > IMA measurement list
     for a, source in [
@@ -913,25 +930,48 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
         (allowlist_algo, "allowlist"),
         (ima_measurement_list_algo, "IMA measurement list"),
     ]:
+        if a == INVALID_ALGORITHM:
+            logger.warning("Invalid digest algorithm found in the %s", source)
+            abort = True
+            continue
+
         # Skip unset options
-        if not a or a == UNKNOWN_ALGORITHM:
+        if not a:
             continue
 
         # If the algorithm was previously set, check it against the algorithm
         # from the current source
         if algo:
             if a != algo:
+                if algo == SHA256_OR_SM3:
+                    if a in [algorithms.Hash.SHA256, algorithms.Hash.SM3_256]:
+                        algo = a
+                        logger.debug("Using digest algorithm '%s' obtained from the %s", a, source)
+                        continue
+
                 logger.warning(
                     "The digest algorithm in the %s does not match the previously set '%s' algorithm", source, algo
                 )
-                return None
+                abort = True
         else:
             if a not in algorithms.Hash:
-                logger.warning("Invalid digests algorithm %s in the %s", a, source)
+                if a == SHA256_OR_SM3:
+                    algo = a
+                else:
+                    logger.warning("Invalid digests algorithm %s in the %s", a, source)
+                    abort = True
                 continue
 
             algo = a
+
+            if abort:
+                continue
+
             logger.debug("Using digest algorithm '%s' obtained from the %s", a, source)
+
+    if abort:
+        logger.warning("Aborting operation")
+        return None
 
     if not algo:
         logger.debug("Using default digest algorithm %s", DEFAULT_FILE_DIGEST_ALGORITHM)
