@@ -312,10 +312,6 @@ def process_ima_sig_ima_ng_line(line: str) -> Tuple[str, str, str, bool]:
         logger.debug(errmsg)
         return ret
 
-    # 10 83f995337082103cbdabf65245b03ba2ec8478dd ima-sig sha256:a3525d7a8b5b6bd86867a9d29799429f06fe764818d9caef633f619243734794 /usr/lib/systemd/system-generators/ostree-system-generator 030204d33204490066306402305eccb7e34bbe38a90aa822c58680e27202a592ab229d3713d021bb72842eeaf32fbcb668a3f4c30bba948a17dab82b30023055c9c4fbfc4e13d9d515de662fea2fa4cd136690d1a8289158b33b9fe3d619684b8bfb7f271fec9e3de9b82298ae4488
-    # 10 8d814e778e1fca7c551276523ac44455da1dc420 ima-ng sha256:0bc72531a41dbecb38557df75af4bc194e441e71dc677c659a1b179ac9b3e6ba boot_aggregate
-    # 10 0d429a9b12737a69b446d4adb05c1e633db73eb8 ima b00b5e664e582fad1bcd29b4cb07e628c4c98022 /bin/ls
-
     csum_hash = pieces[3].split(":")
 
     alg = ""
