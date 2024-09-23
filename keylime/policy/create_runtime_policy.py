@@ -40,7 +40,10 @@ else:
 
 logger = logging.getLogger("policy.create_runtime_policy")
 
+# We use /dev/null to indicate an empty ima measurement list.
+EMPTY_IMA_MEASUREMENT_LIST = "/dev/null"
 IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
+
 IGNORED_KEYRINGS: List[str] = []
 DEFAULT_FILE_DIGEST_ALGORITHM = algorithms.Hash.SHA256
 
@@ -510,21 +513,15 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
         default="",
     )
     runtime_p.add_argument(
-        "--use-ima-measurement-list",
-        action="store_true",
-        dest="use_measurement_list",
-        help=f"Read checksums from the IMA measurement list. Default is {IMA_MEASUREMENT_LIST}, but another list can be specified with the -m/--ima-measurement-list option",
-        default=False,
-    )
-    runtime_p.add_argument(
         "-m",
         "--ima-measurement-list",
         dest="ima_measurement_list",
         required=False,
-        help="Use given IMA measurement list for hash, keyring, and critical "
-        f"data extraction rather than {IMA_MEASUREMENT_LIST}; use /dev/null for "
-        "an empty list",
-        default=IMA_MEASUREMENT_LIST,
+        nargs="?",
+        help="Use an IMA measurement list for hash, keyring, and critical "
+        f"data extraction. If a list is not specified, it uses {IMA_MEASUREMENT_LIST}. Use "
+        f"{EMPTY_IMA_MEASUREMENT_LIST} for  an empty list.",
+        default=EMPTY_IMA_MEASUREMENT_LIST,
     )
     runtime_p.add_argument(
         "--ignored-keyrings",
@@ -875,16 +872,25 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
         # Try to get the digest algorithm from the lenght of the digest
         allowlist_algo = _get_digest_algorithm_from_map_list(allowlist_digests)
 
-    if args.use_measurement_list:
+    if args.ima_measurement_list != EMPTY_IMA_MEASUREMENT_LIST:
+        ima_list = args.ima_measurement_list
+        if ima_list is None:
+            # Use the default list, when one is not specified.
+            ima_list = IMA_MEASUREMENT_LIST
+
+        logger.debug("Measurement list is %s", ima_list)
+        if not os.path.isfile(ima_list):
+            logger.warning("The IMA measurement list file '%s' does not seem to exist", ima_list)
+            return None
+
         try:
             # If not set, try to get the digest algorithm from the boot_aggregate.
-            ima_measurement_list_algo, _ = boot_aggregate_from_file(args.ima_measurement_list)
+            ima_measurement_list_algo, _ = boot_aggregate_from_file(ima_list)
         except Exception:
             ima_measurement_list_algo = UNKNOWN_ALGORITHM
 
-        logger.debug("Measurement list is %s", args.ima_measurement_list)
         ima_digests = {}
-        ima_digests, ok = get_hashes_from_measurement_list(args.ima_measurement_list, ima_digests)
+        ima_digests, ok = get_hashes_from_measurement_list(ima_list, ima_digests)
         if not ok:
             return None
 

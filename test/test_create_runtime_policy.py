@@ -714,7 +714,7 @@ foobar.so(.*)?
                     "algo_opt": [],
                     "base_policy": [],
                     "allowlist": [],
-                    "ima_log": ["--use-ima-measurement-list", "--ima-measurement-list", ima_log],
+                    "ima_log": ["--ima-measurement-list", ima_log],
                     "rootfs": [],
                     "expected_algo": f"{algo}",
                     "expected_source": "IMA measurement list",
@@ -722,7 +722,7 @@ foobar.so(.*)?
             )
 
             # Cases where the algorithm from the allowlist should be kept
-            for il in [[], ["--use-ima-measurement-list", "--ima-measurement-list", ima_log]]:
+            for il in [[], ["--ima-measurement-list", ima_log]]:
                 for rfs in [[], ["--rootfs", rootfs]]:
                     test_cases.append(
                         {
