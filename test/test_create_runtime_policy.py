@@ -4,6 +4,7 @@ Copyright 2024 Red Hat, Inc.
 """
 
 import argparse
+import copy
 import os
 import pathlib
 import shutil
@@ -867,3 +868,64 @@ foobar.so(.*)?
                         f"DEBUG:policy.create_runtime_policy:Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
                         logs.output,
                     )
+
+    def test_mixed_algorithms_sources(self):
+        """Test that mixing digests from different algorithms is not allowed"""
+        test_cases = []
+
+        policy_sha1 = os.path.join(HELPER_DIR, "policy-sha1")
+        allowlist_sha1 = os.path.join(HELPER_DIR, "allowlist-sha1")
+        ima_log_sha1 = os.path.join(HELPER_DIR, "ima-log-sha1")
+
+        rootfs = os.path.join(HELPER_DIR, "rootfs")
+
+        base_test = {
+            "algo_opt": ["--algo", "sha1"],
+            "base policy": ["--base-policy", policy_sha1],
+            "allowlist": ["--allowlist", allowlist_sha1],
+            "IMA measurement list": ["--ima-measurement-list", ima_log_sha1],
+            "rootfs": ["--rootfs", rootfs],
+            "source": "",
+        }
+
+        rootfs = os.path.join(HELPER_DIR, "rootfs")
+        # Prepare test cases
+        for algo in ["sha256", "sha384", "sha512", "sm3_256"]:
+            base_policy = ["--base-policy", os.path.join(HELPER_DIR, f"policy-{algo}")]
+            allowlist = ["--allowlist", os.path.join(HELPER_DIR, f"allowlist-{algo}")]
+            ima_log = [
+                "--ima-measurement-list",
+                os.path.join(HELPER_DIR, f"ima-log-{algo}"),
+            ]
+
+            for source, argument in [
+                ("base policy", base_policy),
+                ("allowlist", allowlist),
+                ("IMA measurement list", ima_log),
+            ]:
+                case = copy.deepcopy(base_test)
+                case[source] = argument
+                case["source"] = source
+                test_cases.append(case)
+
+        # Create an argument parser
+        parent_parser = argparse.ArgumentParser(add_help=False)
+        main_parser = argparse.ArgumentParser()
+        subparser = main_parser.add_subparsers(title="actions")
+        parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
+
+        for case in test_cases:
+            cli_args = []
+            # Prepare argument input
+            for k in ["algo_opt", "base policy", "allowlist", "IMA measurement list", "rootfs"]:
+                cli_args.extend(case.get(k, []))
+
+            args = parser.parse_args(cli_args)
+
+            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
+                policy = create_runtime_policy.create_runtime_policy(args)
+                self.assertIn(
+                    f"WARNING:policy.create_runtime_policy:The digest algorithm in the {case['source']} does not match the previously set 'sha1' algorithm",
+                    logs.output,
+                )
+                self.assertEqual(policy, None)
