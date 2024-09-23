@@ -503,7 +503,7 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
     )
     runtime_p.add_argument(
         "-e",
-        "--exclude-list",
+        "--excludelist",
         dest="exclude_list_file",
         required=False,
         help="An IMA exclude list file whose contents will be added to the policy",
@@ -527,7 +527,6 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
         default=IMA_MEASUREMENT_LIST,
     )
     runtime_p.add_argument(
-        "-i",
         "--ignored-keyrings",
         dest="ignored_keyrings",
         action="append",
@@ -536,7 +535,6 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
         default=IGNORED_KEYRINGS,
     )
     runtime_p.add_argument(
-        "-A",
         "--add-ima-signature-verification-key",
         action="append",
         dest="ima_signature_keys",
