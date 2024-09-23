@@ -1,0 +1,1 @@
+{"meta": {"version": 1, "generator": 3, "timestamp": "2024-09-19 16:52:59.083787"}, "release": 0, "digests": {"/rootfs_data": ["00112233445566778899001122334455667788990011223344556677889900"]}, "excludes": [], "keyrings": {}, "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1", "dm_policy": null}, "ima-buf": {}, "verification-keys": ""}
