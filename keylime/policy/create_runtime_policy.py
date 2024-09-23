@@ -311,6 +311,7 @@ def process_ima_sig_ima_ng_line(line: str) -> Tuple[str, str, str, bool]:
         errmsg = f"Skipping line that was split into {len(pieces)} pieces, expected at least 5: {line}"
         logger.debug(errmsg)
         return ret
+
     if pieces[2] not in ("ima-sig", "ima-ng", "ima"):
         errmsg = f"skipping line that uses a template ({pieces[2]}) not in ('ima-sig', 'ima-ng', 'ima'): {line}"
         logger.debug(errmsg)
@@ -320,10 +321,19 @@ def process_ima_sig_ima_ng_line(line: str) -> Tuple[str, str, str, bool]:
 
     alg = ""
     csum = ""
-    # Old "ima" template.
     if len(csum_hash) == 2:
         alg = csum_hash[0]
         csum = csum_hash[1]
+
+        # Check if the algorithm is one of the supported algorithms
+        if not algorithms.Hash.is_recognized(alg):
+            return ret
+
+        # Check that the length of the digest matches the expected length
+        if len(csum) != algorithms.Hash(alg).hexdigest_len():
+            return ret
+
+    # Old "ima" template.
     else:
         csum = csum_hash[0]
         # Lets attempt to detect the alg by len.

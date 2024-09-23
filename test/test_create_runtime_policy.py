@@ -178,6 +178,11 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
                 "alg": "sha1",
             },
             {
+                "input": "10 0000000000000000000000000000000000000000 ima a00000000000000000000000000000000000000bcc boot_aggregate",
+                "boot_aggregate": "",
+                "alg": "invalid",
+            },
+            {
                 "input": "FOO BAR",
                 "boot_aggregate": "",
                 "alg": "invalid",
@@ -186,6 +191,16 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
                 "input": "10 8d814e778e1fca7c551276523ac44455da1dc420 ima-ng sha256:0bc72531a41dbecb38557df75af4bc194e441e71dc677c659a1b179ac9b3e6ba boot_aggregate",
                 "boot_aggregate": "0bc72531a41dbecb38557df75af4bc194e441e71dc677c659a1b179ac9b3e6ba",
                 "alg": "sha256",
+            },
+            {
+                "input": "10 8d814e778e1fca7c551276523ac44455da1dc420 ima-ng sha1:0bc72531a41dbecb38557df75af4bc194e441e71dc677c659a1b179ac9b3e6ba boot_aggregate",
+                "boot_aggregate": "",
+                "alg": "invalid",
+            },
+            {
+                "input": "10 8d814e778e1fca7c551276523ac44455da1dc420 ima-ng unknown:0bc72531a41dbecb38557df75af4bc194e441e71dc677c659a1b179ac9b3e6ba boot_aggregate",
+                "boot_aggregate": "",
+                "alg": "invalid",
             },
         ]
 
@@ -926,6 +941,67 @@ foobar.so(.*)?
                 policy = create_runtime_policy.create_runtime_policy(args)
                 self.assertIn(
                     f"WARNING:policy.create_runtime_policy:The digest algorithm in the {case['source']} does not match the previously set 'sha1' algorithm",
+                    logs.output,
+                )
+                self.assertEqual(policy, None)
+
+    def test_unknown_algorithm_sources(self):
+        """Test that input with digests from unknown algorithms are not allowed"""
+
+        test_cases = []
+
+        policy_sha1 = os.path.join(HELPER_DIR, "policy-sha1")
+        allowlist_sha1 = os.path.join(HELPER_DIR, "allowlist-sha1")
+        ima_log_sha1 = os.path.join(HELPER_DIR, "ima-log-sha1")
+
+        policy_unknown = ["--base-policy", os.path.join(HELPER_DIR, "policy-unknown")]
+        allowlist_unknown = ["--allowlist", os.path.join(HELPER_DIR, "allowlist-unknown")]
+        ima_log_unknown = [
+            "--ima-measurement-list",
+            os.path.join(HELPER_DIR, "ima-log-unknown"),
+        ]
+
+        rootfs = os.path.join(HELPER_DIR, "rootfs")
+
+        base_test = {
+            "algo_opt": ["--algo", "sha1"],
+            "base policy": ["--base-policy", policy_sha1],
+            "allowlist": ["--allowlist", allowlist_sha1],
+            "IMA measurement list": ["--ima-measurement-list", ima_log_sha1],
+            "rootfs": ["--rootfs", rootfs],
+            "source": "",
+        }
+
+        rootfs = os.path.join(HELPER_DIR, "rootfs")
+        # Prepare test cases
+        for source, argument in [
+            ("base policy", policy_unknown),
+            ("allowlist", allowlist_unknown),
+            ("IMA measurement list", ima_log_unknown),
+        ]:
+            case = copy.deepcopy(base_test)
+            case[source] = argument
+            case["source"] = source
+            test_cases.append(case)
+
+        # Create an argument parser
+        parent_parser = argparse.ArgumentParser(add_help=False)
+        main_parser = argparse.ArgumentParser()
+        subparser = main_parser.add_subparsers(title="actions")
+        parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
+
+        for case in test_cases:
+            cli_args = []
+            # Prepare argument input
+            for k in ["algo_opt", "base policy", "allowlist", "IMA measurement list", "rootfs"]:
+                cli_args.extend(case.get(k, []))
+
+            args = parser.parse_args(cli_args)
+
+            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
+                policy = create_runtime_policy.create_runtime_policy(args)
+                self.assertIn(
+                    f"WARNING:policy.create_runtime_policy:Invalid digest algorithm found in the {case['source']}",
                     logs.output,
                 )
                 self.assertEqual(policy, None)
