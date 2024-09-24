@@ -396,7 +396,7 @@ def process_flat_allowlist(allowlist_file: str, hashes_map: Dict[str, List[str]]
                 pieces = line.split(None, 1)
                 if not len(pieces) == 2:
                     logmsg = f"Skipping line that was split into {len(pieces)} parts, expected 2: {line}"
-                    logger.info(logmsg)
+                    logger.debug(logmsg)
                     continue
 
                 (checksum_hash, path) = pieces
@@ -620,7 +620,7 @@ def get_hashes_from_measurement_list(
                 pieces = line.split(" ")
                 if len(pieces) < 5:
                     errmsg = f"Skipping line that was split into {len(pieces)} pieces, expected at least 5: {line}"
-                    logger.info(errmsg)
+                    logger.debug(errmsg)
                     continue
                 if pieces[2] not in ("ima-sig", "ima-ng"):
                     continue
@@ -746,7 +746,7 @@ def process_ima_buf_in_measurement_list(
                 pieces = line.split(" ")
                 if len(pieces) != 6:
                     errmsg = f"Skipping line that was split into {len(pieces)} pieces, expected 6: {line}"
-                    logger.info(errmsg)
+                    logger.debug(errmsg)
                     continue
                 if pieces[2] not in ("ima-buf"):
                     continue
