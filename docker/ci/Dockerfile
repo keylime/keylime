@@ -81,8 +81,3 @@ RUN dnf makecache && \
 
 # Install cargo dependencies
 RUN cargo install cargo-tarpaulin
-
-# Move keylime.conf to expected location in /etc/
-RUN git clone https://github.com/keylime/keylime.git && \
-  cd keylime && \
-  cp keylime.conf /etc/keylime.conf
