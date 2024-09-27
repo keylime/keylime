@@ -2,9 +2,6 @@
 
 """
 Module to help with extracting initrds.
-
-SPDX-License-Identifier: Apache-2.0
-Copyright 2024 Red Hat, Inc.
 """
 
 import logging

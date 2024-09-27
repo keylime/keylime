@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2021 Red Hat, Inc
-"""
-
 import unittest
 
 from keylime import api_version

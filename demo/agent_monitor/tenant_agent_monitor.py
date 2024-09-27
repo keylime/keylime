@@ -1,10 +1,5 @@
 #!/usr/bin/python3
 
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2017 Massachusetts Institute of Technology.
-"""
-
 # wget  --ca-certificate=/var/lib/keylime/secure/unzipped/cacert.crt --post-data '{}'
 #       --certificate=/var/lib/keylime/secure/unzipped/d432fbb3-d2f1-4a97-9ef7-75bd81c00000-cert.crt
 #       --private-key=/var/lib/keylime/secure/unzipped/d432fbb3-d2f1-4a97-9ef7-75bd81c00000-private.pem
