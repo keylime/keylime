@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2022 Red Hat, Inc.
-"""
-
 import unittest
 from pathlib import Path
 
