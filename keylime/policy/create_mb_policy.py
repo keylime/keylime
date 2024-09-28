@@ -6,12 +6,12 @@ Copyright 2021 Thore Sommer
 
 import argparse
 import json
-import logging
 import re
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from keylime.mba.elparsing.tpm2_tools_elparser import parse_binary_bootlog
+from keylime.policy.logger import Logger
 
 if TYPE_CHECKING:
     # FIXME: how to make mypy and pylint happy here?
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 else:
     _SubparserType = Any
 
-logger = logging.getLogger("policy.create_mb_policy")
+logger = Logger().logger()
 
 
 def event_to_sha256(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -191,23 +191,23 @@ def create_mb_refstate(args: argparse.Namespace) -> Optional[Dict[str, object]]:
 
     failure, log_data = parse_binary_bootlog(log_bin)
     if failure or not log_data:
-        logging.error(
+        logger.error(
             "Parsing of binary boot measurements failed with: %s", list(map(lambda x: x.context, failure.events))
         )
         return None
 
     events = log_data.get("events")
     if not events:
-        logging.error("No events found on binary boot measurements log")
+        logger.error("No events found on binary boot measurements log")
         return None
 
     has_secureboot = secureboot_enabled(events)
     if not has_secureboot and not args.without_secureboot:
-        logging.error("Provided eventlog has SecureBoot disabled, but -i flag was not set")
+        logger.error("Provided eventlog has SecureBoot disabled, but -i flag was not set")
         return None
 
     if has_secureboot and args.without_secureboot:
-        logging.warning(
+        logger.warning(
             "-i/--without-secureboot was set to create a reference state without SecureBoot, "
             "but the provided eventlog has SecureBoot enabled. Ignoring this flag"
         )

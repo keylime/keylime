@@ -8,7 +8,6 @@ Copyright 2024 Red Hat, Inc.
 """
 
 import argparse
-import logging
 import os
 import sys
 
@@ -19,14 +18,13 @@ except ModuleNotFoundError:
 
 
 from keylime.policy import create_mb_policy, create_runtime_policy, sign_runtime_policy
-
-logger = logging.getLogger("keylime-policy")
+from keylime.policy.logger import Logger
 
 
 def main() -> None:
     """keylime-policy entry point."""
     if os.geteuid() != 0:
-        logger.critical("Please, run this program as root")
+        Logger().logger().critical("Please, run this program as root")
         sys.exit(1)
 
     parser = argparse.ArgumentParser(add_help=False)
@@ -58,7 +56,14 @@ def main() -> None:
         main_parser.print_help()
         main_parser.exit()
 
-    args.func(args)
+    try:
+        args.func(args)
+    except BrokenPipeError:
+        # Python flushes standard streams on exit; redirect remaining output
+        # to devnull to avoid another BrokenPipeError at shutdown.
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        sys.exit(1)  # Python exits with error code 1 on EPIPE
 
 
 if __name__ == "__main__":

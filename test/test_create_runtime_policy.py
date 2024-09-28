@@ -12,10 +12,12 @@ import sys
 import tempfile
 import unittest
 from importlib import util
+from io import StringIO
 
 from keylime.common import algorithms
 from keylime.ima import ima
 from keylime.policy import create_runtime_policy, initrd
+from keylime.policy.logger import Logger
 
 _HAS_LIBARCHIVE = util.find_spec("libarchive") is not None
 
@@ -771,19 +773,33 @@ foobar.so(.*)?
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
         for case in test_cases:
-            cli_args = []
+            cli_args = ["--verbose"]
             # Prepare argument input
             for k in ["algo_opt", "base_policy", "allowlist", "ima_log", "rootfs"]:
                 cli_args.extend(case.get(k, []))
 
             args = parser.parse_args(cli_args)
+
             expected_algo = case["expected_algo"]
             expected_source = case["expected_source"]
 
-            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
-                _policy = create_runtime_policy.create_runtime_policy(args)
+            logger = Logger()
 
-                self.assertIn(
-                    f"DEBUG:policy.create_runtime_policy:Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
-                    logs.output,
-                )
+            try:
+                # Let's replace the log stream so that we can capture it.
+                stderr = StringIO()
+                logger.setStream(stderr)
+
+                # Now let's run it with the arguments and capture stderr.
+                _policy = create_runtime_policy.create_runtime_policy(args)
+                logs = stderr.getvalue()
+            finally:
+                # Restore the stream.
+                logger.setStream(sys.stderr)
+
+            # And we can finally check for the expected output.
+            self.assertIn(
+                f"Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
+                logs,
+                msg=f"ARGS: {' '.join(cli_args)}",
+            )

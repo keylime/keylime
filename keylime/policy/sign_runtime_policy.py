@@ -1,7 +1,6 @@
 """Module to assist with signing Keylime runtime policies using DSSE."""
 
 import argparse
-import logging
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from cryptography.hazmat.backends import default_backend
@@ -9,6 +8,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 from keylime.dsse import dsse, ecdsa, x509
+from keylime.policy.logger import Logger
 
 if TYPE_CHECKING:
     # FIXME: how to make mypy and pylint happy here?
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 else:
     _SubparserType = Any
 
-logger = logging.getLogger("policy.sign_runtime_policy")
+logger = Logger().logger()
 
 KEYLIME_PAYLOAD_TYPE = "application/vnd.keylime+json"
 KEYLIME_DEFAULT_EC_KEY_FILE = "keylime-ecdsa-key.pem"
