@@ -12,7 +12,7 @@ jobs:
   style-checks:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v3
+    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v3
     - uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
     - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
   tpm-tests:
@@ -24,7 +24,7 @@ jobs:
         KEYLIME_TEST: True
     steps:
     - name: Checkout
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v2
+      uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v2
     - name: Run tests
       run: .ci/test_wrapper.sh
   lint:
@@ -36,7 +36,7 @@ jobs:
         KEYLIME_TEST: True
     steps:
     - name: Checkout
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v2
+      uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v2
     - name: Install build dependencies
       run: sudo dnf -y install swig
     - name: Install Python dependencies
