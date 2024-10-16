@@ -14,7 +14,7 @@ except ModuleNotFoundError:
     argcomplete = None
 
 
-from keylime.policy import create_runtime_policy, sign_runtime_policy
+from keylime.policy import create_mb_policy, create_runtime_policy, sign_runtime_policy
 from keylime.policy.logger import Logger
 
 logger = Logger().logger()
@@ -32,7 +32,9 @@ def main() -> None:
 
     action_subparsers = main_parser.add_subparsers(title="actions")
 
-    create_parser = action_subparsers.add_parser("create", help="create policy", parents=[parser])
+    create_parser = action_subparsers.add_parser(
+        "create", help="create runtime or measured boot policy", parents=[parser]
+    )
     create_subparser = create_parser.add_subparsers(title="create")
     create_subparser.required = True
 
@@ -41,6 +43,7 @@ def main() -> None:
     sign_subparser.required = True
 
     create_runtime_policy.get_arg_parser(create_subparser, parser)
+    create_mb_policy.get_arg_parser(create_subparser, parser)
     sign_runtime_policy.get_arg_parser(sign_subparser, parser)
 
     if argcomplete:
