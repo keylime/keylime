@@ -5,7 +5,6 @@ Utility to assist with runtime policies.
 """
 
 import argparse
-import logging
 import os
 import sys
 
@@ -16,8 +15,9 @@ except ModuleNotFoundError:
 
 
 from keylime.policy import create_runtime_policy
+from keylime.policy.logger import Logger
 
-logger = logging.getLogger("keylime-policy")
+logger = Logger().logger()
 
 
 def main() -> None:
@@ -47,7 +47,14 @@ def main() -> None:
         main_parser.print_help()
         main_parser.exit()
 
-    args.func(args)
+    try:
+        args.func(args)
+    except BrokenPipeError:
+        # Python flushes standard streams on exit; redirect remaining output
+        # to devnull to avoid another BrokenPipeError at shutdown.
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        sys.exit(1)  # Python exits with error code 1 on EPIPE
 
 
 if __name__ == "__main__":
