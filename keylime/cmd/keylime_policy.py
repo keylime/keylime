@@ -14,7 +14,7 @@ except ModuleNotFoundError:
     argcomplete = None
 
 
-from keylime.policy import create_runtime_policy
+from keylime.policy import create_runtime_policy, sign_runtime_policy
 from keylime.policy.logger import Logger
 
 logger = Logger().logger()
@@ -36,7 +36,12 @@ def main() -> None:
     create_subparser = create_parser.add_subparsers(title="create")
     create_subparser.required = True
 
+    sign_parser = action_subparsers.add_parser("sign", help="sign policy", parents=[parser])
+    sign_subparser = sign_parser.add_subparsers(title="sign")
+    sign_subparser.required = True
+
     create_runtime_policy.get_arg_parser(create_subparser, parser)
+    sign_runtime_policy.get_arg_parser(sign_subparser, parser)
 
     if argcomplete:
         # This should happen before parse_args()
