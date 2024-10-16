@@ -6,7 +6,6 @@ import argparse
 import binascii
 import datetime
 import json
-import logging
 import os
 import pathlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -20,6 +19,7 @@ from keylime.common import algorithms, validators
 from keylime.ima import file_signatures, ima
 from keylime.ima.types import RuntimePolicyType
 from keylime.policy import initrd
+from keylime.policy.logger import Logger
 from keylime.policy.utils import merge_lists, merge_maplists
 
 _has_rpm = util.find_spec("rpm") is not None
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 else:
     _SubparserType = Any
 
-logger = logging.getLogger("policy.create_runtime_policy")
+logger = Logger().logger()
 
 # We use /dev/null to indicate an empty ima measurement list.
 EMPTY_IMA_MEASUREMENT_LIST = "/dev/null"
@@ -544,7 +544,6 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
         "the key should be an x509 certificate in DER or PEM format but may also be a public or "
         "private key file; this option may be passed multiple times",
     )
-
     runtime_p.add_argument(
         "--show-legacy-allowlist",
         dest="legacy_allowlist",
@@ -553,8 +552,16 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
         default=False,
     )
 
-    runtime_p.set_defaults(func=create_runtime_policy)
+    runtime_p.add_argument(
+        "-v",
+        "--verbose",
+        help="Set log level to DEBUG; may be helpful when diagnosing issues",
+        action="store_true",
+        required=False,
+        default=False,
+    )
 
+    runtime_p.set_defaults(func=create_runtime_policy)
     return runtime_p
 
 
@@ -846,6 +853,10 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
     ramdisk_digests: Dict[str, List[str]] = {}
     local_rpm_digests: Dict[str, List[str]] = {}
     remote_rpm_digests: Dict[str, List[str]] = {}
+
+    # Adjust logging for verbose, if required.
+    if args.verbose:
+        Logger().enableVerbose()
 
     # If a base policy was provided, try to parse the file as JSON and import
     # the values to the current policy format.

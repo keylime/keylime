@@ -8,10 +8,12 @@ import sys
 import tempfile
 import unittest
 from importlib import util
+from io import StringIO
 
 from keylime.common import algorithms
 from keylime.ima import ima
 from keylime.policy import create_runtime_policy, initrd
+from keylime.policy.logger import Logger
 
 _HAS_LIBARCHIVE = util.find_spec("libarchive") is not None
 
@@ -70,6 +72,7 @@ def assertDigestsEqual(d1, d2):
 
 class CreateRuntimePolicy_Test(unittest.TestCase):
     dirpath = ""
+    logger = Logger()
 
     @classmethod
     def setUpClass(cls):
@@ -788,7 +791,7 @@ foobar.so(.*)?
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
         for case in test_cases:
-            cli_args = []
+            cli_args = ["--verbose"]
             # Prepare argument input
             for k in ["algo_opt", "base_policy", "allowlist", "ima_log", "rootfs"]:
                 cli_args.extend(case.get(k, []))
@@ -797,13 +800,26 @@ foobar.so(.*)?
             expected_algo = case["expected_algo"]
             expected_source = case["expected_source"]
 
-            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
-                _policy = create_runtime_policy.create_runtime_policy(args)
+            try:
+                # Since the logger does not propagate, we cannot use
+                # something as simple as self.assertLogs here.
+                # Let's replace the log stream so that we can capture it.
+                stderr = StringIO()
+                self.logger.setStream(stderr)
 
-                self.assertIn(
-                    f"DEBUG:policy.create_runtime_policy:Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
-                    logs.output,
-                )
+                # Now let's run it with the arguments and capture stderr.
+                _policy = create_runtime_policy.create_runtime_policy(args)
+                logs = stderr.getvalue()
+            finally:
+                # Restore the stream.
+                self.logger.setStream(sys.stderr)
+
+            # And we can finally check for the expected output.
+            self.assertIn(
+                f"Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
+                logs,
+                msg=f"ARGS: {' '.join(cli_args)}",
+            )
 
     def test_digest_algorithm_priority_exceptions(self):
         """Test priority algorithms exceptions"""
@@ -856,7 +872,7 @@ foobar.so(.*)?
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
         for case in test_cases:
-            cli_args = []
+            cli_args = ["--verbose"]
             # Prepare argument input
             for k in ["base_policy", "allowlist", "ima_log"]:
                 cli_args.extend(case.get(k, []))
@@ -865,19 +881,31 @@ foobar.so(.*)?
             expected_algo = case["expected_algo"]
             expected_source = case["expected_source"]
 
-            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
-                _policy = create_runtime_policy.create_runtime_policy(args)
+            try:
+                # Since the logger does not propagate, we cannot use
+                # something as simple as self.assertLogs here.
+                # Let's replace the log stream so that we can capture it.
+                stderr = StringIO()
+                self.logger.setStream(stderr)
 
-                if case["expected_mismatch"]:
-                    self.assertIn(
-                        f"WARNING:policy.create_runtime_policy:The digest algorithm in the IMA measurement list does not match the previously set '{expected_algo}' algorithm",
-                        logs.output,
-                    )
-                else:
-                    self.assertIn(
-                        f"DEBUG:policy.create_runtime_policy:Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
-                        logs.output,
-                    )
+                # Now let's run it with the arguments and capture stderr.
+                _policy = create_runtime_policy.create_runtime_policy(args)
+                logs = stderr.getvalue()
+            finally:
+                # Restore the stream.
+                self.logger.setStream(sys.stderr)
+
+            # And we can finally check for the expected output.
+            if case["expected_mismatch"]:
+                self.assertIn(
+                    f"The digest algorithm in the IMA measurement list does not match the previously set '{expected_algo}' algorithm",
+                    logs,
+                )
+            else:
+                self.assertIn(
+                    f"Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
+                    logs,
+                )
 
     def test_mixed_algorithms_sources(self):
         """Test that mixing digests from different algorithms is not allowed"""
@@ -932,13 +960,26 @@ foobar.so(.*)?
 
             args = parser.parse_args(cli_args)
 
-            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
+            try:
+                # Since the logger does not propagate, we cannot use
+                # something as simple as self.assertLogs here.
+                # Let's replace the log stream so that we can capture it.
+                stderr = StringIO()
+                self.logger.setStream(stderr)
+
+                # Now let's run it with the arguments and capture stderr.
                 policy = create_runtime_policy.create_runtime_policy(args)
-                self.assertIn(
-                    f"WARNING:policy.create_runtime_policy:The digest algorithm in the {case['source']} does not match the previously set 'sha1' algorithm",
-                    logs.output,
-                )
-                self.assertEqual(policy, None)
+                logs = stderr.getvalue()
+            finally:
+                # Restore the stream.
+                self.logger.setStream(sys.stderr)
+
+            # And we can finally check for the expected output.
+            self.assertIn(
+                f"The digest algorithm in the {case['source']} does not match the previously set 'sha1' algorithm",
+                logs,
+            )
+            self.assertEqual(policy, None)
 
     def test_unknown_algorithm_sources(self):
         """Test that input with digests from unknown algorithms are not allowed"""
@@ -986,17 +1027,30 @@ foobar.so(.*)?
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
         for case in test_cases:
-            cli_args = []
+            cli_args = ["--verbose"]
             # Prepare argument input
             for k in ["algo_opt", "base policy", "allowlist", "IMA measurement list", "rootfs"]:
                 cli_args.extend(case.get(k, []))
 
             args = parser.parse_args(cli_args)
 
-            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
+            try:
+                # Since the logger does not propagate, we cannot use
+                # something as simple as self.assertLogs here.
+                # Let's replace the log stream so that we can capture it.
+                stderr = StringIO()
+                self.logger.setStream(stderr)
+
+                # Now let's run it with the arguments and capture stderr.
                 policy = create_runtime_policy.create_runtime_policy(args)
-                self.assertIn(
-                    f"WARNING:policy.create_runtime_policy:Invalid digest algorithm found in the {case['source']}",
-                    logs.output,
-                )
-                self.assertEqual(policy, None)
+                logs = stderr.getvalue()
+            finally:
+                # Restore the stream.
+                self.logger.setStream(sys.stderr)
+
+            # And we can finally check for the expected output.
+            self.assertIn(
+                f"Invalid digest algorithm found in the {case['source']}",
+                logs,
+            )
+            self.assertEqual(policy, None)
