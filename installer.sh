@@ -22,12 +22,11 @@ MIN_PYCRYPTOGRAPHY_VERSION="2.1.4"
 # default variables
 CENTOS7_TSS_FLAGS=
 NEED_BUILD_TOOLS=0
-NEED_PYTHON_DIR=0
 PYTHON_PIPS=
 TPM2_TOOLS_PKGS=
 NEED_EPEL=0
 POWERTOOLS=
-PYTHON_PEP668=0
+PYTHON_PEP668=0 
 
 # Check to ensure version is at least minversion
 version_checker () {
@@ -47,10 +46,11 @@ confirm_force_install () {
 # Determine distibution (using systemd standard `os-release`):
 if [ -f /etc/os-release ]; then
         . /etc/os-release
-    else
-        echo "Not able to determine your OS or Distribution"
-        exit 1
+else
+    echo "Not able to determine your OS or Distribution"
+    exit 1
 fi
+
 
 case "$ID" in
     debian | ubuntu)
@@ -58,17 +58,15 @@ case "$ID" in
         PACKAGE_MGR=$(command -v apt-get)
         PYTHON_PREIN="git patch"
         PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-cryptography python3-requests python3-psutil gcc g++ libssl-dev swig python3-yaml python3-gpg python3-lark python3-pyasn1 python3-pyasn1-modules python3-jsonschema python3-typing-extensions wget python3-alembic"
+        BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev uuid-dev libjson-c-dev"
         if [ "$(uname -m)" = "x86_64" ]; then
             PYTHON_DEPS+=" libefivar-dev"
         fi
-        BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev uuid-dev libjson-c-dev"
-        $PACKAGE_MGR update
         case "${VERSION_ID}" in
           12 | 13 | 23.04 | 23.10 | 24.04 | 24.10 )
             PYTHON_PEP668=1
           ;;
         esac
-
         case "${VERSION_ID}" in
           # Ubuntu 18.04, Debian 9 and 10 don't ship with a new enough version of tpm2-tools/tpm2-tss
           18.04 | 9 | 10 )
@@ -79,6 +77,7 @@ case "$ID" in
             NEED_BUILD_TOOLS=0
           ;;
         esac
+        $PACKAGE_MGR update
     ;;
 
     rhel | centos)
@@ -89,46 +88,42 @@ case "$ID" in
                 NEED_EPEL=1
                 PYTHON_PREIN="python36 python36-devel python36-setuptools python36-pip git wget patch openssl"
                 PYTHON_DEPS="gcc gcc-c++ openssl-devel swig python36-PyYAML python36-tornado python36-cryptography python36-requests python36-zmq yaml-cpp-devel python3-psutil python3-alembic"
-                if [ "$(uname -m)" = "x86_64" ]; then
-                    PYTHON_DEPS+=" efivar-libs"
-                fi
                 BUILD_TOOLS="openssl-devel file libtool make automake m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
                 NEED_BUILD_TOOLS=1
                 CENTOS7_TSS_FLAGS="--enable-esapi=no --disable-doxygen-doc"
-            ;;
+
+                if [ "$(uname -m)" = "x86_64" ]; then
+                    PYTHON_DEPS+=" efivar-libs"
+                fi
+                ;;
             8*|9*)
                 echo "${ID} ${VERSION_ID} selected."
                 PACKAGE_MGR=$(command -v dnf)
-                NEED_EPEL=1
                 PYTHON_PREIN="python3 python3-devel python3-setuptools python3-pip"
                 PYTHON_DEPS="gcc gcc-c++ openssl-devel python3-yaml python3-requests python3-cryptography wget git python3-tornado python3-zmq python3-gpg python3-psutil"
+                BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel libuuid-devel json-c-devel autoconf-archive"
                 if [ "$(uname -m)" = "x86_64" ]; then
                     PYTHON_DEPS+=" efivar-libs"
                 fi
                 case "${VERSION_ID}" in
-                8*)
-                    PYTHON_DEPS+=" swig"
-                ;;
-                esac
-                BUILD_TOOLS="git wget patch libyaml openssl-devel libtool make automake m4 libgcrypt-devel autoconf libcurl-devel libstdc++-devel dbus-devel libuuid-devel json-c-devel autoconf-archive"
-                case "${VERSION_ID}" in
-                8*)
-                    NEED_BUILD_TOOLS=1
-                    NEED_PYTHON_DIR=1
-                ;;
-                9*)
-                    NEED_BUILD_TOOLS=0
-                    NEED_PYTHON_DIR=0
-                    TPM2_TOOLS_PKGS="tpm2-tools"
-                ;;
+                    8*)
+                        PYTHON_DEPS+=" swig"
+                        NEED_BUILD_TOOLS=1
+                        pip3 install setuptools_rust
+                        ;;
+                    9*)
+                        NEED_BUILD_TOOLS=0
+                        TPM2_TOOLS_PKGS="tpm2-tools"
+                        ;;
                 esac
                 if test "$ID" = centos; then
                     POWERTOOLS="--enablerepo=PowerTools"
+                    NEED_EPEL=1
                 else
-                    POWERTOOLS="config-manager --set-enabled rhui-codeready-builder-for-rhel-8-x86_64-rhui-source-rpms"
-                fi 
-
-            ;;
+                    POWERTOOLS="config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms"
+                    NEED_EPEL=2
+                fi
+                ;;
             *)
                 echo "Version ${VERSION_ID} of ${ID} not supported"
                 exit 1
@@ -140,20 +135,20 @@ case "$ID" in
         PACKAGE_MGR=$(command -v dnf)
         PYTHON_PREIN="python3 python3-devel python3-setuptools git wget patch"
         PYTHON_DEPS="python3-pip gcc gcc-c++ openssl-devel python3-pyyaml python3-zmq python3-cryptography python3-tornado python3-requests python3-gpg yaml-cpp-devel procps-ng python3-psutil python3-lark-parser python3-alembic"
+        BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
         if [ "$(uname -m)" = "x86_64" ]; then
             PYTHON_DEPS+=" efivar-devel"
         fi
-        BUILD_TOOLS="openssl-devel libtool make automake pkg-config m4 libgcrypt-devel autoconf autoconf-archive libcurl-devel libstdc++-devel uriparser-devel dbus-devel gnulib-devel doxygen libuuid-devel json-c-devel"
         if [ "${ID}" = "anolis" ]; then
             pip3 install setuptools_rust
             BUILD_TOOLS+=" rust cargo"
         elif [ "${ID}" = "fedora" ]; then
             PYTHON_DEPS+=" swig"
         fi
-
         MAJOR_VERSION_ID=$(echo ${VERSION_ID} | awk -F '.' '{print$1}')
-	if ([[ "${ID}" = "fedora" ]] && [[ "${MAJOR_VERSION_ID}" -ge 30 ]]) || ([[ "${ID}" = "anolis" ]] && [[ "${MAJOR_VERSION_ID}" -ge 23 ]]) ; then
+
         # if fedora 30/anolis 23 or greater, then using TPM2 tool packages
+        if ([[ "${ID}" = "fedora" ]] && [[ "${MAJOR_VERSION_ID}" -ge 30 ]]) || ([[ "${ID}" = "anolis" ]] && [[ "${MAJOR_VERSION_ID}" -ge 23 ]]) ; then
             TPM2_TOOLS_PKGS="tpm2-tools tpm2-tss tss2"
             NEED_BUILD_TOOLS=0
         else
@@ -172,14 +167,14 @@ case "$ID" in
                 if [ "$(uname -m)" = "x86_64" ]; then
                      PYTHON_DEPS+=" efivar-libs"
                 fi
-                pip3 install setuptools_rust
                 TPM2_TOOLS_PKGS="tpm2-tools tpm2-tss"
-            ;;
+                pip3 install setuptools_rust
+                ;;
             *)
                 echo "Version ${VERSION_ID} of ${ID} not supported"
                 exit 1
         esac
-    ;;
+        ;;
 
     *)
         echo "${ID} is not currently supported."
@@ -189,7 +184,6 @@ esac
 # Command line params
 STUB=0
 KEYLIME_DIR=
-# LISTEN_ALL_IPS=1 means than will set the binding and listening IP about the agent, verifier, and registrar server as 0.0.0.0
 LISTEN_ALL_IPS=0
 while getopts ":hikmp:" opt; do
     case $opt in
@@ -202,13 +196,11 @@ while getopts ":hikmp:" opt; do
                 KEYLIME_DIR=`pwd`"/$KEYLIME_DIR"
             fi
             ;;
-        m) ;;
         h)
             echo "Usage: $0 [option...]"
             echo "Options:"
             echo $'-i \t\t\t\t Set the default listen IP as 0.0.0.0 rather than 127.0.0.1 for all components(agent, verifier, and registrar)'
             echo $'-k \t\t\t\t Download Keylime (stub installer mode)'
-            echo $'-m \t\t\t\t Use modern TPM 2.0 libraries; this is the default'
             echo $'-p PATH \t\t\t Use PATH as Keylime path'
             echo $'-h \t\t\t\t This help info'
             exit
@@ -227,21 +219,42 @@ echo
 echo "=================================================================================="
 echo $'\t\t\tInstalling python & crypto libs'
 echo "=================================================================================="
+
+# Epel install for CentOS
 if [[ "$NEED_EPEL" -eq "1" ]] ; then
     $PACKAGE_MGR -y install epel-release
-    if [[ $? > 0 ]] ; then
+    if [[ $? -ne 0 ]] ; then
+        echo "ERROR: EPEL package failed to install properly!"
+        exit 1
+    fi
+fi
+
+# Epel install for RHEL
+if [[ "$NEED_EPEL" -eq "2" ]] ; then
+    case "${VERSION_ID}" in
+        8*)
+            subscription-manager repos --enable codeready-builder-for-rhel-8-$(arch)-rpms
+            $PACKAGE_MGR -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+        ;;
+        9*)
+            subscription-manager repos --enable codeready-builder-for-rhel-9-$(arch)-rpms
+            $PACKAGE_MGR -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+        ;;
+    esac
+
+    if [[ $? -ne 0 ]] ; then
         echo "ERROR: EPEL package failed to install properly!"
         exit 1
     fi
 fi
 
 $PACKAGE_MGR install -y $PYTHON_PREIN
-if [[ $? > 0 ]] ; then
+if [[ $? -ne 0 ]] ; then
     echo "ERROR: Package(s) failed to install properly!"
     exit 1
 fi
 $PACKAGE_MGR install -y $PYTHON_DEPS
-if [[ $? > 0 ]] ; then
+if [[ $? -ne 0 ]] ; then
     echo "ERROR: Package(s) failed to install properly!"
     exit 1
 fi
@@ -306,13 +319,13 @@ if [[ "$STUB" -eq "1" ]] ; then
     pushd $KEYLIME_DIR
     git checkout $KEYLIME_VER
     popd
-fi
-
-
 # If all else fails, assume they already have Keylime (we're in it!)
+    KEYLIME_DIR=`pwd`
+fi
 if [[ -z "$KEYLIME_DIR" ]] ; then
     KEYLIME_DIR=`pwd`
 fi
+
 
 
 # Sanity check
@@ -336,14 +349,14 @@ if [[ "$NEED_BUILD_TOOLS" -eq "1" ]] ; then
 
     if [[ -n "${POWERTOOLS}" ]] ; then
         $PACKAGE_MGR -y $POWERTOOLS
-        if [[ $? > 0 ]] ; then
+        if [[ $? -ne 0 ]] ; then
             echo "ERROR: Package(s) failed to install properly!"
             exit 1
         fi
     fi
 
     $PACKAGE_MGR -y install $BUILD_TOOLS
-    if [[ $? > 0 ]] ; then
+    if [[ $? -ne 0 ]] ; then
         echo "ERROR: Package(s) failed to install properly!"
         exit 1
     fi
@@ -358,7 +371,7 @@ if [[ ! -z $TPM2_TOOLS_PKGS ]] ; then
     echo $'\t\t\t\tInstall tpm2-tools packages'
     echo "=================================================================================="
     $PACKAGE_MGR install -y $TPM2_TOOLS_PKGS
-    if [[ $? > 0 ]] ; then
+    if [[ $? -ne 0 ]] ; then
         echo "ERROR: Package(s) failed to install properly!"
         exit 1
     fi
@@ -416,11 +429,7 @@ echo "==========================================================================
 echo $'\t\t\t\tInstall Keylime'
 echo "=================================================================================="
 cd $KEYLIME_DIR
-if [[ "$NEED_PYTHON_DIR" -eq "1" ]] ; then
-    mkdir -p /usr/local/lib/python3.6/site-packages/
-fi
-
-if $PYTHON_PEP668; then
+if [[ "$PYTHON_PEP668" -eq "1" ]] ; then
     python3 -m pip install . -r requirements.txt  --break-system-packages
 else
     python3 -m pip install . -r requirements.txt
