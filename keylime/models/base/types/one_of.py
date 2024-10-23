@@ -104,6 +104,9 @@ class OneOf(ModelType):
         return "is not a permitted value"
 
     def render(self, value: Any) -> Any:
+        if value is None or value == "":
+            return None
+
         for item in self._permitted:
             if isinstance(item, ModelType):
                 try:
