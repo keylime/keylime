@@ -2,7 +2,7 @@ FROM quay.io/fedora/fedora@sha256:e0bf89d185d5af55889a813736a01b596544eefdab0ac3
 LABEL version="_version_" description="Keylime Base - Only used as an base image for derived packages"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 
-RUN dnf -y install dnf-plugins-core git efivar-libs efivar-devel python3-jinja2 python3-PyMySQL && dnf -y builddep tpm2-tools
+RUN dnf -y install dnf-plugins-core git efivar-libs efivar-devel python3-jinja2 python3-PyMySQL python3-psycopg2 nc && dnf -y builddep tpm2-tools
 RUN git clone -b 5.7 https://github.com/tpm2-software/tpm2-tools.git && \
     cd tpm2-tools && \
     git config user.email "main@keylime.groups.io" && \
