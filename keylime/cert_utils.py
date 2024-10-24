@@ -148,21 +148,26 @@ def check_tpm_origin(cert: Certificate, cert_type: str = "") -> bool:
     """Verify that the provided certificate is from a TPM according to the SAN
     :param cert: The certificate as a cryptography.x509.Certificate
     :param cert_type: Type of certificate as string for logging
-    :returns: True if the certificate came from a TPM
+    :returns: True if the certificate came from a TPM, or we are not sure. False if it did not come from a TPM
     """
     san_ext = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
-    assert isinstance(san_ext.value, x509.SubjectAlternativeName)
+    if not isinstance(san_ext.value, x509.SubjectAlternativeName):
+        logger.warning("%s Certificate did not contain a SubjectAltName. This may not have come from a TPM.", cert_type)
+        return True
     othername = san_ext.value.get_values_for_type(x509.OtherName)[0]
     if othername.type_id.dotted_string != OID_HW_MODULE_NAME:
-        logger.error("%s Certificate did not contain the HW module name. This may not have come from a TPM.", cert_type)
-        return False
+        logger.warning(
+            "%s Certificate did not contain the HW module name. This may not have come from a TPM.", cert_type
+        )
+        return True
     decoded_on, _ = decoder.decode(othername.value, asn1Spec=rfc4108.HardwareModuleName())
     if str(decoded_on["hwType"]) != OID_HWTYPE_TPM:
         logger.error(
-            "%s Certificate did not contain the correct hwType OID in SubjectAltName. This may not have come from a TPM.",
+            "%s Certificate did not contain the correct hwType OID in SubjectAltName. This did not come from a TPM.",
             cert_type,
         )
         return False
+    logger.debug("%s seems to have come from a TPM", cert_type)
     return True
 
 
@@ -240,9 +245,11 @@ def iak_idevid_cert_checks(
     logger.debug("IAK cert verified.")
 
     # TPM cert checks
+    # Check if the IDevID and IAK certificates came from a TPM by checking the SAN
+    # These checks will warn if the certificates do not contain the expected fields
+    # but will only fail if the certificates have the fields but the hardware ID is incorrect
     if not check_tpm_origin(idevid_cert_509, "IDevID"):
         return "Error: IDevID certificate might not be from a TPM", None, None
     if not check_tpm_origin(iak_cert_509, "IAK"):
         return "Error: IAK certificate might not be from a TPM", None, None
-    logger.debug("IDevID and IAK seem to come from a TPM")
     return "", idevid_pub, iak_pub

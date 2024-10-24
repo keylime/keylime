@@ -15,7 +15,7 @@ from . import policies, tests
 # containing the following.
 # scrtm_and_bios - list of allowed {
 #    scrtm - digest for PCR 0 event type EV_S_CRTM_VERSION
-#    platform_firmware - sequence of digest for PCR 0 event type EV_EFI_PLATFORM_FIRMWARE_BLOB
+#    platform_firmware - sequence of digest for PCR 0 event type EV_EFI_PLATFORM_FIRMWARE_BLOB/EV_EFI_PLATFORM_FIRMWARE_BLOB2
 # }
 # pk - list of allowed PK keys
 # kek - list of allowed KEK keys
@@ -188,6 +188,7 @@ class Example(policies.Policy):
         dispatcher.set((1, "EV_EFI_HANDOFF_TABLES2"), tests.OnceTest(tests.AcceptAll()))
         dispatcher.set((0, "EV_S_CRTM_VERSION"), events_final.get("s_crtms"))
         dispatcher.set((0, "EV_EFI_PLATFORM_FIRMWARE_BLOB"), events_final.get("platform_firmware_blobs"))
+        dispatcher.set((0, "EV_EFI_PLATFORM_FIRMWARE_BLOB2"), events_final.get("platform_firmware_blobs"))
         dispatcher.set((7, "EV_EFI_VARIABLE_DRIVER_CONFIG"), vd_driver_config)
         secure_boot_test = tests.FieldTest("Enabled", tests.StringEqual("Yes"))
         if not has_secureboot:
@@ -196,12 +197,18 @@ class Example(policies.Policy):
         # For more information see: https://github.com/keylime/keylime/issues/1003
         vd_driver_config.set("61dfe48b-ca93-d211-aa0d-00e098032b8c", "SecureBoot", secure_boot_test)
         vd_driver_config.set("8be4df61-93ca-11d2-aa0d-00e098032b8c", "SecureBoot", secure_boot_test)
-        pk_test = tests.OnceTest(
-            tests.Or(
-                tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["pk"])),
-                tests.KeySubset("a5c059a1-94e4-4aa7-87b5-ab155c2bf072", sigs_strip0x(refstate["pk"])),
+
+        # When SecureBoot is disabled, PK, KEK, db and dbx might be there but empty
+        if not has_secureboot and not refstate["pk"]:
+            pk_test = tests.OnceTest(tests.AcceptAll())
+        else:
+            pk_test = tests.OnceTest(
+                tests.Or(
+                    tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["pk"])),
+                    tests.KeySubset("a5c059a1-94e4-4aa7-87b5-ab155c2bf072", sigs_strip0x(refstate["pk"])),
+                )
             )
-        )
+
         vd_driver_config.set(
             "61dfe48b-ca93-d211-aa0d-00e098032b8c",
             "PK",
@@ -213,12 +220,16 @@ class Example(policies.Policy):
             pk_test,
         )
 
-        kek_test = tests.OnceTest(
-            tests.Or(
-                tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["kek"])),
-                tests.KeySubset("a5c059a1-94e4-4aa7-87b5-ab155c2bf072", sigs_strip0x(refstate["kek"])),
+        if not has_secureboot and not refstate["kek"]:
+            kek_test = tests.OnceTest(tests.AcceptAll())
+        else:
+            kek_test = tests.OnceTest(
+                tests.Or(
+                    tests.KeySubset("a159c0a5-e494-a74a-87b5-ab155c2bf072", sigs_strip0x(refstate["kek"])),
+                    tests.KeySubset("a5c059a1-94e4-4aa7-87b5-ab155c2bf072", sigs_strip0x(refstate["kek"])),
+                )
             )
-        )
+
         vd_driver_config.set(
             "61dfe48b-ca93-d211-aa0d-00e098032b8c",
             "KEK",
@@ -229,18 +240,23 @@ class Example(policies.Policy):
             "KEK",
             kek_test,
         )
-        db_test = tests.OnceTest(
-            tests.Or(
-                tests.KeySubsetMulti(
-                    ["a159c0a5-e494-a74a-87b5-ab155c2bf072", "2616c4c1-4c50-9240-aca9-41f936934328"],
-                    sigs_strip0x(refstate["db"]),
-                ),
-                tests.KeySubsetMulti(
-                    ["a5c059a1-94e4-4aa7-87b5-ab155c2bf072", "c1c41626-504c-4092-aca9-41f936934328"],
-                    sigs_strip0x(refstate["db"]),
-                ),
+
+        if not has_secureboot and not refstate["db"]:
+            db_test = tests.OnceTest(tests.AcceptAll())
+        else:
+            db_test = tests.OnceTest(
+                tests.Or(
+                    tests.KeySubsetMulti(
+                        ["a159c0a5-e494-a74a-87b5-ab155c2bf072", "2616c4c1-4c50-9240-aca9-41f936934328"],
+                        sigs_strip0x(refstate["db"]),
+                    ),
+                    tests.KeySubsetMulti(
+                        ["a5c059a1-94e4-4aa7-87b5-ab155c2bf072", "c1c41626-504c-4092-aca9-41f936934328"],
+                        sigs_strip0x(refstate["db"]),
+                    ),
+                )
             )
-        )
+
         vd_driver_config.set(
             "cbb219d7-3a3d-9645-a3bc-dad00e67656f",
             "db",
@@ -251,12 +267,17 @@ class Example(policies.Policy):
             "db",
             db_test,
         )
-        dbx_test = tests.OnceTest(
-            tests.Or(
-                tests.KeySuperset("2616c4c1-4c50-9240-aca9-41f936934328", sigs_strip0x(refstate["dbx"])),
-                tests.KeySuperset("c1c41626-504c-4092-aca9-41f936934328", sigs_strip0x(refstate["dbx"])),
+
+        if not has_secureboot and not refstate["dbx"]:
+            dbx_test = tests.OnceTest(tests.AcceptAll())
+        else:
+            dbx_test = tests.OnceTest(
+                tests.Or(
+                    tests.KeySuperset("2616c4c1-4c50-9240-aca9-41f936934328", sigs_strip0x(refstate["dbx"])),
+                    tests.KeySuperset("c1c41626-504c-4092-aca9-41f936934328", sigs_strip0x(refstate["dbx"])),
+                )
             )
-        )
+
         vd_driver_config.set(
             "cbb219d7-3a3d-9645-a3bc-dad00e67656f",
             "dbx",

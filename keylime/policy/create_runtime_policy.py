@@ -1,8 +1,5 @@
 """
 Module to assist with creating runtime policies.
-
-SPDX-License-Identifier: Apache-2.0
-Copyright 2024 Red Hat, Inc.
 """
 
 import argparse
@@ -12,8 +9,9 @@ import json
 import logging
 import os
 import pathlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from importlib import util
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, TextIO, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TextIO, Tuple
 
 import psutil
 
@@ -39,10 +37,24 @@ else:
 
 logger = logging.getLogger("policy.create_runtime_policy")
 
+# We use /dev/null to indicate an empty ima measurement list.
+EMPTY_IMA_MEASUREMENT_LIST = "/dev/null"
 IMA_MEASUREMENT_LIST = "/sys/kernel/security/ima/ascii_runtime_measurements"
-IGNORED_KEYRINGS: List[str] = []
-FALLBACK_HASH_ALGO = algorithms.Hash.SHA256
 
+IGNORED_KEYRINGS: List[str] = []
+DEFAULT_FILE_DIGEST_ALGORITHM = algorithms.Hash.SHA256
+
+# This is to follow IMA default
+# See in keylime/ima/ima.py
+DEFAULT_IMA_TEMPLATE_DIGEST_ALGORITHM = algorithms.Hash.SHA1
+
+# This is used to indicate that the algorithm guessing identified a valid output
+# length, but it corresponds to more than one supported algorithm
+SHA256_OR_SM3 = "sha256_or_sm3_256"
+
+# This is used to indicate that the algorithm guessing could not identify the
+# algorithm from the output length
+INVALID_ALGORITHM = "invalid"
 
 BASE_EXCLUDE_DIRS: List[str] = [
     "/sys",
@@ -101,9 +113,7 @@ def exclude_dirs_based_on_rootfs(dirs_to_exclude: List[str]) -> List[str]:
     return trimmed_dirs
 
 
-def _calculate_digest(
-    prefix: str, fpath: str, alg: str, remove_prefix: bool, only_owned_by_root: bool
-) -> Tuple[bool, str, str]:
+def _calculate_digest(prefix: str, fpath: str, alg: str, remove_prefix: bool) -> Tuple[bool, str, str]:
     """
     Filter the specified file to decide if we should calculate its digest.
 
@@ -120,22 +130,12 @@ def _calculate_digest(
     :param fpath: str inficating the path for the file
     :param alg: int, digest algorithm
     :param remove_prefix: boolean that indicates whether the displayed file should have its prefix removed
-    :param only_owned_by_root: boolean to indicate whether it should calculate the digest only if the file is owned by root
     :return: Tuple of boolean, str and str, indicating whether this method calculated the digest, the file name and its digest, respectively
     """
-    if not os.path.isfile(fpath) or os.path.isdir(fpath):
-        return False, "", ""
-
-    if only_owned_by_root:
-        # Skipping files not not owned by root (uid 0).
-        st = os.stat(fpath, follow_symlinks=False)
-
-        if st.st_uid != 0:
-            return False, "", ""
 
     # Let's take care of removing the prefix, if requested.
     fkey = fpath
-    if remove_prefix:
+    if remove_prefix and (str(prefix) != "/"):
         fkey = fkey[len(str(prefix)) :]
 
     # IMA replaces spaces with underscores in the log, so we do
@@ -145,12 +145,64 @@ def _calculate_digest(
     return True, fkey, algorithms.Hash(alg).file_digest(fpath)
 
 
+def _get_all_files(
+    root_dir: str, prefix: str, dirs_to_exclude: Optional[List[str]] = None, only_owned_by_root: bool = False
+) -> List[str]:
+    """Find all files inside a directory recursively, skipping the directories
+    marked to be excluded and files not owned by root, if requested.
+    It is expected that root_dir and prefix are absolute paths."""
+
+    if not dirs_to_exclude:
+        dirs_to_exclude = []
+
+    paths = set()
+    subdirs = []
+    with os.scandir(root_dir) as it:
+        for entry in it:
+            # Skip symlinks
+            if entry.is_symlink():
+                continue
+
+            # If the entry is a file, add to the set of paths
+            if entry.is_file():
+                # Skipping files not not owned by root (uid 0), if requested.
+                if only_owned_by_root:
+                    try:
+                        st = os.stat(entry.path, follow_symlinks=False)
+                        if st.st_uid != 0:
+                            continue
+                    except FileNotFoundError:
+                        logger.debug("Could not find '%s', skipping", entry.path)
+                        continue
+
+                paths.add(entry.path)
+                continue
+
+            # For directories, add the entry to the subdirectories
+            if entry.is_dir():
+                relpath = entry.path
+                if prefix != "/" and entry.path.startswith(prefix):
+                    relpath = entry.path[len(prefix) :]
+
+                # Skip directories marked to be excluded from the search
+                if relpath in dirs_to_exclude:
+                    logger.debug("Skipping '%s' that matches a directory path to exclude", entry.path)
+                    continue
+
+                subdirs.append(entry.path)
+
+    for d in subdirs:
+        paths.update(_get_all_files(d, prefix, dirs_to_exclude, only_owned_by_root))
+
+    return list(paths)
+
+
 def path_digests(
     *fdirpath: str,
-    alg: str = algorithms.Hash.SHA256,
+    alg: str = DEFAULT_FILE_DIGEST_ALGORITHM,
     dirs_to_exclude: Optional[List[str]] = None,
     digests: Optional[Dict[str, List[str]]] = None,
-    remove_prefix: bool = False,
+    remove_prefix: bool = True,
     only_owned_by_root: bool = False,
     match_rootfs: bool = False,
 ) -> Dict[str, List[str]]:
@@ -169,48 +221,46 @@ def path_digests(
     if digests is None:
         digests = {}
 
+    absfpath = os.path.abspath(str(*fdirpath))
+    if not os.path.isdir(absfpath):
+        logger.error("Invalid path, %s is not a directory", absfpath)
+        return digests
+
     # Let's first check if the root is not marked to be excluded.
-    if match_rootfs or dirs_to_exclude:
-        if dirs_to_exclude is None:
-            dirs_to_exclude = []
+    if dirs_to_exclude is None:
+        dirs_to_exclude = []
 
-        if match_rootfs:
-            dirs_to_exclude.extend(exclude_dirs_based_on_rootfs(dirs_to_exclude))
+    if match_rootfs:
+        dirs_to_exclude.extend(exclude_dirs_based_on_rootfs(dirs_to_exclude))
 
-        for to_exclude in dirs_to_exclude:
-            if str(*fdirpath).startswith(to_exclude):
-                # Okay, nothing to do here, since the root
-                # is marked to be excluded.
-                return digests
+    # Get the paths to all files contained in the directory, recursively
+    paths = _get_all_files(absfpath, absfpath, dirs_to_exclude, only_owned_by_root)
 
-    subdirs = []
-    for f in os.scandir(str(*fdirpath)):
-        if f.is_dir():
-            exclude = False
-            if dirs_to_exclude:
-                for to_exclude in dirs_to_exclude:
-                    if f.path.startswith(to_exclude):
-                        exclude = True
-                        break
-            if not exclude:
-                subdirs.append(pathlib.Path(f.path).resolve().as_posix())
-        if f.is_file():
-            ok, fkey, fdigest = _calculate_digest(
-                str(*fdirpath), pathlib.Path(f.path).as_posix(), alg, remove_prefix, only_owned_by_root
+    logger.debug("obtained %d paths", len(paths))
+
+    futures = []
+    with ThreadPoolExecutor() as executor:
+        for p in paths:
+            futures.append(
+                executor.submit(
+                    _calculate_digest,
+                    absfpath,
+                    pathlib.Path(p).as_posix(),
+                    alg,
+                    remove_prefix,
+                )
             )
-            if ok:
-                if fkey not in digests:
-                    digests[fkey] = []
-                digests[fkey].append(fdigest)
 
-    for d in subdirs:
-        for fname in pathlib.Path(d).glob("**/*"):
-            dst_file = fname.as_posix()
-            ok, fkey, fdigest = _calculate_digest(str(*fdirpath), dst_file, alg, remove_prefix, only_owned_by_root)
-            if ok:
-                if fkey not in digests:
-                    digests[fkey] = []
-                digests[fkey].append(fdigest)
+        for f in as_completed(futures):
+            try:
+                ok, fkey, fdigest = f.result()
+                if ok:
+                    if fkey not in digests:
+                        digests[fkey] = []
+                    digests[fkey].append(fdigest)
+            except Exception:
+                logger.debug("Failed to calculate a digest")
+                continue
 
     return digests
 
@@ -258,31 +308,34 @@ def process_ima_sig_ima_ng_line(line: str) -> Tuple[str, str, str, bool]:
         errmsg = f"Skipping line that was split into {len(pieces)} pieces, expected at least 5: {line}"
         logger.debug(errmsg)
         return ret
+
     if pieces[2] not in ("ima-sig", "ima-ng", "ima"):
         errmsg = f"skipping line that uses a template ({pieces[2]}) not in ('ima-sig', 'ima-ng', 'ima'): {line}"
         logger.debug(errmsg)
         return ret
 
-    # 10 83f995337082103cbdabf65245b03ba2ec8478dd ima-sig sha256:a3525d7a8b5b6bd86867a9d29799429f06fe764818d9caef633f619243734794 /usr/lib/systemd/system-generators/ostree-system-generator 030204d33204490066306402305eccb7e34bbe38a90aa822c58680e27202a592ab229d3713d021bb72842eeaf32fbcb668a3f4c30bba948a17dab82b30023055c9c4fbfc4e13d9d515de662fea2fa4cd136690d1a8289158b33b9fe3d619684b8bfb7f271fec9e3de9b82298ae4488
-    # 10 8d814e778e1fca7c551276523ac44455da1dc420 ima-ng sha256:0bc72531a41dbecb38557df75af4bc194e441e71dc677c659a1b179ac9b3e6ba boot_aggregate
-    # 10 0d429a9b12737a69b446d4adb05c1e633db73eb8 ima b00b5e664e582fad1bcd29b4cb07e628c4c98022 /bin/ls
-
     csum_hash = pieces[3].split(":")
 
     alg = ""
     csum = ""
-    # Old "ima" template.
     if len(csum_hash) == 2:
         alg = csum_hash[0]
         csum = csum_hash[1]
+
+        # Check if the algorithm is one of the supported algorithms
+        if not algorithms.Hash.is_recognized(alg):
+            return ret
+
+        # Check that the length of the digest matches the expected length
+        if len(csum) != algorithms.Hash(alg).hexdigest_len():
+            return ret
+
+    # Old "ima" template.
     else:
         csum = csum_hash[0]
         # Lets attempt to detect the alg by len.
-        for dig_alg in list(algorithms.Hash):
-            if len(csum) == algorithms.Hash(dig_alg).hexdigest_len():
-                alg = dig_alg
-                break
-        if not alg:
+        alg = _get_digest_algorithm_from_hex(csum)
+        if alg == INVALID_ALGORITHM:
             errmsg = f"skipping line that using old 'ima' template because it was not possible to identify the hash alg: {line}"
             logger.debug(errmsg)
             return ret
@@ -299,12 +352,9 @@ def boot_aggregate_parse(line: str) -> Tuple[str, str]:
     :return: tuple with two values, the algorithm used and the digest of the
              boot aggregate
     """
-    def_alg = FALLBACK_HASH_ALGO
-    def_agg = "0" * algorithms.Hash(def_alg).hexdigest_len()
-
     alg, digest, fpath, ok = process_ima_sig_ima_ng_line(line)
     if not ok or fpath != "boot_aggregate":
-        return def_alg, def_agg
+        return INVALID_ALGORITHM, ""
     return alg, digest
 
 
@@ -317,16 +367,11 @@ def boot_aggregate_from_file(
     :param ascii_runtime_file: a string indicating the file where we should read the boot aggregate from. The default is /sys/kernel/security/ima/ascii_runtime_measurements.
     :return: str, the boot aggregate
     """
+    line = ""
     with open(ascii_runtime_file, "r", encoding="UTF-8") as f:
-        agg = f.readline().strip("\n")
-        if agg.endswith(" boot_aggregate"):
-            alg, digest, _, ok = process_ima_sig_ima_ng_line(agg)
-            if ok:
-                return alg, digest
+        line = f.readline().strip("\n")
 
-    def_alg = FALLBACK_HASH_ALGO
-    def_agg = "0" * algorithms.Hash(def_alg).hexdigest_len()
-    return def_alg, def_agg
+    return boot_aggregate_parse(line)
 
 
 def list_initrds(basedir: str = "/boot") -> List[str]:
@@ -358,7 +403,7 @@ def process_flat_allowlist(allowlist_file: str, hashes_map: Dict[str, List[str]]
                 pieces = line.split(None, 1)
                 if not len(pieces) == 2:
                     logmsg = f"Skipping line that was split into {len(pieces)} parts, expected 2: {line}"
-                    logger.info(logmsg)
+                    logger.debug(logmsg)
                     continue
 
                 (checksum_hash, path) = pieces
@@ -465,31 +510,24 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
     )
     runtime_p.add_argument(
         "-e",
-        "--exclude-list",
+        "--excludelist",
         dest="exclude_list_file",
         required=False,
         help="An IMA exclude list file whose contents will be added to the policy",
         default="",
     )
     runtime_p.add_argument(
-        "--use-ima-measurement-list",
-        action="store_true",
-        dest="use_measurement_list",
-        help=f"Read checksums from the IMA measurement list. Default is {IMA_MEASUREMENT_LIST}, but another list can be specified with the -m/--ima-measurement-list option",
-        default=False,
-    )
-    runtime_p.add_argument(
         "-m",
         "--ima-measurement-list",
         dest="ima_measurement_list",
         required=False,
-        help="Use given IMA measurement list for hash, keyring, and critical "
-        f"data extraction rather than {IMA_MEASUREMENT_LIST}; use /dev/null for "
-        "an empty list",
-        default=IMA_MEASUREMENT_LIST,
+        nargs="?",
+        help="Use an IMA measurement list for hash, keyring, and critical "
+        f"data extraction. If a list is not specified, it uses {IMA_MEASUREMENT_LIST}. Use "
+        f"{EMPTY_IMA_MEASUREMENT_LIST} for  an empty list.",
+        default=EMPTY_IMA_MEASUREMENT_LIST,
     )
     runtime_p.add_argument(
-        "-i",
         "--ignored-keyrings",
         dest="ignored_keyrings",
         action="append",
@@ -498,7 +536,6 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
         default=IGNORED_KEYRINGS,
     )
     runtime_p.add_argument(
-        "-A",
         "--add-ima-signature-verification-key",
         action="append",
         dest="ima_signature_keys",
@@ -521,19 +558,20 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
     return runtime_p
 
 
-def merge_base_policy(policy: RuntimePolicyType, base_policy_file: str) -> Optional[RuntimePolicyType]:
-    """Merge a base policy to another."""
+def update_base_policy(base_policy_file: str) -> Optional[RuntimePolicyType]:
+    """Update the base policy to the latest policy format"""
+
+    policy = None
+
     try:
         with open(base_policy_file, "r", encoding="UTF-8") as fobj:
             basepol = fobj.read()
-        base_policy: RuntimePolicyType = json.loads(basepol)
 
-        try:
-            ima.validate_runtime_policy(base_policy)
-        except ima.ImaValidationError as ex:
-            errmsg = f"Base policy is not a valid runtime policy: {ex}"
-            logger.error(errmsg)
-            return None
+        # Load as a plain JSON without type. Do not assume it is a valid policy
+        base_policy = json.loads(basepol)
+
+        # Get an instance of the latest policy format to import the data
+        policy = ima.empty_policy()
 
         # Cherry-pick from base policy what is supported and merge into policy
         policy["digests"] = merge_maplists(policy["digests"], base_policy.get("digests", {}))
@@ -541,16 +579,26 @@ def merge_base_policy(policy: RuntimePolicyType, base_policy_file: str) -> Optio
         policy["keyrings"] = merge_maplists(policy["keyrings"], base_policy.get("keyrings", {}))
         policy["ima-buf"] = merge_maplists(policy["ima-buf"], base_policy.get("ima-buf", {}))
 
+        policy["ima"]["log_hash_alg"] = base_policy.get("ima", {}).get(
+            "log_hash_alg", DEFAULT_IMA_TEMPLATE_DIGEST_ALGORITHM
+        )
         ignored_keyrings = base_policy.get("ima", {}).get("ignored_keyrings", [])
         policy["ima"]["ignored_keyrings"] = merge_lists(policy["ima"]["ignored_keyrings"], ignored_keyrings)
-
         policy["verification-keys"] = base_policy.get("verification-keys", "")
     except (PermissionError, FileNotFoundError) as ex:
         errmsg = f"An error occurred while loading the policy: {ex}"
         logger.error(errmsg)
         return None
     except json.decoder.JSONDecodeError as ex:
-        errmsg = f"An error occurred while converting the policy to a JSON object: {ex}"
+        errmsg = f"An error occurred while parsing a JSON object from file {base_policy_file}: {ex}"
+        logger.error(errmsg)
+        return None
+
+    # Validate that the resulting policy is a valid policy
+    try:
+        ima.validate_runtime_policy(policy)
+    except ima.ImaValidationError as ex:
+        errmsg = f"Could not convert the provided base policy to a valid runtime policy: {ex}"
         logger.error(errmsg)
         return None
 
@@ -571,7 +619,7 @@ def get_hashes_from_measurement_list(
                 pieces = line.split(" ")
                 if len(pieces) < 5:
                     errmsg = f"Skipping line that was split into {len(pieces)} pieces, expected at least 5: {line}"
-                    logger.info(errmsg)
+                    logger.debug(errmsg)
                     continue
                 if pieces[2] not in ("ima-sig", "ima-ng"):
                     continue
@@ -588,7 +636,7 @@ def get_hashes_from_measurement_list(
 def process_exclude_list_line(line: str) -> Tuple[str, bool]:
     """Validate an exclude list line."""
     if not line:
-        return "", False
+        return "", True
 
     _, validator_msg = validators.valid_exclude_list([line])
     if validator_msg:
@@ -612,6 +660,9 @@ def process_exclude_list_file(exclude_list_file: str, excludes: List[str]) -> Tu
                 line, ok = process_exclude_list_line(line.strip())
                 if not ok:
                     return [], False
+                # Skip empty lines.
+                if len(line) == 0:
+                    continue
 
                 excludes.append(line)
     except (PermissionError, FileNotFoundError) as ex:
@@ -625,9 +676,31 @@ def get_rootfs_digests(
     rootfs: str, skip_path: Optional[str], hashes_map: Dict[str, List[str]], algo: str
 ) -> Dict[str, List[str]]:
     """Calculate digests for files under a directory."""
+
+    abs_rootfs = os.path.abspath(rootfs)
+
     dirs_to_exclude = []
+
+    # Preprocess the directories to skip, ignoring those outside the rootfs and
+    # removing the prefix from those that are under the rootfs
     if skip_path:
-        dirs_to_exclude = skip_path.split(",")
+        for d in skip_path.split(","):
+            abs_d = os.path.abspath(d)
+
+            if pathlib.PurePath(abs_rootfs).is_relative_to(abs_d):
+                # Okay, nothing to do here, since the root is marked to be
+                # skipped
+                logger.debug("The rootfs %s is excluded because it matches or is within %s", abs_rootfs, abs_d)
+                return {}
+
+            if not pathlib.PurePath(d).is_relative_to(rootfs):
+                logger.warning("Ignoring directory '%s' that should be skipped, but it is not under '%s'", d, rootfs)
+            else:
+                # Remove the prefix to make it consistent with other excluded
+                # directories
+                if abs_rootfs != "/" and abs_d.startswith(abs_rootfs):
+                    dirs_to_exclude.append(abs_d[len(abs_rootfs) :])
+
     dirs_to_exclude.extend(BASE_EXCLUDE_DIRS)
     hashes_map = path_digests(
         rootfs,
@@ -672,7 +745,7 @@ def process_ima_buf_in_measurement_list(
                 pieces = line.split(" ")
                 if len(pieces) != 6:
                     errmsg = f"Skipping line that was split into {len(pieces)} pieces, expected 6: {line}"
-                    logger.info(errmsg)
+                    logger.debug(errmsg)
                     continue
                 if pieces[2] not in ("ima-buf"):
                     continue
@@ -737,60 +810,200 @@ def process_signature_verification_keys(verification_keys: List[str], policy: Ru
     return policy
 
 
+def _get_digest_algorithm_from_hex(hexstring: str) -> str:
+    """Try to identify the algorithm used to generate the provided value by length"""
+    for alg in list(algorithms.Hash):
+        if len(hexstring) == algorithms.Hash(alg).hexdigest_len():
+            return str(alg)
+    return INVALID_ALGORITHM
+
+
+def _get_digest_algorithm_from_map_list(maplist: Dict[str, List[str]]) -> str:
+    """Assuming all digests in the policy uses the same algorithm, get the first
+    digest and try to obtain the algorithm from its length"""
+
+    algo = INVALID_ALGORITHM
+    if maplist:
+        digest_list = next(iter(maplist.values()))
+        if digest_list:
+            digest = digest_list[0]
+            if digest:
+                algo = _get_digest_algorithm_from_hex(digest)
+    return algo
+
+
 def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyType]:
     """Create a runtime policy from the input arguments."""
-    if args.algo and not (args.ramdisk_dir or args.rootfs):
-        logger.warning(
-            "You need to specify at least one of --ramdisk-dir or --rootfs to use a custom checksum algorithm"
-        )
+    policy = None
+    algo = None
+    base_policy_algo = None
+    allowlist_algo = None
+    ima_measurement_list_algo = None
 
-    algo = args.algo
-    if args.algo == "":
-        # Need to find the algo from the boot_aggregate.
-        algo, _ = boot_aggregate_from_file(args.ima_measurement_list)
+    allowlist_digests: Dict[str, List[str]] = {}
+    ima_digests: Dict[str, List[str]] = {}
+    rootfs_digests: Dict[str, List[str]] = {}
+    ramdisk_digests: Dict[str, List[str]] = {}
+    local_rpm_digests: Dict[str, List[str]] = {}
+    remote_rpm_digests: Dict[str, List[str]] = {}
 
-    policy = ima.empty_policy()
-
-    # Set hash algo.
-    policy["ima"]["log_hash_alg"] = algo
-
+    # If a base policy was provided, try to parse the file as JSON and import
+    # the values to the current policy format.
+    # Otherwise, use an empty policy as the base policy
     if args.base_policy:
-        merged_policy = merge_base_policy(policy, cast(str, args.base_policy))
-        if not merged_policy:
-            logger.error("Unable to merge base policy")
+        policy = update_base_policy(args.base_policy)
+        if not policy:
             return None
-        policy = merged_policy
+
+        digests = policy.get("digests", {})
+
+        # Try to get the digest algorithm from the lenght of the digest
+        base_policy_algo = _get_digest_algorithm_from_map_list(digests)
+
+        # If the guessed algorithm was SHA-256, it is actually ambiguous as it
+        # could be also SM3_256. Set as SHA256_OR_SM3
+        if base_policy_algo == algorithms.Hash.SHA256:
+            base_policy_algo = SHA256_OR_SM3
+    else:
+        policy = ima.empty_policy()
+
+    if args.algo:
+        if not (args.ramdisk_dir or args.rootfs):
+            logger.warning(
+                "You need to specify at least one of --ramdisk-dir or --rootfs to use a custom digest algorithm"
+            )
 
     if args.allowlist:
-        policy["digests"], ok = process_flat_allowlist(args.allowlist, policy["digests"])
+        allowlist_digests, ok = process_flat_allowlist(args.allowlist, {})
+        if not ok:
+            return None
+
+        # Try to get the digest algorithm from the lenght of the digest
+        allowlist_algo = _get_digest_algorithm_from_map_list(allowlist_digests)
+
+        # If the guessed algorithm was SHA-256, it is actually ambiguous as it
+        # could be also SM3_256. Set as SHA256_OR_SM3
+        if allowlist_algo == algorithms.Hash.SHA256:
+            allowlist_algo = SHA256_OR_SM3
+
+    if args.ima_measurement_list != EMPTY_IMA_MEASUREMENT_LIST:
+        ima_list = args.ima_measurement_list
+        if ima_list is None:
+            # Use the default list, when one is not specified.
+            ima_list = IMA_MEASUREMENT_LIST
+
+        logger.debug("Measurement list is %s", ima_list)
+        if not os.path.isfile(ima_list):
+            logger.warning("The IMA measurement list file '%s' does not seem to exist", ima_list)
+            return None
+
+        try:
+            # If not set, try to get the digest algorithm from the boot_aggregate.
+            ima_measurement_list_algo, _ = boot_aggregate_from_file(ima_list)
+        except Exception:
+            ima_measurement_list_algo = INVALID_ALGORITHM
+
+        ima_digests = {}
+        ima_digests, ok = get_hashes_from_measurement_list(ima_list, ima_digests)
         if not ok:
             return None
 
     if _has_rpm and rpm_repo:
         if args.local_rpm_repo:
             # FIXME: pass the IMA sigs as well.
-            policy["digests"], _imasigs, ok = rpm_repo.analyze_local_repo(
-                args.local_rpm_repo, digests=policy["digests"]
+            local_rpm_digests = {}
+            local_rpm_digests, _imasigs, ok = rpm_repo.analyze_local_repo(
+                args.local_rpm_repo, digests=local_rpm_digests
             )
             if not ok:
                 return None
         if args.remote_rpm_repo:
             # FIXME: pass the IMA sigs as well.
-            policy["digests"], _imasigs, ok = rpm_repo.analyze_remote_repo(
-                args.remote_rpm_repo, digests=policy["digests"]
+            remote_rpm_digests = {}
+            remote_rpm_digests, _imasigs, ok = rpm_repo.analyze_remote_repo(
+                args.remote_rpm_repo, digests=remote_rpm_digests
             )
             if not ok:
                 return None
 
-    if args.use_measurement_list:
-        logger.debug("Measurement list is %s", args.ima_measurement_list)
-        policy["digests"], ok = get_hashes_from_measurement_list(args.ima_measurement_list, policy["digests"])
-        if not ok:
-            return None
+    # Flag to indicate whether the operation should be aborted
+    abort = False
+
+    # Use the same digest algorithm used by the provided inputs, following the
+    # priority order: --algo > base policy > allowlist > IMA measurement list
+    for a, source in [
+        (args.algo, "--algo option"),
+        (base_policy_algo, "base policy"),
+        (allowlist_algo, "allowlist"),
+        (ima_measurement_list_algo, "IMA measurement list"),
+    ]:
+        if a == INVALID_ALGORITHM:
+            logger.warning("Invalid digest algorithm found in the %s", source)
+            abort = True
+            continue
+
+        # Skip unset options
+        if not a:
+            continue
+
+        # If the algorithm was previously set, check it against the algorithm
+        # from the current source
+        if algo:
+            if a != algo:
+                if algo == SHA256_OR_SM3:
+                    if a in [algorithms.Hash.SHA256, algorithms.Hash.SM3_256]:
+                        algo = a
+                        logger.debug("Using digest algorithm '%s' obtained from the %s", a, source)
+                        continue
+
+                logger.warning(
+                    "The digest algorithm in the %s does not match the previously set '%s' algorithm", source, algo
+                )
+                abort = True
+        else:
+            if a not in algorithms.Hash:
+                if a == SHA256_OR_SM3:
+                    algo = a
+                else:
+                    logger.warning("Invalid digests algorithm %s in the %s", a, source)
+                    abort = True
+                continue
+
+            algo = a
+
+            if abort:
+                continue
+
+            logger.debug("Using digest algorithm '%s' obtained from the %s", a, source)
+
+    if abort:
+        logger.warning("Aborting operation")
+        return None
+
+    if not algo:
+        logger.debug("Using default digest algorithm %s", DEFAULT_FILE_DIGEST_ALGORITHM)
+        algo = DEFAULT_FILE_DIGEST_ALGORITHM
+
     if args.ramdisk_dir:
-        policy["digests"] = get_initrds_digests(args.ramdisk_dir, policy["digests"], algo)
+        ramdisk_digests = {}
+        ramdisk_digests = get_initrds_digests(args.ramdisk_dir, ramdisk_digests, algo)
+
     if args.rootfs:
-        policy["digests"] = get_rootfs_digests(args.rootfs, args.skip_path, policy["digests"], algo)
+        rootfs_digests = {}
+        rootfs_digests = get_rootfs_digests(args.rootfs, args.skip_path, rootfs_digests, algo)
+
+    # Combine all obtained digests
+    for digests in [
+        allowlist_digests,
+        ima_digests,
+        rootfs_digests,
+        ramdisk_digests,
+        local_rpm_digests,
+        remote_rpm_digests,
+    ]:
+        if not digests:
+            continue
+        policy["digests"] = merge_maplists(policy["digests"], digests)
 
     if args.exclude_list_file:
         policy["excludes"], ok = process_exclude_list_file(args.exclude_list_file, policy["excludes"])

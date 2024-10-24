@@ -43,15 +43,14 @@ contain both the reference state (i.e. reference data about the various boot eve
 of the node and the rule/policy to evaluate the boot event log against that
 reference state.
 
-Keylime, at present, allows the operator to provide the reference state
-(a.k.a. measured boot reference state) which is used by the policy engine 'elchecking'
-(part of the verifier) to evaluate the boot event log according
-to the rule/policy specified. The rule/policy to evaluate the boot event log
-against the measured boot reference state is specified in `keylime.conf`,
-under the `[cloud_verifier]` section of the file, with parameter named
-`measured_boot_policy_name`. The default value for it is `accept-all`,
-meaning "just don't try to match the contents, just replay
-the log and make sure the values of PCRs [0-9] and [11-14] match".
+Keylime, at present, allows the operator to provide the reference state (a.k.a.
+measured boot reference state) which is used by the policy engine 'elchecking'
+(part of the verifier) to evaluate the boot event log according to the
+rule/policy specified. The rule/policy to evaluate the boot event log against
+the measured boot reference state is specified in `verifier.conf`, with
+parameter named `measured_boot_policy_name`. The default value for it is
+`accept-all`, meaning "just don't try to match the contents, just replay the log
+and make sure the values of PCRs [0-9] and [11-14] match".
 
 When the measured boot policy is provided by the operator while registering
 an agent node, the following actions will be taken.
@@ -59,7 +58,7 @@ an agent node, the following actions will be taken.
 1. PCRs [0-9] and [11-14] will be included in the quote sent by `keylime_agent`
 2. The `keylime_agent` will also send the contents of`/sys/kernel/security/tpm0/binary_bios_measurements`
 3. The `keylime_verifier` will replay the boot log from step 2, ensuring the correct values for PCRs collected in step 1. Again, this is very similar to what it is done with "IMA logs" and PCR 10.
-4. The very same `keylime_verifier` will take the boot log, now deemed "attested" and evluate it against the measured boot policy, causing the attestation to fail if it does not conform.
+4. The very same `keylime_verifier` will take the boot log, now deemed "attested" and evaluate it against the measured boot policy, causing the attestation to fail if it does not conform.
 
 How to use 
 ---------- 
@@ -69,7 +68,7 @@ by using the option '--mb-policy' with the command `keylime_tenant`.
 
 The simplest way to test this functionality is by providing an empty
 measured boot policy with the `accept-all` measured_boot_policy_name
-specified in `keylime.conf`, which will cause the `keylime_verifier`
+specified in `verifier.conf`, which will cause the `keylime_verifier`
 to simply skip the aforementioned step 4.
 
 An example follows::
@@ -85,7 +84,7 @@ the above options in the example, resulting in a configuration where a
 Evidently, to be fully used in a meaningful manner, keylime operators need to
 provide their own measured boot policies and custom python module supporting
 custom values of measured_boot_policy_name. The python module needs to be specified
-with `measured_boot_imports` under the `[cloud_verifier]` section in `keylime.conf`.
+with `measured_boot_imports` in the `verifier.conf`.
 
 The most convenient way to create a measured boot policy is starting from the contents
 of an UEFI boot log from a given node, and then tweak and customize it to make
@@ -122,7 +121,7 @@ tests are implemented.
 
 While an operator can attempt to write its own policy from scratch, it is
 recommended that one just copies `example.py` into `mypolicy.py`, change it as
-required and then just points to this policy for `measured_boot_policy_name` in `keylime.conf`
+required and then just points to this policy for `measured_boot_policy_name` in `verifier.conf`
 for its own use.
 
 Named Measured Boot Policy
