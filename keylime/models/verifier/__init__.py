@@ -1,1 +1,1 @@
-from keylime.models.verifier.attestation import Attestation
+from keylime.models.verifier.push_attestation import PushAttestation

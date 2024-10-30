@@ -208,19 +208,8 @@ class Tpm:
         return failure
 
     def _check_data_pcr(self, agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote):
-        
-        #TODO change fallback to pull
-        if config.get("verifier", "mode", fallback="push") == "push":
-            return
-          
         agent_id = agentAttestState.get_agent_id()
         pcr_nums = set(pcrs_dict.keys())
-        print("\n\n*********pcr_nums before hardcoding:", pcr_nums)
-
-
-        ##### TODO remove this debug Hardcoding PCR list
-        pcr_nums = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}
-        print("\n\n*********pcr_nums afer hardcoding:", pcr_nums)
 
         if config.TPM_DATA_PCR in pcr_nums and data is not None:
             expectedval = self.sim_extend(data, hash_alg)
@@ -249,13 +238,13 @@ class Tpm:
                 f"Data PCR {config.TPM_DATA_PCR} is missing in quote, but is required",
                 True,
             )
-    
+
     def check_pcrs(
         self,
         agentAttestState: AgentAttestState,
         tpm_policy: Union[str, Dict[str, Any]],
         pcrs_dict: Dict[int, str],
-        data: str,
+        data: Optional[str],
         ima_measurement_list: Optional[str],
         runtime_policy: Optional[RuntimePolicyType],
         ima_keyrings: Optional[ImaKeyrings],
@@ -289,14 +278,10 @@ class Tpm:
         pcrs_in_quote: Set[int] = set()  # PCRs in quote that were already used for some kind of validation
 
         pcr_nums = set(pcrs_dict.keys())
-        print("\n\n*********pcr_nums before hardcoding:", pcr_nums)
 
-
-        ##### TODO remoce this added for debug Hardcoding PCR list
-        pcr_nums = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}
-
-        # Validate data PCR
-        self._check_data_pcr(agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote)
+        # If additional data is provided, check its presence in the data PCR (defined by config.TPM_DATA_PCR)
+        if data is None:
+            self._check_data_pcr(agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote)
 
         # Check for ima PCR
         if config.IMA_PCR in pcr_nums:
@@ -448,8 +433,8 @@ class Tpm:
     def check_quote(
         self,
         agentAttestState: AgentAttestState,
-        nonce: str,
-        data: str,
+        nonce: bytes,
+        data: Optional[str],
         quote: str,
         aikTpmFromRegistrar: str,
         tpm_policy: Optional[Union[str, Dict[str, Any]]] = None,
@@ -561,7 +546,7 @@ class Tpm:
         _, hash_alg, _ = struct.unpack_from(">HHH", sigblob, 0)
         _, pcrs_dict = getattr(tpm_util, "__get_and_hash_pcrs")(pcrblob, hash_alg)
         return pcrs_dict
-    
+
     @staticmethod
     def sim_extend(hashval_1: str, hash_alg: Hash) -> str:
         """Compute expected value  H(0|H(data))"""
