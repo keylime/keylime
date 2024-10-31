@@ -40,11 +40,11 @@ def get_s_crtm(events):
 
 def get_platform_firmware(events):
     """
-    Get all platform specific files measured with EV_EFI_PLATFORM_FIRMWARE_BLOB events.
+    Get all platform specific files measured with EV_EFI_PLATFORM_FIRMWARE_BLOB/EV_EFI_PLATFORM_FIRMWARE_BLOB2 events.
     """
     out = []
     for event in events:
-        if event["EventType"] != "EV_EFI_PLATFORM_FIRMWARE_BLOB":
+        if event["EventType"] not in ["EV_EFI_PLATFORM_FIRMWARE_BLOB", "EV_EFI_PLATFORM_FIRMWARE_BLOB2"]:
             continue
         out.append(event_to_sha256(event))
     return {"platform_firmware": out}

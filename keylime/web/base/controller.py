@@ -15,6 +15,15 @@ if TYPE_CHECKING:
     from keylime.models.base.basic_model import BasicModel
     from keylime.web.base.action_handler import ActionHandler
 
+PathParams: TypeAlias = Mapping[str, str]
+QueryParams: TypeAlias = Mapping[str, str | Sequence[str]]
+MultipartParams: TypeAlias = Mapping[str, Union[str, bytes, Sequence[str | bytes]]]
+FormParams: TypeAlias = Union[QueryParams, MultipartParams]
+JSONConvertible: TypeAlias = Union[str, int, float, bool, None, "JSONObjectConvertible", "JSONArrayConvertible"]
+JSONObjectConvertible: TypeAlias = Mapping[str, JSONConvertible]
+JSONArrayConvertible: TypeAlias = Sequence[JSONConvertible]  # pyright: ignore[reportInvalidTypeForm]
+Params: TypeAlias = Mapping[str, Union[str, bytes, Sequence[str | bytes], JSONObjectConvertible, JSONArrayConvertible]]
+
 
 class Controller:
     """A controller represents a collection of actions that an API consumer can perform on a resource or set of
@@ -63,17 +72,6 @@ class Controller:
     well as methods for creating new records, modifying existing records and displaying records (these are all
     typically defined by each individual model).
     """
-
-    PathParams: TypeAlias = Mapping[str, str]
-    QueryParams: TypeAlias = Mapping[str, str | Sequence[str]]
-    MultipartParams: TypeAlias = Mapping[str, Union[str, bytes, Sequence[str | bytes]]]
-    FormParams: TypeAlias = Union[QueryParams, MultipartParams]
-    JSONConvertible: TypeAlias = Union[str, int, float, bool, None, "JSONObjectConvertible", "JSONArrayConvertible"]
-    JSONObjectConvertible: TypeAlias = Mapping[str, JSONConvertible]
-    JSONArrayConvertible: TypeAlias = Sequence[JSONConvertible]
-    Params: TypeAlias = Mapping[
-        str, Union[str, bytes, Sequence[str | bytes], JSONObjectConvertible, JSONArrayConvertible]
-    ]
 
     # Regex used to extract the API version from a URL, irrespective of how routes are defined
     VERSION_REGEX = re.compile("^\\/v(\\d+)(?:\\.(\\d+))*")
@@ -196,10 +194,10 @@ class Controller:
 
     def __init__(self, action_handler: "ActionHandler") -> None:
         self._action_handler: "ActionHandler" = action_handler
-        self._path_params: Optional[Controller.PathParams] = None
-        self._query_params: Optional[Controller.QueryParams] = None
-        self._form_params: Optional[Controller.FormParams] = None
-        self._json_params: Optional[Controller.JSONObjectConvertible] = None
+        self._path_params: Optional[PathParams] = None
+        self._query_params: Optional[QueryParams] = None
+        self._form_params: Optional[FormParams] = None
+        self._json_params: Optional[JSONObjectConvertible] = None
         self._major_version: Optional[int] = None
         self._minor_version: Optional[int] = None
 

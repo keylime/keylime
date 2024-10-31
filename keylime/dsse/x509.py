@@ -1,6 +1,4 @@
-"""x509 signing/verification implementation.
-SPDX-License-Identifier: Apache-2.0
-"""
+"""x509 signing/verification implementation."""
 
 import base64
 import datetime

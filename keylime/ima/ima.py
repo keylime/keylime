@@ -14,7 +14,7 @@ from keylime.common.algorithms import Hash
 from keylime.dsse import dsse
 from keylime.failure import Component, Failure
 from keylime.ima import ast, file_signatures, ima_dm
-from keylime.ima.file_signatures import ImaKeyrings
+from keylime.ima.file_signatures import IMA_KEYRING_JSON_SCHEMA, ImaKeyrings
 from keylime.ima.types import RuntimePolicyType
 
 logger = keylime_logging.init_logging("ima")
@@ -549,6 +549,12 @@ def validate_runtime_policy(runtime_policy: RuntimePolicyType) -> None:
     """
     try:
         jsonschema.validate(instance=runtime_policy, schema=RUNTIME_POLICY_SCHEMA)
+        verification_keys = runtime_policy.get("verification-keys", "")
+        if verification_keys:
+            # Verification keys is a string in JSON format. Parse it to verify
+            # against the schema
+            j = json.loads(verification_keys)
+            jsonschema.validate(instance=j, schema=IMA_KEYRING_JSON_SCHEMA)
     except Exception as error:
         msg = str(error).split("\n", 1)[0]
         raise ImaValidationError(message=f"{msg}", code=400) from error

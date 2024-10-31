@@ -1,8 +1,19 @@
 Installation
 ============
 
-There are three current methods for installing Keylime: the Ansible role, the
-Keylime installer or a manual installation.
+The current methods for installing Keylime are following: 
+as a package (RHEL 9+, SLE Micro), the Ansible role, the Keylime installer or a manual installation.
+
+RHEL 9 or later Installation
+----------------------------
+
+Please follow the documentation `here <https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/security_hardening/assembly_ensuring-system-integrity-with-keylime_security-hardening>`_.
+
+SLE Micro Installation
+----------------------
+
+Please follow the documetnation `here <https://documentation.suse.com/sle-micro/6.0/html/Micro-keylime/index.html>`_.
+
 
 Ansible Keylime Roles
 ---------------------
