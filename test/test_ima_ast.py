@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2021 Thore Sommer
-"""
-
 import unittest
 
 from keylime.common.algorithms import Hash

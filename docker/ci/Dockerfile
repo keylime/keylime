@@ -5,7 +5,7 @@
 # It is not recommended for use beyond testing scenarios.
 ##############################################################################
 
-FROM quay.io/fedora/fedora@sha256:0053784e743aecb195111752b07d24f787b29e69016ba47ecd3d10411829f73f
+FROM quay.io/fedora/fedora@sha256:1ba88682f9ccc835f87ea8b81b46cafbd0a0214c200d5eb9fdf2808b13cdd070
 MAINTAINER Luke Hinds <lhinds@redhat.com>
 LABEL version="1.2.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
@@ -81,8 +81,3 @@ RUN dnf makecache && \
 
 # Install cargo dependencies
 RUN cargo install cargo-tarpaulin
-
-# Move keylime.conf to expected location in /etc/
-RUN git clone https://github.com/keylime/keylime.git && \
-  cd keylime && \
-  cp keylime.conf /etc/keylime.conf

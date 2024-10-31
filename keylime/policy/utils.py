@@ -1,8 +1,5 @@
 """
 Module to assist with creating runtime policies.
-
-SPDX-License-Identifier: Apache-2.0
-Copyright 2024 Red Hat, Inc.
 """
 
 import enum

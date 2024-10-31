@@ -1,8 +1,6 @@
 r"""DSSE signing implementation.
 
 Based on the reference implementation at: https://github.com/secure-systems-lab/dsse/tree/master/implementation.
-
-SPDX-License-Identifier: Apache-2.0
 """
 
 import base64

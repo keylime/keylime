@@ -27,6 +27,7 @@ PYTHON_PIPS=
 TPM2_TOOLS_PKGS=
 NEED_EPEL=0
 POWERTOOLS=
+PYTHON_PEP668=0
 
 # Check to ensure version is at least minversion
 version_checker () {
@@ -56,12 +57,18 @@ case "$ID" in
         echo "${ID} selected."
         PACKAGE_MGR=$(command -v apt-get)
         PYTHON_PREIN="git patch"
-        PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-cryptography python3-requests python3-psutil gcc g++ libssl-dev swig python3-yaml python3-gpg python3-lark wget python3-alembic"
+        PYTHON_DEPS="python3 python3-pip python3-dev python3-setuptools python3-zmq python3-tornado python3-cryptography python3-requests python3-psutil gcc g++ libssl-dev swig python3-yaml python3-gpg python3-lark python3-pyasn1 python3-pyasn1-modules python3-jsonschema python3-typing-extensions wget python3-alembic"
         if [ "$(uname -m)" = "x86_64" ]; then
             PYTHON_DEPS+=" libefivar-dev"
         fi
         BUILD_TOOLS="build-essential libtool automake pkg-config m4 libgcrypt20-dev uthash-dev autoconf autoconf-archive libcurl4-gnutls-dev gnulib doxygen libdbus-1-dev uuid-dev libjson-c-dev"
         $PACKAGE_MGR update
+        case "${VERSION_ID}" in
+          12 | 13 | 23.04 | 23.10 | 24.04 | 24.10 )
+            PYTHON_PEP668=1
+          ;;
+        esac
+
         case "${VERSION_ID}" in
           # Ubuntu 18.04, Debian 9 and 10 don't ship with a new enough version of tpm2-tools/tpm2-tss
           18.04 | 9 | 10 )
@@ -412,7 +419,12 @@ cd $KEYLIME_DIR
 if [[ "$NEED_PYTHON_DIR" -eq "1" ]] ; then
     mkdir -p /usr/local/lib/python3.6/site-packages/
 fi
-python3 -m pip install . -r requirements.txt
+
+if $PYTHON_PEP668; then
+    python3 -m pip install . -r requirements.txt  --break-system-packages
+else
+    python3 -m pip install . -r requirements.txt
+fi
 
 echo
 echo "=================================================================================="

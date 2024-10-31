@@ -2,9 +2,6 @@
 
 """
 Utility to assist with runtime policies.
-
-SPDX-License-Identifier: Apache-2.0
-Copyright 2024 Red Hat, Inc.
 """
 
 import argparse
@@ -20,11 +17,11 @@ except ModuleNotFoundError:
 
 from keylime.policy import create_runtime_policy
 
-logger = logging.getLogger("keylime_policy")
+logger = logging.getLogger("keylime-policy")
 
 
 def main() -> None:
-    """keylime_policy entry point."""
+    """keylime-policy entry point."""
     if os.geteuid() != 0:
         logger.critical("Please, run this program as root")
         sys.exit(1)
