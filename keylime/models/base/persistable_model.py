@@ -204,7 +204,9 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             self._committed[name] = value
 
             field = type(self).fields[name]
-            setattr(self._db_mapping_inst, name, field.data_type.db_dump(value, db_manager.engine.dialect))
+
+            if field.persist:
+                setattr(self._db_mapping_inst, name, field.data_type.db_dump(value, db_manager.engine.dialect))
 
         with db_manager.session_context() as session:
             session.add(self._db_mapping_inst)
