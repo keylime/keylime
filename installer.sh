@@ -26,7 +26,7 @@ PYTHON_PIPS=
 TPM2_TOOLS_PKGS=
 NEED_EPEL=0
 POWERTOOLS=
-PYTHON_PEP668=0 
+PYTHON_PEP668=0
 
 # Check to ensure version is at least minversion
 version_checker () {
@@ -221,7 +221,7 @@ echo $'\t\t\tInstalling python & crypto libs'
 echo "=================================================================================="
 
 # Epel install for CentOS
-if [[ "$NEED_EPEL" -eq "1" ]] ; then
+if [[ "$NEED_EPEL" = "1" ]] ; then
     $PACKAGE_MGR -y install epel-release
     if [[ $? -ne 0 ]] ; then
         echo "ERROR: EPEL package failed to install properly!"
@@ -230,7 +230,7 @@ if [[ "$NEED_EPEL" -eq "1" ]] ; then
 fi
 
 # Epel install for RHEL
-if [[ "$NEED_EPEL" -eq "2" ]] ; then
+if [[ "$NEED_EPEL" = "2" ]] ; then
     case "${VERSION_ID}" in
         8*)
             subscription-manager repos --enable codeready-builder-for-rhel-8-$(arch)-rpms
@@ -302,7 +302,7 @@ fi
 
 
 # Download Keylime (if necessary)
-if [[ "$STUB" -eq "1" ]] ; then
+if [[ "$STUB" = "1" ]] ; then
     if [[ -z "$KEYLIME_DIR" ]] ; then
         KEYLIME_DIR=`pwd`
         KEYLIME_DIR+="/keylime"
@@ -338,7 +338,7 @@ fi
 echo "INFO: Using Keylime directory: $KEYLIME_DIR"
 
 # Prepare to build TPM libraries
-if [[ "$NEED_BUILD_TOOLS" -eq "1" ]] ; then
+if [[ "$NEED_BUILD_TOOLS" = "1" ]] ; then
     echo
     echo "=================================================================================="
     echo $'\t\t\tInstalling TPM libraries and build tools'
@@ -429,7 +429,7 @@ echo "==========================================================================
 echo $'\t\t\t\tInstall Keylime'
 echo "=================================================================================="
 cd $KEYLIME_DIR
-if [[ "$PYTHON_PEP668" -eq "1" ]] ; then
+if [[ "$PYTHON_PEP668" = "1" ]] ; then
     python3 -m pip install . -r requirements.txt  --break-system-packages
 else
     python3 -m pip install . -r requirements.txt
@@ -445,7 +445,7 @@ mkdir -p config
 python3 -m keylime.cmd.convert_config --defaults --out config --templates templates
 
 # set the default binding and listening IP about the agent, verifier, and registrar server as 0.0.0.0 when LISTEN_ALL_IPS is set 1
-if [[ "$LISTEN_ALL_IPS" -eq "1" ]] ; then
+if [[ "$LISTEN_ALL_IPS" = "1" ]] ; then
     for comp in "agent" "verifier" "registrar"; do
         sed -i 's/^ip = "127.0.0.1"/ip = "0.0.0.0"/' config/$comp.conf
     done
