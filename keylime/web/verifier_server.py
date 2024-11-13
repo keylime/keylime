@@ -14,8 +14,12 @@ class VerifierServer(Server):
         self._delete("/v:version/agents/:agent_id", AgentsController, "delete")
         self._post("/v:version/agents/:agent_id/reactivate", AgentsController, "reactivate")
         self._post("/v:version/agents/:agent_id/stop", AgentsController, "stop")
+        self._get("/v:version/agents/:agent_id/attestations", PushAttestationController, "index", allow_insecure=True)
+        self._get("/v:version/agents/:agent_id/attestations/:index", PushAttestationController, "show",
+                  allow_insecure=True)
+        self._get("/v:version/agents/:agent_id/attestations/latest", PushAttestationController, "show_latest",
+                  allow_insecure=True)
         self._post("/v:version/agents/:agent_id/attestations", PushAttestationController, "create", allow_insecure=True)
-        self._get("/v:version/agents/:agent_id/attestations", PushAttestationController, "show", allow_insecure=True)
         self._put(
             "/v:version/agents/:agent_id/attestations/latest", PushAttestationController, "update", allow_insecure=True
         )

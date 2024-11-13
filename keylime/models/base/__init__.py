@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Boolean, Float, Integer, LargeBinary, SmallInteger, String, Text
+from sqlalchemy import BigInteger, Boolean, Float, Integer, SmallInteger, String, Text
 
 from keylime.models.base.basic_model import BasicModel
 from keylime.models.base.da import da_manager
@@ -17,7 +17,6 @@ __all__ = [
     "Boolean",
     "Float",
     "Integer",
-    "LargeBinary",
     "SmallInteger",
     "String",
     "Text",

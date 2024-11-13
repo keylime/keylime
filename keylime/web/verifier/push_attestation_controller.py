@@ -8,6 +8,7 @@ from keylime import keylime_logging
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierAttestations, VerifierMbpolicy
 from keylime.models.verifier import PushAttestation
+from keylime.models.base import Timestamp
 from keylime.web.base import Controller
 
 logger = keylime_logging.init_logging("verifier")
@@ -74,7 +75,9 @@ class PushAttestationController(Controller):
     Previous attestations are retained according to the following rules:
 
         * The last attestation is retained if its status is verified or failed.
-        * Once an attestation is verified, the previous attestation is deleted if its status is also verified.
+        * The first attestation received after a reboot is always retained.
+        * Once an attestation is verified, the previous attestation is deleted if its status is also verified unless the
+          preceeding rule applies.
         * Failed attestations are always retained.
         * If an attestation is created while the previous attesation has a status of waiting, that previous attestation
           is replace by the new attestation.
@@ -89,14 +92,24 @@ class PushAttestationController(Controller):
           assuming the verification timeout has not been exceeded
     """
 
-    # GET /v2[.:minor]/agents/
-    def index(self, **_params):
-        results = PushAttestation.all_ids()
-
-        self.respond(200, "Sucess", {"uuids": results})
-
     # GET /v2[.:minor]/agents/:agent_id/attestations
-    def show(self, agent_id, **_params):
+    def index(self, agent_id, **_params):
+        results = PushAttestation.all(agent_id=agent_id)
+
+        self.respond(200, "Sucess", [attestation.render() for attestation in results])
+
+    # GET /v2[.:minor]/agents/:agent_id/attestations/:index
+    def show(self, agent_id, index, **_params):
+        attestation = PushAttestation.get(agent_id=agent_id, index=index)
+
+        if not attestation:
+            self.respond(404, f"Agent with ID '{agent_id}' not found")
+            return
+
+        self.respond(200, "Success", attestation.render())
+
+    # GET /v2[.:minor]/agents/:agent_id/attestations/latest
+    def show_latest(self, agent_id, **_params):
         last_attestation = PushAttestation.get_last(agent_id=agent_id)
 
         if not last_attestation:
@@ -110,48 +123,27 @@ class PushAttestationController(Controller):
         # TODO: Replace with calls to VerifierAgent.get(...)
         # get agent from verifiermain
         session = get_session()
-        agent = session.query(VerfierMain).filter(VerifierAttestations.agent_id == agent_id).one_or_none()
-
+        #agent = session.query(VerfierMain).filter(VerifierAttestations.agent_id == agent_id).one_or_none()
+        agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
+        
         if not agent:
             self.respond(404)
             return
 
         if agent.accept_attestations is False:
             self.respond(503)
+            return """
+
+        """ # Reject request if a previous attestation is still being processed
+        retry_seconds = PushAttestation.accept_new_attestations_in(agent_id, agent, session)
+
+        if retry_seconds:
+            self.action_handler.set_header("Retry-After", retry_seconds)
+            self.respond(429)
             return
 
-        # get last attestation entry for the agent
-        last_attestation = PushAttestation.get_last(agent_id) or PushAttestation.load_from_agent(agent, session)
+        new_attestation = PushAttestation.create(agent_id, agent, session, params)
 
-        if last_attestation:
-            if last_attestation.status == "waiting":
-                last_attestation.delete()
-            else:
-                current_timestamp = int(time.time())
-
-                # Reject attestation creation request if received before expected
-                if current_timestamp < last_attestation.next_attestation_expected_after:
-                    retry_after = last_attestation.next_attestation_expected_after - current_timestamp
-                    self.action_handler.set_header("Retry-After", retry_after)
-                    self.respond(429)
-                    return
-
-                # Reject attestation creation request if received before verification of the last attestation has
-                # completed assuming the verification timeout has not been exceeded
-                if last_attestation.status == "received" and current_timestamp <= last_attestation.decision_expected_by:
-                    retry_after = last_attestation.decision_expected_by + current_timestamp
-                    self.action_handler.set_header("Retry-After", retry_after)
-                    self.respond(429)
-                    return
-
-                # Accept attestation creation request and delete stale attestation if verification of the previous
-                # attestation did not complete before the verification timeout
-                if last_attestation.status == "received" and current_timestamp > last_attestation.decision_expected_by:
-                    last_attestation.delete()
-
-        new_attestation = PushAttestation.create(agent_id, agent, params)
-        # Resolving the below pylint warning would negatively impact the readability of this method definition
-        # pylint: disable=no-else-return
         if new_attestation.errors:
             msgs = []
             for field, errors in new_attestation.errors.items():
@@ -159,23 +151,29 @@ class PushAttestationController(Controller):
                     msgs.append(f"{field} {error}")
             self.respond(400, "Bad Request", {"errors": msgs})
             return
-        else:
+
+        try:
             new_attestation.commit_changes()
-            response = new_attestation.render(
-                [
-                    "agent_id",
-                    "nonce",
-                    "nonce_created_at",
-                    "nonce_expires_at",
-                    "status",
-                    "hash_alg",
-                    "enc_alg",
-                    "sign_alg",
-                    "starting_ima_offset",
-                ]
-            )
-            response = {**response, "pcr_mask": agent.tpm_policy}
-            self.respond(200, "Success", response)
+        except ValueError:
+            # 
+            self.respond(429)
+            return
+        
+        response = new_attestation.render(
+            [
+                "agent_id",
+                "nonce",
+                "nonce_created_at",
+                "nonce_expires_at",
+                "status",
+                "hash_alg",
+                "enc_alg",
+                "sign_alg",
+                "starting_ima_offset",
+            ]
+        )
+        response = {**response, "pcr_mask": agent.tpm_policy}
+        self.respond(200, "Success", response)
 
     def update(self, agent_id, **params):
         # TODO: Replace with calls to VerifierAgent.get(...) and IMAPolicy.get(...)
@@ -192,16 +190,14 @@ class PushAttestationController(Controller):
             return
 
         if attestation.status != "waiting":
-            self.respond(503)
+            self.respond(403)
             return
 
-        current_timestamp = int(time.time())
-
-        if attestation.nonce_expires_at < current_timestamp:
+        if attestation.nonce_expires_at < Timestamp.now():
             self.respond(400, "too many request")
             return
 
-        attestation.update(params, agent)
+        attestation.update(params, agent, allowlist.ima_policy)
 
         # last_attestation will contain errors if the JSON request is malformed/invalid (e.g., if an unrecognised hash
         # algorithm is provided) but not if the quote verification fails (including if the quote cannot be verified as
@@ -217,7 +213,7 @@ class PushAttestationController(Controller):
         session.add(agent)
 
         attestation.commit_changes()
-        response = {"time_to_next_attestation": attestation.next_attestation_expected_after - current_timestamp}
+        response = {"time_to_next_attestation": attestation.next_attestation_expected_after - Timestamp.now()}
         self.respond(200, "Success", response)
 
         # Verify attestation after response is sent, so that the agent does not need to wait for the verification to
