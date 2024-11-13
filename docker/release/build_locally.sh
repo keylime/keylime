@@ -16,7 +16,17 @@ if [ -z "${IMAGE_BASE}" ]; then
 fi
 
 FEDORA_IMAGE="${REGISTRY}/fedora/fedora"
-FEDORA_DIGEST="$(skopeo inspect docker://${FEDORA_IMAGE}:latest | jq '.Digest')"
+QUERY_RESULT="$(skopeo inspect docker://${FEDORA_IMAGE}:latest)"
+ret=$?
+if [[ $ret -eq 127 ]]; then
+    echo "Failed to get latest Fedora image digest. Please install skopeo."
+    exit 127
+elif [[ $ret -ne 0 ]]; then
+    echo "Failed to get latest Fedora image digest."
+    exit $ret
+else
+    FEDORA_DIGEST="$(jq '.Digest' <<<"$QUERY_RESULT")"
+fi
 
 # Prepare base image Dockerfile
 sed -i "s#\(FROM \)[^ ]*#\1${FEDORA_IMAGE}@${FEDORA_DIGEST}#" base/Dockerfile.in
