@@ -1,9 +1,11 @@
 from keylime.models.base import *
 
+
 class AdditionalInfo(BasicModel):
     @classmethod
     def _schema(cls):
         pass
+
 
 class IdentityOverride(BasicModel):
     @classmethod
@@ -12,9 +14,10 @@ class IdentityOverride(BasicModel):
         cls._field("action", OneOf("replace_value", "add_binding", "remove_binding", "change_trust_decision"))
 
         # Action-specific fields:     # ACTION
-        cls._field("value", String)   # "replace_value"
+        cls._field("value", String)  # "replace_value"
         cls._field("parent", String)  # "add_binding"; "remove_binding"
         cls._field("status", String)  # "change_trust_decision"
+
 
 class IdentityDecisionUpdate(BasicModel):
     @classmethod
@@ -25,12 +28,12 @@ class IdentityDecisionUpdate(BasicModel):
     @classmethod
     def receive(cls, data):
         decision_update = cls.empty()
-        
+
         for overrride_data in data.get("identity_overrides"):
             override = IdentityOverride.empty()
             override.cast_changes(overrride_data, ["identity", "action", "value", "parent", "status"])
 
         return decision_update
-    
+
     def apply(self, agent):
         pass

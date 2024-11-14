@@ -52,10 +52,9 @@ def upgrade_cloud_verifier():
         sa.Column("nonce_expires_at", sa.String(32)),
         sa.Column("evidence_received_at", sa.String(32), nullable=True),
         sa.Column("boottime", sa.String(32)),
-        sa.PrimaryKeyConstraint("agent_id", "index")
+        sa.PrimaryKeyConstraint("agent_id", "index"),
     )
     op.add_column("verifiermain", sa.Column("accept_attestations", sa.Boolean))
-
 
 
 def downgrade_cloud_verifier():

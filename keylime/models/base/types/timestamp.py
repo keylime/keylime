@@ -7,7 +7,6 @@ from keylime.models.base.type import ModelType
 
 
 class Timestamp(ModelType):
-
     IncomingValue: TypeAlias = Union[datetime, str, int, float, None]
 
     @staticmethod
@@ -24,7 +23,7 @@ class Timestamp(ModelType):
             return value.replace(tzinfo=timezone.utc)
         else:
             return value.astimezone(tz=timezone.utc)
-        
+
     def _load_str(self, value: str) -> datetime:
         ts: Optional[datetime] = None
 
@@ -46,18 +45,18 @@ class Timestamp(ModelType):
             )
 
         return self._load_datetime(ts)
-    
+
     def _load_float(self, value: float) -> datetime:
         ts = datetime.fromtimestamp(value)
         return self._load_datetime(ts)
-    
+
     def _load_int(self, value: int) -> datetime:
         return self._load_float(float(value))
 
     def cast(self, value: IncomingValue) -> Optional[datetime]:
         if not value:
             return None
-        
+
         if isinstance(value, datetime):
             return self._load_datetime(value)
         elif isinstance(value, str):
@@ -84,15 +83,15 @@ class Timestamp(ModelType):
         if not ts:
             return None
 
-        return ts.isoformat(timespec='microseconds')
+        return ts.isoformat(timespec="microseconds")
 
     def render(self, value: IncomingValue) -> Optional[str]:
         ts = self.cast(value)
 
         if not ts:
             return None
-        
-        return ts.isoformat(timespec='microseconds')
+
+        return ts.isoformat(timespec="microseconds")
 
     @property
     def native_type(self) -> type:

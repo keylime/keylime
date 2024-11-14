@@ -1,7 +1,8 @@
 from keylime.models.base import *
 
+
 class APIModel(BasicModel):
-    def render(self, only = None):
+    def render(self, only=None):
         output = super().render(only)
         output_copy = output.copy()
 
@@ -11,6 +12,7 @@ class APIModel(BasicModel):
                 del output[name]
 
         return output
+
 
 class APIDocument(APIModel):
     @classmethod
@@ -28,13 +30,13 @@ class APIDocument(APIModel):
     def create_data_doc(cls, type, data, id=None):
         if not isinstance(data, (dict, list)):
             raise TypeError("cannot create JSON:API document: 'data' must be a dictionary or list")
-        
+
         document = cls.empty()
         document.multiresource = isinstance(data, list)
 
         if isinstance(data, dict):
             data = [data]
-        
+
         for element in data:
             if not isinstance(element, dict):
                 raise TypeError("cannot create JSON:API document: each element in 'data' must be a dictionary")
@@ -48,7 +50,7 @@ class APIDocument(APIModel):
     def create_errors_doc(cls, errors):
         if not isinstance(errors, list):
             raise TypeError("cannot create JSON:API document: 'errors' must be a list")
-        
+
         document = cls.empty()
 
         for error in errors:
@@ -68,18 +70,18 @@ class APIDocument(APIModel):
 
         if not self.multiresource:
             return record_set
-        
+
         if len(record_set) == 1:
             (record,) = record_set
             return record
         else:
             return None
-    
+
     @property
     def errors(self):
         return self.values.get("errors")
 
-    def render(self, only = None):
+    def render(self, only=None):
         if not self.data and not self.errors and not self.meta:
             raise ValueError("invalid JSON:API document: at least one of 'data', 'errors' or 'meta' is required")
 
@@ -100,6 +102,7 @@ class APIDocument(APIModel):
                 )
 
         return output
+
 
 class APIResource(APIModel):
     @classmethod

@@ -1,7 +1,7 @@
-from datetime import timedelta
-import json
 import copy
-from typing import Optional
+import json
+from datetime import timedelta
+from typing import Any, Optional
 
 from keylime import config, keylime_logging
 from keylime.agentstates import AgentAttestState, TPMState
@@ -21,10 +21,6 @@ def get_tpm_instance() -> Tpm:
     if GLOBAL_TPM_INSTANCE is None:
         GLOBAL_TPM_INSTANCE = Tpm()
     return GLOBAL_TPM_INSTANCE
-
-
-def get_AgentAttestStates() -> AgentAttestStates:
-    return AgentAttestStates.get_instance()
 
 
 class PushAttestation(PersistableModel):
@@ -116,7 +112,7 @@ class PushAttestation(PersistableModel):
     for each attestation is retained.
     """
 
-    def __init__(self, data: dict | object | None = None, process_associations: bool = True) -> None:
+    def __init__(self, data: dict[str, Any] | object | None = None, process_associations: bool = True) -> None:
         super().__init__(data, process_associations)
         self._previous_successful_attestation = None
         self._previous_authenticated_attestation = None
@@ -132,12 +128,12 @@ class PushAttestation(PersistableModel):
 
         cls._persist_as("attestations")
         cls._field("agent_id", String(80), primary_key=True)  # pylint: disable=unexpected-keyword-arg
-        cls._field("index", Integer, primary_key=True)
+        cls._field("index", Integer, primary_key=True) # pylint: disable=unexpected-keyword-arg
 
         # The nonce to be used by the agent for an Attestation
         cls._field("nonce", Nonce)
         # The timestamp of when the nonce was created
-        cls._field("nonce_created_at", Timestamp)  # pylint: disable=unexpected-keyword-arg
+        cls._field("nonce_created_at", Timestamp)
         # The timestamp of when the nonce is expired
         cls._field("nonce_expires_at", Timestamp)
         # Indicates the state of the attestation
@@ -177,7 +173,7 @@ class PushAttestation(PersistableModel):
         """
         last_attestation = PushAttestation.get_last(agent_id)
 
-        if not last_attestation: 
+        if not last_attestation:
             attestation = PushAttestation.new_from_agent(agent, data)
 
         attestation = PushAttestation.empty()
@@ -200,7 +196,7 @@ class PushAttestation(PersistableModel):
             data.get("supported_hash_algs"), data.get("supported_enc_algs"), data.get("supported_sign_algs"), agent
         )
         # Check if previous attestations exist which need to be deleted
-        attestation._cleanup_stale_attestations(agent_id)
+        attestation._cleanup_stale_attestations(agent_id, agent, data)
 
         return attestation
 
@@ -236,7 +232,6 @@ class PushAttestation(PersistableModel):
 
         attestation.starting_ima_offset = agent.next_ima_ml_entry
         # attestation.tpm_pcrs = { 10: agent.pcr10 }
-        
 
         return attestation
 
@@ -248,7 +243,7 @@ class PushAttestation(PersistableModel):
         return PushAttestation.get(agent_id=agent_id, status="verified")
 
     @classmethod
-    def accept_new_attestations_in(cls, agent_id, agent, session):
+    def accept_new_attestations_in(cls, agent_id: str):
         last_attestation = PushAttestation.get_last(agent_id=agent_id)
 
         if not last_attestation:
@@ -266,13 +261,13 @@ class PushAttestation(PersistableModel):
         # timeout has not been exceeded
         if last_attestation.status == "received" and current_timestamp <= last_attestation.decision_expected_by:
             return last_attestation.decision_expected_by + current_timestamp
-        
+
         return 0
 
     def _set_index(self):
         if self.committed.get("index"):
             return
-        
+
         last_attestation = PushAttestation.get_last(self.agent_id)
         self.index = PushAttestation.get_last(self.agent_id).index + 1 if last_attestation else 0
 
@@ -303,7 +298,7 @@ class PushAttestation(PersistableModel):
     def _set_ima_offset(self):
         if not self.boottime:
             return
-        
+
         if not self.previous_attestation or not self.previous_authenticated_attestation:
             self.starting_ima_offset = 0
         elif self.boottime > self.previous_attestation.boottime:
@@ -350,8 +345,8 @@ class PushAttestation(PersistableModel):
                     "sign_alg", f"supported_sign_alg not in list of accpeted_tpm_sign_algs for agent '{agent.agent_id}'"
                 )
 
-    def _cleanup_stale_attestations(self, agent_id):
-        last_attestation = PushAttestation.get_last(agent_id) or PushAttestation.new_from_agent(agent, session)
+    def _cleanup_stale_attestations(self, agent_id, agent, data):
+        last_attestation = PushAttestation.get_last(agent_id) or PushAttestation.new_from_agent(agent, data)
 
         if not last_attestation:
             return
@@ -369,20 +364,21 @@ class PushAttestation(PersistableModel):
     def _validate_ima_entries(self, starting_ima_offset_received, runtime_policy):
         if runtime_policy and not self.ima_entries:
             self._add_error("ima_entries", "is required by agent policy")
-        
+
         if self.ima_entries and not runtime_policy:
             self._add_error("ima_entries", "is not expected according to agent policy")
-        
+
         if starting_ima_offset_received != self.starting_ima_offset:
             self._add_error("starting_ima_offset", "is not the expected starting ima offset for this attestation")
-        
+
         if starting_ima_offset_received == 0:
             ima_entries = self.ima_entries or ""
-            first_entry = ima_entries.split('\n')[0]
+            first_entry = ima_entries.split("\n")[0]
             if "boot_aggregate" not in first_entry:
-                self._add_error("ima_entries", "should start with a 'boot_aggregate' entry when the starting offset is 0")
+                self._add_error(
+                    "ima_entries", "should start with a 'boot_aggregate' entry when the starting offset is 0"
+                )
 
-    
     def _parse_evidence(self, ima_entries, mb_entries, agent):
         # TODO: Rename "_extract_fields_from_tpm_quote"
         tpm_pcrs_dict = Tpm.get_pcrs_from_quote(self.tpm_quote, (agent.supported_version == "1.0"))
@@ -393,7 +389,7 @@ class PushAttestation(PersistableModel):
         if ima_entries:
             self.ima_entries = ima_entries
 
-    def update(self, data, agent, runtime_policy): 
+    def update(self, data, agent, runtime_policy):
         """Updates the attestation entry with evidence recieved from the agent"""
 
         # TODO: Add errors for the following conditions, in separate method
@@ -415,6 +411,60 @@ class PushAttestation(PersistableModel):
         # Set the timepstamp of when the quote was received
         self._set_timestamps()
 
+    def _set_failure_type(self, failure: Failure):
+        if not failure:
+            logger.info("Attestation %s for agent '%s' verified successfully", self.index, self.agent_id)
+            return
+
+        events = failure.events
+
+        for event in events:
+            if event.event_id == "quote_validation.quote_validation":
+                self.failure_type = "quote_authentication"
+
+                logger.warning(
+                    "Attestation %s for agent '%s' failed verification because the TPM quote could not be authenticated",
+                    self.index,
+                    self.agent_id,
+                )
+
+                return
+
+            if event.event_id.startswith("measured_boot.invalid_pcr_"):
+                self.failure_type = "log_authentication"
+
+                logger.warning(
+                    "Attestation %s for agent '%s' failed verification because the boot log could not be authenticated "
+                    "against the TPM quote",
+                    self.index,
+                    self.agent_id,
+                )
+
+                return
+
+            if event.event_id == "ima.pcr_mismatch":
+                self.failure_type = "log_authentication"
+
+                logger.warning(
+                    "Attestation %s for agent '%s' failed verification because the IMA log could not be authenticated "
+                    "against the TPM quote",
+                    self.index,
+                    self.agent_id,
+                )
+
+                return
+
+        self.failure_type = "policy_violation"
+
+        logger.warning(
+            "Attestation %s for agent '%s' failed verification because of the following policy violations:",
+            self.index,
+            self.agent_id,
+        )
+
+        for event in failure.events:
+            logger.warning("  - %s", event.context)
+
     def verify_evidence(self, runtime_policy, mb_policy: Optional[str], agent, session):
         """Verifies the evidence recieved from the agent and set the attestation status. ('verified' or 'failed' based
         on verification)
@@ -423,7 +473,7 @@ class PushAttestation(PersistableModel):
         user.
 
         """
-        logger.debug("Starting verification of attestation %s for agent '%s'...", self.index, self.agent_id)
+        logger.debug("Starting verification of attestation %s for agent '%s'...", self.index, agent.agent_id)
 
         # TODO: Replace session
         failure = Failure(Component.QUOTE_VALIDATION)
@@ -474,51 +524,32 @@ class PushAttestation(PersistableModel):
 
         self.status = "verified" if not failure else "failed"
         agent.accept_attestations = self.status == "verified"
+        self._set_failure_type(failure)
 
-        if "quote_validation" in failure.get_event_ids():
-            self.failure_type = "quote_authentication"
-
-            logger.warning(
-                "Attestation %s for agent '%s' failed verification because the TPM quote could not be authenticated",
-                self.index,
-                self.agent_id
-            )
-
-        # TODO: Add case for log authentication failure
-
-        elif failure:
-            self.failure_type = "policy_violation"
-
-            logger.warning(
-                "Attestation %s for agent '%s' failed verification because of the following policy violations:",
-                self.index,
-                self.agent_id
-            )
-
-            for event in failure.events:
-                logger.warning("  - %s", event.context)
-
-        else:
-            logger.info("Attestation %s for agent '%s' verified successfully", self.index, self.agent_id)
-
-            if self.previous_attestation and self.previous_attestation.status == "verified" and self.previous_attestation.starting_ima_offset != 0:
-                self.previous_attestation.delete()
+        if (
+            self.status == "verified"
+            and self.previous_attestation
+            and self.previous_attestation.status == "verified"
+            and self.previous_attestation.starting_ima_offset != 0
+        ):
+            self.previous_attestation.delete()
 
         # Only save new learned keyrings if quote was authenticated
         if self.failure_type != "quote_authentication":
             agent.learned_ima_keyrings = attest_state.get_ima_keyrings().to_json()
 
         self.commit_changes()
-    
+
     def _clear_agent_fields(self, agent, session):
         if PushAttestation.get_last(self.agent_id):
             return
-        
+
         agent.hash_alg = None
         agent.enc_alg = None
         agent.sign_alg = None
         agent.operational_state = None
         agent.ima_sign_verification_keys = None
+        agent.ima_pcr = None  # This is ignored by Tpm.check_quote()
         agent.pcr10 = None
         agent.next_ima_ml_entry = None
         agent.severity_level = None
@@ -545,19 +576,17 @@ class PushAttestation(PersistableModel):
             only = ["agent_id", "status", "tpm_quote", "evidence_received_at", "tpm_pcrs", "starting_ima_offset"]
 
         return super().render(only)
-    
+
     @property
     def previous_authenticated_attestation(self):
         if not self._previous_authenticated_attestation:
             if not self.agent_id:
                 return None
-            
-            # TODO: Move sorting logic into model query API and possibly improve query expressiveness (Jean) 
+
+            # TODO: Move sorting logic into model query API and possibly improve query expressiveness (Jean)
 
             all_attestations = PushAttestation.all(agent_id=self.agent_id)
-            all_attestations = sorted(
-                all_attestations, key=lambda attestation: attestation.index, reverse=True
-            )
+            all_attestations = sorted(all_attestations, key=lambda attestation: attestation.index, reverse=True)
 
             previous_authenticated_attestation = None
             for attestation in all_attestations:
@@ -644,28 +673,28 @@ class PushAttestation(PersistableModel):
             basis = self.nonce_created_at + timedelta(seconds=config.getint("verifier", "quote_interval"))
 
         return basis + timedelta(seconds=config.getint("verifier", "verification_timeout"))
-    
+
     @property
     def tpm_clock_info(self):
         if not self.tpm_quote:
             return None
-        
+
         return Tpm._tpm2_clock_info_from_quote(self.tpm_quote, False)
-    
+
     # TODO: make this a property
     def ima_pcrs(self, agent):
         if not self.tpm_pcrs:
             return None
-        
+
         return {pcr_num: self.tpm_pcrs.get(pcr_num) for pcr_num in agent.ima_pcrs}
-    
+
     @property
     def received_ima_entries_count(self):
         if not self.ima_entries:
             return 0
-        
+
         return self.ima_entries.count("\n")
-    
+
     # TODO: make this a property
     def attest_state(self, agent, runtime_policy):
         if not self._attest_state:
@@ -685,7 +714,7 @@ class PushAttestation(PersistableModel):
             policy_keys = runtime_policy["verification-keys"]
             policy_keyring = file_signatures.ImaKeyring.from_string(policy_keys)
             ima_keyrings.set_tenant_keyring(policy_keyring)
-            
+
             if self.status in ("verified", "failed"):
                 self._attest_state.quote_progress = (self.quoted_ima_entries_count, self.received_ima_entries_count)
 
@@ -693,7 +722,7 @@ class PushAttestation(PersistableModel):
         # genuine. As a result, we only set these values once verification has completed and no authentication failure
         # has occured
         if self.status in ("verified", "failed") and self.failure_type != "quote_authentication":
-            self._attest_state.set_tpm_clockinfo(self.tpm_clock_info) # type: ignore
+            self._attest_state.set_tpm_clockinfo(self.tpm_clock_info)  # type: ignore
             self._attest_state.set_ima_pcrs(self.ima_pcrs(agent))
             self._attest_state.set_next_ima_ml_entry(self.next_ima_offset)
 
@@ -705,10 +734,21 @@ class PushAttestation(PersistableModel):
         else:
             # If verification of the attestation has not yet completed, or the quote could not be authenticated, use the
             # values from the previous authenticated attestation
-            self._attest_state.set_tpm_clockinfo(self.previous_authenticated_attestation.tpm_clock_info) # type: ignore
+            self._attest_state.set_tpm_clockinfo(self.previous_authenticated_attestation.tpm_clock_info)  # type: ignore
             self._attest_state.set_next_ima_ml_entry(self.starting_ima_offset)
 
             if self.starting_ima_offset != 0:
                 self._attest_state.set_ima_pcrs(self.previous_authenticated_attestation.ima_pcrs(agent))
 
         return copy.copy(self._attest_state)
+    
+    # TODO: make this a property
+    def pcr_selection(self, agent):
+        tpm_policy = json.loads(agent.tpm_policy)
+
+        if "mask" in tpm_policy:
+            del tpm_policy["mask"]
+        
+        lockdown_pcrs = [int(pcr) for pcr in tpm_policy.keys()]
+
+        return [*lockdown_pcrs, *config.MEASUREDBOOT_PCRS, config.IMA_PCR]

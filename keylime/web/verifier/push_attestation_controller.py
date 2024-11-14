@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from keylime import keylime_logging
 from keylime.db.keylime_db import DBEngineManager, SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierAttestations, VerifierMbpolicy
-from keylime.models.verifier import PushAttestation
 from keylime.models.base import Timestamp
+from keylime.models.verifier import PushAttestation
 from keylime.web.base import Controller
 
 logger = keylime_logging.init_logging("verifier")
@@ -123,9 +123,9 @@ class PushAttestationController(Controller):
         # TODO: Replace with calls to VerifierAgent.get(...)
         # get agent from verifiermain
         session = get_session()
-        #agent = session.query(VerfierMain).filter(VerifierAttestations.agent_id == agent_id).one_or_none()
+        # agent = session.query(VerfierMain).filter(VerifierAttestations.agent_id == agent_id).one_or_none()
         agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
-        
+
         if not agent:
             self.respond(404)
             return
@@ -134,8 +134,8 @@ class PushAttestationController(Controller):
             self.respond(503)
             return """
 
-        """ # Reject request if a previous attestation is still being processed
-        retry_seconds = PushAttestation.accept_new_attestations_in(agent_id, agent, session)
+        """  # Reject request if a previous attestation is still being processed
+        retry_seconds = PushAttestation.accept_new_attestations_in(agent_id)
 
         if retry_seconds:
             self.action_handler.set_header("Retry-After", retry_seconds)
@@ -155,10 +155,10 @@ class PushAttestationController(Controller):
         try:
             new_attestation.commit_changes()
         except ValueError:
-            # 
+            #
             self.respond(429)
             return
-        
+
         response = new_attestation.render(
             [
                 "agent_id",

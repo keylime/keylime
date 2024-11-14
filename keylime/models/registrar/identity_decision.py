@@ -1,5 +1,6 @@
 from keylime.models.base import *
 
+
 class IdentityBinding(BasicModel):
     @classmethod
     def _schema(cls):
@@ -16,10 +17,11 @@ class IdentityBinding(BasicModel):
         record = IdentityBinding.empty()
         record.parent = parent
         record.method = method
-        return record # type: ignore
+        return record  # type: ignore
 
     def finalise(self):
         self.validate_snake_case("parent")
+
 
 class IdentityTrust(BasicModel):
     @staticmethod
@@ -27,7 +29,7 @@ class IdentityTrust(BasicModel):
         if len(trust_objects) == 0:
             raise ValueError("IdentityTrust.select_least_trusted(...) expects at least 1 argument")
 
-        trust_levels = [ "undecided", "untrusted", "semitrusted", "trusted" ]
+        trust_levels = ["undecided", "untrusted", "semitrusted", "trusted"]
         least_trusted = trust_objects[0].trust if isinstance(trust_objects[0], Identity) else trust_objects[0]
 
         for trust_object in trust_objects:
@@ -52,7 +54,7 @@ class IdentityTrust(BasicModel):
         record = super().empty()
         record.status = "undecided"
         record.method = None
-        return record # type: ignore
+        return record  # type: ignore
 
     def update(self, status, method):
         if method == "inheritance":
@@ -90,6 +92,7 @@ class IdentityTrust(BasicModel):
 
         return output
 
+
 class Identity(BasicModel):
     @classmethod
     def _schema(cls):
@@ -105,7 +108,7 @@ class Identity(BasicModel):
     def empty(cls) -> "Identity":
         record = super().empty()
         record.trust = IdentityTrust.empty()
-        return record # type: ignore
+        return record  # type: ignore
 
     @classmethod
     def create(cls, identity_class, name, value) -> "Identity":
@@ -139,6 +142,7 @@ class Identity(BasicModel):
                 if not isinstance(self.values["value"], Certificate):
                     self._add_error("value", Certificate().generate_error_msg(self.values["value"]))
 
+
 class IdentityDecision(BasicModel):
     @classmethod
     def _schema(cls):
@@ -155,7 +159,7 @@ class IdentityDecision(BasicModel):
     def empty(cls) -> "IdentityDecision":
         record = super().empty()
         record.generated_at = Timestamp.now()
-        return record # type: ignore
+        return record  # type: ignore
 
     def _build_binding_tree(self, parent):
         """Builds a trust inheritance tree from a parent identity to all of its subordinate identities. An example tree
