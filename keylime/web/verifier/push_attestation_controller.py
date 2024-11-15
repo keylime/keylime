@@ -155,9 +155,15 @@ class PushAttestationController(Controller):
         try:
             new_attestation.commit_changes()
         except ValueError:
-            #
+            # Another attestation for this agent was created while this request is being processed. Reject the request
+            # as otherwise the new attestation may be created prior to or shortly after evidence is received and
+            # processed for the other attestation, meaning that the configured quote interval would not be respected
             self.respond(429)
             return
+        
+        # The attestation was created successfully, so delete any previous attestation for which evidence was never
+        # received or for which verification never completed
+        new_attestation.cleanup_stale_priors(agent_id)
 
         response = new_attestation.render(
             [
@@ -197,7 +203,7 @@ class PushAttestationController(Controller):
             self.respond(400, "too many request")
             return
 
-        attestation.update(params, agent, allowlist.ima_policy)
+        attestation.receive_evidence(params, agent, allowlist.ima_policy)
 
         # last_attestation will contain errors if the JSON request is malformed/invalid (e.g., if an unrecognised hash
         # algorithm is provided) but not if the quote verification fails (including if the quote cannot be verified as

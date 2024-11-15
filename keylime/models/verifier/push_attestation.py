@@ -127,44 +127,62 @@ class PushAttestation(PersistableModel):
         # TODO: Check if some fields need to be marked as nullable:
 
         cls._persist_as("attestations")
+
+        # IDENTIFIERS
         cls._field("agent_id", String(80), primary_key=True)  # pylint: disable=unexpected-keyword-arg
         cls._field("index", Integer, primary_key=True) # pylint: disable=unexpected-keyword-arg
+        # Each attestation is uniquely identifiable by a (agent_id, index) tuple; each agent has zero or more
+        # attestations numbered incrementally from 0
 
+        # ATTESTATION AND VERIFICATION STATUS
+        # Indicates the state of the attestation
+        cls._field("status", OneOf("waiting", "received", "verified", "failed"))
+        # Indicates the type of failure in case of failed verification
+        cls._field("failure_type", OneOf("quote_authentication", "policy_violation"), nullable=True)
+        
+        # DATA RECEIVED DURING CAPABILITIES NEGOTIATION
+        # The UTC datetime at which the attested system was last booted, as reported at attestation creation
+        cls._field("boottime", Timestamp)
+        # The algorithms which the TPM supports, as reported by the agent
+        cls._virtual("supported_enc_algs", List)
+        cls._virtual("supported_hash_algs", List)
+        cls._virtual("supported_sign_algs", List)
+
+        # VALUES DETERMINED BY THE VERIFIER DURING CAPABILITIES NEGOTIATION
         # The nonce to be used by the agent for an Attestation
         cls._field("nonce", Nonce)
         # The timestamp of when the nonce was created
         cls._field("nonce_created_at", Timestamp)
         # The timestamp of when the nonce is expired
         cls._field("nonce_expires_at", Timestamp)
-        # Indicates the state of the attestation
-        cls._field("status", OneOf("waiting", "received", "verified", "failed"))
-        # Indicates the type of failure in case of failed verification
-        cls._field("failure_type", OneOf("quote_authentication", "policy_violation"), nullable=True)
-        # The tpm boot timestamp
-        cls._field("boottime", Timestamp)
-        # The tpm quote from the agent
-        cls._field("tpm_quote", Text)
-        # The timestamp of when the quote was received
-        cls._field("evidence_received_at", Timestamp)
-        # The PCRs and hash of the PCRs in the tpm quote
-        cls._field("tpm_pcrs", Text)  # TODO: Remove
-        # The starting ima offset for an Attestation
-        cls._field("starting_ima_offset", Integer)
         # The tpm hashing algorithm to be used by agent
         cls._field("hash_alg", String(10))
         ## The tpm encryption algorithm to be used by agent
         cls._field("enc_alg", String(10))
         # The tpm signing algorithm to be used by agent
         cls._field("sign_alg", String(10))
-        # The count of ima entries quoted in an Attestation
-        cls._field("quoted_ima_entries_count", Integer)
+        # The starting ima offset for an Attestation
+        cls._field("starting_ima_offset", Integer)
+
+        # EVIDENCE RECEIVED
+        # The tpm quote from the agent
+        cls._field("tpm_quote", Text)
         # The ima entries from the agent
         cls._field("ima_entries", Text)
         # The measured boot entries from the agent
         cls._field("mb_entries", Binary)
 
+        # VALUES DETERMINED BY THE VERIFIED BASED ON THE RECEIVED EVIDENCE
+        # The PCRs and hash of the PCRs in the tpm quote
+        cls._field("tpm_pcrs", Text)  # TODO: Remove
+        # The count of ima entries quoted in an Attestation
+        cls._field("quoted_ima_entries_count", Integer)
+        # The timestamp of when the quote was received
+        cls._field("evidence_received_at", Timestamp)
+        # Note: the "failure_type" field (above) is also updated once verification is completed
+        
     @classmethod
-    def create(cls, agent_id, agent, session, data):
+    def create(cls, agent_id, agent, data):
         """Create an empty Attestation and prepare the attestation details(nonce, timestamps of nonce, algorithms)
 
         :param data: list of TPM algorithms supported by the agent
@@ -177,26 +195,8 @@ class PushAttestation(PersistableModel):
             attestation = PushAttestation.new_from_agent(agent, data)
 
         attestation = PushAttestation.empty()
-        attestation.agent_id = agent_id
-        attestation.boottime = data.get("boottime")
-        attestation.validate_required("boottime")
-        # Set attestation index to next available integer
-        attestation._set_index()
-        # Generate and set the nonce for the attestation entry
-        attestation._set_nonce()
-        # Set the timestamp related to nonce (created at, expires at)
-        attestation._set_timestamps()
-        # Set the status of the attesation ('waiting' when a new attestation is created)
-        attestation._set_status()
-        # Set the ima offset value for the attestation entry
-        attestation._set_ima_offset()
-        # Set the TPM algorithms to be used for the attestation from the list of supported algorithms provided by the
-        # agent
-        attestation._set_algs(
-            data.get("supported_hash_algs"), data.get("supported_enc_algs"), data.get("supported_sign_algs"), agent
-        )
-        # Check if previous attestations exist which need to be deleted
-        attestation._cleanup_stale_attestations(agent_id, agent, data)
+        attestation.initialise(agent_id)
+        attestation.receive_capabilities(data, agent)
 
         return attestation
 
@@ -263,6 +263,28 @@ class PushAttestation(PersistableModel):
             return last_attestation.decision_expected_by + current_timestamp
 
         return 0
+    
+    def cleanup_stale_priors(self):
+        # This is implemented as an instance method, so that it can be called after a new attestation is created and
+        # act only on prior attestations and thus not affect the newly created "waiting" attestation
+
+        prev_att = self.previous_attestation
+
+        if not prev_att:
+            return
+
+        # Delete previous attestation if evidence was not received
+        if prev_att.status == "waiting":
+            prev_att.delete()
+            return
+
+        # Delete previous attestation if verification did not complete before the verification timeout
+        if prev_att.status == "received" and Timestamp.now() > prev_att.decision_expected_by:
+            prev_att.delete()
+            return
+        
+        # Currently this method only affects the previous attestation, but in future, its logic could be extended to
+        # clear out very old attestations also
 
     def _set_index(self):
         if self.committed.get("index"):
@@ -308,9 +330,12 @@ class PushAttestation(PersistableModel):
         elif self.boottime < self.previous_attestation.boottime:
             self._add_error("boottime", "must be equal to or greater than the boot time of last attestation")
 
-    def _set_algs(self, supported_hash_algs, supported_enc_algs, supported_sign_algs, agent):
-        # Resolving the below pylint warning would negatively impact the readability of this method definition
+    def _set_algs(self, data, agent):
         # pylint: disable=no-else-break
+
+        supported_hash_algs = data.get("supported_hash_algs")
+        supported_enc_algs = data.get("supported_enc_algs")
+        supported_sign_algs = data.get("supported_sign_algs")
 
         # Set hashing algorithm that is first match from the list of hashing supported by the agent tpm
         # and the list of accpeted hashing algorithm
@@ -345,22 +370,6 @@ class PushAttestation(PersistableModel):
                     "sign_alg", f"supported_sign_alg not in list of accpeted_tpm_sign_algs for agent '{agent.agent_id}'"
                 )
 
-    def _cleanup_stale_attestations(self, agent_id, agent, data):
-        last_attestation = PushAttestation.get_last(agent_id) or PushAttestation.new_from_agent(agent, data)
-
-        if not last_attestation:
-            return
-
-        # Delete previous attestation if evidence was not received
-        if last_attestation.status == "waiting":
-            last_attestation.delete()
-            return
-
-        # Delete previous attestation if verification did not complete before the verification timeout
-        if last_attestation.status == "received" and Timestamp.now() > last_attestation.decision_expected_by:
-            last_attestation.delete()
-            return
-
     def _validate_ima_entries(self, starting_ima_offset_received, runtime_policy):
         if runtime_policy and not self.ima_entries:
             self._add_error("ima_entries", "is required by agent policy")
@@ -389,7 +398,40 @@ class PushAttestation(PersistableModel):
         if ima_entries:
             self.ima_entries = ima_entries
 
-    def update(self, data, agent, runtime_policy):
+    def initialise(self, agent_id):
+        if self.committed:
+            raise ValueError("Attestation object cannot be initialised once committed")
+        
+        self.agent_id = agent_id
+
+        # Set attestation index to the next available integer as determined from the agent's last attestation
+        self._set_index()
+
+        # Set required metadata
+        self._set_timestamps()
+        self._set_status()
+
+    def receive_capabilities(self, data, agent):
+        if self.committed.get("hash_alg") or self.committed.get("enc_alg") or self.committed.get("sign_alg"):
+            raise ValueError("Attestation object cannot be updated as it has already received agent capabilities")
+        
+        # Set fields from capabilities reported by the agent
+        self.cast_changes(data, ["boottime", "supported_enc_algs", "supported_hash_algs", "supported_sign_algs"])
+        self.validate_required(["boottime", "supported_enc_algs", "supported_hash_algs", "supported_sign_algs"])
+        
+        # Generate the nonce the agent should use in the TPM quote
+        self._set_nonce()
+        # Determine the starting IMA offset from the boot time and previous attestations
+        self._set_ima_offset()
+        # From the list of supported algorithms reported by the agent, select the algorithms the agent should use to
+        # prepare the TPM quote
+        self._set_algs(data, agent)
+
+        # Update required metadata
+        self._set_timestamps() # will update nonce_created_at and nonce_expires_at
+        self._set_status() # will be set to "waiting" until evidence is received
+
+    def receive_evidence(self, data, agent, runtime_policy):
         """Updates the attestation entry with evidence recieved from the agent"""
 
         # TODO: Add errors for the following conditions, in separate method
@@ -744,6 +786,7 @@ class PushAttestation(PersistableModel):
     
     # TODO: make this a property
     def pcr_selection(self, agent):
+        pcr_selection = set()
         tpm_policy = json.loads(agent.tpm_policy)
 
         if "mask" in tpm_policy:
@@ -751,4 +794,9 @@ class PushAttestation(PersistableModel):
         
         lockdown_pcrs = [int(pcr) for pcr in tpm_policy.keys()]
 
-        return [*lockdown_pcrs, *config.MEASUREDBOOT_PCRS, config.IMA_PCR]
+        # TODO: Consider changing to use fields in the agent table, instead of relying on hard-coded PCRs
+        pcr_selection.update(lockdown_pcrs)
+        pcr_selection.update(config.MEASUREDBOOT_PCRS)
+        pcr_selection.add(config.IMA_PCR)
+
+        return sorted(list(pcr_selection))
