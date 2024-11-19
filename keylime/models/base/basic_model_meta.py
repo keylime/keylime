@@ -112,7 +112,7 @@ class BasicModelMeta(ABCMeta):
             )
 
         # Create new model field
-        field = ModelField(name, data_type, **opts)
+        field = ModelField(cls, name, data_type, **opts)
         # Add model field to the model's collection of fields
         fields[name] = field
         # Make model field accessible as a member of the class and, thereby, any objects created therefrom

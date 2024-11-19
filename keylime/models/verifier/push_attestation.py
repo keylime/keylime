@@ -138,11 +138,11 @@ class PushAttestation(PersistableModel):
         # Indicates the state of the attestation
         cls._field("status", OneOf("waiting", "received", "verified", "failed"))
         # Indicates the type of failure in case of failed verification
-        cls._field("failure_type", OneOf("quote_authentication", "policy_violation"), nullable=True)
+        # cls._field("failure_type", OneOf("quote_authentication", "policy_violation"), nullable=True)
         
         # DATA RECEIVED DURING CAPABILITIES NEGOTIATION
         # The UTC datetime at which the attested system was last booted, as reported at attestation creation
-        cls._field("boottime", Timestamp)
+        # cls._field("boottime", Timestamp)
         # The algorithms which the TPM supports, as reported by the agent
         cls._virtual("supported_enc_algs", List)
         cls._virtual("supported_hash_algs", List)
@@ -172,11 +172,9 @@ class PushAttestation(PersistableModel):
         # The measured boot entries from the agent
         cls._field("mb_entries", Binary)
 
-        # VALUES DETERMINED BY THE VERIFIED BASED ON THE RECEIVED EVIDENCE
-        # The PCRs and hash of the PCRs in the tpm quote
-        cls._field("tpm_pcrs", Text)  # TODO: Remove
+        # VALUES DETERMINED BY THE VERIFIER BASED ON THE RECEIVED EVIDENCE
         # The count of ima entries quoted in an Attestation
-        cls._field("quoted_ima_entries_count", Integer)
+        # cls._field("quoted_ima_entries_count", Integer)
         # The timestamp of when the quote was received
         cls._field("evidence_received_at", Timestamp)
         # Note: the "failure_type" field (above) is also updated once verification is completed
@@ -192,7 +190,8 @@ class PushAttestation(PersistableModel):
         last_attestation = PushAttestation.get_last(agent_id)
 
         if not last_attestation:
-            attestation = PushAttestation.new_from_agent(agent, data)
+            attestation = PushAttestation.create_from_agent(agent, data)
+            return attestation
 
         attestation = PushAttestation.empty()
         attestation.initialise(agent_id)
@@ -201,46 +200,27 @@ class PushAttestation(PersistableModel):
         return attestation
 
     @classmethod
-    def get_last(cls, agent_id):
-        # Fetch the last attestation entry in the database for a particular agent
-        all_attestations = PushAttestation.all(agent_id=agent_id)
-        if not all_attestations:
-            return None
-        all_attestations = sorted(all_attestations, key=lambda attestation: attestation.nonce_created_at)
-        return all_attestations[-1] or None
-
-    @classmethod
-    def new_from_agent(cls, agent, data):
-        # TODO: Revisit purpose of this method
-
+    def create_from_agent(cls, agent, data):
         # Migrating from verifiermain table for pull mode compatibility
         attestation = PushAttestation.empty()
-        attestation.agent_id = agent.agent_id
+        attestation.initialise(agent.agent_id)
+        attestation.receive_capabilities(data, agent)
 
-        attestation._set_index()
-        # Generate and set the nonce for the attestation entry
-        attestation._set_nonce()
-        # Set the timestamp related to nonce (created at, expires at)
-        attestation._set_timestamps()
-        # Set the status of the attesation ('waiting' when a new attestation is created)
-        attestation._set_status()
-        # Set the TPM algorithms to be used for the attestation from the list of supported algorithms provided by the
-        # agent
-        attestation._set_algs(
-            data.get("supported_hash_algs"), data.get("supported_enc_algs"), data.get("supported_sign_algs"), agent
-        )
-
-        attestation.starting_ima_offset = agent.next_ima_ml_entry
-        # attestation.tpm_pcrs = { 10: agent.pcr10 }
+        if agent.next_ima_ml_entry:
+            attestation.starting_ima_offset = agent.next_ima_ml_entry
 
         return attestation
 
         # TODO: Implement inverse of this function for when mode is changed from push to pull
 
     @classmethod
-    def get_last_successful(cls, agent_id):
-        # Fetch the last successful attestation entry from the attestation table for a particular agent
-        return PushAttestation.get(agent_id=agent_id, status="verified")
+    def get_last(cls, agent_id):
+        # Fetch the last attestation entry in the database for a particular agent
+        all_attestations = PushAttestation.all(agent_id=agent_id)
+        if not all_attestations:
+            return None
+        all_attestations = sorted(all_attestations, key=lambda attestation: attestation.index)
+        return all_attestations[-1] or None
 
     @classmethod
     def accept_new_attestations_in(cls, agent_id: str):
@@ -388,16 +368,6 @@ class PushAttestation(PersistableModel):
                     "ima_entries", "should start with a 'boot_aggregate' entry when the starting offset is 0"
                 )
 
-    def _parse_evidence(self, ima_entries, mb_entries, agent):
-        # TODO: Rename "_extract_fields_from_tpm_quote"
-        tpm_pcrs_dict = Tpm.get_pcrs_from_quote(self.tpm_quote, (agent.supported_version == "1.0"))
-        tpm_pcrs_dict = {int(num): val for num, val in tpm_pcrs_dict.items()}
-        self.tpm_pcrs = json.dumps(tpm_pcrs_dict)
-        self.mb_entries = mb_entries  # TODO revisit data type for mb and ima entries
-
-        if ima_entries:
-            self.ima_entries = ima_entries
-
     def initialise(self, agent_id):
         if self.committed:
             raise ValueError("Attestation object cannot be initialised once committed")
@@ -412,7 +382,7 @@ class PushAttestation(PersistableModel):
         self._set_status()
 
     def receive_capabilities(self, data, agent):
-        if self.committed.get("hash_alg") or self.committed.get("enc_alg") or self.committed.get("sign_alg"):
+        if self.committed.get("status") == "waiting":
             raise ValueError("Attestation object cannot be updated as it has already received agent capabilities")
         
         # Set fields from capabilities reported by the agent
@@ -434,9 +404,7 @@ class PushAttestation(PersistableModel):
     def receive_evidence(self, data, agent, runtime_policy):
         """Updates the attestation entry with evidence recieved from the agent"""
 
-        # TODO: Add errors for the following conditions, in separate method
-
-        if self.committed.get("tpm_quote") or self.committed.get("ima_entries") or self.committed.get("mb_entries"):
+        if self.committed.get("status") == "received":
             raise ValueError("Attestation object cannot be updated as it has already received evidence")
 
         # Bind key-value pairs ('data') to those fields which are meant to be externally changeable
@@ -446,12 +414,9 @@ class PushAttestation(PersistableModel):
         self.validate_required(["tpm_quote", "hash_alg", "enc_alg", "sign_alg"])
         self._validate_ima_entries(data.get("starting_ima_offset"), runtime_policy)
 
-        # Parse the evidence recieved from the agent
-        self._parse_evidence(self.ima_entries, self.mb_entries, agent)
-        # Set the attestation status ('received' when the TPM quote is received from the agent)
-        self._set_status()
-        # Set the timepstamp of when the quote was received
-        self._set_timestamps()
+        # Update required metadata
+        self._set_timestamps() # will update evidence_received_at
+        self._set_status() # will be set to "received" until verification is complete
 
     def _set_failure_type(self, failure: Failure):
         if not failure:
@@ -765,22 +730,31 @@ class PushAttestation(PersistableModel):
         # has occured
         if self.status in ("verified", "failed") and self.failure_type != "quote_authentication":
             self._attest_state.set_tpm_clockinfo(self.tpm_clock_info)  # type: ignore
-            self._attest_state.set_ima_pcrs(self.ima_pcrs(agent))
-            self._attest_state.set_next_ima_ml_entry(self.next_ima_offset)
+            self._attest_state.set_ima_pcrs(self.ima_pcrs(agent)) # type: ignore
+            self._attest_state.set_next_ima_ml_entry(self.next_ima_offset) # type: ignore
 
             # Build embedded TPMState object containing PCR values found in authenticated quote
             self._attest_state.tpm_state = TPMState()
-            for num, val in self.tpm_pcrs.items():
+            for num, val in self.tpm_pcrs.items(): # type: ignore
                 self._attest_state.tpm_state.init_pcr(num, self.hash_alg)
                 self._attest_state.tpm_state.set_pcr(num, val)
         else:
             # If verification of the attestation has not yet completed, or the quote could not be authenticated, use the
             # values from the previous authenticated attestation
-            self._attest_state.set_tpm_clockinfo(self.previous_authenticated_attestation.tpm_clock_info)  # type: ignore
             self._attest_state.set_next_ima_ml_entry(self.starting_ima_offset)
 
-            if self.starting_ima_offset != 0:
+            if self.previous_authenticated_attestation:
+                self._attest_state.set_tpm_clockinfo(self.previous_authenticated_attestation.tpm_clock_info)
+            elif agent.tpm_clockinfo:
+                # If agent has a tpm_clockinfo value, this indicates that the verifier has recently changed from pull to
+                # push mode, so use this in place of the missing `previous_authenticated_attestation`
+                self._attest_state.set_tpm_clockinfo(agent.tpm_clockinfo)
+
+            if self.previous_authenticated_attestation:
                 self._attest_state.set_ima_pcrs(self.previous_authenticated_attestation.ima_pcrs(agent))
+            elif agent.pcr10:
+                # The agent has a pcr10 value, so it recently changed from pull to push mode
+                self._attest_state.set_ima_pcrs({"10": agent.pcr10})
 
         return copy.copy(self._attest_state)
     
@@ -800,3 +774,13 @@ class PushAttestation(PersistableModel):
         pcr_selection.add(config.IMA_PCR)
 
         return sorted(list(pcr_selection))
+    
+    @property
+    def tpm_pcrs(self):
+        if not self.tpm_quote:
+            return False
+
+        tpm_pcrs_dict = Tpm.get_pcrs_from_quote(self.tpm_quote, False)
+        tpm_pcrs_dict = {int(num): val for num, val in tpm_pcrs_dict.items()}
+        
+        return tpm_pcrs_dict

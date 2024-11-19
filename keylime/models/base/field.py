@@ -9,6 +9,7 @@ from keylime.models.base.type import ModelType
 
 if TYPE_CHECKING:
     from keylime.models.base.basic_model import BasicModel
+    from keylime.models.base.basic_model_meta import BasicModelMeta
 
 
 class ModelField:
@@ -31,12 +32,13 @@ class ModelField:
     _data_type: ModelType
     _nullable: bool
 
-    def __init__(self, name: str, data_type: DeclaredFieldType, **opts) -> None:
+    def __init__(self, parent: "BasicModelMeta", name: str, data_type: DeclaredFieldType, **opts) -> None:
         # pylint: disable=redefined-builtin
 
         if not re.match(ModelField.FIELD_NAME_REGEX, name):
             raise FieldDefinitionInvalid(f"'{name}' is an invalid name for a field")
 
+        self._parent = parent
         self._name = name
         self._nullable = opts.get("nullable", False)
         self._persist = opts.get("persist", True)
@@ -73,6 +75,14 @@ class ModelField:
 
     def __delete__(self, obj: Optional["BasicModel"]) -> None:
         self.__set__(obj, None)
+
+    def __eq__(self, other):        
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__eq__(other)
+
+    @property
+    def parent(self) -> "BasicModelMeta":
+        return self._parent
 
     @property
     def name(self) -> str:
