@@ -29,7 +29,7 @@ jobs:
 
       - name: Generate docker metadata for keylime_base
         id: meta_base
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime_base
@@ -42,7 +42,7 @@ jobs:
 
       - name: Generate docker metadata for CI image
         id: meta_ci
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime-ci
