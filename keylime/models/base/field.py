@@ -79,6 +79,27 @@ class ModelField:
     def __eq__(self, other):        
         sa_field = getattr(self.parent.db_mapping, self.name)
         return sa_field.__eq__(other)
+    
+    def __ne__(self, other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__ne__(other)
+    
+    def __lt__(self, other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__lt__(other)
+    
+    def __le__(self, other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__le__(other)
+    
+    def __gt__(self, other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__gt__(other)
+    
+    def __ge__(self,other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__ge__(other)
+
 
     @property
     def parent(self) -> "BasicModelMeta":

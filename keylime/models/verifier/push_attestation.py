@@ -7,7 +7,7 @@ from keylime import config, keylime_logging
 from keylime.agentstates import AgentAttestState, TPMState
 from keylime.common import algorithms
 from keylime.failure import Component, Failure
-from keylime.ima import file_signatures
+from keylime.ima import file_signatures, ima
 from keylime.models.base import *
 from keylime.tpm.tpm_main import Tpm
 
@@ -138,11 +138,11 @@ class PushAttestation(PersistableModel):
         # Indicates the state of the attestation
         cls._field("status", OneOf("waiting", "received", "verified", "failed"))
         # Indicates the type of failure in case of failed verification
-        # cls._field("failure_type", OneOf("quote_authentication", "policy_violation"), nullable=True)
+        cls._field("failure_type", OneOf("quote_authentication", "policy_violation"), nullable=True)
         
         # DATA RECEIVED DURING CAPABILITIES NEGOTIATION
         # The UTC datetime at which the attested system was last booted, as reported at attestation creation
-        # cls._field("boottime", Timestamp)
+        cls._field("boottime", Timestamp)
         # The algorithms which the TPM supports, as reported by the agent
         cls._virtual("supported_enc_algs", List)
         cls._virtual("supported_hash_algs", List)
@@ -174,7 +174,7 @@ class PushAttestation(PersistableModel):
 
         # VALUES DETERMINED BY THE VERIFIER BASED ON THE RECEIVED EVIDENCE
         # The count of ima entries quoted in an Attestation
-        # cls._field("quoted_ima_entries_count", Integer)
+        cls._field("quoted_ima_entries_count", Integer)
         # The timestamp of when the quote was received
         cls._field("evidence_received_at", Timestamp)
         # Note: the "failure_type" field (above) is also updated once verification is completed
@@ -188,6 +188,7 @@ class PushAttestation(PersistableModel):
         :returns: Attestation object
         """
         last_attestation = PushAttestation.get_last(agent_id)
+        print("last_attestation:", last_attestation)
 
         if not last_attestation:
             attestation = PushAttestation.create_from_agent(agent, data)
@@ -216,11 +217,8 @@ class PushAttestation(PersistableModel):
     @classmethod
     def get_last(cls, agent_id):
         # Fetch the last attestation entry in the database for a particular agent
-        all_attestations = PushAttestation.all(agent_id=agent_id)
-        if not all_attestations:
-            return None
-        all_attestations = sorted(all_attestations, key=lambda attestation: attestation.index)
-        return all_attestations[-1] or None
+        last_attestations = PushAttestation.get(agent_id=agent_id, _sort=desc("index"))
+        return last_attestations or None
 
     @classmethod
     def accept_new_attestations_in(cls, agent_id: str):
@@ -299,15 +297,18 @@ class PushAttestation(PersistableModel):
 
     def _set_ima_offset(self):
         if not self.boottime:
-            return
+            return 
+        
+        print("***from set ima offset - previous_attestation",self.previous_attestation)
+        print("***from set ima offset - previous_authenticated_attestation",self.previous_authenticated_attestation)
 
-        if not self.previous_attestation or not self.previous_authenticated_attestation:
+        if not self.previous_authenticated_attestation:
             self.starting_ima_offset = 0
-        elif self.boottime > self.previous_attestation.boottime:
+        elif self.boottime > self.previous_authenticated_attestation.boottime:
             self.starting_ima_offset = 0
-        elif self.boottime == self.previous_attestation.boottime:
+        elif self.boottime == self.previous_authenticated_attestation.boottime:
             self.starting_ima_offset = self.previous_authenticated_attestation.next_ima_offset
-        elif self.boottime < self.previous_attestation.boottime:
+        elif self.boottime < self.previous_authenticated_attestation.boottime:
             self._add_error("boottime", "must be equal to or greater than the boot time of last attestation")
 
     def _set_algs(self, data, agent):
@@ -401,7 +402,7 @@ class PushAttestation(PersistableModel):
         self._set_timestamps() # will update nonce_created_at and nonce_expires_at
         self._set_status() # will be set to "waiting" until evidence is received
 
-    def receive_evidence(self, data, agent, runtime_policy):
+    def receive_evidence(self, data, runtime_policy):
         """Updates the attestation entry with evidence recieved from the agent"""
 
         if self.committed.get("status") == "received":
@@ -497,14 +498,14 @@ class PushAttestation(PersistableModel):
         if self.status in ("verified", "failed"):
             raise ValueError("Attestation object has already undergone verification")
 
+        if isinstance(runtime_policy, str):
+            runtime_policy = json.loads(runtime_policy)
+        
         # Initially attest_state reflects the result of the previous authenticated attestation plus the bootime received
         # at attestation creation and any values which depend on this bootime (e.g., starting IMA offset, IMA keyrings)
         attest_state = self.attest_state(agent, runtime_policy)
         # Note: there is no need to call attest_state.reset_ima_attestation() after reboot as the IMA-relevant values
         # are already properly initialised by self.attest_state
-
-        if isinstance(runtime_policy, str):
-            runtime_policy = json.loads(runtime_policy)
 
         quote_validation_failure = get_tpm_instance().check_quote(
             attest_state,
@@ -571,10 +572,13 @@ class PushAttestation(PersistableModel):
         session.add(agent)
 
     def commit_changes(self):
-        last_attestation = PushAttestation.get_last(self.agent_id)
+        if self.status == "waiting":
+            last_attestation = PushAttestation.get_last(self.agent_id)
+            print("****last_attestation from commit changes",last_attestation)
+            print("self.index",self.index)
 
-        if last_attestation and last_attestation.index >= self.index:
-            raise ValueError(f"An attestation for agent '{self.agent_id}' was created while another was mid-creation")
+            if last_attestation and last_attestation.index >= self.index:
+                raise ValueError(f"An attestation for agent '{self.agent_id}' was created while another was mid-creation")
 
         return super().commit_changes()
 
@@ -592,8 +596,10 @@ class PushAttestation(PersistableModel):
 
             # TODO: Move sorting logic into model query API and possibly improve query expressiveness (Jean)
 
-            all_attestations = PushAttestation.all(agent_id=self.agent_id)
+            """ all_attestations = PushAttestation.all(agent_id=self.agent_id)
             all_attestations = sorted(all_attestations, key=lambda attestation: attestation.index, reverse=True)
+
+            #PushAttestation.get(agent_id=self.agent_id, status = ("verified", "failed")  _sort=desc("index"))
 
             previous_authenticated_attestation = None
             for attestation in all_attestations:
@@ -601,14 +607,21 @@ class PushAttestation(PersistableModel):
                     continue
 
                 if attestation.index < self.index:
-                    previous_authenticated_attestation = attestation
+                    previous_authenticated_attestation = attestation """
+            previous_authenticated_attestation =  PushAttestation.get(
+                PushAttestation.agent_id==self.agent_id,
+                or_(PushAttestation.status == "verified", PushAttestation.status == "failed"),
+                or_(PushAttestation.failure_type != "quote_authentication", PushAttestation.failure_type == None),
+                PushAttestation.index < self.index,
+                _sort=desc("index")
+            )
 
             if not previous_authenticated_attestation:
                 return None
 
             self._previous_authenticated_attestation = previous_authenticated_attestation
 
-        return self._previous_authenticated_attestation
+        return self._previous_authenticated_attestation 
 
     @property
     def previous_successful_attestation(self):
@@ -616,7 +629,7 @@ class PushAttestation(PersistableModel):
             if not self.agent_id:
                 return None
 
-            all_attestations = PushAttestation.all(agent_id=self.agent_id, status="verified")
+            """ all_attestations = PushAttestation.all(agent_id=self.agent_id, status="verified")
             all_attestations = sorted(
                 all_attestations, key=lambda attestation: attestation.nonce_created_at, reverse=True
             )
@@ -624,8 +637,11 @@ class PushAttestation(PersistableModel):
             previous_successful_attestation = None
             for attestation in all_attestations:
                 if attestation.nonce_created_at < self.nonce_created_at:
-                    previous_successful_attestation = attestation
+                    previous_successful_attestation = attestation """
 
+            previous_successful_attestation = PushAttestation.get(agent_id = self.agent_id,
+                                                                  status="verified",
+                                                                  _sort=desc("index"))
             if not previous_successful_attestation:
                 return None
 
@@ -639,7 +655,7 @@ class PushAttestation(PersistableModel):
             if not self.agent_id:
                 return None
 
-            all_attestations = PushAttestation.all(agent_id=self.agent_id)
+            """ all_attestations = PushAttestation.all(agent_id=self.agent_id)
             all_attestations = sorted(
                 all_attestations, key=lambda attestation: attestation.nonce_created_at, reverse=True
             )
@@ -647,7 +663,9 @@ class PushAttestation(PersistableModel):
             previous_attestation = None
             for attestation in all_attestations:
                 if attestation.nonce_created_at < self.nonce_created_at:
-                    previous_attestation = attestation
+                    previous_attestation = attestation """
+            
+            previous_attestation = PushAttestation.get(agent_id=self.agent_id, _sort=desc("index"))
 
             if not previous_attestation:
                 return None
@@ -710,11 +728,13 @@ class PushAttestation(PersistableModel):
 
             # Set attest state values which are known from attestation creation
             self._attest_state.set_boottime(self.boottime)
-            self._attest_state.set_ima_dm_state(runtime_policy.dm_policy)
+            self._attest_state.set_ima_dm_state(runtime_policy.get("dm_policy"))
 
             # Retrieve keys learned from ima-buf entries received in prior IMA logs
             if self.starting_ima_offset != 0:
-                self._attest_state.set_ima_keyrings(agent.learned_ima_keyrings)
+                learned_keyrings = file_signatures.ImaKeyrings.from_json(agent.learned_ima_keyrings)
+                if learned_keyrings:
+                    self._attest_state.set_ima_keyrings(learned_keyrings)
 
             # Retrieve trusted keys from IMA policy
             ima_keyrings = self._attest_state.get_ima_keyrings()

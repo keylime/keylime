@@ -142,7 +142,7 @@ class PushAttestationController(Controller):
             self.respond(429)
             return
 
-        new_attestation = PushAttestation.create(agent_id, agent, session, params)
+        new_attestation = PushAttestation.create(agent_id, agent, params)
 
         if new_attestation.errors:
             msgs = []
@@ -163,7 +163,7 @@ class PushAttestationController(Controller):
         
         # The attestation was created successfully, so delete any previous attestation for which evidence was never
         # received or for which verification never completed
-        new_attestation.cleanup_stale_priors(agent_id)
+        new_attestation.cleanup_stale_priors()
 
         response = new_attestation.render(
             [
@@ -203,7 +203,7 @@ class PushAttestationController(Controller):
             self.respond(400, "too many request")
             return
 
-        attestation.receive_evidence(params, agent, allowlist.ima_policy)
+        attestation.receive_evidence(params, allowlist.ima_policy)
 
         # last_attestation will contain errors if the JSON request is malformed/invalid (e.g., if an unrecognised hash
         # algorithm is provided) but not if the quote verification fails (including if the quote cannot be verified as
@@ -219,15 +219,14 @@ class PushAttestationController(Controller):
         session.add(agent)
 
         attestation.commit_changes()
-        response = {"time_to_next_attestation": attestation.next_attestation_expected_after - Timestamp.now()}
+        time_to_next_attestation = attestation.next_attestation_expected_after - Timestamp.now()
+        response = {"time_to_next_attestation": int(time_to_next_attestation.total_seconds())}
         self.respond(200, "Success", response)
 
         # Verify attestation after response is sent, so that the agent does not need to wait for the verification to
         # complete. Ideally, in the future, we would want to create a pool of verification worker processes
         # (separate from the web server workers) which will call this method whenever a new verification task is added
         # to a queue
-        attestation.verify_evidence(
-            {"agent_id": agent_id, **params}, allowlist.ima_policy, mbpolicies.mb_policy, agent, session
-        )
+        attestation.verify_evidence(allowlist.ima_policy, mbpolicies.mb_policy, agent, session)
 
         session.commit()

@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Boolean, Float, Integer, SmallInteger, String, Text, desc
+from sqlalchemy import BigInteger, Boolean, Float, Integer, SmallInteger, String, Text, desc, or_
 
 from keylime.models.base.basic_model import BasicModel
 from keylime.models.base.da import da_manager
@@ -14,6 +14,7 @@ from keylime.models.base.types.timestamp import Timestamp
 
 __all__ = [
     "desc",
+    "or_",
     "BigInteger",
     "Boolean",
     "Float",
