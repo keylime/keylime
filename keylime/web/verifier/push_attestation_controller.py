@@ -1,29 +1,9 @@
-import sys
-import time
-
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
-
 from keylime import keylime_logging
-from keylime.db.keylime_db import DBEngineManager, SessionManager
-from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierAttestations, VerifierMbpolicy
 from keylime.models.base import Timestamp
-from keylime.models.verifier import PushAttestation
+from keylime.models.verifier import VerifierAgent, PushAttestation
 from keylime.web.base import Controller
 
 logger = keylime_logging.init_logging("verifier")
-
-# GLOBAL_POLICY_CACHE: Dict[str, Dict[str, str]] = {}
-
-try:
-    engine = DBEngineManager().make_engine("cloud_verifier")
-except SQLAlchemyError as err:
-    logger.error("Error creating SQL engine or session: %s", err)
-    sys.exit(1)
-
-
-def get_session() -> Session:
-    return SessionManager().make_session(engine)
 
 
 class PushAttestationController(Controller):
@@ -96,7 +76,7 @@ class PushAttestationController(Controller):
     def index(self, agent_id, **_params):
         results = PushAttestation.all(agent_id=agent_id)
 
-        self.respond(200, "Sucess", [attestation.render() for attestation in results])
+        self.respond(200, "Success", [attestation.render() for attestation in results])
 
     # GET /v2[.:minor]/agents/:agent_id/attestations/:index
     def show(self, agent_id, index, **_params):
@@ -110,7 +90,7 @@ class PushAttestationController(Controller):
 
     # GET /v2[.:minor]/agents/:agent_id/attestations/latest
     def show_latest(self, agent_id, **_params):
-        last_attestation = PushAttestation.get_last(agent_id=agent_id)
+        last_attestation = PushAttestation.get_latest(agent_id)
 
         if not last_attestation:
             self.respond(404, f"Agent with ID '{agent_id}' not found")
@@ -120,20 +100,15 @@ class PushAttestationController(Controller):
 
     # POST /v2[.:minor]/agents/:agent_id/attestations
     def create(self, agent_id, **params):
-        # TODO: Replace with calls to VerifierAgent.get(...)
-        # get agent from verifiermain
-        session = get_session()
-        # agent = session.query(VerfierMain).filter(VerifierAttestations.agent_id == agent_id).one_or_none()
-        agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
+        agent = VerifierAgent.get(agent_id)
 
         if not agent:
             self.respond(404)
             return
 
-        # TODO: uncomment
-        """ if agent.accept_attestations is False:
+        if agent.accept_attestations is False:
             self.respond(503)
-            return  """
+            return
 
         retry_seconds = PushAttestation.accept_new_attestations_in(agent_id)
 
@@ -182,15 +157,20 @@ class PushAttestationController(Controller):
         response = {**response, "pcr_mask": agent.tpm_policy}
         self.respond(200, "Success", response)
 
-    def update(self, agent_id, **params):
-        # TODO: Replace with calls to VerifierAgent.get(...) and IMAPolicy.get(...)
-        session = get_session()
-        agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
-        allowlist = session.query(VerifierAllowlist).filter(VerifierAllowlist.id == agent.ima_policy_id).one_or_none()
-        mbpolicies = session.query(VerifierMbpolicy).filter(VerifierMbpolicy.id == agent.mb_policy_id).one_or_none()
+    def update(self, agent_id, index, **params):
+        latest_attestation = PushAttestation.get_latest(agent_id)
+
+        # Only allow the attestation at 'index' to be updated if it is the latest attestation
+        if latest_attestation.index == index:
+            self.update_latest(agent_id, **params)
+        else:
+            self.respond(403)
+
+    def update_latest(self, agent_id, **params):
+        agent = VerifierAgent.get(agent_id)
 
         # get last attestation entry for the agent
-        attestation = PushAttestation.get_last(agent_id=agent_id)
+        attestation = PushAttestation.get_latest(agent_id)
 
         if not attestation:
             self.respond(404)
@@ -201,10 +181,10 @@ class PushAttestationController(Controller):
             return
 
         if attestation.nonce_expires_at < Timestamp.now():
-            self.respond(400, "too many request")
+            self.respond(400)
             return
 
-        attestation.receive_evidence(params, allowlist.ima_policy)
+        attestation.receive_evidence(params)
 
         # last_attestation will contain errors if the JSON request is malformed/invalid (e.g., if an unrecognised hash
         # algorithm is provided) but not if the quote verification fails (including if the quote cannot be verified as
@@ -217,8 +197,6 @@ class PushAttestationController(Controller):
             self.respond(400, "Bad Request", {"errors": msgs})
             return
 
-        session.add(agent)
-
         attestation.commit_changes()
         time_to_next_attestation = attestation.next_attestation_expected_after - Timestamp.now()
         response = {"time_to_next_attestation": int(time_to_next_attestation.total_seconds())}
@@ -228,6 +206,4 @@ class PushAttestationController(Controller):
         # complete. Ideally, in the future, we would want to create a pool of verification worker processes
         # (separate from the web server workers) which will call this method whenever a new verification task is added
         # to a queue
-        attestation.verify_evidence(allowlist.ima_policy, mbpolicies.mb_policy, agent, session)
-
-        session.commit()
+        attestation.verify_evidence()
