@@ -1,11 +1,12 @@
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Optional, Sequence
+
+from sqlalchemy import or_
 
 from keylime.models.base.basic_model import BasicModel
 from keylime.models.base.db import db_manager
 from keylime.models.base.errors import FieldValueInvalid, QueryInvalid
 from keylime.models.base.persistable_model_meta import PersistableModelMeta
 
-from sqlalchemy import or_
 
 class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
     """PersistableModel extends the BasicModel class to provide additional functionality for saving and retrieving
@@ -128,29 +129,27 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         criteria = [sa_field == value for value in values]
 
         return or_(*criteria)
-    
+
     @classmethod
     def _query(cls, session, args, kwargs, subject=None):
         if not subject:
             subject = cls.db_mapping
 
         filters = kwargs
-        sort_criteria = kwargs.get("_sort", ())
+        sort_criteria = kwargs.get("sort_", ())
 
         if not isinstance(sort_criteria, (list, tuple)):
             sort_criteria = (sort_criteria,)
 
         if sort_criteria:
-            del filters["_sort"]
+            del filters["sort_"]
 
         if filters and args:
             raise QueryInvalid("a PersistableModel query must use filters or SQLAlchemy expressions but not both")
 
         if filters:
             filter_criteria = [
-                cls._build_filter_criterion(name, values)
-                for name, values in filters.items()
-                if values is not None
+                cls._build_filter_criterion(name, values) for name, values in filters.items() if values is not None
             ]
         else:
             filter_criteria = args

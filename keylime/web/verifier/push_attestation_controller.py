@@ -130,13 +130,14 @@ class PushAttestationController(Controller):
             self.respond(404)
             return
 
-        if agent.accept_attestations is False:
+        # TODO: uncomment
+        """ if agent.accept_attestations is False:
             self.respond(503)
-            return """
+            return  """
 
-        """  # Reject request if a previous attestation is still being processed
         retry_seconds = PushAttestation.accept_new_attestations_in(agent_id)
 
+        # Reject request if a previous attestation is still being processed
         if retry_seconds:
             self.action_handler.set_header("Retry-After", retry_seconds)
             self.respond(429)
@@ -160,7 +161,7 @@ class PushAttestationController(Controller):
             # processed for the other attestation, meaning that the configured quote interval would not be respected
             self.respond(429)
             return
-        
+
         # The attestation was created successfully, so delete any previous attestation for which evidence was never
         # received or for which verification never completed
         new_attestation.cleanup_stale_priors()
