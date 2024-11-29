@@ -97,8 +97,8 @@ adjust:
 
   adjust+:
    # discover step adjustments
-   # disable code coverage measurement everywhere except F39
-   - when: distro != fedora-39
+   # disable code coverage measurement everywhere except F41
+   - when: distro != fedora-41
      discover+:
        test-:
         - /setup/enable_keylime_coverage
