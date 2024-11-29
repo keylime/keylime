@@ -30,7 +30,7 @@ VALID_BACKENDS = ["ecdsa", "x509"]
 
 def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     """Perform the setup of the command-line arguments for this module."""
-    sign_p = create_parser.add_parser("runtime", help="create runtime policies", parents=[parent_parser])
+    sign_p = create_parser.add_parser("runtime", help="sign runtime policies", parents=[parent_parser])
 
     sign_p.add_argument(
         "-o",
