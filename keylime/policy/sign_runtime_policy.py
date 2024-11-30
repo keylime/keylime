@@ -124,8 +124,8 @@ def _get_signer(
         else:
             signer = ecdsa.Signer.create(out_keyfile_path)
     elif backend == "x509":
-        if out_certfile is None:
-            logger.debug("x509 backend and no cerficate output file specified")
+        if out_certfile is None or out_certfile == "":
+            logger.error("x509 backend and no cerficate output file specified")
             return None
 
         if ec_privkey:
