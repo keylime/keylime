@@ -107,8 +107,12 @@ def _get_signer(
 
     ec_privkey: Optional[ec.EllipticCurvePrivateKey] = None
     if in_ec_keyfile_path:
-        with open(in_ec_keyfile_path, "rb") as pem_in:
-            pemlines = pem_in.read()
+        try:
+            with open(in_ec_keyfile_path, "rb") as pem_in:
+                pemlines = pem_in.read()
+        except FileNotFoundError:
+            logger.error("The specified key '%s' does not exist", in_ec_keyfile_path)
+            return None
         privkey = load_pem_private_key(pemlines, None, default_backend())
 
         if not isinstance(privkey, ec.EllipticCurvePrivateKey):
