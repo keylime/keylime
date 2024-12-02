@@ -56,7 +56,9 @@ def main() -> None:
         main_parser.exit()
 
     try:
-        args.func(args)
+        ret = args.func(args)
+        if ret is None:
+            sys.exit(1)
     except BrokenPipeError:
         # Python flushes standard streams on exit; redirect remaining output
         # to devnull to avoid another BrokenPipeError at shutdown.
