@@ -862,7 +862,7 @@ class Tenant:
                         #                            numtries,
                         #                        )
                         raise UserError(
-                            f"{self.agent_fid_str,} was not deleted from {self.verifier_fid_str} after %d tries"
+                            f"{self.agent_fid_str,} was not deleted from {self.verifier_fid_str} after {numtries} tries"
                         )
 
                     next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
