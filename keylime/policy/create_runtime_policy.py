@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, TextIO, Tuple
 
 import psutil
 
-from keylime import cert_utils
 from keylime.common import algorithms, validators
 from keylime.ima import file_signatures, ima
 from keylime.ima.types import RuntimePolicyType
+from keylime.models.base import Certificate
 from keylime.policy import initrd
 from keylime.policy.logger import Logger
 from keylime.policy.utils import merge_lists, merge_maplists
@@ -767,7 +767,7 @@ def process_ima_buf_in_measurement_list(
 
                 # check whether buf's bindata contains a key; if so, we will only
                 # append it to 'keyrings', never to 'ima-buf'
-                if bindata and cert_utils.is_x509_cert(bindata):
+                if bindata and Certificate().asn1_compliant(bindata):
                     if path in ignored_keyrings or not get_keyrings:
                         continue
 
