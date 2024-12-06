@@ -20,6 +20,40 @@ registrar_port = {{ tenant.registrar_port }}
 # 'client_key', 'client_cert', and 'trusted_server_ca' options.
 tls_dir = {{ tenant.tls_dir }}
 
+# The keystore password
+# This password is used to protect the generated CA private key.
+password = {{ ca.password }}
+
+# CountryName argument (C) of the Issuer when generating certificates
+cert_country = {{ ca.cert_country }}
+
+# CommonName argument (CN) of the Issuer when generating certificates
+cert_ca_name = {{ ca.cert_ca_name }}
+
+# StateOrProvinceName argument (S) of the Issuer when generating certificates
+cert_state = {{ ca.cert_state }}
+
+# Locality argument (L) of the Issuer when generating certificates
+cert_locality = {{ ca.cert_locality }}
+
+# Organization argument (O) of the Issuer when generating certificates
+cert_organization = {{ ca.cert_organization }}
+
+# OrganizationalUnit argument (OU) of the Issuer when generating certificates
+cert_org_unit = {{ ca.cert_org_unit }}
+
+# CA certificate validity time in days
+cert_ca_lifetime = {{ ca.cert_ca_lifetime }}
+
+# Default generated certificate validity time in days
+cert_lifetime = {{ ca.cert_lifetime }}
+
+# Key length in bits
+cert_bits = {{ ca.cert_bits }}
+
+# Certification Revocation List (CRL) distribution address (URL)
+cert_crl_dist = {{ ca.cert_crl_dist }}
+
 # Enable mTLS communication between agent, verifier and tenant.
 # Details on why setting it to "False" is generally considered insecure can be found
 # on https://github.com/keylime/keylime/security/advisories/GHSA-2m39-75g9-ff5r
@@ -128,3 +162,53 @@ ek_check_script = {{ tenant.ek_check_script }}
 
 # Path to file containing the measured boot reference state
 mb_refstate = {{ tenant.mb_refstate }}
+
+# Logging Configuration Template
+# This section contains the default logging configuration for the application.
+# Key Points:
+# 1. The current settings reflect the default configuration.
+# 2. Uncomment sections to override the defaults.
+# 3. You can create new handlers and attach them to custom loggers for specific use cases.
+
+# Formatters Section
+# Define the format of log messages. Uncomment and modify to customize.
+
+#[formatter_formatter]
+#format = {{ formatter_formatter.format }}
+#datefmt = {{ formatter_formatter.datefmt }}
+
+# Handlers Section
+# Define where log messages are sent. Uncomment and modify to customize.
+
+# Default console handler for the root logger.
+#[handler_consoleHandler]
+#class = {{ handler_consoleHandler.class }}
+#level = {{ handler_consoleHandler.level }}
+#formatter = {{ handler_consoleHandler.formatter }}
+#args = {{ handler_consoleHandler.args }}
+
+# Loggers Section
+# The root and keylime logger configuration. Uncomment and modify to customize.
+
+#[logger_root]
+#level = {{ logger_root.level }}
+#handlers = {{ logger_root.handlers }}
+
+#[logger_keylime]
+#level = {{ logger_keylime.level }}
+
+# EXAMPLE Section
+# Define additional loggers for specific components. Uncomment and modify as needed.
+
+# File handler for logging to a file.
+#[handler_file]
+#class = logging.FileHandler
+#level = DEBUG
+#formatter = formatter
+#args = (tenant.log,)
+
+# Logger for a custom component.
+#[logger_keylime.tenant]
+#level = DEBUG
+#handlers = file
+#propagate = 1
