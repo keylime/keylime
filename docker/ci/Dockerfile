@@ -5,7 +5,7 @@
 # It is not recommended for use beyond testing scenarios.
 ##############################################################################
 
-FROM quay.io/fedora/fedora@sha256:d53f8391c3b113a7aabf5c364f158cc0a486f8872b72321e55423c2a4b2f0514
+FROM quay.io/fedora/fedora@sha256:c63a04e803f2eff9bda2c63c0b986bf2e89bd2ddc348caec726df2bf2af0c73c
 MAINTAINER Luke Hinds <lhinds@redhat.com>
 LABEL version="1.2.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
@@ -16,11 +16,6 @@ ENV HOME /root
 ENV KEYLIME_HOME ${HOME}/keylime
 ENV TPM_HOME ${HOME}/swtpm2
 COPY dbus-policy.conf /etc/dbus-1/system.d/
-
-# Install dev tools and libraries (includes openssl-devel)
-RUN dnf groupinstall -y \
-    "Development Tools" \
-    "Development Libraries"
 
 # Packaged dependencies
 ENV PKGS_DEPS="automake \
@@ -45,6 +40,7 @@ libtool \
 libtpms \
 llvm llvm-devel \
 make \
+openssl \
 openssl-devel \
 pkg-config \
 procps \
@@ -67,6 +63,7 @@ rust clippy cargo \
 swtpm \
 swtpm-tools \
 tpm2-abrmd \
+tpm2-openssl \
 tpm2-tools \
 tpm2-tss \
 tpm2-tss-devel \
@@ -81,3 +78,6 @@ RUN dnf makecache && \
 
 # Install cargo dependencies
 RUN cargo install cargo-tarpaulin
+
+# Move tarpaulin to be available for all users
+RUN cp /root/.cargo/bin/cargo-tarpaulin /usr/bin
