@@ -69,7 +69,8 @@ tpm2-tss \
 tpm2-tss-devel \
 uthash-devel \
 wget \
-which"
+which \
+xxd"
 
 RUN dnf makecache && \
   dnf -y install $PKGS_DEPS && \
