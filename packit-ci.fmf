@@ -75,7 +75,7 @@ adjust:
      - /functional/install-rpm-with-ima-signature
      - /functional/keylime-non-default-ports
      - /functional/keylime_create_policy-static-data
-     - /functional/keylime_policy-commands
+     - /functional/keylime-policy-commands
      - /functional/keylime_tenant-commands-on-localhost
      - /functional/keylime_tenant-ima-signature-sanity
      - /functional/measured-boot-swtpm-sanity
