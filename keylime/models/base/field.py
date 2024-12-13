@@ -31,14 +31,16 @@ class ModelField:
     _data_type: ModelType
     _nullable: bool
 
-    def __init__(self, name: str, data_type: DeclaredFieldType, nullable: bool = False) -> None:
+    def __init__(self, name: str, data_type: DeclaredFieldType, **opts) -> None:
         # pylint: disable=redefined-builtin
 
         if not re.match(ModelField.FIELD_NAME_REGEX, name):
             raise FieldDefinitionInvalid(f"'{name}' is an invalid name for a field")
 
         self._name = name
-        self._nullable = nullable
+        self._nullable = opts.get("nullable", False)
+        self._persist = opts.get("persist", True)
+        self._render = opts.get("render", True)
 
         if isinstance(data_type, ModelType):
             self._data_type = data_type
@@ -83,3 +85,11 @@ class ModelField:
     @property
     def nullable(self) -> bool:
         return self._nullable
+
+    @property
+    def persist(self) -> bool:
+        return self._persist
+
+    @property
+    def render(self) -> bool:
+        return self._render
