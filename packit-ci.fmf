@@ -23,15 +23,26 @@ execute:
 
 adjust:
  # prepare step adjustments
- - when: distro == centos-stream-9
-   prepare+:
-    - how: shell
-      order: 30
-      script:
-       - rpm -q epel-release || rpm -Uv https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm https://dl.fedoraproject.org/pub/epel/epel-next-release-latest-9.noarch.rpm
  - when: distro == centos-stream-8
    enabled: 0
 
+ # make sure epel repo is available
+ - when: distro == rhel-9 or distro == centos-stream-9
+   prepare+:
+     - how: shell
+       order: 10
+       script:
+         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm || true
+         - dnf config-manager --set-enabled epel || true
+         - dnf -y install beakerlib
+ - when: distro == rhel-10 or distro == centos-stream-10
+   prepare+:
+     - how: shell
+       order: 10
+       script:
+         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm || true
+         - dnf config-manager --set-enabled epel || true
+         - dnf -y install beakerlib
 
 ## First test plan
 
