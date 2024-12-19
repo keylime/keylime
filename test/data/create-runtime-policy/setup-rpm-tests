@@ -275,10 +275,20 @@ prepare_rpms() {
         cp -a "${RPM_REPO_UNSIGNED}"/* "${_repodir}"/
     done
 
+    # --filelists-ext was introduced in createrepo_c 0.21; some distros
+    # - e.g. CentOS Stream 9 at the time of writing - have an older
+    # version of it, so that option is not available.
+    fext=
+    crepo_maj="$(createrepo_c --version | cut -f2 -d' ' | cut -f1 -d'.')"
+    crepo_min="$(createrepo_c --version | cut -f2 -d' ' | cut -f2 -d'.')"
+    if [ "${crepo_maj}" -gt 0 ] || [ "${crepo_min}" -ge 21 ]; then
+        fext=--filelists-ext
+    fi
+
     # For ${RPM_REPO_SIGNED_RSA}", let us also pass --filelist-ext
-    # to createrepo_c.
+    # to createrepo_c, if it is supported.
     pushd "${RPM_REPO_SIGNED_RSA}" >/dev/null
-        createrepo_c --general-compress-type=gz --filelists-ext .
+        createrepo_c --general-compress-type=gz ${fext} .
     popd >/dev/null
 
     # Sign the repo metadata for the signed repos with both an RSA
@@ -307,11 +317,15 @@ prepare_rpms() {
     cp "${RPM_REPO_SIGNED_RSA}"/* -a "${RPM_REPO_SIGNED_NO_KEY}"/
     rm -f "${RPM_REPO_SIGNED_NO_KEY}"/repodata/repomd.xml.key
 
-    # And a repo without the filelists-ext file, although it indicates
-    # it has one.
-    mkdir -p "${RPM_REPO_FILELIST_EXT_MISMATCH}"
-    cp "${RPM_REPO_SIGNED_RSA}"/* -a "${RPM_REPO_FILELIST_EXT_MISMATCH}"/
-    rm -f "${RPM_REPO_FILELIST_EXT_MISMATCH}"/repodata/*-filelists-ext.xml*
+    # If createrepo_c does not support --filelists-ext, let us not
+    # test for mismatch.
+    if [ -n "${fext}" ]; then
+        # And a repo without the filelists-ext file, although it indicates
+        # it has one.
+        mkdir -p "${RPM_REPO_FILELIST_EXT_MISMATCH}"
+        cp "${RPM_REPO_SIGNED_RSA}"/* -a "${RPM_REPO_FILELIST_EXT_MISMATCH}"/
+        rm -f "${RPM_REPO_FILELIST_EXT_MISMATCH}"/repodata/*-filelists-ext.xml*
+    fi
 
     # Add a repo using non-supported compression for the files.
     # We currently support only gzip.
