@@ -6,6 +6,16 @@
 # The configuration file version number
 version = "{{ agent.version }}"
 
+# The enabled API versions
+# This sets which of the supported API versions to enable.
+# Only supported versions can be set, which are defined by
+# api::SUPPORTED_API_VERSIONS
+# A list of versions to enable can be provided (e.g. "2.1, 2.2")
+# The following keywords are also supported:
+# - "default": Enables all supported API versions
+# - "latest": Enables only the latest supported API version
+api_versions = "{{ agent.api_versions }}"
+
 # The agent's UUID.
 # If you set this to "generate", Keylime will create a random UUID.
 # If you set this to "hash_ek", Keylime will set the UUID to the result
