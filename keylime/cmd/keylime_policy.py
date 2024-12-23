@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
+# The comment above enables global autocomplete using argcomplete
 
 """
 Utility to assist with runtime policies.
