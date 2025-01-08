@@ -150,4 +150,41 @@ Registrar
     :>json string status: Status as string
     :>json object results: Results as a JSON object (empty)
 
+.. http:get::  /version
+
+    Get current and supported API versions
+
+    **Example request:**
+
+    .. sourcecode:: http
+
+       GET /version HTTP/1.1
+       Host: example.com
+       Accept: application/json
+
+
+    **Example response:**
+
+    .. sourcecode:: json
+
+       {
+         "code": 200,
+         "status": "Success",
+         "results": {
+           "current_version": "2.3",
+           "supported_versions": [
+             "1.0",
+             "2.0",
+             "2.1",
+             "2.2",
+             "2.3"
+           ]
+         }
+       }
+
+    :>json int code: HTTP status code
+    :>json string status: Status as string
+    :>json object results: Results as a JSON object
+    :>json string current_version: Current API version
+    :>json list supported_versions: List of supported API versions
 
