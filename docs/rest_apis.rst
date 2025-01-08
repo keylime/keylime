@@ -24,6 +24,7 @@ API version 2.3 was first implemented in Keylime 7.12.0.
 * Added `POST /v2.3/mbpolicies/{name}` endpoint to the verifier
 * Added `PUT /v2.3/mbpolicies/{name}` endpoint to the verifier
 * Added `DELETE /v2.3/mbpolicies/{name}` endpoint to the verifier
+* Added `GET /version` endpoint to the registrar
 
 Changes from v2.1 to v2.2
 ~~~~~~~~~~~~~~~~~~~~~~~~~

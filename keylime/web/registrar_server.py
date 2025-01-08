@@ -1,5 +1,6 @@
 from keylime.web.base.server import Server
 from keylime.web.registrar.agents_controller import AgentsController
+from keylime.web.registrar.version_controller import VersionController
 
 
 class RegistrarServer(Server):
@@ -8,6 +9,8 @@ class RegistrarServer(Server):
 
     def _routes(self):
         self._v2_routes()
+        # Route used by agents to get the supported API versions
+        self._get("/version", VersionController, "version", allow_insecure=True)
 
     @Server.version_scope(2)
     def _v2_routes(self):
