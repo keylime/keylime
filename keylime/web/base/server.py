@@ -144,6 +144,37 @@ class Server(ABC):
 
         return version_scope_decorator
 
+    @staticmethod
+    def push_only(func):
+        @wraps(func)  # preserves the name and module of func when introspected
+        def push_only_wrapper(obj: Server, *args: Any, **kwargs: Any) -> Any:
+            value = func(obj, *args, **kwargs)
+            if not isinstance(obj, Server):
+                raise TypeError(
+                    "The @Server.push_only decorator can only be used on methods of a class which inherits from Server"
+                )
+
+            # TODO: Change fallback to "pull" and add config option
+            if config.get("verifier", "mode", fallback="push") == "push":
+                return value
+
+        return push_only_wrapper
+
+    @staticmethod
+    def pull_only(func):
+        @wraps(func)  # preserves the name and module of func when introspected
+        def pull_only_wrapper(obj: Server, *args: Any, **kwargs: Any) -> Any:
+            if not isinstance(obj, Server):
+                raise TypeError(
+                    "The @Server.pull_only decorator can only be used on methods of a class which inherits from Server"
+                )
+
+            # TODO: Change fallback to "pull" and add config option
+            if config.get("verifier", "mode", fallback="push") == "pull":
+                return func(obj, *args, **kwargs)
+
+        return pull_only_wrapper
+
     def __init__(self, **options: Any) -> None:
         """Initialise server with provided configuration options or default values and bind to sockets for HTTP and/or
         HTTPS connections. This does not start the server to start accepting requests (this is done by calling the
@@ -171,7 +202,9 @@ class Server(ABC):
         if not self.host:
             raise ValueError(f"server '{self.__class__.__name__}' cannot be initialised without a value for 'host'")
 
-        if not self.http_port or (not self.https_port or not self.ssl_ctx):
+        # TODO fix this logic
+        # if not self.http_port or (not self.https_port or not self.ssl_ctx):
+        if not self.http_port:
             raise ValueError(
                 f"server '{self.__class__.__name__}' cannot be initialised without either 'http_port' or 'https_port'"
                 f"and 'ssl_ctx'"
