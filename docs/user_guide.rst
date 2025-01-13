@@ -6,6 +6,7 @@ User Guide
    :maxdepth: 2
    :caption: Contents:
 
+   user_guide/authentication.rst
    user_guide/configuration.rst
    user_guide/runtime_ima.rst
    user_guide/user_selected_pcr_monitoring.rst
