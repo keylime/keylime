@@ -25,28 +25,32 @@ def get_tpm_instance() -> Tpm:
 
 
 class PushAttestation(PersistableModel):
-    """An instance of the PushAttestation class is used to manage state over the lifetime of an attestation received
-    from an agent as a single push attestation is performed over multiple HTTP requests. When the push attestation
-    protocol starts, the verifier receives a list of capabilities of the agent system and generates a nonce in response.
-    The agent prepares evidence based on the nonce and the attestation method chosen by the verifier. This is sent in a
-    second HTTP request as shown in the below diagram::
+    """A PushAttestation instance is used to manage state over the lifetime of an attestation when the verifier is
+    operating in push mode. This is necessary as a single push attestation is performed over multiple HTTP requests.
+    
+    When the push attestation protocol starts, the verifier receives a list of capabilities of the agent system and
+    uses these to select appropriate attestation parameters. This includes generating a nonce to ensure freshness of
+    the attestation. The agent prepares evidence based on the nonce and the attestation parameters chosen by the
+    verifier. This is sent in a second HTTP request as shown in the below diagram::
 
-                      Agent                                       Verifier
-                      -----                                       --------    PushAttestation
-                        │                                             │            object
-                        │    1. Attestation parameter negotiation     │      ┌────────────────┐
-                        │ <-----------------------------------------> │ <--> │ ** Created **  │
-                        │                                             │      │       │        │
-                        │         2. Submission of evidence           │      │       ↓        │
-                        │ <-----------------------------------------> │ <--> │ ** Updated **  │
-                        │                                             │      │       │        │
-                                                                             │       ↓        │
-                                                                             │ ** Verified ** │
-                                                                             └────────────────┘
+                  Agent                                                         Verifier
+                  -----                                           ┌────────────────────────────────────┐
+                    │                                             │ Controller      PushAttestation    │
+                    │                                             │    ┌──┐              object        │
+                    │     1. Attestation parameter negotiation    │    │  │        ┌────────────────┐  │
+                    │ <----------------------------------------------> │  │ <----> │ ** Created **  │  │
+                    │                                             │    │  │        │       │        │  │
+                    │          2. Submission of evidence          │    │  │        │       ↓        │  │
+                    │ <----------------------------------------------> │  │ <----> │ ** Updated **  │  │
+                    │                                             │    │  │        │       │        │  │
+                    │                                             │    └──┘        │       ↓        │  │
+                    │                                             │                │ ** Verified ** │  │
+                    │                                             │                └────────────────┘  │
+                    │                                             └────────────────────────────────────┘
 
     PushAttestation records are persisted to the database to ensure continuity across worker processes and across
-    restarts of the verifier. These are cleaned up automatically to prevent exponential expansion of the stored data but
-    a minimal history of the last few attestations are kept for audit and reporting purposes.
+    restarts of the verifier. These are cleaned up automatically to limit the rate of expansion of the stored data but
+    a minimal history of the last few attestations are kept for audit and reporting purposes (see "Lifecycle" below).
 
     Class Usage
     -----------
@@ -79,38 +83,69 @@ class PushAttestation(PersistableModel):
     Actual processing and verification of the measurements against policy is performed after the response is returned by
     calling ``attestation.verify_evidence()``.
 
+    Lifecycle of an Attestation Record
+    ----------------------------------
 
-    PushAttestation Lifecycle
-    ---------------------
+    The database record represented by a ``PushAttestation`` object is managed according to its various fields, chief
+    among them that of the ``status`` field. This field may be set to any of the following values:
 
-    For details on the lifecycle of an PushAttestation object, refer to the documentation for
-    ``keylime.web.verifier.push_attestation_controller``.
+        * "waiting": the attestation has been created and initialised with values such as the nonce
+        * "received": the expected evidence has been received
+        * "verified": the evidence has verified against policy successfully
+        * "failed": verification of the evidence has completed but the evidence did not comply with policy
 
+    The final status of an attestation ("verified" or "failed") is not reported to the agent at the conclusion of the
+    attestation protocol as the verification outcome is not known until after all responses have been sent.
+
+    Previous attestations are retained according to the following rules:
+
+        * The last attestation is retained if its status is "verified" or "failed".
+        * The first attestation received after a reboot is always retained.
+        * Once an attestation is "verified", the previous attestation is deleted if its status is also "verified" unless
+          the preceding rule applies.
+        * Failed attestations are always retained.
+        * If an attestation is created while the previous attestation has a status of "waiting", that previous
+          attestation is deleted.
+        * If an attestation is created while the previous attestation has a status of "received" and the verification
+          timeout has been exceeded, the previous attestation is deleted.
+
+    A request to create a new attestation is rejected under the following circumstances:
+
+        * when the request is for an agent which has its ``accept_attestations`` flag set to false;
+        * when the request is received before the quote interval has elapsed; or
+        * when the request is received before verification of the last attestation has completed, assuming the
+          verification timeout has not been exceeded.
 
     Management of IMA Logs
     ----------------------
 
     The agent reports a list of IMA measurements as part of the evidence for an attestation. The number of IMA
     measurement entries received are retained as `ima_count`. The list of IMA measurements to be reported for the
-    verification is determined by the verifier as follows:
+    verification is determined by the verifier when an attestation request is received by checking the database for the
+    existence of any prior attestation successfully authenticated by the agent's TPM attestation key (AK):
 
-        * When an attestation request is initialised, the verfier checks if there was a previous successful attestation.
-        * If there is no such attestation, the `starting_ima_offset` value for the newly created attestation is set to
-          0  and the agent to expected to send the IMA measurements starting from the first entry.
-        * If there was a previous successful attestation, the `starting_ima offset` value for the new attestation is
-          calculated based on the `starting_ima_offset` value of the last successful attestation plus its `ima_count` .
-          The verifier replies to the attestation initiation request with `starting_ima_offset` value calculated for the
-          new attesation and the is agent to expected to send the IMA measurements starting from this value.
+        * If no earlier attestation was authenticated successfully, the `starting_ima_offset` value for the new
+          attestation is set to 0 and the agent to expected to send the IMA measurements starting from the first entry.
 
-    The IMA entries received for the attestation are retained and undergoes under verfication. It is not expected to
-    store all attestations in the database therefore only the subset of IMA measurements are persited.
+        * If some earlier attestation was authenticated successfully, the `starting_ima offset` value for the new
+          attestation is calculated based on the `starting_ima_offset` value of the last successful attestation plus
+          its `ima_count`. The verifier replies to the attestation initiation request with `starting_ima_offset` value
+          calculated for the new attestation and the agent is to expected to send the IMA measurements starting from
+          this value.
 
+    Additionally, if the last boot time reported by the agent has increased since the previous authenticated
+    attestation, indicating a system reboot has taken place, the `starting_ima_offset` is also set to 0.
+
+    The IMA entries received for a given attestation are retained under the same conditions that the attestation record
+    itself is retained (see "Lifecycle"). This provides a record of which entries caused a given attestation to fail
+    verification.
 
     Management of Measured Boot (UEFI) Logs
     ---------------------------------------
 
-    The agent reports the measured boot log if measured boot attestation if implemented. The measured boot log received
-    for each attestation is retained.
+    The agent reports the full measured boot (UEFI) log in every attestation as long as measured boot attestation is
+    enabled. Measured boot logs are retained according to the same conditions that attestation records themselves are
+    retained.
     """
 
     def __init__(self, data: dict[str, Any] | object | None = None, process_associations: bool = True) -> None:
