@@ -37,8 +37,8 @@ PROJECT="keylime/keylime"
 # uploads coverage XML files to a web drive
 # currently we are doing that in a job running tests on Fedora-41
 TF_JOB_DESC="testing-farm:fedora-41-x86_64"
-TF_TEST_OUTPUT="/setup/generate_coverage_report.*/output.txt"
 TF_ARTIFACTS_URL_PREFIX="https://artifacts.dev.testing-farm.io"
+TF_COVERAGE_DATA_DIR="/setup/generate_coverage_report.*/data"
 
 GITHUB_API_PREFIX_URL="https://api.github.com/repos/${PROJECT}"
 
@@ -135,21 +135,29 @@ fi
 # now we have TF_ARTIFACTS_URL so we can proceed with the download
 echo "TF_ARTIFACTS_URL=${TF_ARTIFACTS_URL}"
 
-TF_TESTLOG=$( curl --retry 5 ${TF_ARTIFACTS_URL}/results.xml | grep -E -o "${TF_ARTIFACTS_URL}.*${TF_TEST_OUTPUT}" )
-echo "TF_TESTLOG=${TF_TESTLOG}"
+COVERAGE_DIR=$( curl --retry 5 ${TF_ARTIFACTS_URL}/results.xml | grep -E -o "${TF_ARTIFACTS_URL}.*${TF_COVERAGE_DATA_DIR}" )
+echo "COVERAGE_DIR=${COVERAGE_DIR}"
 
-# parse the URL of coverage XML file and download it
-curl --retry 5 -s "${TF_TESTLOG}" &> ${TMPFILE}
+COVERAGE_FILE="coverage.tar.gz"
+
+COVERAGE_URL=${COVERAGE_DIR}/${COVERAGE_FILE}
+echo "Trying to download \"${COVERAGE_URL}\""
+
+# download the file
+if curl --fail-with-body --retry 5 -L -o "${COVERAGE_FILE}" "${COVERAGE_URL}"; then
+    echo "Successfully downloaded \"${COVERAGE_URL}\""
+    DOWNLOADED="True"
+    tar -xvf ${COVERAGE_FILE}
+else
+    echo "Failed to download \"${COVERAGE_URL}\""
+    rm -f ${COVERAGE_FILE}
+    exit 5
+fi
+
 for REPORT in coverage.packit.xml coverage.testsuite.xml coverage.unittests.xml; do
-    COVERAGE_URL=$( grep "$REPORT report is available at" ${TMPFILE} | grep -E -o "https?://[^[:space:]]*" )
-    echo "COVERAGE_URL=${COVERAGE_URL}"
-
-    if [ -z "${COVERAGE_URL}" ]; then
-        echo "Could not parse $REPORT URL from test log ${TF_TESTLOG}"
-        exit 5
+    if [[ -f coverage/${REPORT} ]]; then
+        mv coverage/${REPORT} .
+    else
+        echo "${REPORT} file is missing in downloaded coverage archive"
     fi
-
-    # download the file
-    curl -L -o "${REPORT}" "${COVERAGE_URL}"
 done
-rm ${TMPFILE}
