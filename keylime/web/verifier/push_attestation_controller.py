@@ -184,12 +184,12 @@ class PushAttestationController(Controller):
             return
 
         if agent.accept_attestations is False:
-            self.respond(503)
+            self.respond(403)
             return
 
         retry_seconds = PushAttestation.accept_new_attestations_in(agent_id)
 
-        # Reject request if a previous attestation is still being processed
+        # Reject request if a new attestation is not yet expected (due to quote_interval or an active verification task)
         if retry_seconds:
             self.action_handler.set_header("Retry-After", retry_seconds)
             self.respond(429)
@@ -211,7 +211,7 @@ class PushAttestationController(Controller):
             # Another attestation for this agent was created while this request is being processed. Reject the request
             # as otherwise the new attestation may be created prior to or shortly after evidence is received and
             # processed for the other attestation, meaning that the configured quote interval would not be respected
-            self.respond(429)
+            self.respond(409)
             return
 
         # The attestation was created successfully, so delete any previous attestation for which evidence was never
@@ -260,7 +260,7 @@ class PushAttestationController(Controller):
             return
 
         if attestation.nonce_expires_at < Timestamp.now():
-            self.respond(400)
+            self.respond(403)
             return
 
         attestation.receive_evidence(params)
@@ -286,3 +286,5 @@ class PushAttestationController(Controller):
         # (separate from the web server workers) which will call this method whenever a new verification task is added
         # to a queue
         attestation.verify_evidence()
+
+
