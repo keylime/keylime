@@ -256,13 +256,13 @@ class PushAttestation(PersistableModel):
         current_timestamp = Timestamp.now()
 
         # Don't accept new attestations until after the configured quote interval has elapsed
-        if current_timestamp < last_attestation.next_attestation_expected_after:
+        if current_timestamp <= last_attestation.next_attestation_expected_after:
             return last_attestation.next_attestation_expected_after - current_timestamp
 
         # Don't accept new attestations if a previous attestation is still undergoing verification and the configured
         # timeout has not been exceeded
         if last_attestation.status == "received" and current_timestamp <= last_attestation.decision_expected_by:
-            return last_attestation.decision_expected_by + current_timestamp
+            return last_attestation.decision_expected_by - current_timestamp
 
         return 0
 
@@ -338,32 +338,34 @@ class PushAttestation(PersistableModel):
     def _set_algs(self, data):
         # pylint: disable=no-else-break
 
-        supported_hash_algorithms = data.get("supported_hash_algorithms")
-        supported_signing_schemes = data.get("supported_signing_schemes")
+        supported_hash_algorithms = data.get("supported_hash_algorithms", [])
+        supported_signing_schemes = data.get("supported_signing_schemes", [])
 
-        # Set hashing algorithm that is first match from the list of hashing supported by the agent tpm
-        # and the list of accpeted hashing algorithm
+        # Set hashing algorithm that is first match from the list of algorithms supported by the agent TPM
+        # and the configured list of algorithms accepted for the agent
         for hash_alg in self.agent.accept_tpm_hash_algs:
             if hash_alg in supported_hash_algorithms:
                 self.hash_algorithm = hash_alg
                 break
-            else:
-                self._add_error(
-                    "supported_hash_algorithms",
-                    f"does not contain any accepted hashing algorithm for agent '{self.agent_id}'",
-                )
 
-        # Set signing algorithm that is first match from the list of signing supported by the agent tpm
-        # and the list of accpeted signing algorithm
+        if not self.hash_algorithm:
+            self._add_error(
+                "supported_hash_algorithms",
+                f"does not contain any accepted hashing algorithm for agent '{self.agent_id}'",
+            )
+
+        # Set signing algorithm that is first match from the list of algorithms supported by the agent TPM
+        # and the configured list of algorithms accepted for the agent
         for signing_scheme in self.agent.accept_tpm_signing_algs:
             if signing_scheme in supported_signing_schemes:
                 self.signing_scheme = signing_scheme
                 break
-            else:
-                self._add_error(
-                    "supported_signing_schemes",
-                    f"does not contain any accepeted signing scheme for agent '{self.agent_id}'",
-                )
+
+        if not self.hash_algorithm:
+            self._add_error(
+                "supported_signing_schemes",
+                f"does not contain any accepted signing scheme for agent '{self.agent_id}'",
+            )
 
     def _validate_ima_entries(self, starting_ima_offset_received):
         if self.ima_policy.ima_policy and not self.ima_entries:
