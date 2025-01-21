@@ -21,13 +21,13 @@
 # -- Project information -----------------------------------------------------
 
 project = "Keylime Documentation"
-copyright = "2023, Keylime Developers"
+copyright = "2025, Keylime Developers"
 author = "Keylime Developers"
 
 # The short X.Y version
 version = ""
 # The full version, including alpha/beta/rc tags
-release = "7.11.0"
+release = "7.12.0"
 
 
 # -- General configuration ---------------------------------------------------
