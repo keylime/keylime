@@ -6,7 +6,17 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from keylime import cert_utils, config, crypto, keylime_logging
-from keylime.models.base import Boolean, Certificate, Dictionary, Integer, OneOf, PersistableModel, String, da_manager
+from keylime.models.base import (
+    Base64Bytes,
+    Boolean,
+    Certificate,
+    Dictionary,
+    Integer,
+    OneOf,
+    PersistableModel,
+    String,
+    da_manager,
+)
 from keylime.tpm import tpm2_objects
 from keylime.tpm.tpm_main import Tpm
 
@@ -20,17 +30,17 @@ class RegistrarAgent(PersistableModel):
         cls._id("agent_id", String(80))
 
         # The endorsement key (EK) of the TPM
-        cls._field("ek_tpm", String(500))
+        cls._field("ek_tpm", Base64Bytes)
         # The endorsement key (EK) certificate used to verify the TPM as genuine
         cls._field("ekcert", Certificate, nullable=True)
         # The attestation key (AK) used by Keylime to prepare TPM quotes
-        cls._field("aik_tpm", String(500))
+        cls._field("aik_tpm", Base64Bytes)
         # The initial attestation key (IAK) used when registering with a DevID
-        cls._field("iak_tpm", String(500))
+        cls._field("iak_tpm", Base64Bytes, nullable=True)
         # The initial attestation key (IAK) certificate used to verify IAK authenticity
         cls._field("iak_cert", Certificate, nullable=True)
         # The signing key used as initial device identity (IDevID) key
-        cls._field("idevid_tpm", String(500))
+        cls._field("idevid_tpm", Base64Bytes, nullable=True)
         # The initial device identity (IDevID) certificate used to verify IDevID authenticity
         cls._field("idevid_cert", Certificate, nullable=True)
         # The HMAC key used to verify the response produced by TPM2_ActivateCredential to bind the AK to the EK
@@ -73,7 +83,7 @@ class RegistrarAgent(PersistableModel):
 
         # Convert TPM key structure to a public key object and extract the raw key byte string
         try:
-            tpm_pub = tpm2_objects.pubkey_from_tpm2b_public(base64.b64decode(tpm_key, validate=True))
+            tpm_pub = tpm2_objects.pubkey_from_tpm2b_public(tpm_key)
             tpm_pub_bytes = tpm_pub.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
         except Exception:
             self._add_error(tpm_key_field, "must be a valid TPM2B_PUBLIC structure")
@@ -173,14 +183,12 @@ class RegistrarAgent(PersistableModel):
             self._add_error("aik_tpm", "cannot be bound to the IAK because of a missing 'iak_attest' or 'iak_sign'")
 
         # Decode Base64 values to binary TPM structures
-        aik_tpm = base64.b64decode(self.aik_tpm)
-        iak_tpm = base64.b64decode(self.iak_tpm)
         iak_attest = base64.b64decode(iak_attest)
         iak_sign = base64.b64decode(iak_sign)
 
         # Verify that iak_attest properly contains reference to aik_tpm and that iak_sign is a signature thereover
         # produced by the private key corresponding to iak_tpm
-        if not Tpm.verify_aik_with_iak(self.agent_id, aik_tpm, iak_tpm, iak_attest, iak_sign):
+        if not Tpm.verify_aik_with_iak(self.agent_id, self.aik_tpm, self.iak_tpm, iak_attest, iak_sign):
             self._add_error("aik_tpm", "cannot be confirmed as having been created by the same TPM as the IAK")
 
     def _check_ek(self):
@@ -286,7 +294,8 @@ class RegistrarAgent(PersistableModel):
 
         # Basic validation of values
         self.validate_required(["aik_tpm"])
-        self.validate_base64(["ek_tpm", "aik_tpm", "iak_tpm", "idevid_tpm"])
+        # Note: the data is validated as being Base64 encoded as part of the
+        # cast method
 
         # Determine and set the 'active' flag
         self._prepare_status_flags()
@@ -297,11 +306,8 @@ class RegistrarAgent(PersistableModel):
         if not self.ek_tpm or not self.aik_tpm:
             return None
 
-        ek_tpm = base64.b64decode(self.ek_tpm)
-        aik_tpm = base64.b64decode(self.aik_tpm)
-
         try:
-            result = Tpm.encrypt_aik_with_ek(self.agent_id, ek_tpm, aik_tpm)
+            result = Tpm.encrypt_aik_with_ek(self.agent_id, self.ek_tpm, self.aik_tpm)
 
             if not result:
                 return None
