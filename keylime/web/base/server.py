@@ -10,7 +10,6 @@ import tornado
 from keylime import config, keylime_logging, web_util, api_version
 from keylime.web.base.action_handler import ActionHandler
 from keylime.web.base.route import Route
-from keylime.web.base.stats_collector import StatsCollector
 
 if TYPE_CHECKING:
     from ssl import SSLContext
@@ -264,12 +263,8 @@ class Server(ABC):
             "Listening on %s:%s (%s) with %s worker processes...", self.host, ports, protocols, self.worker_count
         )
 
-        with StatsCollector():
-            # num = manager.Value('i', 0)
-            tornado.process.fork_processes(self.worker_count)
-            # num.value = num.value + 1
-            # print(num.value)
-            asyncio.run(self.start_single())
+        tornado.process.fork_processes(self.worker_count)
+        asyncio.run(self.start_single())
 
     def _setup(self) -> None:
         """Defines values to use in place of the defaults for the various server options. It is suggested that this is
