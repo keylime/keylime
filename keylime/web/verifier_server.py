@@ -17,6 +17,7 @@ from keylime.web.verifier.evidence_controller import EvidenceController
 from keylime.web.verifier.ima_policy_controller import IMAPolicyController
 from keylime.web.verifier.mb_ref_state_controller import MBRefStateController
 from keylime.web.verifier.server_info_controller import ServerInfoController
+from keylime.web.verifier.session_controller import SessionController
 
 logger = keylime_logging.init_logging("verifier")
 
@@ -178,6 +179,8 @@ class VerifierServer(Server):
         self._v3_ima_routes()
         # Routes for on-demand verification of evidence in API v3+
         self._v3_evidence_routes()
+        # Routes for agent athentication
+        self._v3_authentication_routes()
 
     def _agent_routes(self) -> None:
         # Routes used to manage agents enrolled for verification
@@ -252,3 +255,11 @@ class VerifierServer(Server):
     def _v3_evidence_routes(self) -> None:
         # Routes for on-demand verification of evidence (which adhere to RFC 9110 semantics)
         self._post("/evidence", EvidenceController, "process")
+
+    def _v3_authentication_routes(self) -> None:
+        # Routes for agent authentication
+        self._get("/agents/:agent_id/session/:token", SessionController, "show", allow_insecure=True)
+        self._post("/agents/:agent_id/session", SessionController, "create", allow_insecure=True)
+        self._patch("/agents/:agent_id/session/:token", SessionController, "update", allow_insecure=True)
+
+        # TODO: Remove "allow_insecure" above
