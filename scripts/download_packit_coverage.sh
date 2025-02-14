@@ -135,7 +135,7 @@ fi
 # now we have TF_ARTIFACTS_URL so we can proceed with the download
 echo "TF_ARTIFACTS_URL=${TF_ARTIFACTS_URL}"
 
-COVERAGE_DIR=$( curl --retry 5 ${TF_ARTIFACTS_URL}/results.xml | grep -E -o "${TF_ARTIFACTS_URL}.*${TF_COVERAGE_DATA_DIR}" )
+COVERAGE_DIR=$( curl --retry 5 ${TF_ARTIFACTS_URL}/results.xml | grep -E -m 1 -o "${TF_ARTIFACTS_URL}.*${TF_COVERAGE_DATA_DIR}" )
 echo "COVERAGE_DIR=${COVERAGE_DIR}"
 
 COVERAGE_FILE="coverage.tar.gz"
