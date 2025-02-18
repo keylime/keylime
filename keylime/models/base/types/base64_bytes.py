@@ -93,7 +93,7 @@ class Base64Bytes(ModelType):
         if isinstance(value, bytes):
             try:
                 s = value.decode("utf-8")
-                return base64.b64decode(s, validate=True)  # type: ignore[reportArgumentType, arg-type]
+                return base64.b64decode(s, validate=True)  # type: ignore
             except binascii.Error as err:
                 raise ValueError(
                     f"value appears Base64 encoded but cannot be deserialized as such: '{str(value)}'"
@@ -109,6 +109,9 @@ class Base64Bytes(ModelType):
     def _dump(self, value: IncomingValue) -> Optional[str]:
         if not value:
             return None
+
+        if isinstance(value, str):
+            value = value.encode()
 
         # Save as Base64-encoded value
         return base64.b64encode(value).decode("utf-8")  # type: ignore[reportReturnType]
