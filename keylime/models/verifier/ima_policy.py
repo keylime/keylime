@@ -15,3 +15,4 @@ class IMAPolicy(PersistableModel):
         cls._field("tpm_policy", Text, nullable=True)
         cls._field("checksum", String(128), nullable=True)
         cls._field("generator", Integer, nullable=True)
+        

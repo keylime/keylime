@@ -517,8 +517,6 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
     def errors(self) -> Mapping[str, Sequence | Mapping]:
         errors = {field: errors for field, errors in self._errors.items() if len(errors) > 0}
 
-        embeds = {**self.__class__.embeds_one_associations, **self.__class__.embeds_many_associations}
-
         for name, embed in self.__class__.embeds_one_associations.items():
             (record,) = embed.get_record_set(self) or (None,)
 

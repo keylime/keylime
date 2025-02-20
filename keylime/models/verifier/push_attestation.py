@@ -160,9 +160,9 @@ class PushAttestation(PersistableModel):
         cls._persist_as("attestations")
 
         # IDENTIFIERS
-        cls._belongs_to("agent", verifier_models.IMAPolicy, primary_key=True)
+        cls._belongs_to("agent", verifier_models.VerifierAgent, primary_key=True)
         cls._field("index", Integer, primary_key=True)  # pylint: disable=unexpected-keyword-arg
-        # Each attestation is uniquely identifiable by a (agent_id, index) tuple; each agent has zero or more
+        # Each attestation is uniquely identifiable by an (agent_id, index) tuple; each agent has zero or more
         # attestations numbered incrementally from 0
 
         # ATTESTATION AND VERIFICATION STATUS
@@ -244,7 +244,7 @@ class PushAttestation(PersistableModel):
     @classmethod
     def get_latest(cls, agent_id):
         # Fetch the last attestation entry in the database for a particular agent
-        return PushAttestation.get(agent_id=agent_id, sort_=desc("index"))
+        return PushAttestation.get(agent_id=agent_id, sort_=desc(cls.db_mapping.index))
 
     @classmethod
     def accept_new_attestations_in(cls, agent_id: str):
@@ -613,7 +613,7 @@ class PushAttestation(PersistableModel):
                 or_(PushAttestation.status == "verified", PushAttestation.status == "failed"),
                 or_(PushAttestation.failure_type != "quote_authentication", PushAttestation.failure_type == None),
                 PushAttestation.index < self.index,
-                sort_=desc("index"),
+                sort_=desc(self.__class__.db_mapping.index),
             )
 
             if not previous_authenticated_attestation:
@@ -633,7 +633,7 @@ class PushAttestation(PersistableModel):
                 PushAttestation.agent_id == self.agent_id,
                 PushAttestation.status == "verified",
                 PushAttestation.index < self.index,
-                sort_=desc("index"),
+                sort_=desc(self.__class__.db_mapping.index),
             )
 
             if not previous_successful_attestation:
@@ -650,7 +650,7 @@ class PushAttestation(PersistableModel):
                 return None
 
             previous_attestation = PushAttestation.get(
-                PushAttestation.agent_id == self.agent_id, PushAttestation.index < self.index, sort_=desc("index")
+                PushAttestation.agent_id == self.agent_id, PushAttestation.index < self.index, sort_=desc(self.__class__.db_mapping.index)
             )
 
             if not previous_attestation:
@@ -670,11 +670,9 @@ class PushAttestation(PersistableModel):
     @property
     def next_attestation_expected_after(self):
         if self.evidence_received_at:
-            basis = self.evidence_received_at
+            return self.evidence_received_at + timedelta(seconds=config.getint("verifier", "quote_interval"))
         else:
-            basis = self.nonce_created_at
-
-        return basis + timedelta(seconds=config.getint("verifier", "quote_interval"))
+            return self.nonce_created_at
 
     @property
     def decision_expected_by(self):

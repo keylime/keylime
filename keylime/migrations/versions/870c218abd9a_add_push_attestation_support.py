@@ -38,6 +38,7 @@ def upgrade_cloud_verifier():
         sa.Column("index", sa.Integer),
         sa.Column("nonce", sa.LargeBinary(128)),
         sa.Column("status", sa.String(8), server_default="waiting"),
+        sa.Column("failure_type", sa.String(20), nullable=True),
         sa.Column("tpm_quote", sa.Text, nullable=True),
         sa.Column("hash_algorithm", sa.String(15)),
         sa.Column("signing_scheme", sa.String(15)),

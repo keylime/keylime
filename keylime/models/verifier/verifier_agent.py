@@ -16,8 +16,8 @@ class VerifierAgent(PersistableModel):
         cls._id("agent_id", String(80))
 
         # Associations
-        cls._belongs_to("ima_policy", verifier_models.IMAPolicy)
-        cls._belongs_to("mb_policy", verifier_models.MBPolicy)
+        # cls._belongs_to("ima_policy", verifier_models.IMAPolicy)
+        # cls._belongs_to("mb_policy", verifier_models.MBPolicy)
         cls._has_many("attestations", verifier_models.PushAttestation)
 
         # The attestation key (AK) used by the TPM to sign attestations
@@ -51,7 +51,7 @@ class VerifierAgent(PersistableModel):
 
         cls._field("v", String(45))
         cls._field("public_key", String(500))
-        cls._field("mtls_cert", Certificate, nullable=True)
+        # cls._field("mtls_cert", Certificate, nullable=True)
         cls._field("ip", String(15))
         cls._field("port", Integer)
         cls._field("verifier_id", String(80))
@@ -69,7 +69,7 @@ class VerifierAgent(PersistableModel):
         # Fields for runtime integrity monitoring (Linux IMA)
         cls._field("ima_sign_verification_keys", Text)
         cls._field("ima_pcrs", List)
-        cls._field("pcr10", LargeBinary, nullable=True)
+        cls._field("pcr10", Binary, nullable=True)
         cls._field("next_ima_ml_entry", Integer)
 
         # Other miscellaneous measures of system state

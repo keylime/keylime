@@ -167,8 +167,7 @@ class PersistableModelMeta(BasicModelMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        args = (name, *args)
-        association = HasOneAssociation(*args, **kwargs)
+        association = HasOneAssociation(name, cls, *args, **kwargs)
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_has_one", name, *args, **kwargs)
@@ -177,8 +176,7 @@ class PersistableModelMeta(BasicModelMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        args = (name, *args)
-        association = HasManyAssociation(*args, **kwargs)
+        association = HasManyAssociation(name, cls, *args, **kwargs)
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_has_many", name, *args, **kwargs)
@@ -187,8 +185,8 @@ class PersistableModelMeta(BasicModelMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        args = (name, *args)
-        association = BelongsToAssociation(*args, **kwargs)
+        association = BelongsToAssociation(name, cls, *args, **kwargs)
+        type(cls)._add_association(cls, association)
 
         # Get the associated model
         other_model = association.other_model
@@ -210,7 +208,7 @@ class PersistableModelMeta(BasicModelMeta):
         # Get the name of the field which serves as the ID (primary key) of the associated model
         (other_model_id,) = other_model.primary_key
         # The data type of the foreign key in this model should match the data type of the associated model's ID field
-        foreign_key_type = cls._getattr(other_model, "_fields")[other_model_id].data_type
+        foreign_key_type = other_model.fields[other_model_id].data_type
 
         # Create the field for the foreign key
         type(cls)._make_field(
@@ -222,7 +220,6 @@ class PersistableModelMeta(BasicModelMeta):
             column_args=(ForeignKey(f"{other_model.table_name}.{other_model_id}"),),
         )
 
-        type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_belongs_to", name, *args, primary_key=primary_key, **kwargs)
 
     def process_schema(cls) -> None:
@@ -248,6 +245,9 @@ class PersistableModelMeta(BasicModelMeta):
         # Prepare SQLAlchemy table object using the model's schema
         table = type(cls).__make_db_table(cls.table_name, cls.db_columns)
         setattr(cls, f"_{cls.__name__}__db_table", table)
+
+        for name, assoc in cls.entity_associations.items():
+            rship = type(cls).__assoc_to_rship(assoc)
 
         # Build SQLAlchemy Relationships from the associations defined by the model's schema
         relationships = {name: type(cls).__assoc_to_rship(assoc) for name, assoc in cls.entity_associations.items()}

@@ -151,6 +151,12 @@ class PushAttestationController(Controller):
 
     # GET /v3[.:minor]/agents/:agent_id/attestations
     def index(self, agent_id, **_params):
+        agent = VerifierAgent.get(agent_id)
+
+        if not agent:
+            self.respond(404)
+            return
+        
         results = PushAttestation.all(agent_id=agent_id)
 
         self.respond(200, "Success", [attestation.render() for attestation in results])
@@ -195,7 +201,7 @@ class PushAttestationController(Controller):
             self.respond(429)
             return
 
-        new_attestation = PushAttestation.create(agent_id, agent, params)
+        new_attestation = PushAttestation.create(agent, params)
 
         if new_attestation.errors:
             msgs = []
@@ -232,7 +238,8 @@ class PushAttestationController(Controller):
             ]
         )
         response = {**response, "pcr_mask": agent.tpm_policy}
-        self.respond(200, "Success", response)
+        self.respond(201, "Success", response)
+        # TODO: Set Location header
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/:index
     def update(self, agent_id, index, **params):
@@ -279,7 +286,7 @@ class PushAttestationController(Controller):
         attestation.commit_changes()
         time_to_next_attestation = attestation.next_attestation_expected_after - Timestamp.now()
         response = {"time_to_next_attestation": int(time_to_next_attestation.total_seconds())}
-        self.respond(200, "Success", response)
+        self.respond(202, "Success", response)
 
         # Verify attestation after response is sent, so that the agent does not need to wait for the verification to
         # complete. Ideally, in the future, we would want to create a pool of verification worker processes
