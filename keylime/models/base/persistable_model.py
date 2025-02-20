@@ -182,7 +182,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         return [getattr(row, cls.id_field.name) for row in results]
 
     @classmethod
-    def get(cls, *args: Any, record_id: Optional[Any] = None, **kwargs: Any) -> Optional["PersistableModel"]:
+    def get(cls, record_id: Optional[Any] = None, *args: Any, **kwargs: Any) -> Optional["PersistableModel"]:
         # pylint: disable=no-else-return
 
         if cls.schema_awaiting_processing:
@@ -221,10 +221,13 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
 
         if process_associations:
             for name, association in type(self).associations.items():
-                association_mapping = getattr(mapping_inst, name)
+                associated_data = getattr(mapping_inst, name)
 
-                if association_mapping is not None:
-                    value = association.other_model(association_mapping, process_associations=False)
+                if isinstance(associated_data, list):
+                    record_set = association.get_record_set(self)
+                    record_set.update(associated_data)
+                elif associated_data is not None:
+                    value = association.other_model(associated_data, process_associations=False)
                     setattr(self, name, value)
 
     def _init_from_dict(self, data: dict, _process_associations: bool) -> None:

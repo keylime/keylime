@@ -69,9 +69,10 @@ class ModelAssociation(ABC):
     [1] https://docs.python.org/3/howto/descriptor.html
     """
 
-    def __init__(self, name: str, other_model: type["BasicModel"], inverse_of: Optional[str] = None) -> None:
+    def __init__(self, name: str, parent_model: type["BasicModel"], other_model: type["BasicModel"], inverse_of: Optional[str] = None) -> None:
         self._name: str = name
         self._private_member: str = "_" + name
+        self._parent_model: type["BasicModel"] = parent_model
         self._other_model: type["BasicModel"] = other_model
         self._inverse_of: Optional[str] = inverse_of
 
@@ -122,16 +123,23 @@ class ModelAssociation(ABC):
     @property
     def name(self) -> str:
         return self._name
+    
+    @property
+    def parent_model(self) -> type["BasicModel"]:
+        return self._parent_model
 
     @property
     def other_model(self) -> type["BasicModel"]:
         return self._other_model
-
+    
     @property
     def inverse_of(self) -> Optional[str]:
         if not self._inverse_of:
             # Get all associations which point from the associated model back to the parent model
-            candidates = [assoc for assoc in self.other_model.associations.values() if assoc.other_model == self]
+            candidates = [
+                assoc for assoc in self.other_model.associations.values()
+                if assoc.other_model is self.parent_model
+            ]
 
             # If there is only one such association in the associated model, the inverse association is unambiguous
             if len(candidates) == 1:
@@ -144,7 +152,7 @@ class ModelAssociation(ABC):
         if not self.inverse_of:
             return None
 
-        return getattr(self.other_model, self.inverse_of)  # type: ignore[no-any-return]
+        return self.other_model.associations.get(self.inverse_of)
 
     @property
     @abstractmethod
@@ -208,6 +216,7 @@ class EntityAssociation(ModelAssociation):
     def __init__(
         self,
         name: str,
+        parent_model: type["PersistableModel"],
         other_model: type["PersistableModel"],
         inverse_of: Optional[str] = None,
         foreign_key: Optional[str] = None,
@@ -215,21 +224,20 @@ class EntityAssociation(ModelAssociation):
     ) -> None:
         self._foreign_key: Optional[str] = foreign_key
         self._preload: bool = preload
-        super().__init__(name, other_model, inverse_of)
+        super().__init__(name, parent_model, other_model, inverse_of)
 
-    @property
-    def foreign_key(self) -> Optional[str]:
+    def get_foreign_key(self, search_inverse: bool = True) -> Optional[str]:
         foreign_key = self._foreign_key
 
         # If no foreign key was declared for the association, see if is obtainable from the inverse association
-        if not foreign_key:
-            foreign_key = getattr(self.inverse_association, "_foreign_key", None)  # type: ignore
+        if not foreign_key and search_inverse and self.inverse_association:
+            foreign_key = self.inverse_association.get_foreign_key(search_inverse = False)
 
         return foreign_key
 
     @property
-    def inverse_association(self) -> Optional["EntityAssociation"]:
-        ...
+    def foreign_key(self) -> Optional[str]:
+        return self.get_foreign_key()
 
     @property
     def preload(self) -> bool:
@@ -245,6 +253,10 @@ class EntityAssociation(ModelAssociation):
 
         @property
         def other_model(self) -> type["PersistableModel"]:
+            ...
+
+        @property
+        def inverse_association(self) -> Optional["EntityAssociation"]:
             ...
 
 
@@ -294,6 +306,7 @@ class BelongsToAssociation(EntityAssociation):
     def __init__(
         self,
         name: str,
+        parent_model: type["PersistableModel"],
         other_model: type["PersistableModel"],
         nullable: bool = False,
         inverse_of: Optional[str] = None,
@@ -301,7 +314,7 @@ class BelongsToAssociation(EntityAssociation):
         preload: bool = True,
     ):
         self._nullable: bool = nullable
-        super().__init__(name, other_model, inverse_of, foreign_key, preload)
+        super().__init__(name, parent_model, other_model, inverse_of, foreign_key, preload)
 
     def __get__(
         self, parent_record: "BasicModel", _objtype: Optional[type["BasicModel"]] = None
@@ -325,14 +338,8 @@ class BelongsToAssociation(EntityAssociation):
         if other_record_id and hasattr(parent_record, self.foreign_key):
             setattr(parent_record, self.foreign_key, other_record_id)
 
-    if TYPE_CHECKING:
-
-        def _get_one(self, parent_record: "BasicModel") -> Union["PersistableModel", "BelongsToAssociation", None]:
-            ...
-
-    @property
-    def foreign_key(self) -> str:
-        foreign_key = super().foreign_key
+    def get_foreign_key(self, search_inverse: bool = True) -> Optional[str]:
+        foreign_key = super().get_foreign_key(search_inverse)
 
         # If no foreign key was declared for the association (or the inverse association), use default
         if not foreign_key:
@@ -343,3 +350,12 @@ class BelongsToAssociation(EntityAssociation):
     @property
     def nullable(self) -> bool:
         return self._nullable
+
+    if TYPE_CHECKING:
+
+        def _get_one(self, parent_record: "BasicModel") -> Union["PersistableModel", "BelongsToAssociation", None]:
+            ...
+
+        @property
+        def foreign_key(self) -> str:
+            ...
