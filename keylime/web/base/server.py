@@ -201,9 +201,7 @@ class Server(ABC):
         if not self.host:
             raise ValueError(f"server '{self.__class__.__name__}' cannot be initialised without a value for 'host'")
 
-        # TODO fix this logic
-        # if not self.http_port or (not self.https_port or not self.ssl_ctx):
-        if not self.http_port:
+        if not self.http_port and (not self.https_port or not self.ssl_ctx):
             raise ValueError(
                 f"server '{self.__class__.__name__}' cannot be initialised without either 'http_port' or 'https_port'"
                 f"and 'ssl_ctx'"
@@ -216,10 +214,18 @@ class Server(ABC):
 
         # Create new Tornado app with request handler to process routes
         self.__tornado_app = tornado.web.Application([(r".*", ActionHandler, {"server": self})])
+
         # Bind socket for HTTP connections
-        self.__tornado_http_sockets = tornado.netutil.bind_sockets(int(self.http_port), address=self.host)
+        if self.http_port:
+            self.__tornado_http_sockets = tornado.netutil.bind_sockets(int(self.http_port), address=self.host)
+        else:
+            self.__tornado_http_sockets = []
+
         # Bind socket for HTTPS connections
-        self.__tornado_https_sockets = tornado.netutil.bind_sockets(int(self.https_port), address=self.host)
+        if self.https_port:
+            self.__tornado_https_sockets = tornado.netutil.bind_sockets(int(self.https_port), address=self.host)
+        else:
+            self.__tornado_https_sockets = []
 
         # Tornado servers are instantiated by calling start_single() or start_multi(), so set to None initially
         self.__tornado_http_server: Optional[tornado.httpserver.HTTPServer] = None
