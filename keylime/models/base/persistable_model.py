@@ -144,7 +144,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
 
     @classmethod
     def _query(cls, session, args, kwargs, subject=None):
-        if not subject:
+        if subject is None:
             subject = cls.db_mapping
 
         filters = kwargs

@@ -180,8 +180,7 @@ class BasicModelMeta(ABCMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        args = (name, *args)
-        association = EmbedsOneAssociation(*args, **kwargs)
+        association = EmbedsOneAssociation(name, cls, *args, **kwargs)
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_embeds_one", name, *args, **kwargs)
@@ -190,8 +189,7 @@ class BasicModelMeta(ABCMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        args = (name, *args)
-        association = EmbedsManyAssociation(*args, **kwargs)
+        association = EmbedsManyAssociation(name, cls, *args, **kwargs)
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_embeds_many", name, *args, **kwargs)
@@ -200,8 +198,7 @@ class BasicModelMeta(ABCMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        args = (name, *args)
-        association = EmbeddedInAssociation(*args, **kwargs)
+        association = EmbeddedInAssociation(name, cls, *args, **kwargs)
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_embedded_in", name, *args, **kwargs)
