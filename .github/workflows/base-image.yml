@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Log in to the Container registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
@@ -29,7 +29,7 @@ jobs:
 
       - name: Generate docker metadata for keylime_base
         id: meta_base
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime_base
@@ -42,7 +42,7 @@ jobs:
 
       - name: Generate docker metadata for CI image
         id: meta_ci
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime-ci
@@ -60,7 +60,7 @@ jobs:
           sed -i "s#\(LABEL version=\)[^ ]*#\1\"${{ steps.meta_ci.outputs.version }}\"#" docker/ci/Dockerfile
 
       - name: Build and push base image
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355
         with:
           context: .
           file: docker/release/base/Dockerfile
@@ -69,7 +69,7 @@ jobs:
           labels: ${{ steps.meta_base.outputs.labels }}
 
       - name: Build and push CI image
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355
         with:
           context: docker/ci
           file: docker/ci/Dockerfile

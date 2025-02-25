@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2021 Angelo Ruocco - IBM Research Lab Zurich
-"""
-
 import random
 import unittest
 

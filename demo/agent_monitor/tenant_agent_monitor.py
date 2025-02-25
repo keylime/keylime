@@ -1,10 +1,5 @@
 #!/usr/bin/python3
 
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2017 Massachusetts Institute of Technology.
-"""
-
 # wget  --ca-certificate=/var/lib/keylime/secure/unzipped/cacert.crt --post-data '{}'
 #       --certificate=/var/lib/keylime/secure/unzipped/d432fbb3-d2f1-4a97-9ef7-75bd81c00000-cert.crt
 #       --private-key=/var/lib/keylime/secure/unzipped/d432fbb3-d2f1-4a97-9ef7-75bd81c00000-private.pem
@@ -158,8 +153,7 @@ class AgentsHandler(BaseHandler):
                 logger.warning("POST returning 400 response. uri not supported")
         except Exception as err:
             keylime.web_util.echo_json_response(self, 400, "Exception error: %s" % err)
-            logger.warning("POST returning 400 response. Exception error: %s" % err)
-            logger.exception(err)
+            logger.exception("POST returning 400 response.")
 
     def put(self):
         """This method handles the PUT requests to add agents to the Agent Monitor.

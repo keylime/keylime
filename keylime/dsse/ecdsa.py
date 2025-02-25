@@ -1,6 +1,4 @@
-"""ECDSA signing/verification implementation.
-SPDX-License-Identifier: Apache-2.0
-"""
+"""ECDSA signing/verification implementation."""
 
 import hashlib
 

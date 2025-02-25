@@ -269,7 +269,7 @@ sed -i "s/^\\\//g" $ALLOWLIST_DIR/${OUTPUT}
 mkdir -p $OUTPUT_DIR
 announce "Converting created allowlist ($ALLOWLIST_DIR/${OUTPUT}) to Keylime runtime policy ($OUTPUT_DIR/${OUTPUT}) ..."
 CONVERT_CMD_OPTS="--allowlist $ALLOWLIST_DIR/${OUTPUT} --output_file $OUTPUT_DIR/${OUTPUT}"
-[ -f $EXCLUDE_LIST ] && CONVERT_CMD_OPTS="$CONVERT_CMD_OPTS --excludelist $EXCLUDE_LIST"
+[ -f $EXCLUDE_LIST ] && CONVERT_CMD_OPTS="$CONVERT_CMD_OPTS --excludelist "$(readlink -f -- "${EXCLUDE_LIST}")""
 
 pushd $KCRP_BASE_DIR  > /dev/null 2>&1
 export PYTHONPATH=$KCRP_BASE_DIR:$PYTHONPATH

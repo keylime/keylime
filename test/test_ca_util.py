@@ -1,9 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2021 Red Hat, Inc.
-"""
-
-
 import os
 import shutil
 import sys

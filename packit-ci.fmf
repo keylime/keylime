@@ -23,15 +23,26 @@ execute:
 
 adjust:
  # prepare step adjustments
- - when: distro == centos-stream-9
-   prepare+:
-    - how: shell
-      order: 30
-      script:
-       - rpm -q epel-release || rpm -Uv https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm https://dl.fedoraproject.org/pub/epel/epel-next-release-latest-9.noarch.rpm
  - when: distro == centos-stream-8
    enabled: 0
 
+ # make sure epel repo is available
+ - when: distro == rhel-9 or distro == centos-stream-9
+   prepare+:
+     - how: shell
+       order: 10
+       script:
+         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm || true
+         - dnf config-manager --set-enabled epel || true
+         - dnf -y install beakerlib
+ - when: distro == rhel-10 or distro == centos-stream-10
+   prepare+:
+     - how: shell
+       order: 10
+       script:
+         - yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm || true
+         - dnf config-manager --set-enabled epel || true
+         - dnf -y install beakerlib
 
 ## First test plan
 
@@ -41,9 +52,10 @@ adjust:
 
   discover:
     how: fmf
-    url: https://github.com/ansasaki/keylime-tests
-    ref: tls_on_webhook
+    url: https://github.com/RedHat-SP-Security/keylime-tests
+    ref: main
     test:
+     - /setup/apply_workarounds
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
      - /setup/install_rust_keylime_from_copr
@@ -74,6 +86,7 @@ adjust:
      - /functional/install-rpm-with-ima-signature
      - /functional/keylime-non-default-ports
      - /functional/keylime_create_policy-static-data
+     - /functional/keylime-policy-commands
      - /functional/keylime_tenant-commands-on-localhost
      - /functional/keylime_tenant-ima-signature-sanity
      - /functional/measured-boot-swtpm-sanity
@@ -82,6 +95,7 @@ adjust:
      - /functional/tpm-issuer-cert-using-ecc
      - /functional/tpm_policy-sanity-on-localhost
      - /functional/use-multiple-ima-sign-verification-keys
+     - /functional/webhook-certificate-on-localhost
      - /regression/cve-2023-38200
      - /regression/cve-2023-38201
      - /regression/CVE-2023-3674
@@ -94,8 +108,8 @@ adjust:
 
   adjust+:
    # discover step adjustments
-   # disable code coverage measurement everywhere except F39
-   - when: distro != fedora-39
+   # disable code coverage measurement everywhere except F41
+   - when: distro != fedora-41
      discover+:
        test-:
         - /setup/enable_keylime_coverage
@@ -116,6 +130,7 @@ adjust:
     url: https://github.com/RedHat-SP-Security/keylime-tests
     ref: main
     test:
+     - /setup/apply_workarounds
      - /setup/configure_tpm_emulator
      - /setup/install_upstream_keylime
      - /setup/install_rust_keylime_from_copr

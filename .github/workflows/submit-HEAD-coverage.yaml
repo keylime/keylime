@@ -10,11 +10,11 @@ jobs:
     runs-on: ubuntu-22.04
     name: Submit code coverage from merged PR
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v3
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v3
     - name: Install testing-farm script
       run: pip3 -v install tft-cli
     - name: Run tests on Testing Farm
-      run: testing-farm request --context distro=fedora-39 --arch x86_64 --compose Fedora-39 --plan '/e2e-with-revocation' -e UPLOAD_COVERAGE=1 2>&1 | tee tt_output
+      run: testing-farm request --context distro=fedora-41 --arch x86_64 --compose Fedora-41 --plan '/e2e-with-revocation' -e UPLOAD_COVERAGE=1 2>&1 | tee tt_output
       env:
         TESTING_FARM_API_TOKEN: ${{ secrets.TESTING_FARM_API_TOKEN }}
     - name: Find PR Packit tests to finish and download coverage.xml file
@@ -25,21 +25,21 @@ jobs:
     - name: List downloaded files
       run: ls coverage*
     - name: Upload coverage.unittests.xml report to Codecov with GitHub Action
-      uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v2
+      uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565303 # v2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         files: coverage.unittests.xml
         flags: unittests
     - name: Upload coverage.testsuite.xml report to Codecov with GitHub Action
-      uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v2
+      uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565303 # v2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         files: coverage.testsuite.xml
         flags: testsuite
     - name: Upload coverage.packit.xml report to Codecov with GitHub Action
-      uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v2
+      uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565303 # v2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:

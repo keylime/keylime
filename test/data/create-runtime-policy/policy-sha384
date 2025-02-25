@@ -1,0 +1,1 @@
+{"meta": {"version": 1, "generator": 3, "timestamp": "2024-09-12 13:44:45.296199"}, "release": 0, "digests": {"/base_policy_data": ["407272428a6bda6a8a0e450b4ccfe3ba52a2faf5f45853692b05212aa3103d43524e03050b4ee119a0ec0a069cb5794b"]}, "excludes": [], "keyrings": {}, "ima": {"ignored_keyrings": [], "log_hash_alg": "sha1", "dm_policy": null}, "ima-buf": {}, "verification-keys": ""}

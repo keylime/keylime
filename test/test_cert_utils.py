@@ -1,8 +1,3 @@
-"""
-SPDX-License-Identifier: Apache-2.0
-Copyright 2022 Red Hat, Inc.
-"""
-
 import base64
 import os
 import unittest

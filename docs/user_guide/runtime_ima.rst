@@ -59,6 +59,7 @@ You can then verify IMA is measuring your system::
   10 7efd8e2a3da367f2de74b26b84f20b37c692b9f9 ima-ng sha1:af78ea0b455f654e9237e2086971f367b6bebc5f /usr/lib/systemd/libsystemd-shared-239.so
   10 784fbf69b54c99d4ae82c0be5fca365a8272414e ima-ng sha1:b0c601bf82d32ff9afa34bccbb7e8f052c48d64e /etc/ld.so.cache
 
+.. _keylime-runtime-policies-label:
 
 Keylime Runtime Policies
 ------------------------
@@ -202,18 +203,22 @@ Depending of the use case the object can also be constructed manually instead of
 
     {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Keylime IMA policy",
+        "title": "Keylime Runtime policy",
         "type": "object",
         "properties": {
             "meta": {
                 "type": "object",
                 "properties": {
+                    "generator": {
+                        "type": "integer",
+                        "description": "Identifier of the origin of the policy."
+                    },
                     "version": {
                         "type": "integer",
                         "description": "Version number of the IMA policy schema"
                     }
                 },
-                "required": ["version"],
+                "required": ["version", "generator"],
                 "additionalProperties": false
             },
             "release": {
@@ -237,7 +242,7 @@ Depending of the use case the object can also be constructed manually instead of
             },
             "excludes": {
                 "type": "array",
-                "title": "Excluded file paths",
+                "title": "Regular expression strings to match file paths to exclude",
                 "items": {
                     "type": "string",
                     "format": "regex"
@@ -263,11 +268,9 @@ Depending of the use case the object can also be constructed manually instead of
                 }
             },
             "verification-keys": {
-                "type": "array",
-                "title": "Public keys to verify IMA attached signatures",
-                "items": {
-                    "type": "string"
-                }
+                "type": "string",
+                "title": "A JSON encoded IMA Keyring object",
+                "description": "A JSON encoded IMA Keyring object. It contains public keys used to verify IMA attached signatures",
             },
             "ima": {
                 "type": "object",
@@ -294,6 +297,43 @@ Depending of the use case the object can also be constructed manually instead of
             }
         },
         "required": ["meta", "release", "digests", "excludes", "keyrings", "ima", "ima-buf", "verification-keys"],
+        "additionalProperties": false
+    }
+
+IMA Keyring JSON Schema
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The `verification-keys` field of the Runtime Policy is a JSON encoded IMA Keyring object.
+The following schema can be used to validate it:
+
+.. sourcecode:: json
+
+    {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "IMA Keyring JSON schema",
+        "type": "object",
+        "properties": {
+            "meta": {
+                "type": "object",
+                "required": ["version"],
+                "properties": {
+                    "version": {"type": "integer", "minimum": 1},
+                },
+            },
+            "keyids": {
+                "type": "array",
+                "description": "Lowest 4 bytes of the SHA-1 hash over the DER encoded public key",
+                "title": "Identifier of the public keys.",
+                "items": {"type": "integer"}
+            },
+            "pubkeys": {
+                "type": "array",
+                "description": "An array of Base64 encoded public keys in DER format"
+                "title": "The keyring public keys"
+                "items": {"type": "string"}
+            },
+        },
+        "required": ["keyids", "pubkeys"],
         "additionalProperties": false
     }
 

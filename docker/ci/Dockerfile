@@ -5,7 +5,7 @@
 # It is not recommended for use beyond testing scenarios.
 ##############################################################################
 
-FROM quay.io/fedora/fedora@sha256:0053784e743aecb195111752b07d24f787b29e69016ba47ecd3d10411829f73f
+FROM quay.io/fedora/fedora@sha256:991a06b2425c13613ef8ace721a9055e52a64f65cd96c2b18c72bde43fe1308b
 MAINTAINER Luke Hinds <lhinds@redhat.com>
 LABEL version="1.2.0" description="Keylime - Bootstrapping and Maintaining Trust in the Cloud"
 
@@ -16,11 +16,6 @@ ENV HOME /root
 ENV KEYLIME_HOME ${HOME}/keylime
 ENV TPM_HOME ${HOME}/swtpm2
 COPY dbus-policy.conf /etc/dbus-1/system.d/
-
-# Install dev tools and libraries (includes openssl-devel)
-RUN dnf groupinstall -y \
-    "Development Tools" \
-    "Development Libraries"
 
 # Packaged dependencies
 ENV PKGS_DEPS="automake \
@@ -45,6 +40,7 @@ libtool \
 libtpms \
 llvm llvm-devel \
 make \
+openssl \
 openssl-devel \
 pkg-config \
 procps \
@@ -67,12 +63,14 @@ rust clippy cargo \
 swtpm \
 swtpm-tools \
 tpm2-abrmd \
+tpm2-openssl \
 tpm2-tools \
 tpm2-tss \
 tpm2-tss-devel \
 uthash-devel \
 wget \
-which"
+which \
+xxd"
 
 RUN dnf makecache && \
   dnf -y install $PKGS_DEPS && \
@@ -82,7 +80,5 @@ RUN dnf makecache && \
 # Install cargo dependencies
 RUN cargo install cargo-tarpaulin
 
-# Move keylime.conf to expected location in /etc/
-RUN git clone https://github.com/keylime/keylime.git && \
-  cd keylime && \
-  cp keylime.conf /etc/keylime.conf
+# Move tarpaulin to be available for all users
+RUN cp /root/.cargo/bin/cargo-tarpaulin /usr/bin

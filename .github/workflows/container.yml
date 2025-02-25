@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Log in to the Container registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
@@ -30,7 +30,7 @@ jobs:
 
       - name: Generate docker metadata for keylime_verifier
         id: meta_verifier
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v4
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # v4
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime_verifier
@@ -41,7 +41,7 @@ jobs:
 
       - name: Generate docker metadata for keylime_registrar
         id: meta_registrar
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v4
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # v4
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime_registrar
@@ -52,7 +52,7 @@ jobs:
 
       - name: Generate docker metadata for keylime_tenant
         id: meta_tenant
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v4
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # v4
         with:
           images: |
             ${{ env.IMAGE_BASE }}/keylime_tenant
@@ -73,7 +73,7 @@ jobs:
 
       - name: Build and push registrar
         id: build_registrar
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v4
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v4
         with:
           context: .
           file: docker/release/registrar/Dockerfile
@@ -83,7 +83,7 @@ jobs:
 
       - name: Build and push verifier
         id: build_verifier
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v4
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v4
         with:
           context: .
           file: docker/release/verifier/Dockerfile
@@ -93,7 +93,7 @@ jobs:
 
       - name: Build and push tenant
         id: build_tenant
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v4
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v4
         with:
           context: .
           file: docker/release/tenant/Dockerfile

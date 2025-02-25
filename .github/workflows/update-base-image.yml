@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Install skopeo and jq
         run: sudo apt-get install -y skopeo jq
@@ -35,7 +35,7 @@ jobs:
         run: echo "DATE=$(date +"%Y-%m-%d")" >> "$GITHUB_ENV"
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c
+        uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e91f
         with:
           add-paths: |
             docker/release/base/Dockerfile.in

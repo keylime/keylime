@@ -1,8 +1,19 @@
 Installation
 ============
 
-There are three current methods for installing Keylime: the Ansible role, the
-Keylime installer or a manual installation.
+The current methods for installing Keylime are following: 
+as a package (RHEL 9+, SLE Micro), the Ansible role, the Keylime installer or a manual installation.
+
+RHEL 9 or later Installation
+----------------------------
+
+Please follow the documentation `here <https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/security_hardening/assembly_ensuring-system-integrity-with-keylime_security-hardening>`_.
+
+SLE Micro Installation
+----------------------
+
+Please follow the documetnation `here <https://documentation.suse.com/sle-micro/6.0/html/Micro-keylime/index.html>`_.
+
 
 Ansible Keylime Roles
 ---------------------
@@ -149,17 +160,20 @@ the :code:`tpm2_checkquote` utility in your path.
     resource manager (available `here <https://github.com/tpm2-software/tpm2-abrmd>`_).
 
 How the TPM is accessed by tpm2-tools can be set using the :code:`TPM2TOOLS_TCTI` environment
-variable. More information about that can be found
+variable. Keylime Rust agent understands :code:`TCTI` without the prefix.
+More information about that can be found
 `here <https://github.com/tpm2-software/tpm2-tools/blob/master/man/common/tcti.md>`_.
 
 Talk to the swtpm emulator directly::
 
     export TPM2TOOLS_TCTI="mssim:port=2321"
+    export TCTI="mssim:port=2321"
 
 
 To talk to the TPM directly (not recommended)::
 
     export TPM2TOOLS_TCTI="device:/dev/tpm0"
+    export TCTI="device:/dev/tpm0"
 
 
 Install Keylime

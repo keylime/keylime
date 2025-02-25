@@ -2,12 +2,8 @@
 
 """
 Module to help with extracting initrds.
-
-SPDX-License-Identifier: Apache-2.0
-Copyright 2024 Red Hat, Inc.
 """
 
-import logging
 import os
 import shutil
 import subprocess
@@ -15,6 +11,7 @@ import tempfile
 from importlib import util
 from typing import IO, Dict
 
+from keylime.policy.logger import Logger
 from keylime.policy.utils import Compression, Magic, read_bytes_from_open_file
 
 _HAS_LIBARCHIVE = util.find_spec("libarchive") is not None
@@ -23,7 +20,7 @@ if _HAS_LIBARCHIVE:
 else:
     libarchive = None
 
-logger = logging.getLogger("policy.initrd")
+logger = Logger().logger()
 
 
 class InitrdReader:

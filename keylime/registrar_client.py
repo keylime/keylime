@@ -33,6 +33,16 @@ class RegistrarData(TypedDict):
 logger = keylime_logging.init_logging("registrar_client")
 api_version = keylime_api_version.current_version()
 
+MANDATORY_FIELDS = ["aik_tpm", "regcount", "ek_tpm", "ip", "port"]
+
+
+def check_mandatory_fields(results: Dict[str, Any]) -> bool:
+    for field in MANDATORY_FIELDS:
+        if field not in results:
+            logger.critical("Error: did not receive %s from Registrar Server.", field)
+            return False
+    return True
+
 
 def getData(
     registrar_ip: str, registrar_port: str, agent_id: str, tls_context: Optional[ssl.SSLContext]
@@ -71,24 +81,7 @@ def getData(
             logger.critical("Error: unexpected http response body from Registrar Server: %s", response.status_code)
             return None
 
-        if "aik_tpm" not in response_body["results"]:
-            logger.critical("Error: did not receive AIK from Registrar Server.")
-            return None
-
-        if "regcount" not in response_body["results"]:
-            logger.critical("Error: did not receive regcount from Registrar Server.")
-            return None
-
-        if "ek_tpm" not in response_body["results"]:
-            logger.critical("Error: did not receive EK from Registrar Server.")
-            return None
-
-        if "ip" not in response_body["results"]:
-            logger.critical("Error: did not receive IP from Registrar Server.")
-            return None
-
-        if "port" not in response_body["results"]:
-            logger.critical("Error: did not receive port from Registrar Server.")
+        if not check_mandatory_fields(response_body["results"]):
             return None
 
         r = response_body["results"]

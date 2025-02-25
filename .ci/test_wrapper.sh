@@ -39,13 +39,6 @@ else
     REPO_DIR="/root/keylime"
 fi
 
-# Move /etc/keylime.conf because there might a old one distributed with the container.
-if [ -f "/etc/keylime.conf" ]
-then
-    echo "Moving /etc/keylime.conf from the container to /etc/keylime.conf.orig"
-    mv /etc/keylime.conf /etc/keylime.conf.orig
-fi
-
 # Move configuration files that might be distributed with the container.
 for c in agent verifier registrar tenant ca logging
 do

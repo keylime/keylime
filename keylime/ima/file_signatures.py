@@ -4,6 +4,7 @@ import json
 import struct
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import jsonschema
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat import backends
@@ -21,6 +22,22 @@ logger = keylime_logging.init_logging("file_signatures")
 
 
 SupportedKeyTypes = Union[RSAPublicKey, EllipticCurvePublicKey]
+
+IMA_KEYRING_JSON_SCHEMA = {
+    "type": "object",
+    "required": ["keyids", "pubkeys"],
+    "properties": {
+        "meta": {
+            "type": "object",
+            "required": ["version"],
+            "properties": {
+                "version": {"type": "integer", "minimum": 1},
+            },
+        },
+        "keyids": {"type": "array", "items": {"type": "integer"}},
+        "pubkeys": {"type": "array", "items": {"type": "string"}},
+    },
+}
 
 """
 Tools for IMA file signature verification
@@ -194,6 +211,12 @@ class ImaKeyring:
         if isinstance(obj, str):
             obj = json.loads(obj)
         if not isinstance(obj, dict):
+            return None
+
+        try:
+            jsonschema.validate(obj, IMA_KEYRING_JSON_SCHEMA)
+        except Exception as e:
+            logger.error("JSON from string is not a valid IMA Keyring : %s", e)
             return None
 
         keyids = obj.get("keyids", [])

@@ -13,4 +13,7 @@ RUN export GOARCH="$( uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' 
 LABEL version="_version_" description="Keylime Tenant - Bootstrapping and Maintaining Trust in the Cloud"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 
+RUN --mount=target=/keylime,type=bind,source=.,rw \
+    cd /keylime && ./installer.sh -o
+
 ENTRYPOINT ["keylime_tenant"]
