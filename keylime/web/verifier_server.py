@@ -1,3 +1,4 @@
+from keylime import config
 from keylime.web.base.server import Server
 from keylime.web.verifier.agent_controller import AgentController
 from keylime.web.verifier.mb_ref_state_controller import MBRefStateController
@@ -10,6 +11,8 @@ from keylime.web.verifier.server_info_controller import ServerInfoController
 class VerifierServer(Server):
     def _setup(self):
         self._use_config("verifier")
+        self._http_port = 0
+        self._https_port = config.getint("verifier", "port", fallback=0)
 
     def _routes(self):
         self._top_level_routes()
