@@ -2,6 +2,11 @@
     "version": "2.4",
     "type": "update",
     "components": {
+        "agent": {
+            "add": {
+                "api_versions": "default"
+            }
+        },
         "registrar": {
             "add" : {
                 "malformed_cert_action": "warn"

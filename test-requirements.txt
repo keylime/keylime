@@ -3,7 +3,6 @@ dbus-python
 setuptools
 # packages required for mypy
 sqlalchemy-stubs
-typed-ast
 types-python-dateutil
 types-PyYAML
 types-redis

@@ -8,10 +8,12 @@ import sys
 import tempfile
 import unittest
 from importlib import util
+from test.utils import assertDigestsEqual, keylimePolicyAssertLogs
 
 from keylime.common import algorithms
 from keylime.ima import ima
 from keylime.policy import create_runtime_policy, initrd
+from keylime.policy.logger import Logger
 
 _HAS_LIBARCHIVE = util.find_spec("libarchive") is not None
 
@@ -49,27 +51,9 @@ boot_aggregate
 """
 
 
-def assertDigestsEqual(d1, d2):
-    # Ensuring we have only unique values in the digest lists.
-    d1_unique = {k: sorted(list(set(v))) for k, v in d1.items()}
-    d2_unique = {k: sorted(list(set(v))) for k, v in d2.items()}
-
-    unittest.TestCase().assertEqual(len(d1_unique), len(d2_unique), msg="number of files must match")
-
-    for file in d1_unique:
-        unittest.TestCase().assertTrue(file in d2_unique)
-        unittest.TestCase().assertEqual(
-            len(d1_unique[file]),
-            len(d2_unique[file]),
-            msg=f"number of files/digests for {file}",
-        )
-
-        for d in d1_unique[file]:
-            unittest.TestCase().assertTrue(d in d2_unique[file], msg=f"file={file} digest={d}")
-
-
 class CreateRuntimePolicy_Test(unittest.TestCase):
     dirpath = ""
+    logger = Logger()
 
     @classmethod
     def setUpClass(cls):
@@ -788,7 +772,7 @@ foobar.so(.*)?
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
         for case in test_cases:
-            cli_args = []
+            cli_args = ["--verbose"]
             # Prepare argument input
             for k in ["algo_opt", "base_policy", "allowlist", "ima_log", "rootfs"]:
                 cli_args.extend(case.get(k, []))
@@ -797,12 +781,12 @@ foobar.so(.*)?
             expected_algo = case["expected_algo"]
             expected_source = case["expected_source"]
 
-            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
+            with keylimePolicyAssertLogs() as logs:
                 _policy = create_runtime_policy.create_runtime_policy(args)
-
                 self.assertIn(
-                    f"DEBUG:policy.create_runtime_policy:Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
-                    logs.output,
+                    f"Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
+                    logs.getvalue(),
+                    msg=f"ARGS: {' '.join(cli_args)}",
                 )
 
     def test_digest_algorithm_priority_exceptions(self):
@@ -856,7 +840,7 @@ foobar.so(.*)?
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
         for case in test_cases:
-            cli_args = []
+            cli_args = ["--verbose"]
             # Prepare argument input
             for k in ["base_policy", "allowlist", "ima_log"]:
                 cli_args.extend(case.get(k, []))
@@ -865,18 +849,17 @@ foobar.so(.*)?
             expected_algo = case["expected_algo"]
             expected_source = case["expected_source"]
 
-            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
+            with keylimePolicyAssertLogs() as logs:
                 _policy = create_runtime_policy.create_runtime_policy(args)
-
                 if case["expected_mismatch"]:
                     self.assertIn(
-                        f"WARNING:policy.create_runtime_policy:The digest algorithm in the IMA measurement list does not match the previously set '{expected_algo}' algorithm",
-                        logs.output,
+                        f"The digest algorithm in the IMA measurement list does not match the previously set '{expected_algo}' algorithm",
+                        logs.getvalue(),
                     )
                 else:
                     self.assertIn(
-                        f"DEBUG:policy.create_runtime_policy:Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
-                        logs.output,
+                        f"Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
+                        logs.getvalue(),
                     )
 
     def test_mixed_algorithms_sources(self):
@@ -932,11 +915,11 @@ foobar.so(.*)?
 
             args = parser.parse_args(cli_args)
 
-            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
+            with keylimePolicyAssertLogs() as logs:
                 policy = create_runtime_policy.create_runtime_policy(args)
                 self.assertIn(
-                    f"WARNING:policy.create_runtime_policy:The digest algorithm in the {case['source']} does not match the previously set 'sha1' algorithm",
-                    logs.output,
+                    f"The digest algorithm in the {case['source']} does not match the previously set 'sha1' algorithm",
+                    logs.getvalue(),
                 )
                 self.assertEqual(policy, None)
 
@@ -986,17 +969,17 @@ foobar.so(.*)?
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
         for case in test_cases:
-            cli_args = []
+            cli_args = ["--verbose"]
             # Prepare argument input
             for k in ["algo_opt", "base policy", "allowlist", "IMA measurement list", "rootfs"]:
                 cli_args.extend(case.get(k, []))
 
             args = parser.parse_args(cli_args)
 
-            with self.assertLogs("policy.create_runtime_policy", level="DEBUG") as logs:
+            with keylimePolicyAssertLogs() as logs:
                 policy = create_runtime_policy.create_runtime_policy(args)
                 self.assertIn(
-                    f"WARNING:policy.create_runtime_policy:Invalid digest algorithm found in the {case['source']}",
-                    logs.output,
+                    f"Invalid digest algorithm found in the {case['source']}",
+                    logs.getvalue(),
                 )
                 self.assertEqual(policy, None)

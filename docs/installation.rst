@@ -160,17 +160,20 @@ the :code:`tpm2_checkquote` utility in your path.
     resource manager (available `here <https://github.com/tpm2-software/tpm2-abrmd>`_).
 
 How the TPM is accessed by tpm2-tools can be set using the :code:`TPM2TOOLS_TCTI` environment
-variable. More information about that can be found
+variable. Keylime Rust agent understands :code:`TCTI` without the prefix.
+More information about that can be found
 `here <https://github.com/tpm2-software/tpm2-tools/blob/master/man/common/tcti.md>`_.
 
 Talk to the swtpm emulator directly::
 
     export TPM2TOOLS_TCTI="mssim:port=2321"
+    export TCTI="mssim:port=2321"
 
 
 To talk to the TPM directly (not recommended)::
 
     export TPM2TOOLS_TCTI="device:/dev/tpm0"
+    export TCTI="device:/dev/tpm0"
 
 
 Install Keylime
