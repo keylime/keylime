@@ -219,28 +219,28 @@ class BaseHandler(tornado.web.RequestHandler):
         super().prepare()
 
     def write_error(self, status_code: int, **kwargs: Any) -> None:
-        self.set_header("Content-Type", "text/json")
-        if self.settings.get("serve_traceback") and "exc_info" in kwargs:
+        self.req_handler.set_header("Content-Type", "text/json")
+        if self.req_handler.settings.get("serve_traceback") and "exc_info" in kwargs:
             # in debug mode, try to send a traceback
             lines = []
             for line in traceback.format_exception(*kwargs["exc_info"]):
                 lines.append(line)
-            self.finish(
+            self.req_handler.finish(
                 json.dumps(
                     {
                         "code": status_code,
-                        "status": self._reason,
+                        "status": self.req_handler._reason,
                         "traceback": lines,
                         "results": {},
                     }
                 )
             )
         else:
-            self.finish(
+            self.req_handler.finish(
                 json.dumps(
                     {
                         "code": status_code,
-                        "status": self._reason,
+                        "status": self.req_handler._reason,
                         "results": {},
                     }
                 )
@@ -973,9 +973,9 @@ class AllowlistHandler(BaseHandler):
 
         # NOTE(kaifeng) 204 Can not have response body, but current helper
         # doesn't support this case.
-        self.set_status(204)
-        self.set_header("Content-Type", "application/json")
-        self.finish()
+        self.req_handler.set_status(204)
+        self.req_handler.set_header("Content-Type", "application/json")
+        self.req_handler.finish()
         logger.info("DELETE returning 204 response for allowlist: %s", allowlist_name)
 
     def __get_runtime_policy_db_format(self, runtime_policy_name: str) -> Dict[str, Any]:
@@ -1320,9 +1320,9 @@ class MbpolicyHandler(BaseHandler):
 
         # NOTE(kaifeng) 204 Can not have response body, but current helper
         # doesn't support this case.
-        self.set_status(204)
-        self.set_header("Content-Type", "application/json")
-        self.finish()
+        self.req_handler.set_status(204)
+        self.req_handler.set_header("Content-Type", "application/json")
+        self.req_handler.finish()
         logger.info("DELETE returning 204 response for mb_policy: %s", mb_policy_name)
 
     def __get_mb_policy_db_format(self, mb_policy_name: str) -> Dict[str, Any]:
