@@ -66,6 +66,7 @@ adjust:
      - /functional/basic-attestation-on-localhost
      # now change IMA policy to signing and run all tests
      - /setup/configure_kernel_ima_module/ima_policy_signing
+     - /compatibility/api_version_compatibility
      - /compatibility/basic-attestation-on-localhost-api-version-bump
      - /compatibility/basic-attestation-on-localhost-with-allowlist-excludelist
      - /functional/agent_UUID_assignment_options
