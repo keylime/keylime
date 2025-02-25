@@ -1,6 +1,6 @@
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import or_
+from sqlalchemy import or_, asc, desc
 
 from keylime.models.base.basic_model import BasicModel
 from keylime.models.base.db import db_manager
@@ -129,6 +129,18 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         criteria = [sa_field == value for value in values]
 
         return or_(*criteria)
+    
+    @classmethod
+    def _build_sort_criterion(cls, criterion):
+        if isinstance(criterion, str):
+            criterion = asc(criterion)
+
+        sa_field = getattr(cls.db_mapping, criterion.element.element)
+
+        if "desc" in str(criterion).lower():
+            return desc(sa_field)
+        else:
+            return asc(sa_field)
 
     @classmethod
     def _query(cls, session, args, kwargs, subject=None):
@@ -143,6 +155,8 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
 
         if sort_criteria:
             del filters["sort_"]
+
+        sort_criteria = (cls._build_sort_criterion(criterion) for criterion in sort_criteria)
 
         if filters and args:
             raise QueryInvalid("a PersistableModel query must use filters or SQLAlchemy expressions but not both")

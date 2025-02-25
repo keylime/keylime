@@ -244,7 +244,7 @@ class PushAttestation(PersistableModel):
     @classmethod
     def get_latest(cls, agent_id):
         # Fetch the last attestation entry in the database for a particular agent
-        return PushAttestation.get(agent_id=agent_id, sort_=desc(cls.db_mapping.index))
+        return PushAttestation.get(agent_id=agent_id, sort_=desc("index"))
 
     @classmethod
     def accept_new_attestations_in(cls, agent_id: str):
@@ -613,7 +613,7 @@ class PushAttestation(PersistableModel):
                 or_(PushAttestation.status == "verified", PushAttestation.status == "failed"),
                 or_(PushAttestation.failure_type != "quote_authentication", PushAttestation.failure_type == None),
                 PushAttestation.index < self.index,
-                sort_=desc(self.__class__.db_mapping.index),
+                sort_=desc("index"),
             )
 
             if not previous_authenticated_attestation:
@@ -633,7 +633,7 @@ class PushAttestation(PersistableModel):
                 PushAttestation.agent_id == self.agent_id,
                 PushAttestation.status == "verified",
                 PushAttestation.index < self.index,
-                sort_=desc(self.__class__.db_mapping.index),
+                sort_=desc("index"),
             )
 
             if not previous_successful_attestation:
@@ -650,7 +650,7 @@ class PushAttestation(PersistableModel):
                 return None
 
             previous_attestation = PushAttestation.get(
-                PushAttestation.agent_id == self.agent_id, PushAttestation.index < self.index, sort_=desc(self.__class__.db_mapping.index)
+                PushAttestation.agent_id == self.agent_id, PushAttestation.index < self.index, sort_=desc("index")
             )
 
             if not previous_attestation:
