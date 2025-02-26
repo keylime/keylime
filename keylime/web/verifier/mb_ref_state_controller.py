@@ -1,9 +1,10 @@
 from keylime.web.base import Controller
-from keylime import cloud_verifier_tornado as v2
 
 
 class MBRefStateController(Controller):
     def _new_v2_handler(self):
+        from keylime import cloud_verifier_tornado as v2
+        
         tornado_app = self.action_handler.application
         tornado_req = self.action_handler.request
         return v2.MbpolicyHandler(tornado_app, tornado_req, override=self.action_handler)
