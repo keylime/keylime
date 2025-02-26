@@ -277,7 +277,7 @@ class Tpm:
         pcr_nums = set(pcrs_dict.keys())
 
         # If additional data is provided, check its presence in the data PCR (defined by config.TPM_DATA_PCR)
-        if data is None:
+        if data is not None:
             self._check_data_pcr(agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote)
 
         # Check for ima PCR
@@ -430,7 +430,7 @@ class Tpm:
     def check_quote(
         self,
         agentAttestState: AgentAttestState,
-        nonce: bytes,
+        nonce: Union[bytes, str],
         data: Optional[str],
         quote: str,
         aikTpmFromRegistrar: str,
@@ -453,6 +453,9 @@ class Tpm:
             runtime_policy = ima.EMPTY_RUNTIME_POLICY
 
         failure = Failure(Component.QUOTE_VALIDATION)
+
+        if not isinstance(nonce, str):
+            nonce = base64.b64encode(nonce).decode("utf-8")
 
         # First and foremost, the quote needs to be validated
         pcrs_dict, err = Tpm._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, str(hash_alg), compressed)
