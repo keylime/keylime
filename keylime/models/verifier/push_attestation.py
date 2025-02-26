@@ -323,9 +323,6 @@ class PushAttestation(PersistableModel):
         if not self.boottime:
             return
 
-        print("***from set ima offset - previous_attestation", self.previous_attestation)
-        print("***from set ima offset - previous_authenticated_attestation", self.previous_authenticated_attestation)
-
         if not self.previous_authenticated_attestation:
             self.starting_ima_offset = 0
         elif self.boottime > self.previous_authenticated_attestation.boottime:
@@ -586,8 +583,6 @@ class PushAttestation(PersistableModel):
     def commit_changes(self):
         if self.status == "waiting":
             last_attestation = PushAttestation.get_latest(self.agent_id)
-            print("****last_attestation from commit changes", last_attestation)
-            print("self.index", self.index)
 
             if last_attestation and last_attestation.index >= self.index:
                 raise ValueError(
