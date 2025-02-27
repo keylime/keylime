@@ -84,11 +84,11 @@ def minor(version_type: VersionType) -> int:
 
 
 def log_api_versions(logger: Logger) -> None:
-    logger.info("Current API version %s", CURRENT_VERSION)
+    logger.info("Current API version: %s", CURRENT_VERSION)
     versions = all_versions()
     versions.remove(CURRENT_VERSION)
     if versions:
-        logger.info("Supported older API versions: " + ", ".join(versions))
+        logger.info("Other supported API versions: " + ", ".join(versions))
     if DEPRECATED_VERSIONS:
         logger.info("Deprecated API versions (soon to be removed): " + ", ".join(DEPRECATED_VERSIONS))
 
