@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import tornado
 
-from keylime import config, keylime_logging, web_util
+from keylime import config, keylime_logging, web_util, api_version
 from keylime.web.base.action_handler import ActionHandler
 from keylime.web.base.route import Route
+# from keylime.web.base.stats_collector import StatsCollector
 
 if TYPE_CHECKING:
     from ssl import SSLContext
@@ -88,6 +89,21 @@ class Server(ABC):
     """
 
     @staticmethod
+    def _new_scoped_route(pattern_prefix: str, route: Route) -> Route:
+        pattern = pattern_prefix + route.pattern
+        return Route(route.method, pattern, route.controller, route.action, route.allow_insecure)
+
+    @staticmethod
+    def _make_versioned_routes(major_version: int, route: Route) -> list[Route]:
+        versioned_routes = [Server._new_scoped_route(f"/v{major_version}", route)]
+        versioned_routes = versioned_routes + [
+            Server._new_scoped_route(f"/v{version}", route)
+            for version in api_version.all_versions()
+            if api_version.major(version) == major_version
+        ]
+        return versioned_routes
+
+    @staticmethod
     def version_scope(major_version: int) -> Callable[..., Callable[..., Any]]:
         # pylint: disable=protected-access, unused-private-member
 
@@ -109,29 +125,12 @@ class Server(ABC):
                 # Call the decorated function and get the return value (typically None)
                 value = func(obj, *args, **kwargs)
 
-                # Iterate over routes created by the decorated function
+                # Iterate over routes created so far
                 for route in obj.routes:
                     # Check that the current route is a route newly created by the decorated function
                     if route not in initial_routes:
                         # Define routes scoped to the API version specified by major_version
-                        new_routes_list.extend(
-                            [
-                                Route(
-                                    route.method,
-                                    f"/v{major_version}{route.pattern}",
-                                    route.controller,
-                                    route.action,
-                                    route.allow_insecure,
-                                ),
-                                Route(
-                                    route.method,
-                                    f"/v{major_version}.:minor{route.pattern}",
-                                    route.controller,
-                                    route.action,
-                                    route.allow_insecure,
-                                ),
-                            ]
-                        )
+                        new_routes_list.extend(Server._make_versioned_routes(major_version, route))
 
                 # Replace the Server instance's list of routes with a new list consisting of the routes which were
                 # present before func was called and the new routes scoped to major_version
@@ -144,6 +143,40 @@ class Server(ABC):
 
         return version_scope_decorator
 
+    @staticmethod
+    def push_only(func):
+        @wraps(func)  # preserves the name and module of func when introspected
+        def push_only_wrapper(obj: Server, *args: Any, **kwargs: Any) -> Any:
+            if not isinstance(obj, Server):
+                raise TypeError(
+                    "the @Server.push_only decorator can only be used on methods of a class which inherits from Server"
+                )
+
+            if not obj.operating_mode:
+                raise TypeError("the @Server.push_only decorator cannot be used when no 'operating_mode' is set")
+
+            if obj.operating_mode == "push":
+                return func(obj, *args, **kwargs)
+
+        return push_only_wrapper
+
+    @staticmethod
+    def pull_only(func):
+        @wraps(func)  # preserves the name and module of func when introspected
+        def pull_only_wrapper(obj: Server, *args: Any, **kwargs: Any) -> Any:
+            if not isinstance(obj, Server):
+                raise TypeError(
+                    "The @Server.pull_only decorator can only be used on methods of a class which inherits from Server"
+                )
+
+            if not obj.operating_mode:
+                raise TypeError("the @Server.pull_only decorator cannot be used when no 'operating_mode' is set")
+
+            if obj.operating_mode == "pull":
+                return func(obj, *args, **kwargs)
+
+        return pull_only_wrapper
+
     def __init__(self, **options: Any) -> None:
         """Initialise server with provided configuration options or default values and bind to sockets for HTTP and/or
         HTTPS connections. This does not start the server to start accepting requests (this is done by calling the
@@ -153,25 +186,29 @@ class Server(ABC):
         before starting the server with `server.start()`.
         """
         # Set defaults for server options
-        self._host: str = "127.0.0.1"
-        self._http_port: Optional[int] = 80
-        self._https_port: Optional[int] = 443
-        self._max_upload_size: Optional[int] = 104857600  # 100MiB
-        self._ssl_ctx: Optional["SSLContext"] = None
-        self._worker_count: Optional[int] = 0
+        self.__config_component = None
+        self.__operating_mode = None
+        self.__bind_interface: str = "127.0.0.1"
+        self.__http_port: Optional[int] = 80
+        self.__https_port: Optional[int] = 443
+        self.__max_upload_size: Optional[int] = 104857600  # 100MiB
+        self.__ssl_ctx: Optional["SSLContext"] = None
+        self.__worker_count: Optional[int] = 0
 
         # Override defaults with values given by the implementing class
         self._setup()
 
         # If options are set by the caller, use these to override the defaults and those set by the implementing class
-        for opt in ["host", "http_port", "https_port", "max_upload_size", "ssl_ctx"]:
+        for opt in ["operating_mode", "bind_interface", "http_port", "https_port", "max_upload_size", "ssl_ctx"]:
             if opt in options:
-                setattr(self, f"_{opt}", options[opt])
+                setattr(self, f"__{opt}", options[opt])
 
-        if not self.host:
-            raise ValueError(f"server '{self.__class__.__name__}' cannot be initialised without a value for 'host'")
+        if not self.bind_interface:
+            raise ValueError(
+                f"server '{self.__class__.__name__}' cannot be initialised without a value for 'bind_interface'"
+            )
 
-        if not self.http_port or (not self.https_port or not self.ssl_ctx):
+        if not self.http_port and (not self.https_port or not self.ssl_ctx):
             raise ValueError(
                 f"server '{self.__class__.__name__}' cannot be initialised without either 'http_port' or 'https_port'"
                 f"and 'ssl_ctx'"
@@ -184,10 +221,18 @@ class Server(ABC):
 
         # Create new Tornado app with request handler to process routes
         self.__tornado_app = tornado.web.Application([(r".*", ActionHandler, {"server": self})])
+
         # Bind socket for HTTP connections
-        self.__tornado_http_sockets = tornado.netutil.bind_sockets(int(self.http_port), address=self.host)
+        if self.http_port:
+            self.__tornado_http_sockets = tornado.netutil.bind_sockets(int(self.http_port), self.bind_interface)
+        else:
+            self.__tornado_http_sockets = []
+
         # Bind socket for HTTPS connections
-        self.__tornado_https_sockets = tornado.netutil.bind_sockets(int(self.https_port), address=self.host)
+        if self.https_port:
+            self.__tornado_https_sockets = tornado.netutil.bind_sockets(int(self.https_port), self.bind_interface)
+        else:
+            self.__tornado_https_sockets = []
 
         # Tornado servers are instantiated by calling start_single() or start_multi(), so set to None initially
         self.__tornado_http_server: Optional[tornado.httpserver.HTTPServer] = None
@@ -229,10 +274,15 @@ class Server(ABC):
             protocols = f"{protocols}/S" if protocols else "HTTPS"
 
         logger.info(
-            "Listening on %s:%s (%s) with %s worker processes...", self.host, ports, protocols, self.worker_count
+            "Listening on %s:%s (%s) with %s worker processes...",
+            self.bind_interface, ports, protocols, self.worker_count
         )
 
+        # with StatsCollector():
+        # num = manager.Value('i', 0)
         tornado.process.fork_processes(self.worker_count)
+        # num.value = num.value + 1
+        # print(num.value)
         asyncio.run(self.start_single())
 
     def _setup(self) -> None:
@@ -246,13 +296,129 @@ class Server(ABC):
         helper methods."""
 
     def _use_config(self, component: str) -> None:
-        """Sets server options to values found in the config."""
-        self._host = config.get(component, "ip")
-        self._http_port = config.getint(component, "port", fallback=0)
-        self._https_port = config.getint(component, "tls_port", fallback=0)
-        self._max_upload_size = config.getint(component, "max_upload_size", fallback=104857600)
-        self._ssl_ctx = web_util.init_mtls(component)
-        self._ssl_ctx.verify_mode = CERT_OPTIONAL
+        """Sets config component (i.e., namespace) used to locate config values when setting server options."""
+        self.__config_component = component
+
+    def _set_option(self, name, **kwargs):
+        """Sets server option by name either from given value or by obtaining it from user config. If the value is
+        falsy, uses the given fallback value instead or ``None`` if no fallback is provided. Examples::
+        
+            # Set option using provided value
+            self._set_option("bind_interface", value="0.0.0.0")
+
+            # Set option using integer value in config called "tls_port"
+            self._set_option("https_port", from_config=("tls_port", int))
+
+            # Set option with a fallback value
+            self._set_option("max_upload_size", from_config=("max_upload_size", int), fallback=5000)
+
+        Must call ``self._use_config(...)`` before setting options from config values.
+        """
+
+        attr_name = f"_Server__{name}"
+        fallback = kwargs.get("fallback", None)
+
+        if not hasattr(self, attr_name):
+            raise ValueError(f"{self.__class__.__name__} has no option '{name}'")
+
+        if "from_config" in kwargs and not self.config_component:
+            raise ValueError(f"{self.__class__.__name__}._use_config() must be called before setting option '{name}'")
+
+        if "fallback" in kwargs:
+            del kwargs["fallback"]
+
+        match kwargs:
+            case {"value": value}:
+                pass
+
+            case {"from_config": config_name} if isinstance(config_name, str):
+                value = config.get(self.config_component, config_name, fallback=fallback) # type: ignore
+
+            case {"from_config": (config_name, data_type)} if data_type is str:
+                value = config.get(self.config_component, config_name, fallback=fallback) # type: ignore
+
+            case {"from_config": (config_name, data_type)} if data_type is int:
+                value = config.getint(self.config_component, config_name, fallback=fallback) # type: ignore
+
+            case {"from_config": (config_name, data_type)} if data_type is float:
+                value = config.getfloat(self.config_component, config_name, fallback=fallback) # type: ignore
+
+            case {"from_config": (config_name, data_type)} if data_type is bool:
+                value = config.getboolean(self.config_component, config_name, fallback=fallback) # type: ignore
+
+            case _:
+                raise TypeError(f"invalid arguments given when setting option '{name}' for {self.__class__.__name__}")
+
+        setattr(self, attr_name, value or fallback)
+
+    def _set_operating_mode(self, **kwargs):
+        """Sets operating mode of the server (push or pull)."""
+        self._set_option("operating_mode", **kwargs)
+
+    def _set_bind_interface(self, **kwargs):
+        """Sets the IP address or hostname to use to identify the network interface on which to listen for incoming
+        requests. Examples::
+
+            # Listen on all interfaces (receives connections from any address)
+            self._set_bind_interface("bind_interface", value="0.0.0.0")
+
+            # Listen on loopback interface (only receives connections from the local machine)
+            self._set_bind_interface("bind_interface", value="localhost")
+            self._set_bind_interface("bind_interface", value="127.0.0.1")
+
+            # Listen on interface associated with a given hostname
+            self._set_bind_interface("bind_interface", value="example.com")
+
+            # Listen on interface specified in config
+            self._set_bind_interface("bind_interface", from_config="interface")
+        """
+
+        self._set_option("bind_interface", **kwargs)
+
+    def _set_http_port(self, **kwargs):
+        """Sets port on which to listen for HTTP requests."""
+
+        if "from_config" in kwargs:
+            kwargs.update({"from_config": (kwargs["from_config"], int)})
+
+        self._set_option("http_port", **kwargs)
+
+    def _set_https_port(self, **kwargs):
+        """Sets port on which to listen for HTTPS (HTTP over TLS) requests."""
+
+        if "from_config" in kwargs:
+            kwargs.update({"from_config": (kwargs["from_config"], int)})
+
+        self._set_option("https_port", **kwargs)
+
+    def _set_max_upload_size(self, **kwargs):
+        """Sets the maximum payload size in bytes that the server should accept in an HTTP request."""
+
+        if "from_config" in kwargs:
+            kwargs.update({"from_config": (kwargs["from_config"], int)})
+
+        if "fallback" not in kwargs:
+            kwargs.update({"fallback": 104857600})  # 100MiB
+
+        self._set_option("max_upload_size", **kwargs)
+
+    def _set_ssl_ctx(self, **kwargs):
+        """Sets the values used to secure TLS sessions. See https://docs.python.org/3/library/ssl.html#ssl.SSLContext"""
+
+        if "from_config" in kwargs:
+            raise TypeError(f"cannot set option 'ssl_ctx' for {self.__class__.__name__} using a single config value")
+
+        self._set_option("ssl_ctx", **kwargs)
+
+    def _set_default_ssl_ctx(self):
+        """Generates the ssl_ctx using values from user config."""
+
+        if not self.config_component:
+            raise ValueError(f"{self.__class__.__name__}._use_config() must be called before generating 'ssl_ctx'")
+
+        ssl_ctx = web_util.init_mtls(self.config_component)
+        ssl_ctx.verify_mode = CERT_OPTIONAL
+        self._set_option("ssl_ctx", value=ssl_ctx)
 
     def _get(self, pattern: str, controller: type["Controller"], action: str, allow_insecure: bool = False) -> None:
         """Creates a new route to handle incoming GET requests issued for paths which match the given
@@ -309,33 +475,41 @@ class Server(ABC):
             return None
 
     @property
+    def config_component(self) -> Optional[str]:
+        return self.__config_component
+
+    @property
+    def operating_mode(self) -> Optional[str]:
+        return self.__operating_mode
+
+    @property
     def http_port(self) -> Optional[int]:
-        return self._http_port
+        return self.__http_port
 
     @property
     def https_port(self) -> Optional[int]:
-        return self._https_port
+        return self.__https_port
 
     @property
-    def host(self) -> str:
-        return self._host
+    def bind_interface(self) -> str:
+        return self.__bind_interface
 
     @property
     def max_upload_size(self) -> Optional[int]:
-        return self._max_upload_size
+        return self.__max_upload_size
 
     @property
     def ssl_ctx(self) -> Optional["SSLContext"]:
-        return self._ssl_ctx
+        return self.__ssl_ctx
 
     @property
     def worker_count(self) -> int:
         # pylint: disable=no-else-return
 
-        if self._worker_count == 0 or self._worker_count is None:
+        if self.__worker_count == 0 or self.__worker_count is None:
             return multiprocessing.cpu_count()
         else:
-            return self._worker_count
+            return self.__worker_count
 
     @property
     def routes(self) -> list[Route]:
