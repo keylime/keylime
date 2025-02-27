@@ -11,8 +11,12 @@ from keylime.web.verifier.server_info_controller import ServerInfoController
 class VerifierServer(Server):
     def _setup(self):
         self._use_config("verifier")
-        self._http_port = 0
-        self._https_port = config.getint("verifier", "port", fallback=0)
+        self._set_operating_mode(from_config="mode", fallback="push")
+        self._set_bind_interface(from_config="ip")
+        self._set_http_port(value=None) # verifier does not accept insecure connections
+        self._set_https_port(from_config="port")
+        self._set_max_upload_size(from_config="max_upload_size")
+        self._set_default_ssl_ctx()
 
     def _routes(self):
         self._top_level_routes()
