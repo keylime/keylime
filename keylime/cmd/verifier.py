@@ -9,15 +9,28 @@ from keylime.models import da_manager, db_manager
 logger = keylime_logging.init_logging("verifier")
 
 
-def main() -> None:
-    logger.info("Starting Keylime verifier...")
+def _log_startup_info() -> None:
+    mode = config.get("verifier", "mode", fallback="push")
+    logger.info("Starting Keylime verifier in %s mode...", mode.upper())
 
-    # Log supported API versions
+    # Temporary warning when enabling push mode
+    if mode == "push":
+        logger.warning(
+            "Push mode is experimental. Please report issues at "
+            "https://github.com/keylime/keylime/issues/?q=label:push-mode"
+        )
+
+    # Log REST API versions supported by the verifier
     api_version.log_api_versions(logger)
 
+    # Inform user when a new config file version is available
     config.check_version("verifier", logger=logger)
 
-    # if we are configured to auto-migrate the DB, check if there are any migrations to perform
+
+def main() -> None:
+    _log_startup_info()
+
+    # If we are configured to auto-migrate the DB, check if there are any migrations to perform
     if config.has_option("verifier", "auto_migrate_db") and config.getboolean("verifier", "auto_migrate_db"):
         apply("cloud_verifier")
 
