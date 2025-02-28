@@ -59,6 +59,7 @@ You can then verify IMA is measuring your system::
   10 7efd8e2a3da367f2de74b26b84f20b37c692b9f9 ima-ng sha1:af78ea0b455f654e9237e2086971f367b6bebc5f /usr/lib/systemd/libsystemd-shared-239.so
   10 784fbf69b54c99d4ae82c0be5fca365a8272414e ima-ng sha1:b0c601bf82d32ff9afa34bccbb7e8f052c48d64e /etc/ld.so.cache
 
+.. _keylime-runtime-policies-label:
 
 Keylime Runtime Policies
 ------------------------

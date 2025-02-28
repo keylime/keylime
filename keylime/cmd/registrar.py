@@ -2,7 +2,7 @@ import sys
 
 import cryptography
 
-from keylime import config, keylime_logging
+from keylime import api_version, config, keylime_logging
 from keylime.common.migrations import apply
 from keylime.models import da_manager, db_manager
 from keylime.web import RegistrarServer
@@ -33,6 +33,9 @@ def _check_devid_requirements() -> None:
 
 def main() -> None:
     logger.info("Starting Keylime registrar...")
+
+    # Log supported API versions
+    api_version.log_api_versions(logger)
 
     config.check_version("registrar", logger=logger)
 
