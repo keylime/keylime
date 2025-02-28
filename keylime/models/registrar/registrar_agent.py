@@ -33,6 +33,8 @@ class RegistrarAgent(PersistableModel):
         cls._field("ek_tpm", Base64Bytes)
         # The endorsement key (EK) certificate used to verify the TPM as genuine
         cls._field("ekcert", Certificate, nullable=True)
+        # The endorsement key (EK) CA chain from the TPM
+        cls._field("ek_ca_chain", String(8192))
         # The attestation key (AK) used by Keylime to prepare TPM quotes
         cls._field("aik_tpm", Base64Bytes)
         # The initial attestation key (IAK) used when registering with a DevID
@@ -277,7 +279,7 @@ class RegistrarAgent(PersistableModel):
         # Bind key-value pairs ('data') to those fields which are meant to be externally changeable
         self.cast_changes(
             data,
-            ["agent_id", "ek_tpm", "ekcert", "aik_tpm", "iak_tpm", "iak_cert", "idevid_tpm", "idevid_cert", "ip"]
+            ["agent_id", "ek_tpm", "ekcert", "ek_ca_chain", "aik_tpm", "iak_tpm", "iak_cert", "idevid_tpm", "idevid_cert", "ip"]
             + ["port", "mtls_cert"],
         )
 
@@ -348,7 +350,7 @@ class RegistrarAgent(PersistableModel):
 
     def render(self, only=None):
         if not only:
-            only = ["agent_id", "ek_tpm", "ekcert", "aik_tpm", "mtls_cert", "ip", "port", "regcount"]
+            only = ["agent_id", "ek_tpm", "ekcert", "ek_ca_chain", "aik_tpm", "mtls_cert", "ip", "port", "regcount"]
 
             if self.virtual:
                 only.append("provider_keys")

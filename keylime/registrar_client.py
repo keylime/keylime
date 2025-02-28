@@ -27,6 +27,7 @@ class RegistrarData(TypedDict):
     aik_tpm: str
     ek_tpm: str
     ekcert: Optional[str]
+    ek_ca_chain: Optional[str]
     provider_keys: NotRequired[Dict[str, str]]
 
 
@@ -93,6 +94,7 @@ def getData(
             "port": r["port"],
             "mtls_cert": r.get("mtls_cert"),
             "ekcert": r.get("ekcert"),
+            "ek_ca_chain": r.get("ek_ca_chain"),
         }
         if "provider_keys" in r:
             res["provider_keys"] = r["provider_keys"]
