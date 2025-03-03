@@ -25,6 +25,7 @@ from keylime.mba import mba
 from keylime.requests_client import RequestsClient
 from keylime.tpm import tpm2_objects, tpm_util
 from keylime.tpm.tpm_main import Tpm
+from keylime.cert_utils import cert_signature_check, to_cert_list
 
 # setup logging
 logger = keylime_logging.init_logging("tenant")
@@ -462,11 +463,39 @@ class Tenant:
             logger.debug("U: %s", base64.b64encode(self.U))
             logger.debug("Auth Tag: %s", self.auth_tag)
 
-    def check_ek(self, ekcert: Optional[str]) -> bool:
+    def check_ek_ca_chain(self, ekcert: str, ek_ca_chain: Optional[str]) -> (bool, bytes):
+        certificates = []
+        # Load certificates from chain
+        for cert in ek_ca_chain.split('-----END CERTIFICATE-----'):
+            if '-----BEGIN CERTIFICATE-----' in cert:
+                cert += '-----END CERTIFICATE-----'
+                try:
+                    certificates.append(x509_pem_cert(cert))
+                except Exception as err:
+                    logger.error("Error processing ek_ca_chain. Does this TPM have a valid EK CA Chain stored in the TPM?: %s", err)
+                    return False, None
+        # Load ekcert
+        try:
+            ek509 = x509_der_cert(ekcert)
+            certificates.append(ek509)
+        except Exception as err:
+            # Log the exception so we don't lose the raw message
+            logger.error("Error processing ek/ekcert. Does this TPM have a valid EK?: %s", err)
+            return False, None
+
+        # Verify chain
+        for i in range(len(certificates) - 1, 0, -1):
+            if not cert_signature_check(certificates[i], certificates[i-1]):
+                logger.error("Broken certificate chain: %s not signed by %s", certificates[i].issuer, certificates[i-1].subject)
+                return False, None
+
+        return True, certificates[0].public_bytes(crypto_serialization.Encoding.DER)
+
+    def check_ek(self, ekcert: Optional[str], ek_ca_chain: Optional[str] = "") -> bool:
         """Check the Entity Key
 
         Arguments:
-            ekcert {str} -- The endorsement key, either None, "emulator", or base64 encoded der cert
+            ekcert {str} -- The endorsement key, either None, "emulator", or pem encoded certificate chain (the chain may only consist of the ekcert as a single element)
 
         Returns:
             [type] -- [description]
@@ -479,9 +508,19 @@ class Tenant:
                     "No EK cert provided, require_ek_cert option in config set to True for %s", self.agent_fid_str
                 )
                 return False
-            elif not self.tpm_instance.verify_ek(base64.b64decode(ekcert), config.get("tenant", "tpm_cert_store")):
-                logger.warning("Invalid EK certificate for %s", self.agent_fid_str)
-                return False
+            else:
+                certificates = to_cert_list(ekcert)
+                if len(certificates) <= 0:
+                    return False
+
+                for i in range(0, len(certificates) - 1):
+                    if not cert_signature_check(certificates[i], certificates[i+1]):
+                        logger.error("Invalid EK certificate chain for: %s -> %s", certificates[i].issuer, certificates[i+1].subject)
+                        return False
+
+                if not self.tpm_instance.verify_ek(certificates[-1].public_bytes(crypto_serialization.Encoding.DER), config.get("tenant", "tpm_cert_store")):
+                    logger.warning("Invalid EK certificate for %s", self.agent_fid_str)
+                    return False
 
         return True
 
