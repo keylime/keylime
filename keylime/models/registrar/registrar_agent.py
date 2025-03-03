@@ -10,6 +10,7 @@ from keylime.models.base import (
     Base64Bytes,
     Boolean,
     Certificate,
+    CertificateChain,
     Dictionary,
     Integer,
     OneOf,
@@ -32,7 +33,7 @@ class RegistrarAgent(PersistableModel):
         # The endorsement key (EK) of the TPM
         cls._field("ek_tpm", Base64Bytes)
         # The endorsement key (EK) certificate used to verify the TPM as genuine
-        cls._field("ekcert", Certificate, nullable=True)
+        cls._field("ekcert", CertificateChain, nullable=True)
         # The attestation key (AK) used by Keylime to prepare TPM quotes
         cls._field("aik_tpm", Base64Bytes)
         # The initial attestation key (IAK) used when registering with a DevID
@@ -75,7 +76,7 @@ class RegistrarAgent(PersistableModel):
 
         # Get key and certificate from the record (either the changed value or the value from the DB)
         tpm_key = self.values.get(tpm_key_field)
-        cert = self.values.get(cert_field)
+        cert = self.first.get(cert_field)
 
         # If either key or certificate is missing from the record, it is not possible to compare the two
         if not tpm_key or not cert:
@@ -118,7 +119,7 @@ class RegistrarAgent(PersistableModel):
 
     def _check_cert_compliance(self, cert_field, raw_cert):
         new_cert = self.changes.get(cert_field)
-        old_cert = self.values.get(cert_field)
+        old_cert = self.first.get(cert_field)
 
         # If the certificate field has not been changed, no need to perform check
         if not raw_cert or not new_cert:
@@ -354,9 +355,5 @@ class RegistrarAgent(PersistableModel):
                 only.append("provider_keys")
 
         output = super().render(only)
-
-        # When operating in pull mode, ekcert is encoded as Base64 instead of PEM
-        if output.get("ekcert"):
-            output["ekcert"] = base64.b64encode(self.ekcert.public_bytes(Encoding.DER)).decode("utf-8")
 
         return output
