@@ -223,9 +223,7 @@ def checkquote(
     pcrblob: The state of the PCRs that were quoted; Intel tpm2-tools specific format
     exp_hash_alg: The hash that was expected to have been used for quoting
     """
-    sig_alg, hash_alg, sig_size = struct.unpack_from(">HHH", sigblob, 0)
-
-    (signature,) = struct.unpack_from(f"{sig_size}s", sigblob, 6)
+    sig_alg, hash_alg = struct.unpack_from(">HH", sigblob, 0)
 
     pubkey = serialization.load_pem_public_key(aikblob, backend=backends.default_backend())
     if not isinstance(pubkey, (RSAPublicKey, EllipticCurvePublicKey)):
@@ -235,6 +233,14 @@ def checkquote(
         raise ValueError(f"Unsupported quote signature algorithm '{sig_alg:#x}' for RSA keys")
     if isinstance(pubkey, EllipticCurvePublicKey) and sig_alg not in [tpm2_objects.TPM_ALG_ECDSA]:
         raise ValueError(f"Unsupported quote signature algorithm '{sig_alg:#x}' for EC keys")
+
+    if sig_alg in [tpm2_objects.TPM_ALG_RSASSA]:
+        (sig_size,) = struct.unpack_from(">H", sigblob, 4)
+        (signature,) = struct.unpack_from(f"{sig_size}s", sigblob, 6)
+    elif sig_alg in [tpm2_objects.TPM_ALG_ECDSA]:
+        signature = ecdsa_der_from_tpm(sigblob)
+    else:
+        raise ValueError(f"Unsupported quote signature algorithm '{sig_alg:#x}'")
 
     hashfunc = tpm2_objects.HASH_FUNCS.get(hash_alg)
     if not hashfunc:
