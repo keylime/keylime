@@ -54,7 +54,7 @@ Use bullet points where appropriate:
 - [ ] Code follows project style guidelines
 - [ ] Unit/integration tests added/updated
 - [ ] Documentation updated (per above section)
-- [ ] Commit messages follow [Chris Beams' How to Write a Git Commit Message article]((https://chris.beams.io/posts/git-commit/))
+- [ ] Commit messages follow [Chris Beams' How to Write a Git Commit Message article] (https://chris.beams.io/posts/git-commit/)
 - [ ] CHANGELOG updated (if applicable)
 - [ ] All tests pass (local & CI)
 
