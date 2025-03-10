@@ -270,7 +270,7 @@ def to_cert_list(ekcert: str) -> List[Certificate]:
     """Transform single string of multiple certificates in PEM format to list of certificates.
     :param ekcert: string with certificate chain
     :returns: List of certificates
-    :raises: ValueErrror, if no valid or an invalid certificate is found
+    :raises: ValueError, if no valid or an invalid certificate is found
     """
     certificates = []
     for cert in ekcert.split('-----END CERTIFICATE-----'):

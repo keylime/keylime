@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives.serialization import Encoding
 from sqlalchemy.types import Text
 
 from keylime.models.base.type import ModelType
+from keylime.models.base.types.certificate import Certificate
 from keylime.cert_utils import to_cert_list
 
 
@@ -34,7 +35,11 @@ class CertificateChain(ModelType):
         if not value:
             return None
 
-        return to_cert_list(value)
+        try:
+            return to_cert_list(value)
+        except ValueError:
+            c = Certificate()
+            return [c.cast(value)]
 
     def generate_error_msg(self, _value: IncomingValue) -> str:
         return "must be a valid X.509 certificate in PEM format or otherwise encoded using Base64"
