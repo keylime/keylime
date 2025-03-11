@@ -40,11 +40,10 @@ def main() -> None:
     # Prepare to use the cloud_verifier database
     db_manager.make_engine("cloud_verifier")
     # Prepare backend for durable attestation, if configured
-    #da_manager.make_backend("cloud_verifier")
+    da_manager.make_backend("verifier")
 
     # Start HTTP server
     server = VerifierServer()
-    # TODO: Check above line
     server.start_multi()
 
 
