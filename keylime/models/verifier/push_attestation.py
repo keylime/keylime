@@ -581,6 +581,7 @@ class PushAttestation(PersistableModel):
         self.agent.last_successful_attestation = None
 
     def commit_changes(self):
+        # Catch situation where multiple requests to create an attestation are received simultaneously
         if self.status == "waiting":
             last_attestation = PushAttestation.get_latest(self.agent_id)
 
@@ -589,7 +590,23 @@ class PushAttestation(PersistableModel):
                     f"An attestation for agent '{self.agent_id}' was created while another was mid-creation"
                 )
 
-        return super().commit_changes()
+        # Accept changes and write them to the database (unless fields have errors)
+        super().commit_changes()
+
+        # Write updated record to a durable attestation (DA) backend if configured
+        if da_manager.backend:
+            attestation_data = {}
+
+            # Prepare all record data to be sent to a DA backend according to each field's data type
+            for name, field in self.__class__.fields.items():
+                attestation_data[name] = field.data_type.da_dump(self.committed.get(name))
+
+            # Write dumped data to DA backend as an "agent data" record
+            da_manager.backend.record_create(None, attestation_data, None, None)
+
+        # Note: Ideally one would want the DA code in keylime.da to be data agnostic (in the same way as a database
+        # engine), so that writing to the DA backend could be handled transparently by PersistableModel. As this isn't
+        # the case, it is necessary to override commit_changes and make the record_create call on a case-by-case basis.
 
     def render(self, only=None):
         if not only:
