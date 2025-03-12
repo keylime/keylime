@@ -121,6 +121,10 @@ class TestIMAVerification(unittest.TestCase):
         _, failure = ima.process_measurement_list(AgentAttestState("1"), measurements, RUNTIME_POLICY_TEST)
         self.assertTrue(not failure)
 
+        # test with list with JSON but no AgentAttestState
+        _, failure = ima.process_measurement_list(None, measurements, RUNTIME_POLICY_TEST)
+        self.assertTrue(not failure)
+
         # No files are in the allowlist -> this should fail
         _, failure = ima.process_measurement_list(AgentAttestState("1"), measurements, ima.EMPTY_RUNTIME_POLICY)
         self.assertTrue(failure)
@@ -231,6 +235,10 @@ class TestIMAVerification(unittest.TestCase):
         )
         self.assertTrue(not failure)
 
+        # all entries are either covered by allow list or by signature verification -> this should pass, but no AgentAttestState
+        _, failure = ima.process_measurement_list(None, combined, RUNTIME_POLICY_TEST, ima_keyrings=ima_keyrings)
+        self.assertTrue(not failure)
+
         _signatures = SIGNATURES.splitlines()
         signatures = cast(List[str], _signatures)
 
@@ -264,6 +272,10 @@ class TestIMAVerification(unittest.TestCase):
         _, failure = ima.process_measurement_list(
             AgentAttestState("1"), measurements, RUNTIME_POLICY_WRONG_WITH_EXCLUDES
         )
+        self.assertTrue(not failure)
+
+        # All files are in the exclude list but hashes are invalid -> this should pass, but not AgentAttestState
+        _, failure = ima.process_measurement_list(None, measurements, RUNTIME_POLICY_WRONG_WITH_EXCLUDES)
         self.assertTrue(not failure)
 
         # All files are in the exclude list and their signatures are invalid -> this should pass
