@@ -377,3 +377,66 @@ def process_verify_identity_quote(
 
     # ok we're done
     return failure
+
+
+def process_verify_attestation(
+    ek: str,
+    ak: str,
+    quote: str,
+    nonce: str,
+    hash_alg: str,
+    tpm_policy: str,
+    runtime_policy: RuntimePolicyType,
+    mb_policy: str,
+    ima_measurement_list: str,
+    mb_measurement_list: str,
+) -> Failure:
+    """Processes attestation data one time only without requiring registration
+
+    This method is useful to process a node's data without requiring registration. This does not mean we
+    trust the data, only that if it were trusted, what would it's attested state be
+    """
+
+    failure = Failure(Component.QUOTE_VALIDATION)
+
+    # Ensure hash_alg is recognized
+    if not hash_alg or not algorithms.Hash.is_recognized(hash_alg):
+        failure.add_event(
+            "invalid_hash_alg",
+            {"message": f"TPM Quote is using an unrecognized hash algorithm: {hash_alg}", "data": hash_alg},
+            False,
+        )
+        return failure
+
+    assert quote is not None
+    assert ek is not None
+    assert ak is not None
+
+    # check the quote, but policy checks since we only care about identity
+    logger.info("Checking one-shot attestation data")
+    try:
+        quote_failure = get_tpm_instance().check_quote(
+            None,
+            nonce,
+            ek,  # pyright: ignore
+            quote,
+            ak,  # pyright: ignore
+            tpm_policy,
+            ima_measurement_list,
+            runtime_policy,
+            algorithms.Hash(hash_alg),
+            None,  # skip ima_keyrings
+            mb_measurement_list,
+            mb_policy,
+            skip_clock_check=True,
+            skip_pcr_check=False,
+            skip_data_pcr_check=True,
+        )
+        failure.merge(quote_failure)
+    except Exception as e:
+        logger.error("Error verifying quote: %s", str(e))
+        failure.add_event("invalid_quote", {"message": f"Quote validation failed: {e}"}, False)
+        return failure
+
+    # ok we're done
+    return failure

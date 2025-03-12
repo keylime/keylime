@@ -180,7 +180,7 @@ class Tpm:
 
     @staticmethod
     def __check_ima(
-        agentAttestState: AgentAttestState,
+        agentAttestState: Optional[AgentAttestState],
         pcrval: str,
         ima_measurement_list: str,
         runtime_policy: Optional[RuntimePolicyType],
@@ -189,7 +189,12 @@ class Tpm:
         hash_alg: Hash,
     ) -> Failure:
         failure = Failure(Component.IMA)
-        logger.info("Checking IMA measurement list on agent: %s", agentAttestState.get_agent_id())
+        if agentAttestState is not None:
+            agent_id = agentAttestState.get_agent_id()
+        else:
+            agent_id = "<unknown>"
+        logger.info("Checking IMA measurement list on agent: %s", agent_id)
+
         _, ima_failure = ima.process_measurement_list(
             agentAttestState,
             ima_measurement_list.split("\n"),
@@ -201,12 +206,12 @@ class Tpm:
         )
         failure.merge(ima_failure)
         if not failure:
-            logger.debug("IMA measurement list of agent %s validated", agentAttestState.get_agent_id())
+            logger.debug("IMA measurement list of agent %s validated", agent_id)
         return failure
 
     def check_pcrs(
         self,
-        agentAttestState: AgentAttestState,
+        agentAttestState: Optional[AgentAttestState],
         tpm_policy: Union[str, Dict[str, Any]],
         pcrs_dict: Dict[int, str],
         data: str,
@@ -217,10 +222,14 @@ class Tpm:
         mb_policy: Optional[str],
         hash_alg: Hash,
         count: int,
+        skip_data_pcr_check: bool = False,
     ) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
 
-        agent_id = agentAttestState.get_agent_id()
+        if agentAttestState is not None:
+            agent_id = agentAttestState.get_agent_id()
+        else:
+            agent_id = "<unknown>"
 
         if isinstance(tpm_policy, str):
             tpm_policy_dict = json.loads(tpm_policy)
@@ -260,7 +269,7 @@ class Tpm:
                     True,
                 )
             pcrs_in_quote.add(config.TPM_DATA_PCR)
-        else:
+        elif not skip_data_pcr_check:
             logger.error(
                 "Binding PCR #%s was not included in the quote (from agent %s), but is required",
                 config.TPM_DATA_PCR,
@@ -403,7 +412,7 @@ class Tpm:
                     mb_policy,
                     mb_measurement_data,
                     pcrs_in_quote,
-                    agentAttestState.get_agent_id(),
+                    agent_id,
                 )
                 failure.merge(mb_policy_failure)
 
@@ -412,7 +421,7 @@ class Tpm:
                     mb_policy,
                     mb_measurement_data,
                     pcrs_in_quote,
-                    agentAttestState.get_agent_id(),
+                    agent_id,
                 )
                 failure.merge(mb_policy_failure)
 
@@ -420,7 +429,7 @@ class Tpm:
 
     def check_quote(
         self,
-        agentAttestState: AgentAttestState,
+        agentAttestState: Optional[AgentAttestState],
         nonce: str,
         data: str,
         quote: str,
@@ -436,6 +445,7 @@ class Tpm:
         count: int = -1,
         skip_pcr_check: bool = False,
         skip_clock_check: bool = False,
+        skip_data_pcr_check: bool = False,
     ) -> Failure:
         if tpm_policy is None:
             tpm_policy = {}
@@ -452,7 +462,8 @@ class Tpm:
             failure.add_event("quote_validation", {"message": "Quote data validation", "error": err}, False)
             return failure
 
-        if not skip_clock_check:
+        # we can only check the clock if we have agentAttestState (verify evidence calls do not)
+        if not skip_clock_check and agentAttestState is not None:
             # Only after validating the quote, the TPM clock information can be extracted from it.
             clock_failure, current_clock_info = Tpm.check_quote_timing(
                 agentAttestState.get_tpm_clockinfo(), quote, compressed
@@ -469,11 +480,17 @@ class Tpm:
 
         if not skip_pcr_check:
             if len(pcrs_dict) == 0:
-                logger.warning(
-                    "Quote for agent %s does not contain any PCRs. Make sure that the TPM supports %s PCR banks",
-                    agentAttestState.agent_id,
-                    str(hash_alg),
-                )
+                if agentAttestState is not None:
+                    logger.warning(
+                        "Quote for agent %s does not contain any PCRs. Make sure that the TPM supports %s PCR banks",
+                        agentAttestState.agent_id,
+                        str(hash_alg),
+                    )
+                else:
+                    logger.warning(
+                        "Quote for does not contain any PCRs. Make sure that the TPM supports %s PCR banks",
+                        str(hash_alg),
+                    )
 
             return self.check_pcrs(
                 agentAttestState,
@@ -487,6 +504,7 @@ class Tpm:
                 mb_policy,
                 hash_alg,
                 count,
+                skip_data_pcr_check,
             )
 
         return failure

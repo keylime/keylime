@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Pattern, Tuple, Type
 import jsonschema
 
 from keylime import config, keylime_logging, signing
-from keylime.agentstates import AgentAttestState
+from keylime.agentstates import AgentAttestState, TPMState
 from keylime.common import algorithms, validators
 from keylime.common.algorithms import Hash
 from keylime.dsse import dsse
@@ -217,7 +217,7 @@ def _validate_ima_buf(
 
 
 def _process_measurement_list(
-    agentAttestState: AgentAttestState,
+    agentAttestState: Optional[AgentAttestState],
     lines: List[str],
     hash_alg: Hash,
     runtime_policy: Optional[RuntimePolicyType] = None,
@@ -226,7 +226,11 @@ def _process_measurement_list(
     boot_aggregates: Optional[Dict[str, List[str]]] = None,
 ) -> Tuple[str, Failure]:
     failure = Failure(Component.IMA)
-    running_hash = agentAttestState.get_pcr_state(config.IMA_PCR, hash_alg)
+
+    if agentAttestState is not None:
+        running_hash = agentAttestState.get_pcr_state(config.IMA_PCR, hash_alg)
+    else:
+        running_hash = TPMState.initial_pcr_value(config.IMA_PCR, hash_alg)
     assert running_hash
 
     found_pcr = pcrval is None
@@ -272,10 +276,11 @@ def _process_measurement_list(
 
         if dm_policy is not None:
             dm_validator = ima_dm.DmIMAValidator(dm_policy)
-            dm_state = agentAttestState.get_ima_dm_state()
-            # Only load state when using incremental attestation
-            if agentAttestState.get_next_ima_ml_entry() != 0:
-                dm_validator.state_load(dm_state)
+            if agentAttestState is not None:
+                dm_state = agentAttestState.get_ima_dm_state()
+                # Only load state when using incremental attestation
+                if agentAttestState.get_next_ima_ml_entry() != 0:
+                    dm_validator.state_load(dm_state)
 
     ima_validator = ast.Validator(
         {
@@ -329,6 +334,11 @@ def _process_measurement_list(
                 if found_pcr:
                     pcr_match_line = linenum + 1
                     logger.debug("Found match at linenum %s", linenum + 1)
+
+                    # if we aren't keeping the state, then we can go to the next iteration
+                    if agentAttestState is None:
+                        continue
+
                     # We always want to have the very last line for the attestation, so
                     # we keep the previous runninghash, which is not the last one!
                     agentAttestState.update_ima_attestation(int(entry.pcr), running_hash, linenum + 1)
@@ -343,7 +353,7 @@ def _process_measurement_list(
     if not found_pcr:
         logger.error("IMA measurement list does not match TPM PCR %s", pcrval)
         failure.add_event("pcr_mismatch", f"IMA measurement list does not match TPM PCR {pcrval}", True)
-    elif not agentAttestState.check_quote_progress(pcr_match_line, log_length):
+    elif agentAttestState is not None and not agentAttestState.check_quote_progress(pcr_match_line, log_length):
         logger.error("PCR quote did not make progress to catch up with the log")
         failure.add_event("quote_progress", "PCR quote did not make progress to catch up with log", True)
 
@@ -357,7 +367,7 @@ def _process_measurement_list(
 
 
 def process_measurement_list(
-    agentAttestState: AgentAttestState,
+    agentAttestState: Optional[AgentAttestState],
     lines: List[str],
     runtime_policy: Optional[RuntimePolicyType] = None,
     pcrval: Optional[str] = None,
@@ -379,8 +389,8 @@ def process_measurement_list(
     except:  # pylint: disable=try-except-raise
         raise
     finally:
-        if failure:
-            # TODO currently reset on any failure which might be an issue
+        if failure and agentAttestState is not None:
+            # reset on any failure which might be an issue
             agentAttestState.reset_ima_attestation()
 
     return running_hash, failure
@@ -527,10 +537,13 @@ def verify_runtime_policy(
         )
 
 
-def deserialize_runtime_policy(runtime_policy: str) -> RuntimePolicyType:
+def deserialize_runtime_policy(runtime_policy: str | None) -> RuntimePolicyType:
     """
     Converts policies stored in the database to JSON (if applicable), for use in code.
     """
+
+    if runtime_policy is None:
+        runtime_policy = ""
 
     runtime_policy_loaded: Dict[str, Any] = json.loads(runtime_policy)
 

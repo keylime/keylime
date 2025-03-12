@@ -49,16 +49,20 @@ class TPMState:
         for pcr_num in range(0, 24):
             self.reset_pcr(pcr_num)
 
+    @staticmethod
+    def initial_pcr_value(pcr_num: int, hash_alg: Hash) -> bytes:
+        """Return the value for a PCR being initialized"""
+        if 17 <= pcr_num <= 23:
+            return hash_alg.get_ff_hash()
+        return hash_alg.get_start_hash()
+
     def init_pcr(self, pcr_num: int, hash_alg: Hash) -> None:
         """Initializes a PCR"""
         if pcr_num not in self.hash_alg:
             self.hash_alg[pcr_num] = hash_alg
 
         if self.pcrs[pcr_num] is None:
-            if 17 <= pcr_num <= 23:
-                self.pcrs[pcr_num] = self.hash_alg[pcr_num].get_ff_hash()
-            else:
-                self.pcrs[pcr_num] = self.hash_alg[pcr_num].get_start_hash()
+            self.pcrs[pcr_num] = TPMState.initial_pcr_value(pcr_num, hash_alg)
 
     def reset_pcr(self, pcr_num: int) -> None:
         """Reset a specific PCR"""
