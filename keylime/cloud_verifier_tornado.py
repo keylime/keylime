@@ -1416,6 +1416,137 @@ class MbpolicyHandler(BaseHandler):
         raise NotImplementedError()
 
 
+class VerifyEvidenceHandler(BaseHandler):
+    def head(self) -> None:
+        web_util.echo_json_response(self, 405, "Not Implemented: Use POST interface instead")
+
+    def get(self) -> None:
+        web_util.echo_json_response(self, 405, "Not Implemented: Use POST interface instead")
+
+    def delete(self) -> None:
+        web_util.echo_json_response(self, 405, "Not Implemented: Use POST interface instead")
+
+    def put(self) -> None:
+        web_util.echo_json_response(self, 405, "Not Implemented: Use POST interface instead")
+
+    def data_received(self, chunk: Any) -> None:
+        raise NotImplementedError()
+
+    def post(self) -> None:
+        if self.request.uri is None:
+            web_util.echo_json_response(self, 400, "URI not specified")
+            return
+
+        rest_params = web_util.get_restful_params(self.request.uri)
+        if rest_params is None:
+            web_util.echo_json_response(self, 405, "Not Implemented")
+            return
+
+        if "verify" not in rest_params and rest_params["verify"] != "evidence":
+            web_util.echo_json_response(self, 400, "uri not supported")
+            logger.warning("GET returning 400 response. uri not supported: %s", self.request.path)
+            return
+
+        json_body = {}
+        try:
+            json_body = json.loads(self.request.body)
+        except Exception as e:
+            logger.warning("Failed to parse JSON body POST data: %s", e)
+            return
+
+        # get and validate the parameters
+        quote = None
+        nonce = None
+        hash_alg = None
+        tpm_ek = None
+        tpm_ak = None
+        tpm_policy = ""
+        runtime_policy = None
+        mb_policy = ""
+        ima_measurement_list = ""
+        mb_log = ""
+
+        if "quote" in json_body and json_body["quote"] != "":
+            quote = json_body["quote"]
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'quote'")
+            logger.warning("POST returning 400 response. missing query parameter 'quote'")
+            return
+
+        if "nonce" in json_body and json_body["nonce"] != "":
+            nonce = json_body["nonce"]
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'nonce'")
+            logger.warning("POST returning 400 response. missing query parameter 'nonce'")
+            return
+
+        if "hash_alg" in json_body and json_body["hash_alg"] != "":
+            hash_alg = json_body["hash_alg"]
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'hash_alg'")
+            logger.warning("POST returning 400 response. missing query parameter 'hash_alg'")
+            return
+
+        if "tpm_ek" in json_body and json_body["tpm_ek"] != "":
+            tpm_ek = json_body["tpm_ek"]
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'tpm_ek'")
+            logger.warning("POST returning 400 response. missing query parameter 'tpm_ek'")
+            return
+
+        if "tpm_ak" in json_body and json_body["tpm_ak"] != "":
+            tpm_ak = json_body["tpm_ak"]
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'tpm_ak'")
+            logger.warning("POST returning 400 response. missing query parameter 'tpm_ak'")
+            return
+
+        if "tpm_policy" in json_body and json_body["tpm_policy"] != "":
+            tpm_policy = json_body["tpm_policy"]
+
+        if "runtime_policy" in json_body and json_body["runtime_policy"] != "":
+            runtime_policy = json_body["runtime_policy"]
+
+        if "mb_policy" in json_body and json_body["mb_policy"] != "":
+            mb_policy = json_body["mb_policy"]
+
+        if "ima_measurement_list" in json_body and json_body["ima_measurement_list"] != "":
+            ima_measurement_list = json_body["ima_measurement_list"]
+
+        if "mb_log" in json_body and json_body["mb_log"] != "":
+            mb_log = json_body["mb_log"]
+
+        # process the request for attestation check
+        try:
+            # TODO - provide better error handling around bad runtime policy
+            policy_obj = ima.deserialize_runtime_policy(runtime_policy)
+            attestation_failure = cloud_verifier_common.process_verify_attestation(
+                tpm_ek, tpm_ak, quote, nonce, hash_alg, tpm_policy, policy_obj, mb_policy, ima_measurement_list, mb_log
+            )
+
+            attestation_response: Dict[str, Any] = {}
+            if attestation_failure:
+                attestation_response["valid"] = 0
+                failures = []
+                for event in attestation_failure.events:
+                    failures.append(
+                        {
+                            "type": event.event_id,
+                            "context": json.loads(event.context),
+                        }
+                    )
+                attestation_response["failures"] = failures
+            else:
+                attestation_response["valid"] = 1
+
+            # TODO - should we use different error codes for attestation failures even if we processed correctly?
+            web_util.echo_json_response(self, 200, "Success", attestation_response)
+        except Exception as e:
+            web_util.echo_json_response(self, 500, "Internal Server Error: Failed to process attestation data")
+            logger.warning("Failed to process /verify/evidence data: %s", e)
+            return
+
+
 async def update_agent_api_version(agent: Dict[str, Any], timeout: float = 60.0) -> Union[Dict[str, Any], None]:
     agent_id = agent["agent_id"]
 
@@ -2039,6 +2170,7 @@ def main() -> None:
             (r"/v?[0-9]+(?:\.[0-9]+)?/agents/.*", AgentsHandler),
             (r"/v?[0-9]+(?:\.[0-9]+)?/allowlists/.*", AllowlistHandler),
             (r"/v?[0-9]+(?:\.[0-9]+)?/mbpolicies/.*", MbpolicyHandler),
+            (r"/v?[0-9]+(?:\.[0-9]+)?/verify/evidence", VerifyEvidenceHandler),
             (r"/versions?", VersionHandler),
             (r".*", MainHandler),
         ]
