@@ -78,6 +78,7 @@ CONFIG_FILES = {
     "registrar": ["/etc/keylime/registrar.conf", "/usr/etc/keylime/registrar.conf"],
     "ca": ["/etc/keylime/ca.conf", "/usr/etc/keylime/ca.conf"],
     "logging": ["/etc/keylime/logging.conf", "/usr/etc/keylime/logging.conf"],
+    "agent": ["/etc/keylime/agent.conf", "/usr/etc/keylime/agent.conf"],
 }
 
 # Paths to directories in which options can be overriden using configuration
@@ -88,6 +89,7 @@ CONFIG_SNIPPETS_DIRS = {
     "registrar": ["/usr/etc/keylime/registrar.conf.d", "/etc/keylime/registrar.conf.d"],
     "ca": ["/usr/etc/keylime/ca.conf.d", "/etc/keylime/ca.conf.d"],
     "logging": ["/usr/etc/keylime/logging.conf.d", "/etc/keylime/logging.conf.d"],
+    "agent": ["/usr/etc/keylime/agent.conf.d", "/etc/keylime/agent.conf.d"],
 }
 
 CONFIG_ENV = {
@@ -96,6 +98,7 @@ CONFIG_ENV = {
     "registrar": "",
     "ca": "",
     "logging": "",
+    "agent": "",
 }
 
 # Add files from environment variables, if set
@@ -109,6 +112,8 @@ if "KEYLIME_CA_CONFIG" in os.environ:
     CONFIG_ENV["ca"] = os.environ["KEYLIME_CA_CONFIG"]
 if "KEYLIME_LOGGING_CONFIG" in os.environ:
     CONFIG_ENV["logging"] = os.environ["KEYLIME_LOGGING_CONFIG"]
+if "KEYLIME_AGENT_CONFIG" in os.environ:
+    CONFIG_ENV["agent"] = os.environ["KEYLIME_AGENT_CONFIG"]
 
 # Single instance
 _config: Optional[Dict[str, RawConfigParser]] = None
