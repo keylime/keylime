@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Pattern, Tuple, Type
 import jsonschema
 
 from keylime import config, keylime_logging, signing
-from keylime.agentstates import AgentAttestState
+from keylime.agentstates import AgentAttestState, TPMState
 from keylime.common import algorithms, validators
 from keylime.common.algorithms import Hash
 from keylime.dsse import dsse
@@ -226,7 +226,11 @@ def _process_measurement_list(
     boot_aggregates: Optional[Dict[str, List[str]]] = None,
 ) -> Tuple[str, Failure]:
     failure = Failure(Component.IMA)
-    running_hash = agentAttestState.get_pcr_state(config.IMA_PCR, hash_alg)
+
+    if agentAttestState is not None:
+        running_hash = agentAttestState.get_pcr_state(config.IMA_PCR, hash_alg)
+    else:
+        running_hash = TPMState.initial_pcr_value(config.IMA_PCR, hash_alg)
     assert running_hash
 
     found_pcr = pcrval is None
@@ -331,9 +335,10 @@ def _process_measurement_list(
                     logger.debug("Found match at linenum %s", linenum + 1)
                     # We always want to have the very last line for the attestation, so
                     # we keep the previous runninghash, which is not the last one!
-                    agentAttestState.update_ima_attestation(int(entry.pcr), running_hash, linenum + 1)
-                    if dm_validator:
-                        agentAttestState.set_ima_dm_state(dm_validator.state_dump())
+                    if agentAttestState is not None:
+                        agentAttestState.update_ima_attestation(int(entry.pcr), running_hash, linenum + 1)
+                        if dm_validator:
+                            agentAttestState.set_ima_dm_state(dm_validator.state_dump())
 
         except ast.ParserError:
             failure.add_event("entry", f"Line was not parsable into a valid IMA entry: {line}", True, ["parser"])
@@ -343,7 +348,7 @@ def _process_measurement_list(
     if not found_pcr:
         logger.error("IMA measurement list does not match TPM PCR %s", pcrval)
         failure.add_event("pcr_mismatch", f"IMA measurement list does not match TPM PCR {pcrval}", True)
-    elif not agentAttestState.check_quote_progress(pcr_match_line, log_length):
+    elif agentAttestState is not None and not agentAttestState.check_quote_progress(pcr_match_line, log_length):
         logger.error("PCR quote did not make progress to catch up with the log")
         failure.add_event("quote_progress", "PCR quote did not make progress to catch up with log", True)
 
@@ -381,7 +386,8 @@ def process_measurement_list(
     finally:
         if failure:
             # TODO currently reset on any failure which might be an issue
-            agentAttestState.reset_ima_attestation()
+            if agentAttestState is not None:
+                agentAttestState.reset_ima_attestation()
 
     return running_hash, failure
 
