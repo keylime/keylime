@@ -366,7 +366,20 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
             fields = [fields]
 
         for field in fields:
+            field_obj = self.__class__.fields.get(field)
+
+            if field_obj and field_obj.data_type.native_type is bool and self.values.get(field) is False:
+                continue
+
             if not self.values.get(field):
+                self._add_error(field, msg)
+
+    def validate_absence(self, fields: Union[str, Sequence[str]], msg: str = "is not allowable") -> None:
+        if isinstance(fields, str):
+            fields = [fields]
+
+        for field in fields:
+            if self.values.get(field):
                 self._add_error(field, msg)
 
     def validate_base64(self, fields: Union[str, Sequence[str]], msg: str = "must be Base64 encoded") -> None:
