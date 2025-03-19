@@ -24,7 +24,7 @@ class VerfierMain(Base):
     operational_state = Column(Integer)
     public_key = Column(String(500))
     tpm_policy = Column(JSONPickleType(pickler=JSONPickler))
-    meta_data = Column(String(200))
+    meta_data = Column(Text().with_variant(Text(429400000), "mysql"))
     ima_policy = relationship("VerifierAllowlist", back_populates="agent", uselist=False)
     ima_policy_id = Column(Integer, ForeignKey("allowlists.id"))
     ima_sign_verification_keys = Column(Text().with_variant(Text(429400000), "mysql"))
