@@ -246,5 +246,5 @@ class OneOf(ModelType):
         return self._permitted.copy()
 
     @property
-    def native_type(self) -> type:
-        raise NotImplementedError
+    def native_type(self) -> Optional[type]:
+        return None

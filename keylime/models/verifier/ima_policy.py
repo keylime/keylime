@@ -8,7 +8,7 @@ class IMAPolicy(PersistableModel):
         cls._id("id", Integer)
 
         # Associations
-        cls._has_many("agents", verifier_models.VerifierAgent)
+        cls._has_many("agents", verifier_models.VerifierAgent, preload=False)
 
         cls._field("name", String(255))
         cls._field("ima_policy", Dictionary)

@@ -2,10 +2,14 @@ from typing import Any, Optional, Sequence
 
 from sqlalchemy import or_, asc, desc
 
+from keylime.models.base.associations import EmbedsInlineAssociation, EmbedsOneAssociation, EmbedsManyAssociation
 from keylime.models.base.basic_model import BasicModel
 from keylime.models.base.db import db_manager
-from keylime.models.base.errors import FieldValueInvalid, QueryInvalid
+from keylime.models.base.errors import FieldValueInvalid, QueryInvalid, UndefinedField
 from keylime.models.base.persistable_model_meta import PersistableModelMeta
+from keylime.models.base.types.dictionary import Dictionary
+from keylime.models.base.types.list import List
+from keylime.models.base.field import ModelField
 
 
 class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
@@ -216,14 +220,44 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         else:
             return None
 
-    def __init__(self, data: Optional[dict | object] = None, process_associations: bool = True) -> None:
+    def __init__(self, data: Optional[dict | object] = None, process_associations: bool = True, memo: Optional[list] = None) -> None:
         if isinstance(data, type(self).db_mapping):
             super().__init__({}, process_associations)
-            self._init_from_mapping(data, process_associations)
+            self._init_from_mapping(data, process_associations, memo)
         else:
             super().__init__(data, process_associations)  # type: ignore[reportArgumentType, arg-type]
 
-    def _init_from_mapping(self, mapping_inst: object, process_associations: bool) -> None:
+    def _get_inline_mapped_data(self, mapping_inst, assoc_name):
+        association = type(self).embeds_inline_associations[assoc_name]
+        associated_data = {}
+
+        for db_name, item in association.other_model.get_db_column_items(embedded_in=association).items():
+            value = getattr(mapping_inst, db_name)
+
+            if value is None:
+                continue
+
+            if isinstance(item, ModelField): 
+                value = item.data_type.db_load(value, db_manager.engine.dialect)
+            elif isinstance(item, EmbedsOneAssociation):
+                value = Dictionary().db_load(value, db_manager.engine.dialect)
+            elif isinstance(item, EmbedsManyAssociation):
+                value = List().db_load(value, db_manager.engine.dialect)
+
+            name_parts = db_name.split("__")
+            parent_dict = associated_data
+
+            for i in range(len(name_parts) - 1):
+                if not parent_dict.get(name_parts[i]):
+                    parent_dict[name_parts[i]] = {}
+
+                parent_dict = parent_dict[name_parts[i]]
+
+            parent_dict[name_parts[-1]] = value
+
+        return associated_data.get(assoc_name)
+
+    def _init_from_mapping(self, mapping_inst: object, process_associations: bool, memo: Optional[list]) -> None:
         self._db_mapping_inst = mapping_inst
 
         for name, field in type(self).fields.items():
@@ -233,43 +267,131 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             value = getattr(mapping_inst, name)
             self._committed[name] = field.data_type.db_load(value, db_manager.engine.dialect)
 
-        if process_associations:
-            for name, association in type(self).associations.items():
+        if not process_associations:
+            return
+
+        memo = set() if memo is None else memo
+        memo.add(id(mapping_inst))
+
+        for name, association in type(self).associations.items():
+            if isinstance(association, EmbedsInlineAssociation):
+                associated_data = self._get_inline_mapped_data(mapping_inst, name)
+            else:
                 associated_data = getattr(mapping_inst, name)
 
-                if isinstance(associated_data, list):
-                    record_set = association.get_record_set(self)
-                    record_set.update(associated_data)
-                elif associated_data is not None:
-                    value = association.other_model(associated_data, process_associations=False)
-                    setattr(self, name, value)
+            if not associated_data:
+                continue
 
-    def _init_from_dict(self, data: dict, _process_associations: bool) -> None:
+            associated_data = [associated_data] if not isinstance(associated_data, list) else associated_data
+            record_set = association.get_record_set(self)
+            associated_models = [association.other_model, *association.other_model.sub_models]
+
+            if id(associated_data[0]) in memo:
+                continue
+
+            for item in associated_data:
+                value = None
+                exceptions = []
+
+                for model in associated_models:
+                    try:
+                        value = model(item, memo=memo)
+                    except UndefinedField as err:
+                        exceptions.append(err)
+                        continue
+                
+                if value is None:
+                    raise UndefinedField(exceptions)
+
+                record_set.add(value)
+
+    def _init_from_dict(self, data: dict, process_associations: bool) -> None:
         self._db_mapping_inst = type(self).db_mapping()
 
-        for name, value in data:
-            self.change(name, value)
-            setattr(self._db_mapping_inst, name, value)
+        for name, value in data.items():
+            association = type(self).associations.get(name)
+
+            if not association:
+                self.change(name, value)
+                setattr(self._db_mapping_inst, name, value)
+                continue
+            
+            if process_associations:
+                record_set = association.get_record_set(self)
+                value = [value] if not isinstance(value, list) else value
+
+                for item in value:
+                    record_set.add(association.other_model(item))
 
         self._force_commit_changes()
 
-    def commit_changes(self) -> None:
+    def get_db_changes(self, embedded_in=None):
+        changes = self._changes.copy()
+        dialect = db_manager.engine.dialect
+
+        for name, value in self.changes.items():
+            field = type(self).fields[name]
+
+            if not field.persist:
+                del changes[name]
+                continue
+
+            changes[name] = field.data_type.db_dump(value, dialect)
+
+        json_embeds = list(type(self).embeds_one_associations.keys()) + list(type(self).embeds_many_associations.keys())
+
+        for name, value in self.render(json_embeds).items():
+            if isinstance(value, dict):
+                changes[name] = Dictionary().db_dump(value, dialect)
+            elif isinstance(value, list):
+                changes[name] = List().db_dump(value, dialect)
+
+        for embed in type(self).embeds_inline_associations.values():
+            embed_record_set = embed.get_record_set(self)
+
+            if embed_record_set:
+                changes |= embed_record_set[0].get_db_changes(embedded_in=embed)
+
+        if embedded_in:
+            for field_name in changes.copy().keys():
+                changes[f"{embedded_in.name}__{field_name}"] = changes.pop(field_name)
+
+        return changes
+
+    def commit_changes(self, session=None, persist=True) -> None:
         if not self.changes_valid:
             raise FieldValueInvalid(f"pending changes for model '{type(self).__name__}' have validation errors")
 
-        for name, value in self._changes.items():
-            self._committed[name] = value
+        # Write changes to DB when asked, if record is backed by a DB table
+        if persist and type(self).table_name:
+            for name, value in self.get_db_changes().items():
+                setattr(self._db_mapping_inst, name, value)
 
-            field = type(self).fields[name]
+            # Use given session to build a transaction affecting multiple records
+            if session:
+                session.add(self._db_mapping_inst)
+                # Changes should be marked as committed only after
+                # the entire transaction succeeds, so return early
+                return
+            
+            # Otherwise, create a session if none if given
+            with db_manager.session_context() as session:
+                session.add(self._db_mapping_inst)
 
-            if field.persist:
-                setattr(self._db_mapping_inst, name, field.data_type.db_dump(value, db_manager.engine.dialect))
+        # Mark changes as committed, including changes to virtual fields (only if DB query succeeds)
+        super().commit_changes()
 
-        with db_manager.session_context() as session:
-            session.add(self._db_mapping_inst)
+        # Mark changes to any inline embedded records as committed also
+        for embed in type(self).embeds_inline_associations.values():
+            embed_record_set = embed.get_record_set(self)
 
-        self.clear_changes()
+            if embed_record_set:
+                embed_record_set[0].commit_changes(persist=False)
 
-    def delete(self) -> None:
+    def delete(self, session=None) -> None:
+        if session:
+            session.delete(self._db_mapping_inst)
+            return
+
         with db_manager.session_context() as session:
             session.delete(self._db_mapping_inst)  # type: ignore[no-untyped-call]

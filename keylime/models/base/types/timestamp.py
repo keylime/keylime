@@ -27,8 +27,11 @@ class Timestamp(ModelType):
     def _load_str(self, value: str) -> datetime:
         ts: Optional[datetime] = None
 
+        # Python <3.11 does not support the 'Z' UTC specifier
+        iso_value = value[:-1] + "+00:00" if value[-1] == "Z" else value
+
         try:
-            ts = datetime.fromisoformat(value)
+            ts = datetime.fromisoformat(iso_value)
         except ValueError:
             pass
 

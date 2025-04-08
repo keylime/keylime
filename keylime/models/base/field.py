@@ -2,10 +2,12 @@ import re
 from inspect import isclass
 from typing import TYPE_CHECKING, Any, Optional, TypeAlias, Union
 
+from sqlalchemy import Column, ForeignKey
 from sqlalchemy.types import TypeEngine
 
 from keylime.models.base.errors import FieldDefinitionInvalid
 from keylime.models.base.type import ModelType
+from keylime.models.base.db import db_manager
 
 if TYPE_CHECKING:
     from keylime.models.base.basic_model import BasicModel
@@ -43,6 +45,9 @@ class ModelField:
         self._nullable = opts.get("nullable", False)
         self._persist = opts.get("persist", True)
         self._render = opts.get("render", True)
+        self._refers_to = opts.get("refers_to", None)
+        self._column_args = opts.get("column_args", ())
+        self._column_kwargs = opts.get("column_kwargs", {})
 
         if isinstance(data_type, ModelType):
             self._data_type = data_type
@@ -100,6 +105,16 @@ class ModelField:
         sa_field = getattr(self.parent.db_mapping, self.name)
         return sa_field.__ge__(other)
 
+    def to_column(self, name=None) -> Optional[Column]:
+        if not self.persist:
+            return None
+
+        if not name:
+            name = self.name
+
+        column_args = (name,) + self.column_args[1:]
+        return Column(*column_args, **self.column_kwargs)
+
     @property
     def parent(self) -> "BasicModelMeta":
         return self._parent
@@ -123,3 +138,41 @@ class ModelField:
     @property
     def render(self) -> bool:
         return self._render
+
+    @property
+    def refers_to(self) -> Optional[str]:
+        return self._refers_to
+
+    @property
+    def linked_association(self) -> Optional[str]:
+        if not self.refers_to:
+            return None
+
+        return self.refers_to.split(".")[0]
+
+    @property
+    def linked_table(self) -> Optional[str]:
+        if not self.refers_to:
+            return None
+
+        return self.parent.belongs_to_associations[self.linked_association].other_model.table_name
+
+    @property
+    def linked_field(self) -> Optional[str]:
+        if not self.refers_to:
+            return None
+
+        return self.refers_to.split(".")[1]
+
+    @property
+    def column_args(self) -> tuple[Any, ...]:
+        column_args = self._column_args
+
+        db_type = self.data_type.get_db_type(db_manager.engine.dialect)
+        column_args = (self.name, db_type, *column_args)
+        
+        return column_args
+
+    @property
+    def column_kwargs(self) -> dict[str, Any]:
+        return {"nullable": self.nullable, **self._column_kwargs}

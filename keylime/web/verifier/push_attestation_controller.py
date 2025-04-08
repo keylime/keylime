@@ -1,6 +1,7 @@
 from keylime import keylime_logging
 from keylime.models.base import Timestamp
-from keylime.models.verifier import VerifierAgent, PushAttestation
+from keylime.models.verifier import VerifierAgent, Attestation
+from keylime.verification import EngineDriver
 from keylime.web.base import Controller
 
 logger = keylime_logging.init_logging("verifier")
@@ -8,7 +9,7 @@ logger = keylime_logging.init_logging("verifier")
 
 class PushAttestationController(Controller):
     """The PushAttestationController services requests for the management of attestation resources when the verifier is
-    operating in push mode. Such attestation resources are represented by instances of the ``PushAttestation`` model.
+    operating in push mode. Such attestation resources are represented by instances of the ``Attestation`` model.
 
     Attestation evidence is prepared and sent according the push attestation protocol which operates in two phases::
 
@@ -157,29 +158,29 @@ class PushAttestationController(Controller):
             self.respond(404)
             return
         
-        results = PushAttestation.all(agent_id=agent_id)
+        results = Attestation.all(agent_id=agent_id)
 
-        self.respond(200, "Success", [attestation.render() for attestation in results])
+        self.respond(200, "Success", [attestation.render_state() for attestation in results])
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/:index
     def show(self, agent_id, index, **_params):
-        attestation = PushAttestation.get(agent_id=agent_id, index=index)
+        attestation = Attestation.get(agent_id=agent_id, index=index)
 
         if not attestation:
-            self.respond(404, f"Agent with ID '{agent_id}' not found")
+            self.respond(404)
             return
 
-        self.respond(200, "Success", attestation.render())
+        self.respond(200, "Success", attestation.render_state())
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/latest
     def show_latest(self, agent_id, **_params):
-        last_attestation = PushAttestation.get_latest(agent_id)
+        latest_attestation = Attestation.get_latest(agent_id)
 
-        if not last_attestation:
-            self.respond(404, f"Agent with ID '{agent_id}' not found")
+        if not latest_attestation:
+            self.respond(404)
             return
 
-        self.respond(200, "Success", last_attestation.render())
+        self.respond(200, "Success", latest_attestation.render_state())
 
     # POST /v3[.:minor]/agents/:agent_id/attestations
     def create(self, agent_id, **params):
@@ -193,7 +194,7 @@ class PushAttestationController(Controller):
             self.respond(403)
             return
 
-        retry_seconds = PushAttestation.accept_new_attestations_in(agent_id)
+        retry_seconds = Attestation.accept_new_attestations_in(agent_id)
 
         # Reject request if a new attestation is not yet expected (due to quote_interval or an active verification task)
         if retry_seconds:
@@ -201,14 +202,12 @@ class PushAttestationController(Controller):
             self.respond(429)
             return
 
-        new_attestation = PushAttestation.create(agent, params)
+        new_attestation = Attestation.create(agent)
+        new_attestation.receive_capabilities(params)
+        EngineDriver(new_attestation).process_capabilities()
 
         if new_attestation.errors:
-            msgs = []
-            for field, errors in new_attestation.errors.items():
-                for error in errors:
-                    msgs.append(f"{field} {error}")
-            self.respond(400, "Bad Request", {"errors": msgs})
+            self.respond(400, "Bad Request", {"errors": new_attestation.errors})
             return
 
         try:
@@ -220,30 +219,20 @@ class PushAttestationController(Controller):
             self.respond(409)
             return
 
-        # The attestation was created successfully, so delete any previous attestation for which evidence was never
-        # received or for which verification never completed
-        new_attestation.cleanup_stale_priors()
+        # TODO: Re-enable:
+        # # The attestation was created successfully, so delete any previous attestation for which evidence was never
+        # # received or for which verification never completed
+        # new_attestation.cleanup_stale_priors()
 
-        response = new_attestation.render(
-            [
-                "agent_id",
-                "nonce",
-                "nonce_created_at",
-                "nonce_expires_at",
-                "status",
-                "hash_alg",
-                "enc_alg",
-                "sign_alg",
-                "starting_ima_offset",
-            ]
-        )
-        response = {**response, "pcr_mask": agent.tpm_policy}
-        self.respond(201, "Success", response)
-        # TODO: Set Location header
+        self.respond(201, "Success", new_attestation.render_evidence_requested())
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/:index
     def update(self, agent_id, index, **params):
-        latest_attestation = PushAttestation.get_latest(agent_id)
+        latest_attestation = Attestation.get_latest(agent_id)
+
+        if not latest_attestation:
+            self.respond(404)
+            return
 
         # Only allow the attestation at 'index' to be updated if it is the latest attestation
         if latest_attestation.index == index:
@@ -253,45 +242,38 @@ class PushAttestationController(Controller):
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/latest
     def update_latest(self, agent_id, **params):
-        agent = VerifierAgent.get(agent_id)
-
-        # get last attestation entry for the agent
-        attestation = PushAttestation.get_latest(agent_id)
+        attestation = Attestation.get_latest(agent_id)
 
         if not attestation:
             self.respond(404)
             return
 
-        if attestation.status != "waiting":
+        if attestation.stage != "awaiting_evidence":
             self.respond(403)
             return
 
-        if attestation.nonce_expires_at < Timestamp.now():
+        if attestation.challenges_expire_at < Timestamp.now():
             self.respond(403)
             return
 
         attestation.receive_evidence(params)
+        driver = EngineDriver(attestation).process_evidence()
 
-        # last_attestation will contain errors if the JSON request is malformed/invalid (e.g., if an unrecognised hash
-        # algorithm is provided) but not if the quote verification fails (including if the quote cannot be verified as
-        # authentic, if the IMA/MB logs cannot be verified as authentic, or if the logs do not meet policy)
-        if not attestation.changes_valid:
-            msgs = []
-            for field, errors in attestation.errors.items():
-                for error in errors:
-                    msgs.append(f"{field} {error}")
-            self.respond(400, "Bad Request", {"errors": msgs})
+        # attestation will contain errors if the JSON request is malformed/invalid (e.g., if an unrecognised hash
+        # algorithm is provided) but not if the quote verification fails
+
+        if attestation.errors:
+            self.respond(400, "Bad Request", {"errors": attestation.errors})
             return
 
         attestation.commit_changes()
-        time_to_next_attestation = attestation.next_attestation_expected_after - Timestamp.now()
-        response = {"time_to_next_attestation": int(time_to_next_attestation.total_seconds())}
-        self.respond(202, "Success", response)
 
-        # Verify attestation after response is sent, so that the agent does not need to wait for the verification to
-        # complete. Ideally, in the future, we would want to create a pool of verification worker processes
-        # (separate from the web server workers) which will call this method whenever a new verification task is added
-        # to a queue
-        attestation.verify_evidence()
+        # TODO: Move:
+        # time_to_next_attestation = attestation.next_attestation_expected_after - Timestamp.now()
+        # response = {"time_to_next_attestation": int(time_to_next_attestation.total_seconds())}
+        # self.respond(202, "Success", response)
 
+        self.respond(202, "Success", attestation.render_evidence_acknowledged())
 
+        # Verify attestation after response is sent, so the agent does not need to wait for verification to complete
+        driver.verify_evidence()

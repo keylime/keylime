@@ -7,6 +7,7 @@ from typing import Any, Container, Iterable, Mapping, Optional, Pattern, Sequenc
 
 from keylime.models.base.basic_model_meta import BasicModelMeta
 from keylime.models.base.errors import FieldValueInvalid, UndefinedField
+from keylime.models.base.associations import EmbeddedInAssociation
 
 
 class BasicModel(ABC, metaclass=BasicModelMeta):
@@ -241,9 +242,20 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
                 f"model '{self.__class__.__name__}' cannot be initialised with data of type '{data.__class__.__name__}'"
             )
 
-    def _init_from_dict(self, data: dict, _process_associations: bool) -> None:
-        for name, value in data:
-            self.change(name, value)
+    def _init_from_dict(self, data: dict, process_associations: bool) -> None:
+        for name, value in data.items():
+            association = type(self).associations.get(name)
+
+            if not association:
+                self.change(name, value)
+                continue
+            
+            if process_associations:
+                record_set = association.get_record_set(self)
+                value = [value] if not isinstance(value, list) else value
+
+                for item in value:
+                    record_set.add(association.other_model(item))
 
         self._force_commit_changes()
 
@@ -405,7 +417,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
     def validate_subset(self, field: str, data: Sequence, msg: str = "has an invalid entry") -> None:
         value_as_set = set(self.values.get(field, set()))
 
-        if len(value_as_set) == 0 or value_as_set.issubset(data):
+        if not value_as_set.issubset(data):
             self._add_error(field, msg)
 
     def validate_length(
@@ -499,7 +511,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
                 continue
 
             # If member name not present in provided allowlist, skip
-            if only and name not in only:
+            if only is not None and name not in only:
                 continue
 
             # If member name is the name of a field, render its value according to the field's data type
@@ -508,11 +520,46 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
             # If member name is the name of an embedded record, render the full record
             elif name in self.__class__.embeds_one_associations.keys():
                 self._render_embedded_record(name, data)
+            elif name in self.__class__.embeds_inline_associations.keys():
+                self._render_embedded_record(name, data)
             # If member name is the name of a set of embedded records, render as a list of records
             elif name in self.__class__.embeds_many_associations.keys():
                 self._render_embedded_record_set(name, data)
 
         return data
+
+    def get_errors(self, included_associations=None, include_embeds=True) -> Mapping[str, Mapping]:
+        structure = {field: {"errors": errors} for field, errors in self._errors.items() if len(errors) > 0}
+
+        if not included_associations:
+            included_associations = []
+
+        if include_embeds:
+            for name, embed in self.__class__.embedded_associations.items():
+                if isinstance(embed, EmbeddedInAssociation):
+                    continue
+
+                included_associations.append(name)
+
+        included_associations = [self.__class__.associations.get(name) for name in included_associations]
+
+        for assoc in included_associations:
+            substructure = structure.get(assoc.name) or {}
+            substructure["members"] = []
+
+            for index, record in enumerate(assoc.get_record_set(self)):
+                record_errors = record.errors
+
+                if record_errors:
+                    substructure["members"].append(record.errors)
+
+            if substructure["members"] and assoc.to_one:
+                substructure["members"] = substructure["members"][0]
+
+            if substructure.get("errors") or substructure.get("members"):
+                structure[assoc.name] = substructure
+
+        return structure
 
     @property
     def committed(self) -> Mapping[str, Any]:
@@ -527,21 +574,8 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
         return MappingProxyType({**self.committed, **self.changes})
 
     @property
-    def errors(self) -> Mapping[str, Sequence | Mapping]:
-        errors = {field: errors for field, errors in self._errors.items() if len(errors) > 0}
-
-        for name, embed in self.__class__.embeds_one_associations.items():
-            (record,) = embed.get_record_set(self) or (None,)
-
-            if record and record.errors:
-                errors.update({f"{name}.{fname}": error for fname, error in record.errors.items()})
-
-        for name, embed in self.__class__.embeds_many_associations.items():
-            for index, record in enumerate(embed.get_record_set(self)):
-                if record.errors:
-                    errors.update({f"{name}[{index}].{fname}": error for fname, error in record.errors.items()})
-
-        return errors
+    def errors(self) -> Mapping[str, Mapping]:
+        return self.get_errors(include_embeds=True)
 
     @property
     def changes_valid(self) -> bool:

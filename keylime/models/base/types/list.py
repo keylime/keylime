@@ -68,7 +68,7 @@ class List(ModelType):
         """
         # pylint: disable=no-else-return
 
-        if not value:
+        if value is None:
             return None
 
         elif isinstance(value, list):

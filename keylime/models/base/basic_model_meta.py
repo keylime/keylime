@@ -5,6 +5,7 @@ from typing import Any, Callable, Mapping, TypeAlias, Union
 from sqlalchemy.types import TypeEngine
 
 from keylime.models.base.associations import (
+    EmbeddedAssociation,
     EmbeddedInAssociation,
     EmbedsManyAssociation,
     EmbedsOneAssociation,
@@ -159,6 +160,8 @@ class BasicModelMeta(ABCMeta):
             # cross-model references)
             mcs._setattr(cls, "__fields", {})
             mcs._setattr(cls, "__associations", {})
+            # Create attribute to keep references to subclasses which inherit from this model
+            mcs._setattr(cls, "__sub_models", [])
             # Create attribute to manage model lifecycle
             mcs._setattr(cls, "__schema_status", "pending")
             # Create attribute to keep a record of all schema helpers invoked
@@ -166,15 +169,23 @@ class BasicModelMeta(ABCMeta):
 
         return cls
 
+    def _sub_models(cls, *models):
+        if not cls.schema_helpers_enabled:
+            return
+
+        # A sub-model's schema will usually include it's parent's schema, 
+        # so don't process sub-model declarations which reference this model
+        for model in models:
+            if model == cls:
+                return
+
+        sub_models = type(cls)._getattr(cls, "__sub_models")
+        sub_models.extend(models)
+
     def _field(cls, name: str, data_type: DeclaredFieldType, nullable: bool = False) -> None:
         if cls.schema_helpers_enabled:
             type(cls)._make_field(cls, name, data_type, nullable=nullable)
             type(cls)._log_schema_helper_use(cls, "_field", name, data_type, nullable)
-
-    def _virtual(cls, name: str, data_type: DeclaredFieldType, nullable: bool = False, render: bool = False) -> None:
-        if cls.schema_helpers_enabled:
-            type(cls)._make_field(cls, name, data_type, nullable=nullable, persist=False, render=render)
-            type(cls)._log_schema_helper_use(cls, "_virtual", name, data_type, nullable, render=render)
 
     def _embeds_one(cls, name: str, *args: Any, **kwargs: Any) -> None:
         if not cls.schema_helpers_enabled:
@@ -204,13 +215,15 @@ class BasicModelMeta(ABCMeta):
         type(cls)._log_schema_helper_use(cls, "_embedded_in", name, *args, **kwargs)
 
     def process_schema(cls) -> None:  # type: ignore[reportSelfClassParameterName]
-        if cls.schema_awaiting_processing:
-            # Mark schema as being processed to allow schema helpers to mutate the model
-            type(cls)._setattr(cls, "__schema_status", "processing")
-            # Process schema declarations by retrieving and invoking the _schema method defined by cls
-            type(cls)._get_schema_method(cls)()
-            # Mark schema processing as complete to prevent further invocations of process_schema
-            type(cls)._setattr(cls, "__schema_status", "done")
+        if not cls.schema_awaiting_processing:
+            return
+
+        # Mark schema as being processed to allow schema helpers to mutate the model
+        type(cls)._setattr(cls, "__schema_status", "processing")
+        # Process schema declarations by retrieving and invoking the _schema method defined by cls
+        type(cls)._get_schema_method(cls)()
+        # Mark schema processing as complete to prevent further invocations of process_schema
+        type(cls)._setattr(cls, "__schema_status", "done")
 
     @property
     def schema_status(cls) -> bool:
@@ -241,6 +254,14 @@ class BasicModelMeta(ABCMeta):
         return bool(type(cls)._getattr(cls, "__schema_status") == "done")
 
     @property
+    def sub_models(cls) -> list["BasicModelMeta"]:
+        if cls.schema_awaiting_processing:
+            cls.process_schema()
+
+        sub_models = type(cls)._getattr(cls, "__sub_models")
+        return sub_models.copy()
+
+    @property
     def fields(cls) -> Mapping[str, ModelField]:
         if cls.schema_awaiting_processing:
             cls.process_schema()
@@ -255,6 +276,17 @@ class BasicModelMeta(ABCMeta):
 
         associations = type(cls)._getattr(cls, "__associations")
         return MappingProxyType(associations)
+
+    @property
+    def embedded_associations(cls) -> dict[str, EmbeddedAssociation]:
+        if cls.schema_awaiting_processing:
+            cls.process_schema()
+
+        return {
+            name: association
+            for name, association in cls.associations.items()
+            if isinstance(association, EmbeddedAssociation)
+        }
 
     @property
     def embeds_one_associations(cls) -> dict[str, EmbedsOneAssociation]:

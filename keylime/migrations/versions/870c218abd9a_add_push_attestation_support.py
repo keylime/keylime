@@ -1,4 +1,4 @@
-"""Create attestations table and columns to enable push attestation protocol
+"""Create push attestation tables
 
 Revision ID: 870c218abd9a
 Revises: 330024be7bef
@@ -32,28 +32,70 @@ def downgrade_registrar():
 
 
 def upgrade_cloud_verifier():
+    op.add_column("verifiermain", sa.Column("accept_attestations", sa.Boolean))
+
     op.create_table(
         "attestations",
-        sa.Column("agent_id", sa.String(80), sa.ForeignKey("verifiermain.agent_id")),
-        sa.Column("index", sa.Integer),
-        sa.Column("nonce", sa.LargeBinary(128)),
-        sa.Column("status", sa.String(8), server_default="waiting"),
-        sa.Column("failure_type", sa.String(20), nullable=True),
-        sa.Column("tpm_quote", sa.Text, nullable=True),
-        sa.Column("hash_algorithm", sa.String(15)),
-        sa.Column("signing_scheme", sa.String(15)),
-        sa.Column("starting_ima_offset", sa.Integer),
-        sa.Column("ima_entries", sa.Text, nullable=True),
-        sa.Column("quoted_ima_entries_count", sa.Integer, nullable=True),
-        sa.Column("mb_entries", sa.LargeBinary, nullable=True),
+        sa.Column("agent_id", sa.String(80), sa.ForeignKey("verifiermain.agent_id"), nullable=False),
+        sa.Column("index", sa.Integer, nullable=False),
+        # sa.Column("nonce", sa.LargeBinary(128)),
+        sa.Column("stage", sa.String(25), server_default="awaiting_evidence", nullable=False),
+        sa.Column("evaluation", sa.String(10), server_default="pending", nullable=False),
+        sa.Column("failure_reason", sa.String(25)),
+        # sa.Column("tpm_quote", sa.Text, nullable=True),
+        # sa.Column("hash_algorithm", sa.String(15)),
+        # sa.Column("signing_scheme", sa.String(15)),
+        # sa.Column("starting_ima_offset", sa.Integer),
+        # sa.Column("ima_entries", sa.Text, nullable=True),
+        # sa.Column("quoted_ima_entries_count", sa.Integer, nullable=True),
+        # sa.Column("mb_entries", sa.LargeBinary, nullable=True),
         # ISO8601 datetimes with microsecond precision in the UTC timezone are never more than 32 characters
-        sa.Column("nonce_created_at", sa.String(32)),
-        sa.Column("nonce_expires_at", sa.String(32)),
-        sa.Column("evidence_received_at", sa.String(32), nullable=True),
-        sa.Column("boottime", sa.String(32)),
+        sa.Column("system_info__boot_time", sa.String(32), nullable=False),
+        sa.Column("capabilities_received_at", sa.String(32), nullable=False),
+        sa.Column("challenges_expire_at", sa.String(32), nullable=False),
+        sa.Column("evidence_received_at", sa.String(32)),
+        sa.Column("verification_completed_at", sa.String(32)),
         sa.PrimaryKeyConstraint("agent_id", "index"),
     )
-    op.add_column("verifiermain", sa.Column("accept_attestations", sa.Boolean))
+
+    op.create_table(
+        "evidence_items",
+        sa.Column("id", sa.Integer, nullable=False),
+        sa.Column("agent_id", sa.String(20), nullable=False),
+        sa.Column("attestation_index", sa.Integer, nullable=False),
+        sa.Column("evidence_class", sa.String(20), nullable=False),
+        sa.Column("evidence_type", sa.String(30), nullable=False),
+        sa.Column("capabilities__component_version", sa.String(20)),
+        sa.Column("capabilities__evidence_version", sa.String(20)),
+        sa.Column("capabilities__signature_schemes", sa.Text),
+        sa.Column("capabilities__hash_algorithms", sa.Text),
+        sa.Column("capabilities__available_subjects", sa.Text),
+        sa.Column("capabilities__certification_keys", sa.Text),
+        sa.Column("capabilities__entry_count", sa.Integer),
+        sa.Column("capabilities__supports_partial_access", sa.Boolean),
+        sa.Column("capabilities__appendable", sa.Boolean),
+        sa.Column("capabilities__formats", sa.Text),
+        sa.Column("capabilities__meta", sa.Text),
+        sa.Column("chosen_parameters__challenge", sa.LargeBinary),
+        sa.Column("chosen_parameters__signature_scheme", sa.String(20)),
+        sa.Column("chosen_parameters__hash_algorithm", sa.String(20)),
+        sa.Column("chosen_parameters__selected_subjects", sa.Text),
+        sa.Column("chosen_parameters__certification_key", sa.Text),
+        sa.Column("chosen_parameters__starting_offset", sa.Integer),
+        sa.Column("chosen_parameters__entry_count", sa.Integer),
+        sa.Column("chosen_parameters__format", sa.String(255)), # RFC 4288 length
+        sa.Column("chosen_parameters__meta", sa.Text),
+        sa.Column("data__subject_data", sa.Text),
+        sa.Column("data__message", sa.LargeBinary),
+        sa.Column("data__signature", sa.LargeBinary),
+        sa.Column("data__entry_count", sa.Integer),
+        sa.Column("data__entries", sa.Text),
+        sa.Column("data__meta", sa.Text),
+        sa.Column("results__certified_entry_count", sa.Integer),
+        sa.Column("results__meta", sa.Text),
+        sa.ForeignKeyConstraint(["agent_id", "attestation_index"], ["attestations.agent_id", "attestations.index"]),
+        sa.PrimaryKeyConstraint("id")
+    )
 
 
 def downgrade_cloud_verifier():
