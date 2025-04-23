@@ -118,7 +118,7 @@ Trust in the Measuring Environment
 When the attested node boots, the UEFI firmware and the bootloader each have their turn to execute in the boot sequence.
 They both write entries to the boot log and, for each log entry, update registers in the TPM with a hash of that entry.
 Nothing in the operation of the TPM ensures that the log entries **accurately** describe the events which took place at
-boot time [3]_, so the firmware and bootloader must be trusted to be honest when writing to the log.
+boot time,[3]_ so the firmware and bootloader must be trusted to be honest when writing to the log.
 
 Like any software component, the firmware and bootloader are subject to modification by legitimate users (e.g., when
 performing an update) and malicious parties. But because the node in question has a Baseboard Management Controller
@@ -150,7 +150,7 @@ The environment which produces file integrity logs is trusted in similar fashion
 part of the Linux kernel, it is authenticated by the bootloader before executing.
 
 In both cases, trust in every component of the measuring environment can be established by tracing it to one or more
-trust anchors. Therefore, the measuring environment as a whole can be trusted. [4]_
+trust anchors. Therefore, the measuring environment as a whole can be trusted.[4]_
 
 Trust in the Certifying Environment
 """""""""""""""""""""""""""""""""""
@@ -209,11 +209,9 @@ Chaining Trust Across Attesting Environments
 In the previous example, a chain of trust is formed in large part by virtue of Secure Boot, a UEFI feature which
 authenticates each component in the boot sequence. However, Secure Boot is imperfect. A motivated attacker can replace
 the bootloader of a system with an old, vulnerable version which is accepted by the UEFI firmware as legitimate
-because it has been signed by an authorised OS vendor. This type of attack has `previously succeeded`_ and has proved
-difficult to remediate, as signing keys cannot be easily revoked without breaking many systems, preventing them from
+because it has been signed by an authorised OS vendor. This type of attack has succeeded in the past and has proved
+difficult to remediate,[5]_ as signing keys cannot be easily revoked without breaking many systems, preventing them from
 booting.
-
-.. _previously succeeded: https://www.microsoft.com/en-us/security/blog/2023/04/11/guidance-for-investigating-attacks-using-cve-2022-21894-the-blacklotus-campaign/
 
 Instead of relying on Secure Boot, it is better to authenticate the boot chain as part of your verification policy. This
 is possible because UEFI outputs the hash of the bootloader to the boot log when it loads it into memory. Your policy
@@ -241,7 +239,7 @@ Virtual TPMs and the Root of Trust
 All our examples up to now have used a hardware certifying environment in the form of a TPM which is part of the
 hardware platform of the attested node. However, Keylime can perform TPM-based attestation using any TPM-like device,
 physical or virtual, which implements the `TPM 2.0`_ standard. In the ideal scenario, whatever TPM is used should have a
-chain of trust which is rooted in hardware [5]_.
+chain of trust which is rooted in hardware.[6]_
 
 That said, there are situations in which only a TPM implemented in, and secured by, software is available. Such a
 virtual TPM (vTPM) needs to be located on a trusted system. For example, when attesting a VM running in a cloud
@@ -363,7 +361,7 @@ less fragile and therefore may be better from an operations perspective:
     |s-space|
 
   * The user may construct an inventory database mapping node identifiers chosen by the user (e.g., hostnames) to an AK
-    or EK. This database can be consulted before a node is added to the verifier by mechanisms available in Keylime [6]_.
+    or EK. This database can be consulted before a node is added to the verifier by mechanisms available in Keylime.[6]_
     |s-space|
 
   * The user may set up their own automatic process to verify possession of an AK or EK as well as the identity of the
@@ -429,8 +427,8 @@ Exclusions
 
 Attacks which exploit poorly-defined verification policies or deficiencies in the information which can be obtained from
 a node's attesting environments (including IMA and UEFI logs) are necessarily out of scope. Additionally, we exclude
-attacks which are made possible by incorrect configuration by the user. Attacks which rely on modification of an
-attesting environment (such as by using a UEFI bootkit) are also excluded.
+attacks which are made possible by incorrect configuration by the user. Attacks which rely on modification of a system
+root of trust (such as the BMC or TPM) are also excluded.
 
 
 :raw-html:`<br>`
@@ -462,17 +460,24 @@ attesting environment (such as by using a UEFI bootkit) are also excluded.
    measurement* in the TPM spec. This corresponds to the BMC in our example. Similarly, the certifying environment's
    trust anchor (the TPM) is known as the *root of trust for storage*.
 
-.. [5] This is because attacks against hardware are considerably more difficult to pull off than attacks which exploit
+.. [5] Secure Boot bypass vulnerabilities have previously been found in several instances (e.g., CVE-2020-10713 and 
+   CVE-2022-21894) and have been exploited in the wild by persistent UEFI bootkits like *BlackLotus*. The UEFI shim 
+   project, typically used by Linux systems, has attempted to `improve revocation`_ of vulnerable bootloaders, but
+   remediation remains difficult. Addressing BlackLotus, for instance, has required `manual intervention`_.
+
+.. [6] This is because attacks against hardware are considerably more difficult to pull off than attacks which exploit
    vulnerabilities in software. Certain hardware designs can also make a number of physical attacks impractical.
 
-.. [6] Currently, this may be achieved by setting the ``ek_check_script`` configuration option in
+.. [7] Currently, this may be achieved by setting the ``ek_check_script`` configuration option in
    ``/etc/keylime/tenant.conf``. In the future, it will be possible to use an external service queried by the registrar
    instead (see `PR 1670`_).
 
-.. [7] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
+.. [8] This type of rule-based adversary is first described by Danny Dolev and Andrew Yao in their 1983 paper, `"On the
    security of public key protocols"`_.
 
 .. _RFC 9334: https://datatracker.ietf.org/doc/html/rfc9334
 .. _part 1, section 11.4.7: https://trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-1-Architecture-01.07-2014-03-13.pdf#%5B%7B%22num%22%3A537%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C70%2C232%2C0%5D
+.. _improve revocation: https://github.com/rhboot/shim/blob/main/SBAT.md
+.. _manual intervention: https://www.microsoft.com/en-us/security/blog/2023/04/11/guidance-for-investigating-attacks-using-cve-2022-21894-the-blacklotus-campaign/
 .. _"PR 1670": https://github.com/keylime/keylime/pull/1670
 .. _"On the security of public key protocols": http://www.cs.huji.ac.il/~dolev/pubs/dolev-yao-ieee-01056650.pdf
