@@ -302,6 +302,9 @@ class Controller:
         self.action_handler.set_header("Location", path)
         self.send_response(code)
 
+    def set_header(self, name, value):
+        self.action_handler.set_header(name, value)
+
     def log_model_errors(self, model: "BasicModel", logger: "Logger") -> None:
         logger.warning("Data received was not valid because of the following reasons:")
 

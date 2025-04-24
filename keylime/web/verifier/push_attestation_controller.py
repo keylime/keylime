@@ -224,6 +224,7 @@ class PushAttestationController(Controller):
         # # received or for which verification never completed
         # new_attestation.cleanup_stale_priors()
 
+        self.set_header("Location", f"{self.path}/{new_attestation.index}")
         self.respond(201, "Success", new_attestation.render_evidence_requested())
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/:index
