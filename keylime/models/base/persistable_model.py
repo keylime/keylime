@@ -1,6 +1,7 @@
 from typing import Any, Optional, Sequence
 
 from sqlalchemy import or_, asc, desc
+from sqlalchemy.sql.expression import ClauseElement
 
 from keylime.models.base.associations import EmbedsInlineAssociation, EmbedsOneAssociation, EmbedsManyAssociation
 from keylime.models.base.basic_model import BasicModel
@@ -200,17 +201,18 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         return [getattr(row, cls.id_field.name) for row in results]
 
     @classmethod
-    def get(cls, record_id: Optional[Any] = None, *args: Any, **kwargs: Any) -> Optional["PersistableModel"]:
+    def get(cls, *args: Any, **kwargs: Any) -> Optional["PersistableModel"]:
         # pylint: disable=no-else-return
 
         if cls.schema_awaiting_processing:
             cls.process_schema()
 
-        if record_id:
+        if args and not isinstance(args[0], ClauseElement):
             if not cls.id_field:
                 raise QueryInvalid(f"model '{cls.__name__}' does not have a field which is used as an ID")
 
-            kwargs[cls.id_field.name] = record_id
+            kwargs[cls.id_field.name] = args[0]
+            args = args[1:]
 
         with db_manager.session_context() as session:
             results = cls._query(session, args, kwargs).first()

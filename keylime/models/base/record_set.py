@@ -112,7 +112,7 @@ class RecordSet(set["BasicModel"]):
         return self
 
     def reset(self) -> "RecordSet":
-        self._mask = self._original_mask
+        self._mask = self._original_mask.copy()
         return self
 
     def extend_mask(self, new_mask):

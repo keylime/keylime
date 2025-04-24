@@ -2,7 +2,7 @@ import re
 from inspect import isclass
 from typing import TYPE_CHECKING, Any, Optional, TypeAlias, Union
 
-from sqlalchemy import Column, ForeignKey
+from sqlalchemy import Column, ForeignKey, or_
 from sqlalchemy.types import TypeEngine
 
 from keylime.models.base.errors import FieldDefinitionInvalid
@@ -87,6 +87,13 @@ class ModelField:
 
     def __ne__(self, other):
         sa_field = getattr(self.parent.db_mapping, self.name)
+
+        # SQL is unusual in that `WHERE field != "value"` will not return rows where the field is NULL. Most DB engines
+        # have a null-safe equality operator but SQLAlchemy does not use this by default. To mimic the more intuitive
+        # behaviour of `!=` in Python, we replace such expressions with `WHERE field != "value" OR field IS NULL`
+        if other is not None:
+            return or_(sa_field.__ne__(other), sa_field.__eq__(None))
+
         return sa_field.__ne__(other)
 
     def __lt__(self, other):

@@ -307,6 +307,7 @@ class Attestation(PersistableModel):
 
             attestation = Attestation.get(
                 Attestation.agent_id == self.agent_id,
+                Attestation.stage == "verification_complete",
                 Attestation.failure_reason != "broken_evidence_chain",
                 Attestation.index < self.index,
                 sort_=desc("index")
