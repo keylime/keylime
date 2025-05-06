@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPubl
 from cryptography.hazmat.primitives.ciphers import AEADEncryptionContext, Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-aes_block_size = 16
+AES_BLOCK_SIZE = 16
 
 
 def rsa_import_pubkey(pubkey: Union[str, bytes]) -> RSAPublicKey:
@@ -185,7 +185,7 @@ def encrypt(plaintext: Optional[bytes], key: bytes) -> bytes:
     """Encrypt object"""
     if plaintext is None:
         plaintext = b""
-    iv = generate_random_key(aes_block_size)
+    iv = generate_random_key(AES_BLOCK_SIZE)
     encryptor = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend()).encryptor()
     cipher_text = encryptor.update(plaintext) + encryptor.finalize()
     assert isinstance(encryptor, AEADEncryptionContext)
@@ -195,9 +195,9 @@ def encrypt(plaintext: Optional[bytes], key: bytes) -> bytes:
 def decrypt(ciphertext: bytes, key: bytes) -> bytes:
     """Decrypt object"""
     ciphertext = base64.b64decode(ciphertext)
-    iv = ciphertext[:aes_block_size]
-    tag = ciphertext[-aes_block_size:]
-    ciphertext = bytes(ciphertext[aes_block_size:-aes_block_size])
+    iv = ciphertext[:AES_BLOCK_SIZE]
+    tag = ciphertext[-AES_BLOCK_SIZE:]
+    ciphertext = bytes(ciphertext[AES_BLOCK_SIZE:-AES_BLOCK_SIZE])
 
     decryptor = Cipher(algorithms.AES(key), modes.GCM(iv, tag), backend=default_backend()).decryptor()
     return decryptor.update(ciphertext) + decryptor.finalize()

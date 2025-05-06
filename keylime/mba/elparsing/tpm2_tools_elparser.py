@@ -214,11 +214,10 @@ def __add_boot_aggregate(log: Dict[str, Any]) -> None:
                 pass
 
 
-_tpm2_tools_version = None
 
 
 def tpm2_tools_getversion() -> str:
-    global _tpm2_tools_version
+    global _tpm2_tools_version = None
     if _tpm2_tools_version is not None:
         return _tpm2_tools_version
     retDict = cmd_exec.run(cmd=["tpm2_startup", "--version"], raiseOnError=False)

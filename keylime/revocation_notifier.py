@@ -191,15 +191,12 @@ def notify_webhook(tosend: Dict[str, Any]) -> None:
     t.start()
 
 
-cert_key = None
-
-
 def process_revocation(
     revocation: Dict[str, Any],
     callback: Callable[[Dict[str, Any]], None],
     cert_path: str,
 ) -> None:
-    global cert_key
+    global cert_key = None
 
     if cert_key is None:
         # load up the CV signing public key
