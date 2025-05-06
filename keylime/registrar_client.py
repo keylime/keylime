@@ -31,7 +31,7 @@ class RegistrarData(TypedDict):
 
 
 logger = keylime_logging.init_logging("registrar_client")
-api_version = keylime_api_version.current_version()
+API_VERSION = keylime_api_version.current_version()
 
 MANDATORY_FIELDS = ["aik_tpm", "regcount", "ek_tpm", "ip", "port"]
 
@@ -61,7 +61,7 @@ def getData(
     response = None
     try:
         client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
-        response = client.get(f"/v{api_version}/agents/{agent_id}")
+        response = client.get(f"/v{API_VERSION}/agents/{agent_id}")
         response_body = response.json()
 
         if response.status_code == 404:
@@ -123,7 +123,7 @@ def doRegistrarDelete(
     """
 
     client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
-    response = client.delete(f"/v{api_version}/agents/{agent_id}")
+    response = client.delete(f"/v{API_VERSION}/agents/{agent_id}")
     response_body: Dict[str, Any] = response.json()
 
     if response.status_code == 200:
@@ -146,7 +146,7 @@ def doRegistrarList(
     :returns: The request response body
     """
     client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
-    response = client.get(f"/v{api_version}/agents/")
+    response = client.get(f"/v{API_VERSION}/agents/")
     response_body: Dict[str, Any] = response.json()
 
     if response.status_code != 200:

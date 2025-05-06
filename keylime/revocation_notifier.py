@@ -190,9 +190,7 @@ def notify_webhook(tosend: Dict[str, Any]) -> None:
     t = threading.Thread(target=w, daemon=True)
     t.start()
 
-
 cert_key = None
-
 
 def process_revocation(
     revocation: Dict[str, Any],
