@@ -69,7 +69,7 @@ class Dictionary(ModelType):
         # Resolving the below pylint warning would negatively impact the readability of this method definition
         # pylint: disable=no-else-return
 
-        if not value:
+        if value is None:
             return None
 
         elif isinstance(value, dict):
