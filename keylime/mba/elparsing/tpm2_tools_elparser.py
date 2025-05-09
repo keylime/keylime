@@ -216,7 +216,6 @@ def __add_boot_aggregate(log: Dict[str, Any]) -> None:
 
 _tpm2_tools_version = None
 
-
 def tpm2_tools_getversion() -> str:
     global _tpm2_tools_version
     if _tpm2_tools_version is not None:
