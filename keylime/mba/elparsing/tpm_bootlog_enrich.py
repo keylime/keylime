@@ -23,7 +23,7 @@ from keylime import config
 ##################################################################################
 
 
-class hexint(int):
+class hexint(int):  # pylint: disable=invalid-name
     pass
 
 
