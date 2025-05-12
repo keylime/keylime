@@ -1,0 +1,27 @@
+FROM keylime_base:latest
+
+LABEL version="_version_" description="Keylime Agent - Runs on the attested node"
+LABEL maintainer="Keylime Team <main@keylime.groups.io>"
+
+# Install Rust and Cargo for building the Rust agent
+RUN apt-get update && \
+    apt-get install -y curl build-essential pkg-config libssl-dev libzmq3-dev && \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . $HOME/.cargo/env
+
+# Clone the Rust agent repository and build it
+RUN git clone https://github.com/shubhgupta2510/shubh-gupta-keylime-thesis.git /keylime && \
+    cd /keylime && \
+    $HOME/.cargo/bin/cargo build --release && \
+    # Install the agent binary to /usr/local/bin
+    cp /keylime/target/release/keylime_agent /usr/local/bin/ && \
+    chmod 755 /usr/local/bin/keylime_agent && \
+    # Create necessary directories with correct permissions
+    mkdir -p /var/lib/keylime /var/lib/keylime/secure && \
+    chmod 755 /var/lib/keylime
+
+# Expose the agent's port (9002 is default)
+EXPOSE 9002
+
+# Set the entrypoint to the built keylime_agent binary
+ENTRYPOINT ["/usr/local/bin/keylime_agent"]

@@ -12,6 +12,8 @@ services:
       - keylime-data:/var/lib/keylime
     networks:
       - keylime-network
+    environment:
+      - KEYLIME_REGISTRAR_IP=0.0.0.0
 
   verifier:
     image: keylime_verifier:latest
@@ -26,6 +28,95 @@ services:
       - registrar
     networks:
       - keylime-network
+    environment:
+      - KEYLIME_VERIFIER_IP=0.0.0.0
+
+  agent:
+    build:
+      context: ../shubh-gupta-keylime-thesis/docker/fedora/
+      dockerfile: keylime_rust.Dockerfile
+    image: keylime_rust
+    container_name: keylime-agent
+    hostname: 'keylime-agent'
+    user: root
+    privileged: true
+    restart: unless-stopped
+    volumes:
+      - ../shubh-gupta-keylime-thesis/target/debug/:/rust-keylime
+      - keylime-data:/var/lib/keylime
+      - ../shubh-gupta-keylime-thesis/config-override/agent.conf:/etc/keylime/agent.conf.d/override.conf
+    depends_on:
+      - registrar
+      - verifier
+    networks:
+      - keylime-network
+    environment:
+      - TCTI=tabrmd:bus_type=system
+      - RUST_KEYLIME_SKIP_SECURE_MOUNT=1
+      - RUST_BACKTRACE=1
+      - RUST_LOG=keylime_agent=debug,keylime=debug
+    command:
+      - /bin/bash
+      - -c
+      - |
+        mkdir -p /tmp/tpmdir
+        mkdir -p /var/lib/keylime
+        # Create keylime user and group
+        groupadd -r tss || echo "TSS group may already exist"
+        useradd -r keylime -g tss || echo "User may already exist"
+        # Ensure proper permissions on keylime directories
+        chown -R keylime:tss /var/lib/keylime
+        chmod -R 770 /var/lib/keylime
+        
+        # Set up dbus
+        rm -rf /var/run/dbus
+        mkdir /var/run/dbus
+        dbus-daemon --system
+        
+        # Set up TPM emulator
+        swtpm_setup --tpm2 \
+            --tpmstate /tmp/tpmdir \
+            --createek --decryption --create-ek-cert \
+            --create-platform-cert \
+            --display
+        swtpm socket --tpm2 \
+            --tpmstate dir=/tmp/tpmdir \
+            --flags startup-clear \
+            --ctrl type=tcp,port=2322 \
+            --server type=tcp,port=2321 \
+            --daemon
+        sleep 2
+        tpm2-abrmd \
+            --logger=stdout \
+            --tcti=swtpm: \
+            --allow-root \
+            --flush-all &
+        sleep 2
+        
+        # Wait for registrar to be available
+        echo "Waiting for registrar to be available at registrar:8891..."
+        
+        # First ensure DNS resolution works 
+        until getent hosts registrar; do
+          echo "DNS resolution for registrar not working yet, waiting..."
+          sleep 3
+        done
+        
+        # Check explicitly if port is open using simple nc check
+        if nc -z registrar 8891; then
+          echo "Registrar is available at registrar:8891, starting agent..."
+          
+          # Make sure agent_data.json directory is writable by keylime user
+          touch /var/lib/keylime/agent_data.json
+          chown keylime:tss /var/lib/keylime/agent_data.json
+          chmod 660 /var/lib/keylime/agent_data.json
+          
+          # Start the agent with the correct permissions
+          exec /usr/bin/keylime_agent
+        else
+          echo "Registrar is not available after waiting. Check registrar logs for issues."
+          exit 1
+        fi
 
   # Tenant is more of a client than a continuously running service
   # It's included here for completeness but typically runs on-demand
