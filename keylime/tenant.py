@@ -1494,8 +1494,7 @@ def get_valid_actions() -> List[str]:
     ]
 
 
-def validate_action_list(args: argparse.Namespace) -> None:
-    valid_actions = get_valid_actions()
+def validate_action_list(args: argparse.Namespace, valid_actions: List[str]) -> None:
     if args.command not in valid_actions:
         raise UserError(f"Invalid command '{args.command}'. Valid commands are: {', '.join(valid_actions)}")
 
@@ -1724,7 +1723,7 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    validate_action_list(args)
+    validate_action_list(args, get_valid_actions())
 
     argerr, argerrmsg = options.get_opts_error(args)
     if argerr:
