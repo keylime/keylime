@@ -1468,6 +1468,37 @@ def write_to_namedtempfile(data: bytes, delete_tmp_files: bool) -> str:
     return temp.name
 
 
+def get_valid_actions() -> List[str]:
+    return [
+        "add",
+        "delete",
+        "update",
+        "regstatus",
+        "cvstatus",
+        "status",
+        "reglist",
+        "cvlist",
+        "reactivate",
+        "regdelete",
+        "bulkinfo",
+        "addruntimepolicy",
+        "showruntimepolicy",
+        "deleteruntimepolicy",
+        "updateruntimepolicy",
+        "listruntimepolicy",
+        "addmbpolicy",
+        "showmbpolicy",
+        "deletembpolicy",
+        "updatembpolicy",
+        "listmbpolicy",
+    ]
+
+
+def validate_action_list(args: argparse.Namespace, valid_actions: List[str]) -> None:
+    if args.command not in valid_actions:
+        raise UserError(f"Invalid command '{args.command}'. Valid commands are: {', '.join(valid_actions)}")
+
+
 def main() -> None:
     """[summary]
 
@@ -1486,12 +1517,7 @@ def main() -> None:
         action="store",
         dest="command",
         default="add",
-        help="valid commands are add,delete,update,"
-        "regstatus,cvstatus,status,reglist,cvlist,reactivate,"
-        "regdelete,bulkinfo,addruntimepolicy,showruntimepolicy,"
-        "deleteruntimepolicy,updateruntimepolicy,listruntimepolicy,"
-        "addmbpolicy,showmbpolicy,deletembpolicy,updatembpolicy,"
-        "listmbpolicy. defaults to add",
+        help=f"valid commands are {', '.join(get_valid_actions())}. defaults to add",
     )
     parser.add_argument(
         "-t", "--targethost", action="store", dest="agent_ip", help="the IP address of the host to provision"
@@ -1697,6 +1723,7 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+    validate_action_list(args, get_valid_actions())
 
     argerr, argerrmsg = options.get_opts_error(args)
     if argerr:
