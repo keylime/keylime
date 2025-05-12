@@ -1467,37 +1467,37 @@ def write_to_namedtempfile(data: bytes, delete_tmp_files: bool) -> str:
     temp.flush()
     return temp.name
 
+
 def get_valid_actions() -> List[str]:
     return [
-    "add",
-    "delete",
-    "update",
-    "regstatus",
-    "cvstatus",
-    "status",
-    "reglist",
-    "cvlist",
-    "reactivate",
-    "regdelete",
-    "bulkinfo",
-    "addruntimepolicy",
-    "showruntimepolicy",
-    "deleteruntimepolicy",
-    "updateruntimepolicy",
-    "listruntimepolicy",
-    "addmbpolicy",
-    "showmbpolicy",
-    "deletembpolicy",
-    "updatembpolicy",
-    "listmbpolicy",
+        "add",
+        "delete",
+        "update",
+        "regstatus",
+        "cvstatus",
+        "status",
+        "reglist",
+        "cvlist",
+        "reactivate",
+        "regdelete",
+        "bulkinfo",
+        "addruntimepolicy",
+        "showruntimepolicy",
+        "deleteruntimepolicy",
+        "updateruntimepolicy",
+        "listruntimepolicy",
+        "addmbpolicy",
+        "showmbpolicy",
+        "deletembpolicy",
+        "updatembpolicy",
+        "listmbpolicy",
     ]
+
 
 def validate_action_list(args: argparse.Namespace) -> None:
     valid_actions = get_valid_actions()
     if args.command not in valid_actions:
-        raise UserError(
-            f"Invalid command '{args.command}'. Valid commands are: {', '.join(valid_actions)}"
-        )
+        raise UserError(f"Invalid command '{args.command}'. Valid commands are: {', '.join(valid_actions)}")
 
 
 def main() -> None:
