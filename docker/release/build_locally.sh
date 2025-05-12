@@ -7,36 +7,47 @@
 VERSION=${1:-latest}
 KEYLIME_DIR=${2:-"../../"}
 
-if [ -z "${REGISTRY}" ]; then
-    REGISTRY="quay.io"
+# Create the component Dockerfiles first using generate-files.sh
+./generate-files.sh ${VERSION} "keylime_base:${VERSION}"
+
+# Build the base image
+echo "Building base image..."
+docker build -t keylime_base:${VERSION} -f "base/Dockerfile" "$KEYLIME_DIR"
+
+# Check if base image was built successfully
+if ! docker image inspect keylime_base:${VERSION} &> /dev/null; then
+    echo "Failed to build base image keylime_base:${VERSION}"
+    exit 1
 fi
 
-if [ -z "${IMAGE_BASE}" ]; then
-    IMAGE_BASE="${REGISTRY}/keylime"
+echo "Base image built successfully: keylime_base:${VERSION}"
+
+# Build registrar
+echo "Building registrar image..."
+docker build -t keylime_registrar:${VERSION} -f "registrar/Dockerfile" "$KEYLIME_DIR"
+if ! docker image inspect keylime_registrar:${VERSION} &> /dev/null; then
+    echo "Failed to build registrar image"
+    exit 1
 fi
 
-FEDORA_IMAGE="${REGISTRY}/fedora/fedora"
-QUERY_RESULT="$(skopeo inspect docker://${FEDORA_IMAGE}:latest)"
-ret=$?
-if [[ $ret -eq 127 ]]; then
-    echo "Failed to get latest Fedora image digest. Please install skopeo."
-    exit 127
-elif [[ $ret -ne 0 ]]; then
-    echo "Failed to get latest Fedora image digest."
-    exit $ret
-else
-    FEDORA_DIGEST="$(jq '.Digest' <<<"$QUERY_RESULT")"
+# Build verifier 
+echo "Building verifier image..."
+docker build -t keylime_verifier:${VERSION} -f "verifier/Dockerfile" "$KEYLIME_DIR"
+if ! docker image inspect keylime_verifier:${VERSION} &> /dev/null; then
+    echo "Failed to build verifier image"
+    exit 1
 fi
 
-# Prepare base image Dockerfile
-sed -i "s#\(FROM \)[^ ]*#\1${FEDORA_IMAGE}@${FEDORA_DIGEST}#" base/Dockerfile.in
-sed "s#_version_#${VERSION}#" base/Dockerfile.in > base/Dockerfile
+# Build tenant
+echo "Building tenant image..."
+docker build -t keylime_tenant:${VERSION} -f "tenant/Dockerfile" "$KEYLIME_DIR"
+if ! docker image inspect keylime_tenant:${VERSION} &> /dev/null; then
+    echo "Failed to build tenant image"
+    exit 1
+fi
 
-# Prepare other components Dockerfile
-./generate-files.sh ${VERSION}
-
-# Build images
-for part in base registrar verifier tenant; do
-  docker buildx build -t keylime_${part}:${VERSION} -f "${part}/Dockerfile" --security-opt label=disable --progress plain ${@:3} "$KEYLIME_DIR"
-  rm -f ${part}/Dockerfile
-done
+echo "All images built successfully"
+echo "You can now run the following containers:"
+echo "  - keylime_registrar:${VERSION}"
+echo "  - keylime_verifier:${VERSION}"
+echo "  - keylime_tenant:${VERSION}"

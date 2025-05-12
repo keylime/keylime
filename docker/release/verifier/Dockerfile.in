@@ -1,6 +1,6 @@
-FROM _source_keylime_base_digest_ AS keylime_verifier
+FROM keylime_base:latest
 LABEL version="_version_" description="Keylime Verifier - Bootstrapping and Maintaining Trust in the Cloud"
-MAINTAINER Keylime Team <main@keylime.groups.io>
+LABEL maintainer="Keylime Team <main@keylime.groups.io>"
 
 RUN --mount=target=/keylime,type=bind,source=.,rw \
     cd /keylime && ./installer.sh -o
