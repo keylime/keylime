@@ -23,7 +23,7 @@ from keylime import config
 ##################################################################################
 
 
-class hexint(int):  # pylint: disable=invalid-name
+class HexInt(int):
     pass
 
 
@@ -31,7 +31,7 @@ def representer(_: Any, data: int) -> yaml.ScalarNode:
     return yaml.ScalarNode("tag:yaml.org,2002:int", hex(data))
 
 
-yaml.add_representer(hexint, representer)
+yaml.add_representer(HexInt, representer)
 
 ##################################################################################
 #
