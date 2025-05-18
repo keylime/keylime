@@ -16,6 +16,13 @@ Check the :ref:`Changelog` section for the differences between versions
 Changelog
 _________
 
+Changes from v2.3 to v2.4
+~~~~~~~~~~~~~~~~~~~~~~~~~
+API version 2.4 was first implemented in Keylime X.XX.X.
+
+* Changed `GET /v2.4/agents/{agent_id:UUID}` endpoint to the registrar
+* Changed `POST /v2.4/agents/{agent_id:UUID}` endpoint to the registrar
+
 Changes from v2.2 to v2.3
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 API version 2.3 was first implemented in Keylime 7.12.0.
