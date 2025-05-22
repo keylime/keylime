@@ -217,20 +217,32 @@ create_rpm() {
     # https://github.com/rpm-software-management/rpm/commit/96467dce18f264b278e17ffe1859c88d9b5aa4b6
     _pkgname="DUMMY-${_name}-${_version}-${_rel}.noarch.rpm"
 
-    _expected_pkg="${RPMSDIR}/noarch/${_pkgname}"
-    [ -e "${_expected_pkg}" ] && return 0
+    # For some reason, it may not store the built package within the
+    # noarch directory, but directly in RPMS, so let's check both
+    # locations.
+    _expected_pkg="${RPMSDIR}/noarch/${_pkgname} ${RPMSDIR}/${_pkgname}"
+    for _expected in ${_expected_pkg}; do
+        if [ -e "${_expected}" ]; then
+            echo "(create_rpm) CREATED RPM: ${_expected}" >&2
+            return 0
+        fi
+    done
 
     # OK, the package was not built where it should. Let us see if
     # it was built in ~/rpmbuild instead, and if that is the case,
     # copy it to the expected location.
-    _bad_location_pkg="${HOME}/rpmbuild/RPMS/noarch/${_pkgname}"
-    if [ -e "${_bad_location_pkg}" ]; then
-        echo "WARNING: the package ${_pkgname} was built into ~/rpmbuild despite rpmbuild being instructed to build it at a different location. Probably a fallout from https://github.com/rpm-software-management/rpm/commit/96467dce" >&2
-        install -D -m644 "${_bad_location_pkg}" "${_expected_pkg}"
-        return 0
-    fi
+    _bad_location_pkg="${HOME}/rpmbuild/RPMS/noarch/${_pkgname} ${HOME}/rpmbuild/RPMS/${_pkgname}"
+    for _bad_l in ${_bad_location_pkg}; do
+        if [ -e "${_bad_l}" ]; then
+            echo "WARNING: the package ${_pkgname} was built into ~/rpmbuild despite rpmbuild being instructed to build it at a different location. Probably a fallout from https://github.com/rpm-software-management/rpm/commit/96467dce" >&2
+            install -D -m644 "${_bad_l}" "${RPMSDIR}/noarch/${_pkgname}"
+            echo "(create_rpm) CREATED RPM: ${RPMSDIR}/noarch/${_pkgname}" >&2
+            return 0
+        fi
+    done
 
     # Should not be here.
+    echo "create_rpm() ended with error; probably an issue with the location where the RPMs were built" >&2
     return 1
 }
 
