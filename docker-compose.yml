@@ -55,6 +55,10 @@ services:
       - RUST_KEYLIME_SKIP_SECURE_MOUNT=1
       - RUST_BACKTRACE=1
       - RUST_LOG=keylime_agent=debug,keylime=debug
+      - KEYLIME_AGENT_IP=0.0.0.0
+      - KEYLIME_AGENT_PORT=9002
+      - KEYLIME_AGENT_REGISTRAR_IP=registrar
+      - KEYLIME_AGENT_REGISTRAR_PORT=8890
     command:
       - /bin/bash
       - -c
