@@ -124,8 +124,7 @@ services:
     image: keylime_tenant:latest
     container_name: keylime-tenant
     # Command can be customized when running tenant commands
-    # Default is just to sleep so container stays up for inspection
-    command: tail -f /dev/null
+    # By default, the container will exit unless a command is specified
     volumes:
       - keylime-data:/var/lib/keylime
     depends_on:
