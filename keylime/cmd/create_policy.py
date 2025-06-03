@@ -345,10 +345,10 @@ def _get_rpm_urls(repo: str, repomd_xml: str) -> List[str]:
         print("Error. Primary XML file cannot be downloaded", file=sys.stderr)
         return []
 
-    root = ET.parse(gzip.open(primary_xml_tmp))
+    root_primary = ET.parse(gzip.open(primary_xml_tmp))
     os.remove(primary_xml_tmp)
 
-    locations = root.findall(
+    locations = root_primary.findall(
         "./{http://linux.duke.edu/metadata/common}package[@type='rpm']"
         "/{http://linux.duke.edu/metadata/common}location"
     )
