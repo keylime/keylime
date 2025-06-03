@@ -1,13 +1,15 @@
-FROM quay.io/fedora/fedora@sha256:b9c803718a92fe06751337171498b395ea4ed212d964c8c6d637cb4c1a400c98 AS keylime_base
+FROM quay.io/fedora/fedora@"sha256:038a2cc23755fe0fd387587c0cb075c044d18bca103bdff56b46e6b3c564f9f7" AS keylime_base
 LABEL version="_version_" description="Keylime Base - Only used as an base image for derived packages"
 MAINTAINER Keylime Team <main@keylime.groups.io>
 
-RUN dnf -y install dnf-plugins-core git efivar-libs efivar-devel python3-jinja2 python3-PyMySQL python3-psycopg2 nc && dnf -y builddep tpm2-tools
-RUN git clone -b 5.7 https://github.com/tpm2-software/tpm2-tools.git && \
-    cd tpm2-tools && \
-    git config user.email "main@keylime.groups.io" && \
-    git config user.name "Keylime" && \
-    ./bootstrap && \
-    ./configure && \
-    make && make install && \
-    cd .. && rm -rf tpm2-tools
+RUN dnf -y install \
+    awk \
+    dnf-plugins-core \
+    efivar-devel \
+    efivar-libs \
+    git \
+    nc \
+    python3-PyMySQL \
+    python3-jinja2 \
+    python3-psycopg2 \
+    tpm2-tools
