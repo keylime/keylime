@@ -61,7 +61,7 @@ def start_broker() -> None:
             f"{config.getint('verifier', 'zmq_port', section='revocations')}"
         )
         try:
-            zmq.device(zmq.FORWARDER, frontend, backend)
+            zmq.proxy(frontend, backend)
         except (KeyboardInterrupt, SystemExit):
             context.destroy()
 
