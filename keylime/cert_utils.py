@@ -2,7 +2,7 @@ import io
 import os.path
 import subprocess
 import sys
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 from cryptography import exceptions as crypto_exceptions
 from cryptography import x509
@@ -83,8 +83,42 @@ def x509_pem_cert(pem_cert_data: str) -> Certificate:
         # Let's read the DER bytes from the base-64 PEM.
         der_data = pem.readPemFromFile(io.StringIO(pem_cert_data))
         # Now we can load it as we do in x509_der_cert().
+        #
+        # This operation will modify the certificate, otherwise reading the DER data again with the same function as
+        # before should result in an exception again. This is a problem for signature checks, as the signature will
+        # no longer match the new certificate content.
         pyasn1_cert = decoder.decode(der_data, asn1Spec=rfc2459.Certificate())[0]
         return x509.load_der_x509_certificate(data=encoder.encode(pyasn1_cert), backend=default_backend())
+
+
+def cert_signature_check(cert: Certificate, signcert: Certificate) -> bool:
+    if cert.issuer != signcert.subject:
+        return False
+
+    signcert_pubkey = signcert.public_key()
+    try:
+        if isinstance(signcert_pubkey, RSAPublicKey):
+            assert cert.signature_hash_algorithm is not None
+            signcert_pubkey.verify(
+                cert.signature,
+                cert.tbs_certificate_bytes,
+                padding.PKCS1v15(),
+                cert.signature_hash_algorithm,
+            )
+        elif isinstance(signcert_pubkey, EllipticCurvePublicKey):
+            assert cert.signature_hash_algorithm is not None
+            signcert_pubkey.verify(
+                cert.signature,
+                cert.tbs_certificate_bytes,
+                ec.ECDSA(cert.signature_hash_algorithm),
+            )
+        else:
+            logger.warning("Unsupported public key type: %s", type(signcert_pubkey))
+            return False
+    except crypto_exceptions.InvalidSignature:
+        return False
+
+    return True
 
 
 def verify_cert(cert: Certificate, tpm_cert_store: str, cert_type: str = "") -> bool:
@@ -107,34 +141,11 @@ def verify_cert(cert: Certificate, tpm_cert_store: str, cert_type: str = "") -> 
             except Exception as err:
                 logger.warning("Ignoring certificate file %s due to error: %s", cert_file, str(err))
                 continue
-            if cert.issuer != signcert.subject:
-                continue
 
-            signcert_pubkey = signcert.public_key()
-            try:
-                if isinstance(signcert_pubkey, RSAPublicKey):
-                    assert cert.signature_hash_algorithm is not None
-                    signcert_pubkey.verify(
-                        cert.signature,
-                        cert.tbs_certificate_bytes,
-                        padding.PKCS1v15(),
-                        cert.signature_hash_algorithm,
-                    )
-                elif isinstance(signcert_pubkey, EllipticCurvePublicKey):
-                    assert cert.signature_hash_algorithm is not None
-                    signcert_pubkey.verify(
-                        cert.signature,
-                        cert.tbs_certificate_bytes,
-                        ec.ECDSA(cert.signature_hash_algorithm),
-                    )
-                else:
-                    logger.warning("Unsupported public key type: %s", type(signcert_pubkey))
-                    continue
-            except crypto_exceptions.InvalidSignature:
-                continue
+            if cert_signature_check(cert, signcert):
+                logger.debug("Cert to verify matched cert: %s", cert_file)
+                return True
 
-            logger.debug("Cert to verify matched cert: %s", cert_file)
-            return True
     except Exception as err:
         # Log the exception so we don't lose the raw message
         logger.exception(err)
@@ -253,3 +264,24 @@ def iak_idevid_cert_checks(
     if not check_tpm_origin(iak_cert_509, "IAK"):
         return "Error: IAK certificate might not be from a TPM", None, None
     return "", idevid_pub, iak_pub
+
+
+def to_cert_list(ekcert: str) -> List[Certificate]:
+    """Transform single string of multiple certificates in PEM format to list of certificates.
+    :param ekcert: string with certificate chain
+    :returns: List of certificates
+    :raises: ValueError, if no valid or an invalid certificate is found
+    """
+    certificates = []
+    for cert in ekcert.split('-----END CERTIFICATE-----'):
+        if '-----BEGIN CERTIFICATE-----' in cert:
+            cert += '-----END CERTIFICATE-----'
+            try:
+                certificates.append(x509_pem_cert(cert))
+            except ValueError as err:
+                logger.error("Error processing ekcert/chain. Malformed agent certificate chain: %s.",
+                             err)
+                raise
+    if len(certificates) <= 0:
+        raise ValueError("No valid certificate found in provided chain")
+    return certificates
