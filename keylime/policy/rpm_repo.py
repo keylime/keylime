@@ -13,7 +13,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager
-from typing import Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import rpm  # pylint: disable=import-error
 
@@ -225,9 +225,8 @@ def get_rpm_urls_from_repomd(repo: str, repomd_xml: str) -> List[str]:
             logger.error("Error. Primary XML file cannot be downloaded")
             return []
 
-        root = _parse_xml_file(primary_xml)
-
-        locations = root.findall(
+        root_primary = _parse_xml_file(primary_xml)
+        locations = root_primary.findall(
             "./{http://linux.duke.edu/metadata/common}package[@type='rpm']"
             "/{http://linux.duke.edu/metadata/common}location"
         )
@@ -235,7 +234,7 @@ def get_rpm_urls_from_repomd(repo: str, repomd_xml: str) -> List[str]:
         return [urllib.parse.urljoin(repo, ll.attrib["href"]) for ll in locations]
 
 
-def _parse_xml_file(filepath: str) -> ET.ElementTree:
+def _parse_xml_file(filepath: str) -> Any:
     # We support only gzip compression, currently.
     ctype = Compression.detect_from_file(filepath)
     if ctype:
