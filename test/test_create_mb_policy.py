@@ -5,6 +5,7 @@ Copyright 2024 Red Hat, Inc.
 
 import argparse
 import os
+import platform
 import unittest
 
 from keylime.policy import create_mb_policy
@@ -12,6 +13,7 @@ from keylime.policy import create_mb_policy
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "data", "create-mb-policy"))
 
 
+@unittest.skipIf(platform.machine() in ["ppc64le", "s390x"], "ppc64le and s390x are not supported")
 class CreateMeasuredBootPolicy_Test(unittest.TestCase):
     def test_event_to_sha256(self):
         test_cases = [
