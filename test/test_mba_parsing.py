@@ -1,4 +1,5 @@
 import os
+import platform
 import tempfile
 import unittest
 from configparser import RawConfigParser
@@ -11,6 +12,7 @@ from keylime.mba import mba
 TEMPLATES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "templates"))
 
 
+@unittest.skipIf(platform.machine() in ["ppc64le", "s390x"], "ppc64le and s390x are not supported")
 class TestMBAParsing(unittest.TestCase):
     def test_parse_bootlog(self):
         """Test parsing binary measured boot event log"""
