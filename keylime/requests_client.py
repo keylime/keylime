@@ -40,7 +40,10 @@ class RequestsClient:
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        pass
+        try:
+            self.session.close()
+        except Exception:
+            pass
 
     def request(self, method: str, url: str, **kwargs: Any) -> requests.Response:
         return self.session.request(method, self.base_url + url, **kwargs)
