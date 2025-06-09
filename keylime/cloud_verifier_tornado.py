@@ -1723,7 +1723,13 @@ async def notify_error(
     if "agent" in notifiers:
         verifier_id = config.get("verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
         session = get_session()
-        agents = session.query(VerfierMain).filter_by(verifier_id=verifier_id).all()
+
+        try:
+            agents = session.query(VerfierMain).filter_by(verifier_id=verifier_id).all()
+        except Exception as e:
+            logger.error("An issue happened querying the verifier for the list of agents to notify: %s", e)
+            return
+
         futures = []
         loop = asyncio.get_event_loop()
         # Notify all agents asynchronously through a thread pool
