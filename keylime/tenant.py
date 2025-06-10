@@ -102,6 +102,8 @@ class Tenant:
 
     tpm_instance: Tpm = Tpm()
 
+    push_model: bool = False
+
     def __init__(self) -> None:
         """Set up required values and TLS"""
         self.nonce = None
@@ -198,84 +200,85 @@ class Tenant:
         if self.registrar_data is None:
             raise UserError(f"Agent ${self.agent_uuid} data not found in the Registrar.")
 
-        # try to get the port or ip from the registrar if it is missing
-        if (self.agent_ip is None or self.agent_port is None) and self.registrar_data is not None:
+        if not self.push_model:
+            # try to get the port or ip from the registrar if it is missing
+            if (self.agent_ip is None or self.agent_port is None) and self.registrar_data is not None:
+                if self.agent_ip is None:
+                    if self.registrar_data["ip"] is not None:
+                        self.agent_ip = self.registrar_data["ip"]
+                    else:
+                        raise UserError("No Ip was specified or found in the Registrar")
+
+                if self.agent_port is None and self.registrar_data["port"] is not None:
+                    self.agent_port = self.registrar_data["port"]
+
+            # Check if a contact ip and port for the agent was found
             if self.agent_ip is None:
-                if self.registrar_data["ip"] is not None:
-                    self.agent_ip = self.registrar_data["ip"]
-                else:
-                    raise UserError("No Ip was specified or found in the Registrar")
+                raise UserError("The contact ip address for the agent was not specified.")
 
-            if self.agent_port is None and self.registrar_data["port"] is not None:
-                self.agent_port = self.registrar_data["port"]
+            if self.agent_port is None:
+                raise UserError("The contact port for the agent was not specified.")
 
-        # Check if a contact ip and port for the agent was found
-        if self.agent_ip is None:
-            raise UserError("The contact ip address for the agent was not specified.")
+            self.set_full_id_str()
 
-        if self.agent_port is None:
-            raise UserError("The contact port for the agent was not specified.")
-
-        self.set_full_id_str()
-
-        # Auto-detection for API version
-        self.supported_version = args["supported_version"]
-        # Default to 1.0 if the agent did not send a mTLS certificate
-        if self.registrar_data.get("mtls_cert", None) is None and self.supported_version is None:
-            self.supported_version = "1.0"
-        else:
-            # Try to connect to the agent to get supported version
-            if self.registrar_data["mtls_cert"] == "disabled":
-                self.enable_agent_mtls = False
-                logger.warning(
-                    "Warning: mTLS for %s is disabled: the identity of each node will be based on the properties of the TPM only. "
-                    "Unless you have strict control of your network, it is strongly advised that remote code execution should be disabled, "
-                    'by setting "payload_script=" and "extract_payload_zip=False" under "[agent]" in agent configuration file.',
-                    self.agent_fid_str,
-                )
-                tls_context = None
+            # Auto-detection for API version
+            self.supported_version = args["supported_version"]
+            # Default to 1.0 if the agent did not send a mTLS certificate
+            if self.registrar_data.get("mtls_cert", None) is None and self.supported_version is None:
+                self.supported_version = "1.0"
             else:
-                # Store the agent self-signed certificate as a string
-                self.verify_custom = self.registrar_data["mtls_cert"]
-
-                if not self.agent_tls_context:
-                    self.agent_tls_context = web_util.generate_tls_context(
-                        self.client_cert,
-                        self.client_key,
-                        self.trusted_server_ca,
-                        self.client_key_password,
-                        self.verify_server_cert,
-                        is_client=True,
-                        ca_cert_string=self.verify_custom,
-                        logger=logger,
+                # Try to connect to the agent to get supported version
+                if self.registrar_data["mtls_cert"] == "disabled":
+                    self.enable_agent_mtls = False
+                    logger.warning(
+                        "Warning: mTLS for %s is disabled: the identity of each node will be based on the properties of the TPM only. "
+                        "Unless you have strict control of your network, it is strongly advised that remote code execution should be disabled, "
+                        'by setting "payload_script=" and "extract_payload_zip=False" under "[agent]" in agent configuration file.',
+                        self.agent_fid_str,
                     )
-                tls_context = self.agent_tls_context
+                    tls_context = None
+                else:
+                    # Store the agent self-signed certificate as a string
+                    self.verify_custom = self.registrar_data["mtls_cert"]
 
-            with RequestsClient(
-                f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}",
-                tls_enabled=self.enable_agent_mtls,
-                tls_context=tls_context,
-            ) as get_version:
-                try:
-                    res = get_version.get("/version")
-                except requests.exceptions.SSLError as ssl_error:
-                    if "TLSV1_ALERT_UNKNOWN_CA" in str(ssl_error):
-                        raise UserError(
-                            "Keylime agent does not recognize mTLS certificate form tenant. "
-                            "Check if agents trusted_client_ca is configured correctly"
-                        ) from ssl_error
+                    if not self.agent_tls_context:
+                        self.agent_tls_context = web_util.generate_tls_context(
+                            self.client_cert,
+                            self.client_key,
+                            self.trusted_server_ca,
+                            self.client_key_password,
+                            self.verify_server_cert,
+                            is_client=True,
+                            ca_cert_string=self.verify_custom,
+                            logger=logger,
+                        )
+                    tls_context = self.agent_tls_context
 
-                    raise ssl_error from ssl_error
-                if res and res.status_code == 200:
+                with RequestsClient(
+                    f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}",
+                    tls_enabled=self.enable_agent_mtls,
+                    tls_context=tls_context,
+                ) as get_version:
                     try:
-                        data = res.json()
-                        api_version = data["results"]["supported_version"]
-                        if keylime_api_version.validate_version(api_version) and self.supported_version is None:
-                            self.supported_version = api_version
-                        else:
-                            logger.warning("API version provided by the agent is not valid")
-                    except (TypeError, KeyError):
-                        pass
+                        res = get_version.get("/version")
+                    except requests.exceptions.SSLError as ssl_error:
+                        if "TLSV1_ALERT_UNKNOWN_CA" in str(ssl_error):
+                            raise UserError(
+                                "Keylime agent does not recognize mTLS certificate form tenant. "
+                                "Check if agents trusted_client_ca is configured correctly"
+                            ) from ssl_error
+
+                        raise ssl_error from ssl_error
+                    if res and res.status_code == 200:
+                        try:
+                            data = res.json()
+                            api_version = data["results"]["supported_version"]
+                            if keylime_api_version.validate_version(api_version) and self.supported_version is None:
+                                self.supported_version = api_version
+                            else:
+                                logger.warning("API version provided by the agent is not valid")
+                        except (TypeError, KeyError):
+                            pass
 
         if self.supported_version is None:
             api_version = keylime_api_version.current_version()
@@ -578,13 +581,20 @@ class Tenant:
 
     def do_cvadd(self) -> None:
         """Initiate v, agent_id and ip and initiate the cloudinit sequence"""
+        agent_ip = self.cv_cloudagent_ip
+        agent_port = self.agent_port
+        if self.push_model:
+            if agent_ip is None:
+                agent_ip = "localhost"
+            if agent_port is None:
+                agent_port = "9002"
         b64_v = base64.b64encode(self.V).decode("utf-8") if self.V else None
         logger.debug("b64_v: %s", b64_v)
         assert self.registrar_data
         data = {
             "v": b64_v,
-            "cloudagent_ip": self.cv_cloudagent_ip,
-            "cloudagent_port": self.agent_port,
+            "cloudagent_ip": agent_ip,
+            "cloudagent_port": agent_port,
             "verifier_ip": self.verifier_ip,
             "verifier_port": self.verifier_port,
             "tpm_policy": json.dumps(self.tpm_policy),
@@ -1494,6 +1504,13 @@ def main() -> None:
         "listmbpolicy. defaults to add",
     )
     parser.add_argument(
+        "--push-model",
+        action="store_true",
+        dest="push_model",
+        default=False,
+        help="Enable push model (avoid requests to keylime-agent)",
+    )
+    parser.add_argument(
         "-t", "--targethost", action="store", dest="agent_ip", help="the IP address of the host to provision"
     )
     parser.add_argument(
@@ -1705,6 +1722,7 @@ def main() -> None:
     config.check_version("tenant", logger=logger)
 
     mytenant = Tenant()
+    mytenant.push_model = args.push_model
 
     if args.agent_uuid is not None:
         mytenant.agent_uuid = args.agent_uuid
@@ -1801,18 +1819,20 @@ def main() -> None:
 
     if args.command == "add":
         mytenant.init_add(vars(args))
-        mytenant.preloop()
-        mytenant.do_quote()
+        if not mytenant.push_model:
+            mytenant.preloop()
+            mytenant.do_quote()
         mytenant.do_cvadd()
-        if args.verify:
+        if not mytenant.push_model and args.verify:
             mytenant.do_verify()
     elif args.command == "update":
         mytenant.init_add(vars(args))
         mytenant.do_cvdelete(args.verifier_check)
-        mytenant.preloop()
-        mytenant.do_quote()
+        if not mytenant.push_model:
+            mytenant.preloop()
+            mytenant.do_quote()
         mytenant.do_cvadd()
-        if args.verify:
+        if not mytenant.push_model and args.verify:
             mytenant.do_verify()
     elif args.command == "delete":
         mytenant.do_cvdelete(args.verifier_check)
