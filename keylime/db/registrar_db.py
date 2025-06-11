@@ -16,7 +16,7 @@ class RegistrarMain(Base):
     agent_id = Column(String(80), primary_key=True)
     key = Column(String(45))
     aik_tpm = Column(String(500))
-    ekcert = Column(String(2048))
+    ekcert = Column(String(20480))  # 20KiB, this should be enough to store around ~20 2048 RSA certificates
     ek_tpm = Column(String(500))
     iak_tpm = Column(String(500))
     idevid_tpm = Column(String(500))
