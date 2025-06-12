@@ -6,6 +6,11 @@ from keylime.web.registrar.version_controller import VersionController
 class RegistrarServer(Server):
     def _setup(self):
         self._use_config("registrar")
+        self._set_bind_interface(from_config="ip")
+        self._set_http_port(from_config="port")
+        self._set_https_port(from_config="tls_port")
+        self._set_max_upload_size(from_config="max_upload_size")
+        self._set_default_ssl_ctx()
 
     def _routes(self):
         self._v2_routes()

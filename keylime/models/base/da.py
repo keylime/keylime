@@ -22,7 +22,7 @@ class DAManager:
             rmc = record.get_record_mgt_class(config.get(service, "durable_attestation_import", fallback=""))
 
             if rmc:
-                self._backend = rmc("registrar")
+                self._backend = rmc(service)
 
         except record.RecordManagementException as rme:
             logger.error("Error initializing Durable Attestation: %s", rme)
