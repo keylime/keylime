@@ -515,6 +515,7 @@ class AgentsHandler(BaseHandler):
         agents requests require a json block sent in the body
         """
         session = get_session()
+        mode = config.get("verifier", "mode", fallback="push")
         # TODO: exception handling needs fixing
         # Maybe handle exceptions with if/else if/else blocks ... simple and avoids nesting
         try:  # pylint: disable=too-many-nested-blocks
@@ -580,6 +581,7 @@ class AgentsHandler(BaseHandler):
                             agent_data["supported_version"] != "1.0",
                             agent_mtls_cert_enabled,
                             (agent_data["mtls_cert"] is None or agent_data["mtls_cert"] == "disabled"),
+                            mode == "pull"
                         ]
                     ):
                         web_util.echo_json_response(self.req_handler, 400, "mTLS certificate for agent is required!")
@@ -779,17 +781,20 @@ class AgentsHandler(BaseHandler):
                     for key, val in exclude_db.items():
                         agent_data[key] = val
 
-                    # Prepare SSLContext for mTLS connections
-                    agent_data["ssl_context"] = None
-                    if agent_mtls_cert_enabled:
-                        agent_data["ssl_context"] = web_util.generate_agent_tls_context(
-                            "verifier", agent_data["mtls_cert"], logger=logger
-                        )
+                    # Start event loop to periodically obtain quote from agent when operating in pull mode
+                    if mode == "pull":
+                        # Prepare SSLContext for mTLS connections
+                        agent_data["ssl_context"] = None
+                        if agent_mtls_cert_enabled:
+                            agent_data["ssl_context"] = web_util.generate_agent_tls_context(
+                                "verifier", agent_data["mtls_cert"], logger=logger
+                            )
 
-                    if agent_data["ssl_context"] is None:
-                        logger.warning("Connecting to agent without mTLS: %s", agent_id)
+                        if agent_data["ssl_context"] is None:
+                            logger.warning("Connecting to agent without mTLS: %s", agent_id)
 
-                    asyncio.ensure_future(process_agent(agent_data, states.GET_QUOTE))
+                        asyncio.ensure_future(process_agent(agent_data, states.GET_QUOTE))
+                        
                     web_util.echo_json_response(self.req_handler, 200, "Success")
                     logger.info("POST returning 200 response for adding agent id: %s", agent_id)
             else:
