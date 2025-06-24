@@ -425,6 +425,9 @@ class Tenant:
                     else:
                         incl_dir = str(args["incl_dir"])
                         if os.path.exists(incl_dir):
+                            # Validate action_list file if present
+                            self.validate_action_list(incl_dir)
+                            
                             files = next(os.walk(incl_dir))[2]
                             for filename in files:
                                 with open(os.path.join(incl_dir, filename), "rb") as f:
@@ -575,6 +578,48 @@ class Tenant:
         env["TPM_CERT_STORE"] = config.get("tenant", "tpm_cert_store")
 
         return cert_utils.verify_ek_script(script, env, config.WORK_DIR)
+
+    def validate_action_list(self, incl_dir: str) -> None:
+        """Validate that all files listed in action_list file exist in the directory
+        
+        Arguments:
+            incl_dir: The directory path to check for action_list file and referenced files
+            
+        Raises:
+            UserError: If action_list references files that don't exist
+        """
+        action_list_path = os.path.join(incl_dir, "action_list")
+        
+        # action_list file is optional, so we only validate if it exists
+        if not os.path.exists(action_list_path):
+            return
+            
+        try:
+            with open(action_list_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                
+            # action_list contains comma-separated list of action names (without .py extension)
+            if not content:
+                return  # Empty action_list is valid
+                
+            action_names = [name.strip() for name in content.split(",") if name.strip()]
+            missing_files = []
+            
+            for action_name in action_names:
+                # Construct the expected filename by adding .py extension
+                expected_file = f"{action_name}.py"
+                expected_path = os.path.join(incl_dir, expected_file)
+                
+                if not os.path.exists(expected_path):
+                    missing_files.append(expected_file)
+                    
+            if missing_files:
+                raise UserError(
+                    f"Files listed in action_list are missing from directory {incl_dir}: {', '.join(missing_files)}"
+                )
+                
+        except (IOError, OSError) as e:
+            raise UserError(f"Error reading action_list file {action_list_path}: {e}") from e
 
     def do_cvadd(self) -> None:
         """Initiate v, agent_id and ip and initiate the cloudinit sequence"""
