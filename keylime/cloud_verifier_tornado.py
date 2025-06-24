@@ -1,12 +1,12 @@
 import asyncio
 import base64
 import functools
+import multiprocessing
 import os
 import signal
 import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from multiprocessing import Process
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import tornado.httpserver
@@ -39,6 +39,12 @@ from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpol
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
 from keylime.mba import mba
+
+try:
+    multiprocessing.set_start_method("fork")
+except RuntimeError:
+    # This can happen if set_start_method is called multiple times
+    pass
 
 logger = keylime_logging.init_logging("verifier")
 
@@ -2072,7 +2078,7 @@ def main() -> None:
         logger.debug("Server %s stopped.", task_id)
         sys.exit(0)
 
-    processes: List[Process] = []
+    processes: List[multiprocessing.Process] = []
 
     run_revocation_notifier = "zeromq" in revocation_notifier.get_notifiers()
 
@@ -2099,6 +2105,6 @@ def main() -> None:
     agents = get_agents_by_verifier_id(verifier_id)
     for task_id in range(0, num_workers):
         active_agents = [agents[i] for i in range(task_id, len(agents), num_workers)]
-        process = Process(target=server_process, args=(task_id, active_agents))
+        process = multiprocessing.Process(target=server_process, args=(task_id, active_agents))
         process.start()
         processes.append(process)
