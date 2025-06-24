@@ -8,7 +8,7 @@ class APIVersion_Test(unittest.TestCase):
 
     def test_current_version(self):
         """Test current_version."""
-        self.assertEqual(api_version.current_version(), "2.3", "Current version is 2.3")
+        self.assertEqual(api_version.current_version(), "2.4", "Current version is 2.4")
 
     def test_latest_minor_version(self):
         """Test laster_minor_version."""
