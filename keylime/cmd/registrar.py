@@ -10,6 +10,16 @@ from keylime.web import RegistrarServer
 logger = keylime_logging.init_logging("registrar")
 
 
+def _log_startup_info() -> None:
+    logger.info("Starting Keylime registrar...")
+
+    # Log REST API versions supported by the registrar
+    api_version.log_api_versions(logger)
+
+    # Inform user when a new config file version is available
+    config.check_version("registrar", logger=logger)
+
+
 def _check_devid_requirements() -> None:
     """Checks that the cryptography package is the version needed for DevID support (>= 38). Exits if this requirement
     is not met and DevID is the only identity allowable by the config.
@@ -32,14 +42,9 @@ def _check_devid_requirements() -> None:
 
 
 def main() -> None:
-    logger.info("Starting Keylime registrar...")
+    _log_startup_info()
 
-    # Log supported API versions
-    api_version.log_api_versions(logger)
-
-    config.check_version("registrar", logger=logger)
-
-    # if we are configured to auto-migrate the DB, check if there are any migrations to perform
+    # If we are configured to auto-migrate the DB, check if there are any migrations to perform
     if config.has_option("registrar", "auto_migrate_db") and config.getboolean("registrar", "auto_migrate_db"):
         apply("registrar")
 

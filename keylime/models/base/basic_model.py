@@ -7,6 +7,7 @@ from typing import Any, Container, Iterable, Mapping, Optional, Pattern, Sequenc
 
 from keylime.models.base.basic_model_meta import BasicModelMeta
 from keylime.models.base.errors import FieldValueInvalid, UndefinedField
+from keylime.models.base.associations import EmbeddedInAssociation
 
 
 class BasicModel(ABC, metaclass=BasicModelMeta):
@@ -241,30 +242,44 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
                 f"model '{self.__class__.__name__}' cannot be initialised with data of type '{data.__class__.__name__}'"
             )
 
-    def _init_from_dict(self, data: dict, _process_associations: bool) -> None:
-        for name, value in data:
-            self.change(name, value)
+    def _init_from_dict(self, data: dict, process_associations: bool) -> None:
+        for name, value in data.items():
+            association = type(self).associations.get(name)
+
+            if not association:
+                self.change(name, value)
+                continue
+            
+            if process_associations:
+                record_set = association.get_record_set(self)
+                value = [value] if not isinstance(value, list) else value
+
+                for item in value:
+                    record_set.add(association.other_model(item))
 
         self._force_commit_changes()
 
     def __setattr__(self, name: str, value: Any) -> None:
         if (
-            name not in dir(self)
+            not name.startswith("_")
+            and name not in dir(self)
             and name not in type(self).INST_ATTRS
             and name not in type(self).fields.keys()
             and name not in type(self).associations.keys()
         ):
-            msg = f"model '{type(self).__name__}' does not define a field or attribute with name '{name}'"
+            msg = f"cannot set '{name}' as model '{type(self).__name__}' defines no field or attribute with that name"
             raise AttributeError(msg)
 
         super().__setattr__(name, value)
 
-    def __getattribute__(self, name: str) -> Any:
+    # TODO: Uncomment
+    """ def __getattribute__(self, name: str) -> Any:
         try:
             return super().__getattribute__(name)
         except AttributeError:
-            msg = f"model '{type(self).__name__}' does not define a field or attribute with name '{name}'"
+            msg = f"cannot get '{name}' as model '{type(self).__name__}' defines no field or attribute with that name"
             raise AttributeError(msg) from None
+    """
 
     def __repr__(self) -> str:
         """Returns a code-like string representation of the model instance
@@ -363,7 +378,20 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
             fields = [fields]
 
         for field in fields:
+            field_obj = self.__class__.fields.get(field)
+
+            if field_obj and field_obj.data_type.native_type is bool and self.values.get(field) is False:
+                continue
+
             if not self.values.get(field):
+                self._add_error(field, msg)
+
+    def validate_absence(self, fields: Union[str, Sequence[str]], msg: str = "is not allowable") -> None:
+        if isinstance(fields, str):
+            fields = [fields]
+
+        for field in fields:
+            if self.values.get(field):
                 self._add_error(field, msg)
 
     def validate_base64(self, fields: Union[str, Sequence[str]], msg: str = "must be Base64 encoded") -> None:
@@ -389,7 +417,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
     def validate_subset(self, field: str, data: Sequence, msg: str = "has an invalid entry") -> None:
         value_as_set = set(self.values.get(field, set()))
 
-        if len(value_as_set) == 0 or value_as_set.issubset(data):
+        if not value_as_set.issubset(data):
             self._add_error(field, msg)
 
     def validate_length(
@@ -435,18 +463,103 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
         if not re.fullmatch(format, value):
             self._add_error(field, msg or "does not have the correct format")
 
-    def render(self, only: Optional[Sequence[str]] = None) -> dict[str, Any]:
-        data = {}
+    def validate_snake_case(self, fields: Union[str, Sequence[str]], msg: Optional[str] = None):
+        msg = msg or "can only contain lowercase letters, numbers and underscores"
 
-        for name, field in self.__class__.fields.items():
-            if only and name not in only:
-                continue
+        for field in fields:
+            self.validate_format(field, "[a-z0-9_]+", msg)
 
-            value = getattr(self, name)
+    def _render_field(self, name: str, data: dict[str, Any]) -> dict[str, Any]:
+        field = self.__class__.fields[name]
+        value = getattr(self, name, None)
 
+        if field.render:
             data[name] = field.data_type.render(value)
 
         return data
+
+    def _render_embedded_record(self, name: str, data: dict[str, Any]) -> dict[str, Any]:
+        value = getattr(self, name, None)
+        data[name] = value.render() if value is not None else None
+        return data
+
+    def _render_embedded_record_set(self, name: str, data: dict[str, Any]) -> dict[str, Any]:
+        value = getattr(self, name, None)
+
+        if value is None:
+            data[name] = None
+        else:
+            data[name] = []
+
+            for record in value:
+                data[name].append(record.render())
+
+        return data
+
+    def render(self, only: Optional[Sequence[str]] = None) -> dict[str, Any]:
+        data = {}
+
+        # Locate record members by iterating through schema helper calls so that fields ane embedded records are
+        # rendered in the order in which they were defined
+        for _, args, kwargs in self.__class__.schema_helpers_used:
+            # Get member name from kwargs passed to schema helper or first positional argument
+            first_arg = args[0] if len(args) > 0 else None
+            name = kwargs.get("name") or first_arg
+
+            # If the "name" obtained does not look like a name, skip
+            if not name or not isinstance(name, str):
+                continue
+
+            # If member name not present in provided allowlist, skip
+            if only is not None and name not in only:
+                continue
+
+            # If member name is the name of a field, render its value according to the field's data type
+            if name in self.__class__.fields.keys():
+                self._render_field(name, data)
+            # If member name is the name of an embedded record, render the full record
+            elif name in self.__class__.embeds_one_associations.keys():
+                self._render_embedded_record(name, data)
+            elif name in self.__class__.embeds_inline_associations.keys():
+                self._render_embedded_record(name, data)
+            # If member name is the name of a set of embedded records, render as a list of records
+            elif name in self.__class__.embeds_many_associations.keys():
+                self._render_embedded_record_set(name, data)
+
+        return data
+
+    def get_errors(self, included_associations=None, include_embeds=True) -> Mapping[str, Mapping]:
+        structure = {field: {"errors": errors} for field, errors in self._errors.items() if len(errors) > 0}
+
+        if not included_associations:
+            included_associations = []
+
+        if include_embeds:
+            for name, embed in self.__class__.embedded_associations.items():
+                if isinstance(embed, EmbeddedInAssociation):
+                    continue
+
+                included_associations.append(name)
+
+        included_associations = [self.__class__.associations.get(name) for name in included_associations]
+
+        for assoc in included_associations:
+            substructure = structure.get(assoc.name) or {}
+            substructure["members"] = []
+
+            for index, record in enumerate(assoc.get_record_set(self)):
+                record_errors = record.errors
+
+                if record_errors:
+                    substructure["members"].append(record.errors)
+
+            if substructure["members"] and assoc.to_one:
+                substructure["members"] = substructure["members"][0]
+
+            if substructure.get("errors") or substructure.get("members"):
+                structure[assoc.name] = substructure
+
+        return structure
 
     @property
     def committed(self) -> Mapping[str, Any]:
@@ -461,9 +574,8 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
         return MappingProxyType({**self.committed, **self.changes})
 
     @property
-    def errors(self) -> Mapping[str, Sequence[str]]:
-        errors = {field: errors for field, errors in self._errors.items() if len(errors) > 0}
-        return MappingProxyType(errors)
+    def errors(self) -> Mapping[str, Mapping]:
+        return self.get_errors(include_embeds=True)
 
     @property
     def changes_valid(self) -> bool:
