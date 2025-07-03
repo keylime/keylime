@@ -1,0 +1,94 @@
+2025-07-03 12:47:20: Starting Keylime attestation monitoring...
+2025-07-03 12:47:22: Status: Get Quote, Attestations: 80
+2025-07-03 12:47:22: ✅ Healthy - attestations progressing (80 total)
+2025-07-03 12:47:54: Status: Get Quote, Attestations: 80
+2025-07-03 12:48:26: Status: Get Quote, Attestations: 80
+2025-07-03 12:48:58: Status: Get Quote, Attestations: 80
+2025-07-03 12:48:58: ⚠️  Attestations appear stale
+2025-07-03 12:48:58: Health issue detected (failure #1)
+2025-07-03 12:48:58: Attempting agent restart...
+2025-07-03 12:48:58: Restarting agent and re-registering...
+2025-07-03 12:49:51: Agent restart failed
+2025-07-03 12:50:23: Status: Terminated, Attestations: 80
+2025-07-03 12:50:23: ❌ Unhealthy state: Terminated
+2025-07-03 12:50:23: Health issue detected (failure #2)
+2025-07-03 12:50:23: Attempting agent restart...
+2025-07-03 12:50:23: Restarting agent and re-registering...
+2025-07-03 12:50:45: Agent restart failed
+2025-07-03 12:51:17: Status: , Attestations: 
+2025-07-03 12:51:17: ❌ Unhealthy state: 
+2025-07-03 12:51:17: Health issue detected (failure #3)
+2025-07-03 12:51:17: Multiple failures - performing full restart...
+2025-07-03 12:51:17: Performing full system restart...
+2025-07-03 12:52:17: Full restart completed
+2025-07-03 12:52:49: Status: Get Quote, Attestations: 16
+2025-07-03 12:53:21: Status: Get Quote, Attestations: 31
+2025-07-03 12:53:53: Status: Get Quote, Attestations: 46
+2025-07-03 12:53:53: ⚠️  Attestations appear stale
+2025-07-03 12:53:53: Health issue detected (failure #1)
+2025-07-03 12:53:53: Attempting agent restart...
+2025-07-03 12:53:53: Restarting agent and re-registering...
+2025-07-03 12:54:16: Agent restart successful
+2025-07-03 12:54:48: Status: Invalid Quote, Attestations: 0
+2025-07-03 12:54:48: ❌ Unhealthy state: Invalid Quote
+2025-07-03 12:54:48: Health issue detected (failure #2)
+2025-07-03 12:54:48: Attempting agent restart...
+2025-07-03 12:54:48: Restarting agent and re-registering...
+2025-07-03 12:55:11: Agent restart successful
+2025-07-03 12:55:43: Status: Get Quote, Attestations: 16
+2025-07-03 12:56:15: Status: Get Quote, Attestations: 31
+2025-07-03 12:56:47: Status: Get Quote, Attestations: 46
+2025-07-03 12:56:47: ⚠️  Attestations appear stale
+2025-07-03 12:56:47: Health issue detected (failure #3)
+2025-07-03 12:56:47: Multiple failures - performing full restart...
+2025-07-03 12:56:47: Performing full system restart...
+2025-07-03 12:57:47: Full restart completed
+2025-07-03 12:58:19: Status: Invalid Quote, Attestations: 46
+2025-07-03 12:58:19: ❌ Unhealthy state: Invalid Quote
+2025-07-03 12:58:19: Health issue detected (failure #1)
+2025-07-03 12:58:19: Attempting agent restart...
+2025-07-03 12:58:19: Restarting agent and re-registering...
+2025-07-03 12:58:42: Agent restart successful
+2025-07-03 12:59:14: Status: Get Quote, Attestations: 16
+2025-07-03 12:59:46: Status: Get Quote, Attestations: 31
+2025-07-03 13:00:18: Status: Get Quote, Attestations: 46
+2025-07-03 13:00:18: ⚠️  Attestations appear stale
+2025-07-03 13:00:18: Health issue detected (failure #2)
+2025-07-03 13:00:18: Attempting agent restart...
+2025-07-03 13:00:18: Restarting agent and re-registering...
+2025-07-03 13:01:39: Performing full system restart...
+2025-07-03 13:02:39: Full restart completed
+2025-07-03 13:03:00: Starting Keylime attestation monitoring...
+2025-07-03 13:03:02: Status: Invalid Quote, Attestations: 46
+2025-07-03 13:03:02: ❌ Unhealthy state: Invalid Quote
+2025-07-03 13:03:02: Health issue detected (failure #1)
+2025-07-03 13:03:02: Attempting agent restart...
+2025-07-03 13:03:02: Restarting agent and re-registering...
+2025-07-03 13:03:24: Agent restart successful
+2025-07-03 13:03:57: Status: Get Quote, Attestations: 16
+2025-07-03 13:03:57: ✅ Healthy - attestations progressing (16 total)
+2025-07-03 13:04:29: Status: Get Quote, Attestations: 31
+2025-07-03 13:04:29: ✅ Healthy - attestations progressing (31 total)
+2025-07-03 13:05:01: Status: Get Quote, Attestations: 46
+2025-07-03 13:05:01: ✅ Healthy - attestations progressing (46 total)
+2025-07-03 13:05:32: Status: Get Quote, Attestations: 61
+2025-07-03 13:05:33: ✅ Healthy - attestations progressing (61 total)
+2025-07-03 13:06:05: Status: Get Quote, Attestations: 76
+2025-07-03 13:06:05: ✅ Healthy - attestations progressing (76 total)
+2025-07-03 13:06:37: Status: Get Quote, Attestations: 80
+2025-07-03 13:06:37: ✅ Healthy - attestations progressing (80 total)
+2025-07-03 13:07:09: Status: Get Quote, Attestations: 80
+2025-07-03 13:07:41: Status: Get Quote, Attestations: 80
+2025-07-03 13:08:13: Status: Get Quote, Attestations: 80
+2025-07-03 13:08:13: ⚠️  Attestations appear stale
+2025-07-03 13:08:13: Health issue detected (failure #1)
+2025-07-03 13:08:13: Attempting agent restart...
+2025-07-03 13:08:13: Restarting agent and re-registering...
+2025-07-03 13:08:29: Performing full system restart...
+2025-07-03 13:09:29: Full restart completed
+2025-07-03 13:09:45: Performing full system restart...
+2025-07-03 13:10:44: Full restart completed
+2025-07-03 13:10:56: Performing full system restart...
+2025-07-03 13:11:57: Full restart completed
+2025-07-03 13:17:15: Restarting agent and re-registering...
+2025-07-03 13:17:38: Agent restart successful
