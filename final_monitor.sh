@@ -20,6 +20,7 @@
 # Configuration
 AGENT_UUID="d432fbb3-d2f1-4a97-9ef7-75bd81c00000"  # Target agent UUID for monitoring
 LOGFILE="/home/shubhgupta/keylime/monitor.log"       # Centralized log file location
+SWTPM_ATTESTATION_LIMIT=75                           # Proactive restart before swtpm limit (80)
 
 # Logging function with timestamp
 log() {
@@ -33,7 +34,7 @@ get_status() {
     # This represents the actual attestation state, not just registration status
     local output=$(docker exec keylime-verifier keylime_tenant -c status -u "${AGENT_UUID}" 2>&1)
     echo "$output" | grep '"operational_state"' | tail -1 | \
-        awk -F'"operational_state": "' '{print $2}' | awk -F'"' '{print $1}'
+        sed 's/.*"operational_state": "\([^"]*\)".*/\1/'
 }
 
 # Get current attestation count
@@ -41,7 +42,7 @@ get_status() {
 get_count() {
     local output=$(docker exec keylime-verifier keylime_tenant -c status -u "${AGENT_UUID}" 2>&1)
     echo "$output" | grep '"attestation_count"' | tail -1 | \
-        awk -F'"attestation_count": ' '{print $2}' | awk -F',' '{print $1}'
+        sed 's/.*"attestation_count": \([0-9]*\).*/\1/'
 }
 
 # Check how many Keylime containers are currently running
@@ -100,6 +101,43 @@ full_restart() {
     # Register agent with fresh verifier instance
     docker exec keylime-verifier keylime_tenant -c add -t keylime-agent -u "${AGENT_UUID}" >/dev/null 2>&1 || true
     log "Full restart completed"
+}
+
+# Reset TPM state to work around swtpm limitations
+# This clears the TPM state directory and restarts containers
+reset_tpm_state() {
+    log "Resetting TPM state to work around swtpm limitations..."
+    
+    # Stop all containers
+    if command -v docker-compose >/dev/null 2>&1; then
+        docker-compose down --remove-orphans >/dev/null 2>&1 || true
+    else
+        docker compose down --remove-orphans >/dev/null 2>&1 || true
+    fi
+    
+    # Clear TPM state directory (this resets the TPM emulator)
+    if [[ -d "/home/shubhgupta/tpm_state" ]]; then
+        log "Clearing TPM state directory..."
+        rm -rf /home/shubhgupta/tpm_state/*
+    fi
+    
+    sleep 5
+    
+    # Start containers with fresh TPM state
+    if command -v docker-compose >/dev/null 2>&1; then
+        docker-compose up -d >/dev/null 2>&1
+    else
+        docker compose up -d >/dev/null 2>&1
+    fi
+    
+    sleep 30  # Allow initialization
+    
+    # Register agent
+    # docker exec keylime-verifier keylime_tenant -c add -t keylime-agent -u "${AGENT_UUID}" >/dev/null 2>&1 || true
+    restart_agent  # Reuse existing function to re-register agent
+    sleep 5
+    log "TPM state reset completed"
+    show_status
 }
 
 # Show status
@@ -177,6 +215,16 @@ monitor() {
         
         log "Status: $status, Attestations: $count"
         
+        # Proactive swtpm restart before hitting the ~80 attestation limit
+        if [[ "$count" -ge "$SWTPM_ATTESTATION_LIMIT" ]]; then
+            log "⚠️  Approaching swtpm attestation limit ($count >= $SWTPM_ATTESTATION_LIMIT) - performing proactive TPM reset"
+            reset_tpm_state
+            failure_count=0
+            last_attestation_count=0
+            sleep 60
+            continue
+        fi
+        
         # Evaluate health
         local health_ok=0
         case "$status" in
@@ -230,7 +278,7 @@ monitor() {
         fi
         
         # Wait before next check
-        sleep 30
+        sleep 2
     done
 }
 
@@ -252,6 +300,10 @@ case "${1:-monitor}" in
         # Full system restart - all containers (heavy recovery)
         full_restart
         ;;
+    "reset-tpm")
+        # Reset TPM state to work around swtpm limitations
+        reset_tpm_state
+        ;;
     "test")
         # Test core monitoring functions for debugging
         echo "Testing functions..."
@@ -262,19 +314,21 @@ case "${1:-monitor}" in
     *)
         # Display usage information
         echo "Keylime Attestation Health Monitor"
-        echo "Usage: $0 {monitor|status|restart|restart-all|test}"
+        echo "Usage: $0 {monitor|status|restart|restart-all|reset-tpm|test}"
         echo ""
         echo "Commands:"
         echo "  monitor      - Start continuous monitoring (default)"
         echo "  status       - Show current health status"
         echo "  restart      - Restart agent container only"
         echo "  restart-all  - Full system restart (all containers)"
+        echo "  reset-tpm    - Reset TPM state (fixes swtpm limitations)"
         echo "  test         - Test core monitoring functions"
         echo ""
         echo "Examples:"
         echo "  $0              # Start monitoring"
         echo "  $0 status       # Quick health check"
         echo "  $0 restart      # Fix agent issues"
+        echo "  $0 reset-tpm    # Fix swtpm 80-attestation limit"
         echo "  $0 restart-all  # Nuclear option for persistent problems"
         ;;
 esac
