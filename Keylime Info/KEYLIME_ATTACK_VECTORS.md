@@ -312,5 +312,3 @@ severity_matrix = {
 ```
 
 ---
-
-*This attack vector visualization provides a structured approach to vulnerability research in Keylime, supporting systematic security analysis and thesis development.*

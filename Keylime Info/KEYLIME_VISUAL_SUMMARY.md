@@ -206,5 +206,3 @@ keylime:
 - **FIPS 140-2**: Cryptographic module validation
 
 ---
-
-*This summary provides a visual overview of Keylime's architecture and security properties. For detailed technical information, refer to the comprehensive documentation files.*

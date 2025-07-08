@@ -9,151 +9,241 @@
 6. [Policy Enforcement and Revocation](#policy-enforcement-and-revocation)
 7. [Attack Surface Analysis](#attack-surface-analysis)
 
-## Overall System Architecture
+## Overall System Architecture - Docker Deployment
 
 ```mermaid
 graph TB
-    subgraph "Trust Domain"
-        TPM[TPM 2.0<br/>Hardware Security Module]
-        IMA[IMA/EVM<br/>Kernel Subsystem]
-        Agent[Keylime Agent<br/>(Rust)]
+    subgraph "Host System"
+        HOST[Host Linux System]
+        DOCKER[Docker Engine]
+        NETWORK[Docker Network]
+        VOLUME[keylime-data Volume]
     end
     
-    subgraph "Infrastructure"
-        Registrar[Keylime Registrar<br/>(Python)]
-        Verifier[Keylime Verifier<br/>(Python)]
-        CA[Certificate Authority<br/>& Key Management]
+    subgraph "keylime-registrar Container"
+        REG[Keylime Registrar\nPython Service]
+        REG_PORT1[":8890 Registration API"]
+        REG_PORT2[":8891 Management API"]
     end
     
-    subgraph "Management"
-        Tenant[Keylime Tenant CLI<br/>(Python)]
-        Policy[Runtime Policies<br/>& Configuration]
+    subgraph "keylime-verifier Container"
+        VER[Keylime Verifier\nPython Service]
+        VER_PORT1[":8880 Internal API"]
+        VER_PORT2[":8881 Tenant API"]
+        POLICY[Runtime Policies\n& Configuration]
     end
     
-    subgraph "Boot Chain"
-        UEFI[UEFI Firmware]
-        SecureBoot[Secure Boot]
-        Bootloader[GRUB2 Bootloader]
-        Kernel[Linux Kernel]
-        InitRamFS[InitramFS]
+    subgraph "keylime-agent Container"
+        AGENT[Keylime Agent\nRust Binary]
+        SWTPM[Software TPM 2.0\nEmulator]
+        ABRMD[TPM2-ABRMD\nResource Manager]
+        DBUS[D-Bus System]
+        IMA[IMA/EVM\nKernel Subsystem]
     end
     
-    %% Core Relationships
-    Agent <--> TPM
-    Agent <--> IMA
-    Agent <--> Registrar
-    Agent <--> Verifier
-    Tenant <--> Verifier
-    Tenant <--> Registrar
-    Verifier <--> Policy
+    subgraph "keylime-tenant Container"
+        TENANT[Keylime Tenant CLI\nPython Tool]
+    end
     
-    %% Boot Chain Flow
-    UEFI --> SecureBoot
-    SecureBoot --> Bootloader
-    Bootloader --> Kernel
-    Kernel --> InitRamFS
-    InitRamFS --> Agent
+    %% Container relationships
+    HOST --> DOCKER
+    DOCKER --> NETWORK
+    DOCKER --> VOLUME
     
-    %% Measurement Chain
-    UEFI -.-> TPM
-    SecureBoot -.-> TPM
-    Bootloader -.-> TPM
-    Kernel -.-> TPM
-    InitRamFS -.-> TPM
-    IMA -.-> TPM
+    %% Network connections between containers
+    AGENT <--> REG
+    AGENT <--> VER
+    TENANT <--> REG
+    TENANT <--> VER
+    VER <--> POLICY
     
-    style TPM fill:#ff9999
-    style IMA fill:#99ff99
-    style Agent fill:#9999ff
-    style Verifier fill:#ffff99
-    style Registrar fill:#ff99ff
+    %% TPM stack within agent container
+    AGENT <--> ABRMD
+    ABRMD <--> SWTPM
+    AGENT <--> DBUS
+    AGENT <--> IMA
+    IMA -.-> SWTPM
+    
+    %% Shared storage
+    REG <--> VOLUME
+    VER <--> VOLUME
+    AGENT <--> VOLUME
+    TENANT <--> VOLUME
+    
+    %% Host port mappings
+    REG_PORT1 -.-> |Host:8890| HOST
+    REG_PORT2 -.-> |Host:8891| HOST
+    VER_PORT1 -.-> |Host:8880| HOST
+    VER_PORT2 -.-> |Host:8881| HOST
+    
+    style SWTPM fill:#ff9999
+    style AGENT fill:#9999ff
+    style VER fill:#ffff99
+    style REG fill:#ff99ff
+    style VOLUME fill:#cccccc
 ```
 
-## Component Roles and Responsibilities
+## Component Roles and Responsibilities (Docker Deployment)
 
-### TPM (Trusted Platform Module)
-- **Primary Role**: Hardware Root of Trust
+### Software TPM (swtpm)
+- **Primary Role**: Emulated Hardware Root of Trust
 - **Key Functions**:
+  - Emulates TPM 2.0 functionality in software
   - Stores cryptographic keys (EK, AK, DevID keys)
   - Generates attestation quotes
   - Maintains Platform Configuration Registers (PCRs)
   - Provides secure key storage and cryptographic operations
-- **Security Properties**: Tamper-resistant, authenticated boot measurements
+- **Configuration**: 
+  - State directory: `/tmp/tpmdir` (ephemeral)
+  - TCP ports: 2321 (data), 2322 (control)
+  - Started with `swtpm_setup --tpm2 --createek --create-platform-cert`
 
-### Keylime Agent (Rust Implementation)
-- **Primary Role**: Trusted endpoint being attested
+### TPM2-ABRMD (TPM Resource Manager)
+- **Primary Role**: TPM access broker and resource manager
 - **Key Functions**:
-  - Communicates with TPM for quotes and measurements
-  - Registers with Registrar
-  - Responds to Verifier attestation requests
-  - Manages secure payload decryption
-  - Handles revocation notifications
-- **Ports**: 9002 (HTTPS), optionally ZMQ for notifications
+  - Manages concurrent TPM access between processes
+  - Handles TPM context management
+  - Provides TCTI interface to applications
+  - Manages TPM sessions and handles
+- **Configuration**:
+  - TCTI: `tabrmd:bus_type=system`
+  - Connects to swtpm via `--tcti=swtpm:`
+  - Runs with `--allow-root --flush-all`
 
-### Keylime Registrar (Python)
-- **Primary Role**: Agent enrollment and identity management
+### Keylime Agent Container (keylime-agent)
+- **Primary Role**: Containerized trusted endpoint
+- **Key Functions**:
+  - Runs Rust-based keylime agent (`/usr/bin/keylime_agent`)
+  - Communicates with software TPM via ABRMD
+  - Registers with registrar container
+  - Responds to verifier attestation requests
+  - Manages secure payload decryption (if enabled)
+  - Handles revocation notifications
+- **Configuration**:
+  - Privileged container with root access
+  - Debug logging: `RUST_LOG=keylime_agent=debug,keylime=debug`
+  - Secure mount disabled: `RUST_KEYLIME_SKIP_SECURE_MOUNT=1`
+  - Registrar discovery: DNS lookup for 'registrar' container
+
+### Keylime Registrar Container (keylime-registrar)
+- **Primary Role**: Containerized agent enrollment service
 - **Key Functions**:
   - Agent registration and EK/AK validation
   - TPM credential activation challenges
   - Agent identity verification
   - Database of registered agents
-- **Ports**: 8890 (HTTPS), 8891 (HTTP)
+- **Network Configuration**:
+  - Internal ports: 8890 (registration), 8891 (management)
+  - Host ports: 8890:8890, 8891:8891
+  - Container name: `keylime-registrar`
+  - Environment: `KEYLIME_REGISTRAR_IP=0.0.0.0`
 
-### Keylime Verifier (Python)
-- **Primary Role**: Continuous attestation and policy enforcement
+### Keylime Verifier Container (keylime-verifier)
+- **Primary Role**: Containerized attestation verification service
 - **Key Functions**:
   - Continuous agent monitoring
   - Quote validation and policy checking
   - IMA runtime measurement verification
   - Revocation notification generation
   - Secure payload key management
-- **Ports**: 8881 (HTTPS)
+- **Network Configuration**:
+  - Internal ports: 8880 (internal), 8881 (tenant API)
+  - Host ports: 8880:8880, 8881:8881
+  - Container name: `keylime-verifier`
+  - Environment: `KEYLIME_VERIFIER_IP=0.0.0.0`
+
+### Keylime Tenant Container (keylime-tenant)
+- **Primary Role**: Management and policy interface
+- **Key Functions**:
+  - Command-line interface for agent management
+  - Policy configuration and deployment
+  - Agent enrollment and monitoring
+  - Payload provisioning (when enabled)
+- **Configuration**:
+  - Runs on-demand (not continuously)
+  - Accesses other containers via Docker network
+  - Shares keylime-data volume for persistence
 
 ### IMA (Integrity Measurement Architecture)
-- **Primary Role**: Runtime file integrity monitoring
+- **Primary Role**: Runtime file integrity monitoring within agent container
 - **Key Functions**:
   - Measures executed files and loaded modules
-  - Extends measurements into PCR 10
+  - Extends measurements into TPM PCR 10
   - Provides measurement logs for verification
   - Supports file signature verification
+- **Container Context**: Runs within agent container's kernel namespace
 
-## Startup and Registration Workflow
+## Startup and Registration Workflow (Docker Deployment)
 
 ```mermaid
 sequenceDiagram
-    participant B as Boot Process
-    participant T as TPM
-    participant A as Agent
-    participant R as Registrar
-    participant V as Verifier
+    participant HOST as Host System
+    participant DC as Docker Compose
+    participant REG as keylime-registrar
+    participant VER as keylime-verifier
+    participant AGENT as keylime-agent
+    participant SWTPM as Software TPM
+    participant ABRMD as TPM2-ABRMD
     
-    Note over B,T: System Boot Phase
-    B->>T: UEFI measurements → PCR 0-7
-    B->>T: Bootloader measurements → PCR 8-9
-    B->>T: Kernel/initrd measurements → PCR 8-9
-    B->>T: IMA measurements → PCR 10
+    HOST->>DC: docker-compose up
     
-    Note over A,T: Agent Initialization
-    A->>T: Read/Generate EK (Endorsement Key)
-    A->>T: Generate AK (Attestation Key)
-    A->>T: Generate DevID keys (if enabled)
+    Note over DC,REG: Infrastructure Startup
+    DC->>REG: Start registrar container
+    REG->>REG: Initialize Python service
+    REG->>REG: Listen on :8890, :8891
+    REG->>REG: Load keylime-data volume
     
-    Note over A,R: Registration Phase
-    A->>R: POST /agents/{uuid} with EK, AK, certs
-    R->>R: Validate EK certificate
-    R->>R: Verify AK binding to EK
-    R->>T: Generate activation challenge
-    R->>A: Return encrypted challenge blob
+    DC->>VER: Start verifier container (depends_on: registrar)
+    VER->>VER: Initialize Python service
+    VER->>VER: Listen on :8880, :8881
+    VER->>VER: Load keylime-data volume
+    VER->>REG: Verify registrar dependency
     
-    A->>T: TPM2_ActivateCredential(challenge)
-    T->>A: Decrypted challenge response
-    A->>A: Compute HMAC(key, uuid)
-    A->>R: PUT /agents/{uuid} with auth_tag
-    R->>R: Verify HMAC matches
-    R->>A: Registration complete
+    Note over DC,AGENT: Agent Container Startup
+    DC->>AGENT: Start agent container (privileged)
+    AGENT->>AGENT: Create directories: /tmp/tpmdir, /var/lib/keylime
+    AGENT->>AGENT: Create keylime user, tss group
+    AGENT->>AGENT: Set directory permissions
+    AGENT->>AGENT: Start dbus-daemon --system
     
-    Note over A,V: Ready for Attestation
-    A->>V: Agent available for monitoring
+    Note over AGENT,SWTPM: TPM Emulation Setup
+    AGENT->>SWTPM: swtpm_setup --tpm2 --tpmstate /tmp/tpmdir
+    SWTPM->>SWTPM: Create EK certificate, platform cert
+    AGENT->>SWTPM: swtpm socket --tpm2 (ports 2321/2322)
+    SWTPM->>SWTPM: Start TPM emulator daemon
+    
+    Note over AGENT,ABRMD: TPM Resource Manager
+    AGENT->>ABRMD: tpm2-abrmd --tcti=swtpm --allow-root --flush-all
+    ABRMD->>SWTPM: Connect to TPM emulator
+    
+    Note over AGENT,REG: Service Discovery
+    AGENT->>REG: getent hosts registrar (DNS resolution)
+    AGENT->>REG: nc -z registrar 8891 (port availability)
+    
+    Note over AGENT,REG: Agent Registration
+    AGENT->>AGENT: exec /usr/bin/keylime_agent
+    AGENT->>ABRMD: Connect via TCTI=tabrmd:bus_type=system
+    AGENT->>SWTPM: Read/Generate EK (Endorsement Key)
+    AGENT->>SWTPM: Generate AK (Attestation Key)
+    AGENT->>REG: POST /agents/{uuid} with EK, AK, certs
+    
+    REG->>REG: Validate EK certificate
+    REG->>REG: Verify AK binding to EK
+    REG->>REG: Generate activation challenge
+    REG->>AGENT: Return encrypted challenge blob
+    
+    AGENT->>ABRMD: TPM2_ActivateCredential(challenge)
+    ABRMD->>SWTPM: Execute TPM command
+    SWTPM->>ABRMD: Decrypted challenge response
+    ABRMD->>AGENT: Return decrypted credential
+    AGENT->>AGENT: Compute HMAC(key, uuid)
+    AGENT->>REG: PUT /agents/{uuid} with auth_tag
+    REG->>REG: Verify HMAC matches
+    REG->>AGENT: Registration complete
+    
+    Note over AGENT,VER: Ready for Attestation
+    AGENT->>VER: Agent available for monitoring
+    VER->>AGENT: Begin continuous attestation cycle
 ```
 
 ## Detailed Registration Process
@@ -187,35 +277,47 @@ graph TB
     J -->|Yes| K[Mark Agent Active]
 ```
 
-## Attestation Cycle
+## Attestation Cycle (Docker Deployment)
 
 ```mermaid
 sequenceDiagram
-    participant V as Verifier
-    participant A as Agent
-    participant T as TPM
-    participant I as IMA
+    participant VER as keylime-verifier
+    participant AGENT as keylime-agent
+    participant ABRMD as TPM2-ABRMD
+    participant SWTPM as Software TPM
+    participant IMA as IMA Subsystem
     
     loop Continuous Attestation (every ~30 seconds)
-        V->>A: GET /quotes?nonce=X&pcrmask=Y
-        A->>T: TPM2_Quote(nonce, PCR_mask, AK)
-        T->>A: Quote signature + PCR values
-        A->>I: Read IMA measurement log
-        I->>A: Runtime measurements
-        A->>V: Quote + PCRs + IMA log + event log
+        VER->>AGENT: GET /quotes?nonce=X&pcrmask=Y
+        Note over AGENT,SWTPM: Quote Generation
+        AGENT->>ABRMD: TPM2_Quote(nonce, PCR_mask, AK)
+        ABRMD->>SWTPM: Execute TPM command
+        SWTPM->>ABRMD: Quote signature + PCR values
+        ABRMD->>AGENT: Return quote data
         
-        V->>V: Validate quote signature
-        V->>V: Verify PCR values against policy
-        V->>V: Process IMA measurements
-        V->>V: Check against runtime policy
+        Note over AGENT,IMA: IMA Log Collection
+        AGENT->>IMA: Read IMA measurement log
+        IMA->>AGENT: Runtime measurements since last check
+        
+        Note over AGENT,VER: Response Assembly
+        AGENT->>VER: Quote + PCRs + IMA log + event log
+        
+        Note over VER,VER: Validation Process
+        VER->>VER: Validate quote signature with stored AK
+        VER->>VER: Verify nonce freshness
+        VER->>VER: Check PCR values against policy
+        VER->>VER: Process IMA measurements
+        VER->>VER: Check against runtime policy
         
         alt Attestation Success
-            V->>V: Update agent status: "Get Quote"
-            V->>V: Increment attestation count
+            VER->>VER: Update agent status: "Get Quote"
+            VER->>VER: Increment attestation count
+            VER->>VER: Log successful attestation
         else Attestation Failure
-            V->>V: Mark agent as "Invalid Quote"
-            V->>A: Send revocation notification
-            V->>V: Generate revocation events
+            VER->>VER: Mark agent as "Invalid Quote"
+            VER->>AGENT: Send revocation notification
+            VER->>VER: Generate revocation events
+            VER->>VER: Log failure details
         end
     end
 ```
@@ -281,9 +383,9 @@ sequenceDiagram
 ```mermaid
 graph TB
     subgraph "Policy Types"
-        A[TPM Policy<br/>PCR Allowlists]
-        B[Runtime Policy<br/>IMA Allowlists]
-        C[Measured Boot Policy<br/>UEFI Event Log]
+        A[TPM Policy\nPCR Allowlists]
+        B[Runtime Policy\nIMA Allowlists]
+        C[Measured Boot Policy\nUEFI Event Log]
     end
     
     subgraph "Enforcement Points"
@@ -351,15 +453,15 @@ graph LR
 ```mermaid
 graph TB
     subgraph "TPM Keys"
-        A[EK - Endorsement Key<br/>TPM Identity]
-        B[AK - Attestation Key<br/>Quote Signing]
-        C[DevID Keys<br/>Device Identity]
+        A[EK - Endorsement Key\nTPM Identity]
+        B[AK - Attestation Key\nQuote Signing]
+        C[DevID Keys\nDevice Identity]
     end
     
     subgraph "Keylime Certificates"
-        D[Agent mTLS Cert<br/>Communication Security]
-        E[Revocation Cert<br/>Notification Signing]
-        F[CA Certificates<br/>Trust Chain]
+        D[Agent mTLS Cert\nCommunication Security]
+        E[Revocation Cert\nNotification Signing]
+        F[CA Certificates\nTrust Chain]
     end
     
     subgraph "Key Operations"
@@ -375,73 +477,169 @@ graph TB
     E --> J
 ```
 
-## Network Communication Flows
+## Network Communication Flows (Docker Deployment)
 
 ```mermaid
 graph TB
-    subgraph "Agent Communications"
-        A[Agent:9002 HTTPS<br/>Quote Requests]
-        B[Agent ZMQ<br/>Revocation Listening]
+    subgraph "Host Network Interface"
+        HOST_8890[Host:8890\nRegistrar API]
+        HOST_8891[Host:8891\nRegistrar Mgmt]
+        HOST_8880[Host:8880\nVerifier Internal]
+        HOST_8881[Host:8881\nVerifier Tenant]
     end
     
-    subgraph "Registrar APIs"
-        C[Registrar:8890 HTTPS<br/>Registration API]
-        D[Registrar:8891 HTTP<br/>Status/Management]
+    subgraph "Docker Network (keylime-network)"
+        subgraph "keylime-registrar"
+            REG_8890[":8890 Registration API"]
+            REG_8891[":8891 Management API"]
+        end
+        
+        subgraph "keylime-verifier"
+            VER_8880[":8880 Internal API"]
+            VER_8881[":8881 Tenant API"]
+        end
+        
+        subgraph "keylime-agent"
+            AGENT_9002[":9002 HTTPS (default)"]
+            AGENT_TPM[TPM Stack\nswtpm + abrmd"]
+        end
+        
+        subgraph "keylime-tenant"
+            TENANT_CLI[Tenant CLI\nOn-demand]
+        end
     end
     
-    subgraph "Verifier APIs"
-        E[Verifier:8881 HTTPS<br/>Tenant API]
-        F[Verifier Internal<br/>Agent Monitoring]
+    subgraph "Shared Storage"
+        VOLUME[keylime-data Volume\n/var/lib/keylime]
     end
     
-    A <--> F
-    C <--> A
-    E <--> A
-    E <--> C
+    %% Host port mappings
+    HOST_8890 --> REG_8890
+    HOST_8891 --> REG_8891
+    HOST_8880 --> VER_8880
+    HOST_8881 --> VER_8881
+    
+    %% Inter-container communication
+    AGENT_9002 <--> VER_8880
+    AGENT_9002 <--> REG_8890
+    TENANT_CLI <--> VER_8881
+    TENANT_CLI <--> REG_8891
+    
+    %% Shared storage access
+    REG_8890 <--> VOLUME
+    VER_8880 <--> VOLUME
+    AGENT_9002 <--> VOLUME
+    TENANT_CLI <--> VOLUME
+    
+    %% TPM access within agent
+    AGENT_9002 <--> AGENT_TPM
+    
+    style HOST_8890 fill:#e1f5fe
+    style HOST_8891 fill:#e1f5fe
+    style HOST_8880 fill:#e1f5fe
+    style HOST_8881 fill:#e1f5fe
+    style VOLUME fill:#f3e5f5
 ```
 
-## Attack Surface Analysis
+## Attack Surface Analysis (Docker Deployment)
 
-### 1. Network Attack Vectors
+### 1. Container-Specific Attack Vectors
+
+```mermaid
+graph TB
+    subgraph "Container Breakout Threats"
+        A[Privileged Container Escape]
+        B[Volume Mount Exploitation]
+        C[Network Namespace Bypass]
+        D[Process Injection]
+    end
+    
+    subgraph "Software TPM Threats"
+        E[TPM Emulation Bypass]
+        F[State Directory Manipulation]
+        G[ABRMD Resource Manager Attacks]
+        H[D-Bus Interface Exploitation]
+    end
+    
+    subgraph "Inter-Container Communication"
+        I[Container Name Spoofing]
+        J[Docker Network MITM]
+        K[Volume Race Conditions]
+        L[Service Discovery Poisoning]
+    end
+    
+    subgraph "Mitigations"
+        M[Container Security Policies]
+        N[Volume Permission Controls]
+        O[Network Segmentation]
+        P[Process Monitoring]
+    end
+    
+    A -.-> M
+    B -.-> N
+    C -.-> O
+    D -.-> P
+    E -.-> M
+    F -.-> N
+    G -.-> P
+    H -.-> O
+    I -.-> O
+    J -.-> O
+    K -.-> N
+    L -.-> P
+```
+
+### 2. Docker-Specific TPM Attack Vectors
+
+```mermaid
+graph TB
+    subgraph "Software TPM Limitations"
+        A[No Hardware Security]
+        B[Filesystem-Based State]
+        C[Process-Level Isolation Only]
+        D[Ephemeral TPM State]
+    end
+    
+    subgraph "Container Runtime Threats"
+        E[Container Restart Attacks]
+        F[Volume Persistence Issues]
+        G[Network Isolation Bypass]
+        H[Host System Access]
+    end
+    
+    subgraph "Enhanced Detection"
+        I[Container Monitoring]
+        J[Volume Integrity Checks]
+        K[Network Traffic Analysis]
+        L[Process Behavior Monitoring]
+    end
+    
+    A -.-> I
+    B -.-> J
+    C -.-> K
+    D -.-> L
+    E -.-> I
+    F -.-> J
+    G -.-> K
+    H -.-> L
+```
+
+### 3. Container Network Attack Vectors
 
 ```mermaid
 graph TB
     subgraph "Network Threats"
-        A[Man-in-the-Middle]
-        B[Eavesdropping]
-        C[Replay Attacks]
-        D[DoS/DDoS]
+        A[Container Network MITM]
+        B[Service Name Spoofing]
+        C[Port Scanning/Discovery]
+        D[DNS Poisoning]
     end
     
-    subgraph "Mitigations"
-        E[mTLS Encryption]
-        F[Certificate Validation]
-        G[Nonce-based Freshness]
-        H[Rate Limiting]
-    end
-    
-    A -.-> E
-    B -.-> E
-    C -.-> G
-    D -.-> H
-```
-
-### 2. TPM Attack Vectors
-
-```mermaid
-graph TB
-    subgraph "TPM Threats"
-        A[Physical Attacks]
-        B[Side Channel Analysis]
-        C[Firmware Vulnerabilities]
-        D[Reset Attacks]
-    end
-    
-    subgraph "Protections"
-        E[Tamper Resistance]
-        F[Hardware Countermeasures]
-        G[Secure Boot Chain]
-        H[Anti-Rollback]
+    subgraph "Docker-Specific Mitigations"
+        E[Container Network Policies]
+        F[Service Mesh Implementation]
+        G[Container-to-Container mTLS]
+        H[Network Monitoring]
     end
     
     A -.-> E
@@ -450,69 +648,76 @@ graph TB
     D -.-> H
 ```
 
-### 3. Software Attack Vectors
-
-```mermaid
-graph TB
-    subgraph "Software Threats"
-        A[Agent Compromise]
-        B[IMA Bypass]
-        C[Policy Manipulation]
-        D[Key Extraction]
-    end
-    
-    subgraph "Detection Methods"
-        E[Continuous Attestation]
-        F[Quote Validation]
-        G[Policy Enforcement]
-        H[Hardware Key Storage]
-    end
-    
-    A -.-> E
-    B -.-> F
-    C -.-> G
-    D -.-> H
-```
-
-## Potential Vulnerability Areas
+## Potential Vulnerability Areas (Docker Deployment)
 
 ### High-Risk Components:
-1. **Agent-Verifier Communication**
-   - Quote replay attacks
-   - Network protocol vulnerabilities
-   - Certificate validation bypasses
+1. **Container-to-Container Communication**
+   - Service name spoofing attacks
+   - Docker network MITM vulnerabilities
+   - Container escape to host system
+   - Volume mount exploitation
 
-2. **TPM Integration**
-   - TPM firmware vulnerabilities
-   - Key extraction attacks
-   - Reset/rollback attacks
+2. **Software TPM Implementation**
+   - TPM emulation bypass techniques
+   - Filesystem-based state manipulation
+   - ABRMD resource manager vulnerabilities
+   - D-Bus interface exploitation
 
-3. **Policy Enforcement**
-   - IMA bypass techniques
-   - Runtime policy manipulation
-   - Measurement log tampering
+3. **Agent Container Security**
+   - Privileged container escape
+   - Process injection into agent
+   - Configuration file tampering
+   - Debug log information leakage
 
-4. **Registrar Security**
-   - Registration flooding
-   - Identity spoofing
-   - Challenge response manipulation
+4. **Shared Volume Security**
+   - Race conditions in keylime-data volume
+   - Cross-container data access
+   - Permission escalation via shared files
+   - Persistent state corruption
 
 ### Medium-Risk Areas:
-1. **Secure Payload Handling**
-   - Key reconstruction timing
-   - Memory-resident key exposure
-   - Payload decryption side-channels
+1. **Docker Network Security**
+   - Network namespace bypass
+   - Container network discovery
+   - Inter-container traffic analysis
+   - Service discovery poisoning
 
-2. **Revocation Mechanisms**
-   - Revocation notification delivery
-   - Action execution reliability
-   - Certificate revocation timing
+2. **Container Runtime Security**
+   - Container restart timing attacks
+   - Environment variable exposure
+   - Resource exhaustion attacks
+   - Container image supply chain
 
-### Testing Recommendations:
-1. **Fuzzing Network Protocols**: Test all REST API endpoints
-2. **TPM Stress Testing**: Verify behavior under unusual TPM states
-3. **IMA Bypass Research**: Test various kernel-level bypass techniques
-4. **Timing Analysis**: Look for side-channel vulnerabilities
-5. **Policy Manipulation**: Test robustness of policy parsing and enforcement
+### Docker-Specific Testing Recommendations:
+1. **Container Security Testing**
+   - Test container escape scenarios
+   - Verify volume mount security
+   - Check network isolation effectiveness
+   - Validate process isolation boundaries
 
-This analysis provides a comprehensive foundation for understanding Keylime's architecture and identifying potential security research areas for your thesis.
+2. **Software TPM Testing**
+   - Test TPM emulation bypass techniques
+   - Verify state persistence security
+   - Check ABRMD resource management
+   - Test D-Bus interface security
+
+3. **Inter-Container Communication Testing**
+   - Test service name spoofing
+   - Verify network traffic encryption
+   - Check container-to-container authentication
+   - Test shared volume access controls
+
+4. **Configuration Security Testing**
+   - Test configuration file injection
+   - Verify environment variable security
+   - Check secrets management
+   - Test debug mode information leakage
+
+### Docker Deployment Security Considerations:
+1. **Use non-privileged containers** when possible
+2. **Implement network policies** for container communication
+3. **Use secrets management** for sensitive configuration
+4. **Monitor container runtime** for anomalous behavior
+5. **Implement container image scanning** for vulnerabilities
+6. **Use read-only filesystems** where applicable
+7. **Implement proper logging and monitoring** for container activities

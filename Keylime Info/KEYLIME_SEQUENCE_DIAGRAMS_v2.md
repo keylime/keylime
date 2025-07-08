@@ -4,45 +4,76 @@
 
 This document provides comprehensive sequence diagrams showing every step of Keylime's operation from boot to operational attestation.
 
-## Phase 1: System Boot and Initialization
+## Phase 1: Docker Container Boot and Initialization
 
 ```mermaid
 sequenceDiagram
-    participant UEFI as UEFI Firmware
-    participant TPM as TPM 2.0
-    participant GRUB as GRUB Bootloader
-    participant KERNEL as Linux Kernel
-    participant IMA as IMA Subsystem
-    participant AGENT as Keylime Agent
+    participant HOST as Host System
+    participant DOCKER as Docker Engine
+    participant REG as keylime-registrar
+    participant VER as keylime-verifier
+    participant AGENT as keylime-agent
+    participant SWTPM as Software TPM
+    participant ABRMD as TPM2-ABRMD
+    participant DBUS as D-Bus
     
-    Note over UEFI,AGENT: Measured Boot Chain
+    Note over HOST,DOCKER: Docker Compose Startup
     
-    UEFI->>TPM: Extend PCR 0 (Firmware measurement)
-    UEFI->>TPM: Extend PCR 1-7 (SecureBoot measurements)
-    UEFI->>GRUB: Launch bootloader
+    HOST->>DOCKER: docker-compose up
+    DOCKER->>REG: Start registrar container
+    REG->>REG: Initialize Python service
+    REG->>REG: Bind to :8890 (registration), :8891 (management)
+    REG->>REG: Load keylime-data volume
     
-    GRUB->>TPM: Extend PCR 8 (Kernel measurement)
-    GRUB->>TPM: Extend PCR 9 (Initramfs measurement)
-    GRUB->>KERNEL: Launch kernel
+    DOCKER->>VER: Start verifier container (depends_on: registrar)
+    VER->>VER: Initialize Python service
+    VER->>VER: Bind to :8880 (internal), :8881 (tenant)
+    VER->>VER: Load keylime-data volume
     
-    KERNEL->>IMA: Initialize IMA subsystem
-    IMA->>TPM: Extend PCR 10 (boot_aggregate)
+    Note over DOCKER,AGENT: Agent Container Initialization
     
-    Note over KERNEL,AGENT: Runtime Initialization
+    DOCKER->>AGENT: Start agent container (privileged: true)
+    AGENT->>AGENT: mkdir -p /tmp/tpmdir /var/lib/keylime
+    AGENT->>AGENT: Create keylime user, tss group
+    AGENT->>AGENT: chown -R keylime:tss /var/lib/keylime
     
-    KERNEL->>AGENT: Start agent process
-    AGENT->>TPM: Initialize TPM context
-    TPM->>AGENT: Return TPM handle
+    Note over AGENT,DBUS: System Services Setup
     
-    AGENT->>TPM: Read/Generate EK (Endorsement Key)
-    TPM->>AGENT: Return EK public key
+    AGENT->>DBUS: rm -rf /var/run/dbus && mkdir /var/run/dbus
+    AGENT->>DBUS: dbus-daemon --system
     
-    AGENT->>TPM: Generate AK (Attestation Key)
-    TPM->>AGENT: Return AK public key
+    Note over AGENT,SWTPM: Software TPM Setup
     
-    AGENT->>AGENT: Initialize secure mount
-    AGENT->>AGENT: Load configuration
-    AGENT->>AGENT: Start HTTPS server (port 9002)
+    AGENT->>SWTPM: swtpm_setup --tpm2 --tpmstate /tmp/tpmdir
+    SWTPM->>SWTPM: --createek --decryption --create-ek-cert
+    SWTPM->>SWTPM: --create-platform-cert --display
+    AGENT->>SWTPM: swtpm socket --tpm2 --tpmstate dir=/tmp/tpmdir
+    SWTPM->>SWTPM: --flags startup-clear --daemon
+    SWTPM->>SWTPM: Listen on TCP ports 2321 (data), 2322 (control)
+    
+    Note over AGENT,ABRMD: TPM Resource Manager
+    
+    AGENT->>ABRMD: tpm2-abrmd --logger=stdout --tcti=swtpm:
+    ABRMD->>ABRMD: --allow-root --flush-all &
+    ABRMD->>SWTPM: Connect to software TPM
+    
+    Note over AGENT,REG: Service Discovery
+    
+    AGENT->>REG: getent hosts registrar (DNS resolution)
+    loop DNS Resolution Check
+        AGENT->>REG: Check if registrar hostname resolves
+        REG->>AGENT: DNS response or timeout
+    end
+    
+    AGENT->>REG: nc -z registrar 8891 (port availability)
+    REG->>AGENT: Port connection successful
+    
+    Note over AGENT,AGENT: Agent Process Start
+    
+    AGENT->>AGENT: touch /var/lib/keylime/agent_data.json
+    AGENT->>AGENT: chown keylime:tss agent_data.json
+    AGENT->>AGENT: chmod 660 agent_data.json
+    AGENT->>AGENT: exec /usr/bin/keylime_agent
 ```
 
 ## Phase 2: Agent Registration Process
