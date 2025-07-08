@@ -105,40 +105,40 @@ full_restart() {
 
 # Reset TPM state to work around swtpm limitations
 # This clears the TPM state directory and restarts containers
-reset_tpm_state() {
-    log "Resetting TPM state to work around swtpm limitations..."
+# reset_tpm_state() {
+#     log "Resetting TPM state to work around swtpm limitations..."
     
-    # Stop all containers
-    if command -v docker-compose >/dev/null 2>&1; then
-        docker-compose down --remove-orphans >/dev/null 2>&1 || true
-    else
-        docker compose down --remove-orphans >/dev/null 2>&1 || true
-    fi
+#     # Stop all containers
+#     if command -v docker-compose >/dev/null 2>&1; then
+#         docker-compose down --remove-orphans >/dev/null 2>&1 || true
+#     else
+#         docker compose down --remove-orphans >/dev/null 2>&1 || true
+#     fi
     
-    # Clear TPM state directory (this resets the TPM emulator)
-    if [[ -d "/home/shubhgupta/tpm_state" ]]; then
-        log "Clearing TPM state directory..."
-        rm -rf /home/shubhgupta/tpm_state/*
-    fi
+#     # Clear TPM state directory (this resets the TPM emulator)
+#     if [[ -d "/home/shubhgupta/tpm_state" ]]; then
+#         log "Clearing TPM state directory..."
+#         rm -rf /home/shubhgupta/tpm_state/*
+#     fi
     
-    sleep 5
+#     sleep 5
     
-    # Start containers with fresh TPM state
-    if command -v docker-compose >/dev/null 2>&1; then
-        docker-compose up -d >/dev/null 2>&1
-    else
-        docker compose up -d >/dev/null 2>&1
-    fi
+#     # Start containers with fresh TPM state
+#     if command -v docker-compose >/dev/null 2>&1; then
+#         docker-compose up -d >/dev/null 2>&1
+#     else
+#         docker compose up -d >/dev/null 2>&1
+#     fi
     
-    sleep 30  # Allow initialization
+#     sleep 30  # Allow initialization
     
-    # Register agent
-    # docker exec keylime-verifier keylime_tenant -c add -t keylime-agent -u "${AGENT_UUID}" >/dev/null 2>&1 || true
-    restart_agent  # Reuse existing function to re-register agent
-    sleep 5
-    log "TPM state reset completed"
-    show_status
-}
+#     # Register agent
+#     # docker exec keylime-verifier keylime_tenant -c add -t keylime-agent -u "${AGENT_UUID}" >/dev/null 2>&1 || true
+#     restart_agent  # Reuse existing function to re-register agent
+#     sleep 5
+#     log "TPM state reset completed"
+#     show_status
+# }
 
 # Show status
 show_status() {
@@ -215,15 +215,15 @@ monitor() {
         
         log "Status: $status, Attestations: $count"
         
-        # Proactive swtpm restart before hitting the ~80 attestation limit
-        if [[ "$count" -ge "$SWTPM_ATTESTATION_LIMIT" ]]; then
-            log "⚠️  Approaching swtpm attestation limit ($count >= $SWTPM_ATTESTATION_LIMIT) - performing proactive TPM reset"
-            reset_tpm_state
-            failure_count=0
-            last_attestation_count=0
-            sleep 60
-            continue
-        fi
+        # # Proactive swtpm restart before hitting the ~80 attestation limit
+        # if [[ "$count" -ge "$SWTPM_ATTESTATION_LIMIT" ]]; then
+        #     log "⚠️  Approaching swtpm attestation limit ($count >= $SWTPM_ATTESTATION_LIMIT) - performing proactive TPM reset"
+        #     reset_tpm_state
+        #     failure_count=0
+        #     last_attestation_count=0
+        #     sleep 60
+        #     continue
+        # fi
         
         # Evaluate health
         local health_ok=0
@@ -299,10 +299,10 @@ case "${1:-monitor}" in
     "restart-all")
         # Full system restart - all containers (heavy recovery)
         full_restart
-        ;;
-    "reset-tpm")
-        # Reset TPM state to work around swtpm limitations
-        reset_tpm_state
+    #     ;;
+    # "reset-tpm")
+    #     # Reset TPM state to work around swtpm limitations
+    #     reset_tpm_state
         ;;
     "test")
         # Test core monitoring functions for debugging
