@@ -158,14 +158,3 @@ sequenceDiagram
     HOST->>VER: Access tenant API on :8881
     HOST->>REG: Access management on :8891
 ```
-
-## Would you like me to update the main architecture diagrams to accurately reflect your Docker deployment?
-
-I can revise the diagrams in your existing files to match your actual configuration, including:
-- Container-specific networking
-- Software TPM emulation
-- Actual port mappings
-- Service startup sequences
-- Volume mounting strategies
-
-This would make the documentation much more accurate for your specific deployment setup.
