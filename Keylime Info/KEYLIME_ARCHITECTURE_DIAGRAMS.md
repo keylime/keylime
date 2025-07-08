@@ -14,30 +14,30 @@
 ```mermaid
 graph TB
     subgraph "Trust Domain"
-        TPM[TPM 2.0<br/>Hardware Security Module]
-        IMA[IMA/EVM<br/>Kernel Subsystem]
-        Agent[Keylime Agent<br/>(Rust)]
+        TPM["TPM 2.0\nHardware Security Module"]
+        IMA["IMA/EVM\nKernel Subsystem"]
+        Agent["Keylime Agent\n(Rust)"]
     end
-    
+
     subgraph "Infrastructure"
-        Registrar[Keylime Registrar<br/>(Python)]
-        Verifier[Keylime Verifier<br/>(Python)]
-        CA[Certificate Authority<br/>& Key Management]
+        Registrar["Keylime Registrar\n(Python)"]
+        Verifier["Keylime Verifier\n(Python)"]
+        CA["Certificate Authority\n& Key Management"]
     end
-    
+
     subgraph "Management"
-        Tenant[Keylime Tenant CLI<br/>(Python)]
-        Policy[Runtime Policies<br/>& Configuration]
+        Tenant["Keylime Tenant CLI\n(Python)"]
+        Policy["Runtime Policies\n& Configuration"]
     end
-    
+
     subgraph "Boot Chain"
-        UEFI[UEFI Firmware]
-        SecureBoot[Secure Boot]
-        Bootloader[GRUB2 Bootloader]
-        Kernel[Linux Kernel]
-        InitRamFS[InitramFS]
+        UEFI["UEFI Firmware"]
+        SecureBoot["Secure Boot"]
+        Bootloader["GRUB2 Bootloader"]
+        Kernel["Linux Kernel"]
+        InitRamFS["InitramFS"]
     end
-    
+
     %% Core Relationships
     Agent <--> TPM
     Agent <--> IMA
@@ -46,14 +46,14 @@ graph TB
     Tenant <--> Verifier
     Tenant <--> Registrar
     Verifier <--> Policy
-    
+
     %% Boot Chain Flow
     UEFI --> SecureBoot
     SecureBoot --> Bootloader
     Bootloader --> Kernel
     Kernel --> InitRamFS
     InitRamFS --> Agent
-    
+
     %% Measurement Chain
     UEFI -.-> TPM
     SecureBoot -.-> TPM
@@ -61,7 +61,8 @@ graph TB
     Kernel -.-> TPM
     InitRamFS -.-> TPM
     IMA -.-> TPM
-    
+
+    %% Styling
     style TPM fill:#ff9999
     style IMA fill:#99ff99
     style Agent fill:#9999ff
