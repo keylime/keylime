@@ -376,7 +376,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
                 # the entire transaction succeeds, so return early
                 return
             
-            # Otherwise, create a session if none if given
+            # Otherwise, create a session if none is given
             with db_manager.session_context() as session:
                 session.add(self._db_mapping_inst)
 

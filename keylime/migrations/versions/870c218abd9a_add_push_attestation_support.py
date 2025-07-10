@@ -1,4 +1,4 @@
-"""Create push attestation tables
+"""Changes for agent-driven (push) attestation support
 
 Revision ID: 870c218abd9a
 Revises: 330024be7bef
@@ -32,27 +32,21 @@ def downgrade_registrar():
 
 
 def upgrade_cloud_verifier():
-    op.add_column("verifiermain", sa.Column("accept_attestations", sa.Boolean))
+    with op.batch_alter_table("verifiermain") as batch_op:
+        batch_op.add_column(sa.Column("accept_attestations", sa.Boolean))
+        batch_op.alter_column("supported_version", nullable=True)
 
     op.create_table(
         "attestations",
         sa.Column("agent_id", sa.String(80), sa.ForeignKey("verifiermain.agent_id"), nullable=False),
         sa.Column("index", sa.Integer, nullable=False),
-        # sa.Column("nonce", sa.LargeBinary(128)),
         sa.Column("stage", sa.String(25), server_default="awaiting_evidence", nullable=False),
         sa.Column("evaluation", sa.String(10), server_default="pending", nullable=False),
         sa.Column("failure_reason", sa.String(25)),
-        # sa.Column("tpm_quote", sa.Text, nullable=True),
-        # sa.Column("hash_algorithm", sa.String(15)),
-        # sa.Column("signing_scheme", sa.String(15)),
-        # sa.Column("starting_ima_offset", sa.Integer),
-        # sa.Column("ima_entries", sa.Text, nullable=True),
-        # sa.Column("quoted_ima_entries_count", sa.Integer, nullable=True),
-        # sa.Column("mb_entries", sa.LargeBinary, nullable=True),
         # ISO8601 datetimes with microsecond precision in the UTC timezone are never more than 32 characters
         sa.Column("system_info__boot_time", sa.String(32), nullable=False),
         sa.Column("capabilities_received_at", sa.String(32), nullable=False),
-        sa.Column("challenges_expire_at", sa.String(32), nullable=False),
+        sa.Column("challenges_expire_at", sa.String(32)),
         sa.Column("evidence_received_at", sa.String(32)),
         sa.Column("verification_completed_at", sa.String(32)),
         sa.PrimaryKeyConstraint("agent_id", "index"),
@@ -99,5 +93,9 @@ def upgrade_cloud_verifier():
 
 
 def downgrade_cloud_verifier():
+    with op.batch_alter_table("verifiermain") as batch_op:
+        batch_op.drop_column("verifiermain", "accept_attestations")
+        batch_op.alter_column("supported_version", nullable=False)
+
     op.drop_table("attestations")
-    op.drop_column("verifiermain", "accept_attestations")
+    op.drop_table("evidence_items")

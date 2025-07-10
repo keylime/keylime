@@ -4,7 +4,7 @@ from keylime.models.base.basic_model import BasicModel
 from keylime.models.base.da import da_manager
 from keylime.models.base.db import db_manager
 from keylime.models.base.persistable_model import PersistableModel
-from keylime.models.base.record_set import RecordSet
+from keylime.models.base.record_set import RecordSet, RecordSetView
 from keylime.models.base.types.binary import Binary
 from keylime.models.base.types.certificate import Certificate
 from keylime.models.base.types.dictionary import Dictionary

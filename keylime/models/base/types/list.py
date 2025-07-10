@@ -84,18 +84,23 @@ class List(ModelType):
         elif isinstance(value, str):
             try:
                 parsed_list = json.loads(value)
+
+                # Some lists may have ended up being serialised to JSON twice before being saved in the database
+                if isinstance(parsed_list, str):
+                    parsed_list = json.loads(parsed_list)
+
             except json.JSONDecodeError as err:
-                raise ValueError(f"string value cast to list is not valid JSON: '{value}'") from err
+                raise ValueError(f"string value cast to list is not valid JSON: {repr(value)}") from err
 
             if not isinstance(parsed_list, list):
-                raise ValueError(f"string value cast to list is not a valid JSON array: '{value}'")
+                raise ValueError(f"string value cast to list is not a valid JSON array: {repr(value)}")
 
             return parsed_list
 
         else:
             raise TypeError(
                 f"value cast to list is of type '{value.__class__.__name__}' but should be either 'str' or "
-                f"'list': '{value}'"
+                f"'list': {repr(value)}"
             )
 
     def generate_error_msg(self, _value: IncomingValue) -> str:

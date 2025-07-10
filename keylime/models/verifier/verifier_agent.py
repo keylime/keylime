@@ -63,7 +63,7 @@ class VerifierAgent(PersistableModel):
         cls._field("verifier_ip", String(15), nullable=True)
         cls._field("verifier_port", Integer, nullable=True)
 
-        # The API version used by the agent
+        # The API version which should be used when contacting the agent
         cls._field("supported_version", String(20), nullable=True)
 
         # Cryptographic algorithms used to produce quotes

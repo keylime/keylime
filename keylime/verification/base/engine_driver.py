@@ -119,8 +119,6 @@ class EngineDriver:
                     f"'evidence_requested' list"
                 )
 
-            self.attestation.evidence.reset()
-
         # TODO: finalise evidence requested
         self.attestation.evidence.clear()
         self.attestation.evidence.update(evidence_requested)
@@ -141,8 +139,6 @@ class EngineDriver:
 
             if self.attestation.get_errors(included_associations=["evidence"]):
                 return self
-
-            self.attestation.evidence.reset()
 
         return self
 
@@ -189,8 +185,6 @@ class EngineDriver:
 
             if self.attestation.get_errors(included_associations=["agent", "evidence"]):
                 return self
-
-            self.attestation.evidence.reset()
 
         self._commit_verification_results()
 

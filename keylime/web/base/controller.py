@@ -351,6 +351,7 @@ class Controller:
             try:
                 params[param_type] = getattr(self, f"{param_type}_params")
             except ParamDecodeError:
+                params[param_type] = {}
                 failures.append(param_type)
 
         if failures and not ignore_errors:

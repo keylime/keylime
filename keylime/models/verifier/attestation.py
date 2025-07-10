@@ -29,7 +29,7 @@ class Attestation(PersistableModel):
 
         # TIMESTAMPS
         cls._field("capabilities_received_at", Timestamp)
-        cls._field("challenges_expire_at", Timestamp)
+        cls._field("challenges_expire_at", Timestamp, nullable=True)
         cls._field("evidence_received_at", Timestamp, nullable=True)
         cls._field("verification_completed_at", Timestamp, nullable=True)
 
@@ -269,7 +269,7 @@ class Attestation(PersistableModel):
         errors = self.get_errors(included_associations=["evidence"], include_embeds=True)
 
         if errors.get("evidence"):
-            if self.stage == "evaluating_evidence":
+            if self.stage == "awaiting_evidence":
                 errors["evidence_supported"] = errors["evidence"]
             else:
                 errors["evidence_collected"] = errors["evidence"]

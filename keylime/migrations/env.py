@@ -83,6 +83,9 @@ def run_migrations_offline():
                 literal_binds=True,
                 dialect_opts={"paramstyle": "named"},
                 version_table="alembic_version_" + name,
+                # Generate migrations using batch mode for SQLite
+                # See https://alembic.sqlalchemy.org/en/latest/batch.html#batch-mode-with-autogenerate
+                render_as_batch=True
             )
             with context.begin_transaction():
                 context.run_migrations(engine_name=name)

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union, overload
 from sqlalchemy import Column
 
 from keylime.models.base.errors import AssociationTypeMismatch, AssociationValueInvalid
-from keylime.models.base.record_set import RecordSet
+from keylime.models.base.associated_record_set import AssociatedRecordSet
 from keylime.models.base.types.dictionary import Dictionary
 from keylime.models.base.types.list import List
 from keylime.models.base.db import db_manager
@@ -12,79 +12,6 @@ from keylime.models.base.db import db_manager
 if TYPE_CHECKING:
     from keylime.models.base.basic_model import BasicModel
     from keylime.models.base.persistable_model import PersistableModel
-
-
-class AssociatedRecordSet(RecordSet):
-    """An AssociatedRecordSet contains a set of model instances (i.e., *records*) linked to a *parent record* by way of
-    an association established between two models. With a "to-many" association, the set can contain an unbounded number
-    of records but with a "to-one" association, the set will only ever contain one at most.
-    """
-
-    def __init__(self, parent_record: "BasicModel", association: "ModelAssociation") -> None:
-        self._parent_record = parent_record
-        self._association = association
-        super().__init__(association.other_model)
-
-    def __copy__(self):
-        record_set_copy = self.__class__(self.parent_record, self.association)
-
-        for record in self._original_mask:
-            record_set_copy.add(record)
-
-        record_set_copy._mask = self._mask.copy()
-        record_set_copy._previous_mask = self._previous_mask.copy()
-
-        return record_set_copy
-
-    def add(self, record: "BasicModel", populate_inverse: bool = True) -> "AssociatedRecordSet":
-        if not isinstance(record, self.model):
-            raise AssociationTypeMismatch(
-                f"value of type '{record.__class__.__name__}' cannot be added to AssociatedRecordSet of type "
-                f"'{self.model.__name__}'"
-            )
-
-        # If the caller has indicated that the inverse association should be populated and the association does have
-        # an inverse association defined, back-populate the inverse association by creating a reference to the
-        # association's parent record in the record being added to the set
-        if populate_inverse and self.association.inverse_association:  # type: ignore
-            # Get the record set of the inverse association
-            inverse_record_set = self.association.inverse_association.get_record_set(record)  # type: ignore
-
-            # Add the association's parent record to the record set of the inverse association
-            inverse_record_set.add(self.parent_record, populate_inverse=False)
-
-            # Additionally add the record to the SQLAlchemy relationship which also adds it to the inverse
-            # SQLAlchemy relationship thanks to the `back_populates` option
-            mapped_member = getattr(self.parent_record._db_mapping_inst, self.association.name, None)
-
-            if self.association.to_many and record._db_mapping_inst not in mapped_member:
-                mapped_member.append(record._db_mapping_inst)
-            elif self.association.to_one and record._db_mapping_inst == mapped_member:
-                setattr(self.parent_record._db_mapping_inst, self.association.name, record._db_mapping_inst)
-
-        # If the association is a "to-one" association, then its record set should always contain, at most, one
-        # record, so clear the set before adding the record
-        if self.association.to_one:
-            self.clear()
-
-        return super().add(record)
-
-    def update(self, *others, populate_inverse: bool = True) -> "AssociatedRecordSet":
-        previous_mask = self._mask.copy()
-
-        for other in others:
-            for record in other:
-                self.add(record, populate_inverse)
-
-        self._previous_mask = previous_mask
-
-    @property
-    def parent_record(self) -> "BasicModel":
-        return self._parent_record
-
-    @property
-    def association(self) -> "ModelAssociation":
-        return self._association
 
 
 class ModelAssociation(ABC):

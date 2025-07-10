@@ -1,5 +1,6 @@
 import json
 import copy
+import math
 
 from keylime import config, keylime_logging
 from keylime.verification.base import VerificationEngine, EngineDriver
@@ -8,7 +9,7 @@ from keylime.tpm.tpm_main import Tpm
 from keylime.models.base import db_manager
 from keylime.failure import Component, Failure
 from keylime.agentstates import AgentAttestState, TPMClockInfo, TPMState
-from keylime.ima import file_signatures
+from keylime.ima import ima, file_signatures
 from keylime.common import algorithms
 
 logger = keylime_logging.init_logging("verifier")
@@ -38,10 +39,12 @@ class TPMEngine(VerificationEngine):
         allowable_sig_schemes = self.attestation.agent.accept_tpm_signing_algs
         allowable_hash_algs = self.attestation.agent.accept_tpm_hash_algs
 
-        tpm_quote_items = self.attestation.evidence.reset()
-        tpm_quote_items.filter(evidence_class="certification", evidence_type="tpm_quote")
+        tpm_quote_items = (
+            self.attestation.evidence.view()
+            .filter(evidence_class="certification", evidence_type="tpm_quote")
+        )
 
-        for item in tpm_quote_items:
+        for item in tpm_quote_items.result():
             item_sig_schemes = item.capabilities.signature_schemes
             item_hash_algs = item.capabilities.hash_algorithms
             pcr_banks = item.capabilities.available_subjects.keys()
@@ -70,9 +73,12 @@ class TPMEngine(VerificationEngine):
                 item.capabilities._add_error("available_subjects", msg)
 
     def _validate_ima_log_items(self):
-        ima_log_items = self.attestation.evidence.filter(evidence_class="certification", evidence_type="ima_log")
+        ima_log_items = (
+            self.attestation.evidence.view()
+            .filter(evidence_class="certification", evidence_type="ima_log")
+        )
 
-        for item in ima_log_items:
+        for item in ima_log_items.result():
             # item.validate_required("capabilities")
 
             if item.capabilities:
@@ -82,46 +88,36 @@ class TPMEngine(VerificationEngine):
         if not self.expects_tpm_quote:
             return None
 
-        items = self.attestation.evidence.reset()
-        items.filter(evidence_class="certification", evidence_type="tpm_quote")
+        tpm_quote_items = (
+            self.attestation.evidence.view()
+            .filter(evidence_class="certification", evidence_type="tpm_quote")
+        )
 
-        if not items:
+        if not tpm_quote_items.result():
             self._add_error("evidence", "must contain a certification item of type 'tpm_quote' per agent policy")
             return None
 
-        items = items.filter(lambda item: item.capabilities.component_version == "2.0")
-        tip = ""
-
-        if not items and not tip:
-            tip = "check 'component_version'"
-
         allowable_sig_schemes = self.attestation.agent.accept_tpm_signing_algs
-        items = items.filter(
-            lambda item: any(alg in allowable_sig_schemes for alg in item.capabilities.signature_schemes)
-        )
-
-        if not items and not tip:
-            tip = "check 'signature_schemes'"
-
         allowable_hash_algs = self.attestation.agent.accept_tpm_hash_algs
-        items = items.filter(lambda item: any(alg in allowable_hash_algs for alg in item.capabilities.hash_algorithms))
 
-        if not items and not tip:
-            tip = "check 'hash_algorithms'"
-
-        items = items.filter(
-            lambda item: any(alg in allowable_hash_algs for alg in item.capabilities.available_subjects.keys())
+        tpm_quote_items = (
+            tpm_quote_items
+            .filter(lambda item: item.capabilities.component_version == "2.0")
+            .result_if_empty("check 'component_version'")
+            .filter(lambda item: any(alg in allowable_sig_schemes for alg in item.capabilities.signature_schemes))
+            .result_if_empty("check 'signature_schemes'")
+            .filter(lambda item: any(alg in allowable_hash_algs for alg in item.capabilities.hash_algorithms))
+            .result_if_empty("check 'hash_algorithms'")
+            .filter(lambda item: any(alg in allowable_hash_algs for alg in item.capabilities.available_subjects.keys()))
+            .result_if_empty("check PCR banks in 'available_subjects'")
         )
 
-        if not items and not tip:
-            tip = "check PCR banks in 'available_subjects'"
-
-        if not items:
-            msg = f"must have 'tpm_quote' with capabilities which satisfy agent policy ({tip})"
-            self._add_error("evidence", msg)
+        if isinstance(tpm_quote_items.result(), str):
+            tip = tpm_quote_items.result()
+            self._add_error("evidence", f"must have 'tpm_quote' with capabilities which satisfy agent policy ({tip})")
             return None
 
-        return next(iter(items))
+        return tpm_quote_items.to_list()[0]
 
     def _signature_scheme_choices(self, evidence_item):
         schemes = []
@@ -145,23 +141,23 @@ class TPMEngine(VerificationEngine):
         scheme_choices = self._signature_scheme_choices(evidence_item)
 
         cert_keys = (
-            evidence_item.capabilities.certification_keys.reset()
+            evidence_item.capabilities.certification_keys.view()
             .filter(lambda key: any(scheme.startswith(key.key_algorithm) for scheme in scheme_choices))
         )
 
-        if len(cert_keys) > 1:
+        if len(cert_keys.result()) > 1:
             aks = cert_keys.filter(lambda key: key.public == self.attestation.agent.ak_tpm)
 
-            if len(aks) > 0:
+            if len(aks.result()) > 0:
                 cert_keys = aks
 
-        if len(cert_keys) > 1:
+        if len(cert_keys.result()) > 1:
             aks = cert_keys.filter(lambda key: key.server_identifier == "ak")
 
-            if len(aks) > 0:
+            if len(aks.result()) > 0:
                 cert_keys = aks
 
-        cert_keys = list(cert_keys)
+        cert_keys = cert_keys.to_list()
         cert_keys.sort(key=lambda k: next(i for i, s in enumerate(scheme_choices) if s.startswith(k.key_algorithm)))
 
         if cert_keys:
@@ -181,24 +177,30 @@ class TPMEngine(VerificationEngine):
             evidence_item.choose_parameters({"signature_scheme": scheme_choices[0]})
 
     def _select_subjects(self, evidence_item):
+        # The PCR banks which may be requested, i.e., the hash algorithms supported by the agent and allowed by policy
         alg_choices = self._hash_algorithm_choices(evidence_item)
+        # The PCR numbers for which the agent can produce quotes, grouped by available PCR bank
+        available_subjects = evidence_item.capabilities.available_subjects
+        # The PCR numbers for each PCR bank to include in the quote (none to start)
+        selected_subjects = {}
 
-        subjects = copy.deepcopy(evidence_item.capabilities.available_subjects)
-        pcr_banks = list(subjects.keys())
-        pcr_banks.sort(key=lambda pcr_bank: alg_choices.index(pcr_bank))
-
+        # For consistent formatting of API responses, sort PCR banks by configured algorithm preference with disallowed
+        # banks at the end
+        pcr_banks = list(available_subjects.keys())
+        pcr_banks.sort(key=lambda pcr_bank: alg_choices.index(pcr_bank) if pcr_bank in alg_choices else math.inf)
         found = False
-        
+
+        # For each PCR bank, select the required PCRs by number (or use None if no PCRs are required for that bank)
         for pcr_bank in pcr_banks:
-            pcr_nums = subjects[pcr_bank]
+            pcr_nums = available_subjects[pcr_bank]
 
-            if not found and pcr_bank in alg_choices and set(self.required_pcr_nums).issubset(pcr_nums):
-                subjects[pcr_bank] = self.required_pcr_nums
+            if pcr_bank in alg_choices and set(self.required_pcr_nums).issubset(pcr_nums):
+                selected_subjects[pcr_bank] = self.required_pcr_nums or None
                 found = True
-                continue
+            else:
+                selected_subjects[pcr_bank] = None
 
-            subjects[pcr_bank] = None
-
+        # If none of the allowable PCR banks contain the full list of required PCRs, produce an error
         if not found:
             msg = (
                 "must have 'tpm_quote' with capabilities which satisfy agent policy (check the correct numbered PCRs "
@@ -206,7 +208,7 @@ class TPMEngine(VerificationEngine):
             )
             self.attestation._add_error("evidence", msg)
 
-        evidence_item.chosen_parameters.selected_subjects = subjects
+        evidence_item.chosen_parameters.selected_subjects = selected_subjects
 
     def _select_hash_algorithm(self, evidence_item):
         for pcr_bank, pcr_nums in evidence_item.chosen_parameters.selected_subjects.items():
@@ -220,42 +222,39 @@ class TPMEngine(VerificationEngine):
         if not self.expects_uefi_log:
             return None
 
-        uefi_log_items = self.attestation.evidence.reset()
-        uefi_log_items.filter(evidence_class="log", evidence_type="uefi_log")
+        uefi_log_items = (
+            self.attestation.evidence.view()
+            .filter(evidence_class="log", evidence_type="uefi_log")
+            .result_if_empty("must contain a log item of type 'uefi_log' per agent policy")
+            .filter(lambda item: "application/octet-stream" in item.capabilities.formats)
+            .result_if_empty("must have 'uefi_log' with format 'application/octet-stream'")
+        )
 
-        if not uefi_log_items:
-            self.attestation._add_error("evidence", "must contain a log item of type 'uefi_log' per agent policy")
+        if isinstance(uefi_log_items.result(), str):
+            self.attestation._add_error("evidence", uefi_log_items.result())
             return None
 
-        uefi_log_items = uefi_log_items.filter(lambda item: "application/octet-stream" in item.capabilities.formats)
-
-        if not uefi_log_items:
-            self.attestation._add_error("evidence", "must have 'uefi_log' with format 'application/octet-stream'")
-            return None
-
-        return next(iter(uefi_log_items))
+        return uefi_log_items.to_list()[0]
 
     def _select_ima_log_item(self):
         if not self.expects_ima_log:
             return None
 
-        ima_log_items = self.attestation.evidence.reset()
-        ima_log_items.filter(evidence_class="log", evidence_type="ima_log")
-
-        if not ima_log_items:
-            self.attestation._add_error("evidence", "must contain a log item of type 'ima_log' per agent policy")
-            return None
-
-        ima_log_items = ima_log_items.filter(
-            lambda item: "text/plain" in item.capabilities.formats and item.capabilities.supports_partial_access
+        ima_log_items = (
+            self.attestation.evidence.view()
+            .filter(evidence_class="log", evidence_type="ima_log")
+            .result_if_empty("must contain a log item of type 'ima_log' per agent policy")
+            .filter(
+                lambda item: "text/plain" in item.capabilities.formats and item.capabilities.supports_partial_access
+            )
+            .result_if_empty("must have 'ima_log' with format 'text/plain' and which supports partial access")
         )
 
-        if not ima_log_items:
-            msg = "must have 'ima_log' with format 'text/plain' and which supports partial access"
-            self.attestation._add_error("evidence", msg)
+        if isinstance(ima_log_items.result(), str):
+            self.attestation._add_error("evidence", ima_log_items.result())
             return None
 
-        return next(iter(ima_log_items))
+        return ima_log_items.to_list()[0]
 
     def _determine_ima_offset(self, evidence_item):
         if not self.expects_ima_log:
@@ -381,10 +380,12 @@ class TPMEngine(VerificationEngine):
         return {num: val for num, val in self._attest_state_pcrs(evidence_item).items() if num == config.IMA_PCR}
 
     def _render_tpm_quote_info(self):
-        items = self.attestation.evidence.reset()
-        items.filter(evidence_class="certification", evidence_type="tpm_quote")
+        tpm_quote_items = (
+            self.attestation.evidence.view()
+            .filter(evidence_class="certification", evidence_type="tpm_quote")
+        )
         
-        for item in items:
+        for item in tpm_quote_items.result():
             (pcrs, unknown) = self._parse_pcrs(item)
             item.data.meta["pcrs"] = pcrs
 
@@ -580,7 +581,7 @@ class TPMEngine(VerificationEngine):
     @property
     def required_pcr_nums(self):
         pcr_selection = set()
-        tpm_policy = self.attestation.agent.tpm_policy or {}
+        tpm_policy = self.agent.tpm_policy.copy() or {}
 
         if "mask" in tpm_policy:
             del tpm_policy["mask"]
@@ -588,13 +589,11 @@ class TPMEngine(VerificationEngine):
         lockdown_pcrs = [int(pcr) for pcr in tpm_policy.keys()]
         pcr_selection.update(lockdown_pcrs)
 
-        if self.attestation.agent.mb_policy and self.attestation.agent.mb_policy.mb_policy:
+        if self.expects_uefi_log:
             pcr_selection.update(config.MEASUREDBOOT_PCRS)
 
-        if self.attestation.agent.ima_policy and self.attestation.agent.ima_policy.ima_policy:
+        if self.expects_ima_log:
             pcr_selection.add(config.IMA_PCR)
-
-        # TODO: Consider changing to use fields in the agent table, instead of relying on hard-coded PCRs
 
         return sorted(list(pcr_selection))
 
@@ -604,11 +603,16 @@ class TPMEngine(VerificationEngine):
 
     @property
     def expects_uefi_log(self):
-        return self.attestation.agent.mb_policy and self.attestation.agent.mb_policy.mb_policy
+        return self.agent.mb_policy and self.agent.mb_policy.mb_policy
 
     @property
     def expects_ima_log(self):
-        return self.attestation.agent.ima_policy and self.attestation.agent.ima_policy.ima_policy
+        return (
+            self.agent.ima_policy and
+            self.agent.ima_policy.ima_policy and
+            self.agent.ima_policy.generator and
+            self.agent.ima_policy.generator > ima.RUNTIME_POLICY_GENERATOR.EmptyAllowList
+        )
 
     @property
     def previous_authenticated_tpm_quote(self):
