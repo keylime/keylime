@@ -1,3 +1,4 @@
+import keylime.models.base.associations as associations
 from keylime.models.base.record_set import RecordSet, RecordSetView
 
 
@@ -34,13 +35,35 @@ class AssociatedRecordSet(RecordSet):
             # Remove the association's parent record to the record set of the inverse association
             inverse_record_set.discard(self.parent_record, update_inverse=False)
 
+    def _update_linked_fields(self, record):
+        if not isinstance(self.association, associations.BelongsToAssociation):
+            return
+
+        for field in self.association.parent_model.fields.values():
+            if field.linked_association != self.association.name:
+                continue
+
+            self.parent_record.change(field.name, record.values.get(field.linked_field))
+
+    def _clear_linked_fields(self, record):
+        if not isinstance(self.association, associations.BelongsToAssociation):
+            return
+
+        for field in self.association.parent_model.fields.values():
+            if field.linked_association != self.association.name:
+                continue
+
+            if self.parent_record.values.get(field.name) == record.values.get(field.linked_field):
+                self.parent_record.change(field.name, None)
+
     def add(self, record: "BasicModel", update_inverse: bool = True) -> "AssociatedRecordSet":
         # If the association is a "to-one" association, then its record set should always contain, at most, one
         # record, so clear the set before adding the record
         if self.association.to_one:
-            self.clear()
+            self.clear(update_inverse)
 
         super().add(record)
+        self._update_linked_fields(record)
 
         if update_inverse:
             self._add_to_inverse(record)
@@ -48,17 +71,16 @@ class AssociatedRecordSet(RecordSet):
         return self
 
     def update(self, *others, update_inverse: bool = True) -> "AssociatedRecordSet":
-        super().update(*others)
-
-        if update_inverse:
-            unique_additions = set()
-            unique_additions.update(*others)
-            self._add_to_inverse(*unique_additions)
+        for other in others:
+            for record in other:
+                self.add(record, update_inverse)
 
         return self
 
     def remove(self, record: "BasicModel", update_inverse: bool = True) -> "AssociatedRecordSet":
         super().remove(record)
+        
+        self._clear_linked_fields(record)
 
         if update_inverse:
             self._remove_from_inverse(record)
@@ -68,21 +90,24 @@ class AssociatedRecordSet(RecordSet):
     def discard(self, record: "BasicModel", update_inverse: bool = True) -> "AssociatedRecordSet":
         super().discard(record)
 
+        if record in self:
+            self._clear_linked_fields(record)
+
         if update_inverse:
             self._remove_from_inverse(record)
 
         return self
 
     def pop(self, update_inverse: bool = True) -> "AssociatedRecordSet":
-        record = super().pop()
+        if not self._order or not self:
+            raise KeyError("cannot pop from empty record set")
 
-        if update_inverse:
-            self._remove_from_inverse(record)
-
+        record = self._order.pop()
+        self.remove(record, update_inverse)
         return record
 
     def clear(self, update_inverse: bool = True) -> "AssociatedRecordSet":
-        records = self.to_list()
+        records = self._order.copy()
 
         super().clear()
 
