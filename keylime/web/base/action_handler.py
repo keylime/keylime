@@ -8,7 +8,7 @@ from tornado.web import RequestHandler
 
 from keylime import keylime_logging
 from keylime.web.base.default_controller import DefaultController
-from keylime.web.base.errors import ActionDispatchError, ActionIncompleteError, ActionUndefined, ParamDecodeError
+from keylime.web.base.errors import ActionDispatchError, ActionIncompleteError, ActionUndefined, ParamDecodeError, RequiredContentMissing
 
 if TYPE_CHECKING:
     from keylime.web.base.controller import Controller
@@ -255,9 +255,13 @@ class ActionHandler(RequestHandler):
                 # If the union of path, query, form and JSON parameters and do not match the method signature
                 # of the action, respond using error-handling action
                 await self._invoke_action("action_dispatch_error", ignore_param_errors=True)
+            except RequiredContentMissing:
+                # If a decorator from the Controller class has been used to mark certain content as required for the
+                # action and that content is missing from the request body, respond using error-handling action
+                await self._invoke_action("required_content_missing", ignore_param_errors=True)
             except Exception as err:
-                # Any other exception which is not caught within the action body should be logged as an unexpected error
-                # before responding using error-handling action
+                # Any other exception which is not caught within the action body should be logged as an unexpected
+                # internal error before responding using error-handling action
                 self._log_exception(err)
                 await self._invoke_action("action_exception", ignore_param_errors=True)
 

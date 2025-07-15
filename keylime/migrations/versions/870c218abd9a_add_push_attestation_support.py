@@ -33,7 +33,7 @@ def downgrade_registrar():
 
 def upgrade_cloud_verifier():
     with op.batch_alter_table("verifiermain") as batch_op:
-        batch_op.add_column(sa.Column("accept_attestations", sa.Boolean))
+        batch_op.add_column(sa.Column("accept_attestations", sa.Boolean, nullable=False, server_default=sa.true()))
         batch_op.alter_column("supported_version", nullable=True)
 
     op.create_table(

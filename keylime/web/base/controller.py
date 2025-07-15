@@ -3,11 +3,13 @@ import json
 import re
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, TypeAlias, Union
+from functools import wraps
 
 from tornado.escape import parse_qs_bytes
 from tornado.httputil import parse_body_arguments
 
-from keylime.web.base.errors import ParamDecodeError
+from keylime.web.base.api_messages import APIMessageBody, APIResource
+from keylime.web.base.errors import ParamDecodeError, InvalidMessage, RequiredContentMissing
 
 if TYPE_CHECKING:
     from logging import Logger
@@ -75,6 +77,47 @@ class Controller:
 
     # Regex used to extract the API version from a URL, irrespective of how routes are defined
     VERSION_REGEX = re.compile("^\\/v(\\d+)(?:\\.(\\d+))*")
+
+    # Regex to check if a media type is for JSON documents
+    JSON_MEDIA_TYPE_REGEX = re.compile("^application\\/(?:[a-z-.]+\\+)?json")
+
+    @staticmethod
+    def require_json(func):
+        @wraps(func)  # preserves the name and module of func when introspected
+        def require_json_wrapper(obj: Controller, *args: Any, **kwargs: Any) -> Any:
+            if not isinstance(obj, Controller):
+                raise TypeError(
+                    "the @Controller.require_json_api decorator can only be used on methods of a controller"
+                )
+
+            if not obj.json_params:
+                raise RequiredContentMissing(
+                    f"action '{func.__name__}' in controller '{type(obj).__name__}' requires a JSON document in "
+                    f"the request body and a Content-Type of 'application/json' or which has the '+json' suffix"
+                )
+
+            return func(obj, *args, **kwargs)
+
+        return require_json_wrapper
+
+    @staticmethod
+    def require_json_api(func):
+        @wraps(func)  # preserves the name and module of func when introspected
+        def require_json_api_wrapper(obj: Controller, *args: Any, **kwargs: Any) -> Any:
+            if not isinstance(obj, Controller):
+                raise TypeError(
+                    "the @Controller.require_json_api decorator can only be used on methods of a controller"
+                )
+
+            if not obj.api_request_body:
+                raise RequiredContentMissing(
+                    f"action '{func.__name__}' in controller '{type(obj).__name__}' requires a JSON:API document in "
+                    f"the request body and a Content-Type of 'application/vnd.api+json'"
+                )
+
+            return func(obj, *args, **kwargs)
+
+        return require_json_api_wrapper
 
     @staticmethod
     def decode_url_query(query: str | bytes) -> QueryParams:
@@ -194,6 +237,8 @@ class Controller:
 
     def __init__(self, action_handler: "ActionHandler") -> None:
         self._action_handler: "ActionHandler" = action_handler
+        self._api_request_body = None
+        self._api_response_body = None
         self._path_params: Optional[PathParams] = None
         self._query_params: Optional[QueryParams] = None
         self._form_params: Optional[FormParams] = None
@@ -249,6 +294,7 @@ class Controller:
         code: int = 200,
         status: Optional[str] = None,
         data: Optional[JSONObjectConvertible | JSONArrayConvertible] = None,
+        supress_jsonapi_error = False
     ) -> None:
         """Converts a Python data structure to JSON and wraps it in the following boilerplate JSON object which is
         returned by all v2 endpoints:
@@ -267,6 +313,14 @@ class Controller:
 
         :raises: :class:`TypeError`: A given argument is of an incorrect type
         """
+        # if not supress_jsonapi_error:
+        #     content_type = self.request_headers.get("Content-Type")
+
+        #     if content_type and content_type.startswith("application/vnd.api+json"):
+        #         raise Exception(
+        #             f"controller '{type(self).__class__}' called self.respond() when a JSON:API message is expected in "
+        #             f"response (due to the request having a Content-Type of 'application/vnd.api+json')"
+        #         )
 
         if not status:
             status = http.client.responses[code]
@@ -277,6 +331,45 @@ class Controller:
         response = {"code": code, "status": status, "results": data}
 
         self.send_response(status_code=code, body=response)
+
+    def send_api_response(self, message_body, code=None, status=None):
+        if not isinstance(message_body, APIMessageBody):
+            raise TypeError("message_body must be of type 'APIMessageBody'")
+
+        if not code:
+            code = 201 if self.request_method == "POST" else 200
+        
+        if not status:
+            status = http.client.responses[code]
+
+        self.send_response(code, status, message_body.render(), "application/vnd.api+json")
+
+    def prepare_resource(self, resource_type, resource_data, meta=None, links=None):
+        if not isinstance(resource_data, (APIResource, dict)):
+            raise TypeError("resource_data must be an APIResource or a dict")
+
+        if isinstance(resource_data, dict):
+            resource_id = resource_data.get("id")
+            resource_data = APIResource(resource_type, resource_id, resource_data, links=None, meta=None)
+
+        self.api_response_body.add_resource(resource_data)
+        return resource_data
+
+    def send_resources(self, code=None, status=None, meta=None, links=None):
+        self.api_response_body.check_validity()
+        self.send_api_response(self.api_response_body, code, status)
+
+    def send_resource(self, resource_type, resource_data, meta=None, links=None, code=None, status=None):
+        if self.api_response_body.data:
+            raise ValueError("resources have already been prepared to be sent; use self.send_resources() instead")
+
+        self.prepare_resource(resource_type, resource_data, meta, links)
+        self.send_resources(code, status)
+
+    def send_errors(self, errors, meta=None, links=None, code=None, status=None):
+        message_body = APIMessageBody(None, errors, meta, links)
+        message_body.check_validity()
+        self.send_api_response(message_body, code, status)
 
     def redirect(self, path: str, code: int = 307) -> None:
         """Directs the client to retrieve the requested resource at a different path. Uses a 307 status code by default
@@ -336,16 +429,16 @@ class Controller:
         # pylint: disable=redefined-outer-name, redefined-builtin
 
         if "all" in param_types or len(param_types) == 0:
-            param_types = ("path", "query", "form", "json")
+            param_types = ("path", "query", "form", "json", "api")
 
         params = {}
         failures = []
 
         for param_type in param_types:
-            if param_type not in ("path", "query", "form", "json"):
+            if param_type not in ("path", "query", "form", "json", "api"):
                 raise ValueError(
                     f"Controller.get_params called with '{param_type}' which is not an expected parameter type "
-                    f"(only 'path', 'query', 'form', 'json' and 'all' are allowed)"
+                    f"(only 'path', 'query', 'form', 'json', 'api' and 'all' are allowed)"
                 )
 
             try:
@@ -359,15 +452,55 @@ class Controller:
             list = " and".join(list.rsplit(",", 1))
             raise ParamDecodeError(f"{list} parameters received in the request were malformed")
 
-        return {**params["query"], **params["form"], **params["json"], **params["path"]}
+        return {
+            **params.get("query", {}),
+            **params.get("form", {}),
+            **params.get("json", {}),
+            **params.get("api", {}),
+            **params.get("path", {})
+        }
 
     @property
     def action_handler(self) -> "ActionHandler":
         return self._action_handler
 
     @property
+    def request_method(self) -> str:
+        return self.action_handler.request.method.upper()
+
+    @property
+    def request_headers(self):
+        return self.action_handler.request.headers
+
+        # TEMPORARY WORK-AROUND TO AGENT SENDING JSON CONTENT-TYPE INSTEAD OF JSON:API CONTENT-TYPE
+        # return {
+        #     "Content-Type": "application/vnd.api+json"
+        # }
+
+    @property
     def request_body(self) -> bytes:
         return self.action_handler.request.body
+
+    @property
+    def api_request_body(self):
+        if not self._api_request_body:
+            content_type = self.request_headers.get("Content-Type")
+
+            if content_type and content_type.startswith("application/vnd.api+json"):
+                try:
+                    self._api_request_body = APIMessageBody(**self.json_params)
+                    self._api_request_body.check_validity()
+                except InvalidMessage as err:
+                    raise ParamDecodeError("request body not interpretable as valid JSON:API message") from err
+
+        return self._api_request_body
+
+    @property
+    def api_response_body(self):
+        if not self._api_response_body:
+            self._api_response_body = APIMessageBody()
+
+        return self._api_response_body
 
     @property
     def path(self) -> str:
@@ -406,7 +539,7 @@ class Controller:
         :raises: :class:`ParamDecodeError`: form data is malformed
         """
         if not self._form_params:
-            content_type = self.action_handler.request.headers.get("Content-Type")
+            content_type = self.request_headers.get("Content-Type")
             form_params: Mapping[str, Union[str, bytes, Sequence[str | bytes]]] = {}
 
             if content_type and content_type.startswith("application/x-www-form-urlencoded"):
@@ -427,10 +560,10 @@ class Controller:
         :raises: :class:`ParamDecodeError`: body JSON data is malformed
         """
         if not self._json_params:
-            content_type = self.action_handler.request.headers.get("Content-Type")
+            content_type = self.request_headers.get("Content-Type")
             json_params = {}
 
-            if content_type and content_type.startswith("application/json"):
+            if content_type and Controller.JSON_MEDIA_TYPE_REGEX.match(content_type):
                 try:
                     json_content = json.loads(self.request_body)
                 except json.JSONDecodeError as err:
@@ -445,6 +578,31 @@ class Controller:
             self._json_params = MappingProxyType(json_params)
 
         return self._json_params
+
+    @property
+    def api_params(self) -> JSONObjectConvertible:
+        api_params = {}
+
+        if not self.api_request_body:
+            return api_params
+
+        if self.api_request_body.data and not isinstance(self.api_request_body.data, list):
+            resource_type = self.api_request_body.data.type
+            api_params[resource_type] = self.api_request_body.data.attributes
+
+            if self.api_request_body.data.id:
+                api_params[resource_type]["id"] = self.api_request_body.data.id
+
+            if self.api_request_body.data.meta:
+                api_params[resource_type]["meta"] = self.api_request_body.data.meta
+
+        if self.api_request_body.data:
+            api_params["data"] = self.api_request_body.data.render()
+
+        if self.api_request_body.meta:       
+            api_params["meta"] = self.api_request.meta
+
+        return api_params
 
     @property
     def params(self) -> Params:

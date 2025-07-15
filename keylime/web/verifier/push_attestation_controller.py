@@ -151,6 +151,7 @@ class PushAttestationController(Controller):
     """
 
     # GET /v3[.:minor]/agents/:agent_id/attestations
+    @Controller.require_json_api
     def index(self, agent_id, **_params):
         agent = VerifierAgent.get(agent_id)
 
@@ -160,9 +161,13 @@ class PushAttestationController(Controller):
         
         results = Attestation.all(agent_id=agent_id)
 
-        self.respond(200, "Success", [attestation.render_state() for attestation in results])
+        for attestation in results:
+            self.prepare_resource("attestation", attestation.render_state())
+
+        self.send_resources()
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/:index
+    @Controller.require_json_api
     def show(self, agent_id, index, **_params):
         attestation = Attestation.get(agent_id=agent_id, index=index)
 
@@ -170,9 +175,10 @@ class PushAttestationController(Controller):
             self.respond(404)
             return
 
-        self.respond(200, "Success", attestation.render_state())
+        self.send_resource("attestation", attestation.render_state())
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/latest
+    @Controller.require_json_api
     def show_latest(self, agent_id, **_params):
         latest_attestation = Attestation.get_latest(agent_id)
 
@@ -180,17 +186,18 @@ class PushAttestationController(Controller):
             self.respond(404)
             return
 
-        self.respond(200, "Success", latest_attestation.render_state())
+        self.send_resource("attestation", latest_attestation.render_state())
 
     # POST /v3[.:minor]/agents/:agent_id/attestations
-    def create(self, agent_id, **params):
+    @Controller.require_json_api
+    def create(self, agent_id, attestation, **params):
         agent = VerifierAgent.get(agent_id)
 
         if not agent:
             self.respond(404)
             return
 
-        if agent.accept_attestations is False:
+        if not agent.accept_attestations:
             self.respond(403)
             return
 
@@ -202,16 +209,16 @@ class PushAttestationController(Controller):
             self.respond(429)
             return
 
-        new_attestation = Attestation.create(agent)
-        new_attestation.receive_capabilities(params)
-        EngineDriver(new_attestation).process_capabilities()
+        attestation_record = Attestation.create(agent)
+        attestation_record.receive_capabilities(attestation)
+        EngineDriver(attestation_record).process_capabilities()
 
-        if new_attestation.errors:
-            self.respond(400, "Bad Request", {"errors": new_attestation.errors})
+        if attestation_record.errors:
+            self.respond(400, "Bad Request", {"errors": attestation_record.errors})
             return
 
         try:
-            new_attestation.commit_changes()
+            attestation_record.commit_changes()
         except ValueError:
             # Another attestation for this agent was created while this request is being processed. Reject the request
             # as otherwise the new attestation may be created prior to or shortly after evidence is received and
@@ -222,13 +229,14 @@ class PushAttestationController(Controller):
         # TODO: Re-enable:
         # # The attestation was created successfully, so delete any previous attestation for which evidence was never
         # # received or for which verification never completed
-        # new_attestation.cleanup_stale_priors()
+        # attestation_record.cleanup_stale_priors()
 
-        self.set_header("Location", f"{self.path}/{new_attestation.index}")
-        self.respond(201, "Success", new_attestation.render_evidence_requested())
+        self.set_header("Location", f"{self.path}/{attestation_record.index}")
+        self.send_resource("attestation", attestation_record.render_evidence_requested())
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/:index
-    def update(self, agent_id, index, **params):
+    @Controller.require_json_api
+    def update(self, agent_id, index, attestation, **params):
         latest_attestation = Attestation.get_latest(agent_id)
 
         if not latest_attestation:
@@ -237,44 +245,45 @@ class PushAttestationController(Controller):
 
         # Only allow the attestation at 'index' to be updated if it is the latest attestation
         if latest_attestation.index == index:
-            self.update_latest(agent_id, **params)
+            self.update_latest(agent_id, attestation, **params)
         else:
             self.respond(403)
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/latest
-    def update_latest(self, agent_id, **params):
-        attestation = Attestation.get_latest(agent_id)
+    @Controller.require_json_api
+    def update_latest(self, agent_id, attestation, **params):
+        attestation_record = Attestation.get_latest(agent_id)
 
-        if not attestation:
+        if not attestation_record:
             self.respond(404)
             return
 
-        if attestation.stage != "awaiting_evidence":
+        if attestation_record.stage != "awaiting_evidence":
             self.respond(403)
             return
 
-        if attestation.challenges_expire_at < Timestamp.now():
+        if attestation_record.challenges_expire_at < Timestamp.now():
             self.respond(403)
             return
 
-        attestation.receive_evidence(params)
-        driver = EngineDriver(attestation).process_evidence()
+        attestation_record.receive_evidence(attestation)
+        driver = EngineDriver(attestation_record).process_evidence()
 
-        # attestation will contain errors if the JSON request is malformed/invalid (e.g., if an unrecognised hash
+        # attestation_record will contain errors if the JSON request is malformed/invalid (e.g., if an unrecognised hash
         # algorithm is provided) but not if the quote verification fails
 
-        if attestation.errors:
-            self.respond(400, "Bad Request", {"errors": attestation.errors})
+        if attestation_record.errors:
+            self.respond(400, "Bad Request", {"errors": attestation_record.errors})
             return
 
-        attestation.commit_changes()
+        attestation_record.commit_changes()
 
         # TODO: Move:
         # time_to_next_attestation = attestation.next_attestation_expected_after - Timestamp.now()
         # response = {"time_to_next_attestation": int(time_to_next_attestation.total_seconds())}
         # self.respond(202, "Success", response)
 
-        self.respond(202, "Success", attestation.render_evidence_acknowledged())
+        self.send_resource("attestation", attestation_record.render_evidence_acknowledged(), code=202)
 
         # Verify attestation after response is sent, so the agent does not need to wait for verification to complete
         driver.verify_evidence()

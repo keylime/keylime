@@ -65,7 +65,7 @@ class TPMEngine(VerificationEngine):
                 item.capabilities._add_error("certification_keys", msg)
 
             if any(pcr_bank not in item_hash_algs for pcr_bank in pcr_banks):
-                msg = "may only contain PCR banks compatible a given hash algorithm"
+                msg = "may only contain PCR banks for the given hash algorithms"
                 item.capabilities._add_error("available_subjects", msg)
 
             if not any(pcr_bank in allowable_hash_algs for pcr_bank in pcr_banks):

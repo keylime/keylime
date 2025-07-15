@@ -561,6 +561,7 @@ class AgentsHandler(BaseHandler):
                         "attestation_count": 0,
                         "last_received_quote": 0,
                         "last_successful_attestation": 0,
+                        "accept_attestations": True
                     }
 
                     if "verifier_ip" in json_body:
