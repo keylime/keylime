@@ -128,12 +128,14 @@ class Tenant:
 
         if not self.enable_agent_mtls:
             logger.warning(
-                "Warning: agent mTLS is currently disabled, keys will be sent in the clear! This should only be used for testing."
+                "Warning: agent mTLS is currently disabled, keys will be sent in the clear! "
+                "This should only be used for testing."
             )
 
         if not verify_server_cert:
             logger.warning(
-                "Warning: server certificate verification is disabled as 'trusted_server_ca' option is set to 'all'. This should only be used for testing."
+                "Warning: server certificate verification is disabled as 'trusted_server_ca' option "
+                "is set to 'all'. This should only be used for testing."
             )
 
         if not trusted_ca:
@@ -153,7 +155,13 @@ class Tenant:
             self.trusted_server_ca = trusted_ca
 
             self.tls_context = web_util.generate_tls_context(
-                cert, key, trusted_ca, key_password, verify_server_cert, is_client=True, logger=logger
+                cert,
+                key,
+                trusted_ca,
+                key_password,
+                verify_server_cert,
+                is_client=True,
+                logger=logger,
             )
 
             logger.info("TLS is enabled.")
@@ -524,14 +532,16 @@ class Tenant:
         if failure:
             if self.registrar_data["regcount"] > 1:
                 logger.error(
-                    "WARNING: %s had more than one ek-ekcert registered to it! This might indicate that your system is misconfigured or a malicious host is present. Run 'regdelete' for this agent and restart",
+                    "WARNING: %s had more than one ek-ekcert registered to it! This might indicate that your system "
+                    "is misconfigured or a malicious host is present. Run 'regdelete' for this agent and restart",
                     self.agent_fid_str,
                 )
             return False
 
         if not config.getboolean("tenant", "require_ek_cert") and config.get("tenant", "ek_check_script") == "":
             logger.warning(
-                "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified with ek_check_script option for %s. Keylime is not secure!!",
+                "DANGER: EK cert checking is disabled and no additional checks on EKs have been specified "
+                "with ek_check_script option for %s. Keylime is not secure!!",
                 self.agent_fid_str,
             )
             return True
@@ -724,7 +734,8 @@ class Tenant:
         #            str(response),
         #        )
         raise UserError(
-            f"Status command response: {response.status_code}. Unexpected response from {self.verifier_fid_str} while checking status for {self.agent_fid_str} : {response}"
+            f"Status command response: {response.status_code}. Unexpected response from {self.verifier_fid_str} "
+            f"while checking status for {self.agent_fid_str} : {response}"
         )
 
     def do_cvlist(self) -> Union[requests.Response, Dict[str, Any]]:
@@ -771,7 +782,8 @@ class Tenant:
             return response
 
         raise UserError(
-            f"Status command response: {response.status_code}. Unexpected response from {self.verifier_fid_str} while providing agent list : {response}"
+            f"Status command response: {response.status_code}. Unexpected response from {self.verifier_fid_str} "
+            f"while providing agent list : {response}"
         )
 
     def do_cvbulkinfo(self) -> Dict[str, Any]:
@@ -801,7 +813,8 @@ class Tenant:
             return response_json
 
         raise UserError(
-            f"Status command response: {response.status_code}. Unexpected response from {self.verifier_fid_str} while providing bulk status for all agents : {response}"
+            f"Status command response: {response.status_code}. Unexpected response from {self.verifier_fid_str} "
+            f"while providing bulk status for all agents : {response}"
         )
 
     def do_cvdelete(self, verifier_check: bool = True) -> None:
@@ -917,7 +930,8 @@ class Tenant:
             )
             response = {
                 "code": 404,
-                # Marked for deletion. The "status" field should be replaced by "status": f"{self.agent_fid_str} does not exist on {self.registrar_fid_str}.",
+                # Marked for deletion. The "status" field should be replaced by
+                # "status": f"{self.agent_fid_str} does not exist on {self.registrar_fid_str}.",
                 "status": f"Agent {self.agent_uuid} does not exist on "
                 f"registrar {self.registrar_ip} port {self.registrar_port}.",
                 "results": {},
@@ -925,7 +939,8 @@ class Tenant:
             # should be DEBUG # EVALUATE DELETION
             logger.info(json.dumps(response))
             raise UserError(
-                f"{self.agent_fid_str} does not exist on {self.registrar_fid_str}. Check the agent logs to for error messages while attempting to get registered."
+                f"{self.agent_fid_str} does not exist on {self.registrar_fid_str}. "
+                f"Check the agent logs to for error messages while attempting to get registered."
             )
 
         # Marked for deletion (the "status" line need to be changed to f"registrar {self.registrar_ip} port {self.registrar_port}.")
@@ -1285,7 +1300,8 @@ class Tenant:
 
                 next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
                 logger.info(
-                    "Key derivation not yet complete for %s at try %d/%d (expected length %d, received length %d) trying again in %d seconds... (Ctrl-C to stop)",
+                    "Key derivation not yet complete for %s at try %d/%d (expected length %d, received length %d) "
+                    "trying again in %d seconds... (Ctrl-C to stop)",
                     self.agent_fid_str,
                     numtries,
                     self.maxr,
@@ -1301,9 +1317,11 @@ class Tenant:
         if args.get("runtime_policy_name") is None:
             if args.get("allowlist_name") is not None:
                 logger.warning(
-                    "WARNING: --allowlist-name is deprecated. Use --runtime-policy-name instead."
-                    "Keylime has implemented support for a unified policy format, and will no longer accept separate allow/exclude lists in the near future."
-                    "A conversion script to upgrade legacy allow/exclude lists to the new format is available under keylime/cmd/convert_runtime_policy.py."
+                    "WARNING: --allowlist-name is deprecated. Use --runtime-policy-name instead. "
+                    "Keylime has implemented support for a unified policy format, and will no longer accept "
+                    "separate allow/exclude lists in the near future. "
+                    "A conversion script to upgrade legacy allow/exclude lists to the new format is available "
+                    "under keylime/cmd/convert_runtime_policy.py."
                 )
             else:
                 raise UserError("runtime_policy_name is required to add a runtime policy")
@@ -1531,7 +1549,8 @@ def main() -> None:
         action="store",
         default=None,
         dest="cv_agent_ip",
-        help="the IP address of the host to provision that the verifier will use (optional).  Use only if different than argument to option -t/--targethost",
+        help="the IP address of the host to provision that the verifier will use (optional). "
+        "Use only if different than argument to option -t/--targethost",
     )
     parser.add_argument("-v", "--cv", action="store", dest="verifier_ip", help="the IP address of the cloud verifier")
     parser.add_argument("-vp", "--cvport", action="store", dest="verifier_port", help="the port of the cloud verifier")
@@ -1544,7 +1563,8 @@ def main() -> None:
         action="store_false",
         dest="verifier_check",
         default=True,
-        help="Disable the check to confirm if the agent is being processed by the specified verifier. Use only with -c/--command delete or reactivate",
+        help="Disable the check to confirm if the agent is being processed by the specified verifier. "
+        "Use only with -c/--command delete or reactivate",
     )
     parser.add_argument("-u", "--uuid", action="store", dest="agent_uuid", help="UUID for the agent to provision")
     parser.add_argument(
@@ -1594,42 +1614,52 @@ def main() -> None:
         action="append",
         dest="ima_sign_verification_keys",
         default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify an IMA file signature verification key",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. "
+        "Specify an IMA file signature verification key",
     )
     parser.add_argument(
         "--signature-verification-key-sig",
         action="append",
         dest="ima_sign_verification_key_sigs",
         default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the GPG signature file for an IMA file signature verification key; pair this option with --signature-verification-key",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. "
+        "Specify the GPG signature file for an IMA file signature verification key; "
+        "pair this option with --signature-verification-key",
     )
     parser.add_argument(
         "--signature-verification-key-sig-key",
         action="append",
         dest="ima_sign_verification_key_sig_keys",
         default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the GPG public key file use to validate the --signature-verification-key-sig; pair this option with --signature-verification-key",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. "
+        "Specify the GPG public key file use to validate the --signature-verification-key-sig; "
+        "pair this option with --signature-verification-key",
     )
     parser.add_argument(
         "--signature-verification-key-url",
         action="append",
         dest="ima_sign_verification_key_urls",
         default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the URL for a remote IMA file signature verification key",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. "
+        "Specify the URL for a remote IMA file signature verification key",
     )
     parser.add_argument(
         "--signature-verification-key-sig-url",
         action="append",
         dest="ima_sign_verification_key_sig_urls",
         default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the URL for the remote GPG signature of a remote IMA file signature verification key; pair this option with --signature-verification-key-url",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. "
+        "Specify the URL for the remote GPG signature of a remote IMA file signature verification key; "
+        "pair this option with --signature-verification-key-url",
     )
     parser.add_argument(
         "--signature-verification-key-sig-url-key",
         action="append",
         dest="ima_sign_verification_key_sig_url_keys",
         default=[],
-        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. Specify the GPG public key file used to validate the --signature-verification-key-sig-url; pair this option with --signature-verification-key-url",
+        help="DEPRECATED: Provide verification keys as part of a runtime policy for continued functionality. "
+        "Specify the GPG public key file used to validate the --signature-verification-key-sig-url; "
+        "pair this option with --signature-verification-key-url",
     )
     parser.add_argument(
         "--mb_refstate",
