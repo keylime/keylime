@@ -1,3 +1,4 @@
+import math
 from datetime import timedelta
 
 from keylime import config, keylime_logging
@@ -521,7 +522,8 @@ class LogData(EvidenceData):
     def update(self, data):
         self.cast_changes(data, ["entry_count", "entries"])
 
-        requested_count = self.evidence_item.chosen_parameters.entry_count
+        requested_count = self.evidence_item.chosen_parameters.entry_count or math.inf
+
         msg = f"must be no more than the number of entries requested ({requested_count})"
         self.validate_number("entry_count", ("<=", requested_count), msg=msg)
 
