@@ -402,8 +402,11 @@ class TPMEngine(VerificationEngine):
 
     def _process_tpm_quote_evidence(self):
         self._render_tpm_quote_info()
-
         selected_item = self._select_tpm_quote_item()
+
+        if not selected_item:
+            return
+
         rendered_pcrs = selected_item.data.meta.get("pcrs", {})
 
         for pcr_bank, selected_pcr_nums in selected_item.chosen_parameters.selected_subjects.items():
@@ -419,6 +422,10 @@ class TPMEngine(VerificationEngine):
 
     def _process_ima_log_evidence(self):
         selected_item = self._select_ima_log_item()
+
+        if not selected_item:
+            return
+
         requested_entry_count = selected_item.chosen_parameters.entry_count
 
         selected_item.data.entry_count = selected_item.data.entries.count("\n")
@@ -490,8 +497,9 @@ class TPMEngine(VerificationEngine):
     def _process_results(self, failure):
         ima_log_item = self._select_ima_log_item()
 
-        starting_offset = ima_log_item.chosen_parameters.starting_offset
-        ima_log_item.results.certified_entry_count = self.attest_state.next_ima_ml_entry - starting_offset
+        if ima_log_item:
+            starting_offset = ima_log_item.chosen_parameters.starting_offset
+            ima_log_item.results.certified_entry_count = self.attest_state.next_ima_ml_entry - starting_offset
 
         if not failure: 
             self.attestation.evaluation = "pass"
@@ -526,6 +534,9 @@ class TPMEngine(VerificationEngine):
         uefi_log_item = self._select_uefi_log_item()
         ima_log_item = self._select_ima_log_item()
 
+        ima_entries = ima_log_item.data.entries if ima_log_item else None
+        uefi_entries = uefi_log_item.data.entries if uefi_log_item else None
+
         failure = Failure(Component.QUOTE_VALIDATION)
 
         # Note: there is no need to call self.attest_state.reset_ima_attestation() after reboot as the IMA-relevant
@@ -538,11 +549,11 @@ class TPMEngine(VerificationEngine):
             quote = self._get_pull_mode_quote(tpm_quote_item),
             aikTpmFromRegistrar = self.agent.ak_tpm,
             tpm_policy = self.agent.tpm_policy,
-            ima_measurement_list = ima_log_item.data.entries,
+            ima_measurement_list = ima_entries,
             runtime_policy = self.ima_policy,
             hash_alg = algorithms.Hash(tpm_quote_item.chosen_parameters.hash_algorithm),
             ima_keyrings = self.attest_state.get_ima_keyrings(),
-            mb_measurement_list = uefi_log_item.data.entries,
+            mb_measurement_list = uefi_entries,
             mb_policy = self.uefi_ref_state,
             compressed = False,
             count = self.agent.attestation_count
@@ -639,43 +650,47 @@ class TPMEngine(VerificationEngine):
             self._attest_state.set_boottime(self.attestation.system_info.boot_time)
             self._attest_state.set_ima_dm_state(self.ima_policy.get("dm_policy"))
 
-            # Retrieve keys learned from ima-buf entries received in prior IMA logs
-            if ima_log_item.chosen_parameters.starting_offset != 0:
-                learned_keyrings = file_signatures.ImaKeyrings.from_json(self.agent.learned_ima_keyrings)
-                if learned_keyrings:
-                    self._attest_state.set_ima_keyrings(learned_keyrings)
+            if ima_log_item:
+                # Retrieve keys learned from ima-buf entries received in prior IMA logs
+                if ima_log_item.chosen_parameters.starting_offset != 0:
+                    learned_keyrings = file_signatures.ImaKeyrings.from_json(self.agent.learned_ima_keyrings)
+                    if learned_keyrings:
+                        self._attest_state.set_ima_keyrings(learned_keyrings)
 
-            # Retrieve trusted keys from IMA policy
-            ima_keyrings = self._attest_state.get_ima_keyrings()
-            policy_keys = self.ima_policy["verification-keys"]
-            policy_keyring = file_signatures.ImaKeyring.from_string(policy_keys)
-            ima_keyrings.set_tenant_keyring(policy_keyring)
+                # Retrieve trusted keys from IMA policy
+                ima_keyrings = self._attest_state.get_ima_keyrings()
+                policy_keys = self.ima_policy["verification-keys"]
+                policy_keyring = file_signatures.ImaKeyring.from_string(policy_keys)
+                ima_keyrings.set_tenant_keyring(policy_keyring)
 
-            if self.stage == "verification_complete":
-                certified_count = ima_log_item.results.certified_entry_count
-                received_count = ima_log_item.data.entries_count
-                self._attest_state.quote_progress = (certified_count, received_count)
+                if self.stage == "verification_complete":
+                    certified_count = ima_log_item.results.certified_entry_count
+                    received_count = ima_log_item.data.entries_count
+                    self._attest_state.quote_progress = (certified_count, received_count)
 
         # Attest state values obtained from an attestation can only be trusted if the included TPM quote is found to be
         # genuine. As a result, we only set these values once verification has completed and no authentication failure
         # has occurred
         if self.stage == "verification_complete" and self.failure_reason != "broken_evidence_chain":
-            next_offset = ima_log_item.chosen_parameters.starting_offset + ima_log_item.results.certified_entry_count
+            if ima_log_item:
+                next_offset = ima_log_item.chosen_parameters.starting_offset + ima_log_item.results.certified_entry_count
+                self._attest_state.set_next_ima_ml_entry(next_offset)
 
-            self._attest_state.set_tpm_clockinfo(self._parse_tpm_clock_info(tpm_quote_item))
-            self._attest_state.set_ima_pcrs(self._attest_state_ima_pcrs(tpm_quote_item))
-            self._attest_state.set_next_ima_ml_entry(next_offset)
+            if tpm_quote_item:
+                self._attest_state.set_tpm_clockinfo(self._parse_tpm_clock_info(tpm_quote_item))
+                self._attest_state.set_ima_pcrs(self._attest_state_ima_pcrs(tpm_quote_item))
 
-            # Build embedded TPMState object containing PCR values found in authenticated quote
-            self._attest_state.tpm_state = TPMState()
-            hash_alg = algorithms.Hash(tpm_quote_item.chosen_parameters.hash_algorithm)
-            for num, val in self._attest_state_pcrs(tpm_quote_item).items():  # type: ignore
-                self._attest_state.tpm_state.init_pcr(num, hash_alg)
-                self._attest_state.tpm_state.set_pcr(num, val)
+                # Build embedded TPMState object containing PCR values found in authenticated quote
+                self._attest_state.tpm_state = TPMState()
+                hash_alg = algorithms.Hash(tpm_quote_item.chosen_parameters.hash_algorithm)
+                for num, val in self._attest_state_pcrs(tpm_quote_item).items():  # type: ignore
+                    self._attest_state.tpm_state.init_pcr(num, hash_alg)
+                    self._attest_state.tpm_state.set_pcr(num, val)
         else:
-            # If verification of the attestation has not yet completed, or the quote could not be authenticated, use the
-            # values from the previous authenticated attestation
-            self._attest_state.set_next_ima_ml_entry(ima_log_item.chosen_parameters.starting_offset)
+            if ima_log_item:
+                # If verification of the attestation has not yet completed, or the quote could not be authenticated, use the
+                # values from the previous authenticated attestation
+                self._attest_state.set_next_ima_ml_entry(ima_log_item.chosen_parameters.starting_offset)
 
             if self.previous_authenticated_attestation:
                 clockinfo = self._parse_tpm_clock_info(self.previous_authenticated_tpm_quote)

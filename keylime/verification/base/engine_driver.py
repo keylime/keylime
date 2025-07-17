@@ -145,8 +145,6 @@ class EngineDriver:
     def _commit_verification_results(self):
         affected_records = [self.attestation, self.attestation.evidence, self.attestation.agent]
 
-        print(self.attestation.agent.errors)
-
         with db_manager.session_context_for(*affected_records) as session:
             self.attestation.agent.commit_changes(session)
             self.attestation.commit_changes(session)
