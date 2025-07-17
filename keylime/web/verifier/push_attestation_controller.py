@@ -244,7 +244,7 @@ class PushAttestationController(Controller):
             return
 
         # Only allow the attestation at 'index' to be updated if it is the latest attestation
-        if latest_attestation.index == index:
+        if str(latest_attestation.index) == index:
             self.update_latest(agent_id, attestation, **params)
         else:
             self.respond(403)
