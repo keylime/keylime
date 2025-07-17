@@ -472,11 +472,6 @@ class Controller:
     def request_headers(self):
         return self.action_handler.request.headers
 
-        # TEMPORARY WORK-AROUND TO AGENT SENDING JSON CONTENT-TYPE INSTEAD OF JSON:API CONTENT-TYPE
-        # return {
-        #     "Content-Type": "application/vnd.api+json"
-        # }
-
     @property
     def request_body(self) -> bytes:
         return self.action_handler.request.body
