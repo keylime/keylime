@@ -207,10 +207,16 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             setattr(self._db_mapping_inst, name, field.data_type.db_dump(value, db_manager.engine.dialect))
 
         with db_manager.session_context() as session:
-            session.add(self._db_mapping_inst)
+            # Merge the potentially detached object into the new session
+            merged_instance = session.merge(self._db_mapping_inst)
+            session.add(merged_instance)
+            # Update our reference to the merged instance
+            self._db_mapping_inst = merged_instance  # pylint: disable=attribute-defined-outside-init
 
         self.clear_changes()
 
     def delete(self) -> None:
         with db_manager.session_context() as session:
-            session.delete(self._db_mapping_inst)  # type: ignore[no-untyped-call]
+            # Merge the potentially detached object into the new session before deleting
+            merged_instance = session.merge(self._db_mapping_inst)
+            session.delete(merged_instance)  # type: ignore[no-untyped-call]

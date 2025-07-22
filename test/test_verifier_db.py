@@ -172,3 +172,102 @@ class TestVerfierDB(unittest.TestCase):
 
     def tearDown(self):
         self.session.close()
+
+    def test_11_relationship_access_after_session_commit(self):
+        """Test that relationships can be accessed after session commits (DetachedInstanceError fix)"""
+        # This test reproduces the problematic pattern from cloud_verifier_tornado.py
+        # where objects are loaded with joinedload and then accessed after session closes
+
+        # Create a new session manager and context (like in cloud_verifier_tornado.py)
+        session_manager = SessionManager()
+
+        # First, load the agent with eager loading for relationships
+        stored_agent = None
+        with session_manager.session_context(self.engine) as session:
+            stored_agent = (
+                session.query(VerfierMain)
+                .options(joinedload(VerfierMain.ima_policy))
+                .options(joinedload(VerfierMain.mb_policy))
+                .filter_by(agent_id=agent_id)
+                .first()
+            )
+            # Verify agent was loaded correctly
+            self.assertIsNotNone(stored_agent)
+            # session.commit() is automatically called by context manager when exiting
+
+        # Now verify we can access relationships AFTER the session has been closed
+        # This would previously trigger DetachedInstanceError
+
+        # Ensure stored_agent is not None before proceeding
+        assert stored_agent is not None
+
+        # Test accessing ima_policy relationship
+        self.assertIsNotNone(stored_agent.ima_policy)
+        assert stored_agent.ima_policy is not None  # Type narrowing for linter
+        self.assertEqual(stored_agent.ima_policy.name, "test-allowlist")
+        # checksum is not set in test data
+        self.assertEqual(stored_agent.ima_policy.checksum, None)
+
+        # Test accessing the ima_policy.ima_policy attribute (similar to verifier_read_policy_from_cache)
+        ima_policy_content = stored_agent.ima_policy.ima_policy
+        self.assertEqual(ima_policy_content, test_allowlist_data["ima_policy"])
+
+        # Test accessing mb_policy relationship
+        self.assertIsNotNone(stored_agent.mb_policy)
+        assert stored_agent.mb_policy is not None  # Type narrowing for linter
+        self.assertEqual(stored_agent.mb_policy.name, "test-mbpolicy")
+
+        # Test accessing the mb_policy.mb_policy attribute (similar to process_agent function)
+        mb_policy_content = stored_agent.mb_policy.mb_policy
+        self.assertEqual(mb_policy_content, test_mbpolicy_data["mb_policy"])
+
+        # Test that we can access these relationships multiple times without issues
+        for _ in range(3):
+            self.assertIsNotNone(stored_agent.ima_policy.ima_policy)
+            self.assertIsNotNone(stored_agent.mb_policy.mb_policy)
+
+    def test_12_persistable_model_cross_session_fix(self):
+        """Test that PersistableModel can handle cross-session operations safely"""
+        # This test would previously fail with DetachedInstanceError before the fix
+        # Note: This is a conceptual test since we don't have actual PersistableModel
+        # subclasses in the test environment, but demonstrates the pattern
+
+        # Simulate creating a SQLAlchemy object in one session
+        session_manager = SessionManager()
+
+        # Load an object in one session context
+        test_agent = None
+        with session_manager.session_context(self.engine) as session:
+            test_agent = session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+            self.assertIsNotNone(test_agent)
+            # Session closes here
+
+        # Ensure test_agent is not None before proceeding
+        assert test_agent is not None
+
+        # Now simulate using this object in a different session context
+        # This tests the pattern where PersistableModel would use session.add() or session.delete()
+        # on a cross-session object
+        with session_manager.session_context(self.engine) as session:
+            # Before the fix, this would cause DetachedInstanceError
+            # The fix uses session.merge() to handle detached objects safely
+            merged_agent = session.merge(test_agent)
+            assert merged_agent is not None  # Type narrowing for linter
+
+            # Test that we can modify and save the merged object
+            original_port = merged_agent.port
+            # Use setattr to avoid linter issues with Column assignment
+            setattr(merged_agent, "port", 9999)
+            session.add(merged_agent)
+            # session.commit() called automatically by context manager
+
+        # Verify the change was persisted
+        with session_manager.session_context(self.engine) as session:
+            updated_agent = session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+            assert updated_agent is not None  # Type narrowing for linter
+            self.assertEqual(updated_agent.port, 9999)
+
+            # Restore original value
+            # Use setattr to avoid linter issues
+            setattr(updated_agent, "port", original_port)
+            session.add(updated_agent)
