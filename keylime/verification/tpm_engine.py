@@ -548,7 +548,7 @@ class TPMEngine(VerificationEngine):
             data = None,
             quote = self._get_pull_mode_quote(tpm_quote_item),
             aikTpmFromRegistrar = self.agent.ak_tpm,
-            tpm_policy = self.agent.tpm_policy,
+            tpm_policy = self.agent.get_pcr_policy(tpm_quote_item.chosen_parameters.hash_algorithm),
             ima_measurement_list = ima_entries,
             runtime_policy = self.ima_policy,
             hash_alg = algorithms.Hash(tpm_quote_item.chosen_parameters.hash_algorithm),
