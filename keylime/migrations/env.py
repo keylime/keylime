@@ -8,7 +8,7 @@ import sys
 
 from alembic import context
 
-from keylime.db.keylime_db import DBEngineManager
+from keylime.db.keylime_db import make_engine
 from keylime.db.registrar_db import Base as RegistrarBase
 from keylime.db.verifier_db import Base as VerifierBase
 
@@ -74,7 +74,7 @@ def run_migrations_offline():
         logger.info("Writing output to %s", file_)
 
         with open(file_, "w", encoding="utf-8") as buffer:
-            engine = DBEngineManager().make_engine(name)
+            engine = make_engine(name)
             connection = engine.connect()
             context.configure(
                 connection=connection,
@@ -102,7 +102,7 @@ def run_migrations_online():
     engines = {}
     for name in re.split(r",\s*", db_names):
         engines[name] = rec = {}
-        rec["engine"] = DBEngineManager().make_engine(name)
+        rec["engine"] = make_engine(name)
 
     for name, rec in engines.items():
         engine = rec["engine"]
