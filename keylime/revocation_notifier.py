@@ -18,6 +18,174 @@ broker_proc: Optional[Process] = None
 
 _SOCKET_PATH = "/var/run/keylime/keylime.verifier.ipc"
 
+# Global webhook manager instance (initialized when needed)
+_webhook_manager: Optional["WebhookNotificationManager"] = None
+
+
+class WebhookNotificationManager:
+    """Manages webhook worker threads and graceful shutdown for revocation notifications."""
+
+    def __init__(self) -> None:
+        self._shutdown_event = threading.Event()
+        self._workers: Set[threading.Thread] = set()
+        self._workers_lock = threading.Lock()
+
+    def notify_webhook(self, tosend: Dict[str, Any]) -> None:
+        """Send webhook notification with worker thread management."""
+        url = config.get("verifier", "webhook_url", section="revocations", fallback="")
+        # Check if a url was specified
+        if url == "":
+            return
+
+        # Similarly to notify(), let's convert `tosend' to str to prevent
+        # possible issues with json handling by python-requests.
+        tosend = json.bytes_to_str(tosend)
+
+        def worker_webhook(tosend: Dict[str, Any], url: str) -> None:
+            is_shutdown_mode = False
+            try:
+                interval = config.getfloat("verifier", "retry_interval")
+                exponential_backoff = config.getboolean("verifier", "exponential_backoff")
+
+                max_retries = config.getint("verifier", "max_retries")
+                if max_retries <= 0:
+                    logger.info("Invalid value found in 'max_retries' option for verifier, using default value")
+                    max_retries = 5
+
+                # During shutdown, use fewer retries but still make best effort
+                if self._shutdown_event.is_set():
+                    is_shutdown_mode = True
+                    max_retries = min(max_retries, 3)  # Reduce retries during shutdown but still try
+                    logger.info(
+                        "Shutdown mode: attempting to send critical revocation notification with %d retries",
+                        max_retries,
+                    )
+
+                # Get TLS options from the configuration
+                (cert, key, trusted_ca, key_password), verify_server_cert = web_util.get_tls_options(
+                    "verifier", is_client=True, logger=logger
+                )
+
+                # Generate the TLS context using the obtained options
+                tls_context = web_util.generate_tls_context(
+                    cert, key, trusted_ca, key_password, is_client=True, logger=logger
+                )
+
+                logger.info("Sending revocation event via webhook to %s ...", url)
+                for i in range(max_retries):
+                    next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
+
+                    with RequestsClient(
+                        url,
+                        verify_server_cert,
+                        tls_context,
+                    ) as client:
+                        try:
+                            res = client.post("", json=tosend, timeout=5)
+                        except requests.exceptions.SSLError as ssl_error:
+                            if "TLSV1_ALERT_UNKNOWN_CA" in str(ssl_error):
+                                logger.warning(
+                                    "Keylime does not recognize certificate from peer. Check if verifier 'trusted_server_ca' is configured correctly"
+                                )
+
+                            raise ssl_error from ssl_error
+                        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+                            # During shutdown, only suppress errors on the final attempt after all retries exhausted
+                            if is_shutdown_mode and i == max_retries - 1:
+                                logger.warning(
+                                    "Final attempt to send revocation notification failed during shutdown: %s", e
+                                )
+                                return
+                            # Otherwise, let the retry logic handle it
+                            raise e
+
+                        if res and res.status_code in [200, 202]:
+                            if is_shutdown_mode:
+                                logger.info("Successfully sent revocation notification during shutdown")
+                            break
+
+                        logger.debug(
+                            "Unable to publish revocation message %d times via webhook, "
+                            "trying again in %d seconds. "
+                            "Server returned status code: %s",
+                            i + 1,
+                            next_retry,
+                            res.status_code,
+                        )
+
+                        # During shutdown, use shorter retry intervals to complete faster
+                        if is_shutdown_mode:
+                            next_retry = min(next_retry, 2.0)  # Cap retry interval during shutdown
+
+                        time.sleep(next_retry)
+
+            except Exception as e:
+                # Only suppress errors during final shutdown phase and log appropriately
+                if is_shutdown_mode:
+                    logger.warning("Failed to send revocation notification during shutdown: %s", e)
+                else:
+                    logger.error("Error in webhook worker: %s", e)
+            finally:
+                # Remove this worker from the active set
+                current_thread = threading.current_thread()
+                with self._workers_lock:
+                    self._workers.discard(current_thread)
+
+        w = functools.partial(worker_webhook, tosend, url)
+        t = threading.Thread(target=w, daemon=True)
+
+        # Add this worker to the active set
+        with self._workers_lock:
+            self._workers.add(t)
+
+        t.start()
+
+    def shutdown_workers(self) -> None:
+        """Signal webhook workers to shut down gracefully and wait for them to complete.
+
+        This gives workers time to complete their critical revocation notifications
+        before the service shuts down completely.
+        """
+        logger.info("Shutting down webhook workers gracefully...")
+        self._shutdown_event.set()
+
+        # Give workers generous time to complete critical revocation notifications
+        timeout = 30.0  # Increased timeout for critical security notifications
+        end_time = time.time() + timeout
+
+        with self._workers_lock:
+            workers_to_wait = list(self._workers)
+
+        if workers_to_wait:
+            logger.info("Waiting for %d webhook workers to complete revocation notifications...", len(workers_to_wait))
+
+        for worker in workers_to_wait:
+            remaining_time = max(0, end_time - time.time())
+            if remaining_time > 0:
+                logger.debug(
+                    "Waiting for webhook worker %s to complete (timeout: %.1f seconds)", worker.name, remaining_time
+                )
+                worker.join(timeout=remaining_time)
+                if worker.is_alive():
+                    logger.warning("Webhook worker %s did not complete within timeout", worker.name)
+            else:
+                logger.warning("Timeout exceeded while waiting for webhook workers")
+                break
+
+        # Clean up completed workers
+        with self._workers_lock:
+            self._workers.clear()
+
+        logger.info("Webhook workers shutdown complete")
+
+
+def _get_webhook_manager() -> WebhookNotificationManager:
+    """Get the global webhook manager instance, creating it if needed."""
+    global _webhook_manager
+    if _webhook_manager is None:
+        _webhook_manager = WebhookNotificationManager()
+    return _webhook_manager
+
 
 # return the revocation notification methods for cloud verifier
 def get_notifiers() -> Set[str]:
@@ -83,6 +251,12 @@ def stop_broker() -> None:
             broker_proc.kill()  # pylint: disable=E1101
 
 
+def shutdown_webhook_workers() -> None:
+    """Convenience function to shutdown webhook workers using the global manager."""
+    manager = _get_webhook_manager()
+    manager.shutdown_workers()
+
+
 def notify(tosend: Dict[str, Any]) -> None:
     assert "zeromq" in get_notifiers()
     try:
@@ -127,68 +301,9 @@ def notify(tosend: Dict[str, Any]) -> None:
 
 
 def notify_webhook(tosend: Dict[str, Any]) -> None:
-    url = config.get("verifier", "webhook_url", section="revocations", fallback="")
-    # Check if a url was specified
-    if url == "":
-        return
-
-    # Similarly to notify(), let's convert `tosend' to str to prevent
-    # possible issues with json handling by python-requests.
-    tosend = json.bytes_to_str(tosend)
-
-    def worker_webhook(tosend: Dict[str, Any], url: str) -> None:
-        interval = config.getfloat("verifier", "retry_interval")
-        exponential_backoff = config.getboolean("verifier", "exponential_backoff")
-
-        max_retries = config.getint("verifier", "max_retries")
-        if max_retries <= 0:
-            logger.info("Invalid value found in 'max_retries' option for verifier, using default value")
-            max_retries = 5
-
-        # Get TLS options from the configuration
-        (cert, key, trusted_ca, key_password), verify_server_cert = web_util.get_tls_options(
-            "verifier", is_client=True, logger=logger
-        )
-
-        # Generate the TLS context using the obtained options
-        tls_context = web_util.generate_tls_context(cert, key, trusted_ca, key_password, is_client=True, logger=logger)
-
-        logger.info("Sending revocation event via webhook to %s ...", url)
-        for i in range(max_retries):
-            next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
-
-            with RequestsClient(
-                url,
-                verify_server_cert,
-                tls_context,
-            ) as client:
-                try:
-                    res = client.post("", json=tosend, timeout=5)
-                except requests.exceptions.SSLError as ssl_error:
-                    if "TLSV1_ALERT_UNKNOWN_CA" in str(ssl_error):
-                        logger.warning(
-                            "Keylime does not recognize certificate from peer. Check if verifier 'trusted_server_ca' is configured correctly"
-                        )
-
-                    raise ssl_error from ssl_error
-
-                if res and res.status_code in [200, 202]:
-                    break
-
-                logger.debug(
-                    "Unable to publish revocation message %d times via webhook, "
-                    "trying again in %d seconds. "
-                    "Server returned status code: %s",
-                    i + 1,
-                    next_retry,
-                    res.status_code,
-                )
-
-                time.sleep(next_retry)
-
-    w = functools.partial(worker_webhook, tosend, url)
-    t = threading.Thread(target=w, daemon=True)
-    t.start()
+    """Send webhook notification using the global webhook manager."""
+    manager = _get_webhook_manager()
+    manager.notify_webhook(tosend)
 
 
 cert_key = None
