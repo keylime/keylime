@@ -2058,6 +2058,10 @@ def main() -> None:
             # Stop server to not accept new incoming connections
             server.stop()
 
+            # Gracefully shutdown webhook workers to prevent connection errors
+            if "webhook" in revocation_notifier.get_notifiers():
+                revocation_notifier.shutdown_webhook_workers()
+
             # Wait for all connections to be closed and then stop ioloop
             async def stop() -> None:
                 await server.close_all_connections()
@@ -2085,6 +2089,9 @@ def main() -> None:
     def sig_handler(*_: Any) -> None:
         if run_revocation_notifier:
             revocation_notifier.stop_broker()
+        # Gracefully shutdown webhook workers to prevent connection errors
+        if "webhook" in revocation_notifier.get_notifiers():
+            revocation_notifier.shutdown_webhook_workers()
         for p in processes:
             p.join()
         # Do not call sys.exit(0) here as it interferes with multiprocessing cleanup
