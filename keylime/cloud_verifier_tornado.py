@@ -2087,7 +2087,7 @@ def main() -> None:
             revocation_notifier.stop_broker()
         for p in processes:
             p.join()
-        sys.exit(0)
+        # Do not call sys.exit(0) here as it interferes with multiprocessing cleanup
 
     signal.signal(signal.SIGINT, sig_handler)
     signal.signal(signal.SIGTERM, sig_handler)
@@ -2108,3 +2108,11 @@ def main() -> None:
         process = multiprocessing.Process(target=server_process, args=(task_id, active_agents))
         process.start()
         processes.append(process)
+
+    # Wait for all worker processes to complete
+    try:
+        for p in processes:
+            p.join()
+    except KeyboardInterrupt:
+        # Signal handler will take care of cleanup
+        pass
