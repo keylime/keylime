@@ -461,6 +461,14 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
         return MappingProxyType({**self.committed, **self.changes})
 
     @property
+    def first(self) -> Mapping[str, Any]:
+        values = {**self.committed, **self.changes}
+        for key, value in values.items():
+            if isinstance(value, list):
+                values[key] = values[key][0]
+        return MappingProxyType(values)
+
+    @property
     def errors(self) -> Mapping[str, Sequence[str]]:
         errors = {field: errors for field, errors in self._errors.items() if len(errors) > 0}
         return MappingProxyType(errors)
