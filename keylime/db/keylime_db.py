@@ -32,13 +32,6 @@ def make_engine(service: str, **engine_args: Any) -> Engine:
     else:
         config_service = service
 
-    try:
-        p_sz_m_ovfl = config.get(config_service, "database_pool_sz_ovfl")
-        p_sz, m_ovfl = p_sz_m_ovfl.split(",")
-    except NoOptionError:
-        p_sz = "5"
-        m_ovfl = "10"
-
     url = config.get(config_service, "database_url")
     if url:
         logger.info("database_url is set, using it to establish database connection")
@@ -68,6 +61,19 @@ def make_engine(service: str, **engine_args: Any) -> Engine:
             engine_args["connect_args"] = {"check_same_thread": False}
 
         if not url.count("sqlite:"):
+            # sqlite does not support setting pool size and max overflow, only
+            # read from the config when it is going to be used
+            try:
+                p_sz_m_ovfl = config.get(config_service, "database_pool_sz_ovfl")
+                p_sz, m_ovfl = p_sz_m_ovfl.split(",")
+                logger.info("database_pool_sz_ovfl is set, pool size = %s, max overflow = %s", p_sz, m_ovfl)
+            except NoOptionError:
+                p_sz = "5"
+                m_ovfl = "10"
+                logger.info(
+                    "database_pool_sz_ovfl is not set, using default pool size = %s, max overflow = %s", p_sz, m_ovfl
+                )
+
             engine_args["pool_size"] = int(p_sz)
             engine_args["max_overflow"] = int(m_ovfl)
             engine_args["pool_pre_ping"] = True
