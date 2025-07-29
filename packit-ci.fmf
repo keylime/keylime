@@ -102,6 +102,7 @@ adjust:
      - /regression/CVE-2023-3674
      - /regression/issue-1380-agent-removed-and-re-added
      - /regression/keylime-agent-option-override-through-envvar
+     - /regression/db-connection-leak-reproducer
      - /sanity/keylime-secure_mount
      - /sanity/opened-conf-files
      - /upstream/run_keylime_tests
