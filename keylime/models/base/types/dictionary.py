@@ -69,7 +69,7 @@ class Dictionary(ModelType):
         # Resolving the below pylint warning would negatively impact the readability of this method definition
         # pylint: disable=no-else-return
 
-        if not value:
+        if value is None:
             return None
 
         elif isinstance(value, dict):
@@ -85,18 +85,23 @@ class Dictionary(ModelType):
         elif isinstance(value, str):
             try:
                 dictionary = json.loads(value)
+
+                # Some dictionaries have ended up being serialised to JSON twice before being saved in the database
+                if isinstance(dictionary, str):
+                    dictionary = json.loads(dictionary)
+                    
             except json.JSONDecodeError as err:
-                raise ValueError(f"string value cast to dictionary is not valid JSON: '{value}'") from err
+                raise ValueError(f"string value cast to dictionary is not valid JSON: {repr(value)}") from err
 
             if not isinstance(dictionary, dict):
-                raise ValueError(f"string value cast to dictionary is not a valid JSON object: '{value}'")
+                raise ValueError(f"string value cast to dictionary is not a valid JSON object: {repr(value)}")
 
             return dictionary
 
         else:
             raise TypeError(
                 f"value cast to dictionary is of type '{value.__class__.__name__}' but should either 'str' or "
-                f"'dict': '{value}'"
+                f"'dict': {repr(value)}"
             )
 
     def generate_error_msg(self, _value: IncomingValue) -> str:

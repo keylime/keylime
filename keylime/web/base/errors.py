@@ -40,3 +40,27 @@ class ControllerError(Exception):
 
 class ParamDecodeError(ControllerError):
     pass
+
+
+class RequiredContentMissing(ControllerError):
+    pass
+
+
+class APIMessageError(Exception):
+    pass
+
+
+class InvalidMessage(APIMessageError):
+    pass
+
+
+class UnexpectedMember(InvalidMessage):
+    pass
+
+
+class InvalidMember(InvalidMessage):
+    pass
+
+
+class MultipleResourceAccessError(APIMessageError):
+    pass
