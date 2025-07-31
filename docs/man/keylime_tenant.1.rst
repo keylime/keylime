@@ -20,6 +20,8 @@ SYNOPSIS
 
 **keylime_tenant** [*OPTIONS*] [*COMMAND*]
 
+(Most operations require root privileges, use with sudo)
+
 DESCRIPTION
 ===========
 
@@ -30,6 +32,8 @@ measured boot policies, and interact with Keylime registrar and verifier service
 The tenant can add, delete, update, and monitor agents, as well as manage various types of 
 policies including runtime policies (for IMA/EVM attestation) and measured boot policies 
 (for boot-time attestation). It supports both push and pull models for agent communication.
+
+You can run keylime_tenant on the same system as the Keylime registrar or verifier, or on a separate system.
 
 COMMANDS
 ========
@@ -49,15 +53,15 @@ COMMANDS
    - **reactivate**: Reactivate a failed agent
    - **regdelete**: Delete agent from registrar only
    - **bulkinfo**: Get bulk information about agents
-   - **addruntimepolicy**: Add a runtime policy
-   - **showruntimepolicy**: Display a runtime policy
-   - **deleteruntimepolicy**: Remove a runtime policy
-   - **updateruntimepolicy**: Update a runtime policy
+   - **addruntimepolicy**: Add a runtime policy (requires --runtime-policy or --allowlist)
+   - **showruntimepolicy**: Display a runtime policy (requires --runtime-policy-name)
+   - **deleteruntimepolicy**: Remove a runtime policy (requires --runtime-policy-name)
+   - **updateruntimepolicy**: Update a runtime policy (requires --runtime-policy-name)
    - **listruntimepolicy**: List all runtime policies
-   - **addmbpolicy**: Add a measured boot policy
-   - **showmbpolicy**: Display a measured boot policy
-   - **deletembpolicy**: Remove a measured boot policy
-   - **updatembpolicy**: Update a measured boot policy
+   - **addmbpolicy**: Add a measured boot policy (requires --mb-policy-name)
+   - **showmbpolicy**: Display a measured boot policy (requires --mb-policy-name)
+   - **deletembpolicy**: Remove a measured boot policy (requires --mb-policy-name)
+   - **updatembpolicy**: Update a measured boot policy (requires --mb-policy-name)
    - **listmbpolicy**: List all measured boot policies
 
 OPTIONS
@@ -219,55 +223,71 @@ EXAMPLES
 
 .. code-block:: bash
 
-   keylime_tenant -c add -t 192.168.1.100 -u agent-001
+   sudo keylime_tenant -c add -t 192.168.1.100 -u agent-001
 
 **Add an agent with runtime policy:**
 
 .. code-block:: bash
 
-   keylime_tenant -c add -t 192.168.1.100 -u agent-001 --runtime-policy /path/to/policy.json
+   sudo keylime_tenant -c add -t 192.168.1.100 -u agent-001 --runtime-policy /path/to/policy.json
 
 **Check agent status:**
 
 .. code-block:: bash
 
-   keylime_tenant -c status -u agent-001
+   sudo keylime_tenant -c status -u agent-001
 
 **Delete an agent:**
 
 .. code-block:: bash
 
-   keylime_tenant -c delete -u agent-001
+   sudo keylime_tenant -c delete -u agent-001
 
 **List all agents:**
 
 .. code-block:: bash
 
-   keylime_tenant -c cvlist
+   sudo keylime_tenant -c cvlist
 
 **Add a runtime policy:**
 
 .. code-block:: bash
 
-   keylime_tenant -c addruntimepolicy --runtime-policy-name my-policy --runtime-policy /path/to/policy.json
+   sudo keylime_tenant -c addruntimepolicy --runtime-policy-name my-policy --runtime-policy /path/to/policy.json
 
 **Add a measured boot policy:**
 
 .. code-block:: bash
 
-   keylime_tenant -c addmbpolicy --mb-policy-name my-mb-policy --mb-policy /path/to/mb-policy.json
+   sudo keylime_tenant -c addmbpolicy --mb-policy-name my-mb-policy --mb-policy /path/to/mb-policy.json
 
 **Provision agent with certificate delivery:**
 
 .. code-block:: bash
 
-   keylime_tenant -c add -t 192.168.1.100 -u agent-001 --cert default
+   sudo keylime_tenant -c add -t 192.168.1.100 -u agent-001 --cert default
 
 **Provision agent with custom verifier:**
 
 .. code-block:: bash
 
-   keylime_tenant -c add -t 192.168.1.100 -u agent-001 -v 192.168.1.200 -vp 8881
+   sudo keylime_tenant -c add -t 192.168.1.100 -u agent-001 -v 192.168.1.200 -vp 8881
+
+FILES
+=====
+
+/etc/keylime/tenant.conf
+   Default configuration file for keylime_tenant. Contains all tenant related settings.
+
+
+PREREQUISITES
+=============
+
+- Keylime verifier service running (default: 127.0.0.1:8881)
+- Keylime registrar service running (default: 127.0.0.1:8891)
+- Root privileges (use sudo)
+- Network connectivity to registrar and verifier services
+- Valid TLS configuration in /etc/keylime/tenant.conf
 
 SEE ALSO
 ========
