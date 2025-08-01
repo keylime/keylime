@@ -35,6 +35,12 @@ what the goals of Keylime are and how they are implemented.
    developers
    security
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Manpages:
+
+   man/keylime_tenant.1
+
 Indices and tables
 ==================
 
