@@ -1467,7 +1467,32 @@ class VerifyEvidenceHandler(BaseHandler):
             logger.warning("Failed to parse JSON body POST data: %s", e)
             return
 
-        # get and validate the parameters
+        evidence_type = None
+        data = None
+
+        if "type" in json_body and json_body["type"] != "":
+            evidence_type = json_body["type"]
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'type'")
+            logger.warning("POST returning 400 response. missing query parameter 'type'")
+            return
+
+        if "data" in json_body and json_body["data"] != "":
+            data = json_body["data"]
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'data'")
+            logger.warning("POST returning 400 response. missing query parameter 'data'")
+            return
+
+        if evidence_type == "tpm":
+            self._tpm_verify(data)
+        else:
+            web_util.echo_json_response(self, 400, "invalid evidence type")
+            logger.warning("POST returning 400 response. invalid evidence type")
+            return
+
+
+    def _tpm_verify(self, json_body) -> None:
         quote = None
         nonce = None
         hash_alg = None
