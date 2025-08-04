@@ -47,7 +47,7 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinxcontrib.httpdomain",
     "sphinx_tabs.tabs",
-    "sphinx-prompt",
+    "sphinx_prompt",
     "recommonmark",
     "notfound.extension",
     "sphinxcontrib.bibtex",
@@ -147,7 +147,10 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "keylimedocumentation", "Keylime Documentation Documentation", [author], 1)]
+man_pages = [
+    (master_doc, "keylimedocumentation", "Keylime Documentation Documentation", [author], 1),
+    ("man/keylime_tenant.1", "keylime_tenant", "Keylime tenant management tool", [author], 1),
+]
 
 
 # -- Options for Texinfo output ----------------------------------------------
