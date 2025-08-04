@@ -184,3 +184,12 @@
 2025-07-03 15:42:33: Agent restart successful
 2025-07-03 15:42:37: Status: Get Quote, Attestations: 2
 2025-07-03 15:42:41: Status: Get Quote, Attestations: 4
+2025-08-04 16:44:08: Restarting agent and re-registering...
+2025-08-04 16:44:29: Agent restart failed
+2025-08-04 16:44:47: Performing full system restart...
+2025-08-04 16:45:37: Full restart completed
+2025-08-04 16:45:51: Starting Keylime attestation monitoring...
+2025-08-04 16:45:53: Status: Get Quote, Attestations: 8
+2025-08-04 16:45:53: ✅ Healthy - attestations progressing (8 total)
+2025-08-04 16:45:57: Status: Get Quote, Attestations: 10
+2025-08-04 16:45:57: ✅ Healthy - attestations progressing (10 total)
