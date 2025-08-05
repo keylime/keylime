@@ -1,3 +1,4 @@
+import base64
 import http.client
 import os
 import re
@@ -447,3 +448,13 @@ def _list_to_dict(alist: List[str]) -> Dict[str, Union[str, None]]:
         params[alist[i]] = alist[i + 1] if (i + 1) < len(alist) else None  # FIXME: Can use "" instead?
         i = i + 2
     return params
+
+
+# Decode a URL-safe base64 string that may need to be padded before decoding.
+def urlsafe_nopad_b64decode(encoded_bytes: bytes) -> bytes:
+    # The string may not be padded. If not, add the necessary padding.
+    len_pad = len(encoded_bytes) % 4
+    if len_pad != 0:
+        encoded_bytes += b"=" * (4 - len_pad)
+
+    return base64.urlsafe_b64decode(encoded_bytes)
