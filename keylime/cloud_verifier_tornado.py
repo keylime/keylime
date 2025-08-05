@@ -40,6 +40,7 @@ from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpol
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
 from keylime.mba import mba
+from keylime.decode_cmw import decode_cmw_to_keylimequote
 
 try:
     multiprocessing.set_start_method("fork")
@@ -1705,6 +1706,9 @@ async def invoke_get_quote(
     else:
         try:
             json_response = json.loads(response.body)
+            if agent['supported_version'] == '2.4':
+                json_response['results'] = decode_cmw_to_keylimequote(json_response['results'])
+                # logger.debug(f"FINAL : {json_response}")
 
             # validate the cloud agent response
             if "provide_V" not in agent:
