@@ -40,6 +40,7 @@ from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpol
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
 from keylime.mba import mba
+from keylime.tee import snp
 
 try:
     multiprocessing.set_start_method("fork")
@@ -1486,6 +1487,8 @@ class VerifyEvidenceHandler(BaseHandler):
 
         if evidence_type == "tpm":
             self._tpm_verify(data)
+        elif evidence_type == "snp":
+            self._sev_snp_verify(data)
         else:
             web_util.echo_json_response(self, 400, "invalid evidence type")
             logger.warning("POST returning 400 response. invalid evidence type")
@@ -1578,6 +1581,50 @@ class VerifyEvidenceHandler(BaseHandler):
                 attestation_response["valid"] = 1
 
             # TODO - should we use different error codes for attestation failures even if we processed correctly?
+            web_util.echo_json_response(self, 200, "Success", attestation_response)
+        except Exception as e:
+            web_util.echo_json_response(self, 500, "Internal Server Error: Failed to process attestation data")
+            logger.warning("Failed to process /verify/evidence data: %s", e)
+            return
+
+    def _sev_snp_verify(self, json_body) -> None:
+        report = None
+        gen = None
+
+        if "attestation_report" in json_body and json_body["attestation_report"] != "":
+            string = json_body["attestation_report"]
+            byte = string.encode('ascii')
+            report = base64.b64decode(byte)
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'attestation_report'")
+            logger.warning("POST returning 400 response. missing query parameter 'attestation_report'")
+            return
+
+        if "gen" in json_body and json_body["gen"] != "":
+            gen = json_body["gen"]
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'gen'")
+            logger.warning("POST returning 400 response. missing query parameter 'gen'")
+            return
+
+        try:
+            attestation_failure = snp.verify_attestation(report, gen)
+            attestation_response = {}
+            if attestation_failure:
+                attestation_response["valid"] = 0
+                failures = []
+                for event in attestation_failure.events:
+                    failures.append(
+                        {
+                            "type": event.event_id,
+                            "context": json.loads(event.context),
+                        }
+                    )
+                attestation_response["failures"] = failures
+
+            else:
+                attestation_response["valid"] = 1
+
             web_util.echo_json_response(self, 200, "Success", attestation_response)
         except Exception as e:
             web_util.echo_json_response(self, 500, "Internal Server Error: Failed to process attestation data")
