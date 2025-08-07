@@ -4,6 +4,7 @@ from datetime import timedelta
 from keylime import config, keylime_logging
 from keylime.models.base import *
 import keylime.models.verifier as verifier_models
+from keylime.common import algorithms
 
 logger = keylime_logging.init_logging("verifier")
 
@@ -556,7 +557,11 @@ class CertificationKey(EvidenceModel):
         cls._field("server_identifier", String, nullable=True)
         # A value used by the attester to identify the key, e.g., a TPM key name
         cls._field("local_identifier", OneOf(Binary(persist_as=String), String), nullable=True)
-        # The key material of the public portion of the key (for key pairs only)
+        # An optional restriction on the signature schemes the attester can use to certify data with this key
+        cls._field("allowable_signature_schemes", List, nullable=True)
+        # An optional restriction on the hash algorithms the attester can use to certify data with this key
+        cls._field("allowable_hash_algorithms", List, nullable=True)
+        # The key material of the public portion of the key (for asymmetric keys only)
         cls._field("public", Binary, nullable=True)
 
     @classmethod
@@ -566,20 +571,20 @@ class CertificationKey(EvidenceModel):
         return cert_key
 
     def _check_identifier_presence(self):
-        if self.key_class == "pair" and not (self.server_identifier or self.local_identifier or self.public):
+        if self.key_class == "asymmetric" and not (self.server_identifier or self.local_identifier or self.public):
             self._add_error(
                 "server_identifier",
-                "is required when key_class is 'pair' and neither local_identifier nor public has been provided"
+                "is required when key_class is 'asymmetric' and neither local_identifier nor public has been provided"
             )
 
             self._add_error(
                 "local_identifier",
-                "is required when key_class is 'pair' and neither server_identifier nor public has been provided"
+                "is required when key_class is 'asymmetric' and neither server_identifier nor public has been provided"
             )
 
             self._add_error(
                 "public",
-                "is required when key_class is 'pair' and neither server_identifier nor local_identifier has been"
+                "is required when key_class is 'asymmetric' and neither server_identifier nor local_identifier has been"
                 "provided"
             )
 
@@ -596,17 +601,33 @@ class CertificationKey(EvidenceModel):
 
             self.validate_absence("public", "is not allowable when key_class is 'shared'")
 
+    def _check_scheme_restriction(self):
+        if not self.allowable_signature_schemes or not self.key_algorithm:
+            return
+
+        for scheme in self.allowable_signature_schemes:
+            if not algorithms.Sign.is_recognized(scheme):
+                continue
+            
+            if algorithms.Sign(scheme).key_algorithm != algorithms.Key(self.key_algorithm):
+                self._add_error(
+                    "allowable_signature_schemes",
+                    f"must not contain schemes incompatible with key_algorithm ('{self.key_algorithm}')"
+                )
+                return
+
     def update(self, data):
-        self.cast_changes(
-            data,
-            ["key_class", "key_algorithm", "key_size", "server_identifier", "local_identifier", "public"]
-        )
+        self.cast_changes(data, [
+            "key_class", "key_algorithm", "key_size", "server_identifier", "local_identifier",
+            "allowable_signature_schemes", "allowable_hash_algorithms", "public"
+        ])
 
         self.validate_required(["key_class", "key_size"])
         self._check_identifier_presence()
+        self._check_scheme_restriction()
 
-        if self.key_class == "pair":
-            self.validate_required("key_algorithm", "is required when key_class is 'pair'")
+        if self.key_class == "asymmetric":
+            self.validate_required("key_algorithm", "is required when key_class is 'asymmetric'")
 
     def render(self, only=None):
         if only is None:
@@ -620,6 +641,12 @@ class CertificationKey(EvidenceModel):
 
             if self.local_identifier:
                 only.append("local_identifier")
+
+            if self.allowable_signature_schemes is not None:
+                only.append("allowable_signature_schemes")
+
+            if self.allowable_hash_algorithms is not None:
+                only.append("allowable_hash_algorithms")
 
             if self.public:
                 only.append("public")

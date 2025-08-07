@@ -71,13 +71,13 @@ class Hash(str, enum.Enum):
         return self.value
 
 
-class Encrypt(str, enum.Enum):
+class Key(str, enum.Enum):
     RSA = "rsa"
     ECC = "ecc"
 
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
-        return algorithm in list(Encrypt)
+        return algorithm in list(Key)
 
 
 class Sign(str, enum.Enum):
@@ -90,3 +90,12 @@ class Sign(str, enum.Enum):
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
         return algorithm in list(Sign)
+
+    @property
+    def key_algorithm(self) -> Key:
+        if self.value.startswith("rsa"):
+            return Key("rsa")
+        elif self.value.startswith("ec"):
+            return Key("ecc")
+        else:
+            raise NotImplementedError(f"key algorithm for signature scheme '{self.value}' is not known")

@@ -207,6 +207,15 @@ class RecordSetView:
 
         return new_view
 
+    def revert_if_empty(self):
+        if self._content:
+            return self
+
+        if isinstance(self.parent, RecordSet):
+            return RecordSetView(self.parent)
+        else:
+            return self.parent
+
     def result_if_empty(self, result):
         if not self._fallback:
             self._fallback = result

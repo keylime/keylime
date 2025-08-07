@@ -110,85 +110,139 @@ class TPMEngine(VerificationEngine):
             .result_if_empty("check 'hash_algorithms'")
             .filter(lambda item: any(alg in allowable_hash_algs for alg in item.capabilities.available_subjects.keys()))
             .result_if_empty("check PCR banks in 'available_subjects'")
+            .filter(lambda item: self._certification_key_choices(item))
+            .result_if_empty("check schemes and algorithms in 'certification_keys'")
         )
 
         if isinstance(tpm_quote_items.result(), str):
             tip = tpm_quote_items.result()
-            self._add_error("evidence", f"must have 'tpm_quote' with capabilities which satisfy agent policy ({tip})")
+            self._add_error(
+                "evidence",
+                f"must have 'tpm_quote' with capabilities which are valid and satisfy agent policy ({tip})"
+            )
             return None
 
         return tpm_quote_items.to_list()[0]
 
     def _signature_scheme_choices(self, evidence_item):
-        schemes = []
+        scheme_choices = []
 
         for agent_scheme in self.attestation.agent.accept_tpm_signing_algs:
-            if agent_scheme in evidence_item.capabilities.signature_schemes:
-                schemes.append(agent_scheme)
+            if agent_scheme not in evidence_item.capabilities.signature_schemes:
+                continue
+
+            if not algorithms.Sign.is_recognized(agent_scheme):
+                continue
+
+            if agent_scheme in scheme_choices:
+                continue
+
+            scheme_choices.append(agent_scheme)
         
-        return schemes
+        return scheme_choices
+
+    def _key_algorithm_choices(self, evidence_item):
+        algorithm_choices = []
+
+        for scheme_choice in self._signature_scheme_choices(evidence_item):
+            key_alg = algorithms.Sign(scheme_choice).key_algorithm.value
+
+            if key_alg in algorithm_choices:
+                continue
+
+            algorithm_choices.append(key_alg)
+
+        return algorithm_choices
 
     def _hash_algorithm_choices(self, evidence_item):
-        algorithms = []
+        algorithm_choices = []
 
         for agent_alg in self.attestation.agent.accept_tpm_hash_algs:
-            if agent_alg in evidence_item.capabilities.hash_algorithms:
-                algorithms.append(agent_alg)
+            if agent_alg not in evidence_item.capabilities.hash_algorithms:
+                continue
+
+            if not algorithms.Hash.is_recognized(agent_alg):
+                continue
+
+            if agent_alg in algorithm_choices:
+                continue
+
+            algorithm_choices.append(agent_alg)
         
-        return algorithms
+        return algorithm_choices
 
-    def _select_certification_key(self, evidence_item):
+    def _certification_key_choices(self, evidence_item):
+        # Get schemes and algorithms which are supported by both the certifier and the verifier and enabled for the
+        # agent, ordered according to user-configured priority
         scheme_choices = self._signature_scheme_choices(evidence_item)
+        key_algorithm_choices = self._key_algorithm_choices(evidence_item)
+        hash_algorithm_choices = self._hash_algorithm_choices(evidence_item)
 
+        # Construct set of qualifying certification keys
         cert_keys = (
             evidence_item.capabilities.certification_keys.view()
-            .filter(lambda key: any(scheme.startswith(key.key_algorithm) for scheme in scheme_choices))
+            # A key's key_algorithm must be compatible with one of the possible signature scheme choices
+            .filter(lambda cert_key: cert_key.key_algorithm in key_algorithm_choices)
+            # A key's allowable_signature_schemes (if present) must contain at least one of the possible scheme choices
+            .filter(lambda cert_key: 
+                cert_key.allowable_signature_schemes is None
+                or any(scheme in scheme_choices for scheme in cert_key.allowable_signature_schemes) 
+            )
+            # A key's allowable_hash_algorithms (if present) must contain at least one of the possible algorithm choices
+            # which is also an available PCR bank
+            .filter(lambda cert_key: 
+                cert_key.allowable_hash_algorithms is None
+                or any(
+                    algorithm in hash_algorithm_choices and evidence_item.capabilities.available_subjects.get(algorithm)
+                    for algorithm in cert_key.allowable_hash_algorithms
+                ) 
+            )
+            # Prefer certification keys which have a public key (if present) equal to the ak of the agent
+            .filter(lambda cert_key: cert_key.public == self.attestation.agent.ak_tpm)
+            .revert_if_empty()
+            # Prefer certification keys which are identified as an ak
+            .filter(lambda cert_key: cert_key.server_identifier == "ak")
+            .revert_if_empty()
         )
 
-        if len(cert_keys.result()) > 1:
-            aks = cert_keys.filter(lambda key: key.public == self.attestation.agent.ak_tpm)
+        # Determine sort priority for a given certifcation key according to user-configured scheme/algorithm preferences
+        def sort_priority(cert_key):
+            priority = key_algorithm_choices.index(cert_key.key_algorithm)
 
-            if len(aks.result()) > 0:
-                cert_keys = aks
+            if cert_key.allowable_signature_schemes:
+                priority += next(scheme_choices.index(scheme) for scheme in cert_key.allowable_signature_schemes)
 
-        if len(cert_keys.result()) > 1:
-            aks = cert_keys.filter(lambda key: key.server_identifier == "ak")
+            if cert_key.allowable_hash_algorithms:
+                priority += next(hash_algorithm_choices.index(alg) for alg in cert_key.allowable_hash_algorithms)
 
-            if len(aks.result()) > 0:
-                cert_keys = aks
+            return priority
 
+        # Sort keys according to priority
         cert_keys = cert_keys.to_list()
-        cert_keys.sort(key=lambda k: next(i for i, s in enumerate(scheme_choices) if s.startswith(k.key_algorithm)))
+        cert_keys.sort(key=sort_priority)
+
+        return cert_keys
+
+    def _select_certification_key(self, evidence_item):
+        cert_keys = self._certification_key_choices(evidence_item)
 
         if cert_keys:
             evidence_item.choose_parameters({"certification_key": cert_keys[0]})
 
-    def _select_signature_scheme(self, evidence_item):
-        params = evidence_item.chosen_parameters
-
-        if not params or not params.certification_key:
-            return
-
-        key_alg = params.certification_key.key_algorithm
-        scheme_choices = self._signature_scheme_choices(evidence_item)
-        scheme_choices = [scheme for scheme in scheme_choices if scheme.startswith(key_alg)]
-
-        if scheme_choices:
-            evidence_item.choose_parameters({"signature_scheme": scheme_choices[0]})
-
     def _select_subjects(self, evidence_item):
-        # The PCR banks which may be requested, i.e., the hash algorithms supported by the agent and allowed by policy
+        # The PCR banks which may be requested, i.e., the hash algs supported by the certifier and enabled for the agent
         alg_choices = self._hash_algorithm_choices(evidence_item)
         # The PCR numbers for which the agent can produce quotes, grouped by available PCR bank
         available_subjects = evidence_item.capabilities.available_subjects
         # The PCR numbers for each PCR bank to include in the quote (none to start)
         selected_subjects = {}
+        # Whether at least one suitable PCR bank is identified or not
+        found = False
 
         # For consistent formatting of API responses, sort PCR banks by configured algorithm preference with disallowed
         # banks at the end
         pcr_banks = list(available_subjects.keys())
         pcr_banks.sort(key=lambda pcr_bank: alg_choices.index(pcr_bank) if pcr_bank in alg_choices else math.inf)
-        found = False
 
         # For each PCR bank, select the required PCRs by number (or use None if no PCRs are required for that bank)
         for pcr_bank in pcr_banks:
@@ -210,13 +264,39 @@ class TPMEngine(VerificationEngine):
 
         evidence_item.chosen_parameters.selected_subjects = selected_subjects
 
-    def _select_hash_algorithm(self, evidence_item):
-        for pcr_bank, pcr_nums in evidence_item.chosen_parameters.selected_subjects.items():
-            if pcr_nums is None:
-                continue
-
-            evidence_item.choose_parameters({"hash_algorithm": pcr_bank})
+    def _select_signature_scheme(self, evidence_item):
+        if not evidence_item.chosen_parameters or not evidence_item.chosen_parameters.certification_key:
             return
+
+        cert_key = evidence_item.chosen_parameters.certification_key
+
+        possible_schemes = [
+            scheme
+            for scheme in self._signature_scheme_choices(evidence_item)
+            if algorithms.Sign(scheme).key_algorithm.value == cert_key.key_algorithm
+            and (cert_key.allowable_signature_schemes is None or scheme in cert_key.allowable_signature_schemes)
+        ]
+
+        if possible_schemes:
+            evidence_item.choose_parameters({"signature_scheme": possible_schemes[0]})
+
+    def _select_hash_algorithm(self, evidence_item):
+        params = evidence_item.chosen_parameters
+
+        if not params or not params.certification_key or not params.selected_subjects:
+            return
+
+        cert_key = params.certification_key
+
+        possible_algorithms = [
+            algorithm
+            for algorithm in self._hash_algorithm_choices(evidence_item)
+            if (cert_key.allowable_hash_algorithms is None or algorithm in cert_key.allowable_hash_algorithms)
+            and params.selected_subjects.get(algorithm)
+        ]
+
+        if possible_algorithms:
+            evidence_item.choose_parameters({"hash_algorithm": possible_algorithms[0]})
 
     def _select_uefi_log_item(self):
         if not self.expects_uefi_log:
@@ -473,6 +553,26 @@ class TPMEngine(VerificationEngine):
         for event in failure.events:
             logger.warning("  - %s", event.context)
 
+    def _get_pcr_policy(self, pcr_bank):
+        policy = {}
+        pcr_size = algorithms.Hash(pcr_bank).get_size()
+
+        for pcr_num, allowed_vals in self.agent.tpm_policy.items():
+            if not pcr_num.isdigit():
+                continue
+
+            if not allowed_vals:
+                allowed_vals = []
+
+            if not isinstance(allowed_vals, list):
+                continue
+
+            allowed_vals = [ val.removeprefix("0x") for val in allowed_vals if len(val.removeprefix("0x")) == pcr_size ]
+
+            policy[int(pcr_num)] = allowed_vals
+
+        return policy
+
     def _clear_agent_fields(self):
         if self.previous_authenticated_attestation:
             return
@@ -548,7 +648,7 @@ class TPMEngine(VerificationEngine):
             data = None,
             quote = self._get_pull_mode_quote(tpm_quote_item),
             aikTpmFromRegistrar = self.agent.ak_tpm,
-            tpm_policy = self.agent.get_pcr_policy(tpm_quote_item.chosen_parameters.hash_algorithm),
+            tpm_policy = self._get_pcr_policy(tpm_quote_item.chosen_parameters.hash_algorithm),
             ima_measurement_list = ima_entries,
             runtime_policy = self.ima_policy,
             hash_alg = algorithms.Hash(tpm_quote_item.chosen_parameters.hash_algorithm),
@@ -591,22 +691,18 @@ class TPMEngine(VerificationEngine):
 
     @property
     def required_pcr_nums(self):
-        pcr_selection = set()
-        tpm_policy = self.agent.tpm_policy.copy() or {}
+        # Get PCRs with list of allowable values in tpm_policy
+        pcrs = { int(num) for num, allowed_vals in self.agent.tpm_policy.items() if num.isdigit() and allowed_vals }
 
-        if "mask" in tpm_policy:
-            del tpm_policy["mask"]
-
-        lockdown_pcrs = [int(pcr) for pcr in tpm_policy.keys()]
-        pcr_selection.update(lockdown_pcrs)
-
+        # Add UEFI log PCRs
         if self.expects_uefi_log:
-            pcr_selection.update(config.MEASUREDBOOT_PCRS)
+            pcrs.update(config.MEASUREDBOOT_PCRS)
 
+        # Add IMA PCR
         if self.expects_ima_log:
-            pcr_selection.add(config.IMA_PCR)
+            pcrs.add(config.IMA_PCR)
 
-        return sorted(list(pcr_selection))
+        return sorted(list(pcrs))
 
     @property
     def expects_tpm_quote(self):
