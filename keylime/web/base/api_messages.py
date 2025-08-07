@@ -106,8 +106,8 @@ class APIMessageBody:
         self._data = None
 
     def add_meta(self, field, value):
-        if not APIMessageBody.is_valid_name(type):
-            raise InvalidMember("field name added to JSON:API 'meta' member is not valid")
+        if not APIMessageBody.is_valid_name(field):
+            raise InvalidMember(f"field name '{field}' added to JSON:API 'meta' member is not valid")
 
         if not isinstance(value, (dict, list, tuple, str, int, float, bool)) and not None:
             raise InvalidMember("value added to JSON:API 'meta' member is not serialisable to JSON")
@@ -124,7 +124,7 @@ class APIMessageBody:
         del self._meta[field]
 
     def set_meta(self, meta):
-        if not isinstance(data, dict):
+        if not isinstance(meta, dict):
             raise InvalidMember("the JSON:API 'meta' member must be serialisable to a JSON object")
 
         self._meta = {}

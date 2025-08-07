@@ -497,8 +497,6 @@ class CertificationData(EvidenceData):
         self.validate_required("signature")
 
     def render(self, only=None):
-        output = super().render(only)
-
         if only is None:
             only = ["message", "signature"]
 
@@ -508,9 +506,7 @@ class CertificationData(EvidenceData):
             if self.meta:
                 only.append("meta")
 
-            output |= super().render(only)
-
-        return output
+        return super().render(only)
 
 class LogData(EvidenceData):
     @classmethod
@@ -529,8 +525,6 @@ class LogData(EvidenceData):
         self.validate_number("entry_count", ("<=", requested_count), msg=msg)
 
     def render(self, only=None):
-        output = super().render(only)
-
         if only is None:
             only = ["entries"]
 
@@ -540,9 +534,7 @@ class LogData(EvidenceData):
             if self.meta:
                 only.append("meta")
 
-            output |= super().render(only)
-
-        return output
+        return super().render(only)
 
 class CertificationKey(EvidenceModel):
     @classmethod
@@ -688,14 +680,13 @@ class LogResults(Results):
         super()._schema()
 
     def render(self, only=None):
-        output = super().render(only)
-
         if only is None:
             only = []
 
             if self.certified_entry_count:
                 only.append("certified_entry_count")
 
-            output |= super().render(only)
+            if self.meta:
+                only.append("meta")
 
-        return output
+        return super().render(only)

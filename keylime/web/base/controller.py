@@ -355,7 +355,13 @@ class Controller:
         self.api_response_body.add_resource(resource_data)
         return resource_data
 
-    def send_resources(self, code=None, status=None, meta=None, links=None):
+    def send_resources(self, meta=None, links=None, code=None, status=None):
+        if meta:
+            self.api_response_body.set_meta(meta)
+
+        if links:
+            self.api_response_body.set_links(links)
+            
         self.api_response_body.check_validity()
         self.send_api_response(self.api_response_body, code, status)
 
@@ -363,8 +369,8 @@ class Controller:
         if self.api_response_body.data:
             raise ValueError("resources have already been prepared to be sent; use self.send_resources() instead")
 
-        self.prepare_resource(resource_type, resource_data, meta, links)
-        self.send_resources(code, status)
+        self.prepare_resource(resource_type, resource_data)
+        self.send_resources(meta, links, code, status)
 
     def send_errors(self, errors, meta=None, links=None, code=None, status=None):
         message_body = APIMessageBody(None, errors, meta, links)

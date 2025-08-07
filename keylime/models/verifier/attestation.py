@@ -344,6 +344,11 @@ class Attestation(PersistableModel):
             return self.capabilities_received_at
 
     @property
+    def seconds_to_next_attestation(self):
+        time_to_next_attestation = self.next_attestation_expected_after - Timestamp.now()
+        return round(time_to_next_attestation.total_seconds())
+
+    @property
     def decision_expected_by(self):
         if self.evidence_received_at:
             basis = self.evidence_received_at

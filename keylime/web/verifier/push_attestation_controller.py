@@ -278,12 +278,8 @@ class PushAttestationController(Controller):
 
         attestation_record.commit_changes()
 
-        # TODO: Move:
-        # time_to_next_attestation = attestation.next_attestation_expected_after - Timestamp.now()
-        # response = {"time_to_next_attestation": int(time_to_next_attestation.total_seconds())}
-        # self.respond(202, "Success", response)
-
-        self.send_resource("attestation", attestation_record.render_evidence_acknowledged(), code=202)
+        meta = {"seconds_to_next_attestation": attestation_record.seconds_to_next_attestation}
+        self.send_resource("attestation", attestation_record.render_evidence_acknowledged(), meta, code=202)
 
         # Verify attestation after response is sent, so the agent does not need to wait for verification to complete
         driver.verify_evidence()
