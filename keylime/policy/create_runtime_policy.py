@@ -327,7 +327,7 @@ def process_ima_sig_ima_ng_line(line: str) -> Tuple[str, str, str, bool]:
             return ret
 
         # Check that the length of the digest matches the expected length
-        if len(csum) != algorithms.Hash(alg).hexdigest_len():
+        if len(csum) != algorithms.Hash(alg).get_hex_size():
             return ret
 
     # Old "ima" template.
@@ -820,7 +820,7 @@ def process_signature_verification_keys(verification_keys: List[str], policy: Ru
 def _get_digest_algorithm_from_hex(hexstring: str) -> str:
     """Try to identify the algorithm used to generate the provided value by length"""
     for alg in list(algorithms.Hash):
-        if len(hexstring) == algorithms.Hash(alg).hexdigest_len():
+        if len(hexstring) == algorithms.Hash(alg).get_hex_size():
             return str(alg)
     return INVALID_ALGORITHM
 

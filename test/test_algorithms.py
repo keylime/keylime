@@ -53,7 +53,7 @@ class TestHash(unittest.TestCase):
         for c in test_cases:
             self.assertEqual(Hash.is_recognized(c["hash"]), c["valid"])
 
-    def test_hexdigest_len(self):
+    def test_get_hex_size(self):
         test_cases = [
             {"hash": "sha1", "len": 40},
             {"hash": "sha256", "len": 64},
@@ -66,7 +66,7 @@ class TestHash(unittest.TestCase):
         ]
 
         for c in test_cases:
-            self.assertEqual(Hash(c["hash"]).hexdigest_len(), c["len"])
+            self.assertEqual(Hash(c["hash"]).get_hex_size(), c["len"])
 
     def test_file_digest(self):
         contents = "x" * (1024 * 1024)

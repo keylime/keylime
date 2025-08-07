@@ -39,14 +39,14 @@ class Hash(str, enum.Enum):
     def get_size(self) -> int:
         return cast(int, self.__hashfn(b"").digest_size * 8)
 
+    def get_hex_size(self) -> int:
+        return len(self.__hashfn(b"").hexdigest())
+
     def get_start_hash(self) -> bytes:
         return b"\x00" * (self.get_size() // 8)
 
     def get_ff_hash(self) -> bytes:
         return b"\xff" * (self.get_size() // 8)
-
-    def hexdigest_len(self) -> int:
-        return len(self.__hashfn(b"").hexdigest())
 
     def file_digest(self, filepath: str) -> str:
         """

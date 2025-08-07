@@ -555,7 +555,7 @@ class TPMEngine(VerificationEngine):
 
     def _get_pcr_policy(self, pcr_bank):
         policy = {}
-        pcr_size = algorithms.Hash(pcr_bank).get_size()
+        pcr_size = algorithms.Hash(pcr_bank).get_hex_size()
 
         for pcr_num, allowed_vals in self.agent.tpm_policy.items():
             if not pcr_num.isdigit():
