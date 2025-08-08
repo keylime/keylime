@@ -93,6 +93,35 @@ def get_keys(events: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
     return out
 
 
+def get_vendor_db(events: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
+    """Get vendor_db signatures from EV_EFI_VARIABLE_AUTHORITY events."""
+    out: Dict[str, List[Any]] = {"vendor_db": []}
+
+    for event in events:
+        if "EventType" not in event:
+            continue
+        if event["EventType"] != "EV_EFI_VARIABLE_AUTHORITY":
+            continue
+        if "Event" not in event or "UnicodeName" not in event["Event"]:
+            continue
+
+        event_name = event["Event"]["UnicodeName"].lower()
+        if event_name == "vendor_db":
+            data = None
+            if "VariableData" in event["Event"]:
+                data = event["Event"]["VariableData"]
+
+            if data is not None:
+                # VariableData for EV_EFI_VARIABLE_AUTHORITY is a list of signatures
+                for entry in data:
+                    if "SignatureOwner" in entry and "SignatureData" in entry:
+                        out["vendor_db"].append(
+                            {"SignatureOwner": entry["SignatureOwner"], "SignatureData": f"0x{entry['SignatureData']}"}
+                        )
+
+    return out
+
+
 def get_kernel(events: List[Dict[str, Any]], secure_boot: bool) -> Dict[str, List[Dict[str, Any]]]:
     """Extract digest for Shim, Grub, Linux Kernel and initrd."""
     out = []
@@ -259,6 +288,7 @@ def create_mb_refstate(args: argparse.Namespace) -> Optional[Dict[str, object]]:
             }
         ],
         **get_keys(events),
+        **get_vendor_db(events),
         **get_mok(events),
         **get_kernel(events, has_secureboot),
     }
