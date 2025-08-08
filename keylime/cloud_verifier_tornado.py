@@ -40,6 +40,7 @@ from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpol
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
 from keylime.mba import mba
+from keylime.tee import snp
 
 try:
     multiprocessing.set_start_method("fork")
@@ -1467,7 +1468,54 @@ class VerifyEvidenceHandler(BaseHandler):
             logger.warning("Failed to parse JSON body POST data: %s", e)
             return
 
-        # get and validate the parameters
+        evidence_type = None
+        data = None
+
+        if "type" in json_body and json_body["type"] != "":
+            evidence_type = json_body["type"]
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'type'")
+            logger.warning("POST returning 400 response. missing query parameter 'type'")
+            return
+
+        if "data" in json_body and json_body["data"] != "":
+            data = json_body["data"]
+        else:
+            web_util.echo_json_response(self, 400, "missing parameter 'data'")
+            logger.warning("POST returning 400 response. missing query parameter 'data'")
+            return
+
+        try:
+            if evidence_type == "tpm":
+                attestation_failure = self._tpm_verify(data)
+            elif evidence_type == "sev_snp":
+                attestation_failure = self._sev_snp_verify(data)
+            else:
+                web_util.echo_json_response(self, 400, "invalid evidence type")
+                logger.warning("POST returning 400 response. invalid evidence type")
+                return
+
+            attestation_response = {}
+            if attestation_failure:
+                attestation_response["valid"] = 0
+                failures = []
+                for event in attestation_failure.events:
+                    failures.append(
+                        {
+                            "type": event.event_id,
+                            "context": json.loads(event.context),
+                        }
+                    )
+                attestation_response["failures"] = failures
+
+            else:
+                attestation_response["valid"] = 1
+            # TODO - should we use different error codes for attestation failures even if we processed correctly?
+            web_util.echo_json_response(self, 200, "Success", attestation_response)
+        except Exception:
+            web_util.echo_json_response(self, 500, "Internal Server Error: Failed to process attestation data")
+
+    def _tpm_verify(self, json_body) -> Failure:
         quote = None
         nonce = None
         hash_alg = None
@@ -1479,40 +1527,42 @@ class VerifyEvidenceHandler(BaseHandler):
         ima_measurement_list = ""
         mb_log = ""
 
+        failure = Failure(Component.DEFAULT)
+
         if "quote" in json_body and json_body["quote"] != "":
             quote = json_body["quote"]
         else:
-            web_util.echo_json_response(self, 400, "missing parameter 'quote'")
+            failure.add_event("missing_param", {"message": "missing parameter \"quote\""}, False)
             logger.warning("POST returning 400 response. missing query parameter 'quote'")
-            return
+            return failure
 
         if "nonce" in json_body and json_body["nonce"] != "":
             nonce = json_body["nonce"]
         else:
-            web_util.echo_json_response(self, 400, "missing parameter 'nonce'")
+            failure.add_event("missing_param", {"message": "missing parameter \"nonce\""}, False)
             logger.warning("POST returning 400 response. missing query parameter 'nonce'")
-            return
+            return failure
 
         if "hash_alg" in json_body and json_body["hash_alg"] != "":
             hash_alg = json_body["hash_alg"]
         else:
-            web_util.echo_json_response(self, 400, "missing parameter 'hash_alg'")
+            failure.add_event("missing_param", {"message": "missing parameter \"hash_alg\""}, False)
             logger.warning("POST returning 400 response. missing query parameter 'hash_alg'")
-            return
+            return failure
 
         if "tpm_ek" in json_body and json_body["tpm_ek"] != "":
             tpm_ek = json_body["tpm_ek"]
         else:
-            web_util.echo_json_response(self, 400, "missing parameter 'tpm_ek'")
+            failure.add_event("missing_param", {"message": "missing parameter \"tpm_ek\""}, False)
             logger.warning("POST returning 400 response. missing query parameter 'tpm_ek'")
-            return
+            return failure
 
         if "tpm_ak" in json_body and json_body["tpm_ak"] != "":
             tpm_ak = json_body["tpm_ak"]
         else:
-            web_util.echo_json_response(self, 400, "missing parameter 'tpm_ak'")
+            failure.add_event("missing_param", {"message": "missing parameter \"tpm_ak\""}, False)
             logger.warning("POST returning 400 response. missing query parameter 'tpm_ak'")
-            return
+            return failure
 
         if "tpm_policy" in json_body and json_body["tpm_policy"] != "":
             tpm_policy = json_body["tpm_policy"]
@@ -1533,31 +1583,44 @@ class VerifyEvidenceHandler(BaseHandler):
         try:
             # TODO - provide better error handling around bad runtime policy
             policy_obj = ima.deserialize_runtime_policy(runtime_policy)
-            attestation_failure = cloud_verifier_common.process_verify_attestation(
+            failure = cloud_verifier_common.process_verify_attestation(
                 tpm_ek, tpm_ak, quote, nonce, hash_alg, tpm_policy, policy_obj, mb_policy, ima_measurement_list, mb_log
             )
 
-            attestation_response: Dict[str, Any] = {}
-            if attestation_failure:
-                attestation_response["valid"] = 0
-                failures = []
-                for event in attestation_failure.events:
-                    failures.append(
-                        {
-                            "type": event.event_id,
-                            "context": json.loads(event.context),
-                        }
-                    )
-                attestation_response["failures"] = failures
-            else:
-                attestation_response["valid"] = 1
-
-            # TODO - should we use different error codes for attestation failures even if we processed correctly?
-            web_util.echo_json_response(self, 200, "Success", attestation_response)
+            return failure
         except Exception as e:
-            web_util.echo_json_response(self, 500, "Internal Server Error: Failed to process attestation data")
-            logger.warning("Failed to process /verify/evidence data: %s", e)
-            return
+            logger.warning("Failed to process /verify/evidence data in TPM verifier: %s", e)
+            raise
+
+    def _sev_snp_verify(self, json_body) -> Failure:
+        report = None
+        nonce = None
+
+        failure = Failure(Component.DEFAULT)
+
+        if "attestation_report" in json_body and json_body["attestation_report"] != "":
+            string = json_body["attestation_report"]
+            byte = string.encode('ascii')
+            report = base64.b64decode(byte)
+        else:
+            failure.add_event("missing_param", {"message": "missing parameter \"attestation_report\""}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'attestation_report'")
+            return failure
+
+        if "nonce" in json_body and json_body["nonce"] != "":
+            nonce = json_body["nonce"]
+        else:
+            failure.add_event("missing_param", {"message": "missing parameter \"nonce\""}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'nonce'")
+            return failure
+
+        try:
+            failure = snp.verify_attestation(report, nonce)
+
+            return failure
+        except Exception as e:
+            logger.warning("Failed to process /verify/evidence data in SEV-SNP verifier: %s", e)
+            raise
 
 
 async def update_agent_api_version(agent: Dict[str, Any], timeout: float = 60.0) -> Union[Dict[str, Any], None]:
