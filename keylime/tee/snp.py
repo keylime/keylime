@@ -10,7 +10,7 @@ from keylime.failure import Component, Failure
 
 
 # Verify that a SEV-SNP attestation report is verified by a VEK.
-def verify_attestation(report: bytes, gen: str) -> Failure:
+def verify_attestation(report: bytes, gen: str, nonce: str) -> Failure:
     failure = Failure(Component.TEE)
 
     if gen not in ("Milan", "Genoa"):

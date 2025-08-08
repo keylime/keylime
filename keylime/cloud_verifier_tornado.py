@@ -1595,6 +1595,7 @@ class VerifyEvidenceHandler(BaseHandler):
     def _sev_snp_verify(self, json_body) -> Failure:
         report = None
         gen = None
+        nonce = None
 
         failure = Failure(Component.DEFAULT)
 
@@ -1614,8 +1615,15 @@ class VerifyEvidenceHandler(BaseHandler):
             logger.warning("POST returning 400 response. missing query parameter 'gen'")
             return failure
 
+        if "nonce" in json_body and json_body["nonce"] != "":
+            nonce = json_body["nonce"]
+        else:
+            failure.add_event("missing_param", {"message": "missing parameter \"nonce\""}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'nonce'")
+            return failure
+
         try:
-            failure = snp.verify_attestation(report, gen)
+            failure = snp.verify_attestation(report, gen, nonce)
 
             return failure
         except Exception as e:
