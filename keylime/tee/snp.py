@@ -10,16 +10,8 @@ from keylime.failure import Component, Failure
 
 
 # Verify that a SEV-SNP attestation report is verified by a VEK.
-def verify_attestation(report: bytes, gen: str, nonce: str) -> Failure:
+def verify_attestation(report: bytes, nonce: str) -> Failure:
     failure = Failure(Component.TEE)
-
-    if gen not in ("Milan", "Genoa"):
-        failure.add_event(
-            "invalid_generation",
-            {"message": f"invalid SEV-SNP processor generation: {gen}", "data": gen},
-            False,
-        )
-        return failure
 
     reported_tcb = report[0x180:0x188]
 
@@ -30,7 +22,7 @@ def verify_attestation(report: bytes, gen: str, nonce: str) -> Failure:
     ucode = str(reported_tcb[7]).zfill(2)
 
     vcek_url = "https://kdsintf.amd.com/vcek/v1/"
-    vcek_url += gen + "/"
+    vcek_url += "Milan/"
     vcek_url += hw_id + "?"
     vcek_url += "blSPL=" + bl
     vcek_url += "&teeSPL=" + tee
