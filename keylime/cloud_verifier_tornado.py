@@ -1594,7 +1594,9 @@ class VerifyEvidenceHandler(BaseHandler):
 
     def _sev_snp_verify(self, json_body) -> Failure:
         report = None
-        gen = None
+        nonce = None
+        tee_pubkey_x = None
+        tee_pubkey_y = None
 
         failure = Failure(Component.DEFAULT)
 
@@ -1607,15 +1609,35 @@ class VerifyEvidenceHandler(BaseHandler):
             logger.warning("POST returning 400 response. missing query parameter 'attestation_report'")
             return failure
 
-        if "gen" in json_body and json_body["gen"] != "":
-            gen = json_body["gen"]
+        if "nonce" in json_body and json_body["nonce"] != "":
+            string = json_body["nonce"]
+            byte = string.encode('ascii')
+            nonce = base64.b64decode(byte)
         else:
-            failure.add_event("missing_param", {"message": "missing parameter \"gen\""}, False)
-            logger.warning("POST returning 400 response. missing query parameter 'gen'")
+            failure.add_event("missing_param", {"message": "missing parameter \"nonce\""}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'nonce'")
+            return failure
+
+        if "tee_pubkey_x_b64" in json_body and json_body["tee_pubkey_x_b64"] != "":
+            string = json_body["tee_pubkey_x_b64"]
+            byte = string.encode('ascii')
+            tee_pubkey_x = base64.b64decode(byte)
+        else:
+            failure.add_event("missing_param", {"message": "missing parameter \"tee_pubkey_x_b64\""}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'tee_pubkey_x_b64'")
+            return failure
+
+        if "tee_pubkey_y_b64" in json_body and json_body["tee_pubkey_y_b64"] != "":
+            string = json_body["tee_pubkey_y_b64"]
+            byte = string.encode('ascii')
+            tee_pubkey_y = base64.b64decode(byte)
+        else:
+            failure.add_event("missing_param", {"message": "missing parameter \"tee_pubkey_y_b64\""}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'tee_pubkey_y_b64'")
             return failure
 
         try:
-            failure = snp.verify_attestation(report, gen)
+            failure = snp.verify_attestation(report, nonce, tee_pubkey_x, tee_pubkey_y)
 
             return failure
         except Exception as e:
