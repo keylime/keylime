@@ -21,6 +21,7 @@ from . import policies, tests
 # kek - list of allowed KEK keys
 # db - list of allowed db keys
 # dbx - list of required dbx keys
+# vendor_db - list of allowed vendor_db keys (optional, for newer shim versions)
 # mokdig - list of allowed digests of MoKList (PCR 14 EV_IPL)
 # mokxdig - list of allowed digests of MoKListX (PCR 14 EV_IPL)
 # kernels - list of allowed {
@@ -121,6 +122,10 @@ class Example(policies.Policy):
             if req not in refstate:
                 raise Exception(f"refstate lacks {req}")
 
+        # vendor_db is optional for backward compatibility
+        if "vendor_db" not in refstate:
+            refstate["vendor_db"] = []
+
         dispatcher = tests.Dispatcher(("PCRIndex", "EventType"))
         vd_driver_config = tests.VariableDispatch()
         vd_authority = tests.VariableDispatch()
@@ -185,6 +190,7 @@ class Example(policies.Policy):
         # We only expect one EV_NO_ACTION event at the start.
         dispatcher.set((0, "EV_NO_ACTION"), tests.OnceTest(tests.AcceptAll()))
         dispatcher.set((1, "EV_CPU_MICROCODE"), tests.OnceTest(tests.AcceptAll()))
+        dispatcher.set((1, "EV_EFI_HANDOFF_TABLES"), tests.OnceTest(tests.AcceptAll()))
         dispatcher.set((1, "EV_EFI_HANDOFF_TABLES2"), tests.OnceTest(tests.AcceptAll()))
         dispatcher.set((0, "EV_S_CRTM_VERSION"), events_final.get("s_crtms"))
         dispatcher.set((0, "EV_EFI_PLATFORM_FIRMWARE_BLOB"), events_final.get("platform_firmware_blobs"))
@@ -267,6 +273,34 @@ class Example(policies.Policy):
             "db",
             db_test,
         )
+        # Support vendor_db as logged by newer shim versions
+        # See: https://github.com/rhboot/shim/pull/728
+        if not has_secureboot and not refstate["vendor_db"]:
+            vendor_db_test = tests.OnceTest(tests.AcceptAll())
+        else:
+            vendor_db_test = tests.OnceTest(
+                tests.Or(
+                    tests.KeySubsetMulti(
+                        ["a159c0a5-e494-a74a-87b5-ab155c2bf072", "2616c4c1-4c50-9240-aca9-41f936934328"],
+                        sigs_strip0x(refstate["vendor_db"]),
+                    ),
+                    tests.KeySubsetMulti(
+                        ["a5c059a1-94e4-4aa7-87b5-ab155c2bf072", "c1c41626-504c-4092-aca9-41f936934328"],
+                        sigs_strip0x(refstate["vendor_db"]),
+                    ),
+                )
+            )
+
+        vd_driver_config.set(
+            "cbb219d7-3a3d-9645-a3bc-dad00e67656f",
+            "vendor_db",
+            vendor_db_test,
+        )
+        vd_driver_config.set(
+            "d719b2cb-3d3a-4596-a3bc-dad00e67656f",
+            "vendor_db",
+            vendor_db_test,
+        )
 
         if not has_secureboot and not refstate["dbx"]:
             dbx_test = tests.OnceTest(tests.AcceptAll())
@@ -294,6 +328,18 @@ class Example(policies.Policy):
         vd_db_test = tests.OnceTest(tests.AcceptAll())
         vd_authority.set("cbb219d7-3a3d-9645-a3bc-dad00e67656f", "db", vd_db_test)
         vd_authority.set("d719b2cb-3d3a-4596-a3bc-dad00e67656f", "db", vd_db_test)
+        # Support vendor_db as logged by newer shim versions in EV_EFI_VARIABLE_AUTHORITY events
+        # See: https://github.com/rhboot/shim/pull/728
+        # EV_EFI_VARIABLE_AUTHORITY events have different structure than EV_EFI_VARIABLE_DRIVER_CONFIG
+        # They contain direct signature data without SignatureType field
+        if not has_secureboot and not refstate["vendor_db"]:
+            vendor_db_authority_test = tests.OnceTest(tests.AcceptAll())
+        else:
+            vendor_db_authority_test = tests.OnceTest(
+                tests.IterateTest(tests.SignatureSetMember(sigs_strip0x(refstate["vendor_db"])))
+            )
+        vd_authority.set("cbb219d7-3a3d-9645-a3bc-dad00e67656f", "vendor_db", vendor_db_authority_test)
+        vd_authority.set("d719b2cb-3d3a-4596-a3bc-dad00e67656f", "vendor_db", vendor_db_authority_test)
         # Accept all SbatLevels of the Shim, because we already checked the hash of the Shim itself.
         vd_sbat_level_test = tests.OnceTest(tests.AcceptAll())
         vd_authority.set("50ab5d60-46e0-0043-abb6-3dd810dd8b23", "SbatLevel", vd_sbat_level_test)

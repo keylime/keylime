@@ -78,6 +78,35 @@ def get_keys(events):
     return out
 
 
+def get_vendor_db(events):
+    """Get vendor_db signatures from EV_EFI_VARIABLE_AUTHORITY events."""
+    out = {"vendor_db": []}
+
+    for event in events:
+        if "EventType" not in event:
+            continue
+        if event["EventType"] != "EV_EFI_VARIABLE_AUTHORITY":
+            continue
+        if "Event" not in event or "UnicodeName" not in event["Event"]:
+            continue
+
+        event_name = event["Event"]["UnicodeName"].lower()
+        if event_name == "vendor_db":
+            data = None
+            if "VariableData" in event["Event"]:
+                data = event["Event"]["VariableData"]
+
+            if data is not None:
+                # VariableData for EV_EFI_VARIABLE_AUTHORITY is a list of signatures
+                for entry in data:
+                    if "SignatureOwner" in entry and "SignatureData" in entry:
+                        out["vendor_db"].append(
+                            {"SignatureOwner": entry["SignatureOwner"], "SignatureData": f"0x{entry['SignatureData']}"}
+                        )
+
+    return out
+
+
 def get_kernel(events, secure_boot):
     """
     Extract digest for Shim, Grub, Linux Kernel and initrd.
@@ -197,6 +226,7 @@ def main():
             }
         ],
         **get_keys(events),
+        **get_vendor_db(events),
         **get_mok(events),
         **get_kernel(events, has_secureboot),
     }
