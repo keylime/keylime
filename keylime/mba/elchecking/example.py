@@ -185,6 +185,7 @@ class Example(policies.Policy):
         # We only expect one EV_NO_ACTION event at the start.
         dispatcher.set((0, "EV_NO_ACTION"), tests.OnceTest(tests.AcceptAll()))
         dispatcher.set((1, "EV_CPU_MICROCODE"), tests.OnceTest(tests.AcceptAll()))
+        dispatcher.set((1, "EV_EFI_HANDOFF_TABLES"), tests.OnceTest(tests.AcceptAll()))
         dispatcher.set((1, "EV_EFI_HANDOFF_TABLES2"), tests.OnceTest(tests.AcceptAll()))
         dispatcher.set((0, "EV_S_CRTM_VERSION"), events_final.get("s_crtms"))
         dispatcher.set((0, "EV_EFI_PLATFORM_FIRMWARE_BLOB"), events_final.get("platform_firmware_blobs"))
