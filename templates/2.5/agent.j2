@@ -50,32 +50,11 @@ certification_keys_server_identifier = "{{ agent_certification_keys_server_ident
 # Comma-separated list of signing algorithms to disable
 disabled_signing_algorithms = "{{ agent_disabled_signing_algorithms }}"
 
-# Whether the IMA log is appendable
-ima_logs_appendable = "{{ agent_ima_logs_appendable }}"
-
-# Supported formats for IMA logs
-ima_logs_formats = "{{ agent_ima_logs_formats }}"
-
-# Whether partial access to IMA logs is supported
-ima_logs_supports_partial_access = "{{ agent_ima_logs_supports_partial_access }}"
-
 # File to store the IMA measurement list count
 ima_ml_count_file = "{{ agent_ima_ml_count_file }}"
 
-# Whether the UEFI log is appendable
-uefi_logs_appendable = "{{ agent_uefi_logs_appendable }}"
-
 # Evidence version for UEFI logs
 uefi_logs_evidence_version = "{{ agent_uefi_logs_evidence_version }}"
-
-# Supported formats for UEFI logs
-uefi_logs_formats = "{{ agent_uefi_logs_formats }}"
-
-# Whether partial access to UEFI logs is supported
-uefi_logs_supports_partial_access = "{{ agent_uefi_logs_supports_partial_access }}"
-
-# Path to the binary UEFI log file
-uefi_logs_binary_file_path = "{{ agent_uefi_logs_binary_file_path }}"
 
 # The address and port of registrar server which agent communicate with
 registrar_ip = "{{ agent.registrar_ip }}"
