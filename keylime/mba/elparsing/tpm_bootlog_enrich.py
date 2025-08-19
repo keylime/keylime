@@ -88,6 +88,18 @@ def getGUID(b: bytes) -> str:
 #
 ##################################################################################
 
+EFI_SIGNATURE_OWNER_SIZE = 16  # Size of SignatureOwner field (GUID).
+
+# DER (Distinguished Encoding Rules) ASN.1 constants for X.509 certificate parsing.
+# X.509 certificates start with: 0x30 0x82 [length-high] [length-low] [certificate-data...]
+# where 0x30 = SEQUENCE tag, 0x82 = long form length encoding (next 2 bytes = length).
+DER_SEQUENCE_TAG = 0x30  # ASN.1 SEQUENCE tag.
+DER_LONG_LENGTH_FORM = 0x82  # Long form length encoding (2 bytes follow).
+DER_TAG_BYTES = 2  # Bytes needed to check tag + length form (0x30 0x82).
+DER_LENGTH_BYTES = 2  # Length field size in long form encoding.
+DER_HEADER_SIZE = 4  # Total DER header size (tag + length-form + 2-byte length).
+MAX_HEADER_SEARCH_BYTES = 100  # Maximum bytes to search for DER certificate start after GUID.
+
 ##################################################################################
 # Parse EFI_SIGNATURE_DATA
 ##################################################################################
@@ -95,10 +107,10 @@ def getGUID(b: bytes) -> str:
 
 def getKey(b: bytes, start: int, size: int) -> Dict[str, Any]:
     key = {}
-    signatureOwner = getGUID(b[start : start + 16])
+    signatureOwner = getGUID(b[start : start + EFI_SIGNATURE_OWNER_SIZE])
     key["SignatureOwner"] = signatureOwner
 
-    signatureData = b[start + 16 : start + size]
+    signatureData = b[start + EFI_SIGNATURE_OWNER_SIZE : start + size]
     key["SignatureData"] = signatureData.hex()
     return key
 
@@ -200,6 +212,73 @@ def enrich_boot_variable(d: Dict[str, Any]) -> None:
             d["VariableData"] = k
 
 
+def enrich_vendor_db_authority_variable(d: Dict[str, Any]) -> None:
+    """Normalize vendor_db in EV_EFI_VARIABLE_AUTHORITY events to signature list format.
+
+    Different versions of tmp2_eventlog may provide vendor_db data in different formats:
+    - Some versions output hex strings containing raw signature data (GUID + certificate data)
+    - Other versions output parsed signature lists
+
+    This function ensures we always end up with a list of signatures, regardless of
+    how tpm2_eventlog provided the data.
+    """
+    # We are only interested in the vendor_db variable, and when it is an hex string.
+    if d.get("UnicodeName") != "vendor_db":
+        return
+
+    if not isinstance(d.get("VariableData"), str):
+        return
+
+    try:
+        b = bytes.fromhex(d["VariableData"])
+        signatures = []
+
+        offset = 0
+        while offset < len(b):
+            if offset + EFI_SIGNATURE_OWNER_SIZE >= len(b):
+                break
+
+            # Extract GUID at current offset.
+            guid_bytes = b[offset : offset + EFI_SIGNATURE_OWNER_SIZE]
+            guid = getGUID(guid_bytes)
+
+            # Look for DER certificate signature (SEQUENCE + long form length) after some header data.
+            cert_start = None
+            search_end = min(offset + EFI_SIGNATURE_OWNER_SIZE + MAX_HEADER_SEARCH_BYTES, len(b) - DER_TAG_BYTES)
+            for i in range(offset + EFI_SIGNATURE_OWNER_SIZE, search_end):
+                if b[i] == DER_SEQUENCE_TAG and b[i + 1] == DER_LONG_LENGTH_FORM:
+                    cert_start = i
+                    break
+
+            if cert_start is None:
+                break
+
+            # Parse DER certificate length.
+            if cert_start + DER_HEADER_SIZE > len(b):
+                break
+
+            cert_length_bytes = b[cert_start + DER_TAG_BYTES : cert_start + DER_HEADER_SIZE]
+            cert_length = (cert_length_bytes[0] << 8) | cert_length_bytes[1]
+            cert_end = cert_start + DER_HEADER_SIZE + cert_length
+
+            if cert_end > len(b):
+                break
+
+            # Extract certificate data (from GUID start to end of certificate).
+            sig_data = b[offset + EFI_SIGNATURE_OWNER_SIZE : cert_end]
+
+            signatures.append({"SignatureOwner": guid, "SignatureData": sig_data.hex()})
+
+            # Move to next signature.
+            offset = cert_end
+
+        if signatures:
+            d["VariableData"] = signatures
+    except Exception:
+        # If parsing fails, leave the hex string unchanged.
+        pass
+
+
 def enrich(log: Dict[str, Any]) -> None:
     """Make the given BIOS boot log easier to understand and process"""
     if "events" in log:
@@ -220,6 +299,10 @@ def enrich(log: Dict[str, Any]) -> None:
                     if "Event" in event:
                         d = event["Event"]
                         enrich_boot_variable(d)
+                elif t == "EV_EFI_VARIABLE_AUTHORITY":
+                    if "Event" in event:
+                        d = event["Event"]
+                        enrich_vendor_db_authority_variable(d)
 
 
 def main() -> None:
