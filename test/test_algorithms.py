@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from keylime.common.algorithms import Encrypt, Hash, Sign
+from keylime.common.algorithms import Key, Hash, Sign
 
 
 class TestHash(unittest.TestCase):
@@ -98,7 +98,7 @@ class TestHash(unittest.TestCase):
                 self.assertEqual(Hash(c["hash"]).file_digest(targetfile), c["digest"], msg=f"hash = {c['hash']}")
 
 
-class TestEncrypt(unittest.TestCase):
+class TestKey(unittest.TestCase):
     def test_is_recognized(self):
         test_cases = [
             {
@@ -120,7 +120,7 @@ class TestEncrypt(unittest.TestCase):
         ]
 
         for c in test_cases:
-            self.assertEqual(Encrypt.is_recognized(c["enc"]), c["valid"], msg=f"enc = {c['enc']}")
+            self.assertEqual(Key.is_recognized(c["enc"]), c["valid"], msg=f"enc = {c['enc']}")
 
 
 class TestSign(unittest.TestCase):
