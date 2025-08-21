@@ -150,9 +150,6 @@ class RegistrarAgent(PersistableModel):
         if not non_compliant_certs:
             return
 
-        names = ", ".join(non_compliant_certs)
-        names = " and".join(names.rsplit(",", 1))
-
         match config.get("registrar", "malformed_cert_action"):
             case "ignore":
                 return
@@ -160,13 +157,13 @@ class RegistrarAgent(PersistableModel):
                 logger.error(
                     "Certificate(s) %s may not conform to strict ASN.1 DER encoding rules and were rejected due to "
                     "config ('malformed_cert_action = reject')",
-                    names,
+                    keylime_logging.list_items(non_compliant_certs)
                 )
             case _:
                 logger.warning(
                     "Certificate(s) %s may not conform to strict ASN.1 DER encoding rules and were re-encoded before "
                     "parsing by python-cryptography",
-                    names,
+                    keylime_logging.list_items(non_compliant_certs)
                 )
 
     def _bind_ak_to_iak(self, iak_attest, iak_sign):

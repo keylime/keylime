@@ -267,6 +267,13 @@ class ImaKeyrings:
         else:
             self.keyrings.pop("tenant_keyring", None)
 
+    def update(self, other):
+        if not isinstance(other, ImaKeyrings):
+            raise TypeError(f"cannot update ImaKeyrings object from object of type '{other.__class__.__name__}'")
+
+        for name, keyring in other.keyrings.items():
+            self.keyrings[name] = keyring
+
     def get_tenant_keyring(self) -> Optional[ImaKeyring]:
         """Get the tenant keyring."""
         return self.keyrings.get("tenant_keyring")

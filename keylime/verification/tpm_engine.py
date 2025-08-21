@@ -9,7 +9,8 @@ from keylime.tpm.tpm_main import Tpm
 from keylime.models.base import db_manager
 from keylime.failure import Component, Failure
 from keylime.agentstates import AgentAttestState, TPMClockInfo, TPMState
-from keylime.ima import ima, file_signatures
+from keylime.ima import ima
+from keylime.ima.file_signatures import ImaKeyring, ImaKeyrings
 from keylime.common import algorithms
 
 logger = keylime_logging.init_logging("verifier")
@@ -230,8 +231,10 @@ class TPMEngine(VerificationEngine):
             evidence_item.choose_parameters({"certification_key": cert_keys[0]})
 
     def _select_subjects(self, evidence_item):
-        # The PCR banks which may be requested, i.e., the hash algs supported by the certifier and enabled for the agent
+        # The PCR banks which may be requested, i.e., the hash algs supported by the TPM and enabled for the agent
         alg_choices = self._hash_algorithm_choices(evidence_item)
+        # The hash algorithms allowed by the TPM for use with the selected certification key
+        key_allowed_algs = evidence_item.chosen_parameters.certification_key.allowable_hash_algorithms
         # The PCR numbers for which the agent can produce quotes, grouped by available PCR bank
         available_subjects = evidence_item.capabilities.available_subjects
         # The PCR numbers for each PCR bank to include in the quote (none to start)
@@ -248,7 +251,11 @@ class TPMEngine(VerificationEngine):
         for pcr_bank in pcr_banks:
             pcr_nums = available_subjects[pcr_bank]
 
-            if pcr_bank in alg_choices and set(self.required_pcr_nums).issubset(pcr_nums):
+            if (
+                pcr_bank in alg_choices
+                and set(self.required_pcr_nums).issubset(pcr_nums)
+                and (key_allowed_algs is None or pcr_bank in key_allowed_algs)
+            ):
                 selected_subjects[pcr_bank] = self.required_pcr_nums or None
                 found = True
             else:
@@ -346,14 +353,14 @@ class TPMEngine(VerificationEngine):
         if not evidence_item.capabilities or not evidence_item.capabilities.entry_count:
             return None
 
-        prev_att = self.previous_authenticated_attestation
+        prev_att = self.previous_passed_attestation
 
         if not prev_att or not prev_att.system_info or not prev_att.system_info.boot_time:
             starting_offset = 0
         elif self.attestation.system_info.boot_time > prev_att.system_info.boot_time:
             starting_offset = 0
         elif self.attestation.system_info.boot_time == prev_att.system_info.boot_time:
-            starting_offset = self.previous_authenticated_ima_log.next_starting_offset
+            starting_offset = self.previous_passed_ima_log.next_starting_offset
         elif self.attestation.system_info.boot_time < prev_att.system_info.boot_time:
             msg = "must be equal to or greater than the boot time of last attestation"
             self.attestation.system_info._add_error("boot_time", msg)
@@ -375,9 +382,8 @@ class TPMEngine(VerificationEngine):
         selected_item.generate_challenge(128)
 
         self._select_certification_key(selected_item)
-        self._select_signature_scheme(selected_item)
-
         self._select_subjects(selected_item)
+        self._select_signature_scheme(selected_item)
         self._select_hash_algorithm(selected_item)
 
         evidence_requested.append(selected_item)
@@ -494,7 +500,7 @@ class TPMEngine(VerificationEngine):
                 continue
 
             selected_pcr_nums = {str(num) for num in selected_pcr_nums}
-            pcr_pairs = rendered_pcrs.get(pcr_bank)
+            pcr_pairs = rendered_pcrs.get(pcr_bank, {})
 
             if not selected_pcr_nums.issubset(pcr_pairs.keys()):
                 selected_item.data._add_error("subject_data", "must contain at least the PCRs requested")
@@ -510,7 +516,7 @@ class TPMEngine(VerificationEngine):
 
         selected_item.data.entry_count = selected_item.data.entries.count("\n")
 
-        if requested_entry_count and selected_item.data.entries_count > requested_entry_count:
+        if requested_entry_count and selected_item.data.entry_count > requested_entry_count:
             selected_item.data_add_error("entries", "must not exceed the number of entries requested")
 
     def _determine_failure_reason(self, failure):
@@ -547,11 +553,8 @@ class TPMEngine(VerificationEngine):
                 return
 
         self.failure_reason = "policy_violation"
-        msg = "Attestation %s for agent '%s' failed verification because of the following policy violations:"
+        msg = "Attestation %s for agent '%s' failed verification due to policy violations (see above)"
         logger.warning(msg, self.index, self.agent_id)
-
-        for event in failure.events:
-            logger.warning("  - %s", event.context)
 
     def _get_pcr_policy(self, pcr_bank):
         policy = {}
@@ -726,8 +729,16 @@ class TPMEngine(VerificationEngine):
         return TPMEngine(self.previous_authenticated_attestation)._select_tpm_quote_item()
 
     @property
+    def previous_passed_tpm_quote(self):
+        return TPMEngine(self.previous_passed_attestation)._select_tpm_quote_item()
+
+    @property
     def previous_authenticated_ima_log(self):
         return TPMEngine(self.previous_authenticated_attestation)._select_ima_log_item()
+
+    @property
+    def previous_passed_ima_log(self):
+        return TPMEngine(self.previous_passed_attestation)._select_ima_log_item()
 
     @property
     def previous_ima_log(self):
@@ -735,72 +746,98 @@ class TPMEngine(VerificationEngine):
 
     @property
     def attest_state(self):
+        """The most current verification state of the attested system as understood by the verifier, returned as an
+        AgentAttestState object. This object contains the parameters which are used as input to Keylime's low-level 
+        verification functions in ``keylime.tpm``. During verification, these functions update the AgentAttestState
+        object to reflect the processed evidence.
+
+        The verification parameters are initialised from values contained in the relevant ``Attestation`` and
+        ``VerifierAgent`` records and are often referred to by different names within the higher-level classes in
+        ``keylime.web``, ``keylime.models`` and ``keylime.verifcation``. At point of verification, this method
+        prepares this information in the format expected by the lower-level libraries.
+
+        Prior to verification of an attestation, the AgentAttestState object includes the following paramaters:
+
+            * ``boottime``: the last boot time of the attester as reported by the agent
+              (obtained from ``attestation.boot_time``)
+
+            * ``tpm_clockinfo``: the decoded clock data contained within the previous TPM quote, to be compared against
+              the clock data from the newly received quote
+              (obtained from ``tpm_quote.data.message`` within ``previous_authenticated_attestation.evidence``)
+
+            * ``ima_keyring``: an object containing the IMA keys trusted by the agent's IMA policy plus those learned
+              by processing earlier IMA logs
+              (obtained from ``agent.ima_policy`` and ``agent.learned_ima_keyrings``)
+
+            * ``next_ima_ml_entry``: the entry at which the IMA log is expected to begin
+              (obtained from ``ima_log.chosen_parameters.starting_offset`` within ``attestation.evidence``)
+
+            * ``tpm_state``: an object containing the IMA PCR value received in the last verified attestation; used to
+              resume verification from the last known-good state rather than sending the entire log every attestation
+              (obtained from ``tpm_quote.data.message`` within ``previous_passed_attestation.evidence``)
+
+            * ``quote_progress``: a 2-tuple of the number of IMA log entries received in the last verified attestation
+              which were reflected in the TPM quote and the total number of entries received; used to track whether the
+              IMA log is growing faster than the TPM can measure it and determine the next starting offset
+              (obtained from ``ima_log.results.certified_entry_count`` and ``ima_log.data.entry_count``
+              within ``previous_passed_attestation.evidence``)
+
+        During the course of verification, these values (with the exception of ``bootime``) are updated in memory to
+        reflect the parameters to be used to verify the next received attestation. This is done by ``keylime.tpm`` by
+        mutating the AgentAttestState object directly.
+
+        Where appropriate, ``self._process_results()`` ensures that these new values are persisted in the database so
+        that the complete state can be reconstructed on the next incoming attestation.
+        """
         tpm_quote_item = self._select_tpm_quote_item()
         ima_log_item = self._select_ima_log_item()
-        
-        if not self._attest_state:
-            # Create new attest state object for agent
-            self._attest_state = AgentAttestState(self.attestation.agent_id)
 
-            # Set attest state values which are known from attestation creation
-            self._attest_state.set_boottime(self.attestation.system_info.boot_time)
-            self._attest_state.set_ima_dm_state(self.ima_policy.get("dm_policy"))
+        if not tpm_quote_item.chosen_parameters or (ima_log_item and not ima_log_item.chosen_parameters):
+            return None
 
-            if ima_log_item:
-                # Retrieve keys learned from ima-buf entries received in prior IMA logs
-                if ima_log_item.chosen_parameters.starting_offset != 0:
-                    learned_keyrings = file_signatures.ImaKeyrings.from_json(self.agent.learned_ima_keyrings)
-                    if learned_keyrings:
-                        self._attest_state.set_ima_keyrings(learned_keyrings)
+        if self._attest_state:
+            return self._attest_state
 
-                # Retrieve trusted keys from IMA policy
-                ima_keyrings = self._attest_state.get_ima_keyrings()
-                policy_keys = self.ima_policy["verification-keys"]
-                policy_keyring = file_signatures.ImaKeyring.from_string(policy_keys)
-                ima_keyrings.set_tenant_keyring(policy_keyring)
+        state = AgentAttestState(self.attestation.agent_id)
+        state.set_boottime(int(self.attestation.system_info.boot_time.timestamp()))
 
-                if self.stage == "verification_complete":
-                    certified_count = ima_log_item.results.certified_entry_count
-                    received_count = ima_log_item.data.entries_count
-                    self._attest_state.quote_progress = (certified_count, received_count)
+        # Retrieve clock info from previous quote
+        if self.previous_authenticated_attestation:
+            state.set_tpm_clockinfo(self._parse_tpm_clock_info(self.previous_authenticated_tpm_quote))
+        elif self.agent.tpm_clockinfo:
+            # The agent has a tpm_clockinfo value, so it recently changed from pull to push mode
+            state.set_tpm_clockinfo(TPMClockInfo.from_dict(self.agent.tpm_clockinfo))
 
-        # Attest state values obtained from an attestation can only be trusted if the included TPM quote is found to be
-        # genuine. As a result, we only set these values once verification has completed and no authentication failure
-        # has occurred
-        if self.stage == "verification_complete" and self.failure_reason != "broken_evidence_chain":
-            if ima_log_item:
-                next_offset = ima_log_item.chosen_parameters.starting_offset + ima_log_item.results.certified_entry_count
-                self._attest_state.set_next_ima_ml_entry(next_offset)
+        # If IMA log is being verified, update state with IMA-relevant parameters
+        if ima_log_item:
+            # Retrieve trusted keys from IMA policy
+            ima_keyrings = state.get_ima_keyrings()
+            ima_keyrings.set_tenant_keyring(ImaKeyring.from_string(self.ima_policy.get("verification-keys") or ""))
 
-            if tpm_quote_item:
-                self._attest_state.set_tpm_clockinfo(self._parse_tpm_clock_info(tpm_quote_item))
-                self._attest_state.set_ima_pcrs(self._attest_state_ima_pcrs(tpm_quote_item))
+            # Retrieve keys learned from ima-buf entries received in prior IMA logs
+            if ima_log_item.chosen_parameters.starting_offset != 0:
+                ima_keyrings.update(ImaKeyrings.from_json(self.agent.learned_ima_keyrings or {}))
 
-                # Build embedded TPMState object containing PCR values found in authenticated quote
-                self._attest_state.tpm_state = TPMState()
-                hash_alg = algorithms.Hash(tpm_quote_item.chosen_parameters.hash_algorithm)
-                for num, val in self._attest_state_pcrs(tpm_quote_item).items():  # type: ignore
-                    self._attest_state.tpm_state.init_pcr(num, hash_alg)
-                    self._attest_state.tpm_state.set_pcr(num, val)
-        else:
-            if ima_log_item:
-                # If verification of the attestation has not yet completed, or the quote could not be authenticated, use the
-                # values from the previous authenticated attestation
-                self._attest_state.set_next_ima_ml_entry(ima_log_item.chosen_parameters.starting_offset)
+            # Set starting offset of IMA log
+            state.set_next_ima_ml_entry(ima_log_item.chosen_parameters.starting_offset)
 
-            if self.previous_authenticated_attestation:
-                clockinfo = self._parse_tpm_clock_info(self.previous_authenticated_tpm_quote)
-                clockinfo.clock -= 100
-                self._attest_state.set_tpm_clockinfo(clockinfo)
-            elif self.agent.tpm_clockinfo:
-                # If agent has a tpm_clockinfo value, this indicates that the verifier has recently changed from pull to
-                # push mode, so use this in place of the missing `previous_authenticated_attestation`
-                self._attest_state.set_tpm_clockinfo(self.agent.tpm_clockinfo)
-
-            if self.previous_authenticated_attestation:
-                self._attest_state.set_ima_pcrs(self._attest_state_ima_pcrs(self.previous_authenticated_tpm_quote))
+            # Retrieve IMA PCR value from previous attestation which passed verification
+            if self.previous_passed_attestation:
+                state.set_ima_pcrs(self._attest_state_ima_pcrs(self.previous_passed_tpm_quote))
             elif self.agent.pcr10:
                 # The agent has a pcr10 value, so it recently changed from pull to push mode
-                self._attest_state.set_ima_pcrs({10: self.agent.pcr10})
+                state.set_ima_pcrs({10: self.agent.pcr10})
 
-        return self._attest_state
+            # Retrieve IMA log progress from previous attestation which passed verification
+            if self.previous_passed_attestation:
+                certified_count = self.previous_passed_ima_log.results.certified_entry_count
+                received_count = self.previous_passed_ima_log.data.entry_count
+                state.quote_progress = (certified_count, received_count)
+
+            # NOTE: The IMA PCR and IMA log progress are set based on the last attestation which passed verification
+            # rather than the last attestation which could be authenticated. This is because process_measurement_list()
+            # in keylime.ima resets these values whenever a verification failure occurs, causing the log entries from a
+            # failed attestation to be repeated and re-verified in a subsequent attestation.
+
+        self._attest_state = state
+        return state
