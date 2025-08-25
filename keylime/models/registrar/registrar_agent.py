@@ -1,9 +1,11 @@
 import base64
 import hmac
+import io
 
 import cryptography.x509
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from pyasn1_modules import pem as pyasn1_pem
 
 from keylime import cert_utils, config, crypto, keylime_logging
 from keylime.models.base import (
@@ -356,13 +358,12 @@ class RegistrarAgent(PersistableModel):
         output = super().render(only)
 
         # When operating in pull mode, ekcert is encoded as Base64 instead of PEM
-        if output.get("ekcert"):
-            if self.ekcert.has_original_bytes:
-                original_bytes = self.ekcert.get_original_bytes()
-                if original_bytes is not None:
-                    # In case the cert was malformed, the original cert is
-                    # cached base64-encoded
-                    output["ekcert"] = original_bytes.decode("utf-8")
-            output["ekcert"] = base64.b64encode(self.ekcert.public_bytes(Encoding.DER)).decode("utf-8")
+        ekcert = output.get("ekcert")
+        if ekcert:
+            der_data = pyasn1_pem.readPemFromFile(io.StringIO(ekcert))
+            if der_data:
+                output["ekcert"] = base64.b64encode(der_data).decode("utf-8")
+            else:
+                self._add_error("ekcert", "Failed to parse certificate")
 
         return output
