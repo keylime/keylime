@@ -488,7 +488,7 @@ def main():
     mb_log = get_mb_log()
 
     # send all of the data to the verifier
-    oneshot_data = {
+    oneshot_tpm_data = {
         "quote": quote,
         "nonce": nonce,
         "hash_alg": hash_algo,
@@ -499,6 +499,11 @@ def main():
         "mb_policy": mb_policy,
         "ima_measurement_list": ima_measurement_list,
         "mb_log": mb_log,
+    }
+
+    oneshot_data = {
+        "type": "tpm",
+        "data": oneshot_tpm_data,
     }
 
     verifier_url = f"https://{args.verifier_host}:{args.verifier_port}"

@@ -49,6 +49,7 @@ class Component(enum.Enum):
     MEASURED_BOOT = "measured_boot"
     IMA = "ima"
     INTERNAL = "internal"
+    TEE = "tee_attestation"
     DEFAULT = "default"
 
 
