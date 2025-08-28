@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import sys
 from json.decoder import JSONDecodeError
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -191,8 +192,12 @@ def sign_runtime_policy(args: argparse.Namespace) -> Optional[str]:
         return None
 
     try:
-        with open(args.output_file, "wb") as f:
-            f.write(signed_policy.encode("UTF-8"))
+        if args.output_file == "/dev/stdout":
+            # Let's simply print to stdout the regular way.
+            print(signed_policy, file=sys.stdout)
+        else:
+            with open(args.output_file, "wb") as f:
+                f.write(signed_policy.encode("UTF-8"))
     except Exception as exc:
         logger.error("Unable to write signed policy to destination file '%s': %s", args.output_file, exc)
         return None
