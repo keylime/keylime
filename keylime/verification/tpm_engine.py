@@ -512,12 +512,13 @@ class TPMEngine(VerificationEngine):
         if not selected_item:
             return
 
+        entries = selected_item.data.entries or ""
         requested_entry_count = selected_item.chosen_parameters.entry_count
 
-        selected_item.data.entry_count = selected_item.data.entries.count("\n")
+        selected_item.data.entry_count = entries.count("\n")
 
         if requested_entry_count and selected_item.data.entry_count > requested_entry_count:
-            selected_item.data_add_error("entries", "must not exceed the number of entries requested")
+            selected_item.data._add_error("entries", "must not exceed the number of entries requested")
 
     def _determine_failure_reason(self, failure):
         if not failure:
