@@ -207,12 +207,14 @@ class Attestation(PersistableModel):
     def render_evidence_requested(self):
         output = self.render(["stage"])
         output["evidence_requested"] = [item.render_evidence_requested() for item in self.evidence]
+        output["system_info"] = self.system_info.render()
         output |= self._render_timestamps()
         return output
 
     def render_evidence_acknowledged(self):
         output = self.render(["stage"])
         output["evidence"] = [item.render_evidence_acknowledged() for item in self.evidence]
+        output["system_info"] = self.system_info.render()
         output |= self._render_timestamps()
         return output
 
