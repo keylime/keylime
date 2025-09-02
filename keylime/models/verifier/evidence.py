@@ -512,7 +512,7 @@ class LogData(EvidenceData):
     @classmethod
     def _schema(cls):
         cls._field("entry_count", Integer, nullable=True)
-        cls._field("entries", OneOf(Binary(persist_as=String), String))
+        cls._field("entries", OneOf(Binary(persist_as=String), String), nullable=True)
 
         super()._schema()
 

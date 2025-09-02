@@ -344,7 +344,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
 
         for name, value in self._changes.items():
             if value is None and not self.__class__.fields[name].nullable:
-                raise FieldValueInvalid(f"field 'name' for model '{self.__class__.__name__}' is not nullable")
+                raise FieldValueInvalid(f"field '{name}' for model '{self.__class__.__name__}' is not nullable")
 
             self._committed[name] = value
 
