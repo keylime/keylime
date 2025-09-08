@@ -1,7 +1,6 @@
 import base64
 import hmac
 
-import cryptography.x509
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
@@ -116,35 +115,35 @@ class RegistrarAgent(PersistableModel):
         if not cert_utils.verify_cert(cert, trust_store, cert_type):
             self._add_error(cert_field, "must contain a certificate issued by a CA present in the trust store")
 
-    def _check_cert_compliance(self, cert_field, raw_cert):
+    def _check_cert_compliance(self, cert_field):
         new_cert = self.changes.get(cert_field)
         old_cert = self.values.get(cert_field)
 
         # If the certificate field has not been changed, no need to perform check
-        if not raw_cert or not new_cert:
+        if not new_cert:
+            return True
+
+        # If the certificate field is set as "disabled" (for mtls_cert)
+        if new_cert == "disabled":
             return True
 
         # If the new certificate value is the same as the old certificate value, no need to perform check
-        if (
-            isinstance(new_cert, cryptography.x509.Certificate)
-            and isinstance(old_cert, cryptography.x509.Certificate)
-            and new_cert.public_bytes(Encoding.DER) == old_cert.public_bytes(Encoding.DER)
-        ):
+        if old_cert and new_cert.public_bytes(Encoding.DER) == old_cert.public_bytes(Encoding.DER):
             return True
 
-        compliant = Certificate().asn1_compliant(raw_cert)
+        compliant = Certificate().asn1_compliant(new_cert)
 
         if not compliant:
             if config.get("registrar", "malformed_cert_action") == "reject":
-                self._add_error(cert_field, Certificate().generate_error_msg(raw_cert))
+                self._add_error(cert_field, Certificate().generate_error_msg(new_cert))
 
         return compliant
 
-    def _check_all_cert_compliance(self, data):
+    def _check_all_cert_compliance(self):
         non_compliant_certs = []
 
         for field_name in ("ekcert", "iak_cert", "idevid_cert", "mtls_cert"):
-            if not self._check_cert_compliance(field_name, data.get(field_name)):
+            if not self._check_cert_compliance(field_name):
                 non_compliant_certs.append(f"'{field_name}'")
 
         if not non_compliant_certs:
@@ -290,7 +289,7 @@ class RegistrarAgent(PersistableModel):
         # Ensure either an EK or IAK/IDevID is present, depending on configuration
         self._check_root_identity_presence()
         # Handle certificates which are not fully compliant with ASN.1 DER
-        self._check_all_cert_compliance(data)
+        self._check_all_cert_compliance()
 
         # Basic validation of values
         self.validate_required(["aik_tpm"])
