@@ -357,12 +357,6 @@ class RegistrarAgent(PersistableModel):
 
         # When operating in pull mode, ekcert is encoded as Base64 instead of PEM
         if output.get("ekcert"):
-            if self.ekcert.has_original_bytes:
-                original_bytes = self.ekcert.get_original_bytes()
-                if original_bytes is not None:
-                    # In case the cert was malformed, the original cert is
-                    # cached base64-encoded
-                    output["ekcert"] = original_bytes.decode("utf-8")
             output["ekcert"] = base64.b64encode(self.ekcert.public_bytes(Encoding.DER)).decode("utf-8")
 
         return output
