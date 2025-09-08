@@ -10,7 +10,6 @@ from pyasn1.codec.der import encoder as pyasn1_encoder
 from pyasn1.error import PyAsn1Error
 from pyasn1_modules import pem as pyasn1_pem
 from pyasn1_modules import rfc2459 as pyasn1_rfc2459
-from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.types import Text
 
 from keylime.models.base.type import ModelType
@@ -83,8 +82,6 @@ class Certificate(ModelType):
 
     def __init__(self) -> None:
         super().__init__(Text)
-        # Instance-level cache for original certificate bytes when re-encoding is needed
-        self._original_bytes_cache: Optional[bytes] = None
 
     def _load_der_cert(self, der_cert_data: bytes) -> cryptography.x509.Certificate:
         """Loads a binary x509 certificate encoded using ASN.1 DER as a ``cryptography.x509.Certificate`` object. This
@@ -115,11 +112,8 @@ class Certificate(ModelType):
         try:
             return cryptography.x509.load_der_x509_certificate(der_cert_data)
         except Exception:
-            # Store original bytes before re-encoding to preserve signature validity
             pyasn1_cert = pyasn1_decoder.decode(der_cert_data, asn1Spec=pyasn1_rfc2459.Certificate())[0]
-            cert = cryptography.x509.load_der_x509_certificate(pyasn1_encoder.encode(pyasn1_cert))
-            self._original_bytes_cache = base64.b64encode(der_cert_data)
-            return cert
+            return cryptography.x509.load_der_x509_certificate(pyasn1_encoder.encode(pyasn1_cert))
 
     def _load_pem_cert(self, pem_cert_data: str) -> cryptography.x509.Certificate:
         """Loads a text x509 certificate encoded using PEM (Base64ed DER with header and footer) as a
@@ -141,7 +135,7 @@ class Certificate(ModelType):
         [2] https://github.com/pyca/cryptography/issues/7189
         [3] https://github.com/keylime/keylime/issues/1559
 
-        :param pem_cert_data: the PEM bytes of the certificate
+        :param der_cert_data: the DER bytes of the certificate
 
         :raises: :class:`SubstrateUnderrunError`: cert could not be deserialized even using the fallback pyasn1 parser
 
@@ -152,13 +146,8 @@ class Certificate(ModelType):
             return cryptography.x509.load_pem_x509_certificate(pem_cert_data.encode("utf-8"))
         except Exception:
             der_data = pyasn1_pem.readPemFromFile(io.StringIO(pem_cert_data))
-            # Store original DER bytes before re-encoding to preserve signature validity
             pyasn1_cert = pyasn1_decoder.decode(der_data, asn1Spec=pyasn1_rfc2459.Certificate())[0]
-            cert = cryptography.x509.load_der_x509_certificate(pyasn1_encoder.encode(pyasn1_cert))
-            # Only store if we have valid DER bytes (not empty string)
-            if isinstance(der_data, bytes) and der_data:
-                self._original_bytes_cache = base64.b64encode(der_data)
-            return cert
+            return cryptography.x509.load_der_x509_certificate(pyasn1_encoder.encode(pyasn1_cert))
 
     def infer_encoding(self, value: IncomingValue) -> Optional[str]:
         """Tries to infer the certificate encoding from the given value based on the data type and other surface-level
@@ -280,13 +269,7 @@ class Certificate(ModelType):
         if not cert:
             return None
 
-        # Check if we have original bytes preserved for this certificate (when re-encoding was needed)
-        original_bytes = self._original_bytes_cache
-        if original_bytes is not None:
-            # Use original bytes to preserve signature validity
-            return original_bytes.decode("utf-8")
-
-        # Use standard encoding for ASN.1-compliant certificates
+        # Save as Base64-encoded value (without the PEM "BEGIN" and "END" header/footer for efficiency)
         return base64.b64encode(cert.public_bytes(Encoding.DER)).decode("utf-8")
 
     def render(self, value: IncomingValue) -> Optional[str]:
@@ -296,48 +279,8 @@ class Certificate(ModelType):
         if not cert:
             return None
 
-        # Check if we have original bytes preserved for this certificate (when re-encoding was needed)
-        original_bytes = self._original_bytes_cache
-        if original_bytes is not None:
-            # Use original bytes to preserve signature validity
-            # The original bytes are expected to be base64 encoded DER
-            return "\n".join(
-                ["-----BEGIN CERTIFICATE-----", original_bytes.decode("utf-8"), "-----END CERTIFICATE-----"]
-            )
-
         # Render certificate in PEM format
         return cert.public_bytes(Encoding.PEM).decode("utf-8")  # type: ignore[no-any-return]
-
-    def db_load(self, value: Optional[str], _dialect: Dialect) -> Optional[cryptography.x509.Certificate]:
-        """Load certificate from database, preserving original bytes when re-encoding is needed.
-
-        This method ensures that when reading certificates from the database, we preserve
-        the original bytes (which may have been stored from a previous malformed certificate)
-        rather than losing them during re-parsing.
-        """
-        if not value:
-            return None
-
-        # Decode the Base64 value from database - these are the original bytes we want to preserve
-        try:
-            original_der_bytes = base64.b64decode(value, validate=True)
-        except (binascii.Error, ValueError):
-            # If Base64 decoding fails, fall back to standard loading
-            return self.cast(value)
-
-        # Cast to certificate object (may trigger re-encoding if still malformed)
-        cert = self.cast(original_der_bytes)
-
-        return cert
-
-    def has_original_bytes(self) -> bool:
-        """Check if this certificate has preserved original bytes"""
-        return self._original_bytes_cache is not None
-
-    def get_original_bytes(self) -> Optional[bytes]:
-        """Return the preserved original bytes of the base64-encoded certificate
-        if the certificate was malformed and it was stored"""
-        return self._original_bytes_cache
 
     @property
     def native_type(self) -> type:
