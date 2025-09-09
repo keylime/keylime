@@ -95,6 +95,7 @@ exclude_db: Dict[str, Any] = {
     "provide_V": True,
     "num_retries": 0,
     "pending_event": None,
+    "request_timeout": 60.0,
     # the following 3 items are updated to VerifierDB only when the AgentState is stored
     "boottime": "",
     "ima_pcrs": [],
@@ -1756,7 +1757,7 @@ async def invoke_get_quote(
             try:
                 json_response = json.loads(response.body)
                 if "API version not supported" in json_response["status"]:
-                    update = update_agent_api_version(agent)
+                    update = update_agent_api_version(agent, timeout=timeout)
                     updated = await update
 
                     if updated:
@@ -1857,7 +1858,7 @@ async def invoke_provide_v(agent: Dict[str, Any], timeout: float = 60.0) -> None
             try:
                 json_response = json.loads(response.body)
                 if "API version not supported" in json_response["status"]:
-                    update = update_agent_api_version(agent)
+                    update = update_agent_api_version(agent, timeout=timeout)
                     updated = await update
 
                     if updated:
@@ -1917,7 +1918,7 @@ async def invoke_notify_error(agent: Dict[str, Any], tosend: Dict[str, Any], tim
             try:
                 json_response = json.loads(response.body)
                 if "API version not supported" in json_response["status"]:
-                    update = update_agent_api_version(agent)
+                    update = update_agent_api_version(agent, timeout=timeout)
                     updated = await update
 
                     if updated:
@@ -2045,8 +2046,11 @@ async def process_agent(
                 tornado.ioloop.IOLoop.current().remove_timeout(agent["pending_event"])
             return
 
-        # Get request timeout from configuration file
-        timeout = config.getfloat("verifier", "request_timeout", fallback=60.0)
+        # Use the request timeout stored in the agent dict (read from the
+        # verifier config)
+        # This value is set through the exclude_db dict and is removed before
+        # storing the agent data in the DB
+        timeout = agent.get("request_timeout", 60.0)
 
         # If failed during processing, log regardless and drop it on the floor
         # The administration application (tenant) can GET the status and act accordingly (delete/retry/etc).
@@ -2121,7 +2125,7 @@ async def process_agent(
             agent["operational_state"] = states.PROVIDE_V
             # Only deploy V key if actually set
             if agent.get("v"):
-                await invoke_provide_v(agent)
+                await invoke_provide_v(agent, timeout=timeout)
             else:
                 await process_agent(agent, states.GET_QUOTE)
             return
@@ -2271,6 +2275,9 @@ def main() -> None:
     called as a function by an external program."""
 
     config.check_version("verifier", logger=logger)
+
+    # Set verifier timeout configuration in exclude_db
+    exclude_db["request_timeout"] = config.getfloat("verifier", "request_timeout", fallback=60.0)
 
     verifier_port = config.get("verifier", "port")
     verifier_host = config.get("verifier", "ip")
