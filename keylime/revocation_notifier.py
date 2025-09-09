@@ -30,27 +30,43 @@ class WebhookNotificationManager:
         self._workers: Set[threading.Thread] = set()
         self._workers_lock = threading.Lock()
 
+        # Read all configuration once during initialization
+        self._webhook_url = config.get("verifier", "webhook_url", section="revocations", fallback="")
+        self._request_timeout = config.getfloat("verifier", "request_timeout", fallback=60.0)
+        self._retry_interval = config.getfloat("verifier", "retry_interval")
+        self._exponential_backoff = config.getboolean("verifier", "exponential_backoff")
+        self._max_retries = config.getint("verifier", "max_retries")
+
+        # Validate max_retries
+        if self._max_retries <= 0:
+            logger.info("Invalid value found in 'max_retries' option for verifier, using default value")
+            self._max_retries = 5
+
+        # Read TLS configuration once
+        (cert, key, trusted_ca, key_password), self._verify_server_cert = web_util.get_tls_options(
+            "verifier", is_client=True, logger=logger
+        )
+
+        # Generate TLS context once
+        self._tls_context = web_util.generate_tls_context(
+            cert, key, trusted_ca, key_password, is_client=True, logger=logger
+        )
+
     def notify_webhook(self, tosend: Dict[str, Any]) -> None:
         """Send webhook notification with worker thread management."""
-        url = config.get("verifier", "webhook_url", section="revocations", fallback="")
         # Check if a url was specified
-        if url == "":
+        if self._webhook_url == "":
             return
 
         # Similarly to notify(), let's convert `tosend' to str to prevent
         # possible issues with json handling by python-requests.
         tosend = json.bytes_to_str(tosend)
 
-        def worker_webhook(tosend: Dict[str, Any], url: str) -> None:
+        def worker_webhook(tosend: Dict[str, Any]) -> None:
             is_shutdown_mode = False
             try:
-                interval = config.getfloat("verifier", "retry_interval")
-                exponential_backoff = config.getboolean("verifier", "exponential_backoff")
-
-                max_retries = config.getint("verifier", "max_retries")
-                if max_retries <= 0:
-                    logger.info("Invalid value found in 'max_retries' option for verifier, using default value")
-                    max_retries = 5
+                # Use cached configuration values
+                max_retries = self._max_retries
 
                 # During shutdown, use fewer retries but still make best effort
                 if self._shutdown_event.is_set():
@@ -61,27 +77,17 @@ class WebhookNotificationManager:
                         max_retries,
                     )
 
-                # Get TLS options from the configuration
-                (cert, key, trusted_ca, key_password), verify_server_cert = web_util.get_tls_options(
-                    "verifier", is_client=True, logger=logger
-                )
-
-                # Generate the TLS context using the obtained options
-                tls_context = web_util.generate_tls_context(
-                    cert, key, trusted_ca, key_password, is_client=True, logger=logger
-                )
-
-                logger.info("Sending revocation event via webhook to %s ...", url)
+                logger.info("Sending revocation event via webhook to %s ...", self._webhook_url)
                 for i in range(max_retries):
-                    next_retry = retry.retry_time(exponential_backoff, interval, i, logger)
+                    next_retry = retry.retry_time(self._exponential_backoff, self._retry_interval, i, logger)
 
                     with RequestsClient(
-                        url,
-                        verify_server_cert,
-                        tls_context,
+                        self._webhook_url,
+                        self._verify_server_cert,
+                        self._tls_context,
                     ) as client:
                         try:
-                            res = client.post("", json=tosend, timeout=5)
+                            res = client.post("", json=tosend, timeout=self._request_timeout)
                         except requests.exceptions.SSLError as ssl_error:
                             if "TLSV1_ALERT_UNKNOWN_CA" in str(ssl_error):
                                 logger.warning(
@@ -131,7 +137,7 @@ class WebhookNotificationManager:
                 with self._workers_lock:
                     self._workers.discard(current_thread)
 
-        w = functools.partial(worker_webhook, tosend, url)
+        w = functools.partial(worker_webhook, tosend)
         t = threading.Thread(target=w, daemon=True)
 
         # Add this worker to the active set
