@@ -163,6 +163,14 @@ class Attestation(PersistableModel):
 
         self.refresh_metadata()
 
+    def initialise_parameters(self):
+        for item in self.evidence:
+            item.initialise_parameters()
+
+    def validate_parameters(self):
+        for item in self.evidence:
+            item.validate_parameters()
+
     def receive_evidence(self, data):
         evidence_data = data.get("evidence_collected", [])
 

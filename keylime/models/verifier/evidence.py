@@ -72,14 +72,16 @@ class EvidenceItem(EvidenceModel):
         self.validate_required(["evidence_class", "evidence_type"])
         self.refresh_metadata()
 
-    def choose_parameters(self, data):
+    def initialise_parameters(self):
         if self.evidence_class == "certification" and not isinstance(self.chosen_parameters, CertificationParameters):
             self.chosen_parameters = CertificationParameters.empty()
         elif self.evidence_class == "log" and not isinstance(self.chosen_parameters, LogParameters):
             self.chosen_parameters = LogParameters.empty()
 
         self.chosen_parameters.initialise()
-        self.chosen_parameters.update(data)
+
+    def validate_parameters(self):
+        self.chosen_parameters.validate_choices(check_against=self.capabilities)
         self.refresh_metadata()
 
     def generate_challenge(self, bit_length):
@@ -165,13 +167,19 @@ class EvidenceItem(EvidenceModel):
         if self.evidence_class != "log":
             raise AttributeError(f"'{self.evidence_class}' evidence item has no attribute 'next_starting_offset'")
 
+        if not self.capabilities or not self.capabilities.supports_partial_access:
+            raise ValueError(
+                f"cannot determine 'next_starting_offset' for '{self.evidence_type}' evidence item which doesn't "
+                f"support partial access"
+            )
+
         if not self.chosen_parameters or self.chosen_parameters.starting_offset is None:
             return None
 
-        if not self.data or self.data.entry_count is None:
+        if not self.results or self.results.certified_entry_count is None:
             return None
 
-        return self.chosen_parameters.starting_offset + self.data.entry_count
+        return self.chosen_parameters.starting_offset + self.results.certified_entry_count
 
 class Capabilities(EvidenceModel):
     @classmethod
@@ -357,7 +365,7 @@ class ChosenParameters(EvidenceModel):
 class CertificationParameters(ChosenParameters):
     @classmethod
     def _schema(cls):
-        # The challenge/nonce the attester should include in the certification, e.g, as qualifyingData, if supported
+        # The challenge/nonce the attester should include in the certification, e.g., as qualifyingData, if supported
         cls._field("challenge", Nonce, nullable=True)
         # The signature scheme the attester should use to certify information about the target environment
         cls._field("signature_scheme", String)
@@ -371,21 +379,17 @@ class CertificationParameters(ChosenParameters):
 
         super()._schema()
 
-    def update(self, data, check_against=None):
-        self.cast_changes(data, ["signature_scheme", "hash_algorithm", "selected_subjects"])
-        cert_key = data.get("certification_key")
+    def validate_choices(self, check_against):
+        if not isinstance(check_against, CertificationCapabilities):
+            raise TypeError("argument 'check_against' must be of type 'CertificationCapabilities'")
 
-        if cert_key:
-            if isinstance(cert_key, dict):
-                cert_key = CertificationKey.create(cert_key)
-        
-            self.certification_key = cert_key
+        self.validate_required("signature_scheme")
+        self.validate_inclusion("signature_scheme", check_against.signature_schemes)
+        self.validate_inclusion("hash_algorithm", check_against.hash_algorithms)
+        self.validate_inclusion("certification_key", check_against.certification_keys)
 
-        if isinstance(check_against, CertificationCapabilities):
-            self.validate_inclusion("signature_scheme", check_against.signature_schemes)
-            self.validate_inclusion("hash_algorithm", check_against.hash_algorithms)
-            self.validate_inclusion("selected_subjects", check_against.available_subjects)
-            # self.validate_inclusion("certification_key", check_against.certification_keys)
+        # NOTE: It is not possible to check selected_subjects against available_subjects as the contents of these
+        # fields can vary by evidence_type (even when the evidence_types belong to the same evidence_class)
 
     def generate_challenge(self, bit_length):
         # self.challenge = Nonce.generate(bit_length)
@@ -421,18 +425,23 @@ class LogParameters(ChosenParameters):
         cls._field("format", String, nullable=True)
         super()._schema()
 
-    def update(self, data, check_against=None):
-        self.cast_changes(data, ["starting_offset", "entry_count", "format"])
+    def validate_choices(self, check_against):
+        if not isinstance(check_against, LogCapabilities):
+            raise TypeError("argument 'check_against' must be of type 'LogCapabilities'")
 
         self.validate_number("starting_offset", (">=", 0))
         self.validate_number("entry_count", (">=", 0))
+        self.validate_inclusion("format", check_against.formats)
 
-        if isinstance(check_against, LogCapabilities):
-            self.validate_inclusion("format", check_against.formats)
+        if check_against.supports_partial_access:
+            self.validate_required("starting_offset")
+            self.validate_number("starting_offset", ("<", check_against.entry_count))
 
-            if check_against.supports_partial_access:
-                self.validate_required("starting_offset")
-                self.validate_number("starting_offset", ("<", check_against.entry_count))
+        if not check_against.supports_partial_access and self.starting_offset is not None:
+            self._add_error("starting_offset", "not allowed when supports_partial_access is false")
+
+        if not check_against.supports_partial_access and self.entry_count is not None:
+            self._add_error("entry_count", "not allowed when supports_partial_access is false")
 
     def render(self, only=None):
         output = super().render(only)

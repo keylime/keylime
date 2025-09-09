@@ -100,6 +100,8 @@ class EngineDriver:
         if not self.attestation.changes_valid:
             return self
 
+        self.attestation.initialise_parameters()
+
         evidence_requested = []
         engines_to_activate = set()
 
@@ -122,6 +124,7 @@ class EngineDriver:
         # TODO: finalise evidence requested
         self.attestation.evidence.clear()
         self.attestation.evidence.update(evidence_requested)
+        self.attestation.validate_parameters()
 
         return self
 

@@ -228,7 +228,7 @@ class TPMEngine(VerificationEngine):
         cert_keys = self._certification_key_choices(evidence_item)
 
         if cert_keys:
-            evidence_item.choose_parameters({"certification_key": cert_keys[0]})
+            evidence_item.chosen_parameters.certification_key = cert_keys[0]
 
     def _select_subjects(self, evidence_item):
         # The PCR banks which may be requested, i.e., the hash algs supported by the TPM and enabled for the agent
@@ -285,7 +285,7 @@ class TPMEngine(VerificationEngine):
         ]
 
         if possible_schemes:
-            evidence_item.choose_parameters({"signature_scheme": possible_schemes[0]})
+            evidence_item.chosen_parameters.signature_scheme = possible_schemes[0]
 
     def _select_hash_algorithm(self, evidence_item):
         params = evidence_item.chosen_parameters
@@ -303,7 +303,7 @@ class TPMEngine(VerificationEngine):
         ]
 
         if possible_algorithms:
-            evidence_item.choose_parameters({"hash_algorithm": possible_algorithms[0]})
+            evidence_item.chosen_parameters.hash_algorithm = possible_algorithms[0]
 
     def _select_uefi_log_item(self):
         if not self.expects_uefi_log:
@@ -394,7 +394,7 @@ class TPMEngine(VerificationEngine):
         if not selected_item:
             return
 
-        selected_item.choose_parameters({"format": "application/octet-stream"})
+        selected_item.chosen_parameters.format = "application/octet-stream"
         evidence_requested.append(selected_item)
 
     def _process_ima_log_capabilities(self, evidence_requested):
@@ -403,10 +403,8 @@ class TPMEngine(VerificationEngine):
         if not selected_item:
             return
 
-        selected_item.choose_parameters({
-            "starting_offset": self._determine_ima_offset(selected_item),
-            "format": "text/plain"
-        })
+        selected_item.chosen_parameters.starting_offset = self._determine_ima_offset(selected_item)
+        selected_item.chosen_parameters.format = "text/plain"
 
         evidence_requested.append(selected_item)
 

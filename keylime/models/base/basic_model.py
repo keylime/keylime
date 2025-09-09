@@ -378,9 +378,10 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
             fields = [fields]
 
         for field in fields:
-            field_obj = self.__class__.fields.get(field)
+            if self.values.get(field) is False:
+                continue
 
-            if field_obj and field_obj.data_type.native_type is bool and self.values.get(field) is False:
+            if self.values.get(field) == 0:
                 continue
 
             if not self.values.get(field):
@@ -407,7 +408,12 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
                 self._add_error(field, msg)
 
     def validate_inclusion(self, field: str, data: Union[Container, Iterable], msg: str = "is invalid") -> None:
-        if self.values.get(field) not in data:
+        value = self.values.get(field)
+
+        if not value:
+            return
+
+        if value not in data:
             self._add_error(field, msg)
 
     def validate_exclusion(self, field: str, data: Union[Container, Iterable], msg: str = "is invalid") -> None:
