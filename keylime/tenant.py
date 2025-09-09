@@ -260,7 +260,7 @@ class Tenant:
                     tls_context=tls_context,
                 ) as get_version:
                     try:
-                        res = get_version.get("/version")
+                        res = get_version.get("/version", timeout=self.request_timeout)
                     except requests.exceptions.SSLError as ssl_error:
                         if "TLSV1_ALERT_UNKNOWN_CA" in str(ssl_error):
                             raise UserError(
