@@ -435,7 +435,12 @@ class LogParameters(ChosenParameters):
 
         if check_against.supports_partial_access:
             self.validate_required("starting_offset")
-            self.validate_number("starting_offset", ("<", check_against.entry_count))
+            self.validate_number("starting_offset", ("<=", check_against.entry_count))
+
+            # NOTE: Typically starting_offset should be < the reported entry_count as log entries are indexed by 0.
+            # However, the verifier may reply with a starting_offset == entry_count when it wants the agent to send
+            # any additional log entries that may appear between receipt of the capabilities negotiation and evidence
+            # handling requests.
 
         if not check_against.supports_partial_access and self.starting_offset is not None:
             self._add_error("starting_offset", "not allowed when supports_partial_access is false")
