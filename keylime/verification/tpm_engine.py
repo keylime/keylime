@@ -512,11 +512,19 @@ class TPMEngine(VerificationEngine):
 
         entries = selected_item.data.entries or ""
         requested_entry_count = selected_item.chosen_parameters.entry_count
+        expected_entry_count = selected_item.capabilities.entry_count - selected_item.chosen_parameters.starting_offset
 
         selected_item.data.entry_count = entries.count("\n")
 
         if requested_entry_count and selected_item.data.entry_count > requested_entry_count:
             selected_item.data._add_error("entries", "must not exceed the number of entries requested")
+
+        if selected_item.data.entry_count < expected_entry_count:
+            msg = (
+                f"must contain at least {expected_entry_count} entries based on the total reported log length and "
+                f"chosen starting offset"
+            )
+            selected_item.data._add_error("entries", msg)
 
     def _determine_failure_reason(self, failure):
         if not failure:
@@ -636,7 +644,7 @@ class TPMEngine(VerificationEngine):
         uefi_log_item = self._select_uefi_log_item()
         ima_log_item = self._select_ima_log_item()
 
-        ima_entries = ima_log_item.data.entries if ima_log_item else None
+        ima_entries = ima_log_item.data.entries or "" if ima_log_item else None
         uefi_entries = uefi_log_item.data.entries if uefi_log_item else None
 
         failure = Failure(Component.QUOTE_VALIDATION)

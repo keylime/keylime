@@ -277,18 +277,10 @@ class Tpm:
         pcr_nums = set(pcrs_dict.keys())
 
         if pcr_nums:
-            logger.info(
-                "PCR(s) %s from bank '%s' found in TPM quote for agent '%s'",
-                keylime_logging.list_items(pcr_nums, sort=True),
-                hash_alg.value,
-                agentAttestState.get_agent_id()
-            )
+            pcrf = keylime_logging.list_items(pcr_nums, sort=True)
+            logger.info("PCR(s) %s from bank '%s' found in TPM quote for agent '%s'", pcrf, hash_alg.value, agent_id)
         else:
-            logger.error(
-                "No PCRs from bank '%s' found in TPM quote for agent '%s'",
-                hash_alg.value,
-                agentAttestState.get_agent_id()
-            )
+            logger.error("No PCRs from bank '%s' found in TPM quote for agent '%s'", hash_alg.value, agent_id)
 
         # If additional data is provided, check its presence in the data PCR (defined by config.TPM_DATA_PCR)
         if data is not None:
@@ -302,6 +294,9 @@ class Tpm:
                     f"unused_pcr_{config.IMA_PCR}", "IMA PCR in policy, but no measurement list provided", True
                 )
             else:
+                if ima_measurement_list == "":
+                    logger.info("No new IMA events received from agent '%s'", agent_id)
+                    
                 ima_failure = Tpm.__check_ima(
                     agentAttestState,
                     pcrs_dict[config.IMA_PCR],
@@ -315,17 +310,14 @@ class Tpm:
 
             pcrs_in_quote.add(config.IMA_PCR)
         else:
-            logger.info(
-                "No IMA verification policy configured for agent '%s'; skipping IMA verification",
-                agentAttestState.get_agent_id()
-            )
+            logger.info("No IMA verification policy configured for agent '%s'; skipping IMA verification", agent_id)
 
         if mb_policy is not None:
-            logger.info("Checking measured boot PCRs against log for agent: %s", agentAttestState.get_agent_id())
+            logger.info("Checking measured boot PCRs against log for agent: %s", agent_id)
         else:
             logger.info(
                 "No measured boot policy configured for agent '%s'; skipping measured boot verification",
-                agentAttestState.get_agent_id()
+                agent_id
             )
 
         # Collect mismatched measured boot PCRs as measured_boot failures
@@ -400,31 +392,18 @@ class Tpm:
         remaining_pcrs = sorted(pcr_nums - pcrs_in_quote)
 
         if remaining_pcrs:
-            logger.info(
-                "Checking remaining PCR(s) %s in quote against TPM policy for agent '%s'",
-                keylime_logging.list_items(remaining_pcrs),
-                agentAttestState.get_agent_id()
-            )
+            pcrf = keylime_logging.list_items(remaining_pcrs)
+            logger.info("Checking remaining PCR(s) %s in quote against TPM policy for agent '%s'", pcrf, agent_id)
         else:
-            logger.info(
-                "No remaining PCRs in quote to check against TPM policy for agent '%s'", agentAttestState.get_agent_id()
-            )
+            logger.info("No remaining PCRs in quote to check against TPM policy for agent '%s'", agent_id)
 
         # Check the remaining non validated PCRs
         for pcr_num in remaining_pcrs:
             if pcr_num not in list(pcr_allowlist.keys()):
-                logger.warning(
-                    "PCR #%s in quote (from agent %s) not found in tpm_policy, skipping.",
-                    pcr_num,
-                    agent_id,
-                )
+                logger.warning("PCR #%s in quote (from agent %s) not found in tpm_policy, skipping.", pcr_num, agent_id)
                 continue
             if pcrs_dict[pcr_num] in pcr_allowlist[pcr_num]:
-                logger.info(
-                    "PCR #%s contains value allowed by TPM policy for agent '%s'",
-                    pcr_num,
-                    agentAttestState.get_agent_id()
-                )
+                logger.info("PCR #%s contains value allowed by TPM policy for agent '%s'", pcr_num, agent_id)
             else:
                 logger.error(
                     "PCR #%s: %s from quote (from agent %s) does not match expected value %s",
@@ -451,7 +430,7 @@ class Tpm:
             failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": list(missing)}, True)
 
         if mb_policy is not None:
-            logger.info("Checking measured boot log against policy for agent: %s", agentAttestState.get_agent_id())
+            logger.info("Checking measured boot log against policy for agent: %s", agent_id)
 
             if not mba.policy_is_valid(mb_policy):
                 logger.error("Invalid measured boot policy for agent '%s'", agent_id)
@@ -470,21 +449,11 @@ class Tpm:
                 )
 
             if mb_evaluate == "always":
-                mb_policy_failure = mba.bootlog_evaluate(
-                    mb_policy,
-                    mb_measurement_data,
-                    pcrs_in_quote,
-                    agentAttestState.get_agent_id(),
-                )
+                mb_policy_failure = mba.bootlog_evaluate(mb_policy, mb_measurement_data, pcrs_in_quote, agent_id)
                 failure.merge(mb_policy_failure)
 
             elif mb_evaluate == "once" and count == 0:
-                mb_policy_failure = mba.bootlog_evaluate(
-                    mb_policy,
-                    mb_measurement_data,
-                    pcrs_in_quote,
-                    agentAttestState.get_agent_id(),
-                )
+                mb_policy_failure = mba.bootlog_evaluate(mb_policy, mb_measurement_data, pcrs_in_quote, agent_id)
                 failure.merge(mb_policy_failure)
 
         return failure
