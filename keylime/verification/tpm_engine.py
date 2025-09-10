@@ -528,7 +528,7 @@ class TPMEngine(VerificationEngine):
 
     def _determine_failure_reason(self, failure):
         if not failure:
-            logger.info("Attestation %s for agent '%s' verified successfully", self.index, self.agent_id)
+            logger.info("Attestation %s for agent '%s' successfully passed verification", self.index, self.agent_id)
             return
 
         for event in failure.events:

@@ -131,7 +131,11 @@ class DBManager:
         return cast(Session, self._scoped_session())
 
     @contextmanager
-    def session_context(self) -> Iterator[Session]:
+    def session_context(self, session=None) -> Iterator[Session]:
+        if session:
+            yield session
+            return
+
         session = self.session()
 
         try:

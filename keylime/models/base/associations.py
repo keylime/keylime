@@ -375,7 +375,16 @@ class BelongsToAssociation(EntityAssociation):
     def get_foreign_keys(self, search_inverse: bool = True) -> tuple[str, ...]:
         foreign_keys = super().get_foreign_keys(search_inverse)
 
-        # If no foreign key was declared for the association (or the inverse association), use default
+        # If no foreign key was declared for the association (or the inverse association),
+        # try to discover it from the model declaration
+        if not foreign_keys:
+            foreign_keys = (
+                field.name
+                for field in self.parent_model.fields.values()
+                if field.linked_association == self.name
+            )
+
+        # If that fails, use the default
         if not foreign_keys:
             foreign_keys = (f"{self.name}_id")
 

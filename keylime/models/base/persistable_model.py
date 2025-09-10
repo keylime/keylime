@@ -176,6 +176,28 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         return session.query(subject).filter(*filter_criteria).order_by(*sort_criteria)
 
     @classmethod
+    def get(cls, *args: Any, **kwargs: Any) -> Optional["PersistableModel"]:
+        # pylint: disable=no-else-return
+
+        if cls.schema_awaiting_processing:
+            cls.process_schema()
+
+        if args and not isinstance(args[0], ClauseElement):
+            if not cls.id_field:
+                raise QueryInvalid(f"model '{cls.__name__}' does not have a field which is used as an ID")
+
+            kwargs[cls.id_field.name] = args[0]
+            args = args[1:]
+
+        with db_manager.session_context() as session:
+            results = cls._query(session, args, kwargs).first()
+
+        if results:
+            return cls(results)
+        else:
+            return None
+
+    @classmethod
     def all(cls, *args: Any, **kwargs: Any) -> Sequence["PersistableModel"]:
         if cls.schema_awaiting_processing:
             cls.process_schema()
@@ -201,26 +223,14 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         return [getattr(row, cls.id_field.name) for row in results]
 
     @classmethod
-    def get(cls, *args: Any, **kwargs: Any) -> Optional["PersistableModel"]:
-        # pylint: disable=no-else-return
-
+    def delete_all(cls, *args: Any, **kwargs: Any) -> None:
         if cls.schema_awaiting_processing:
             cls.process_schema()
 
-        if args and not isinstance(args[0], ClauseElement):
-            if not cls.id_field:
-                raise QueryInvalid(f"model '{cls.__name__}' does not have a field which is used as an ID")
+        session = kwargs.pop("session_", None)
 
-            kwargs[cls.id_field.name] = args[0]
-            args = args[1:]
-
-        with db_manager.session_context() as session:
-            results = cls._query(session, args, kwargs).first()
-
-        if results:
-            return cls(results)
-        else:
-            return None
+        with db_manager.session_context(session) as session:
+            cls._query(session, args, kwargs).delete()
 
     def __init__(self, data: Optional[dict | object] = None, process_associations: bool = True, memo: Optional[list] = None) -> None:
         if isinstance(data, type(self).db_mapping):
@@ -369,16 +379,14 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             for name, value in self.get_db_changes().items():
                 setattr(self._db_mapping_inst, name, value)
 
-            # Use given session to build a transaction affecting multiple records
+            # Use given session to build a transaction affecting multiple records, or create one if none is given
+            with db_manager.session_context(session) as session:
+                session.add(self._db_mapping_inst)
+
+            # Changes should be marked as committed only after the entire transaction succeeds, so return early if
+            # method was called with a pre-existing session
             if session:
-                session.add(self._db_mapping_inst)
-                # Changes should be marked as committed only after
-                # the entire transaction succeeds, so return early
                 return
-            
-            # Otherwise, create a session if none is given
-            with db_manager.session_context() as session:
-                session.add(self._db_mapping_inst)
 
         # Mark changes as committed, including changes to virtual fields (only if DB query succeeds)
         super().commit_changes()
@@ -390,10 +398,18 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             if embed_record_set:
                 embed_record_set[0].commit_changes(persist=False)
 
-    def delete(self, session=None) -> None:
-        if session:
-            session.delete(self._db_mapping_inst)
-            return
+    def delete(self, session=None, include_dependants=True) -> None:
+        if include_dependants:
+            dependant_assocs = [*type(self).has_many_associations.values(), *type(self).has_one_associations.values()]
+        else:
+            dependant_assocs = []
 
-        with db_manager.session_context() as session:
+        with db_manager.session_context(session) as session:
+            for assoc in dependant_assocs:
+                foreign_key_values = {
+                    key: self.values.get(assoc.other_model.fields[key].linked_field)
+                    for key in assoc.foreign_keys
+                }
+                assoc.other_model.delete_all(**foreign_key_values, session_=session)
+
             session.delete(self._db_mapping_inst)  # type: ignore[no-untyped-call]
