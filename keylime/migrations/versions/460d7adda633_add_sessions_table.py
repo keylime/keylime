@@ -36,7 +36,7 @@ def upgrade_cloud_verifier():
         "sessions",
         sa.Column("token", sa.String(64), primary_key=True),  # secrets.token_urlsafe(32) generates ~43 char tokens
         sa.Column(
-            "agent_id", sa.String(80)
+            "agent_id", sa.String(80), index=True
         ),  # No FK constraint - sessions persist through agent deletion/re-enrollment
         sa.Column("active", sa.Boolean()),
         sa.Column("nonce", sa.LargeBinary(128)),

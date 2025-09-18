@@ -258,6 +258,8 @@ class VerifierServer(Server):
 
     def _v3_authentication_routes(self) -> None:
         # Routes for agent authentication
+        self._post("/sessions", SessionController, "create_session", allow_insecure=True)
+        self._patch("/sessions/:session_id", SessionController, "update_session", allow_insecure=True)
         self._get("/agents/:agent_id/session/:token", SessionController, "show", allow_insecure=True)
         self._post("/agents/:agent_id/session", SessionController, "create", allow_insecure=True)
         self._patch("/agents/:agent_id/session/:token", SessionController, "update", allow_insecure=True)

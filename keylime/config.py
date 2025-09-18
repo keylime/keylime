@@ -114,6 +114,85 @@ if "KEYLIME_LOGGING_CONFIG" in os.environ:
 _config: Optional[Dict[str, RawConfigParser]] = None
 
 
+def _check_file_permissions(component: str, file_path: str) -> bool:
+    """Check if a config file has correct permissions and is readable.
+
+    Args:
+        component: The component name (e.g., 'verifier', 'agent')
+        file_path: Path to the config file
+
+    Returns:
+        True if file is readable, False otherwise
+    """
+    if not os.path.exists(file_path):
+        return False
+
+    if not os.access(file_path, os.R_OK):
+        import grp  # pylint: disable=import-outside-toplevel
+        import pwd  # pylint: disable=import-outside-toplevel
+        import stat  # pylint: disable=import-outside-toplevel
+
+        try:
+            file_stat = os.stat(file_path)
+            owner = pwd.getpwuid(file_stat.st_uid).pw_name
+            group = grp.getgrgid(file_stat.st_gid).gr_name
+            mode = stat.filemode(file_stat.st_mode)
+        except Exception:
+            owner = group = mode = "unknown"
+
+        base_logger.error(  # pylint: disable=logging-not-lazy
+            "=" * 80
+            + "\n"
+            + "CRITICAL CONFIG ERROR: Config file %s exists but is not readable!\n"
+            + "File permissions: %s (owner: %s, group: %s)\n"
+            + "The keylime_%s service needs read access to this file.\n"
+            + "Fix with: chown keylime:keylime %s && chmod 440 %s\n"
+            + "=" * 80,
+            file_path,
+            mode,
+            owner,
+            group,
+            component,
+            file_path,
+            file_path,
+        )
+        return False
+
+    return True
+
+
+def _validate_config_files(component: str, file_paths: List[str], files_read: List[str]) -> None:
+    """Validate that config files were successfully parsed.
+
+    Args:
+        component: The component name (e.g., 'verifier', 'agent')
+        file_paths: List of file paths that were attempted to be read
+        files_read: List of files that ConfigParser successfully read
+    """
+    for file_path in file_paths:
+        # Check file permissions first
+        if not _check_file_permissions(component, file_path):
+            continue
+
+        if file_path not in files_read:
+            base_logger.error(  # pylint: disable=logging-not-lazy
+                "=" * 80
+                + "\n"
+                + "CRITICAL CONFIG ERROR: Config file %s exists but failed to parse!\n"
+                + "This usually indicates duplicate keys within the same file.\n"
+                + "Common issues:\n"
+                + "  - Same option appears multiple times in the same [%s] section\n"
+                + "  - Empty values (key = ) conflicting with defined values\n"
+                + "  - Invalid INI file syntax\n"
+                + "Please check the file for duplicate entries.\n"
+                + "You can validate the file with: python3 -c \"import configparser; c = configparser.RawConfigParser(); print(c.read('%s'))\"\n"
+                + "=" * 80,
+                file_path,
+                component,
+                file_path,
+            )
+
+
 def get_config(component: str) -> RawConfigParser:
     """Find the configuration file to use for the given component and apply the
     overrides defined by configuration snippets.
@@ -216,6 +295,10 @@ def get_config(component: str) -> RawConfigParser:
 
                 # Validate that at least one config file is present
                 config_file = _config[component].read(c)
+
+                # Validate the config file was parsed successfully
+                _validate_config_files(component, [c], config_file)
+
                 if config_file:
                     base_logger.info("Reading configuration from %s", config_file)
 
@@ -230,6 +313,10 @@ def get_config(component: str) -> RawConfigParser:
                             [os.path.join(d, f) for f in os.listdir(d) if f and os.path.isfile(os.path.join(d, f))]
                         )
                         applied_snippets = _config[component].read(snippets)
+
+                        # Validate all snippet files were parsed successfully
+                        _validate_config_files(component, snippets, applied_snippets)
+
                         if applied_snippets:
                             base_logger.info("Applied configuration snippets from %s", d)
 

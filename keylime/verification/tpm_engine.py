@@ -1,6 +1,7 @@
 # pyright: reportAttributeAccessIssue=false
 # Uses ORM models with dynamically-created attributes from metaclasses
 import math
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from keylime import config, keylime_logging
@@ -9,6 +10,9 @@ from keylime.common import algorithms
 from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyring, ImaKeyrings
+from keylime.models.base.types import Timestamp  # type: ignore[attr-defined]
+from keylime.models.verifier.auth_session import AuthSession
+from keylime.shared_data import get_shared_memory
 from keylime.tpm import tpm2_objects, tpm_util
 from keylime.tpm.tpm_main import Tpm
 from keylime.verification.base import EngineDriver, VerificationEngine
@@ -610,6 +614,51 @@ class TPMEngine(VerificationEngine):
         self.agent.last_received_quote = None
         self.agent.last_successful_attestation = None
 
+    def _extend_auth_token(self) -> None:
+        """Extend the authentication token validity on successful attestation.
+
+        Since successful TPM2_Quote verification proves AK possession,
+        we can extend the token instead of requiring periodic re-authentication.
+
+        Updates both shared memory (for current workers) and database (for persistence).
+        """
+        session_data = AuthSession.get_active_session_for_agent(self.agent_id)
+
+        if session_data:
+            session_lifetime = config.getint("verifier", "session_lifetime")
+            new_expiry = Timestamp.now() + timedelta(seconds=session_lifetime)
+
+            # Update token expiration in shared memory (for current worker processes)
+            shared_memory = get_shared_memory()
+            sessions_cache = shared_memory.get_or_create_dict("auth_sessions")
+            session_id = session_data.get("session_id")
+
+            if session_id and session_id in sessions_cache:
+                session_data["token_expires_at"] = new_expiry
+                sessions_cache[session_id] = session_data  # Trigger update
+
+            # Always update database record (for other workers and persistence)
+            # This is separate from shared memory update and must work even after verifier restart
+            token = session_data.get("token")
+            if token:
+                auth_session = AuthSession.get(token)
+                if auth_session:
+                    auth_session.token_expires_at = new_expiry
+                    auth_session.commit_changes()
+                    logger.debug(
+                        "Extended auth token for agent '%s' (token %s) in database until %s",
+                        self.agent_id,
+                        token,
+                        new_expiry,
+                    )
+                else:
+                    logger.warning("Could not find auth session in database for token %s to extend", token)
+
+            if session_id:
+                logger.debug(
+                    "Extended auth token for agent '%s' (session %s) until %s", self.agent_id, session_id, new_expiry
+                )
+
     def _process_results(self, failure: Any) -> None:
         ima_log_item = self._select_ima_log_item()
 
@@ -620,9 +669,16 @@ class TPMEngine(VerificationEngine):
         if not failure:
             self.attestation.evaluation = "pass"
             self.agent.attestation_count += 1
+
+            # Extend authentication token on successful attestation
+            if config.getboolean("verifier", "extend_token_on_attestation", fallback=True):
+                self._extend_auth_token()
         else:
             self.attestation.evaluation = "fail"
             self.agent.accept_attestations = False
+
+            # Invalidate authentication session on attestation failure
+            AuthSession.delete_active_session_for_agent(self.agent_id)
 
         self.attestation.refresh_metadata()  # type: ignore[no-untyped-call]
         self._determine_failure_reason(failure)
