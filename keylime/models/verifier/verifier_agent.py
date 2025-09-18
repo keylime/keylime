@@ -1,3 +1,5 @@
+from functools import cache
+
 from keylime.models.base import *
 import keylime.models.verifier as verifier_models
 
@@ -88,8 +90,13 @@ class VerifierAgent(PersistableModel):
         # ------------------------------------------------------------------ #
         # QUESTION FOR REVIEWERS:
         # Are these fields for revocation still needed or can we remove them?
-        cls._field("tpm_version", Integer, nullable=True)
-        cls._field("revocation_key", String(2800))
-        cls._field("last_event_id", String(200), nullable=True)
+        cls._field("tpm_version", Integer, nullable=True) # VERDICT: DROP
+        cls._field("revocation_key", String(2800)) # Revocation still supported; keep pull-only, output warning
+        cls._field("last_event_id", String(200), nullable=True) # Pull only possibly. Anderson will investigate further
         # ------------------------------------------------------------------ #
         # TODO: remove above, based on feedback
+
+    @property
+    @cache
+    def latest_attestation(self):
+        return verifier_models.Attestation.get_latest(self.agent_id)

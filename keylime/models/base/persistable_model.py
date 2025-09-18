@@ -3,7 +3,7 @@ from typing import Any, Optional, Sequence
 from sqlalchemy import or_, asc, desc
 from sqlalchemy.sql.expression import ClauseElement
 
-from keylime.models.base.associations import EmbedsInlineAssociation, EmbedsOneAssociation, EmbedsManyAssociation
+from keylime.models.base.associations import EmbedsInlineAssociation, EmbedsOneAssociation, EmbedsManyAssociation, EmbeddedInAssociation, BelongsToAssociation
 from keylime.models.base.basic_model import BasicModel
 from keylime.models.base.db import db_manager
 from keylime.models.base.errors import FieldValueInvalid, QueryInvalid, UndefinedField
@@ -413,3 +413,13 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
                 assoc.other_model.delete_all(**foreign_key_values, session_=session)
 
             session.delete(self._db_mapping_inst)  # type: ignore[no-untyped-call]
+
+    def get_errors(self, associations=None, pointer_prefix=None, memo=None):
+        if associations is None:
+            associations = [
+                assoc.name
+                for assoc in self.__class__.associations.values()
+                if not isinstance(assoc, (EmbeddedInAssociation, BelongsToAssociation))
+            ]
+
+        return super().get_errors(associations, pointer_prefix, memo)

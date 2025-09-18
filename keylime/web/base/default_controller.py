@@ -24,8 +24,8 @@ class DefaultController(Controller):
     def action_dispatch_error(self, **_params: Any) -> None:
         self.send_response(400, "Bad Request")
 
-    def required_content_missing(self, **_params: Any) -> None:
-        self.send_response(400, "Bad Request")
+    def format_not_allowed(self, **_params: Any) -> None:
+        self.send_response(415, "Unsupported Media Type")
 
     def action_exception(self, **_params: Any) -> None:
         self.send_response(500, "Internal Server Error")

@@ -1,9 +1,11 @@
 import re
 from inspect import iscoroutinefunction
 from typing import Any, Mapping, Optional
+from urllib.parse import urlparse, urlunparse, urljoin
 
-from keylime.web.base.controller import Controller
-from keylime.web.base.errors import (
+import keylime.web.base as base
+
+from keylime.web.base.exceptions import (
     ActionDispatchError,
     ActionUndefined,
     InvalidMethod,
@@ -91,6 +93,33 @@ class Route:
     PATH_ABSOLUTE_REGEX = re.compile(f"^{PATH_ABSOLUTE}$")
 
     @staticmethod
+    def make_abs_path(ref: str, base_ref: str = "/"):
+        """Converts any URI reference to an absolute path reference (see RFC 3986, section 4), resolved by
+        using ``base_ref`` as the starting reference. When ``ref`` is expected to be a relative path reference
+        (e.g., ``../..``), ``base_ref`` should be an absolute URI (including scheme).
+
+        :param ref: A URI or relative reference (including absolute path and relative path references)
+        :param base_ref: A URI or absolute path reference on which to base any relative reference given as ``ref``
+
+        :returns: The resolved absolute path reference as a string
+        """
+
+        if not isinstance(ref, str):
+            raise TypeError(f"URI reference 'ref' of type '{type(ref).__name__}' is not a string")
+
+        if not isinstance(base_ref, str):
+            raise TypeError(f"URI reference 'base_ref' of type '{type(ref).__name__}' is not a string")
+
+        # Combine location header with current path to expand any relative reference
+        expanded_ref = urljoin(base_ref, ref)
+        # Break expanded URI into parts
+        parsed_ref = urlparse(expanded_ref)
+        # Assemble absolute path reference (starting with /) from parts
+        abs_ref = urlunparse(("", "", parsed_ref.path, parsed_ref.params, parsed_ref.query, ""))
+
+        return abs_ref
+
+    @staticmethod
     def validate_abs_path(path: str) -> bool:
         """Validates the path component of a URI according to RFC 3986.
 
@@ -121,7 +150,7 @@ class Route:
         return segments
 
     def __init__(
-        self, method: str, pattern: str, controller: type[Controller], action: str, allow_insecure: bool = False
+        self, method: str, pattern: str, controller: type[base.Controller], action: str, allow_insecure: bool = False
     ) -> None:
         """Instantiates a newly created route with the given method, pattern, controller and action. Typically, this
         should be done by using the helper methods in the ``Server`` abstract base class.
@@ -143,7 +172,7 @@ class Route:
         if not isinstance(pattern, str):
             raise TypeError("route pattern must be of type str")
 
-        if not issubclass(controller, Controller):
+        if not issubclass(controller, base.Controller):
             raise TypeError("route controller must be a subclass of Controller")
 
         if not isinstance(action, str):
@@ -315,7 +344,7 @@ class Route:
 
         return self.method == method and self.matches_path(path)
 
-    def new_controller(self, *args: Any, **kargs: Any) -> Controller:
+    def new_controller(self, *args: Any, **kargs: Any) -> base.Controller:
         """Creates a new instance of the controller specified by the route in order to handle a new incoming request.
 
         :param *args: The positional arguments to pass to the controller's constructor, if any
@@ -325,7 +354,7 @@ class Route:
         """
         return self.controller(*args, **kargs)
 
-    async def call_action(self, controller_inst: Controller, params: Optional[Mapping[str, Any]] = None) -> Any:
+    async def call_action(self, controller_inst: base.Controller, params: Optional[Mapping[str, Any]] = None) -> Any:
         """Calls the controller action specified by the route in order to handle a new incoming request.
 
         Any exceptions which occur in the body of the action's method definition will not be caught by this method and
@@ -380,7 +409,7 @@ class Route:
         return self._pattern
 
     @property
-    def controller(self) -> type[Controller]:
+    def controller(self) -> type[base.Controller]:
         return self._controller
 
     @property

@@ -8,11 +8,15 @@ from functools import wraps
 from tornado.escape import parse_qs_bytes
 from tornado.httputil import parse_body_arguments
 
+import keylime.web.base as base
+
 from keylime.web.base.api_messages import APIMessageBody, APIResource
-from keylime.web.base.errors import ParamDecodeError, InvalidMessage, RequiredContentMissing
+from keylime.web.base.exceptions import ParamDecodeError, InvalidMessage, RequiredContentMissing
 
 if TYPE_CHECKING:
     from logging import Logger
+
+    from tornado.httputil import HTTPHeaders
 
     from keylime.models.base.basic_model import BasicModel
     from keylime.web.base.action_handler import ActionHandler
@@ -238,7 +242,6 @@ class Controller:
     def __init__(self, action_handler: "ActionHandler") -> None:
         self._action_handler: "ActionHandler" = action_handler
         self._api_request_body = None
-        self._api_response_body = None
         self._path_params: Optional[PathParams] = None
         self._query_params: Optional[QueryParams] = None
         self._form_params: Optional[FormParams] = None
@@ -246,10 +249,26 @@ class Controller:
         self._major_version: Optional[int] = None
         self._minor_version: Optional[int] = None
 
+    def _infer_response_code(self):
+        if not self.request_method == "POST":
+            return 200
+
+        location_header = self.response_headers.get("Location")
+
+        if not location_header:
+            return 200
+
+        abs_path = base.Route.make_abs_path(location_header, base_ref=self.path)
+
+        if abs_path == self.path:
+            return 200
+
+        return 201
+
     def send_response(
         self,
-        status_code: int = 200,
-        status_msg: Optional[str] = None,
+        code: Optional[int] = None,
+        status: Optional[str] = None,
         body: Union[JSONObjectConvertible, JSONArrayConvertible, str, Any] = None,
         content_type: Optional[str] = None,
     ) -> None:
@@ -258,27 +277,30 @@ class Controller:
         JSON, or otherwise a string which will be treated as plain text. This behaviour can be overriden by specifying
         a ``content_type`` other than ``"application/json"``.
 
-        :param status_code: An optional integer representing an HTTP status code (defaults to ``200``)
-        :param status_msg: An optional string to be used as the status message (inferred from ``code`` by default)
+        :param code: An optional integer representing an HTTP status code (defaults to ``200`` or ``201``)
+        :param status: An optional string to be used as the status message (inferred from ``code`` by default)
         :param body: An optional string or JSON-convertible value to use as the response body
         :param content_type: An optional string to use as the MIME type of ``body`` (inferred from ``body`` by default)
 
         :raises: :class:`TypeError`: A given argument is of an incorrect type
         """
 
-        if not isinstance(status_code, int):
-            raise TypeError(f"status code '{status_code}' is not of type int")
+        if not isinstance(code, int):
+            raise TypeError(f"status code '{code}' is not of type int")
 
-        if status_msg and not isinstance(status_msg, str):
-            raise TypeError(f"status message '{status_msg}' is not of type str")
+        if status and not isinstance(status, str):
+            raise TypeError(f"status message '{status}' is not of type str")
 
         if content_type and not isinstance(content_type, str):
             raise TypeError(f"content_type '{content_type}' is not of type str")
 
-        if not status_msg:
-            status_msg = http.client.responses[status_code]
+        if not code:
+            code = self._infer_response_code()
 
-        self.action_handler.set_status(status_code, status_msg)
+        if not status:
+            status = http.client.responses[code]
+
+        self.action_handler.set_status(code, status)
         body_out, content_type = Controller.prepare_http_body(body, content_type)
 
         if content_type:
@@ -294,10 +316,11 @@ class Controller:
         code: int = 200,
         status: Optional[str] = None,
         data: Optional[JSONObjectConvertible | JSONArrayConvertible] = None,
-        supress_jsonapi_error = False
+        suppress_jsonapi_error = False,
+        suppress_version_error = False
     ) -> None:
-        """Converts a Python data structure to JSON and wraps it in the following boilerplate JSON object which is
-        returned by all v2 endpoints:
+        """Converts a Python data structure to JSON and wraps it in the following boilerplate JSON object
+        which is returned by all v2 endpoints:
 
         {
             "code": code
@@ -313,14 +336,20 @@ class Controller:
 
         :raises: :class:`TypeError`: A given argument is of an incorrect type
         """
-        # if not supress_jsonapi_error:
-        #     content_type = self.request_headers.get("Content-Type")
+        if not suppress_jsonapi_error:
+            content_type = self.request_headers.get("Content-Type")
 
-        #     if content_type and content_type.startswith("application/vnd.api+json"):
-        #         raise Exception(
-        #             f"controller '{type(self).__class__}' called self.respond() when a JSON:API message is expected in "
-        #             f"response (due to the request having a Content-Type of 'application/vnd.api+json')"
-        #         )
+            if content_type and content_type.startswith("application/vnd.api+json"):
+                raise Exception(
+                    f"controller '{type(self).__name__}' called self.respond() when a JSON:API message is expected in "
+                    f"response (due to the request having a Content-Type of 'application/vnd.api+json')"
+                )
+
+        if not suppress_version_error and self.major_version and self.major_version >= 3:
+            raise Exception(
+                f"controller '{type(self).__name__}' called self.respond() for a request targeted at API version 3 or "
+                f"greater (prepare an APIMessage and call the send_via instance method instead)"
+            )
 
         if not status:
             status = http.client.responses[code]
@@ -331,51 +360,6 @@ class Controller:
         response = {"code": code, "status": status, "results": data}
 
         self.send_response(status_code=code, body=response)
-
-    def send_api_response(self, message_body, code=None, status=None):
-        if not isinstance(message_body, APIMessageBody):
-            raise TypeError("message_body must be of type 'APIMessageBody'")
-
-        if not code:
-            code = 201 if self.request_method == "POST" else 200
-        
-        if not status:
-            status = http.client.responses[code]
-
-        self.send_response(code, status, message_body.render(), "application/vnd.api+json")
-
-    def prepare_resource(self, resource_type, resource_data, meta=None, links=None):
-        if not isinstance(resource_data, (APIResource, dict)):
-            raise TypeError("resource_data must be an APIResource or a dict")
-
-        if isinstance(resource_data, dict):
-            resource_id = resource_data.get("id")
-            resource_data = APIResource(resource_type, resource_id, resource_data, links=None, meta=None)
-
-        self.api_response_body.add_resource(resource_data)
-        return resource_data
-
-    def send_resources(self, meta=None, links=None, code=None, status=None):
-        if meta:
-            self.api_response_body.set_meta(meta)
-
-        if links:
-            self.api_response_body.set_links(links)
-            
-        self.api_response_body.check_validity()
-        self.send_api_response(self.api_response_body, code, status)
-
-    def send_resource(self, resource_type, resource_data, meta=None, links=None, code=None, status=None):
-        if self.api_response_body.data:
-            raise ValueError("resources have already been prepared to be sent; use self.send_resources() instead")
-
-        self.prepare_resource(resource_type, resource_data)
-        self.send_resources(meta, links, code, status)
-
-    def send_errors(self, errors, meta=None, links=None, code=None, status=None):
-        message_body = APIMessageBody(None, errors, meta, links)
-        message_body.check_validity()
-        self.send_api_response(message_body, code, status)
 
     def redirect(self, path: str, code: int = 307) -> None:
         """Directs the client to retrieve the requested resource at a different path. Uses a 307 status code by default
@@ -475,8 +459,15 @@ class Controller:
         return self.action_handler.request.method.upper()
 
     @property
-    def request_headers(self):
-        return self.action_handler.request.headers
+    def request_headers(self) -> "HTTPHeaders":
+        return self.action_handler.request.headers.copy()
+
+    @property
+    def response_headers(self) -> "HTTPHeaders":
+        return self.action_handler._headers
+
+        # NOTE: Accessing the headers via the above private member is unideal but Tornado provides no public API for 
+        # accessing or querying response headers at least as of version 6.5.2
 
     @property
     def request_body(self) -> bytes:
@@ -489,19 +480,11 @@ class Controller:
 
             if content_type and content_type.startswith("application/vnd.api+json"):
                 try:
-                    self._api_request_body = APIMessageBody(**self.json_params)
-                    self._api_request_body.check_validity()
+                    self._api_request_body = APIMessageBody.load(self.json_params)
                 except InvalidMessage as err:
                     raise ParamDecodeError("request body not interpretable as valid JSON:API message") from err
 
         return self._api_request_body
-
-    @property
-    def api_response_body(self):
-        if not self._api_response_body:
-            self._api_response_body = APIMessageBody()
-
-        return self._api_response_body
 
     @property
     def path(self) -> str:
@@ -653,3 +636,12 @@ class Controller:
             self._minor_version = minor_version
 
         return self._minor_version
+
+    @property
+    def version(self):
+        if self.major_version and self.minor_version:
+            return f"{self.major_version}.{self.minor_version}"
+        elif self.major_version:
+            return str(self.major_version)
+        else:
+            return None

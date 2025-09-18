@@ -4,7 +4,7 @@ from keylime.web.base import Controller
 class EvidenceController(Controller):
     """The EvidenceController class performs on-demand, once-off verification of evidence at the will of any API
     consumer. Conversely, continuous verification of a system over time is handled by ``AgentController`` and 
-    ``PushAttestationController`` when the verifier is operating in pull and push mode respectively.
+    ``AttestationController`` when the verifier is operating in pull and push mode respectively.
     """
 
     def _new_v2_handler(self):

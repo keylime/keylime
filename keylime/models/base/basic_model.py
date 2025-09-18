@@ -534,38 +534,35 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
 
         return data
 
-    def get_errors(self, included_associations=None, include_embeds=True) -> Mapping[str, Mapping]:
-        structure = {field: {"errors": errors} for field, errors in self._errors.items() if len(errors) > 0}
+    def get_errors(self, associations=None, pointer_prefix=None, memo=None):
+        if associations is None:
+            associations = self.__class__.associations.values()
+            associations = [ assoc.name for assoc in associations if not isinstance(assoc, EmbeddedInAssociation) ]
 
-        if not included_associations:
-            included_associations = []
+        if pointer_prefix is None:
+            pointer_prefix = "/"
 
-        if include_embeds:
-            for name, embed in self.__class__.embedded_associations.items():
-                if isinstance(embed, EmbeddedInAssociation):
+        if memo is None:
+            memo = set()
+
+        memo.add(id(self))
+
+        errors = { f"{pointer_prefix}{member}": errors for member, errors in self.errors.items() if len(errors) > 0 }
+
+        for assoc_name in associations:
+            assoc = self.__class__.associations.get(assoc_name)
+            assoc_pointer_prefix = f"{pointer_prefix}{assoc_name}/"
+            records = assoc.get_record_set(self)
+
+            for index, record in enumerate(records):
+                if id(record) in memo:
                     continue
 
-                included_associations.append(name)
+                record_pointer_prefix = f"{assoc_pointer_prefix}{index}/" if assoc.to_many else assoc_pointer_prefix
+                record_errors = record.get_errors(pointer_prefix=record_pointer_prefix, memo=memo)
+                errors.update(record_errors)
 
-        included_associations = [self.__class__.associations.get(name) for name in included_associations]
-
-        for assoc in included_associations:
-            substructure = structure.get(assoc.name) or {}
-            substructure["members"] = []
-
-            for index, record in enumerate(assoc.get_record_set(self)):
-                record_errors = record.errors
-
-                if record_errors:
-                    substructure["members"].append(record.errors)
-
-            if substructure["members"] and assoc.to_one:
-                substructure["members"] = substructure["members"][0]
-
-            if substructure.get("errors") or substructure.get("members"):
-                structure[assoc.name] = substructure
-
-        return structure
+        return errors
 
     @property
     def committed(self) -> Mapping[str, Any]:
@@ -581,8 +578,8 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
 
     @property
     def errors(self) -> Mapping[str, Mapping]:
-        return self.get_errors(include_embeds=True)
+        return MappingProxyType(self._errors)
 
     @property
     def changes_valid(self) -> bool:
-        return len(self.errors) == 0
+        return len(self.get_errors()) == 0

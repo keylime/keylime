@@ -18,6 +18,10 @@ class ActionIncompleteError(ActionError):
     pass
 
 
+class StopAction(Exception):
+    pass
+
+
 class RouteError(Exception):
     pass
 
@@ -54,13 +58,13 @@ class InvalidMessage(APIMessageError):
     pass
 
 
+class MissingMember(InvalidMessage):
+    pass
+
+
 class UnexpectedMember(InvalidMessage):
     pass
 
 
 class InvalidMember(InvalidMessage):
-    pass
-
-
-class MultipleResourceAccessError(APIMessageError):
     pass

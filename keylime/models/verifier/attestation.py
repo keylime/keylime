@@ -44,26 +44,6 @@ class Attestation(PersistableModel):
         attestation.initialise(agent)
         return attestation
 
-    @classmethod
-    def accept_new_attestations_in(cls, agent_id: str):
-        last_attestation = Attestation.get_latest(agent_id=agent_id)
-
-        if not last_attestation:
-            return 0
-
-        current_timestamp = Timestamp.now()
-
-        # Don't accept new attestations until after the configured quote interval has elapsed
-        if current_timestamp <= last_attestation.next_attestation_expected_after:
-            return last_attestation.next_attestation_expected_after - current_timestamp
-
-        # Don't accept new attestations if a previous attestation is still undergoing verification and the configured
-        # timeout has not been exceeded
-        if last_attestation.stage == "evaluating_evidence" and current_timestamp <= last_attestation.decision_expected_by:
-            return last_attestation.decision_expected_by - current_timestamp
-
-        return 0
-
     def __init__(self, data=None, process_associations=True, memo=None) -> None:
         super().__init__(data, process_associations, memo)
         self._previous_attestation = None
@@ -273,24 +253,21 @@ class Attestation(PersistableModel):
         # engine), so that writing to the DA backend could be handled transparently by PersistableModel. As this isn't
         # the case, it is necessary to override commit_changes and make the record_create call on a case-by-case basis.
 
-    @property
-    def errors(self):
+    def get_errors(self, associations=None, pointer_prefix=None, memo=None):
         self.refresh_metadata()
-        errors = self.get_errors(included_associations=["evidence"], include_embeds=True)
 
-        if errors.get("evidence"):
-            if self.stage == "awaiting_evidence":
-                errors["evidence_supported"] = errors["evidence"]
-            else:
-                errors["evidence_collected"] = errors["evidence"]
+        errors = super().get_errors(associations, pointer_prefix, memo)
+        output = {}
 
-            del errors["evidence"]
+        evidence_field = "evidence_supported" if self.stage == "awaiting_evidence" else "evidence_collected"
 
-        return errors
+        for pointer, msgs in errors.items():
+            if pointer.startswith("/evidence"):
+                pointer = pointer.replace("/evidence", f"/{evidence_field}", 1)
 
-    # @property
-    # def evidence_requested(self):
-    #     return self._evidence_requested
+            output[pointer] = msgs
+
+        return output
 
     @property
     def previous_attestation(self):
@@ -347,6 +324,25 @@ class Attestation(PersistableModel):
         return self._previous_passed_attestation
 
     @property
+    def decision_expected_by(self):
+        if self.evidence_received_at:
+            basis = self.evidence_received_at
+        else:
+            basis = self.challenges_expire_at
+
+        return basis + timedelta(seconds=config.getint("verifier", "verification_timeout"))
+
+    @property
+    def seconds_to_decision(self):
+        time_to_decision = self.decision_expected_by - Timestamp.now()
+        seconds_to_decision = round(time_to_decision.total_seconds())
+
+        if seconds_to_decision <= 0:
+            return 0
+
+        return seconds_to_decision
+
+    @property
     def next_attestation_expected_after(self):
         if self.evidence_received_at:
             return self.evidence_received_at + timedelta(seconds=config.getint("verifier", "quote_interval"))
@@ -356,16 +352,24 @@ class Attestation(PersistableModel):
     @property
     def seconds_to_next_attestation(self):
         time_to_next_attestation = self.next_attestation_expected_after - Timestamp.now()
-        return round(time_to_next_attestation.total_seconds())
+        seconds_to_next_attestation = round(time_to_next_attestation.total_seconds())
+
+        if seconds_to_next_attestation <= 0:
+            return 0
+
+        return seconds_to_next_attestation
 
     @property
-    def decision_expected_by(self):
-        if self.evidence_received_at:
-            basis = self.evidence_received_at
-        else:
-            basis = self.capabilities_received_at + timedelta(seconds=config.getint("verifier", "quote_interval"))
+    def challenges_valid(self):
+        return bool(self.challenges_expire_at and Timestamp.now() < self.challenges_expire_at)
 
-        return basis + timedelta(seconds=config.getint("verifier", "verification_timeout"))
+    @property
+    def verification_in_progress(self):
+        return bool(self.stage == "evaluating_evidence" and self.seconds_to_decision > 0)
+
+    @property
+    def ready_for_next_attestation(self):
+        return bool(not self.verification_in_progress and self.seconds_to_next_attestation <= 0)
 
 
 class SystemInfo(PersistableModel):

@@ -448,6 +448,12 @@ class LogParameters(ChosenParameters):
         if not check_against.supports_partial_access and self.entry_count is not None:
             self._add_error("entry_count", "not allowed when supports_partial_access is false")
 
+            if not check_against.supports_partial_access and self.starting_offset is not None:
+                self._add_error("starting_offset", "not allowed when supports_partial_access is false")
+
+            if not check_against.supports_partial_access and self.entry_count is not None:
+                self._add_error("entry_count", "not allowed when supports_partial_access is false")
+
     def render(self, only=None):
         output = super().render(only)
 

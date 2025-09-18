@@ -3,7 +3,7 @@ from keylime.web.base.server import Server
 from keylime.web.verifier.agent_controller import AgentController
 from keylime.web.verifier.mb_ref_state_controller import MBRefStateController
 from keylime.web.verifier.ima_policy_controller import IMAPolicyController
-from keylime.web.verifier.push_attestation_controller import PushAttestationController
+from keylime.web.verifier.push_attestation_controller import AttestationController
 from keylime.web.verifier.evidence_controller import EvidenceController
 from keylime.web.verifier.server_info_controller import ServerInfoController
 
@@ -85,12 +85,12 @@ class VerifierServer(Server):
 
     @Server.push_only
     def _attestation_routes(self):
-        self._get("/agents/:agent_id/attestations", PushAttestationController, "index", allow_insecure=True)
-        self._post("/agents/:agent_id/attestations", PushAttestationController, "create", allow_insecure=True)
-        self._get("/agents/:agent_id/attestations/latest", PushAttestationController, "show_latest", allow_insecure=True)
-        self._patch("/agents/:agent_id/attestations/latest", PushAttestationController, "update_latest", allow_insecure=True)
-        self._get("/agents/:agent_id/attestations/:index", PushAttestationController, "show", allow_insecure=True)
-        self._patch("/agents/:agent_id/attestations/:index", PushAttestationController, "update", allow_insecure=True)
+        self._get("/agents/:agent_id/attestations", AttestationController, "index", allow_insecure=True)
+        self._post("/agents/:agent_id/attestations", AttestationController, "create", allow_insecure=True)
+        self._get("/agents/:agent_id/attestations/latest", AttestationController, "show_latest", allow_insecure=True)
+        self._patch("/agents/:agent_id/attestations/latest", AttestationController, "update_latest", allow_insecure=True)
+        self._get("/agents/:agent_id/attestations/:index", AttestationController, "show", allow_insecure=True)
+        self._patch("/agents/:agent_id/attestations/:index", AttestationController, "update", allow_insecure=True)
 
         # TODO: Remove "allow_insecure" above
 

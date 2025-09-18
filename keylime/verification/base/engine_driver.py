@@ -112,7 +112,7 @@ class EngineDriver:
             evidence_snapshot = evidence_requested.copy()
             engine(self.attestation).process_capabilities(evidence_requested)
 
-            if self.attestation.get_errors(included_associations=["evidence"]):
+            if self.attestation.get_errors():
                 return self
             
             if not set(evidence_snapshot).issubset(set(evidence_requested)):
@@ -140,7 +140,7 @@ class EngineDriver:
         for engine in engines_to_activate:
             engine(self.attestation).process_evidence()
 
-            if self.attestation.get_errors(included_associations=["evidence"]):
+            if self.attestation.get_errors():
                 return self
 
         return self
@@ -184,7 +184,7 @@ class EngineDriver:
         for engine in engines_to_activate:
             engine(self.attestation).verify_evidence()
 
-            if self.attestation.get_errors(included_associations=["agent", "evidence"]):
+            if self.attestation.get_errors():
                 return self
 
         self._commit_verification_results()

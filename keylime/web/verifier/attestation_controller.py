@@ -2,13 +2,13 @@ from keylime import keylime_logging
 from keylime.models.base import Timestamp
 from keylime.models.verifier import VerifierAgent, Attestation
 from keylime.verification import EngineDriver
-from keylime.web.base import Controller
+from keylime.web.base import Controller, APIMessageBody, APIResource, APIError, APILink, APIMeta
 
-logger = keylime_logging.init_logging("verifier")
+logger = keylime_logging.init_logging("web")
 
 
-class PushAttestationController(Controller):
-    """The PushAttestationController services requests for the management of attestation resources when the verifier is
+class AttestationController(Controller):
+    """The AttestationController services requests for the management of attestation resources when the verifier is
     operating in push mode. Such attestation resources are represented by instances of the ``Attestation`` model.
 
     Attestation evidence is prepared and sent according the push attestation protocol which operates in two phases::
@@ -75,7 +75,9 @@ class PushAttestationController(Controller):
         * the request has been received too soon after evidence was received for the previous attestation (429 "Too Many
           Requests");
         * verification of a previous attestation is still in progress (503 "Service Unavailable");
-        * the request data was not as expected (400 "Bad Request"); or
+        * the request data is not valid despite having the right syntax (422 "Unprocessable Content");
+        * the request data cannot be accepted for some other reason, such as having an incorrect Content-Type (200 "Bad 
+          Request"); or
         * the request was received while another request to create an attestation resource was still being processed
           (409 "Conflict").
 
@@ -156,37 +158,47 @@ class PushAttestationController(Controller):
         agent = VerifierAgent.get(agent_id)
 
         if not agent:
-            self.respond(404)
-            return
+            APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
         
         results = Attestation.all(agent_id=agent_id)
 
-        for attestation in results:
-            self.prepare_resource("attestation", attestation.render_state())
+        resources = [
+            APIResource("attestation", attestation.render_state()).include(
+                APILink("self", f"{self.path}/{attestation.index}")
+            )
+            for attestation in results
+        ]
 
-        self.send_resources()
+        APIMessageBody(*resources).send_via(self)
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/:index
     @Controller.require_json_api
     def show(self, agent_id, index, **_params):
+        agent = VerifierAgent.get(agent_id)
         attestation = Attestation.get(agent_id=agent_id, index=index)
 
-        if not attestation:
-            self.respond(404)
-            return
+        if not agent:
+            APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
 
-        self.send_resource("attestation", attestation.render_state())
+        if not attestation:
+            APIError("not_found", f"No attestation {index} exists for agent '{agent_id}'.").send_via(self)
+
+        APIResource("attestation", attestation.render_state()).include(
+            APILink("self", f"/{self.version}/agents/{agent_id}/attestations/{index}")
+        ).send_via(self)
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/latest
     @Controller.require_json_api
     def show_latest(self, agent_id, **_params):
-        latest_attestation = Attestation.get_latest(agent_id)
+        agent = VerifierAgent.get(agent_id)
 
-        if not latest_attestation:
-            self.respond(404)
-            return
+        if not agent:
+            APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
 
-        self.send_resource("attestation", latest_attestation.render_state())
+        if not agent.latest_attestation:
+            APIError("not_found", f"No attestation exists for agent '{agent_id}'.").send_via(self)
+
+        self.show(agent_id, agent.latest_attestation.index, **_params)
 
     # POST /v3[.:minor]/agents/:agent_id/attestations
     @Controller.require_json_api
@@ -194,28 +206,35 @@ class PushAttestationController(Controller):
         agent = VerifierAgent.get(agent_id)
 
         if not agent:
-            self.respond(404)
-            return
+            APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
 
         if not agent.accept_attestations:
-            self.respond(403)
-            return
+            APIError("agent_attestations_disabled", 403).set_detail(
+                f"Attestations for agent '{agent_id}' are currently disabled. This may be due to a previous "
+                f"attestation not passing verification."
+            ).send_via(self)
 
-        retry_seconds = Attestation.accept_new_attestations_in(agent_id)
+        if agent.latest_attestation.verification_in_progress:
+            self.set_header("Retry-After", agent.latest_attestation.seconds_to_decision)
+            APIError("verification_in_progress", 503).set_detail(
+                f"Cannot create attestation for agent '{agent_id}' while the last attestation is still being "
+                f"verified. The active verification task is expected to complete or time out within "
+                f"{agent.latest_attestation.seconds_to_decision} seconds."
+            ).send_via(self)
 
-        # Reject request if a new attestation is not yet expected (due to quote_interval or an active verification task)
-        if retry_seconds:
-            self.action_handler.set_header("Retry-After", retry_seconds)
-            self.respond(429)
-            return
+        if not agent.latest_attestation.ready_for_next_attestation:
+            self.set_header("Retry-After", agent.latest_attestation.seconds_to_next_attestation)
+            APIError("premature_attestation", 429).set_detail(
+                f"Cannot create attestation for agent '{agent_id}' before the configured interval has elapsed. "
+                f"Wait {agent.latest_attestation.seconds_to_next_attestation} seconds before trying again."
+            ).send_via(self)
 
         attestation_record = Attestation.create(agent)
         attestation_record.receive_capabilities(attestation)
         EngineDriver(attestation_record).process_capabilities()
 
-        if attestation_record.errors:
-            self.respond(400, "Bad Request", {"errors": attestation_record.errors})
-            return
+        if not attestation_record.changes_valid:
+            APIMessageBody.from_record_errors(attestation_record).send_via(self)
 
         try:
             attestation_record.commit_changes()
@@ -223,63 +242,81 @@ class PushAttestationController(Controller):
             # Another attestation for this agent was created while this request is being processed. Reject the request
             # as otherwise the new attestation may be created prior to or shortly after evidence is received and
             # processed for the other attestation, meaning that the configured quote interval would not be respected
-            self.respond(409)
-            return
+            APIError("conflict").set_detail(
+                f"Cannot create attestation for agent '{agent_id}' while another creation attempt is in progress."
+            ).send_via(self)
 
         # TODO: Re-enable:
         # # The attestation was created successfully, so delete any previous attestation for which evidence was never
         # # received or for which verification never completed
         # attestation_record.cleanup_stale_priors()
 
-        self.set_header("Location", f"{self.path}/{attestation_record.index}")
-        self.send_resource("attestation", attestation_record.render_evidence_requested())
+        log_data = (attestation_record.index, agent_id)
+        logger.info("Created attestation %s for agent '%s', sending chosen parameters", *log_data)
+
+        APIResource("attestation", attestation_record.render_evidence_requested()).include(
+            APILink("self", f"{self.path}/{attestation_record.index}")
+        ).send_via(self)
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/:index
     @Controller.require_json_api
     def update(self, agent_id, index, attestation, **params):
-        latest_attestation = Attestation.get_latest(agent_id)
+        agent = VerifierAgent.get(agent_id)
 
-        if not latest_attestation:
-            self.respond(404)
-            return
+        if not agent:
+            APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
+
+        # If there are no attestations for the agent, the attestation at 'index' does not exist
+        if not agent.latest_attestation:
+            APIError("not_found", f"No attestation {index} exists for agent '{agent_id}'.").send_via(self)
 
         # Only allow the attestation at 'index' to be updated if it is the latest attestation
-        if str(latest_attestation.index) == index:
-            self.update_latest(agent_id, attestation, **params)
-        else:
-            self.respond(403)
+        if str(agent.latest_attestation.index) != index:
+            APIError("old_attestation", 403).set_detail(
+                f"Attestation {index} is not the latest for agent '{agent_id}'. Only evidence for the most recent "
+                f"attestation may be updated."
+            ).send_via(self)
+
+        if agent.latest_attestation.stage != "awaiting_evidence":
+            APIError("evidence_immutable", 403).set_detail(
+                f"Cannot alter evidence for attestation {index} which has already been received and accepted."
+            ).send_via(self)
+
+        if not agent.latest_attestation.challenges_valid:
+            APIError("challenges_expired", 403).set_detail(
+                f"Challenges for attestation {index} expired at {agent.latest_attestation.challenges_expire_at}. "
+                f"Create a new attestation and try again."
+            ).send_via(self)
+
+        agent.latest_attestation.receive_evidence(attestation)
+        driver = EngineDriver(agent.latest_attestation).process_evidence()
+
+        # Send error if the received evidence appears invalid
+        if not agent.latest_attestation.changes_valid:
+            APIMessageBody.from_record_errors(agent.latest_attestation).send_via(self)
+
+        agent.latest_attestation.commit_changes()
+
+        # Send acknowledgement of received evidence, but continue executing
+        APIMessageBody(
+            APIResource("attestation", agent.latest_attestation.render_evidence_acknowledged()).include(
+                APILink("self", f"/{self.version}/agents/{agent_id}/attestations/{index}")
+            ),
+            APIMeta("seconds_to_next_attestation", agent.latest_attestation.seconds_to_next_attestation)
+        ).send_via(self, code=202, stop_action=False)
+
+        # Verify attestation after response is sent, so the agent does not need to wait for verification to complete
+        driver.verify_evidence()
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/latest
     @Controller.require_json_api
     def update_latest(self, agent_id, attestation, **params):
-        attestation_record = Attestation.get_latest(agent_id)
+        agent = VerifierAgent.get(agent_id)
 
-        if not attestation_record:
-            self.respond(404)
-            return
+        if not agent:
+            APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
 
-        if attestation_record.stage != "awaiting_evidence":
-            self.respond(403)
-            return
+        if not agent.latest_attestation:
+            APIError("not_found", f"No attestation exists for agent '{agent_id}'.").send_via(self)
 
-        if attestation_record.challenges_expire_at < Timestamp.now():
-            self.respond(403)
-            return
-
-        attestation_record.receive_evidence(attestation)
-        driver = EngineDriver(attestation_record).process_evidence()
-
-        # attestation_record will contain errors if the JSON request is malformed/invalid (e.g., if an unrecognised hash
-        # algorithm is provided) but not if the quote verification fails
-
-        if attestation_record.errors:
-            self.respond(400, "Bad Request", {"errors": attestation_record.errors})
-            return
-
-        attestation_record.commit_changes()
-
-        meta = {"seconds_to_next_attestation": attestation_record.seconds_to_next_attestation}
-        self.send_resource("attestation", attestation_record.render_evidence_acknowledged(), meta, code=202)
-
-        # Verify attestation after response is sent, so the agent does not need to wait for verification to complete
-        driver.verify_evidence()
+        self.update(agent_id, agent.latest_attestation.index, attestation, **params)
