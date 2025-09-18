@@ -41,6 +41,13 @@ from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpol
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
 from keylime.mba import mba
+from keylime.shared_data import (
+    cache_policy,
+    cleanup_agent_policy_cache,
+    clear_agent_policy_cache,
+    get_cached_policy,
+    initialize_agent_policy_cache,
+)
 from keylime.tee import snp
 
 try:
@@ -51,7 +58,6 @@ except RuntimeError:
 
 logger = keylime_logging.init_logging("verifier")
 
-GLOBAL_POLICY_CACHE: Dict[str, Dict[str, str]] = {}
 
 # Module-level globals that are initialized lazily to avoid loading
 # verifier configuration when this module is imported by other components
@@ -171,44 +177,41 @@ def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, Any]:
     return agent_dict
 
 
-def verifier_read_policy_from_cache(ima_policy_data: Dict[str, str]) -> str:
-    checksum = ima_policy_data.get("checksum", "")
-    name = ima_policy_data.get("name", "empty")
-    agent_id = ima_policy_data.get("agent_id", "")
+def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
+    checksum = ""
+    name = "empty"
+    agent_id = str(stored_agent.agent_id)
 
-    if not agent_id:
-        return ""
+    # Initialize agent policy cache if it doesn't exist
+    initialize_agent_policy_cache(agent_id)
 
-    if agent_id not in GLOBAL_POLICY_CACHE:
-        GLOBAL_POLICY_CACHE[agent_id] = {}
-        GLOBAL_POLICY_CACHE[agent_id][""] = ""
+    if stored_agent.ima_policy:
+        checksum = str(stored_agent.ima_policy.checksum)
+        name = stored_agent.ima_policy.name
 
-    if checksum not in GLOBAL_POLICY_CACHE[agent_id]:
-        if len(GLOBAL_POLICY_CACHE[agent_id]) > 1:
-            # Perform a cleanup of the contents, IMA policy checksum changed
-            logger.debug(
-                "Cleaning up policy cache for policy named %s, with checksum %s, used by agent %s",
-                name,
-                checksum,
-                agent_id,
-            )
+    # Check if policy is already cached
+    cached_policy = get_cached_policy(agent_id, checksum)
+    if cached_policy is not None:
+        return cached_policy
 
-            GLOBAL_POLICY_CACHE[agent_id] = {}
-            GLOBAL_POLICY_CACHE[agent_id][""] = ""
+    # Policy not cached, need to clean up and load from database
+    cleanup_agent_policy_cache(agent_id, checksum)
 
-        logger.debug(
-            "IMA policy named %s, with checksum %s, used by agent %s is not present on policy cache on this verifier, performing SQLAlchemy load",
-            name,
-            checksum,
-            agent_id,
-        )
+    logger.debug(
+        "IMA policy named %s, with checksum %s, used by agent %s is not present on policy cache on this verifier, performing SQLAlchemy load",
+        name,
+        checksum,
+        agent_id,
+    )
 
-        # Get the large ima_policy content - it's already loaded in ima_policy_data
-        ima_policy = ima_policy_data.get("ima_policy", "")
-        assert isinstance(ima_policy, str)
-        GLOBAL_POLICY_CACHE[agent_id][checksum] = ima_policy
+    # Actually contacts the database and load the (large) ima_policy column for "allowlists" table
+    ima_policy = stored_agent.ima_policy.ima_policy
+    assert isinstance(ima_policy, str)
 
-    return GLOBAL_POLICY_CACHE[agent_id][checksum]
+    # Cache the policy for future use
+    cache_policy(agent_id, checksum, ima_policy)
+
+    return ima_policy
 
 
 def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
@@ -517,12 +520,11 @@ class AgentsHandler(BaseHandler):
                 return
 
             # Cleanup the cache when the agent is deleted. Do it early.
-            if agent_id in GLOBAL_POLICY_CACHE:
-                del GLOBAL_POLICY_CACHE[agent_id]
-                logger.debug(
-                    "Cleaned up policy cache from all entries used by agent %s",
-                    agent_id,
-                )
+            clear_agent_policy_cache(agent_id)
+            logger.debug(
+                "Cleaned up policy cache from all entries used by agent %s",
+                agent_id,
+            )
 
             op_state = agent.operational_state
             if op_state in (states.SAVED, states.FAILED, states.TERMINATED, states.TENANT_FAILED, states.INVALID_QUOTE):
@@ -2047,7 +2049,6 @@ async def process_agent(
         stored_agent = None
 
         # First database operation - read agent data and extract all needed data within session context
-        ima_policy_data = {}
         mb_policy_data = None
         with session_context() as session:
             try:
@@ -2062,15 +2063,6 @@ async def process_agent(
                     .filter_by(agent_id=str(agent["agent_id"]))
                     .first()
                 )
-
-                # Extract IMA policy data within session context to avoid DetachedInstanceError
-                if stored_agent and stored_agent.ima_policy:
-                    ima_policy_data = {
-                        "checksum": str(stored_agent.ima_policy.checksum),
-                        "name": stored_agent.ima_policy.name,
-                        "agent_id": str(stored_agent.agent_id),
-                        "ima_policy": stored_agent.ima_policy.ima_policy,  # Extract the large content too
-                    }
 
                 # Extract MB policy data within session context
                 if stored_agent and stored_agent.mb_policy:
@@ -2156,7 +2148,10 @@ async def process_agent(
             logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
 
         # Load agent's IMA policy
-        runtime_policy = verifier_read_policy_from_cache(ima_policy_data)
+        if stored_agent:
+            runtime_policy = verifier_read_policy_from_cache(stored_agent)
+        else:
+            runtime_policy = ""
 
         # Get agent's measured boot policy
         mb_policy = mb_policy_data

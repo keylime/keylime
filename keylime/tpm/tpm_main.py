@@ -17,7 +17,13 @@ from keylime.ima.file_signatures import ImaKeyrings
 from keylime.ima.types import RuntimePolicyType
 from keylime.mba import mba
 from keylime.tpm import tpm2_objects, tpm_util
-from keylime.tpm.errors import IncorrectSignature, ObjectNameMismatch, QualifyingDataMismatch
+from keylime.tpm.errors import (
+    HashAlgorithmMismatch,
+    IncorrectSignature,
+    ObjectNameMismatch,
+    QualifyingDataMismatch,
+    SignatureAlgorithmMismatch,
+)
 
 logger = keylime_logging.init_logging("tpm")
 
@@ -62,6 +68,21 @@ class Tpm:
         structure = structure[len(buffer) :]
         return buffer, structure
 
+    # Mapping from keylime.common.algorithms enums to TPM algorithm constants
+    # Used for validating that TPM attestations use expected cryptographic algorithms
+    HASH_ALG_TO_TPM = {
+        Hash.SHA1: tpm2_objects.TPM_ALG_SHA1,
+        Hash.SHA256: tpm2_objects.TPM_ALG_SHA256,
+        Hash.SHA384: tpm2_objects.TPM_ALG_SHA384,
+        Hash.SHA512: tpm2_objects.TPM_ALG_SHA512,
+    }
+
+    SIGN_ALG_TO_TPM = {
+        Sign.RSASSA: tpm2_objects.TPM_ALG_RSASSA,
+        Sign.RSAPSS: tpm2_objects.TPM_ALG_RSAPSS,
+        Sign.ECDSA: tpm2_objects.TPM_ALG_ECDSA,
+    }
+
     @staticmethod
     def verify_tpm_object(
         tpm_object: bytes,
@@ -96,12 +117,23 @@ class Tpm:
         # Extract signature algorithm and size
         sig_alg, _, sig_size = struct.unpack_from(">HHH", sig, 0)
 
-        # TODO: Implement pseudocode:
-        # if hashfunc != hash_alg:
-        #     raise HashAlgorithmMismatch(f"hash algorithm in TPM2B_ATTEST structure was not {hash_alg}")
+        # Validate hash algorithm matches expected value (prevents downgrade attacks)
+        if _hash_alg:
+            expected_hash_alg = Tpm.HASH_ALG_TO_TPM.get(_hash_alg)
+            actual_hash_alg = int.from_bytes(sig[2:4], "big")
+            if expected_hash_alg and actual_hash_alg != expected_hash_alg:
+                raise HashAlgorithmMismatch(
+                    f"hash algorithm in signature was {actual_hash_alg:#x}, "
+                    f"expected {expected_hash_alg:#x} ({_hash_alg})"
+                )
 
-        # if sig_alg != sign_alg:
-        #     raise SignatureAlgorithmMismatch(f"signature algorithm in TPM2B_ATTEST structure was not {sign_alg}")
+        # Validate signature algorithm matches expected value (prevents downgrade attacks)
+        if _sign_alg:
+            expected_sign_alg = Tpm.SIGN_ALG_TO_TPM.get(_sign_alg)
+            if expected_sign_alg and sig_alg != expected_sign_alg:
+                raise SignatureAlgorithmMismatch(
+                    f"signature algorithm was {sig_alg:#x}, " f"expected {expected_sign_alg:#x} ({_sign_alg})"
+                )
 
         # Compare signed digest against calculated digest and verify signature:
 

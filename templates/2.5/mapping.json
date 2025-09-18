@@ -18,7 +18,11 @@
             "add": {
                 "mode": "pull",
                 "challenge_lifetime": "1800",
-                "verification_timeout":  "0"
+                "verification_timeout":  "0",
+                "session_create_rate_limit_per_ip": "50",
+                "session_create_rate_limit_window_ip": "60",
+                "session_create_rate_limit_per_agent": "15",
+                "session_create_rate_limit_window_agent": "60"
             }
         }
     }

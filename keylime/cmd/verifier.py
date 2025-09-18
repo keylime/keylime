@@ -2,6 +2,7 @@ from keylime import api_version, config, keylime_logging
 from keylime.common.migrations import apply
 from keylime.mba import mba
 from keylime.models import da_manager, db_manager
+from keylime.shared_data import initialize_shared_memory
 from keylime.web import VerifierServer
 
 logger = keylime_logging.init_logging("verifier")
@@ -39,6 +40,11 @@ def main() -> None:
     db_manager.make_engine("cloud_verifier")
     # Prepare backend for durable attestation, if configured
     da_manager.make_backend("verifier")
+
+    # Initialize shared memory BEFORE creating server instance
+    # This MUST happen before VerifierServer() instantiation and worker forking
+    logger.info("Initializing shared memory manager in main process before server creation")
+    initialize_shared_memory()
 
     # Start HTTP server
     server = VerifierServer()

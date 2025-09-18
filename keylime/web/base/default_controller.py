@@ -19,6 +19,12 @@ class DefaultController(Controller):
         self.send_response(400, "Bad Request")
 
     def malformed_params(self, **_params: Any) -> None:
+        import traceback  # pylint: disable=import-outside-toplevel
+
+        from keylime import keylime_logging  # pylint: disable=import-outside-toplevel
+
+        logger = keylime_logging.init_logging("web")
+        logger.error("Malformed params error. Traceback: %s", traceback.format_exc())
         self.send_response(400, "Malformed Request Parameter")
 
     def action_dispatch_error(self, **_params: Any) -> None:

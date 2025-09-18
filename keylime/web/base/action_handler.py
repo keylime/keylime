@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional
 from tornado.web import RequestHandler
 
 from keylime import keylime_logging
+from keylime.models.base.types import Timestamp  # type: ignore[attr-defined]
+from keylime.models.verifier.auth_session import AuthSession
 from keylime.web.base.default_controller import DefaultController
 from keylime.web.base.exceptions import (
     ActionDispatchError,
@@ -211,6 +213,69 @@ class ActionHandler(RequestHandler):
         # Set response header to include request ID
         self.set_header("X-Request-ID", self.request_id)
 
+    def _validate_authentication(self) -> bool:
+        """Validate the authentication token from the Authorization header.
+
+        Returns True if authentication is valid or not required, False if authentication failed.
+        Sets HTTP 401 response if token is invalid or expired.
+        """
+        # Check if route requires authentication
+        # Session creation routes (POST/PATCH /sessions) don't require authentication
+        if self.request.method in ["POST", "PATCH"] and "/sessions" in self.request.path:
+            return True
+
+        # Extract token from Authorization header
+        auth_header = self.request.headers.get("Authorization")
+        if not auth_header:
+            # No authentication provided - for now, allow (backwards compatibility)
+            return True
+
+        # Parse Bearer token
+        if not auth_header.startswith("Bearer "):
+            logger.warning("Invalid Authorization header format (expected 'Bearer <token>')")
+            self.set_status(401)
+            self.write(
+                {
+                    "errors": [
+                        {"status": "401", "title": "Unauthorized", "detail": "Invalid Authorization header format"}
+                    ]
+                }
+            )
+            self.finish()
+            return False
+
+        token = auth_header[7:]  # Remove "Bearer " prefix
+
+        # Look up token in database
+        auth_session = AuthSession.get(token)
+        if not auth_session:
+            logger.warning("Authentication token not found: %s", token[:10] + "...")
+            self.set_status(401)
+            self.write(
+                {"errors": [{"status": "401", "title": "Unauthorized", "detail": "Invalid authentication token"}]}
+            )
+            self.finish()
+            return False
+
+        # Check if token has expired
+        now = Timestamp.now()
+        if auth_session.token_expires_at < now:  # type: ignore[attr-defined]
+            logger.info(
+                "Authentication token expired for agent '%s' (expired at %s)",
+                auth_session.agent_id,  # type: ignore[attr-defined]
+                auth_session.token_expires_at,  # type: ignore[attr-defined]
+            )
+            self.set_status(401)
+            self.write(
+                {"errors": [{"status": "401", "title": "Unauthorized", "detail": "Authentication token expired"}]}
+            )
+            self.finish()
+            return False
+
+        # Token is valid
+        logger.debug("Authentication token validated for agent '%s'", auth_session.agent_id)  # type: ignore[attr-defined]
+        return True
+
     def initialize(self, server: "Server") -> None:
         # The initialize method is provided by RequestHandler to be used instead of overriding __init__
         # pylint: disable=attribute-defined-outside-init
@@ -250,6 +315,7 @@ class ActionHandler(RequestHandler):
         # Handle situation where HTTP is used to access an HTTPS-only route
         if self.request.protocol == "http" and not route.allow_insecure:
             await self._invoke_action("https_required", ignore_param_errors=True)
+            return
 
         # Below warning is a false positive: self._matching_route and self._controller are first defined in initialize
         # pylint: disable=attribute-defined-outside-init
@@ -258,6 +324,11 @@ class ActionHandler(RequestHandler):
         self._matching_route = route
         # Create a new instance of the controller for the current ActionHandler instance
         self._controller = route.new_controller(self)
+
+        # Validate authentication token if provided
+        if not self._validate_authentication():
+            # Authentication failed, response already sent
+            return
 
     async def process_request(self) -> None:
         # If a route matches the request, invoke action determined by the matching route
