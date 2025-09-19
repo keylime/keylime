@@ -27,7 +27,7 @@ DESCRIPTION
 
 The registrar is a long-running HTTP(S) service used by agents and the verifier during
 registration and activation. The service does not accept command-line options; behavior is
-configured via configuration files and environment variables.
+configured via configuration files and environment variables and managed by keylime tenant.
 
 CONFIGURATION
 =============
@@ -77,26 +77,18 @@ Start from system install:
 
    sudo keylime_registrar
 
-Start from source (development):
-
-.. code-block:: bash
-
-   export KEYLIME_REGISTRAR_CONFIG=$PWD/dev-config/registrar.conf
-   export KEYLIME_LOGGING_CONFIG=$PWD/dev-config/logging.conf
-   sudo -E python -m keylime.cmd.registrar
-
 Start as a systemd service:
 
 .. code-block:: bash
 
-   sudo systemctl enable --now keylime_registrar
+   systemctl enable --now keylime_registrar
 
 Open firewall ports (adjust if you changed ports):
 
 .. code-block:: bash
 
-   sudo firewall-cmd --add-port=8890/tcp --add-port=8891/tcp
-   sudo firewall-cmd --runtime-to-permanent
+   firewall-cmd --add-port=8890/tcp --add-port=8891/tcp
+   firewall-cmd --runtime-to-permanent
 
 NOTES
 =====
