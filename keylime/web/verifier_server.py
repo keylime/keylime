@@ -3,7 +3,7 @@ from keylime.web.base.server import Server
 from keylime.web.verifier.agent_controller import AgentController
 from keylime.web.verifier.mb_ref_state_controller import MBRefStateController
 from keylime.web.verifier.ima_policy_controller import IMAPolicyController
-from keylime.web.verifier.push_attestation_controller import AttestationController
+from keylime.web.verifier.attestation_controller import AttestationController
 from keylime.web.verifier.evidence_controller import EvidenceController
 from keylime.web.verifier.server_info_controller import ServerInfoController
 
