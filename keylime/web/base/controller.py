@@ -359,7 +359,7 @@ class Controller:
 
         response = {"code": code, "status": status, "results": data}
 
-        self.send_response(status_code=code, body=response)
+        self.send_response(code=code, body=response)
 
     def redirect(self, path: str, code: int = 307) -> None:
         """Directs the client to retrieve the requested resource at a different path. Uses a 307 status code by default
