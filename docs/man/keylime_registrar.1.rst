@@ -101,7 +101,7 @@ NOTES
 SEE ALSO
 ========
 
-**keylime_verifier**(1), **keylime_tenant**(1), **keylime_agent**(1)
+**keylime_verifier**(8), **keylime_tenant**(1), **keylime_agent**(8)
 
 BUGS
 ====

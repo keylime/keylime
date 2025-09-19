@@ -111,7 +111,7 @@ NOTES
 SEE ALSO
 ========
 
-**keylime_registrar**(1), **keylime_tenant**(1), **keylime_agent**(1)
+**keylime_registrar**(8), **keylime_tenant**(1), **keylime_agent**(8)
 
 BUGS
 ====
