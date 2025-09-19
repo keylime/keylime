@@ -214,7 +214,7 @@ class AttestationController(Controller):
                 f"attestation not passing verification."
             ).send_via(self)
 
-        if agent.latest_attestation.verification_in_progress:
+        if agent.latest_attestation and agent.latest_attestation.verification_in_progress:
             self.set_header("Retry-After", agent.latest_attestation.seconds_to_decision)
             APIError("verification_in_progress", 503).set_detail(
                 f"Cannot create attestation for agent '{agent_id}' while the last attestation is still being "
@@ -222,7 +222,7 @@ class AttestationController(Controller):
                 f"{agent.latest_attestation.seconds_to_decision} seconds."
             ).send_via(self)
 
-        if not agent.latest_attestation.ready_for_next_attestation:
+        if agent.latest_attestation and not agent.latest_attestation.ready_for_next_attestation:
             self.set_header("Retry-After", agent.latest_attestation.seconds_to_next_attestation)
             APIError("premature_attestation", 429).set_detail(
                 f"Cannot create attestation for agent '{agent_id}' before the configured interval has elapsed. "
