@@ -31,6 +31,16 @@ TPM_ECC_NIST_P256 = 0x0003
 TPM_ECC_NIST_P384 = 0x0004
 TPM_ECC_NIST_P521 = 0x0005
 
+# ECC curve prime moduli lookup table (coordinates must be < p)
+# This structure supports NIST curves and can be extended for other curves.
+ECC_CURVE_PRIMES = {
+    TPM_ECC_NIST_P192: 2**192 - 2**64 - 1,  # P-192 prime
+    TPM_ECC_NIST_P224: 2**224 - 2**96 + 1,  # P-224 prime
+    TPM_ECC_NIST_P256: 2**256 - 2**224 + 2**192 + 2**96 - 1,  # P-256 prime
+    TPM_ECC_NIST_P384: 2**384 - 2**128 - 2**96 + 2**32 - 1,  # P-384 prime
+    TPM_ECC_NIST_P521: 2**521 - 1,  # P-521 prime
+}
+
 TPM_ALG_RSA = 0x0001
 TPM_ALG_ECC = 0x0023
 
@@ -318,10 +328,34 @@ def pubkey_parms_from_tpm2b_public(
         if len(rest) != 0:
             raise ValueError("Misparsed: more contents after X and Y")
 
-        if (len(x) * 8) != curve.key_size:
-            raise ValueError(f"Misparsed either X or curve: {len(x)}*8 != {curve.key_size}")
-        if (len(y) * 8) != curve.key_size:
-            raise ValueError(f"Misparsed either Y or curve curve: {len(y)}*8 != {curve.key_size}")
+        # ECC coordinates can vary in byte length due to:
+        # 1. Padding to byte boundaries (most common)
+        # 2. Leading zero stripping in some encodings
+        # Validate both byte length and actual coordinate value.
+        max_bytes = (curve.key_size + 7) // 8
+        min_bytes = max_bytes - 1 if curve.key_size % 8 != 0 else max_bytes
+
+        # Get the actual prime modulus for the curve
+        prime_p = ECC_CURVE_PRIMES.get(curve_id)
+        if prime_p is None:
+            raise ValueError(f"Unsupported curve ID {curve_id:#x}: prime modulus not known")
+
+        for label, coord in (("X", x), ("Y", y)):
+            coord_len = len(coord)
+            if coord_len < min_bytes or coord_len > max_bytes:
+                raise ValueError(
+                    f"Misparsed {label} coordinate: got {coord_len} bytes, "
+                    f"expected {min_bytes}-{max_bytes} for {curve.key_size}-bit curve"
+                )
+
+            coord_int = int.from_bytes(coord, "big")
+            # Coordinates must be reduced modulo the field prime p
+            # (SEC1 §2.3.5, FIPS 186-4 App D). Reject values >= p.
+            if coord_int >= prime_p:
+                raise ValueError(
+                    f"{label} coordinate too large: {coord_int.bit_length()} bits, "
+                    f"must be < {prime_p.bit_length()}-bit prime modulus"
+                )
 
         bx = int.from_bytes(x, byteorder="big")
         by = int.from_bytes(y, byteorder="big")
