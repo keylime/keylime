@@ -150,6 +150,10 @@ latex_documents = [
 man_pages = [
     (master_doc, "keylimedocumentation", "Keylime Documentation Documentation", [author], 1),
     ("man/keylime_tenant.1", "keylime_tenant", "Keylime tenant management tool", [author], 1),
+    ("man/keylime-policy.1", "keylime-policy", "Keylime policy creation and signing tool", [author], 1),
+    ("man/keylime_registrar.8", "keylime_registrar", "Keylime registrar service", [author], 8),
+    ("man/keylime_verifier.8", "keylime_verifier", "Keylime verifier service", [author], 8),
+    ("man/keylime_agent.8", "keylime_agent", "Keylime agent service", [author], 8),
 ]
 
 

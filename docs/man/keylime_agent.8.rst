@@ -1,5 +1,5 @@
 =================
-keylime_agent.1
+keylime_agent.8
 =================
 
 -----------------------
@@ -62,7 +62,7 @@ Essentials:
 - **enable_insecure_payload**: Allow payloads without mTLS (insecure)
 - **measure_payload_pcr**: PCR to extend with payload (-1 to disable)
 - **exponential_backoff**, **retry_interval**, **max_retries**: TPM communication retry
-- **tpm_hash_alg**, **tpm_encryption_alg**, **tmp_signing_alg**: TPM algorithms
+- **tpm_hash_alg**, **tpm_encryption_alg**, **tpm_signing_alg**: TPM algorithms
 - **ek_handle**: EK handle (``generate`` or explicit handle like ``0x81000000``)
 - **enable_iak_idevid**: Enable IAK/IDevID usage (bool)
 - **iak_idevid_template**, **iak_idevid_asymmetric_alg**, **iak_idevid_name_alg**: IAK/IDevID config

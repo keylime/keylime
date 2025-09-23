@@ -1,5 +1,5 @@
 ===================
-keylime_verifier.1
+keylime_verifier.8
 ===================
 
 -------------------------
@@ -28,7 +28,7 @@ DESCRIPTION
 The verifier is a long-running HTTP service that attests registered agents. It uses a database,
 communicates with the registrar, and optionally performs measured boot evaluation and durable
 attestation. The service does not accept command-line options; behavior is configured via
-configuration files and environment variables.
+configuration files and environment variables and managed by keylime tenant.
 
 CONFIGURATION
 =============
