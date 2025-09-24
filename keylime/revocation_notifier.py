@@ -11,6 +11,7 @@ import requests
 
 from keylime import config, crypto, json, keylime_logging, web_util
 from keylime.common import retry
+from keylime.config import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
 from keylime.requests_client import RequestsClient
 
 logger = keylime_logging.init_logging("revocation_notifier")
@@ -32,7 +33,7 @@ class WebhookNotificationManager:
 
         # Read all configuration once during initialization
         self._webhook_url = config.get("verifier", "webhook_url", section="revocations", fallback="")
-        self._request_timeout = config.getfloat("verifier", "request_timeout", fallback=60.0)
+        self._request_timeout = config.getfloat("verifier", "request_timeout", fallback=DEFAULT_TIMEOUT)
         self._retry_interval = config.getfloat("verifier", "retry_interval")
         self._exponential_backoff = config.getboolean("verifier", "exponential_backoff")
         self._max_retries = config.getint("verifier", "max_retries")
@@ -40,7 +41,7 @@ class WebhookNotificationManager:
         # Validate max_retries
         if self._max_retries <= 0:
             logger.info("Invalid value found in 'max_retries' option for verifier, using default value")
-            self._max_retries = 5
+            self._max_retries = DEFAULT_MAX_RETRIES
 
         # Read TLS configuration once
         (cert, key, trusted_ca, key_password), self._verify_server_cert = web_util.get_tls_options(
