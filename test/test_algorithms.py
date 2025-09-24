@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from keylime.common.algorithms import Encrypt, Hash, Sign
+from keylime.common.algorithms import Encrypt, Hash, Sign, is_accepted
 
 
 class TestHash(unittest.TestCase):
@@ -117,10 +117,87 @@ class TestEncrypt(unittest.TestCase):
                 "enc": "ecc",
                 "valid": True,
             },
+            {
+                "enc": "ecc192",
+                "valid": True,
+            },
+            {
+                "enc": "ecc224",
+                "valid": True,
+            },
+            {
+                "enc": "ecc256",
+                "valid": True,
+            },
+            {
+                "enc": "ecc384",
+                "valid": True,
+            },
+            {
+                "enc": "ecc521",
+                "valid": True,
+            },
         ]
 
         for c in test_cases:
             self.assertEqual(Encrypt.is_recognized(c["enc"]), c["valid"], msg=f"enc = {c['enc']}")
+
+    def test_enum_membership(self):
+        """Test that all ECC curve algorithms are members of the Encrypt enum"""
+        self.assertTrue(Encrypt.RSA in Encrypt)
+        self.assertTrue(Encrypt.ECC in Encrypt)
+        self.assertTrue(Encrypt.ECC192 in Encrypt)
+        self.assertTrue(Encrypt.ECC224 in Encrypt)
+        self.assertTrue(Encrypt.ECC256 in Encrypt)
+        self.assertTrue(Encrypt.ECC384 in Encrypt)
+        self.assertTrue(Encrypt.ECC521 in Encrypt)
+
+    def test_normalize(self):
+        """Test the normalize method for handling ECC aliases"""
+        test_cases = [
+            {
+                "input": "ecc",
+                "expected": "ecc256",
+            },
+            {
+                "input": "ecc192",
+                "expected": "ecc192",
+            },
+            {
+                "input": "ecc224",
+                "expected": "ecc224",
+            },
+            {
+                "input": "ecc256",
+                "expected": "ecc256",
+            },
+            {
+                "input": "ecc384",
+                "expected": "ecc384",
+            },
+            {
+                "input": "ecc521",
+                "expected": "ecc521",
+            },
+            {
+                "input": "rsa",
+                "expected": "rsa",
+            },
+        ]
+
+        for c in test_cases:
+            self.assertEqual(Encrypt.normalize(c["input"]), c["expected"], msg=f"input = {c['input']}")
+
+    def test_normalize_ecc_alias_behavior(self):
+        """Test that ECC alias normalization matches agent behavior"""
+        # Test that "ecc" is recognized through alias handling
+        self.assertTrue(Encrypt.is_recognized("ecc"))
+
+        # Test that normalize converts "ecc" to "ecc256" (P-256)
+        self.assertEqual(Encrypt.normalize("ecc"), "ecc256")
+
+        # Test that direct ecc256 works
+        self.assertTrue(Encrypt.is_recognized("ecc256"))
 
 
 class TestSign(unittest.TestCase):
@@ -158,3 +235,199 @@ class TestSign(unittest.TestCase):
 
         for c in test_cases:
             self.assertEqual(Sign.is_recognized(c["sign"]), c["valid"], msg=f"sign = {c['sign']}")
+
+
+class TestIsAccepted(unittest.TestCase):
+    def test_direct_algorithm_matching(self):
+        """Test that direct algorithm matches work correctly"""
+        test_cases = [
+            {
+                "algorithm": "ecc256",
+                "accepted": ["ecc256"],
+                "expected": True,
+            },
+            {
+                "algorithm": "rsa",
+                "accepted": ["rsa"],
+                "expected": True,
+            },
+            {
+                "algorithm": "ecc384",
+                "accepted": ["ecc256", "ecc384"],
+                "expected": True,
+            },
+            {
+                "algorithm": "ecc521",
+                "accepted": ["ecc256"],
+                "expected": False,
+            },
+            {
+                "algorithm": "unknown",
+                "accepted": ["rsa", "ecc256"],
+                "expected": False,
+            },
+        ]
+
+        for c in test_cases:
+            result = is_accepted(c["algorithm"], c["accepted"])
+            self.assertEqual(result, c["expected"], msg=f"algorithm='{c['algorithm']}', accepted={c['accepted']}")
+
+    def test_backwards_compatibility_ecc_normalization(self):
+        """Test backwards compatibility: 'ecc' in accepted list should accept specific ECC algorithms"""
+        test_cases = [
+            {
+                "algorithm": "ecc256",
+                "accepted": ["ecc"],
+                "expected": True,
+                "desc": "ecc256 should be accepted when 'ecc' is in accepted list",
+            },
+            {
+                "algorithm": "ecc384",
+                "accepted": ["ecc"],
+                "expected": False,
+                "desc": "ecc384 should NOT be accepted when only 'ecc' is in accepted list (ecc maps to ecc256)",
+            },
+            {
+                "algorithm": "ecc521",
+                "accepted": ["ecc"],
+                "expected": False,
+                "desc": "ecc521 should NOT be accepted when only 'ecc' is in accepted list",
+            },
+            {
+                "algorithm": "ecc192",
+                "accepted": ["ecc"],
+                "expected": False,
+                "desc": "ecc192 should NOT be accepted when only 'ecc' is in accepted list",
+            },
+        ]
+
+        for c in test_cases:
+            result = is_accepted(c["algorithm"], c["accepted"])
+            self.assertEqual(
+                result, c["expected"], msg=f"{c['desc']} - algorithm='{c['algorithm']}', accepted={c['accepted']}"
+            )
+
+    def test_forward_compatibility_ecc_normalization(self):
+        """Test forward compatibility: specific ECC in accepted list should accept 'ecc' algorithm"""
+        test_cases = [
+            {
+                "algorithm": "ecc",
+                "accepted": ["ecc256"],
+                "expected": True,
+                "desc": "ecc should be accepted when 'ecc256' is in accepted list (both normalize to ecc256)",
+            },
+            {
+                "algorithm": "ecc",
+                "accepted": ["ecc384"],
+                "expected": False,
+                "desc": "ecc should NOT be accepted when only 'ecc384' is in accepted list",
+            },
+            {
+                "algorithm": "ecc",
+                "accepted": ["ecc521"],
+                "expected": False,
+                "desc": "ecc should NOT be accepted when only 'ecc521' is in accepted list",
+            },
+        ]
+
+        for c in test_cases:
+            result = is_accepted(c["algorithm"], c["accepted"])
+            self.assertEqual(
+                result, c["expected"], msg=f"{c['desc']} - algorithm='{c['algorithm']}', accepted={c['accepted']}"
+            )
+
+    def test_bidirectional_algorithm_matching(self):
+        """Test bidirectional matching scenarios that happen in real usage"""
+        test_cases = [
+            {
+                "algorithm": "ecc256",
+                "accepted": ["rsa", "ecc"],
+                "expected": True,
+                "desc": "Agent reports ecc256, tenant config has generic 'ecc'",
+            },
+            {
+                "algorithm": "ecc",
+                "accepted": ["rsa", "ecc256"],
+                "expected": True,
+                "desc": "Agent reports generic 'ecc', tenant config has specific 'ecc256'",
+            },
+            {
+                "algorithm": "ecc384",
+                "accepted": ["rsa", "ecc"],
+                "expected": False,
+                "desc": "Agent reports ecc384, tenant has generic 'ecc' (should not match)",
+            },
+            {
+                "algorithm": "ecc",
+                "accepted": ["rsa", "ecc384"],
+                "expected": False,
+                "desc": "Agent reports generic 'ecc', tenant has ecc384 (should not match)",
+            },
+        ]
+
+        for c in test_cases:
+            result = is_accepted(c["algorithm"], c["accepted"])
+            self.assertEqual(
+                result, c["expected"], msg=f"{c['desc']} - algorithm='{c['algorithm']}', accepted={c['accepted']}"
+            )
+
+    def test_mixed_algorithm_types(self):
+        """Test mixing different algorithm types in accepted list"""
+        test_cases = [
+            {
+                "algorithm": "rsa",
+                "accepted": ["ecc", "rsa"],
+                "expected": True,
+            },
+            {
+                "algorithm": "ecc256",
+                "accepted": ["rsa", "ecc"],
+                "expected": True,
+            },
+            {
+                "algorithm": "ecc384",
+                "accepted": ["rsa", "ecc256", "ecc384"],
+                "expected": True,
+            },
+            {
+                "algorithm": "unknown",
+                "accepted": ["rsa", "ecc", "ecc384"],
+                "expected": False,
+            },
+        ]
+
+        for c in test_cases:
+            result = is_accepted(c["algorithm"], c["accepted"])
+            self.assertEqual(result, c["expected"], msg=f"algorithm='{c['algorithm']}', accepted={c['accepted']}")
+
+    def test_edge_cases(self):
+        """Test edge cases and boundary conditions"""
+        test_cases = [
+            {"algorithm": "", "accepted": ["ecc"], "expected": False, "desc": "Empty algorithm string"},
+            {"algorithm": "ecc256", "accepted": [], "expected": False, "desc": "Empty accepted list"},
+            {"algorithm": "ecc256", "accepted": [""], "expected": False, "desc": "Accepted list with empty string"},
+            {
+                "algorithm": "ECC256",
+                "accepted": ["ecc256"],
+                "expected": False,
+                "desc": "Case sensitivity - uppercase should not match",
+            },
+            {
+                "algorithm": "ecc256",
+                "accepted": ["ecc"],
+                "expected": True,
+                "desc": "ecc256 algorithm should match ecc in accepted list",
+            },
+            {
+                "algorithm": "ecc",
+                "accepted": ["ecc256"],
+                "expected": True,
+                "desc": "ecc algorithm should match ecc256 in accepted list",
+            },
+        ]
+
+        for c in test_cases:
+            result = is_accepted(c["algorithm"], c["accepted"])
+            self.assertEqual(
+                result, c["expected"], msg=f"{c['desc']} - algorithm='{c['algorithm']}', accepted={c['accepted']}"
+            )

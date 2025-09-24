@@ -9,7 +9,18 @@ def is_accepted(algorithm: str, accepted: List[Any]) -> bool:
     @param algorithm: algorithm to be checked
     @param accepted: a list of acceptable algorithms
     """
-    return algorithm in accepted
+    # Check direct match first.
+    if algorithm in accepted:
+        return True
+
+    # Check if any accepted algorithm normalizes to the same value as our algorithm
+    # This handles backwards compatibility cases like "ecc" accepting "ecc256".
+    normalized_algorithm = Encrypt.normalize(algorithm)
+    for accepted_alg in accepted:
+        if Encrypt.normalize(str(accepted_alg)) == normalized_algorithm:
+            return True
+
+    return False
 
 
 class Hash(str, enum.Enum):
@@ -74,10 +85,25 @@ class Hash(str, enum.Enum):
 class Encrypt(str, enum.Enum):
     RSA = "rsa"
     ECC = "ecc"
+    ECC192 = "ecc192"
+    ECC224 = "ecc224"
+    ECC256 = "ecc256"
+    ECC384 = "ecc384"
+    ECC521 = "ecc521"
 
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
+        # Handle aliases to match agent behavior
+        if algorithm == "ecc":
+            algorithm = "ecc256"  # Default ECC alias maps to P-256, same as the agent.
         return algorithm in list(Encrypt)
+
+    @staticmethod
+    def normalize(algorithm: str) -> str:
+        """Normalize algorithm string to handle aliases, matching the agent behavior"""
+        if algorithm == "ecc":
+            return "ecc256"  # Default ECC alias maps to P-256.
+        return algorithm
 
 
 class Sign(str, enum.Enum):
