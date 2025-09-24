@@ -435,3 +435,7 @@ TPM_DATA_PCR = 16
 # Enable DB debugging via environment variable DEBUG_DB
 # This is only effective when INSECURE_DEBUG is also True
 DEBUG_DB = environ_bool("DEBUG_DB", False)
+
+# Default timeout and retry constants to avoid magic numbers throughout the codebase
+DEFAULT_TIMEOUT = 60.0
+DEFAULT_MAX_RETRIES = 5

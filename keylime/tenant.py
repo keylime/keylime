@@ -20,6 +20,7 @@ from keylime.agentstates import AgentAttestState
 from keylime.cli import options, policies
 from keylime.cmd import user_data_encrypt
 from keylime.common import algorithms, retry, states, validators
+from keylime.config import DEFAULT_TIMEOUT
 from keylime.ip_util import bracketize_ipv6
 from keylime.mba import mba
 from keylime.requests_client import RequestsClient
@@ -86,7 +87,7 @@ class Tenant:
     verify_server_cert: bool = False
     verify_custom: Optional[str] = None
 
-    request_timeout: Optional[int] = None
+    request_timeout: Optional[float] = None
 
     agent_fid_str: Optional[str] = None
     verifier_fid_str: Optional[str] = None
@@ -116,7 +117,7 @@ class Tenant:
         self.registrar_port = config.get("tenant", "registrar_port")
         self.api_version = keylime_api_version.current_version()
         self.enable_agent_mtls = config.getboolean("tenant", "enable_agent_mtls")
-        self.request_timeout = config.getint("tenant", "request_timeout", fallback=60)
+        self.request_timeout = config.getfloat("tenant", "request_timeout", fallback=DEFAULT_TIMEOUT)
         self.retry_interval = config.getfloat("tenant", "retry_interval")
         self.exponential_backoff = config.getboolean("tenant", "exponential_backoff")
         self.maxr = config.getint("tenant", "max_retries")

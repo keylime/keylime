@@ -34,6 +34,7 @@ from keylime import (
 from keylime.agentstates import AgentAttestState, AgentAttestStates
 from keylime.common import retry, states, validators
 from keylime.common.version import str_to_version
+from keylime.config import DEFAULT_TIMEOUT
 from keylime.da import record
 from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpolicy
@@ -95,7 +96,7 @@ exclude_db: Dict[str, Any] = {
     "provide_V": True,
     "num_retries": 0,
     "pending_event": None,
-    "request_timeout": 60.0,
+    "request_timeout": DEFAULT_TIMEOUT,
     # the following 3 items are updated to VerifierDB only when the AgentState is stored
     "boottime": "",
     "ima_pcrs": [],
@@ -1646,7 +1647,9 @@ class VerifyEvidenceHandler(BaseHandler):
             raise
 
 
-async def update_agent_api_version(agent: Dict[str, Any], timeout: float = 60.0) -> Union[Dict[str, Any], None]:
+async def update_agent_api_version(
+    agent: Dict[str, Any], timeout: float = DEFAULT_TIMEOUT
+) -> Union[Dict[str, Any], None]:
     agent_id = agent["agent_id"]
 
     logger.info("Agent %s API version bump detected, trying to update stored API version", agent_id)
@@ -1722,7 +1725,11 @@ async def update_agent_api_version(agent: Dict[str, Any], timeout: float = 60.0)
 
 
 async def invoke_get_quote(
-    agent: Dict[str, Any], mb_policy: Optional[str], runtime_policy: str, need_pubkey: bool, timeout: float = 60.0
+    agent: Dict[str, Any],
+    mb_policy: Optional[str],
+    runtime_policy: str,
+    need_pubkey: bool,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> None:
     failure = Failure(Component.INTERNAL, ["verifier"])
 
@@ -1826,7 +1833,7 @@ async def invoke_get_quote(
             asyncio.ensure_future(process_agent(agent, states.FAILED, failure))
 
 
-async def invoke_provide_v(agent: Dict[str, Any], timeout: float = 60.0) -> None:
+async def invoke_provide_v(agent: Dict[str, Any], timeout: float = DEFAULT_TIMEOUT) -> None:
     failure = Failure(Component.INTERNAL, ["verifier"])
 
     if agent.get("pending_event") is not None:
@@ -1893,7 +1900,7 @@ async def invoke_provide_v(agent: Dict[str, Any], timeout: float = 60.0) -> None
         asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
 
 
-async def invoke_notify_error(agent: Dict[str, Any], tosend: Dict[str, Any], timeout: float = 60.0) -> None:
+async def invoke_notify_error(agent: Dict[str, Any], tosend: Dict[str, Any], timeout: float = DEFAULT_TIMEOUT) -> None:
     kwargs = {
         "data": tosend,
     }
@@ -1940,7 +1947,10 @@ async def invoke_notify_error(agent: Dict[str, Any], tosend: Dict[str, Any], tim
 
 
 async def notify_error(
-    agent: Dict[str, Any], msgtype: str = "revocation", event: Optional[Event] = None, timeout: float = 60.0
+    agent: Dict[str, Any],
+    msgtype: str = "revocation",
+    event: Optional[Event] = None,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> None:
     notifiers = revocation_notifier.get_notifiers()
     if len(notifiers) == 0:
@@ -2050,7 +2060,7 @@ async def process_agent(
         # verifier config)
         # This value is set through the exclude_db dict and is removed before
         # storing the agent data in the DB
-        timeout = agent.get("request_timeout", 60.0)
+        timeout = agent.get("request_timeout", DEFAULT_TIMEOUT)
 
         # If failed during processing, log regardless and drop it on the floor
         # The administration application (tenant) can GET the status and act accordingly (delete/retry/etc).
@@ -2277,7 +2287,7 @@ def main() -> None:
     config.check_version("verifier", logger=logger)
 
     # Set verifier timeout configuration in exclude_db
-    exclude_db["request_timeout"] = config.getfloat("verifier", "request_timeout", fallback=60.0)
+    exclude_db["request_timeout"] = config.getfloat("verifier", "request_timeout", fallback=DEFAULT_TIMEOUT)
 
     verifier_port = config.get("verifier", "port")
     verifier_host = config.get("verifier", "ip")

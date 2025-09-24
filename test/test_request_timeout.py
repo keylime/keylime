@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from tornado.httpclient import HTTPError
 
+from keylime.config import DEFAULT_TIMEOUT
+
 # Add the keylime directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -62,7 +64,7 @@ class TestTornadoRequestsTimeout(unittest.TestCase):
             # Verify HTTPRequest was called with default timeout
             mock_client.fetch.assert_called_once()
             http_request = mock_client.fetch.call_args[0][0]
-            self.assertEqual(http_request.request_timeout, 60.0)  # Default timeout
+            self.assertEqual(http_request.request_timeout, DEFAULT_TIMEOUT)  # Default timeout
             self.assertEqual(response.status_code, 200)
 
         asyncio.run(run_test())
@@ -137,10 +139,10 @@ class TestRequestTimeoutConfiguration(unittest.TestCase):
         mock_getfloat.return_value = 90.0
 
         # Simulate configuration reading from main()
-        timeout = mock_getfloat("verifier", "request_timeout", fallback=60.0)
+        timeout = mock_getfloat("verifier", "request_timeout", fallback=DEFAULT_TIMEOUT)
 
         # Verify correct config call
-        mock_getfloat.assert_called_with("verifier", "request_timeout", fallback=60.0)
+        mock_getfloat.assert_called_with("verifier", "request_timeout", fallback=DEFAULT_TIMEOUT)
         self.assertEqual(timeout, 90.0)
 
 
@@ -180,7 +182,7 @@ class TestWebhookNotificationTimeout(unittest.TestCase):
         # Verify timeout was set correctly from config
         # pylint: disable=protected-access
         self.assertEqual(manager._request_timeout, 45.5)
-        mock_getfloat.assert_any_call("verifier", "request_timeout", fallback=60.0)
+        mock_getfloat.assert_any_call("verifier", "request_timeout", fallback=DEFAULT_TIMEOUT)
 
     @patch("keylime.web_util.generate_tls_context")
     @patch("keylime.requests_client.RequestsClient")
@@ -241,15 +243,18 @@ class TestTenantTimeout(unittest.TestCase):
 
         # Mock configuration values
         def getint_side_effect(_section, option, fallback=None):
-            if option == "request_timeout":
-                return 42
             if option == "max_retries":
                 return 5
             return fallback or 0
 
+        def getfloat_side_effect(_section, option, fallback=None):
+            if option == "request_timeout":
+                return 42.0
+            return fallback or 1.0
+
         mock_getint.side_effect = getint_side_effect
+        mock_getfloat.side_effect = getfloat_side_effect
         mock_get.return_value = "localhost"
-        mock_getfloat.return_value = 1.0
         mock_getboolean.return_value = False
         mock_tls_options.return_value = (("cert", "key", "ca", None), True)
 
@@ -257,8 +262,8 @@ class TestTenantTimeout(unittest.TestCase):
         tenant = Tenant()
 
         # Verify timeout was set correctly from config
-        self.assertEqual(tenant.request_timeout, 42)
-        mock_getint.assert_any_call("tenant", "request_timeout", fallback=60)
+        self.assertEqual(tenant.request_timeout, 42.0)
+        mock_getfloat.assert_any_call("tenant", "request_timeout", fallback=DEFAULT_TIMEOUT)
 
     def test_tenant_timeout_attribute_set(self):
         """Test that Tenant timeout attribute is accessible after initialization."""
@@ -267,14 +272,14 @@ class TestTenantTimeout(unittest.TestCase):
 
         # We can't easily test the full Tenant initialization due to complex dependencies,
         # but we can verify the config reading pattern works by testing it directly
-        with patch("keylime.config.getint") as mock_getint:
-            mock_getint.return_value = 33
+        with patch("keylime.config.getfloat") as mock_getfloat:
+            mock_getfloat.return_value = 33.0
 
             # Test the config reading pattern used in Tenant.__init__
-            timeout = mock_getint("tenant", "request_timeout", fallback=60)
+            timeout = mock_getfloat("tenant", "request_timeout", fallback=DEFAULT_TIMEOUT)
 
             # Verify the config was read correctly
-            mock_getint.assert_called_with("tenant", "request_timeout", fallback=60)
+            mock_getfloat.assert_called_with("tenant", "request_timeout", fallback=DEFAULT_TIMEOUT)
             self.assertEqual(timeout, 33)
 
     def test_tenant_timeout_usage_pattern(self):
