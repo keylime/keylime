@@ -25,9 +25,9 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-The registrar is a long-running HTTP(S) service used by agents and the verifier during
-registration and activation. The service does not accept command-line options; behavior is
-configured via configuration files and environment variables and managed by keylime tenant.
+The registrar is a long-running service used by agents. It maintains its own database where it stores data
+of registered agents. The service does not accept command-line options; behavior is
+configured via configuration files and environment variables, and is managed by keylime tenant.
 
 CONFIGURATION
 =============
