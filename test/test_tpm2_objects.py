@@ -1,6 +1,7 @@
 import struct
 import unittest
 
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from keylime.tpm.tpm2_objects import (
@@ -13,7 +14,9 @@ from keylime.tpm.tpm2_objects import (
     _curve_from_curve_id,
     _pack_in_tpm2b,
     pubkey_parms_from_tpm2b_public,
+    tpms_ecc_point_marshal,
 )
+from keylime.tpm.tpm_util import crypt_secret_encrypt_ecc
 
 
 class TestTpm2Objects(unittest.TestCase):
@@ -411,6 +414,133 @@ class TestEccPublicKeySecurityValidation(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             pubkey_parms_from_tpm2b_public(tpm2b_public_invalid)
         self.assertIn("not on the curve", str(cm.exception).lower())
+
+
+class TestEccMarshaling(unittest.TestCase):
+    """Test ECC point marshaling consistency fixes"""
+
+    def test_p521_marshaling_consistency(self):
+        """Test that P-521 marshaling produces consistent blob sizes regardless of coordinate values"""
+        # Generate multiple P-521 keys to test with different coordinate values
+        keys = []
+        for _ in range(10):
+            private_key = ec.generate_private_key(ec.SECP521R1())
+            keys.append(private_key.public_key())
+
+        # Marshal all keys and check that blob sizes are consistent
+        blob_sizes = []
+        for key in keys:
+            blob = tpms_ecc_point_marshal(key)
+            blob_sizes.append(len(blob))
+
+        # All blobs should be the same size for P-521
+        self.assertEqual(len(set(blob_sizes)), 1, "All P-521 marshaled blobs should have the same size")
+
+        # Expected size: 2 bytes (x size) + 66 bytes (x coord) + 2 bytes (y size) + 66 bytes (y coord) = 136 bytes
+        expected_size = 2 + 66 + 2 + 66
+        self.assertEqual(blob_sizes[0], expected_size, f"P-521 marshaled blob should be {expected_size} bytes")
+
+    def test_marshaling_coordinate_sizes(self):
+        """Test that marshaled coordinates use fixed sizes based on curve key size"""
+        # Test P-521: 521 bits -> (521 + 7) // 8 = 66 bytes per coordinate
+        p521_key = ec.generate_private_key(ec.SECP521R1()).public_key()
+        p521_blob = tpms_ecc_point_marshal(p521_key)
+
+        # Parse the blob to check coordinate sizes
+        x_size = struct.unpack(">H", p521_blob[:2])[0]
+        y_size = struct.unpack(">H", p521_blob[2 + x_size : 2 + x_size + 2])[0]
+
+        self.assertEqual(x_size, 66, "P-521 X coordinate should be 66 bytes")
+        self.assertEqual(y_size, 66, "P-521 Y coordinate should be 66 bytes")
+
+        # Test P-256: 256 bits -> (256 + 7) // 8 = 32 bytes per coordinate
+        p256_key = ec.generate_private_key(ec.SECP256R1()).public_key()
+        p256_blob = tpms_ecc_point_marshal(p256_key)
+
+        x_size = struct.unpack(">H", p256_blob[:2])[0]
+        y_size = struct.unpack(">H", p256_blob[2 + x_size : 2 + x_size + 2])[0]
+
+        self.assertEqual(x_size, 32, "P-256 X coordinate should be 32 bytes")
+        self.assertEqual(y_size, 32, "P-256 Y coordinate should be 32 bytes")
+
+    def test_p521_credential_activation_consistency(self):
+        """Test the specific issue: P-521 credential activation with consistent marshaling"""
+        # This test verifies the fix for credential activation failures
+        # Generate two P-521 keys with potentially different bit lengths for coordinates
+        key1 = ec.generate_private_key(ec.SECP521R1()).public_key()
+        key2 = ec.generate_private_key(ec.SECP521R1()).public_key()
+
+        # Marshal both keys
+        blob1 = tpms_ecc_point_marshal(key1)
+        blob2 = tpms_ecc_point_marshal(key2)
+
+        # The critical fix: both blobs should be the same size regardless of coordinate bit lengths
+        self.assertEqual(
+            len(blob1), len(blob2), "P-521 marshaled blobs must be same size regardless of coordinate bit lengths"
+        )
+
+        # Both should use the fixed coordinate size (66 bytes)
+        expected_total_size = 2 + 66 + 2 + 66  # size_x + x + size_y + y
+        self.assertEqual(len(blob1), expected_total_size)
+        self.assertEqual(len(blob2), expected_total_size)
+
+    def test_marshaling_format_correctness(self):
+        """Test that marshaling follows the correct TPM format: size(2) + coord(n) + size(2) + coord(n)"""
+        key = ec.generate_private_key(ec.SECP521R1()).public_key()
+        blob = tpms_ecc_point_marshal(key)
+
+        # Parse the blob structure
+        if len(blob) < 4:
+            self.fail("Marshaled blob too short")
+
+        x_size = struct.unpack(">H", blob[:2])[0]
+        self.assertEqual(x_size, 66, "X coordinate size should be 66 for P-521")
+
+        if len(blob) < 2 + x_size + 2:
+            self.fail("Marshaled blob missing Y coordinate size")
+
+        y_size = struct.unpack(">H", blob[2 + x_size : 2 + x_size + 2])[0]
+        self.assertEqual(y_size, 66, "Y coordinate size should be 66 for P-521")
+
+        # Total size should be: 2 + 66 + 2 + 66 = 136
+        expected_total = 2 + x_size + 2 + y_size
+        self.assertEqual(len(blob), expected_total, "Total marshaled blob size incorrect")
+
+    def test_crypt_secret_encrypt_ecc_consistency(self):
+        """Test that crypt_secret_encrypt_ecc produces consistent results with fixed coordinate sizes"""
+        # Generate a P-521 key to test with
+        public_key = ec.generate_private_key(ec.SECP521R1()).public_key()
+        hashfunc = hashes.SHA256()
+
+        # Call the function multiple times and check consistency
+        results = []
+        for _ in range(5):
+            data, point = crypt_secret_encrypt_ecc(public_key, hashfunc)
+            results.append((data, point))
+
+        # Check that all returned points have consistent marshaling
+        # (the data will be different due to random key generation, but point marshaling should be consistent)
+        point_sizes = [len(point) for _, point in results]
+        self.assertEqual(len(set(point_sizes)), 1, "All marshaled points should have the same size")
+
+        # For P-521, the marshaled point should be 136 bytes (2+66+2+66)
+        expected_point_size = 2 + 66 + 2 + 66
+        self.assertEqual(
+            point_sizes[0], expected_point_size, f"P-521 marshaled point should be {expected_point_size} bytes"
+        )
+
+        # All data results should be different (due to random ephemeral keys)
+        data_results = [data for data, _ in results]
+        self.assertEqual(
+            len(set(data_results)),
+            len(data_results),
+            "All data results should be different due to random ephemeral keys",
+        )
+
+        # All data results should have the same length (SHA256 digest size)
+        data_sizes = [len(data) for data, _ in results]
+        self.assertEqual(len(set(data_sizes)), 1, "All data results should have the same size")
+        self.assertEqual(data_sizes[0], hashfunc.digest_size, "Data size should match hash digest size")
 
 
 if __name__ == "__main__":

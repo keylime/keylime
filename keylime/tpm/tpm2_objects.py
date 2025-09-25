@@ -597,9 +597,12 @@ def unmarshal_tpml_pcr_selection(tpml_pcr_selection: bytes) -> Tuple[Dict[int, i
 
 def tpms_ecc_point_marshal(public_key: EllipticCurvePublicKey) -> bytes:
     pn = public_key.public_numbers()
+    curve = public_key.curve
 
-    sz = (pn.x.bit_length() + 7) // 8
-    secret = struct.pack(">H", sz) + pn.x.to_bytes(sz, "big")
+    # Use fixed coordinate size based on curve to ensure consistent marshaling
+    # This is critical for P-521 where bit_length() can vary (520-521 bits)
+    # leading to credential activation failures due to inconsistent blob sizes
+    coord_size = (curve.key_size + 7) // 8
 
-    sz = (pn.y.bit_length() + 7) // 8
-    return secret + struct.pack(">H", sz) + pn.y.to_bytes(sz, "big")
+    secret = struct.pack(">H", coord_size) + pn.x.to_bytes(coord_size, "big")
+    return secret + struct.pack(">H", coord_size) + pn.y.to_bytes(coord_size, "big")
