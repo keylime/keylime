@@ -318,11 +318,14 @@ def crypt_secret_encrypt_ecc(public_key: EllipticCurvePublicKey, hashfunc: hashe
 
     digest_size = hashfunc.digest_size
 
+    # Use fixed coordinate size for consistent marshaling
+    coord_size = (public_key.curve.key_size + 7) // 8
+
     x = my_public_key.public_numbers().x
-    party_x = x.to_bytes((x.bit_length() + 7) >> 3, "big")
+    party_x = x.to_bytes(coord_size, "big")
 
     x = public_key.public_numbers().x
-    party_y = x.to_bytes((x.bit_length() + 7) >> 3, "big")
+    party_y = x.to_bytes(coord_size, "big")
 
     data = crypt_kdfe(hashfunc, ecc_secret_x, "IDENTITY", party_x, party_y, digest_size << 3)
 
