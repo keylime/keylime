@@ -84,6 +84,10 @@ class Hash(str, enum.Enum):
 
 class Encrypt(str, enum.Enum):
     RSA = "rsa"
+    RSA1024 = "rsa1024"
+    RSA2048 = "rsa2048"
+    RSA3072 = "rsa3072"
+    RSA4096 = "rsa4096"
     ECC = "ecc"
     ECC192 = "ecc192"
     ECC224 = "ecc224"
@@ -96,6 +100,8 @@ class Encrypt(str, enum.Enum):
         # Handle aliases to match agent behavior
         if algorithm == "ecc":
             algorithm = "ecc256"  # Default ECC alias maps to P-256, same as the agent.
+        if algorithm == "rsa":
+            algorithm = "rsa2048"  # Default RSA alias maps to RSA-2048, same as the agent.
         return algorithm in list(Encrypt)
 
     @staticmethod
@@ -103,6 +109,8 @@ class Encrypt(str, enum.Enum):
         """Normalize algorithm string to handle aliases, matching the agent behavior"""
         if algorithm == "ecc":
             return "ecc256"  # Default ECC alias maps to P-256.
+        if algorithm == "rsa":
+            return "rsa2048"  # Default RSA alias maps to RSA-2048.
         return algorithm
 
 
