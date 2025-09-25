@@ -181,7 +181,7 @@ class TestEncrypt(unittest.TestCase):
             },
             {
                 "input": "rsa",
-                "expected": "rsa",
+                "expected": "rsa2048",
             },
         ]
 
@@ -198,6 +198,17 @@ class TestEncrypt(unittest.TestCase):
 
         # Test that direct ecc256 works
         self.assertTrue(Encrypt.is_recognized("ecc256"))
+
+    def test_normalize_rsa_alias_behavior(self):
+        """Test that RSA alias normalization matches agent behavior"""
+        # Test that "rsa" is recognized through alias handling
+        self.assertTrue(Encrypt.is_recognized("rsa"))
+
+        # Test that normalize converts "rsa" to "rsa2048"
+        self.assertEqual(Encrypt.normalize("rsa"), "rsa2048")
+
+        # Test that direct rsa2048 works
+        self.assertTrue(Encrypt.is_recognized("rsa2048"))
 
 
 class TestSign(unittest.TestCase):
