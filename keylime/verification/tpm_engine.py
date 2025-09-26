@@ -31,7 +31,7 @@ class TPMEngine(VerificationEngine):
         if not self.expects_ima_log:
             return
 
-        # self.attestation.validate_required("system_info")
+        self.attestation.validate_required("system_info")
 
         if self.attestation.system_info is not None:
             self.attestation.system_info.validate_required("boot_time")
@@ -80,7 +80,7 @@ class TPMEngine(VerificationEngine):
         )
 
         for item in ima_log_items.result():
-            # item.validate_required("capabilities")
+            item.validate_required("capabilities")
 
             if item.capabilities:
                 item.capabilities.validate_required("entry_count")

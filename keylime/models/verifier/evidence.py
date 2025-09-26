@@ -9,26 +9,7 @@ from keylime.common import algorithms
 logger = keylime_logging.init_logging("verifier")
 
 
-class EvidenceModel(PersistableModel):
-    SIGNATURE_SCHEMES = [ "rsassa", "rsapss", "ecdsa" ]
-    # These are the same names as used by tpm2-tools:
-    # https://github.com/tpm2-software/tpm2-tools/blob/master/man/common/alg.md#signing-schemes
-    #
-    # The following TPM-supported algorithms are not accepted, as these are not implemented by python-cryptography:
-    #   - ecdaa (Elliptic Curve Direct Anonymous Attestation)
-    #   - ecschnorr 
-    #   - sm2
-
-    KEY_ALGORITHMS = [ "rsa", "ecc" ]
-    # These are the same names as used by tpm2-tools:
-    # https://github.com/tpm2-software/tpm2-tools/blob/master/man/common/alg.md#asymmetric
-
-    HASH_ALGORITHMS = [ "sha3_512", "sha3_384", "sha3_256", "sha512", "sha384", "sha256", "sm3", "sha1" ]
-    # These are the same names as used by tpm2-tools:
-    # https://github.com/tpm2-software/tpm2-tools/blob/master/man/common/alg.md#hashing-algorithms
-
-
-class EvidenceItem(EvidenceModel):
+class EvidenceItem(PersistableModel):
     @classmethod
     def _schema(cls):
         cls._persist_as("evidence_items")
@@ -181,7 +162,7 @@ class EvidenceItem(EvidenceModel):
 
         return self.chosen_parameters.starting_offset + self.results.certified_entry_count
 
-class Capabilities(EvidenceModel):
+class Capabilities(PersistableModel):
     @classmethod
     def _schema(cls):
         cls._sub_models(CertificationCapabilities, LogCapabilities)
@@ -247,19 +228,7 @@ class CertificationCapabilities(Capabilities):
                 self.certification_keys.add(key)
 
         self.validate_required("signature_schemes")
-        # self.validate_required("certification_keys")
-
-        self.validate_subset(
-            "signature_schemes",
-            self.SIGNATURE_SCHEMES,
-            f"has an invalid entry not one of: {', '.join(self.SIGNATURE_SCHEMES)}"
-        )
-
-        self.validate_subset(
-            "hash_algorithms",
-            self.HASH_ALGORITHMS,
-            f"has an invalid entry not one of: {', '.join(self.HASH_ALGORITHMS)}"
-        )
+        self.validate_required("certification_keys")
 
     def render(self, only=None):
         output = super().render(only)
@@ -341,7 +310,7 @@ class LogCapabilities(Capabilities):
 
         return output
 
-class ChosenParameters(EvidenceModel):
+class ChosenParameters(PersistableModel):
     @classmethod
     def _schema(cls):
         cls._sub_models(CertificationParameters, LogParameters)
@@ -473,7 +442,7 @@ class LogParameters(ChosenParameters):
 
         return output
 
-class EvidenceData(EvidenceModel):
+class EvidenceData(PersistableModel):
     @classmethod
     def _schema(cls):
         cls._sub_models(CertificationData, LogData)
@@ -556,13 +525,13 @@ class LogData(EvidenceData):
 
         return super().render(only)
 
-class CertificationKey(EvidenceModel):
+class CertificationKey(PersistableModel):
     @classmethod
     def _schema(cls):
         # The class of the key, i.e., whether it is used as part of an asymmetric or symmetric cryptosystem
         cls._field("key_class", OneOf("asymmetric", "symmetric"))
         # The algorithm used to generate the key (None if random)
-        cls._field("key_algorithm", OneOf(*cls.KEY_ALGORITHMS), nullable=True)
+        cls._field("key_algorithm", String, nullable=True)
         # The size of the key in bits
         cls._field("key_size", Integer)
         # A name used by the server to disambiguate the key from others belonging to the attester, e.g., "ak"
@@ -665,7 +634,7 @@ class CertificationKey(EvidenceModel):
 
         return super().render(only)
 
-class Results(EvidenceModel):
+class Results(PersistableModel):
     @classmethod
     def _schema(cls):
         cls._sub_models(CertificationResults, LogResults)

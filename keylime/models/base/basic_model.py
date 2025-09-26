@@ -378,13 +378,12 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
             fields = [fields]
 
         for field in fields:
-            if self.values.get(field) is False:
+            value = getattr(self, field, None)
+
+            if value is False or value == 0:
                 continue
 
-            if self.values.get(field) == 0:
-                continue
-
-            if not self.values.get(field):
+            if not value:
                 self._add_error(field, msg)
 
     def validate_absence(self, fields: Union[str, Sequence[str]], msg: str = "is not allowable") -> None:
