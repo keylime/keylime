@@ -40,6 +40,10 @@ what the goals of Keylime are and how they are implemented.
    :caption: Manpages:
 
    man/keylime_tenant.1
+   man/keylime_verifier.8
+   man/keylime_registrar.8
+   man/keylime_agent.8
+   man/keylime_policy.1
 
 Indices and tables
 ==================

@@ -292,7 +292,7 @@ PREREQUISITES
 SEE ALSO
 ========
 
-**keylime_verifier**\(1), **keylime_registrar**\(1), **keylime_agent**\(1)
+**keylime_verifier**\(8), **keylime_registrar**\(8), **keylime_agent**\(8)
 
 For more information about Keylime, visit: https://keylime.dev
 
