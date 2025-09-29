@@ -12,6 +12,7 @@ from pyasn1_modules import pem as pyasn1_pem
 from pyasn1_modules import rfc2459 as pyasn1_rfc2459
 from sqlalchemy.types import Text
 
+from keylime.certificate_wrapper import CertificateWrapper, wrap_certificate
 from keylime.models.base.type import ModelType
 
 
@@ -78,19 +79,20 @@ class Certificate(ModelType):
         cert = Certificate().cast("-----BEGIN CERTIFICATE-----\nMIIE...")
     """
 
-    IncomingValue: TypeAlias = Union[cryptography.x509.Certificate, bytes, str, None]
+    IncomingValue: TypeAlias = Union[cryptography.x509.Certificate, CertificateWrapper, bytes, str, None]
 
     def __init__(self) -> None:
         super().__init__(Text)
 
-    def _load_der_cert(self, der_cert_data: bytes) -> cryptography.x509.Certificate:
-        """Loads a binary x509 certificate encoded using ASN.1 DER as a ``cryptography.x509.Certificate`` object. This
+    def _load_der_cert(self, der_cert_data: bytes) -> CertificateWrapper:
+        """Loads a binary x509 certificate encoded using ASN.1 DER as a ``CertificateWrapper`` object. This
         method does not require strict adherence to ASN.1 DER thereby making it possible to accept certificates which do
         not follow every detail of the spec (this is the case for a number of TPM certs) [1,2].
 
         It achieves this by first using the strict parser provided by python-cryptography. If that fails, it decodes the
         certificate and re-encodes it using the more-forgiving pyasn1 library. The re-encoded certificate is then
-        re-parsed by python-cryptography.
+        re-parsed by python-cryptography. For malformed certificates requiring re-encoding, the original bytes are
+        preserved in the wrapper to maintain signature validity.
 
         This method is equivalent to the ``cert_utils.x509_der_cert`` function but does not produce a warning when the
         backup parser is used, allowing this condition to be optionally detected and handled by the model where
@@ -106,24 +108,28 @@ class Certificate(ModelType):
 
         :raises: :class:`SubstrateUnderrunError`: cert could not be deserialized even using the fallback pyasn1 parser
 
-        :returns: A ``cryptography.x509.Certificate`` object
+        :returns: A ``CertificateWrapper`` object
         """
 
         try:
-            return cryptography.x509.load_der_x509_certificate(der_cert_data)
+            cert = cryptography.x509.load_der_x509_certificate(der_cert_data)
+            return wrap_certificate(cert, None)
         except Exception:
             pyasn1_cert = pyasn1_decoder.decode(der_cert_data, asn1Spec=pyasn1_rfc2459.Certificate())[0]
-            return cryptography.x509.load_der_x509_certificate(pyasn1_encoder.encode(pyasn1_cert))
+            cert = cryptography.x509.load_der_x509_certificate(pyasn1_encoder.encode(pyasn1_cert))
+            # Preserve the original bytes when re-encoding is necessary
+            return wrap_certificate(cert, der_cert_data)
 
-    def _load_pem_cert(self, pem_cert_data: str) -> cryptography.x509.Certificate:
+    def _load_pem_cert(self, pem_cert_data: str) -> CertificateWrapper:
         """Loads a text x509 certificate encoded using PEM (Base64ed DER with header and footer) as a
-        ``cryptography.x509.Certificate`` object. This method does not require strict adherence to ASN.1 DER thereby
+        ``CertificateWrapper`` object. This method does not require strict adherence to ASN.1 DER thereby
         making it possible to accept certificates which do not follow every detail of the spec (this is the case for
         a number of TPM certs) [1,2].
 
         It achieves this by first using the strict parser provided by python-cryptography. If that fails, it decodes the
         certificate and re-encodes it using the more-forgiving pyasn1 library. The re-encoded certificate is then
-        re-parsed by python-cryptography.
+        re-parsed by python-cryptography. For malformed certificates requiring re-encoding, the original DER bytes are
+        preserved in the wrapper to maintain signature validity.
 
         This method is equivalent to the ``cert_utils.x509_der_cert`` function but does not produce a warning when the
         backup parser is used, allowing this condition to be optionally detected and handled by the model where
@@ -135,19 +141,24 @@ class Certificate(ModelType):
         [2] https://github.com/pyca/cryptography/issues/7189
         [3] https://github.com/keylime/keylime/issues/1559
 
-        :param der_cert_data: the DER bytes of the certificate
+        :param pem_cert_data: the PEM text of the certificate
 
         :raises: :class:`SubstrateUnderrunError`: cert could not be deserialized even using the fallback pyasn1 parser
 
-        :returns: A ``cryptography.x509.Certificate`` object
+        :returns: A ``CertificateWrapper`` object
         """
 
         try:
-            return cryptography.x509.load_pem_x509_certificate(pem_cert_data.encode("utf-8"))
+            cert = cryptography.x509.load_pem_x509_certificate(pem_cert_data.encode("utf-8"))
+            return wrap_certificate(cert, None)
         except Exception:
             der_data = pyasn1_pem.readPemFromFile(io.StringIO(pem_cert_data))
             pyasn1_cert = pyasn1_decoder.decode(der_data, asn1Spec=pyasn1_rfc2459.Certificate())[0]
-            return cryptography.x509.load_der_x509_certificate(pyasn1_encoder.encode(pyasn1_cert))
+            cert = cryptography.x509.load_der_x509_certificate(pyasn1_encoder.encode(pyasn1_cert))
+            # Only preserve original bytes if we have valid DER data
+            original_bytes = der_data if isinstance(der_data, bytes) and der_data else None
+            # Preserve the original bytes when re-encoding is necessary
+            return wrap_certificate(cert, original_bytes)
 
     def infer_encoding(self, value: IncomingValue) -> Optional[str]:
         """Tries to infer the certificate encoding from the given value based on the data type and other surface-level
@@ -159,15 +170,21 @@ class Certificate(ModelType):
         :returns: ``"der"`` when the value appears to be DER encoded
         :returns: ``"pem"`` when the value appears to be PEM encoded
         :returns: ``"base64"`` when the value appears to be Base64(DER) encoded (without PEM headers)
+        :returns: ``"wrapped"`` when the value is already a ``CertificateWrapper`` object
         :returns: ``"decoded"`` when the value is already a ``cryptography.x509.Certificate`` object
+        :returns: ``"disabled"`` when the value is the string "disabled"
         :returns: ``None`` when the encoding cannot be inferred
         """
         # pylint: disable=no-else-return
 
-        if isinstance(value, cryptography.x509.Certificate):
+        if isinstance(value, CertificateWrapper):
+            return "wrapped"
+        elif isinstance(value, cryptography.x509.Certificate):
             return "decoded"
         elif isinstance(value, bytes):
             return "der"
+        elif isinstance(value, str) and value == "disabled":
+            return "disabled"
         elif isinstance(value, str) and value.startswith("-----BEGIN CERTIFICATE-----"):
             return "pem"
         elif isinstance(value, str):
@@ -190,18 +207,24 @@ class Certificate(ModelType):
         :param value: The value in DER, Base64(DER), or PEM format (or an already deserialized certificate object)
 
         :returns: ``"True"`` if the value can be deserialized by python-cryptography and is ASN.1 DER compliant
+        :returns: ``"True"`` if the value is the string "disabled" (considered compliant as it's a valid field value)
         :returns: ``"False"`` if the value cannot be deserialized by python-cryptography
         :returns: ``None`` if the value is already a deserialized certificate of type ``cryptography.x509.Certificate``
         """
 
         try:
             match self.infer_encoding(value):
+                case "wrapped":
+                    # For CertificateWrapper objects, check if they have original bytes (indicating re-encoding was needed)
+                    return not value.has_original_bytes  # type: ignore[union-attr]
                 case "decoded":
                     return None
+                case "disabled":
+                    return True
                 case "der":
                     cryptography.x509.load_der_x509_certificate(value)  # type: ignore[reportArgumentType, arg-type]
                 case "pem":
-                    cryptography.x509.load_pem_x509_certificate(value)  # type: ignore[reportArgumentType, arg-type]
+                    cryptography.x509.load_pem_x509_certificate(value.encode("utf-8"))  # type: ignore[reportArgumentType, arg-type, union-attr]
                 case "base64":
                     der_value = base64.b64decode(value, validate=True)  # type: ignore[reportArgumentType, arg-type]
                     cryptography.x509.load_der_x509_certificate(der_value)
@@ -212,24 +235,27 @@ class Certificate(ModelType):
 
         return True
 
-    def cast(self, value: IncomingValue) -> Optional[cryptography.x509.Certificate]:
+    def cast(self, value: IncomingValue) -> Optional[CertificateWrapper]:
         """Tries to interpret the given value as an X.509 certificate and convert it to a
-        ``cryptography.x509.Certificate`` object. Values which do not require conversion are returned unchanged.
+        ``CertificateWrapper`` object. Values which do not require conversion are returned unchanged.
 
         :param value: The value to convert (may be in DER, Base64(DER), or PEM format)
 
         :raises: :class:`TypeError`: ``value`` is of an unexpected data type
         :raises: :class:`ValueError`: ``value`` does not contain data which is interpretable as a certificate
 
-        :returns: A ``cryptography.x509.Certificate`` object or None if an empty value is given
+        :returns: A ``CertificateWrapper`` object or None if an empty value is given
         """
 
         if not value:
             return None
 
         match self.infer_encoding(value):
+            case "wrapped":
+                return value  # type: ignore[return-value]
             case "decoded":
-                return value  # type: ignore[reportReturnType, return-value]
+                # Wrap raw cryptography certificate without original bytes
+                return wrap_certificate(value, None)  # type: ignore[arg-type]
             case "der":
                 try:
                     return self._load_der_cert(value)  # type: ignore[reportArgumentType, arg-type]
@@ -269,7 +295,6 @@ class Certificate(ModelType):
         if not cert:
             return None
 
-        # Save as Base64-encoded value (without the PEM "BEGIN" and "END" header/footer for efficiency)
         return base64.b64encode(cert.public_bytes(Encoding.DER)).decode("utf-8")
 
     def render(self, value: IncomingValue) -> Optional[str]:
@@ -279,9 +304,8 @@ class Certificate(ModelType):
         if not cert:
             return None
 
-        # Render certificate in PEM format
         return cert.public_bytes(Encoding.PEM).decode("utf-8")  # type: ignore[no-any-return]
 
     @property
     def native_type(self) -> type:
-        return cryptography.x509.Certificate
+        return CertificateWrapper

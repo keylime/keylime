@@ -1,7 +1,10 @@
 import time
+from contextlib import contextmanager
+from typing import Iterator
 
 import sqlalchemy
 import sqlalchemy.ext.declarative
+from sqlalchemy.orm import sessionmaker
 
 from keylime import keylime_logging
 from keylime.da.record import BaseRecordManagement, base_build_key_list
@@ -45,23 +48,23 @@ class RecordManagement(BaseRecordManagement):
         BaseRecordManagement.__init__(self, service)
 
         self.engine = sqlalchemy.create_engine(self.ps_url._replace(fragment="").geturl(), pool_recycle=1800)
-        sm = sqlalchemy.orm.sessionmaker()
-        self.session = sqlalchemy.orm.scoped_session(sm)
-        self.session.configure(bind=self.engine)
+        self.SessionLocal = sessionmaker(bind=self.engine)
+
+        # Create tables if they don't exist
         TableBase.metadata.create_all(self.engine)
 
-    def agent_list_retrieval(self, record_prefix="auto", service="auto"):
-        if record_prefix == "auto":
-            record_prefix = ""
-
-        agent_list = []
-
-        recordtype = self.get_record_type(service)
-        tbl = type2table(recordtype)
-        for agentid in self.session.query(tbl.agentid).distinct():  # pylint: disable=no-member
-            agent_list.append(agentid[0])
-
-        return agent_list
+    @contextmanager
+    def session_context(self) -> Iterator:
+        """Context manager for database sessions that ensures proper cleanup."""
+        session = self.SessionLocal()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     def record_create(
         self,
@@ -84,8 +87,9 @@ class RecordManagement(BaseRecordManagement):
         d = {"time": recordtime, "agentid": agentid, "record": rcrd}
 
         try:
-            self.session.add((type2table(recordtype))(**d))  # pylint: disable=no-member
-            self.session.commit()  # pylint: disable=no-member
+            with self.session_context() as session:
+                session.add((type2table(recordtype))(**d))
+                # session.commit() is automatically called by context manager
         except Exception as e:
             logger.error("Failed to create attestation record: %s", e)
 
@@ -106,23 +110,23 @@ class RecordManagement(BaseRecordManagement):
         if f"{end_date}" == "auto":
             end_date = self.end_of_times
 
-        if self.only_last_record_wanted(start_date, end_date):
-            attestion_record_rows = (
-                self.session.query(tbl)  # pylint: disable=no-member
-                .filter(tbl.agentid == record_identifier)
-                .order_by(sqlalchemy.desc(tbl.time))
-                .limit(1)
-            )
+        with self.session_context() as session:
+            if self.only_last_record_wanted(start_date, end_date):
+                attestion_record_rows = (
+                    session.query(tbl)
+                    .filter(tbl.agentid == record_identifier)
+                    .order_by(sqlalchemy.desc(tbl.time))
+                    .limit(1)
+                )
 
-        else:
-            attestion_record_rows = self.session.query(tbl).filter(  # pylint: disable=no-member
-                tbl.agentid == record_identifier
-            )
+            else:
+                attestion_record_rows = session.query(tbl).filter(tbl.agentid == record_identifier)
 
-        for row in attestion_record_rows:
-            decoded_record_object = self.record_deserialize(row.record)
-            self.record_signature_check(decoded_record_object, record_identifier)
-            record_list.append(decoded_record_object)
+            for row in attestion_record_rows:
+                decoded_record_object = self.record_deserialize(row.record)
+                self.record_signature_check(decoded_record_object, record_identifier)
+                record_list.append(decoded_record_object)
+
         return record_list
 
     def build_key_list(self, agent_identifier, service="auto"):

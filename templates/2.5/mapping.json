@@ -1,0 +1,26 @@
+{
+    "version": "2.5",
+    "type": "update",
+    "components": {
+        "agent": {
+            "add": {
+                "agent_data_path": "/var/lib/keylime/agent_data.json",
+                "verifier_url": "https://localhost:8881",
+                "exponential_backoff_max_retries": "5",
+                "exponential_backoff_initial_delay": "10000",
+                "exponential_backoff_max_delay": "360000",
+                "certification_keys_server_identifier": "ak",
+                "disabled_signing_algorithms": "",
+                "ima_ml_count_file": "/tmp/ima_ml_count",
+                "uefi_logs_evidence_version": "1.0"
+            }
+        },
+        "verifier": {
+            "add": {
+                "mode": "pull",
+                "challenge_lifetime": "1800",
+                "verification_timeout":  "0"
+            }
+        }
+    }
+}

@@ -12,9 +12,16 @@ Check the :ref:`Changelog` section for the differences between versions
    rest_apis/2_1/2_1.rst
    rest_apis/2_2/2_2.rst
    rest_apis/2_3/2_3.rst
+   rest_apis/2_4/2_4.rst
 
 Changelog
 _________
+
+Changes from v2.3 to v2.4
+~~~~~~~~~~~~~~~~~~~~~~~~~
+API version 2.4 was first implemented in Keylime 7.13.0.
+
+* Added `POST /v2.4/verify/evidence` experimental endpoint to the verifier
 
 Changes from v2.2 to v2.3
 ~~~~~~~~~~~~~~~~~~~~~~~~~

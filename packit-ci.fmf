@@ -66,8 +66,10 @@ adjust:
      - /functional/basic-attestation-on-localhost
      # now change IMA policy to signing and run all tests
      - /setup/configure_kernel_ima_module/ima_policy_signing
+     - /compatibility/api_version_compatibility
      - /compatibility/basic-attestation-on-localhost-api-version-bump
      - /compatibility/basic-attestation-on-localhost-with-allowlist-excludelist
+     - /functional/add-agent-with-malformed-ek-cert
      - /functional/agent_UUID_assignment_options
      - /functional/basic-attestation-on-localhost
      - /functional/basic-attestation-with-custom-certificates
@@ -101,6 +103,7 @@ adjust:
      - /regression/CVE-2023-3674
      - /regression/issue-1380-agent-removed-and-re-added
      - /regression/keylime-agent-option-override-through-envvar
+     - /regression/db-connection-leak-reproducer
      - /sanity/keylime-secure_mount
      - /sanity/opened-conf-files
      - /upstream/run_keylime_tests

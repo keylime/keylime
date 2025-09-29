@@ -5,6 +5,7 @@ from tornado import httpclient
 from tornado.httputil import HTTPHeaders
 
 from keylime import json
+from keylime.config import DEFAULT_TIMEOUT
 
 
 class TornadoResponse:
@@ -20,7 +21,7 @@ async def request(
     data: Optional[Dict[str, Any]] = None,
     context: Optional[ssl.SSLContext] = None,
     headers: Optional[Union[Dict[str, str], HTTPHeaders]] = None,
-    timeout: float = 60.0,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> TornadoResponse:
     http_client = httpclient.AsyncHTTPClient()
     if params is not None and len(list(params.keys())) > 0:

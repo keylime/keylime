@@ -27,7 +27,7 @@ author = "Keylime Developers"
 # The short X.Y version
 version = ""
 # The full version, including alpha/beta/rc tags
-release = "7.12.1"
+release = "7.13.0"
 
 
 # -- General configuration ---------------------------------------------------
@@ -47,7 +47,7 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinxcontrib.httpdomain",
     "sphinx_tabs.tabs",
-    "sphinx-prompt",
+    "sphinx_prompt",
     "recommonmark",
     "notfound.extension",
     "sphinxcontrib.bibtex",
@@ -147,7 +147,10 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "keylimedocumentation", "Keylime Documentation Documentation", [author], 1)]
+man_pages = [
+    (master_doc, "keylimedocumentation", "Keylime Documentation Documentation", [author], 1),
+    ("man/keylime_tenant.1", "keylime_tenant", "Keylime tenant management tool", [author], 1),
+]
 
 
 # -- Options for Texinfo output ----------------------------------------------

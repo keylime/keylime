@@ -5,6 +5,7 @@ Copyright 2024 Red Hat, Inc.
 
 import argparse
 import os
+import platform
 import unittest
 
 from keylime.policy import create_mb_policy
@@ -12,6 +13,7 @@ from keylime.policy import create_mb_policy
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "data", "create-mb-policy"))
 
 
+@unittest.skipIf(platform.machine() in ["ppc64le", "s390x"], "ppc64le and s390x are not supported")
 class CreateMeasuredBootPolicy_Test(unittest.TestCase):
     def test_event_to_sha256(self):
         test_cases = [
@@ -361,6 +363,148 @@ class CreateMeasuredBootPolicy_Test(unittest.TestCase):
 
         for c in test_cases:
             self.assertDictEqual(create_mb_policy.get_mok(c["events"]), c["expected"])
+
+    def test_get_vendor_db(self):
+        test_cases = [
+            {"events": [], "expected": {"vendor_db": []}},
+            # No EV_EFI_VARIABLE_AUTHORITY events.
+            {
+                "events": [
+                    {
+                        "EventType": "EV_EFI_VARIABLE_DRIVER_CONFIG",
+                        "Event": {"UnicodeName": "vendor_db", "VariableData": []},
+                    }
+                ],
+                "expected": {"vendor_db": []},
+            },
+            # Good vendor_db event with EV_EFI_VARIABLE_AUTHORITY.
+            {
+                "events": [
+                    {
+                        "EventType": "EV_EFI_VARIABLE_AUTHORITY",
+                        "Event": {
+                            "UnicodeName": "vendor_db",
+                            "VariableData": [
+                                {
+                                    "SignatureOwner": "0223eddb-9079-4388-af77-2d65b1c35d3b",
+                                    "SignatureData": "sig-data-1",
+                                }
+                            ],
+                        },
+                    }
+                ],
+                "expected": {
+                    "vendor_db": [
+                        {"SignatureOwner": "0223eddb-9079-4388-af77-2d65b1c35d3b", "SignatureData": "0xsig-data-1"}
+                    ]
+                },
+            },
+            # Multiple vendor_db signatures.
+            {
+                "events": [
+                    {
+                        "EventType": "EV_EFI_VARIABLE_AUTHORITY",
+                        "Event": {
+                            "UnicodeName": "vendor_db",
+                            "VariableData": [
+                                {
+                                    "SignatureOwner": "0223eddb-9079-4388-af77-2d65b1c35d3b",
+                                    "SignatureData": "sig-data-1",
+                                },
+                                {
+                                    "SignatureOwner": "77fa9abd-0359-4d32-bd60-28f4e78f784b",
+                                    "SignatureData": "sig-data-2",
+                                },
+                            ],
+                        },
+                    }
+                ],
+                "expected": {
+                    "vendor_db": [
+                        {"SignatureOwner": "0223eddb-9079-4388-af77-2d65b1c35d3b", "SignatureData": "0xsig-data-1"},
+                        {"SignatureOwner": "77fa9abd-0359-4d32-bd60-28f4e78f784b", "SignatureData": "0xsig-data-2"},
+                    ]
+                },
+            },
+            # Missing EventType.
+            {
+                "events": [
+                    {
+                        "Event": {
+                            "UnicodeName": "vendor_db",
+                            "VariableData": [
+                                {
+                                    "SignatureOwner": "0223eddb-9079-4388-af77-2d65b1c35d3b",
+                                    "SignatureData": "sig-data-1",
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "expected": {"vendor_db": []},
+            },
+            # Wrong EventType.
+            {
+                "events": [
+                    {
+                        "EventType": "EV_EFI_VARIABLE_DRIVER_CONFIG",
+                        "Event": {
+                            "UnicodeName": "vendor_db",
+                            "VariableData": [
+                                {
+                                    "SignatureOwner": "0223eddb-9079-4388-af77-2d65b1c35d3b",
+                                    "SignatureData": "sig-data-1",
+                                }
+                            ],
+                        },
+                    }
+                ],
+                "expected": {"vendor_db": []},
+            },
+            # Missing Event.
+            {
+                "events": [{"EventType": "EV_EFI_VARIABLE_AUTHORITY"}],
+                "expected": {"vendor_db": []},
+            },
+            # Missing UnicodeName.
+            {
+                "events": [
+                    {
+                        "EventType": "EV_EFI_VARIABLE_AUTHORITY",
+                        "Event": {
+                            "VariableData": [
+                                {
+                                    "SignatureOwner": "0223eddb-9079-4388-af77-2d65b1c35d3b",
+                                    "SignatureData": "sig-data-1",
+                                }
+                            ]
+                        },
+                    }
+                ],
+                "expected": {"vendor_db": []},
+            },
+            # Wrong UnicodeName.
+            {
+                "events": [
+                    {
+                        "EventType": "EV_EFI_VARIABLE_AUTHORITY",
+                        "Event": {
+                            "UnicodeName": "db",
+                            "VariableData": [
+                                {
+                                    "SignatureOwner": "0223eddb-9079-4388-af77-2d65b1c35d3b",
+                                    "SignatureData": "sig-data-1",
+                                }
+                            ],
+                        },
+                    }
+                ],
+                "expected": {"vendor_db": []},
+            },
+        ]
+
+        for c in test_cases:
+            self.assertDictEqual(create_mb_policy.get_vendor_db(c["events"]), c["expected"])
 
     def test_get_kernel(self):
         test_cases = [

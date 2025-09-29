@@ -1,7 +1,7 @@
 """Changes for agent-driven (push) attestation support
 
 Revision ID: 870c218abd9a
-Revises: 330024be7bef
+Revises: 57b24ee21dfa
 Create Date: 2024-02-23 00:02:34.715180
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "870c218abd9a"
-down_revision = "330024be7bef"
+down_revision = "57b24ee21dfa"
 branch_labels = None
 depends_on = None
 

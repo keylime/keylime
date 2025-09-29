@@ -15,6 +15,18 @@ if [ -z "${IMAGE_BASE}" ]; then
     IMAGE_BASE="${REGISTRY}/keylime"
 fi
 
+# If CONTAINER_ENGINE is not set by the user, try to autodetect it.
+if [ -z "$CONTAINER_ENGINE" ]; then
+    if command -v docker &> /dev/null; then
+        CONTAINER_ENGINE="docker"
+    elif command -v podman &> /dev/null; then
+        CONTAINER_ENGINE="podman"
+    else
+        echo "ERROR: No container engine specified, and could not find 'docker' or 'podman' in PATH." >&2
+        exit 1
+    fi
+fi
+
 FEDORA_IMAGE="${REGISTRY}/fedora/fedora"
 QUERY_RESULT="$(skopeo inspect docker://${FEDORA_IMAGE}:latest)"
 ret=$?
@@ -37,6 +49,6 @@ sed "s#_version_#${VERSION}#" base/Dockerfile.in > base/Dockerfile
 
 # Build images
 for part in base registrar verifier tenant; do
-  docker buildx build -t keylime_${part}:${VERSION} -f "${part}/Dockerfile" --security-opt label=disable --progress plain ${@:3} "$KEYLIME_DIR"
+  ${CONTAINER_ENGINE} buildx build -t keylime_${part}:${VERSION} -f "${part}/Dockerfile" --security-opt label=disable --progress plain ${@:3} "$KEYLIME_DIR"
   rm -f ${part}/Dockerfile
 done

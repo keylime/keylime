@@ -972,7 +972,7 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
                 )
                 abort = True
         else:
-            if a not in algorithms.Hash:
+            if a not in set(algorithms.Hash):
                 if a == SHA256_OR_SM3:
                     algo = a
                 else:
