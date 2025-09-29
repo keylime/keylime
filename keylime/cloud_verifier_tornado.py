@@ -529,6 +529,8 @@ class AgentsHandler(BaseHandler):
         Currently, only agents resources are available for POSTing, i.e. /agents. All other POST uri's will return errors.
         agents requests require a json block sent in the body
         """
+        mode = config.get("verifier", "mode", fallback="push")
+        
         # TODO: exception handling needs fixing
         # Maybe handle exceptions with if/else if/else blocks ... simple and avoids nesting
         try:  # pylint: disable=too-many-nested-blocks
