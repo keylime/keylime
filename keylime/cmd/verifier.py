@@ -10,7 +10,7 @@ logger = keylime_logging.init_logging("verifier")
 
 
 def _log_startup_info() -> None:
-    mode = config.get("verifier", "mode", fallback="push")
+    mode = config.get("verifier", "mode", fallback="pull")
     logger.info("Starting Keylime verifier in %s mode...", mode.upper())
 
     # Temporary warning when enabling push mode
