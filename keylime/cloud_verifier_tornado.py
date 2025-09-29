@@ -530,7 +530,7 @@ class AgentsHandler(BaseHandler):
         agents requests require a json block sent in the body
         """
         mode = config.get("verifier", "mode", fallback="push")
-        
+
         # TODO: exception handling needs fixing
         # Maybe handle exceptions with if/else if/else blocks ... simple and avoids nesting
         try:  # pylint: disable=too-many-nested-blocks
@@ -817,8 +817,9 @@ class AgentsHandler(BaseHandler):
                                 logger.warning("Connecting to agent without mTLS: %s", agent_id)
 
                             asyncio.ensure_future(process_agent(agent_data, states.GET_QUOTE))
-                            web_util.echo_json_response(self.req_handler, 200, "Success")
-                            logger.info("POST returning 200 response for adding agent id: %s", agent_id)
+
+                        web_util.echo_json_response(self.req_handler, 200, "Success")
+                        logger.info("POST returning 200 response for adding agent id: %s", agent_id)
             else:
                 web_util.echo_json_response(self.req_handler, 400, "uri not supported")
                 logger.warning("POST returning 400 response. uri not supported")
