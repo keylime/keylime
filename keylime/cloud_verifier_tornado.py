@@ -1000,9 +1000,9 @@ class AllowlistHandler(BaseHandler):
 
             # NOTE(kaifeng) 204 Can not have response body, but current helper
             # doesn't support this case.
-            self.set_status(204)
-            self.set_header("Content-Type", "application/json")
-            self.finish()
+            self.req_handler.set_status(204)
+            self.req_handler.set_header("Content-Type", "application/json")
+            self.req_handler.finish()
             logger.info("DELETE returning 204 response for allowlist: %s", allowlist_name)
 
     def __get_runtime_policy_db_format(self, runtime_policy_name: str) -> Dict[str, Any]:
@@ -1349,9 +1349,9 @@ class MbpolicyHandler(BaseHandler):
 
             # NOTE(kaifeng) 204 Can not have response body, but current helper
             # doesn't support this case.
-            self.set_status(204)
-            self.set_header("Content-Type", "application/json")
-            self.finish()
+            self.req_handler.set_status(204)
+            self.req_handler.set_header("Content-Type", "application/json")
+            self.req_handler.finish()
             logger.info("DELETE returning 204 response for mb_policy: %s", mb_policy_name)
 
     def __get_mb_policy_db_format(self, mb_policy_name: str) -> Dict[str, Any]:
