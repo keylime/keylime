@@ -1498,7 +1498,9 @@ class VerifyEvidenceHandler(BaseHandler):
                 (claims, attestation_failure) = self._tpm_verify(data)
                 attestation_response["claims"] = claims
             elif evidence_type == "snp":
-                attestation_failure = self._sev_snp_verify(data)
+                (claims, attestation_failure) = self._sev_snp_verify(data)
+                logger.info(claims)
+                attestation_response["claims"] = claims
             else:
                 web_util.echo_json_response(self, 400, "invalid evidence type")
                 logger.warning("POST returning 400 response. invalid evidence type")
@@ -1599,54 +1601,55 @@ class VerifyEvidenceHandler(BaseHandler):
             logger.warning("Failed to process /verify/evidence data in TPM verifier: %s", e)
             raise
 
-    def _sev_snp_verify(self, json_body: dict[str, Any]) -> Failure:
+    def _sev_snp_verify(self, data: dict[str, Any]) -> Tuple[dict[str, Any], Failure]:
         report = None
         nonce = None
         tee_pubkey_x = None
         tee_pubkey_y = None
 
+        claims: dict[str, Any] = {}
         failure = Failure(Component.DEFAULT)
 
-        if "attestation_report" in json_body and json_body["attestation_report"] != "":
-            string = json_body["attestation_report"]
+        if "attestation_report" in data and data["attestation_report"] != "":
+            string = data["attestation_report"]
             byte = string.encode("ascii")
             report = base64.b64decode(byte)
         else:
             failure.add_event("missing_param", {"message": 'missing parameter "attestation_report"'}, False)
             logger.warning("POST returning 400 response. missing query parameter 'attestation_report'")
-            return failure
+            return (claims, failure)
 
-        if "nonce" in json_body and json_body["nonce"] != "":
-            string = json_body["nonce"]
+        if "nonce" in data and data["nonce"] != "":
+            string = data["nonce"]
             byte = string.encode("ascii")
             nonce = base64.b64decode(byte)
         else:
             failure.add_event("missing_param", {"message": 'missing parameter "nonce"'}, False)
             logger.warning("POST returning 400 response. missing query parameter 'nonce'")
-            return failure
+            return (claims, failure)
 
-        if "tee_pubkey_x_b64" in json_body and json_body["tee_pubkey_x_b64"] != "":
-            string = json_body["tee_pubkey_x_b64"]
+        if "tee_pubkey_x_b64" in data and data["tee_pubkey_x_b64"] != "":
+            string = data["tee_pubkey_x_b64"]
             byte = string.encode("ascii")
             tee_pubkey_x = web_util.urlsafe_nopad_b64decode(byte)
         else:
             failure.add_event("missing_param", {"message": 'missing parameter "tee_pubkey_x_b64"'}, False)
             logger.warning("POST returning 400 response. missing query parameter 'tee_pubkey_x_b64'")
-            return failure
+            return (claims, failure)
 
-        if "tee_pubkey_y_b64" in json_body and json_body["tee_pubkey_y_b64"] != "":
-            string = json_body["tee_pubkey_y_b64"]
+        if "tee_pubkey_y_b64" in data and data["tee_pubkey_y_b64"] != "":
+            string = data["tee_pubkey_y_b64"]
             byte = string.encode("ascii")
             tee_pubkey_y = web_util.urlsafe_nopad_b64decode(byte)
         else:
             failure.add_event("missing_param", {"message": 'missing parameter "tee_pubkey_y_b64"'}, False)
             logger.warning("POST returning 400 response. missing query parameter 'tee_pubkey_y_b64'")
-            return failure
+            return (claims, failure)
 
         try:
-            failure = snp.verify_attestation(report, nonce, tee_pubkey_x, tee_pubkey_y)
+            (claims, failure) = snp.verify_attestation(report, nonce, tee_pubkey_x, tee_pubkey_y)
 
-            return failure
+            return (claims, failure)
         except Exception as e:
             logger.warning("Failed to process /verify/evidence data in SEV-SNP verifier: %s", e)
             raise
