@@ -196,8 +196,18 @@ class RpmRepo_Test(unittest.TestCase):
             },
         ]
 
-        # Let us test also for filelists-ext mismatch, in case createrepo_c
+        # Let us test also for filelists-ext match and mismatch, in case createrepo_c
         # supports it -- if it does, the respective test directory will exist.
+        fext_dir = os.path.join(self.dirpath, "repo", "filelist-ext-match")
+        if os.path.isdir(fext_dir):
+            fext_test_case = {
+                "repo": fext_dir,
+                "valid": True,
+                "hashes": RPM_DIGESTS,
+                "ima-sig": {},
+            }
+            test_cases.append(fext_test_case)
+
         fext_dir = os.path.join(self.dirpath, "repo", "filelist-ext-mismatch")
         if os.path.isdir(fext_dir):
             fext_test_case = {
