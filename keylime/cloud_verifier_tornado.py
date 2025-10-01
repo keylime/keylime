@@ -1495,7 +1495,8 @@ class VerifyEvidenceHandler(BaseHandler):
 
         try:
             if evidence_type == "tpm":
-                attestation_failure = self._tpm_verify(data)
+                (claims, attestation_failure) = self._tpm_verify(data)
+                attestation_response["claims"] = claims
             elif evidence_type == "snp":
                 attestation_failure = self._sev_snp_verify(data)
             else:
@@ -1521,7 +1522,7 @@ class VerifyEvidenceHandler(BaseHandler):
         except Exception:
             web_util.echo_json_response(self, 500, "Internal Server Error: Failed to process attestation data")
 
-    def _tpm_verify(self, json_body: dict[str, Any]) -> Failure:
+    def _tpm_verify(self, data: dict[str, Any]) -> Tuple[dict[str, Any], Failure]:
         quote = None
         nonce = None
         hash_alg = None
@@ -1535,55 +1536,55 @@ class VerifyEvidenceHandler(BaseHandler):
 
         failure = Failure(Component.DEFAULT)
 
-        if "quote" in json_body and json_body["quote"] != "":
-            quote = json_body["quote"]
+        if "quote" in data and data["quote"] != "":
+            quote = data["quote"]
         else:
             failure.add_event("missing_param", {"message": 'missing parameter "quote"'}, False)
             logger.warning("POST returning 400 response. missing query parameter 'quote'")
-            return failure
+            return (data, failure)
 
-        if "nonce" in json_body and json_body["nonce"] != "":
-            nonce = json_body["nonce"]
+        if "nonce" in data and data["nonce"] != "":
+            nonce = data["nonce"]
         else:
             failure.add_event("missing_param", {"message": 'missing parameter "nonce"'}, False)
             logger.warning("POST returning 400 response. missing query parameter 'nonce'")
-            return failure
+            return (data, failure)
 
-        if "hash_alg" in json_body and json_body["hash_alg"] != "":
-            hash_alg = json_body["hash_alg"]
+        if "hash_alg" in data and data["hash_alg"] != "":
+            hash_alg = data["hash_alg"]
         else:
             failure.add_event("missing_param", {"message": 'missing parameter "hash_alg"'}, False)
             logger.warning("POST returning 400 response. missing query parameter 'hash_alg'")
-            return failure
+            return (data, failure)
 
-        if "tpm_ek" in json_body and json_body["tpm_ek"] != "":
-            tpm_ek = json_body["tpm_ek"]
+        if "tpm_ek" in data and data["tpm_ek"] != "":
+            tpm_ek = data["tpm_ek"]
         else:
             failure.add_event("missing_param", {"message": 'missing parameter "tpm_ek"'}, False)
             logger.warning("POST returning 400 response. missing query parameter 'tpm_ek'")
-            return failure
+            return (data, failure)
 
-        if "tpm_ak" in json_body and json_body["tpm_ak"] != "":
-            tpm_ak = json_body["tpm_ak"]
+        if "tpm_ak" in data and data["tpm_ak"] != "":
+            tpm_ak = data["tpm_ak"]
         else:
             failure.add_event("missing_param", {"message": 'missing parameter "tpm_ak"'}, False)
             logger.warning("POST returning 400 response. missing query parameter 'tpm_ak'")
-            return failure
+            return (data, failure)
 
-        if "tpm_policy" in json_body and json_body["tpm_policy"] != "":
-            tpm_policy = json_body["tpm_policy"]
+        if "tpm_policy" in data and data["tpm_policy"] != "":
+            tpm_policy = data["tpm_policy"]
 
-        if "runtime_policy" in json_body and json_body["runtime_policy"] != "":
-            runtime_policy = json_body["runtime_policy"]
+        if "runtime_policy" in data and data["runtime_policy"] != "":
+            runtime_policy = data["runtime_policy"]
 
-        if "mb_policy" in json_body and json_body["mb_policy"] != "":
-            mb_policy = json_body["mb_policy"]
+        if "mb_policy" in data and data["mb_policy"] != "":
+            mb_policy = data["mb_policy"]
 
-        if "ima_measurement_list" in json_body and json_body["ima_measurement_list"] != "":
-            ima_measurement_list = json_body["ima_measurement_list"]
+        if "ima_measurement_list" in data and data["ima_measurement_list"] != "":
+            ima_measurement_list = data["ima_measurement_list"]
 
-        if "mb_log" in json_body and json_body["mb_log"] != "":
-            mb_log = json_body["mb_log"]
+        if "mb_log" in data and data["mb_log"] != "":
+            mb_log = data["mb_log"]
 
         # process the request for attestation check
         try:
@@ -1593,7 +1594,7 @@ class VerifyEvidenceHandler(BaseHandler):
                 tpm_ek, tpm_ak, quote, nonce, hash_alg, tpm_policy, policy_obj, mb_policy, ima_measurement_list, mb_log
             )
 
-            return failure
+            return (data, failure)
         except Exception as e:
             logger.warning("Failed to process /verify/evidence data in TPM verifier: %s", e)
             raise
