@@ -1487,6 +1487,12 @@ class VerifyEvidenceHandler(BaseHandler):
             logger.warning("POST returning 400 response. missing query parameter 'data'")
             return
 
+        attestation_response: Dict[str, Any] = {}
+
+        attestation_response["valid"] = 0
+        attestation_response["claims"] = {}
+        attestation_response["failures"] = []
+
         try:
             if evidence_type == "tpm":
                 attestation_failure = self._tpm_verify(data)
@@ -1497,9 +1503,7 @@ class VerifyEvidenceHandler(BaseHandler):
                 logger.warning("POST returning 400 response. invalid evidence type")
                 return
 
-            attestation_response: Dict[str, Any] = {}
             if attestation_failure:
-                attestation_response["valid"] = 0
                 failures = []
                 for event in attestation_failure.events:
                     failures.append(
