@@ -90,7 +90,7 @@ class Tpm:
         if isinstance(iak_pub, EllipticCurvePublicKey):
             if sig_alg in [tpm2_objects.TPM_ALG_ECDSA]:
                 try:
-                    der_sig = tpm_util.ecdsa_der_from_tpm(iak_sign)
+                    der_sig = tpm_util.ecdsa_der_from_tpm(iak_sign, iak_pub)
                     tpm_util.verify(iak_pub, der_sig, digest, hashfunc)
                     logger.info("Agent %s AIK verified with IAK", uuid)
                     return True
