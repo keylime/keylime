@@ -139,12 +139,41 @@ class DBManager:
         return cast(Session, self._scoped_session())
 
     @contextmanager
-    def session_context(self) -> Iterator[Session]:
+    def session_context(self, session=None) -> Iterator[Session]:
+        if session:
+            yield session
+            return
+
         session = self.session()
 
         try:
             yield session
             session.commit()
+        except:
+            session.rollback()
+            raise
+
+    @contextmanager
+    def session_context_for(self, *record_and_record_sets) -> Iterator[Session]:
+        session = self.session()
+        records = []
+
+        for item in record_and_record_sets:
+            try:
+                iter(item)
+            except TypeError:
+                records.append(item)
+                continue
+
+            for record in item:
+                records.append(record)
+
+        try:
+            yield session
+            session.commit()
+
+            for record in records:
+                record.commit_changes(persist=False)
         except:
             session.rollback()
             raise

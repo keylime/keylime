@@ -29,7 +29,7 @@ logger = Logger().logger()
 def _parse_rpm_header(hdr: rpm.hdr) -> Tuple[Dict[str, List[str]], Dict[str, List[bytes]]]:
     # First, the file digests.
     _MD5_DIGEST_LEN = 32  # In the past, rpm used MD5 for the digests.
-    _SHA256_DIGEST_LEN = algorithms.Hash("sha256").hexdigest_len()
+    _SHA256_DIGEST_LEN = algorithms.Hash("sha256").get_hex_size()
     empty_hashes = ("0" * _MD5_DIGEST_LEN, "0" * _SHA256_DIGEST_LEN)
     digests = {f.name: [f.digest] for f in rpm.files(hdr) if f.digest not in empty_hashes}
 

@@ -1,59 +1,17 @@
+import copy
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union, overload
+from sqlalchemy import Column
 
 from keylime.models.base.errors import AssociationTypeMismatch, AssociationValueInvalid
+from keylime.models.base.associated_record_set import AssociatedRecordSet
+from keylime.models.base.types.dictionary import Dictionary
+from keylime.models.base.types.list import List
+from keylime.models.base.db import db_manager
 
 if TYPE_CHECKING:
     from keylime.models.base.basic_model import BasicModel
     from keylime.models.base.persistable_model import PersistableModel
-
-
-class AssociatedRecordSet(set["BasicModel"]):
-    """An AssociatedRecordSet contains a set of model instances (i.e., *records*) linked to a *parent record* by way of
-    an association established between two models. With a "to-many" association, the set can contain an unbounded number
-    of records but with a "to-one" association, the set will only ever contain one at most.
-    """
-
-    def __init__(self, parent_record: "BasicModel", association: "ModelAssociation", *args: Any, **kwargs: Any) -> None:
-        self._parent_record = parent_record
-        self._association = association
-        super().__init__(*args, **kwargs)
-
-    def add(self, record: "BasicModel", populate_inverse: bool = True) -> None:
-        if not isinstance(record, self.model):
-            raise AssociationTypeMismatch(
-                f"value of type '{record.__class__.__name__}' cannot be added to AssociatedRecordSet of type"
-                f"'{self.model.__name__}'"
-            )
-
-        # If the caller has indicated that the inverse association should be populated and the association does have
-        # an inverse association defined, back-populate the inverse association by creating a reference to the
-        # association's parent record in the record being added to the set
-        if populate_inverse and self.association.inverse_association:  # type: ignore
-            # Get the record set of the inverse association
-            inverse_record_set = self.association.inverse_association.get_record_set(record)  # type: ignore
-
-            # If the association is a "to-one" association, then its record set should always contain, at most, one
-            # record, so clear the set before adding the parent record
-            if isinstance(self.association, (HasOneAssociation, BelongsToAssociation)):  # type: ignore
-                inverse_record_set.clear()
-
-            # Add the association's parent record to the record set of the inverse association
-            inverse_record_set.add(self.parent_record, populate_inverse=False)
-
-        super().add(record)
-
-    @property
-    def parent_record(self) -> "BasicModel":
-        return self._parent_record
-
-    @property
-    def association(self) -> "ModelAssociation":
-        return self._association
-
-    @property
-    def model(self) -> type["BasicModel"]:
-        return self.association.other_model  # type: ignore
 
 
 class ModelAssociation(ABC):
@@ -69,9 +27,10 @@ class ModelAssociation(ABC):
     [1] https://docs.python.org/3/howto/descriptor.html
     """
 
-    def __init__(self, name: str, other_model: type["BasicModel"], inverse_of: Optional[str] = None) -> None:
+    def __init__(self, name: str, parent_model: type["BasicModel"], other_model: type["BasicModel"], inverse_of: Optional[str] = None) -> None:
         self._name: str = name
         self._private_member: str = "_" + name
+        self._parent_model: type["BasicModel"] = parent_model
         self._other_model: type["BasicModel"] = other_model
         self._inverse_of: Optional[str] = inverse_of
 
@@ -122,13 +81,28 @@ class ModelAssociation(ABC):
     @property
     def name(self) -> str:
         return self._name
+    
+    @property
+    def parent_model(self) -> type["BasicModel"]:
+        return self._parent_model
 
     @property
     def other_model(self) -> type["BasicModel"]:
         return self._other_model
-
+    
     @property
     def inverse_of(self) -> Optional[str]:
+        if not self._inverse_of:
+            # Get all associations which point from the associated model back to the parent model
+            candidates = [
+                assoc for assoc in self.other_model.associations.values()
+                if assoc.other_model is self.parent_model
+            ]
+
+            # If there is only one such association in the associated model, the inverse association is unambiguous
+            if len(candidates) == 1:
+                self._inverse_of = candidates[0].name
+
         return self._inverse_of
 
     @property
@@ -136,12 +110,129 @@ class ModelAssociation(ABC):
         if not self.inverse_of:
             return None
 
-        return getattr(self.other_model, self.inverse_of)  # type: ignore[no-any-return]
+        return self.other_model.associations.get(self.inverse_of)
 
     @property
     @abstractmethod
     def preload(self) -> bool:
         pass
+
+    @property
+    @abstractmethod
+    def to_one(self) -> bool:
+        pass
+
+    @property
+    def to_many(self) -> bool:
+        return not self.to_one
+
+
+class EmbeddedAssociation(ModelAssociation):
+    def __init__(
+        self,
+        name: str, 
+        parent_model: type["BasicModel"], 
+        other_model: type["BasicModel"],
+        nullable: bool = False,
+        inverse_of: Optional[str] = None
+    ) -> None:
+        self._nullable: bool = nullable
+        super().__init__(name, parent_model, other_model, inverse_of)
+
+    @property
+    def preload(self) -> bool:
+        return True
+
+    @property
+    def nullable(self) -> bool:
+        return self._nullable
+
+
+class EmbedsOneAssociation(EmbeddedAssociation):
+    def __get__(
+        self, parent_record: "BasicModel", _objtype: Optional[type["BasicModel"]] = None
+    ) -> Union["BasicModel", "EmbedsOneAssociation", None]:
+        return self._get_one(parent_record)
+
+    def __set__(self, parent_record: "BasicModel", other_record: "BasicModel") -> None:
+        self._set_one(parent_record, other_record)
+
+    def to_column(self, name=None) -> Optional[Column]:
+        if not name:
+            name = self.name
+
+        db_type = Dictionary().get_db_type(db_manager.engine.dialect)
+        return Column(name, db_type, nullable=self.nullable)
+
+    @property
+    def to_one(self) -> bool:
+        return True
+
+    if TYPE_CHECKING:
+
+        def _get_one(self, parent_record: "BasicModel") -> Union["BasicModel", "EmbedsOneAssociation", None]:
+            ...
+
+
+class EmbedsInlineAssociation(EmbeddedAssociation):
+    def __get__(
+        self, parent_record: "BasicModel", _objtype: Optional[type["BasicModel"]] = None
+    ) -> Union["BasicModel", "EmbedsInlineAssociation", None]:
+        return self._get_one(parent_record)
+
+    def __set__(self, parent_record: "BasicModel", other_record: "BasicModel") -> None:
+        self._set_one(parent_record, other_record)
+
+    @property
+    def to_one(self) -> bool:
+        return True
+
+    if TYPE_CHECKING:
+
+        def _get_one(self, parent_record: "BasicModel") -> Union["BasicModel", "EmbedsInlineAssociation", None]:
+            ...
+
+
+class EmbedsManyAssociation(EmbeddedAssociation):
+    def __get__(
+        self, parent_record: "BasicModel", _objtype: Optional[type["BasicModel"]] = None
+    ) -> Union["AssociatedRecordSet", "EmbedsManyAssociation", None]:
+        return self._get_many(parent_record)
+
+    def to_column(self, name=None) -> Optional[Column]:
+        if not name:
+            name = self.name
+
+        db_type = List().get_db_type(db_manager.engine.dialect)
+        return Column(name, db_type, nullable=self.nullable)
+
+    @property
+    def to_one(self) -> bool:
+        return False
+
+    if TYPE_CHECKING:
+
+        def _get_many(self, parent_record: "BasicModel") -> Union[AssociatedRecordSet, "EmbedsManyAssociation", None]:
+            ...
+
+
+class EmbeddedInAssociation(EmbeddedAssociation):
+    def __get__(
+        self, parent_record: "BasicModel", _objtype: Optional[type["BasicModel"]] = None
+    ) -> Union["BasicModel", "EmbedsOneAssociation", None]:
+        return self._get_one(parent_record)
+
+    def __set__(self, parent_record: "BasicModel", other_record: "BasicModel") -> None:
+        self._set_one(parent_record, other_record)
+
+    @property
+    def to_one(self) -> bool:
+        return True
+
+    if TYPE_CHECKING:
+
+        def _get_one(self, parent_record: "BasicModel") -> Union["BasicModel", "EmbedsOneAssociation", None]:
+            ...
 
 
 class EntityAssociation(ModelAssociation):
@@ -152,28 +243,28 @@ class EntityAssociation(ModelAssociation):
     def __init__(
         self,
         name: str,
+        parent_model: type["PersistableModel"],
         other_model: type["PersistableModel"],
         inverse_of: Optional[str] = None,
-        foreign_key: Optional[str] = None,
+        foreign_keys: Optional[tuple[str, ...]] = None,
         preload: bool = True,
     ) -> None:
-        self._foreign_key: Optional[str] = foreign_key
+        self._foreign_keys: Optional[str] = foreign_keys
         self._preload: bool = preload
-        super().__init__(name, other_model, inverse_of)
+        super().__init__(name, parent_model, other_model, inverse_of)
+
+    def get_foreign_keys(self, search_inverse: bool = True) -> tuple[str, ...]:
+        foreign_keys = self._foreign_keys or ()
+
+        # If no foreign keys were declared for the association, see if is obtainable from the inverse association
+        if not foreign_keys and search_inverse and self.inverse_association:
+            foreign_keys = self.inverse_association.get_foreign_keys(search_inverse = False)
+
+        return foreign_keys
 
     @property
-    def foreign_key(self) -> Optional[str]:
-        foreign_key = self._foreign_key
-
-        # If no foreign key was declared for the association, see if is obtainable from the inverse association
-        if not foreign_key:
-            foreign_key = getattr(self.inverse_association, "_foreign_key", None)  # type: ignore
-
-        return foreign_key
-
-    @property
-    def inverse_association(self) -> Optional["EntityAssociation"]:
-        ...
+    def foreign_keys(self) -> tuple[str, ...]:
+        return self.get_foreign_keys()
 
     @property
     def preload(self) -> bool:
@@ -191,6 +282,10 @@ class EntityAssociation(ModelAssociation):
         def other_model(self) -> type["PersistableModel"]:
             ...
 
+        @property
+        def inverse_association(self) -> Optional["EntityAssociation"]:
+            ...
+
 
 class HasOneAssociation(EntityAssociation):
     """A HasOneAssociation is an association between database-backed models which allows a record to be linked to
@@ -205,6 +300,10 @@ class HasOneAssociation(EntityAssociation):
 
     def __set__(self, parent_record: "BasicModel", other_record: "PersistableModel") -> None:
         self._set_one(parent_record, other_record)
+
+    @property
+    def to_one(self) -> bool:
+        return True
 
     if TYPE_CHECKING:
 
@@ -223,6 +322,10 @@ class HasManyAssociation(EntityAssociation):
     ) -> Union["AssociatedRecordSet", "HasManyAssociation", None]:
         return self._get_many(parent_record)
 
+    @property
+    def to_one(self) -> bool:
+        return False
+
     if TYPE_CHECKING:
 
         def _get_many(self, parent_record: "BasicModel") -> Union[AssociatedRecordSet, "HasManyAssociation", None]:
@@ -238,14 +341,15 @@ class BelongsToAssociation(EntityAssociation):
     def __init__(
         self,
         name: str,
+        parent_model: type["PersistableModel"],
         other_model: type["PersistableModel"],
         nullable: bool = False,
         inverse_of: Optional[str] = None,
-        foreign_key: Optional[str] = None,
+        foreign_keys: Optional[str] = None,
         preload: bool = True,
     ):
         self._nullable: bool = nullable
-        super().__init__(name, other_model, inverse_of, foreign_key, preload)
+        super().__init__(name, parent_model, other_model, inverse_of, foreign_keys, preload)
 
     def __get__(
         self, parent_record: "BasicModel", _objtype: Optional[type["BasicModel"]] = None
@@ -262,28 +366,43 @@ class BelongsToAssociation(EntityAssociation):
         # Create reference in record to the associated record
         self._set_one(parent_record, other_record)
 
-        # Get the associated record's ID
-        other_record_id = getattr(other_record, type(other_record).id_field.name)  # type: ignore[reportOptionalMemberAccess, union-attr]
+        # Populate record's foreign key fields with the corresponding values from the associated record
+        for field in type(parent_record).fields.values():
+            if field.linked_association == self.name:
+                foreign_value = getattr(other_record, field.linked_field)
+                setattr(parent_record, field.name, foreign_value)
 
-        # Add the associated record's ID to the record
-        if other_record_id and hasattr(parent_record, self.foreign_key):
-            setattr(parent_record, self.foreign_key, other_record_id)
+    def get_foreign_keys(self, search_inverse: bool = True) -> tuple[str, ...]:
+        foreign_keys = super().get_foreign_keys(search_inverse)
+
+        # If no foreign key was declared for the association (or the inverse association),
+        # try to discover it from the model declaration
+        if not foreign_keys:
+            foreign_keys = (
+                field.name
+                for field in self.parent_model.fields.values()
+                if field.linked_association == self.name
+            )
+
+        # If that fails, use the default
+        if not foreign_keys:
+            foreign_keys = (f"{self.name}_id")
+
+        return foreign_keys
+
+    @property
+    def nullable(self) -> bool:
+        return self._nullable
+
+    @property
+    def to_one(self) -> bool:
+        return True
 
     if TYPE_CHECKING:
 
         def _get_one(self, parent_record: "BasicModel") -> Union["PersistableModel", "BelongsToAssociation", None]:
             ...
 
-    @property
-    def foreign_key(self) -> str:
-        foreign_key = super().foreign_key
-
-        # If no foreign key was declared for the association (or the inverse association), use default
-        if not foreign_key:
-            foreign_key = f"{self.name}_id"
-
-        return foreign_key
-
-    @property
-    def nullable(self) -> bool:
-        return self._nullable
+        @property
+        def foreign_key(self) -> str:
+            ...

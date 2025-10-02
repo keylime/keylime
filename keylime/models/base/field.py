@@ -2,13 +2,16 @@ import re
 from inspect import isclass
 from typing import TYPE_CHECKING, Any, Optional, TypeAlias, Union
 
+from sqlalchemy import Column, ForeignKey, or_
 from sqlalchemy.types import TypeEngine
 
 from keylime.models.base.errors import FieldDefinitionInvalid
 from keylime.models.base.type import ModelType
+from keylime.models.base.db import db_manager
 
 if TYPE_CHECKING:
     from keylime.models.base.basic_model import BasicModel
+    from keylime.models.base.basic_model_meta import BasicModelMeta
 
 
 class ModelField:
@@ -31,14 +34,20 @@ class ModelField:
     _data_type: ModelType
     _nullable: bool
 
-    def __init__(self, name: str, data_type: DeclaredFieldType, nullable: bool = False) -> None:
+    def __init__(self, parent: "BasicModelMeta", name: str, data_type: DeclaredFieldType, **opts) -> None:
         # pylint: disable=redefined-builtin
 
         if not re.match(ModelField.FIELD_NAME_REGEX, name):
             raise FieldDefinitionInvalid(f"'{name}' is an invalid name for a field")
 
+        self._parent = parent
         self._name = name
-        self._nullable = nullable
+        self._nullable = opts.get("nullable", False)
+        self._persist = opts.get("persist", True)
+        self._render = opts.get("render", True)
+        self._refers_to = opts.get("refers_to", None)
+        self._column_args = opts.get("column_args", ())
+        self._column_kwargs = opts.get("column_kwargs", {})
 
         if isinstance(data_type, ModelType):
             self._data_type = data_type
@@ -72,6 +81,51 @@ class ModelField:
     def __delete__(self, obj: Optional["BasicModel"]) -> None:
         self.__set__(obj, None)
 
+    def __eq__(self, other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__eq__(other)
+
+    def __ne__(self, other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+
+        # SQL is unusual in that `WHERE field != "value"` will not return rows where the field is NULL. Most DB engines
+        # have a null-safe equality operator but SQLAlchemy does not use this by default. To mimic the more intuitive
+        # behaviour of `!=` in Python, we replace such expressions with `WHERE field != "value" OR field IS NULL`
+        if other is not None:
+            return or_(sa_field.__ne__(other), sa_field.__eq__(None))
+
+        return sa_field.__ne__(other)
+
+    def __lt__(self, other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__lt__(other)
+
+    def __le__(self, other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__le__(other)
+
+    def __gt__(self, other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__gt__(other)
+
+    def __ge__(self, other):
+        sa_field = getattr(self.parent.db_mapping, self.name)
+        return sa_field.__ge__(other)
+
+    def to_column(self, name=None) -> Optional[Column]:
+        if not self.persist:
+            return None
+
+        if not name:
+            name = self.name
+
+        column_args = (name,) + self.column_args[1:]
+        return Column(*column_args, **self.column_kwargs)
+
+    @property
+    def parent(self) -> "BasicModelMeta":
+        return self._parent
+
     @property
     def name(self) -> str:
         return self._name
@@ -83,3 +137,49 @@ class ModelField:
     @property
     def nullable(self) -> bool:
         return self._nullable
+
+    @property
+    def persist(self) -> bool:
+        return self._persist
+
+    @property
+    def render(self) -> bool:
+        return self._render
+
+    @property
+    def refers_to(self) -> Optional[str]:
+        return self._refers_to
+
+    @property
+    def linked_association(self) -> Optional[str]:
+        if not self.refers_to:
+            return None
+
+        return self.refers_to.split(".")[0]
+
+    @property
+    def linked_table(self) -> Optional[str]:
+        if not self.refers_to:
+            return None
+
+        return self.parent.belongs_to_associations[self.linked_association].other_model.table_name
+
+    @property
+    def linked_field(self) -> Optional[str]:
+        if not self.refers_to:
+            return None
+
+        return self.refers_to.split(".")[1]
+
+    @property
+    def column_args(self) -> tuple[Any, ...]:
+        column_args = self._column_args
+
+        db_type = self.data_type.get_db_type(db_manager.engine.dialect)
+        column_args = (self.name, db_type, *column_args)
+        
+        return column_args
+
+    @property
+    def column_kwargs(self) -> dict[str, Any]:
+        return {"nullable": self.nullable, **self._column_kwargs}

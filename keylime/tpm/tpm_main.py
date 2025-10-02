@@ -209,12 +209,44 @@ class Tpm:
             logger.debug("IMA measurement list of agent %s validated", agent_id)
         return failure
 
+    def _check_data_pcr(self, agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote):
+        agent_id = agentAttestState.get_agent_id()
+        pcr_nums = set(pcrs_dict.keys())
+
+        if config.TPM_DATA_PCR in pcr_nums and data is not None:
+            expectedval = self.sim_extend(data, hash_alg)
+            if expectedval != pcrs_dict[config.TPM_DATA_PCR]:
+                logger.error(
+                    "PCR #%s: invalid bind data %s from quote (from agent %s) does not match expected value %s",
+                    config.TPM_DATA_PCR,
+                    pcrs_dict[config.TPM_DATA_PCR],
+                    agent_id,
+                    expectedval,
+                )
+                failure.add_event(
+                    f"invalid_pcr_{config.TPM_DATA_PCR}",
+                    {"got": pcrs_dict[config.TPM_DATA_PCR], "expected": expectedval},
+                    True,
+                )
+            pcrs_in_quote.add(config.TPM_DATA_PCR)
+        else:
+            logger.error(
+                "Binding PCR #%s was not included in the quote (from agent %s), but is required",
+                config.TPM_DATA_PCR,
+                agent_id,
+            )
+            failure.add_event(
+                f"missing_pcr_{config.TPM_DATA_PCR}",
+                f"Data PCR {config.TPM_DATA_PCR} is missing in quote, but is required",
+                True,
+            )
+
     def check_pcrs(
         self,
         agentAttestState: Optional[AgentAttestState],
         tpm_policy: Union[str, Dict[str, Any]],
         pcrs_dict: Dict[int, str],
-        data: str,
+        data: Optional[str],
         ima_measurement_list: Optional[str],
         runtime_policy: Optional[RuntimePolicyType],
         ima_keyrings: Optional[ImaKeyrings],
@@ -222,7 +254,6 @@ class Tpm:
         mb_policy: Optional[str],
         hash_alg: Hash,
         count: int,
-        skip_data_pcr_check: bool = False,
     ) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
 
@@ -246,40 +277,23 @@ class Tpm:
         mb_pcrs_hashes, boot_aggregates, mb_measurement_data, mb_failure = mba.bootlog_parse(
             mb_measurement_list, hash_alg
         )
+
         failure.merge(mb_failure)
 
         pcrs_in_quote: Set[int] = set()  # PCRs in quote that were already used for some kind of validation
 
         pcr_nums = set(pcrs_dict.keys())
 
-        # Validate data PCR
-        if config.TPM_DATA_PCR in pcr_nums and data is not None:
-            expectedval = self.sim_extend(data, hash_alg)
-            if expectedval != pcrs_dict[config.TPM_DATA_PCR]:
-                logger.error(
-                    "PCR #%s: invalid bind data %s from quote (from agent %s) does not match expected value %s",
-                    config.TPM_DATA_PCR,
-                    pcrs_dict[config.TPM_DATA_PCR],
-                    agent_id,
-                    expectedval,
-                )
-                failure.add_event(
-                    f"invalid_pcr_{config.TPM_DATA_PCR}",
-                    {"got": pcrs_dict[config.TPM_DATA_PCR], "expected": expectedval},
-                    True,
-                )
-            pcrs_in_quote.add(config.TPM_DATA_PCR)
-        elif not skip_data_pcr_check:
-            logger.error(
-                "Binding PCR #%s was not included in the quote (from agent %s), but is required",
-                config.TPM_DATA_PCR,
-                agent_id,
-            )
-            failure.add_event(
-                f"missing_pcr_{config.TPM_DATA_PCR}",
-                f"Data PCR {config.TPM_DATA_PCR} is missing in quote, but is required",
-                True,
-            )
+        if pcr_nums:
+            pcrf = keylime_logging.list_items(pcr_nums, sort=True)
+            logger.info("PCR(s) %s from bank '%s' found in TPM quote for agent '%s'", pcrf, hash_alg.value, agent_id)
+        else:
+            logger.error("No PCRs from bank '%s' found in TPM quote for agent '%s'", hash_alg.value, agent_id)
+
+        # If additional data is provided, check its presence in the data PCR (defined by config.TPM_DATA_PCR)
+        if data is not None:
+            self._check_data_pcr(agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote)
+
         # Check for ima PCR
         if config.IMA_PCR in pcr_nums:
             if ima_measurement_list is None:
@@ -288,6 +302,9 @@ class Tpm:
                     f"unused_pcr_{config.IMA_PCR}", "IMA PCR in policy, but no measurement list provided", True
                 )
             else:
+                if ima_measurement_list == "":
+                    logger.info("No new IMA events received from agent '%s'", agent_id)
+                    
                 ima_failure = Tpm.__check_ima(
                     agentAttestState,
                     pcrs_dict[config.IMA_PCR],
@@ -300,79 +317,102 @@ class Tpm:
                 failure.merge(ima_failure)
 
             pcrs_in_quote.add(config.IMA_PCR)
+        else:
+            logger.info("No IMA verification policy configured for agent '%s'; skipping IMA verification", agent_id)
+
+        if mb_policy is not None:
+            logger.info("Checking measured boot PCRs against log for agent: %s", agent_id)
+        else:
+            logger.info(
+                "No measured boot policy configured for agent '%s'; skipping measured boot verification",
+                agent_id
+            )
 
         # Collect mismatched measured boot PCRs as measured_boot failures
         mb_pcr_failure = Failure(Component.MEASURED_BOOT)
         # Handle measured boot PCRs only if the parsing worked
-        if not mb_failure:
+        if not mb_failure and mb_policy is not None:
             for pcr_num in set(config.MEASUREDBOOT_PCRS) & pcr_nums:
-                if mba.policy_is_valid(mb_policy):
-                    if not mb_measurement_list:
-                        logger.error(
-                            "Measured Boot PCR %d in policy, but no measurement list provided by agent %s",
-                            pcr_num,
-                            agent_id,
-                        )
-                        failure.add_event(
-                            f"unused_pcr_{pcr_num}",
-                            f"Measured Boot PCR {pcr_num} in policy, but no measurement list provided",
-                            True,
-                        )
-                        continue
+                if not mb_measurement_list:
+                    logger.error(
+                        "Measured Boot PCR %d in policy, but no measurement list provided by agent %s",
+                        pcr_num,
+                        agent_id,
+                    )
+                    failure.add_event(
+                        f"unused_pcr_{pcr_num}",
+                        f"Measured Boot PCR {pcr_num} in policy, but no measurement list provided",
+                        True,
+                    )
+                    continue
 
-                    val_from_log_int = mb_pcrs_hashes.get(str(pcr_num), 0)
-                    val_from_log_hex = hex(val_from_log_int)[2:]
-                    val_from_log_hex_stripped = val_from_log_hex.lstrip("0")
-                    pcrval_stripped = pcrs_dict[pcr_num].lstrip("0")
-                    if val_from_log_hex_stripped != pcrval_stripped:
-                        logger.error(
-                            "For PCR %d and hash %s the boot event log has value %r but the agent %s returned %r",
-                            pcr_num,
-                            str(hash_alg),
-                            val_from_log_hex,
-                            agent_id,
-                            pcrs_dict[pcr_num],
-                        )
-                        mb_pcr_failure.add_event(
-                            f"invalid_pcr_{pcr_num}",
-                            {
-                                "context": "SHA256 boot event log PCR value does not match",
-                                "got": pcrs_dict[pcr_num],
-                                "expected": val_from_log_hex,
-                            },
-                            True,
-                        )
+                val_from_log_int = mb_pcrs_hashes.get(str(pcr_num), 0)
+                val_from_log_hex = hex(val_from_log_int)[2:]
+                val_from_log_hex_stripped = val_from_log_hex.lstrip("0")
+                pcrval_stripped = pcrs_dict[pcr_num].lstrip("0")
+                if val_from_log_hex_stripped != pcrval_stripped:
+                    logger.error(
+                        "For PCR %d and hash %s the boot event log has value %r but the agent %s returned %r",
+                        pcr_num,
+                        str(hash_alg),
+                        val_from_log_hex,
+                        agent_id,
+                        pcrs_dict[pcr_num],
+                    )
+                    mb_pcr_failure.add_event(
+                        f"invalid_pcr_{pcr_num}",
+                        {
+                            "context": "SHA256 boot event log PCR value does not match",
+                            "got": pcrs_dict[pcr_num],
+                            "expected": val_from_log_hex,
+                        },
+                        True,
+                    )
 
-                    if pcr_num in pcr_allowlist and pcrs_dict[pcr_num] not in pcr_allowlist[pcr_num]:
-                        logger.error(
-                            "PCR #%s: %s from quote (from agent %s) does not match expected value %s",
-                            pcr_num,
-                            pcrs_dict[pcr_num],
-                            agent_id,
-                            pcr_allowlist[pcr_num],
-                        )
-                        failure.add_event(
-                            f"invalid_pcr_{pcr_num}",
-                            {
-                                "context": "PCR value is not in allowlist",
-                                "got": pcrs_dict[pcr_num],
-                                "expected": pcr_allowlist[pcr_num],
-                            },
-                            True,
-                        )
-                    pcrs_in_quote.add(pcr_num)
+                if pcr_num in pcr_allowlist and pcrs_dict[pcr_num] not in pcr_allowlist[pcr_num]:
+                    logger.error(
+                        "PCR #%s: %s from quote (from agent %s) does not match expected value %s",
+                        pcr_num,
+                        pcrs_dict[pcr_num],
+                        agent_id,
+                        pcr_allowlist[pcr_num],
+                    )
+                    failure.add_event(
+                        f"invalid_pcr_{pcr_num}",
+                        {
+                            "context": "PCR value is not in allowlist",
+                            "got": pcrs_dict[pcr_num],
+                            "expected": pcr_allowlist[pcr_num],
+                        },
+                        True,
+                    )
+                pcrs_in_quote.add(pcr_num)
         failure.merge(mb_pcr_failure)
 
+        if mb_policy is not None:
+            mb_pcrs_checked = [str(pcr) for pcr in pcrs_in_quote - set([config.IMA_PCR])]
+
+            if mb_pcrs_checked:
+                logger.info("Compared PCRs %s against measured boot log", ", ".join(mb_pcrs_checked))
+            else:
+                logger.error("Compared no PCRs against measured boot log")
+
+        remaining_pcrs = sorted(pcr_nums - pcrs_in_quote)
+
+        if remaining_pcrs:
+            pcrf = keylime_logging.list_items(remaining_pcrs)
+            logger.info("Checking remaining PCR(s) %s in quote against TPM policy for agent '%s'", pcrf, agent_id)
+        else:
+            logger.info("No remaining PCRs in quote to check against TPM policy for agent '%s'", agent_id)
+
         # Check the remaining non validated PCRs
-        for pcr_num in pcr_nums - pcrs_in_quote:
+        for pcr_num in remaining_pcrs:
             if pcr_num not in list(pcr_allowlist.keys()):
-                logger.warning(
-                    "PCR #%s in quote (from agent %s) not found in tpm_policy, skipping.",
-                    pcr_num,
-                    agent_id,
-                )
+                logger.warning("PCR #%s in quote (from agent %s) not found in tpm_policy, skipping.", pcr_num, agent_id)
                 continue
-            if pcrs_dict[pcr_num] not in pcr_allowlist[pcr_num]:
+            if pcrs_dict[pcr_num] in pcr_allowlist[pcr_num]:
+                logger.info("PCR #%s contains value allowed by TPM policy for agent '%s'", pcr_num, agent_id)
+            else:
                 logger.error(
                     "PCR #%s: %s from quote (from agent %s) does not match expected value %s",
                     pcr_num,
@@ -397,6 +437,15 @@ class Tpm:
             logger.error("PCRs specified in policy not in quote (from agent %s): %s", agent_id, missing)
             failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": list(missing)}, True)
 
+        if mb_policy is not None:
+            logger.info("Checking measured boot log against policy for agent: %s", agent_id)
+
+            if not mba.policy_is_valid(mb_policy):
+                logger.error("Invalid measured boot policy for agent '%s'", agent_id)
+                failure.add_event(
+                    f"invalid_mb_policy", "Invalid measured boot policy", True
+                )
+
         if not mb_failure and mba.policy_is_valid(mb_policy):
             mb_evaluate = config.get("verifier", "measured_boot_evaluate", fallback="once")
 
@@ -408,21 +457,11 @@ class Tpm:
                 )
 
             if mb_evaluate == "always":
-                mb_policy_failure = mba.bootlog_evaluate(
-                    mb_policy,
-                    mb_measurement_data,
-                    pcrs_in_quote,
-                    agent_id,
-                )
+                mb_policy_failure = mba.bootlog_evaluate(mb_policy, mb_measurement_data, pcrs_in_quote, agent_id)
                 failure.merge(mb_policy_failure)
 
             elif mb_evaluate == "once" and count == 0:
-                mb_policy_failure = mba.bootlog_evaluate(
-                    mb_policy,
-                    mb_measurement_data,
-                    pcrs_in_quote,
-                    agent_id,
-                )
+                mb_policy_failure = mba.bootlog_evaluate(mb_policy, mb_measurement_data, pcrs_in_quote, agent_id)
                 failure.merge(mb_policy_failure)
 
         return failure
@@ -430,22 +469,21 @@ class Tpm:
     def check_quote(
         self,
         agentAttestState: Optional[AgentAttestState],
-        nonce: str,
-        data: str,
+        nonce: Union[bytes, str],
+        data: Optional[str],
         quote: str,
-        aikTpmFromRegistrar: str,
+        aikTpmFromRegistrar: Union[bytes, str],
         tpm_policy: Optional[Union[str, Dict[str, Any]]] = None,
         ima_measurement_list: Optional[str] = None,
         runtime_policy: Optional[RuntimePolicyType] = None,
         hash_alg: Hash = Hash.SHA256,
         ima_keyrings: Optional[ImaKeyrings] = None,
-        mb_measurement_list: Optional[str] = None,
+        mb_measurement_list: Optional[Union[bytes, str]] = None,
         mb_policy: Optional[str] = None,
         compressed: bool = False,
         count: int = -1,
         skip_pcr_check: bool = False,
         skip_clock_check: bool = False,
-        skip_data_pcr_check: bool = False,
     ) -> Failure:
         if tpm_policy is None:
             tpm_policy = {}
@@ -454,6 +492,17 @@ class Tpm:
             runtime_policy = ima.EMPTY_RUNTIME_POLICY
 
         failure = Failure(Component.QUOTE_VALIDATION)
+
+        # The underlying methods expect certain objects to be given b64 encoded, so convert 
+
+        if not isinstance(nonce, str):
+            nonce = base64.b64encode(nonce).decode("utf-8")
+
+        if not isinstance(aikTpmFromRegistrar, str):
+            aikTpmFromRegistrar = base64.b64encode(aikTpmFromRegistrar).decode("utf-8")
+
+        if mb_measurement_list and not isinstance(mb_measurement_list, str):
+            mb_measurement_list = base64.b64encode(mb_measurement_list).decode("utf-8")
 
         # First and foremost, the quote needs to be validated
         pcrs_dict, err = Tpm._tpm2_checkquote(aikTpmFromRegistrar, quote, nonce, str(hash_alg), compressed)
@@ -503,8 +552,7 @@ class Tpm:
                 mb_measurement_list,
                 mb_policy,
                 hash_alg,
-                count,
-                skip_data_pcr_check,
+                count
             )
 
         return failure
@@ -545,6 +593,13 @@ class Tpm:
             current_clockinfo = tentative_current_clockinfo
 
         return None, current_clockinfo
+
+    @staticmethod
+    def get_pcrs_from_quote(quote, compressed):
+        _, sigblob, pcrblob = Tpm._get_quote_parameters(quote, compressed)
+        _, hash_alg, _ = struct.unpack_from(">HHH", sigblob, 0)
+        _, pcrs_dict = getattr(tpm_util, "__get_and_hash_pcrs")(pcrblob, hash_alg)
+        return pcrs_dict
 
     @staticmethod
     def sim_extend(hashval_1: str, hash_alg: Hash) -> str:

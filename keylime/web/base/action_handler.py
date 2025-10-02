@@ -8,7 +8,7 @@ from tornado.web import RequestHandler
 
 from keylime import keylime_logging
 from keylime.web.base.default_controller import DefaultController
-from keylime.web.base.errors import ActionDispatchError, ActionIncompleteError, ActionUndefined, ParamDecodeError
+from keylime.web.base.exceptions import ActionDispatchError, ActionIncompleteError, ActionUndefined, ParamDecodeError, RequiredContentMissing, StopAction
 
 if TYPE_CHECKING:
     from keylime.web.base.controller import Controller
@@ -46,9 +46,18 @@ class ActionHandler(RequestHandler):
     def _log_exception(self, err: Exception) -> None:
         logger.error("An uncaught exception occurred while handling a request:")
 
+        try:
+            formatted_tb = traceback.format_exception(err)
+        except NameError:
+            # Sometimes an exception cannot be printed with traceback.format_exception() for unknown reasons.
+            # If this occurs, manually construct the output using traceback.format_tb()
+            formatted_tb = ["Traceback (most recent call last):\n"]
+            formatted_tb.extend(traceback.format_tb(err.__traceback__))
+            formatted_tb.append(f"{type(err).__name__}: {str(err)}")
+            
         # Take the list of strings returned by format_exception, where each string ends in a newline and may contain
         # internal newlines, and split the concatenation of all the strings by newline
-        message = "".join(traceback.format_exception(err))
+        message = "".join(formatted_tb)
         lines = message.split("\n")
 
         for line in lines:
@@ -248,6 +257,9 @@ class ActionHandler(RequestHandler):
         if self.matching_route and self.controller:
             try:
                 await self._invoke_action()
+            except StopAction:
+                # If the action is terminated early, continue
+                pass
             except ParamDecodeError:
                 # If the query, form or JSON parameters are malformed, respond using error-handling action
                 await self._invoke_action("malformed_params", ignore_param_errors=True)
@@ -255,9 +267,13 @@ class ActionHandler(RequestHandler):
                 # If the union of path, query, form and JSON parameters and do not match the method signature
                 # of the action, respond using error-handling action
                 await self._invoke_action("action_dispatch_error", ignore_param_errors=True)
+            except RequiredContentMissing:
+                # If a decorator from the Controller class has been used to mark a certain content format as required
+                # for the action and the request body or Content-Type do not adhere, respond using error-handling action
+                await self._invoke_action("format_not_allowed", ignore_param_errors=True)
             except Exception as err:
-                # Any other exception which is not caught within the action body should be logged as an unexpected error
-                # before responding using error-handling action
+                # Any other exception which is not caught within the action body should be logged as an unexpected
+                # internal error before responding using error-handling action
                 self._log_exception(err)
                 await self._invoke_action("action_exception", ignore_param_errors=True)
 

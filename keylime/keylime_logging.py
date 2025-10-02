@@ -18,6 +18,19 @@ except KeyError:
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id")
 
 
+def list_items(items, *, sort=False, with_and=True):
+    if sort:
+        items = sorted(items)
+
+    items = [str(item) for item in items]
+    output = ", ".join(items)
+
+    if with_and:
+        output = " and".join(output.rsplit(",", 1))
+
+    return output
+
+
 def set_log_func(loglevel: int, logger: Logger) -> Callable[..., None]:
     log_func = logger.info
 

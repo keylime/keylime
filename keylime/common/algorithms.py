@@ -50,14 +50,14 @@ class Hash(str, enum.Enum):
     def get_size(self) -> int:
         return cast(int, self.__hashfn(b"").digest_size * 8)
 
+    def get_hex_size(self) -> int:
+        return len(self.__hashfn(b"").hexdigest())
+
     def get_start_hash(self) -> bytes:
         return b"\x00" * (self.get_size() // 8)
 
     def get_ff_hash(self) -> bytes:
         return b"\xff" * (self.get_size() // 8)
-
-    def hexdigest_len(self) -> int:
-        return len(self.__hashfn(b"").hexdigest())
 
     def file_digest(self, filepath: str) -> str:
         """
@@ -80,6 +80,15 @@ class Hash(str, enum.Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
+class Key(str, enum.Enum):
+    RSA = "rsa"
+    ECC = "ecc"
+
+    @staticmethod
+    def is_recognized(algorithm: str) -> bool:
+        return algorithm in list(Key)
 
 
 class Encrypt(str, enum.Enum):
@@ -124,3 +133,12 @@ class Sign(str, enum.Enum):
     @staticmethod
     def is_recognized(algorithm: str) -> bool:
         return algorithm in list(Sign)
+
+    @property
+    def key_algorithm(self) -> Key:
+        if self.value.startswith("rsa"):
+            return Key("rsa")
+        elif self.value.startswith("ec"):
+            return Key("ecc")
+        else:
+            raise NotImplementedError(f"key algorithm for signature scheme '{self.value}' is not known")
