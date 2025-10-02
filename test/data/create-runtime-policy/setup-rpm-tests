@@ -49,6 +49,7 @@ RPM_REPO_SIGNED_RSA="${BASEDIR}"/repo/signed-rsa
 RPM_REPO_SIGNED_MISMATCH="${BASEDIR}"/repo/signed-mismatch
 RPM_REPO_SIGNED_NO_REPOMD="${BASEDIR}"/repo/no-repomd
 RPM_REPO_SIGNED_NO_KEY="${BASEDIR}"/repo/signed-no-key
+RPM_REPO_FILELIST_EXT_MATCH="${BASEDIR}"/repo/filelist-ext-match
 RPM_REPO_FILELIST_EXT_MISMATCH="${BASEDIR}"/repo/filelist-ext-mismatch
 RPM_REPO_UNSUPPORTED_COMPRESSION="${BASEDIR}"/repo/unsupported-compression
 
@@ -285,30 +286,36 @@ prepare_rpms() {
     for _repodir in "${RPM_REPO_SIGNED_RSA}" \
                     "${RPM_REPO_SIGNED_ECC}"; do
         cp -a "${RPM_REPO_UNSIGNED}"/* "${_repodir}"/
+        createrepo_c --general-compress-type=gz "${_repodir}"/
     done
 
     # --filelists-ext was introduced in createrepo_c 0.21; some distros
     # - e.g. CentOS Stream 9 at the time of writing - have an older
     # version of it, so that option is not available.
-    fext=
     crepo_maj="$(createrepo_c --version | cut -f2 -d' ' | cut -f1 -d'.')"
     crepo_min="$(createrepo_c --version | cut -f2 -d' ' | cut -f2 -d'.')"
+    # If createrepo_c does not support --filelists-ext, let us not
+    # test for match and mismatch.
     if [ "${crepo_maj}" -gt 0 ] || [ "${crepo_min}" -ge 21 ]; then
-        fext=--filelists-ext
+        for _repodir in "${RPM_REPO_FILELIST_EXT_MATCH}" "${RPM_REPO_FILELIST_EXT_MISMATCH}"; do
+            mkdir -p "${_repodir}"
+            cp "${RPM_REPO_SIGNED_RSA}"/* -a "${_repodir}"/
+            createrepo_c --general-compress-type=gz --filelists-ext "${_repodir}"
+        done
+        # delete filelist-ext for RPM_REPO_FILELIST_EXT_MISMATCH
+        rm -f "${RPM_REPO_FILELIST_EXT_MISMATCH}"/repodata/*-filelists-ext.xml*
     fi
-
-    # For ${RPM_REPO_SIGNED_RSA}", let us also pass --filelist-ext
-    # to createrepo_c, if it is supported.
-    pushd "${RPM_REPO_SIGNED_RSA}" >/dev/null
-        createrepo_c --general-compress-type=gz ${fext} .
-    popd >/dev/null
 
     # Sign the repo metadata for the signed repos with both an RSA
     # and an ECC gpg key..
-    ${GPGRSA} --detach-sign \
-              --armor "${RPM_REPO_SIGNED_RSA}"/repodata/repomd.xml
-    ${GPGRSA} --output "${RPM_REPO_SIGNED_RSA}"/repodata/repomd.xml.key \
-              --armor --export keylime@example.com
+    for _repodir in "${RPM_REPO_SIGNED_RSA}" "${RPM_REPO_FILELIST_EXT_MATCH}" "${RPM_REPO_FILELIST_EXT_MISMATCH}"; do
+        if [ -d "${_repodir}" ]; then
+            ${GPGRSA} --detach-sign \
+                      --armor "${_repodir}"/repodata/repomd.xml
+            ${GPGRSA} --output "${_repodir}"/repodata/repomd.xml.key \
+                      --armor --export keylime@example.com
+        fi
+    done
 
     ${GPGECC} --detach-sign \
               --armor "${RPM_REPO_SIGNED_ECC}"/repodata/repomd.xml
@@ -328,16 +335,6 @@ prepare_rpms() {
     mkdir -p "${RPM_REPO_SIGNED_NO_KEY}"
     cp "${RPM_REPO_SIGNED_RSA}"/* -a "${RPM_REPO_SIGNED_NO_KEY}"/
     rm -f "${RPM_REPO_SIGNED_NO_KEY}"/repodata/repomd.xml.key
-
-    # If createrepo_c does not support --filelists-ext, let us not
-    # test for mismatch.
-    if [ -n "${fext}" ]; then
-        # And a repo without the filelists-ext file, although it indicates
-        # it has one.
-        mkdir -p "${RPM_REPO_FILELIST_EXT_MISMATCH}"
-        cp "${RPM_REPO_SIGNED_RSA}"/* -a "${RPM_REPO_FILELIST_EXT_MISMATCH}"/
-        rm -f "${RPM_REPO_FILELIST_EXT_MISMATCH}"/repodata/*-filelists-ext.xml*
-    fi
 
     # Add a repo using non-supported compression for the files.
     # We currently support only gzip.
