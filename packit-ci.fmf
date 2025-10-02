@@ -98,6 +98,7 @@ adjust:
      - /functional/tpm_policy-sanity-on-localhost
      - /functional/use-multiple-ima-sign-verification-keys
      - /functional/webhook-certificate-on-localhost
+     - /functional/agent-registration-with-non-default-tpm-algorithms/.*
      - /regression/cve-2023-38200
      - /regression/cve-2023-38201
      - /regression/CVE-2023-3674
