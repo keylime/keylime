@@ -406,7 +406,18 @@ Verifier
                   "type": "ima.validation.ima-ng.not_in_allowlist",
                   "context": { "message": "File not found in allowlist: /root/evil.sh" },
                 }
-            ]
+            ],
+            "claims": {
+                "nonce": "DGHFH6EQVYGKP7YHNVEAFQQR5TN4W4JA",
+                "quote": "r/1RDR4AYACIACzy[...]",
+                "hash_alg": "sha256",
+                "tpm_ak": "ARgAAQALAAUAcgAAABAAFAALCAAA[...]",
+                "tpm_ek": "BABEwIE88dIfqH0FQLJAg8u3+ZOg[...]",
+                "tpm_policy": "{\"22\": [\"0000000000000000000000000000000000000001\", \"0000000000000000000000000000000000000000000000000000000000000001\",[...]",
+                "runtime_policy": "{\"meta": {\"version\": 1, \"timestamp\": "2025-02-24 21:33:17.574168"}, \"digests\": {\"/boot/System.map-6.2.9-300.fc38.x86_64": ["dc720f9c236[...]",
+                "mb_policy": "[...]",
+                "ima_measurement_list": "10 0adefe762c149c7cec19da62f0da1297fcfbffff ima-ng sha256:0000000000000000000000000000000000000000000000000000000000000000 boot_aggregate[...]",
+            }
           }
         }
 
@@ -417,5 +428,5 @@ Verifier
     :<json array failures: A list of optional failure objects for the different ways the evidence failed verification
     :<json string type: The Keylime specific type of failure
     :<json object context: More context, such as a human readable message about the failure
-
+    :<json object claims: The claims that were used for verification. May be empty if verification was unsuccessful.
 
