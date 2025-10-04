@@ -400,7 +400,7 @@ Verifier
           "code": 200,
           "status": "Success",
           "results": {
-            "valid": 0,
+            "valid": false,
             "failures": [
                 {
                   "type": "ima.validation.ima-ng.not_in_allowlist",
