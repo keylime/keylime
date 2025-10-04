@@ -18,6 +18,14 @@ def verify_attestation(
 ) -> Tuple[dict[str, Any], Failure]:
     failure = Failure(Component.TEE)
 
+    if len(report) < 0x188:
+        failure.add_event(
+            "invalid_input",
+            {"message": "SEV-SNP attestation report input invalid"},
+            False,
+        )
+        return ({}, failure)
+
     verified = vek_signature_verify(report, failure)
     if verified is False:
         return ({}, failure)
