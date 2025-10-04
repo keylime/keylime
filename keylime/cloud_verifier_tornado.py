@@ -1660,7 +1660,7 @@ class VerifyEvidenceHandler(BaseHandler):
 
         attestation_response: Dict[str, Any] = {}
 
-        attestation_response["valid"] = 0
+        attestation_response["valid"] = False
         attestation_response["claims"] = {}
         attestation_response["failures"] = []
 
@@ -1689,7 +1689,7 @@ class VerifyEvidenceHandler(BaseHandler):
                 attestation_response["failures"] = failures
 
             else:
-                attestation_response["valid"] = 1
+                attestation_response["valid"] = True
             # TODO - should we use different error codes for attestation failures even if we processed correctly?
             web_util.echo_json_response(self.req_handler, 200, "Success", attestation_response)
         except Exception:
