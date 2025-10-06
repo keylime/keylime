@@ -434,6 +434,13 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
             dest="remote_rpm_repo",
             help="Remote RPM repo URL",
         )
+        repo_group.add_argument(
+            "--max-workers",
+            dest="max_workers",
+            type=_positive_int,
+            default=rpm_repo.MAX_WORKERS_DEFAULT,
+            help=f"The maximum number of workers used for RPM processing (must be a positive integer; default {rpm_repo.MAX_WORKERS_DEFAULT}).",
+        )
 
     fs_group.add_argument(
         "--algo",
@@ -839,6 +846,19 @@ def _get_digest_algorithm_from_map_list(maplist: Dict[str, List[str]]) -> str:
     return algo
 
 
+def _positive_int(value: str) -> int:
+    """
+    A custom type function for argparse that checks for a positive integer.
+    """
+    try:
+        ivalue = int(value)
+        if ivalue <= 0:
+            raise argparse.ArgumentTypeError(f"'{value}' is not a positive integer.")
+        return ivalue
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"'{value}' is not a positive integer.") from exc
+
+
 def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyType]:
     """Create a runtime policy from the input arguments."""
     policy = None
@@ -924,7 +944,7 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
             # FIXME: pass the IMA sigs as well.
             local_rpm_digests = {}
             local_rpm_digests, _imasigs, ok = rpm_repo.analyze_local_repo(
-                args.local_rpm_repo, digests=local_rpm_digests
+                args.local_rpm_repo, digests=local_rpm_digests, max_workers=args.max_workers
             )
             if not ok:
                 return None
@@ -932,7 +952,7 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
             # FIXME: pass the IMA sigs as well.
             remote_rpm_digests = {}
             remote_rpm_digests, _imasigs, ok = rpm_repo.analyze_remote_repo(
-                args.remote_rpm_repo, digests=remote_rpm_digests
+                args.remote_rpm_repo, digests=remote_rpm_digests, max_workers=args.max_workers
             )
             if not ok:
                 return None
