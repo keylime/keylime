@@ -59,6 +59,43 @@ logger = keylime_logging.init_logging("tpm_util")
 
 SupportedKeyTypes = Union[RSAPublicKey, EllipticCurvePublicKey]
 
+# ECC signature parsing constants.
+# Raw signature sizes for different ECC curves (r||s concatenated format).
+# r and s are the two mathematical components of an ECDSA signature.
+ECC_SECP192R1_SIGNATURE_SIZE = 48  # 24 bytes each for r,s.
+ECC_SECP224R1_SIGNATURE_SIZE = 56  # 28 bytes each for r,s.
+ECC_SECP256R1_SIGNATURE_SIZE = 64  # 32 bytes each for r,s.
+ECC_SECP384R1_SIGNATURE_SIZE = 96  # 48 bytes each for r,s.
+ECC_SECP521R1_SIGNATURE_SIZE = 132  # 66 bytes each for r,s.
+
+# TPM2B_ECDSA_SIGNATURE format constants.
+TPM2B_SIZE_FIELD_LENGTH = 2  # 2 bytes for size field.
+TPM2B_MIN_HEADER_SIZE = 4  # Minimum: 2 bytes r_size + 2 bytes s_size.
+
+# DER encoding constants.
+DER_SEQUENCE_TAG = 0x30
+
+# Signature blob header offset (skip alg, hash_alg, sig_size headers).
+SIGNATURE_BLOB_HEADER_SIZE = 6
+
+# ECC curve to signature size mapping for raw r||s format.
+ECC_RAW_SIGNATURE_SIZES = {
+    "secp192r1": ECC_SECP192R1_SIGNATURE_SIZE,
+    "secp224r1": ECC_SECP224R1_SIGNATURE_SIZE,
+    "secp256r1": ECC_SECP256R1_SIGNATURE_SIZE,
+    "secp384r1": ECC_SECP384R1_SIGNATURE_SIZE,
+    "secp521r1": ECC_SECP521R1_SIGNATURE_SIZE,
+}
+
+# ECC curve coordinate size ranges (min, max) for validation.
+ECC_COORDINATE_SIZE_RANGES = {
+    "secp192r1": (1, 24),  # 192 bits = 24 bytes max
+    "secp224r1": (1, 28),  # 224 bits = 28 bytes max
+    "secp256r1": (1, 32),  # 256 bits = 32 bytes max
+    "secp384r1": (1, 48),  # 384 bits = 48 bytes max
+    "secp521r1": (1, 66),  # 521 bits = 66 bytes max (521 bits, not 512)
+}
+
 
 def verify(
     pubkey: SupportedKeyTypes,
@@ -106,17 +143,59 @@ def der_len(encoded_int_len: int) -> bytes:
     return bytes((0x80 | len(bin_str),)) + bin_str
 
 
-def ecdsa_der_from_tpm(sigblob: bytes) -> bytes:
-    _, _, sig_size_r = struct.unpack_from(">HHH", sigblob, 0)
-    sig_r = sigblob[6 : 6 + sig_size_r]
-    encoded_sig_r = der_int(sig_r)
-    sigblob = sigblob[6 + sig_size_r :]
-    sig_size_s = struct.unpack_from(">H", sigblob, 0)[0]
-    sig_s = sigblob[2 : 2 + sig_size_s]
-    encoded_sig_s = der_int(sig_s)
-    total_size = len(encoded_sig_r) + len(encoded_sig_s)
-    der_sig = bytes.fromhex(f"30{total_size:x}") + encoded_sig_r + encoded_sig_s
-    return der_sig
+def ecdsa_der_from_tpm(sigblob: bytes, pubkey: EllipticCurvePublicKey) -> bytes:
+    """Convert ECC signature from TPM format to DER format for cryptographic verification.
+
+    This function handles TSS ESAPI signature format where the signature header's
+    sig_size field contains the size of the r component, followed by the s component
+    with its own size header.
+
+    Parameters
+    ----------
+    sigblob: TPM signature blob containing signature headers and signature data
+    pubkey: ECC public key to determine expected signature size
+
+    Returns
+    -------
+    DER-encoded ECDSA signature suitable for cryptographic library verification
+
+    Raises
+    ------
+    ValueError: If signature format cannot be parsed or is invalid
+    """
+    # Extract signature header information.
+    _sig_alg, _hash_alg, sig_size_r = struct.unpack_from(">HHH", sigblob, 0)
+
+    # Extract the r component (size is in sig_size_r field).
+    sig_r = sigblob[SIGNATURE_BLOB_HEADER_SIZE : SIGNATURE_BLOB_HEADER_SIZE + sig_size_r]
+
+    # The s component follows immediately after r, with its own size header.
+    s_offset = SIGNATURE_BLOB_HEADER_SIZE + sig_size_r
+    if s_offset + 2 <= len(sigblob):
+        sig_size_s = struct.unpack_from(">H", sigblob, s_offset)[0]
+        s_start = s_offset + 2
+        if s_start + sig_size_s <= len(sigblob):
+            sig_s = sigblob[s_start : s_start + sig_size_s]
+
+            # Validate coordinate sizes against curve requirements.
+            curve_name = pubkey.curve.name
+            coordinate_range = ECC_COORDINATE_SIZE_RANGES.get(curve_name)
+            if coordinate_range:
+                min_size, max_size = coordinate_range
+                if not min_size <= len(sig_r) <= max_size:
+                    raise ValueError(f"Invalid r coordinate size {len(sig_r)} for curve {curve_name}")
+                if not min_size <= len(sig_s) <= max_size:
+                    raise ValueError(f"Invalid s coordinate size {len(sig_s)} for curve {curve_name}")
+
+            # Convert to DER format.
+            encoded_sig_r = der_int(sig_r)
+            encoded_sig_s = der_int(sig_s)
+            total_size = len(encoded_sig_r) + len(encoded_sig_s)
+            der_length = der_len(total_size)
+            der_sig = bytes([DER_SEQUENCE_TAG]) + der_length + encoded_sig_r + encoded_sig_s
+            return der_sig
+
+    raise ValueError("Unable to parse ECC signature from TPM format")
 
 
 def __get_pcrs_from_blob(pcrblob: bytes) -> Tuple[int, Dict[int, int], List[bytes]]:
@@ -238,7 +317,9 @@ def checkquote(
         (sig_size,) = struct.unpack_from(">H", sigblob, 4)
         (signature,) = struct.unpack_from(f"{sig_size}s", sigblob, 6)
     elif sig_alg in [tpm2_objects.TPM_ALG_ECDSA]:
-        signature = ecdsa_der_from_tpm(sigblob)
+        if not isinstance(pubkey, EllipticCurvePublicKey):
+            raise ValueError(f"ECDSA signature algorithm requires EllipticCurvePublicKey, got {type(pubkey)}")
+        signature = ecdsa_der_from_tpm(sigblob, pubkey)
     else:
         raise ValueError(f"Unsupported quote signature algorithm '{sig_alg:#x}'")
 
@@ -318,11 +399,14 @@ def crypt_secret_encrypt_ecc(public_key: EllipticCurvePublicKey, hashfunc: hashe
 
     digest_size = hashfunc.digest_size
 
+    # Use fixed coordinate size for consistent marshaling
+    coord_size = (public_key.curve.key_size + 7) // 8
+
     x = my_public_key.public_numbers().x
-    party_x = x.to_bytes((x.bit_length() + 7) >> 3, "big")
+    party_x = x.to_bytes(coord_size, "big")
 
     x = public_key.public_numbers().x
-    party_y = x.to_bytes((x.bit_length() + 7) >> 3, "big")
+    party_y = x.to_bytes(coord_size, "big")
 
     data = crypt_kdfe(hashfunc, ecc_secret_x, "IDENTITY", party_x, party_y, digest_size << 3)
 
