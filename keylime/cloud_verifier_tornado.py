@@ -1668,9 +1668,8 @@ class VerifyEvidenceHandler(BaseHandler):
             if evidence_type == "tpm":
                 (claims, attestation_failure) = self._tpm_verify(data)
                 attestation_response["claims"] = claims
-            elif evidence_type == "snp":
-                (claims, attestation_failure) = self._sev_snp_verify(data)
-                logger.info(claims)
+            elif evidence_type == "tee":
+                (claims, attestation_failure) = self._tee_verify(data)
                 attestation_response["claims"] = claims
             else:
                 web_util.echo_json_response(self.req_handler, 400, "invalid evidence type")
@@ -1777,22 +1776,20 @@ class VerifyEvidenceHandler(BaseHandler):
             logger.warning("Failed to process /verify/evidence data in TPM verifier: %s", e)
             raise
 
-    def _sev_snp_verify(self, data: dict[str, Any]) -> Tuple[dict[str, Any], Failure]:
-        report = None
+    def _tee_verify(self, data: dict[str, Any]) -> Tuple[dict[str, Any], Failure]:
+        tee_evidence = None
         nonce = None
-        tee_pubkey_x = None
-        tee_pubkey_y = None
+        x = None
+        y = None
 
         claims: dict[str, Any] = {}
         failure = Failure(Component.TEE)
 
-        if "attestation_report" in data and data["attestation_report"] != "":
-            string = data["attestation_report"]
-            byte = string.encode("ascii")
-            report = base64.b64decode(byte)
+        if "tee-evidence" in data and data["tee-evidence"] != "":
+            tee_evidence = data["tee-evidence"]
         else:
-            failure.add_event("missing_param", {"message": 'missing parameter "attestation_report"'}, False)
-            logger.warning("POST returning 400 response. missing query parameter 'attestation_report'")
+            failure.add_event("missing_param", {"message": 'missing parameter "tee-evidence"'}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'tee-evidence'")
             return (claims, failure)
 
         if "nonce" in data and data["nonce"] != "":
@@ -1804,30 +1801,69 @@ class VerifyEvidenceHandler(BaseHandler):
             logger.warning("POST returning 400 response. missing query parameter 'nonce'")
             return (claims, failure)
 
-        if "tee_pubkey_x_b64" in data and data["tee_pubkey_x_b64"] != "":
-            string = data["tee_pubkey_x_b64"]
+        if "tee-pubkey-x-b64" in data and data["tee-pubkey-x-b64"] != "":
+            string = data["tee-pubkey-x-b64"]
             byte = string.encode("ascii")
-            tee_pubkey_x = web_util.urlsafe_nopad_b64decode(byte)
+            x = web_util.urlsafe_nopad_b64decode(byte)
         else:
-            failure.add_event("missing_param", {"message": 'missing parameter "tee_pubkey_x_b64"'}, False)
-            logger.warning("POST returning 400 response. missing query parameter 'tee_pubkey_x_b64'")
+            failure.add_event("missing_param", {"message": 'missing parameter "tee-pubkey-x-b64"'}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'tee-pubkey-x-b64'")
             return (claims, failure)
 
-        if "tee_pubkey_y_b64" in data and data["tee_pubkey_y_b64"] != "":
-            string = data["tee_pubkey_y_b64"]
+        if "tee-pubkey-y-b64" in data and data["tee-pubkey-y-b64"] != "":
+            string = data["tee-pubkey-y-b64"]
             byte = string.encode("ascii")
-            tee_pubkey_y = web_util.urlsafe_nopad_b64decode(byte)
+            y = web_util.urlsafe_nopad_b64decode(byte)
         else:
-            failure.add_event("missing_param", {"message": 'missing parameter "tee_pubkey_y_b64"'}, False)
-            logger.warning("POST returning 400 response. missing query parameter 'tee_pubkey_y_b64'")
+            failure.add_event("missing_param", {"message": 'missing parameter "tee-pubkey-y-b64"'}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'tee-pubkey-y-b64'")
+            return (claims, failure)
+
+        if "tee" in tee_evidence and tee_evidence["tee"] != "":
+            tee = tee_evidence["tee"]
+        else:
+            failure.add_event("missing_param", {"message": 'missing parameter "tee"'}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'tee'")
+            return (claims, failure)
+
+        if "evidence" in tee_evidence and tee_evidence["evidence"] != "":
+            evidence = tee_evidence["evidence"]
+        else:
+            failure.add_event("missing_param", {"message": 'missing parameter "evidence"'}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'evidence'")
+            return (claims, failure)
+
+        if tee == "snp":
+            return self._sev_snp_verify(evidence, nonce, x, y)
+
+        failure.add_event("invalid.tee", {"message": "invalid tee argument"}, False)
+        logger.warning("POST returning 400 response. invalid tee argument")
+
+        return (claims, failure)
+
+    def _sev_snp_verify(
+        self, data: dict[str, Any], nonce: bytes, x_b64: bytes, y_b64: bytes
+    ) -> Tuple[dict[str, Any], Failure]:
+        report = None
+
+        claims: dict[str, Any] = {}
+        failure = Failure(Component.TEE)
+
+        if "snp-report" in data and data["snp-report"] != "":
+            string = data["snp-report"]
+            byte = string.encode("ascii")
+            report = base64.b64decode(byte)
+        else:
+            failure.add_event("missing_param", {"message": 'missing parameter "snp-report"'}, False)
+            logger.warning("POST returning 400 response. missing query parameter 'snp-report'")
             return (claims, failure)
 
         try:
-            (claims, failure) = snp.verify_attestation(report, nonce, tee_pubkey_x, tee_pubkey_y)
+            (claims, failure) = snp.verify_attestation(report, nonce, x_b64, y_b64)
 
             return (claims, failure)
         except Exception as e:
-            logger.warning("Failed to process /verify/evidence data in SEV-SNP verifier: %s", e)
+            logger.warning("Failed to process /verify/evidence evidence in SEV-SNP verifier: %s", e)
             raise
 
 
