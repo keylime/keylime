@@ -1,19 +1,14 @@
-===================
-keylime_verifier.8
-===================
+================
+keylime_verifier
+================
 
--------------------------
-Keylime verifier service
--------------------------
+----------------------------------------------
+Keylime verifier service for agent attestation
+----------------------------------------------
 
 :Manual section: 8
 :Author: Keylime Developers
 :Date: September 2025
-
-NAME
-====
-
-keylime_verifier - Keylime verifier service for agent attestation
 
 SYNOPSIS
 ========
@@ -42,8 +37,10 @@ Essentials:
 - **registrar_ip**, **registrar_port**: Registrar endpoint
 - **enable_agent_mtls**: Enable mTLS with agents and tenant
 - **tls_dir**: TLS material location
+
   - ``generate``: auto-generate CA, client and server keys/certs under ``$KEYLIME_DIR/cv_ca``
   - ``default``: use existing materials under ``$KEYLIME_DIR/cv_ca``
+
 - **server_key**, **server_key_password**, **server_cert**: Server TLS files
 - **client_key**, **client_key_password**, **client_cert**: Client TLS files
 - **trusted_client_ca**, **trusted_server_ca**: CA lists
@@ -111,9 +108,9 @@ NOTES
 SEE ALSO
 ========
 
-**keylime_registrar**(8), **keylime_tenant**(1), **keylime_agent**(8)
+**keylime_registrar**\(8), **keylime_tenant**\(1), **keylime_agent**\(8)
 
 BUGS
 ====
 
-Report bugs at https://github.com/keylime/keylime/issues 
+Report bugs at https://github.com/keylime/keylime/issues
