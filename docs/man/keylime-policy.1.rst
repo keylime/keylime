@@ -1,19 +1,14 @@
-==================
-keylime-policy.1
-==================
+==============
+keylime-policy
+==============
 
---------------------------------
-Keylime policy creation tool
---------------------------------
+------------------------------------------
+Keylime policy creation and signing tool
+------------------------------------------
 
 :Manual section: 1
 :Author: Keylime Developers
 :Date: September 2025
-
-NAME
-====
-
-keylime-policy - Keylime policy creation and signing tool
 
 SYNOPSIS
 ========
@@ -37,48 +32,100 @@ COMMANDS
    Create runtime policies from filesystem, allowlists, RPM repositories, or IMA measurement lists.
 
    Options:
-   - **-o, --output** OUTPUT: Output file (defaults to stdout)
-   - **-p, --base-policy** BASE_POLICY: Merge new data into existing JSON runtime policy
-   - **-k, --keyrings**: Create keyrings policy entries
-   - **-b, --ima-buf**: Process ima-buf entries other than keyrings
-   - **-a, --allowlist** ALLOWLIST: Read checksums from plain-text allowlist
-   - **-e, --excludelist** EXCLUDE_LIST_FILE: Add IMA exclude list to policy
-   - **-m, --ima-measurement-list** [IMA_MEASUREMENT_LIST]: Use IMA measurement list for hash/keyring extraction
-   - **--ignored-keyrings** IGNORED_KEYRINGS: Ignore specified keyring (repeatable)
-   - **--add-ima-signature-verification-key** IMA_SIGNATURE_KEYS: Add x509/key to tenant_keyring (repeatable)
-   - **--show-legacy-allowlist**: Display digests in legacy allowlist format
-   - **-v, --verbose**: Set log level to DEBUG
+
+   **-o, --output** *OUTPUT*
+      Output file (defaults to stdout)
+
+   **-p, --base-policy** *BASE_POLICY*
+      Merge new data into existing JSON runtime policy
+
+   **-k, --keyrings**
+      Create keyrings policy entries
+
+   **-b, --ima-buf**
+      Process ima-buf entries other than keyrings
+
+   **-a, --allowlist** *ALLOWLIST*
+      Read checksums from plain-text allowlist
+
+   **-e, --excludelist** *EXCLUDE_LIST_FILE*
+      Add IMA exclude list to policy
+
+   **-m, --ima-measurement-list** *[IMA_MEASUREMENT_LIST]*
+      Use IMA measurement list for hash/keyring extraction
+
+   **--ignored-keyrings** *IGNORED_KEYRINGS*
+      Ignore specified keyring (repeatable)
+
+   **--add-ima-signature-verification-key** *IMA_SIGNATURE_KEYS*
+      Add x509/key to tenant_keyring (repeatable)
+
+   **--show-legacy-allowlist**
+      Display digests in legacy allowlist format
+
+   **-v, --verbose**
+      Set log level to DEBUG
 
    Filesystem scanning:
-   - **--algo** {sha1,sha256,sha384,sha512,sm3_256}: Checksum algorithm
-   - **--ramdisk-dir** RAMDISK_DIR: Path to initrds (e.g., /boot)
-   - **--rootfs** ROOTFS: Path to root filesystem (e.g., /)
-   - **-s, --skip-path** SKIP_PATH: Comma-separated directories to skip
+
+   **--algo** *{sha1,sha256,sha384,sha512,sm3_256}*
+      Checksum algorithm
+
+   **--ramdisk-dir** *RAMDISK_DIR*
+      Path to initrds (e.g., /boot)
+
+   **--rootfs** *ROOTFS*
+      Path to root filesystem (e.g., /)
+
+   **-s, --skip-path** *SKIP_PATH*
+      Comma-separated directories to skip
 
    Repository scanning:
-   - **--local-rpm-repo** LOCAL_RPM_REPO: Local RPM repository directory
-   - **--remote-rpm-repo** REMOTE_RPM_REPO: Remote RPM repository URL
+
+   **--local-rpm-repo** *LOCAL_RPM_REPO*
+      Local RPM repository directory
+
+   **--remote-rpm-repo** *REMOTE_RPM_REPO*
+      Remote RPM repository URL
 
 **keylime-policy create measured-boot** [*OPTIONS*]
 
    Create measured boot reference state policies from UEFI event logs.
 
    Options:
-   - **-e, --eventlog-file** EVENTLOG_FILE: Binary UEFI eventlog (required)
-   - **--without-secureboot, -i**: Create policy without SecureBoot (MeasuredBoot only)
-   - **-o, --output** OUTPUT: Output path for generated measured boot policy
+
+   **-e, --eventlog-file** *EVENTLOG_FILE*
+      Binary UEFI eventlog (required)
+
+   **--without-secureboot, -i**
+      Create policy without SecureBoot (MeasuredBoot only)
+
+   **-o, --output** *OUTPUT*
+      Output path for generated measured boot policy
 
 **keylime-policy sign runtime** [*OPTIONS*]
 
    Sign runtime policies using DSSE.
 
    Options:
-   - **-o, --output** OUTPUT_FILE: Output file for DSSE-signed policy
-   - **-r, --runtime-policy** POLICY: Runtime policy file to sign (required)
-   - **-k, --keyfile** KEYFILE: EC private key for signing
-   - **-p, --keypath** KEYPATH: Output filename for created private key
-   - **-b, --backend** {ecdsa,x509}: DSSE backend (ecdsa or x509)
-   - **-c, --cert-outfile** CERT_OUTFILE: Output file for x509 certificate (x509 backend)
+
+   **-o, --output** *OUTPUT_FILE*
+      Output file for DSSE-signed policy
+
+   **-r, --runtime-policy** *POLICY*
+      Runtime policy file to sign (required)
+
+   **-k, --keyfile** *KEYFILE*
+      EC private key for signing
+
+   **-p, --keypath** *KEYPATH*
+      Output filename for created private key
+
+   **-b, --backend** *{ecdsa,x509}*
+      DSSE backend (ecdsa or x509)
+
+   **-c, --cert-outfile** *CERT_OUTFILE*
+      Output file for x509 certificate (x509 backend)
 
 EXAMPLES
 ========
@@ -110,7 +157,8 @@ EXAMPLES
 ENVIRONMENT
 ===========
 
-- **KEYLIME_LOGGING_CONFIG**: Path to logging.conf
+**KEYLIME_LOGGING_CONFIG**
+   Path to logging.conf
 
 NOTES
 =====
@@ -123,9 +171,9 @@ NOTES
 SEE ALSO
 ========
 
-**keylime_tenant**(1), **keylime_verifier**(8), **keylime_registrar**(8)
+**keylime_tenant**\(1), **keylime_verifier**\(8), **keylime_registrar**\(8)
 
 BUGS
 ====
 
-Report bugs at https://github.com/keylime/keylime/issues 
+Report bugs at https://github.com/keylime/keylime/issues

@@ -1,19 +1,14 @@
-================
-keylime_tenant.1
-================
+==============
+keylime_tenant
+==============
 
----------------------------------
-Keylime tenant management tool
----------------------------------
+---------------------------------------------------------------------------
+Keylime tenant management tool for agent provisioning and policy management
+---------------------------------------------------------------------------
 
 :Manual section: 1
 :Author: Keylime Developers
 :Date: July 2025
-
-NAME
-====
-
-keylime_tenant - Keylime tenant management tool for agent provisioning and policy management
 
 SYNOPSIS
 ========
@@ -25,12 +20,12 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-keylime_tenant is the primary command-line interface for managing Keylime agents and policies. 
-It allows users to provision agents with TPM-based attestation, manage runtime policies, 
+keylime_tenant is the primary command-line interface for managing Keylime agents and policies.
+It allows users to provision agents with TPM-based attestation, manage runtime policies,
 measured boot policies, and interact with Keylime registrar and verifier services.
 
-The tenant can add, delete, update, and monitor agents, as well as manage various types of 
-policies including runtime policies (for IMA/EVM attestation) and measured boot policies 
+The tenant can add, delete, update, and monitor agents, as well as manage various types of
+policies including runtime policies (for IMA/EVM attestation) and measured boot policies
 (for boot-time attestation). It supports both push and pull models for agent communication.
 
 You can run keylime_tenant on the same system as the Keylime registrar or verifier, or on a separate system.
@@ -38,8 +33,7 @@ You can run keylime_tenant on the same system as the Keylime registrar or verifi
 COMMANDS
 ========
 
-.. option:: -c, --command COMMAND
-
+**-c, --command** *COMMAND*
    Specify the command to execute. Valid commands are:
 
    - **add**: Add a new agent to the system (default)
@@ -67,118 +61,91 @@ COMMANDS
 OPTIONS
 =======
 
-.. option:: -h, --help
-
+**-h, --help**
    Show help message and exit
 
-.. option:: --push-model
-
+**--push-model**
    Enable push model (avoid requests to keylime-agent)
 
-.. option:: -t, --targethost AGENT_IP
-
+**-t, --targethost** *AGENT_IP*
    The IP address of the host to provision
 
-.. option:: -tp, --targetport AGENT_PORT
-
+**-tp, --targetport** *AGENT_PORT*
    The port of the host to provision
 
-.. option:: -r, --registrarhost REGISTRAR_IP
-
+**-r, --registrarhost** *REGISTRAR_IP*
    The IP address of the registrar where to retrieve the agents data from
 
-.. option:: -rp, --registrarport REGISTRAR_PORT
-
+**-rp, --registrarport** *REGISTRAR_PORT*
    The port of the registrar
 
-.. option:: --cv_targethost CV_AGENT_IP
-
-   The IP address of the host to provision that the verifier will use (optional). 
+**--cv_targethost** *CV_AGENT_IP*
+   The IP address of the host to provision that the verifier will use (optional).
    Use only if different than argument to option -t/--targethost
 
-.. option:: -v, --cv VERIFIER_IP
-
+**-v, --cv** *VERIFIER_IP*
    The IP address of the cloud verifier
 
-.. option:: -vp, --cvport VERIFIER_PORT
-
+**-vp, --cvport** *VERIFIER_PORT*
    The port of the cloud verifier
 
-.. option:: -vi, --cvid VERIFIER_ID
-
+**-vi, --cvid** *VERIFIER_ID*
    The unique identifier of a cloud verifier
 
-.. option:: -nvc, --no-verifier-check
-
-   Disable the check to confirm if the agent is being processed by the specified verifier. 
+**-nvc, --no-verifier-check**
+   Disable the check to confirm if the agent is being processed by the specified verifier.
    Use only with -c/--command delete or reactivate
 
-.. option:: -u, --uuid AGENT_UUID
-
+**-u, --uuid** *AGENT_UUID*
    UUID for the agent to provision
 
-.. option:: -f, --file FILE
-
+**-f, --file** *FILE*
    Deliver the specified plaintext file to the provisioned agent
 
-.. option:: --cert CA_DIR
-
-   Create and deliver a certificate using a CA created by ca-util. 
+**--cert** *CA_DIR*
+   Create and deliver a certificate using a CA created by ca-util.
    Pass in the CA directory or use "default" to use the standard directory
 
-.. option:: -k, --key KEYFILE
-
+**-k, --key** *KEYFILE*
    An intermediate key file produced by user_data_encrypt
 
-.. option:: -p, --payload PAYLOAD
-
+**-p, --payload** *PAYLOAD*
    Specify the encrypted payload to deliver with encrypted keys specified by -k
 
-.. option:: --include INCL_DIR
-
-   Include additional files in provided directory in certificate zip file. 
+**--include** *INCL_DIR*
+   Include additional files in provided directory in certificate zip file.
    Must be specified with --cert
 
-.. option:: --runtime-policy RUNTIME_POLICY
-
+**--runtime-policy** *RUNTIME_POLICY*
    Specify the file path of a runtime policy
 
-.. option:: --runtime-policy-checksum RUNTIME_POLICY_CHECKSUM
-
+**--runtime-policy-checksum** *RUNTIME_POLICY_CHECKSUM*
    Specify the SHA-256 checksum of a runtime policy
 
-.. option:: --runtime-policy-sig-key RUNTIME_POLICY_SIG_KEY
-
+**--runtime-policy-sig-key** *RUNTIME_POLICY_SIG_KEY*
    Specify the public key file used to validate the runtime policy signature
 
-.. option:: --runtime-policy-url RUNTIME_POLICY_URL
-
+**--runtime-policy-url** *RUNTIME_POLICY_URL*
    Specify the URL of a remote runtime policy
 
-.. option:: --runtime-policy-name RUNTIME_POLICY_NAME
-
+**--runtime-policy-name** *RUNTIME_POLICY_NAME*
    The name of the runtime policy to operate with
 
-.. option:: --mb-policy MB_POLICY
-
+**--mb-policy** *MB_POLICY*
    The measured boot policy to operate with
 
-.. option:: --mb-policy-name MB_POLICY_NAME
-
+**--mb-policy-name** *MB_POLICY_NAME*
    The name of the measured boot policy to operate with
 
-.. option:: --tpm_policy TPM_POLICY
-
-   Specify a TPM policy in JSON format. 
+**--tpm_policy** *TPM_POLICY*
+   Specify a TPM policy in JSON format.
    Example: {"15":"0000000000000000000000000000000000000000"}
 
-.. option:: --verify
-
-   Block on cryptographically checked key derivation confirmation from the agent 
+**--verify**
+   Block on cryptographically checked key derivation confirmation from the agent
    once it has been provisioned
 
-.. option:: --supported-version SUPPORTED_VERSION
-
+**--supported-version** *SUPPORTED_VERSION*
    API version that is supported by the agent. Detected automatically by default
 
 DEPRECATED OPTIONS
@@ -186,34 +153,28 @@ DEPRECATED OPTIONS
 
 The following options are deprecated and may be removed in future versions:
 
-.. option:: --allowlist ALLOWLIST
-
-   **DEPRECATED**: Migrate to runtime policies for continued functionality. 
+**--allowlist** *ALLOWLIST*
+   **DEPRECATED**: Migrate to runtime policies for continued functionality.
    Specify the file path of an allowlist
 
-.. option:: --allowlist-url ALLOWLIST_URL
-
-   **DEPRECATED**: Migrate to runtime policies for continued functionality. 
+**--allowlist-url** *ALLOWLIST_URL*
+   **DEPRECATED**: Migrate to runtime policies for continued functionality.
    Specify the URL of a remote allowlist
 
-.. option:: --allowlist-name ALLOWLIST_NAME
-
-   **DEPRECATED**: Migrate to runtime policies for continued functionality. 
+**--allowlist-name** *ALLOWLIST_NAME*
+   **DEPRECATED**: Migrate to runtime policies for continued functionality.
    The name of allowlist to operate with
 
-.. option:: --exclude IMA_EXCLUDE
-
-   **DEPRECATED**: Migrate to runtime policies for continued functionality. 
+**--exclude** *IMA_EXCLUDE*
+   **DEPRECATED**: Migrate to runtime policies for continued functionality.
    Specify the location of an IMA exclude list
 
-.. option:: --mb_refstate MB_POLICY
-
-   **DEPRECATED**: Use --mb-policy instead. 
+**--mb_refstate** *MB_POLICY*
+   **DEPRECATED**: Use --mb-policy instead.
    Specify the location of a measured boot reference state
 
-.. option:: --signature-verification-key IMA_SIGN_VERIFICATION_KEYS
-
-   **DEPRECATED**: Provide verification keys as part of a runtime policy for continued functionality. 
+**--signature-verification-key** *IMA_SIGN_VERIFICATION_KEYS*
+   **DEPRECATED**: Provide verification keys as part of a runtime policy for continued functionality.
    Specify an IMA file signature verification key
 
 EXAMPLES
@@ -299,4 +260,4 @@ For more information about Keylime, visit: https://keylime.dev
 BUGS
 ====
 
-Report bugs to the Keylime project at: https://github.com/keylime/keylime/issues 
+Report bugs to the Keylime project at: https://github.com/keylime/keylime/issues
