@@ -333,7 +333,7 @@ class RegistrarAgent(PersistableModel):
 
             # Prepare all record data to be sent to a DA backend according to each field's data type
             for name, field in self.__class__.fields.items():
-                agent_data[name] = field.data_type.da_dump(self.committed.get(name))
+                agent_data[name] = field.data_type.da_dump(self.values.get(name))
 
             # Write dumped data to DA backend as an "agent data" record
             da_manager.backend.record_create(agent_data, None, None, None)
