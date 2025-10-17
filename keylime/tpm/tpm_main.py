@@ -330,8 +330,17 @@ class Tpm:
 
         # Collect mismatched measured boot PCRs as measured_boot failures
         mb_pcr_failure = Failure(Component.MEASURED_BOOT)
-        # Handle measured boot PCRs only if the parsing worked
-        if not mb_failure and mb_policy is not None:
+        # Handle measured boot PCRs only if the parsing worked and policy is valid and non-empty
+        # An empty policy {} is treated as accept-all and should skip validation
+        mb_policy_is_nonempty = False
+        if mb_policy is not None:
+            try:
+                mb_policy_obj = json.loads(mb_policy)
+                mb_policy_is_nonempty = bool(mb_policy_obj)
+            except Exception:
+                pass
+
+        if not mb_failure and mb_policy is not None and mba.policy_is_valid(mb_policy) and mb_policy_is_nonempty:
             for pcr_num in set(config.MEASUREDBOOT_PCRS) & pcr_nums:
                 if not mb_measurement_list:
                     logger.error(
@@ -389,7 +398,7 @@ class Tpm:
                 pcrs_in_quote.add(pcr_num)
         failure.merge(mb_pcr_failure)
 
-        if mb_policy is not None:
+        if mb_policy_is_nonempty:
             mb_pcrs_checked = [str(pcr) for pcr in pcrs_in_quote - set([config.IMA_PCR])]
 
             if mb_pcrs_checked:
