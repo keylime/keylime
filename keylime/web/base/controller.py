@@ -1,17 +1,16 @@
 import http.client
 import json
 import re
+from functools import wraps
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, TypeAlias, Union
-from functools import wraps
 
 from tornado.escape import parse_qs_bytes
 from tornado.httputil import parse_body_arguments
 
-import keylime.web.base as base
-
-from keylime.web.base.api_messages import APIMessageBody, APIResource
-from keylime.web.base.exceptions import ParamDecodeError, InvalidMessage, RequiredContentMissing
+import keylime.web.base as base  # pylint: disable=consider-using-from-import  # Avoid circular import
+from keylime.web.base.api_messages import APIMessageBody
+from keylime.web.base.exceptions import InvalidMessage, ParamDecodeError, RequiredContentMissing
 
 if TYPE_CHECKING:
     from logging import Logger
@@ -316,8 +315,8 @@ class Controller:
         code: int = 200,
         status: Optional[str] = None,
         data: Optional[JSONObjectConvertible | JSONArrayConvertible] = None,
-        suppress_jsonapi_error = False,
-        suppress_version_error = False
+        suppress_jsonapi_error=False,
+        suppress_version_error=False,
     ) -> None:
         """Converts a Python data structure to JSON and wraps it in the following boilerplate JSON object
         which is returned by all v2 endpoints:
@@ -369,10 +368,10 @@ class Controller:
             * Use 303 when the client is using a non-GET request method such as POST but should issue the new request
               using GET, such as when redirecting to an endpoint which does not represent the resource acted upon (like
               a confirmation message).
-        
+
         You probably do not want to use a 301 or 302 in most cases, as client behaviour is not reliable and may cause
         security issues in specific edge cases.
-        
+
         :param path: The path or URI to which to redirect
         :param code: An optional integer to use as HTTP status code when performing the redirect (307 by default)
 
@@ -447,7 +446,7 @@ class Controller:
             **params.get("form", {}),
             **params.get("json", {}),
             **params.get("api", {}),
-            **params.get("path", {})
+            **params.get("path", {}),
         }
 
     @property
@@ -464,9 +463,9 @@ class Controller:
 
     @property
     def response_headers(self) -> "HTTPHeaders":
-        return self.action_handler._headers
+        return self.action_handler._headers  # pylint: disable=protected-access  # Tornado limitation - no public API
 
-        # NOTE: Accessing the headers via the above private member is unideal but Tornado provides no public API for 
+        # NOTE: Accessing the headers via the above private member is unideal but Tornado provides no public API for
         # accessing or querying response headers at least as of version 6.5.2
 
     @property
@@ -583,8 +582,8 @@ class Controller:
         if self.api_request_body.data:
             api_params["data"] = self.api_request_body.data.render()
 
-        if self.api_request_body.meta:       
-            api_params["meta"] = self.api_request.meta
+        if self.api_request_body.meta:
+            api_params["meta"] = self.api_request.meta  # pylint: disable=no-member
 
         return api_params
 
@@ -641,7 +640,6 @@ class Controller:
     def version(self):
         if self.major_version and self.minor_version:
             return f"{self.major_version}.{self.minor_version}"
-        elif self.major_version:
+        if self.major_version:
             return str(self.major_version)
-        else:
-            return None
+        return None

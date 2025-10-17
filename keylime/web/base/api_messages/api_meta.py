@@ -19,7 +19,7 @@ class APIMeta:
         self.set_value(value)
 
     def set_value(self, value):
-        if not isinstance(value, (dict, list, tuple, str, int, float, bool)) and not None:
+        if not isinstance(value, (dict, list, tuple, str, int, float, bool)):
             raise InvalidMember("value added to JSON:API 'meta' member is not serialisable to JSON")
 
         self._value = value
@@ -40,10 +40,9 @@ class APIMeta:
     def value(self):
         if isinstance(self._value, dict):
             return self._value.copy()
-        elif isinstance(self._value, (list, tuple)):
+        if isinstance(self._value, (list, tuple)):
             return self._value.copy()
-        else:
-            return self._value
+        return self._value
 
 
 class APIMetaMixin:
@@ -52,14 +51,14 @@ class APIMetaMixin:
             raise InvalidMember(f"cannot add item of type '{meta.__class__.__name__}' to JSON:API 'meta' member")
 
         if meta.name in self._meta:
-            raise KeyError(f"field '{field}' already exists in JSON:API 'meta' member")
+            raise KeyError(f"field '{meta.name}' already exists in JSON:API 'meta' member")
 
         self._meta[meta.name] = meta
         return self
 
     def load_meta(self, data):
         if not isinstance(data, dict):
-            raise TypeError("object loaded as JSON:API 'meta' member must be a dict") 
+            raise TypeError("object loaded as JSON:API 'meta' member must be a dict")
 
         for name, value in data.items():
             meta = APIMeta.load(name, value)
@@ -79,7 +78,7 @@ class APIMetaMixin:
         return self
 
     def render_meta(self):
-        return { name: meta.render() for name, meta in self.meta.items() }
+        return {name: meta.render() for name, meta in self.meta.items()}
 
     @property
     def meta(self):

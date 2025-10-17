@@ -1,5 +1,6 @@
-from keylime.models.base import *
 import keylime.models.verifier as verifier_models
+from keylime.models.base import *
+
 
 class IMAPolicy(PersistableModel):
     @classmethod
@@ -15,4 +16,3 @@ class IMAPolicy(PersistableModel):
         cls._field("tpm_policy", Text, nullable=True)
         cls._field("checksum", String(128), nullable=True)
         cls._field("generator", Integer, nullable=True)
-        

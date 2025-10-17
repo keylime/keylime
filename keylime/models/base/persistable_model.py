@@ -1,16 +1,22 @@
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import or_, asc, desc
+from sqlalchemy import asc, desc, or_
 from sqlalchemy.sql.expression import ClauseElement
 
-from keylime.models.base.associations import EmbedsInlineAssociation, EmbedsOneAssociation, EmbedsManyAssociation, EmbeddedInAssociation, BelongsToAssociation
+from keylime.models.base.associations import (
+    BelongsToAssociation,
+    EmbeddedInAssociation,
+    EmbedsInlineAssociation,
+    EmbedsManyAssociation,
+    EmbedsOneAssociation,
+)
 from keylime.models.base.basic_model import BasicModel
 from keylime.models.base.db import db_manager
 from keylime.models.base.errors import FieldValueInvalid, QueryInvalid, UndefinedField
+from keylime.models.base.field import ModelField
 from keylime.models.base.persistable_model_meta import PersistableModelMeta
 from keylime.models.base.types.dictionary import Dictionary
 from keylime.models.base.types.list import List
-from keylime.models.base.field import ModelField
 
 
 class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
@@ -134,7 +140,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         criteria = [sa_field == value for value in values]
 
         return or_(*criteria)
-    
+
     @classmethod
     def _build_sort_criterion(cls, criterion):
         if isinstance(criterion, str):
@@ -144,8 +150,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
 
         if "desc" in str(criterion).lower():
             return desc(sa_field)
-        else:
-            return asc(sa_field)
+        return asc(sa_field)
 
     @classmethod
     def _query(cls, session, args, kwargs, subject=None):
@@ -232,7 +237,9 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         with db_manager.session_context(session) as session:
             cls._query(session, args, kwargs).delete()
 
-    def __init__(self, data: Optional[dict | object] = None, process_associations: bool = True, memo: Optional[list] = None) -> None:
+    def __init__(
+        self, data: Optional[dict | object] = None, process_associations: bool = True, memo: Optional[list] = None
+    ) -> None:
         if isinstance(data, type(self).db_mapping):
             super().__init__({}, process_associations)
             self._init_from_mapping(data, process_associations, memo)
@@ -249,7 +256,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             if value is None:
                 continue
 
-            if isinstance(item, ModelField): 
+            if isinstance(item, ModelField):
                 value = item.data_type.db_load(value, db_manager.engine.dialect)
             elif isinstance(item, EmbedsOneAssociation):
                 value = Dictionary().db_load(value, db_manager.engine.dialect)
@@ -311,7 +318,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
                     except UndefinedField as err:
                         exceptions.append(err)
                         continue
-                
+
                 if value is None:
                     raise UndefinedField(exceptions)
 
@@ -327,7 +334,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
                 self.change(name, value)
                 setattr(self._db_mapping_inst, name, value)
                 continue
-            
+
             if process_associations:
                 record_set = association.get_record_set(self)
                 value = [value] if not isinstance(value, list) else value
@@ -380,8 +387,10 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
                 setattr(self._db_mapping_inst, name, value)
 
             # Use given session to build a transaction affecting multiple records, or create one if none is given
+            # pylint: disable=redefined-argument-from-local  # Context manager intentionally shadows parameter
             with db_manager.session_context(session) as session:
                 session.add(self._db_mapping_inst)
+            # pylint: enable=redefined-argument-from-local
 
             # Changes should be marked as committed only after the entire transaction succeeds, so return early if
             # method was called with a pre-existing session
@@ -404,15 +413,16 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         else:
             dependant_assocs = []
 
+        # pylint: disable=redefined-argument-from-local  # Context manager intentionally shadows parameter
         with db_manager.session_context(session) as session:
             for assoc in dependant_assocs:
                 foreign_key_values = {
-                    key: self.values.get(assoc.other_model.fields[key].linked_field)
-                    for key in assoc.foreign_keys
+                    key: self.values.get(assoc.other_model.fields[key].linked_field) for key in assoc.foreign_keys
                 }
                 assoc.other_model.delete_all(**foreign_key_values, session_=session)
 
             session.delete(self._db_mapping_inst)  # type: ignore[no-untyped-call]
+        # pylint: enable=redefined-argument-from-local
 
     def get_errors(self, associations=None, pointer_prefix=None, memo=None):
         if associations is None:

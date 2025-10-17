@@ -1,13 +1,12 @@
-import copy
 import re
 from typing import overload
 
+from keylime.models.base import db_manager
 from keylime.verification.base.verification_engine import VerificationEngine
 from keylime.verification.base.verification_engine_meta import VerificationEngineMeta
-from keylime.models.base import db_manager
+
 
 class EngineDriver:
-
     _parameter_mutators = {}
     _evidence_evaluators = {}
 
@@ -27,7 +26,7 @@ class EngineDriver:
             raise TypeError("only a subclass of VerificationEngine can be registered as a parameter mutator")
 
         if not isinstance(evidence_types, tuple):
-            evidence_types = (evidence_types)
+            evidence_types = (evidence_types,)
 
         for evidence_type in evidence_types:
             if not isinstance(evidence_type, str):
@@ -57,7 +56,7 @@ class EngineDriver:
             raise TypeError("only a subclass of VerificationEngine can be registered as a evidence evaluator")
 
         if not isinstance(evidence_types, tuple):
-            evidence_types = (evidence_types)
+            evidence_types = (evidence_types,)
 
         for evidence_type in evidence_types:
             if not isinstance(evidence_type, str):
@@ -84,14 +83,14 @@ class EngineDriver:
             raise TypeError("evidence type must be given as a string")
 
         return cls._evidence_evaluators.get(evidence_type)
-    
+
     @classmethod
     def is_parameter_mutator(cls, engine, evidence_type):
-        return engine in self.get_parameter_mutators(evidence_item.evidence_type)
+        return engine in cls.get_parameter_mutators(evidence_type)
 
     @classmethod
     def is_evidence_evaluator(cls, engine, evidence_type):
-        return engine in self.get_evidence_evaluators(evidence_item.evidence_type)
+        return engine in cls.get_evidence_evaluators(evidence_type)
 
     def __init__(self, attestation):
         self._attestation = attestation
@@ -114,7 +113,7 @@ class EngineDriver:
 
             if self.attestation.get_errors():
                 return self
-            
+
             if not set(evidence_snapshot).issubset(set(evidence_requested)):
                 raise ValueError(
                     f"verification engine '{engine.__class__.__name__}' removed an item from the append-only "
@@ -163,8 +162,10 @@ class EngineDriver:
             prev_prev_att = prev_att.previous_authenticated_attestation if prev_att else None
 
             if (
-                prev_att and prev_prev_att
-                and att.evaluation == "pass" and prev_att.evaluation == "pass"
+                prev_att
+                and prev_prev_att
+                and att.evaluation == "pass"
+                and prev_att.evaluation == "pass"
                 and prev_att.system_info.boot_time == prev_prev_att.system_info.boot_time
             ):
                 prev_att.delete()

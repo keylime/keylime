@@ -1,3 +1,4 @@
+# pylint: disable=cyclic-import  # Intentional for test imports
 import codecs
 import copy
 import hashlib

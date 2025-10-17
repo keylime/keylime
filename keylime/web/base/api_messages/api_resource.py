@@ -1,13 +1,12 @@
+from collections.abc import Mapping
 from types import MappingProxyType
 from typing import overload
-from collections.abc import Mapping
 
-import keylime.web.base.api_messages as api_messages
-
-from keylime.web.base.api_messages.api_message_helpers import APIMessageHelpers
+import keylime.web.base.api_messages as api_messages  # pylint: disable=consider-using-from-import  # Avoid circular import
 from keylime.web.base.api_messages.api_links import APILink, APILinksMixin
+from keylime.web.base.api_messages.api_message_helpers import APIMessageHelpers
 from keylime.web.base.api_messages.api_meta import APIMeta, APIMetaMixin
-from keylime.web.base.exceptions import MissingMember, UnexpectedMember, InvalidMember
+from keylime.web.base.exceptions import InvalidMember, MissingMember, UnexpectedMember
 
 
 class APIResource(APILinksMixin, APIMetaMixin):
@@ -21,7 +20,7 @@ class APIResource(APILinksMixin, APIMetaMixin):
 
         if data.get("id"):
             resource.set_id(data.pop("id"))
-        
+
         if data.get("attributes"):
             resource.load_attributes(data.pop("attributes"))
 
@@ -39,15 +38,19 @@ class APIResource(APILinksMixin, APIMetaMixin):
     @overload
     def __init__(self, res_type):
         ...
+
     @overload
     def __init__(self, res_type, res_id):
         ...
+
     @overload
     def __init__(self, res_type, attributes):
         ...
+
     @overload
     def __init__(self, res_type, res_id, attributes):
         ...
+
     def __init__(self, *args):
         if not args:
             raise MissingMember("no 'type' given for a JSON:API resource")
@@ -103,7 +106,7 @@ class APIResource(APILinksMixin, APIMetaMixin):
         if not APIMessageHelpers.is_valid_name(name):
             raise InvalidMember("attribute name added to JSON:API resource is not valid")
 
-        if not isinstance(value, (dict, list, tuple, str, int, float, bool)) and not None:
+        if not isinstance(value, (dict, list, tuple, str, int, float, bool)):
             raise InvalidMember("attribute value added to JSON:API resource is not serialisable to JSON")
 
         if name in self._attributes:
@@ -148,7 +151,7 @@ class APIResource(APILinksMixin, APIMetaMixin):
         return self
 
     def render(self):
-        output = { "type": self.type }
+        output = {"type": self.type}
 
         if self.id:
             output["id"] = self.id

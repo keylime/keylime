@@ -18,7 +18,7 @@ class APIDocument(APIModel):
     @classmethod
     def _schema(cls):
         cls._embeds_many("data", APIResource)
-        cls._virtual("multiresource", Boolean)
+        cls._virtual("multiresource", Boolean)  # pylint: disable=no-member
 
         cls._field("errors", List, nullable=True)
         cls._field("meta", Dictionary, nullable=True)
@@ -27,12 +27,15 @@ class APIDocument(APIModel):
         cls._field("included", Dictionary, nullable=True)
 
     @classmethod
-    def create_data_doc(cls, type, data, id=None):
+    def create_data_doc(
+        cls, type, data, id=None
+    ):  # pylint: disable=redefined-builtin  # JSON:API spec requires these names
         if not isinstance(data, (dict, list)):
             raise TypeError("cannot create JSON:API document: 'data' must be a dictionary or list")
 
         document = cls.empty()
-        document.multiresource = isinstance(data, list)
+        # pylint: disable=attribute-defined-outside-init  # ORM dynamic attribute
+        document.multiresource = isinstance(data, list)  # pylint: disable=no-member  # ORM dynamic attribute
 
         if isinstance(data, dict):
             data = [data]
@@ -68,7 +71,7 @@ class APIDocument(APIModel):
         assoc = self.__class__.embeds_many_associations["data"]
         record_set = assoc.get_record_set(self)
 
-        if not self.multiresource:
+        if not self.multiresource:  # pylint: disable=no-member
             return record_set
 
         if len(record_set) == 1:
@@ -78,7 +81,7 @@ class APIDocument(APIModel):
             return None
 
     @property
-    def errors(self):
+    def errors(self):  # pylint: disable=function-redefined
         return self.values.get("errors")
 
     def render(self, only=None):
@@ -91,7 +94,7 @@ class APIDocument(APIModel):
         output = super().render(only)
 
         # If the document is meant to represent a single resource, render it as a dictionary, rather than a list
-        if not self.multiresource:
+        if not self.multiresource:  # pylint: disable=no-member
             if len(output["data"]) == 0:
                 output["data"] = None
             elif len(output["data"]) == 1:
@@ -119,7 +122,9 @@ class APIResource(APIModel):
         # Note: ``lid`` (local identifier) field is not implemented
 
     @classmethod
-    def create(cls, type, attributes, id=None):
+    def create(
+        cls, type, attributes, id=None
+    ):  # pylint: disable=redefined-builtin  # JSON:API spec requires these names
         if not isinstance(attributes, dict):
             raise TypeError("cannot create JSON:API resource: 'type' must be a string")
 

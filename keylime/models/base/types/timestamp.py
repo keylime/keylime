@@ -19,10 +19,9 @@ class Timestamp(ModelType):
     def _load_datetime(self, value: datetime) -> datetime:
         if value.tzinfo == timezone.utc:
             return value
-        elif value.tzinfo is None:
+        if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
-        else:
-            return value.astimezone(tz=timezone.utc)
+        return value.astimezone(tz=timezone.utc)
 
     def _load_str(self, value: str) -> datetime:
         ts: Optional[datetime] = None
@@ -62,20 +61,19 @@ class Timestamp(ModelType):
 
         if isinstance(value, datetime):
             return self._load_datetime(value)
-        elif isinstance(value, str):
+        if isinstance(value, str):
             try:
                 return self._load_str(value)
             except ValueError as err:
                 raise err
-        elif isinstance(value, int):
+        if isinstance(value, int):
             return self._load_int(value)
-        elif isinstance(value, float):
+        if isinstance(value, float):
             return self._load_float(value)
-        else:
-            raise TypeError(
-                f"value cast to timestamp is of type '{value.__class__.__name__}' but should be one of 'str', 'int', "
-                f"'float', or 'datetime': '{str(value)}'"
-            )
+        raise TypeError(
+            f"value cast to timestamp is of type '{value.__class__.__name__}' but should be one of 'str', 'int', "
+            f"'float', or 'datetime': '{str(value)}'"
+        )
 
     def generate_error_msg(self, _value: IncomingValue) -> str:
         return "must be a valid ISO8601 datetime or Unix timestamp"

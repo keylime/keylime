@@ -8,7 +8,14 @@ from tornado.web import RequestHandler
 
 from keylime import keylime_logging
 from keylime.web.base.default_controller import DefaultController
-from keylime.web.base.exceptions import ActionDispatchError, ActionIncompleteError, ActionUndefined, ParamDecodeError, RequiredContentMissing, StopAction
+from keylime.web.base.exceptions import (
+    ActionDispatchError,
+    ActionIncompleteError,
+    ActionUndefined,
+    ParamDecodeError,
+    RequiredContentMissing,
+    StopAction,
+)
 
 if TYPE_CHECKING:
     from keylime.web.base.controller import Controller
@@ -54,7 +61,7 @@ class ActionHandler(RequestHandler):
             formatted_tb = ["Traceback (most recent call last):\n"]
             formatted_tb.extend(traceback.format_tb(err.__traceback__))
             formatted_tb.append(f"{type(err).__name__}: {str(err)}")
-            
+
         # Take the list of strings returned by format_exception, where each string ends in a newline and may contain
         # internal newlines, and split the concatenation of all the strings by newline
         message = "".join(formatted_tb)

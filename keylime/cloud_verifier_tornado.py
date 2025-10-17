@@ -228,8 +228,7 @@ class BaseHandler(tornado.web.RequestHandler):
     def req_handler(self):
         if self._req_handler_override:
             return self._req_handler_override
-        else:
-            return self
+        return self
 
     def prepare(self) -> None:  # pylint: disable=W0235
         super().prepare()
@@ -245,7 +244,7 @@ class BaseHandler(tornado.web.RequestHandler):
                 json.dumps(
                     {
                         "code": status_code,
-                        "status": self.req_handler._reason,
+                        "status": self.req_handler._reason,  # pylint: disable=protected-access
                         "traceback": lines,
                         "results": {},
                     }
@@ -256,7 +255,7 @@ class BaseHandler(tornado.web.RequestHandler):
                 json.dumps(
                     {
                         "code": status_code,
-                        "status": self.req_handler._reason,
+                        "status": self.req_handler._reason,  # pylint: disable=protected-access
                         "results": {},
                     }
                 )
@@ -268,19 +267,19 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(tornado.web.RequestHandler):
     def head(self) -> None:
-        web_util.echo_json_response(self.req_handler, 405, "Not Implemented: Use /agents/ interface instead")
+        web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def get(self) -> None:
-        web_util.echo_json_response(self.req_handler, 405, "Not Implemented: Use /agents/ interface instead")
+        web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def delete(self) -> None:
-        web_util.echo_json_response(self.req_handler, 405, "Not Implemented: Use /agents/ interface instead")
+        web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def post(self) -> None:
-        web_util.echo_json_response(self.req_handler, 405, "Not Implemented: Use /agents/ interface instead")
+        web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def put(self) -> None:
-        web_util.echo_json_response(self.req_handler, 405, "Not Implemented: Use /agents/ interface instead")
+        web_util.echo_json_response(self, 405, "Not Implemented: Use /agents/ interface instead")
 
     def data_received(self, chunk: Any) -> None:
         raise NotImplementedError()
@@ -576,7 +575,7 @@ class AgentsHandler(BaseHandler):
                         "attestation_count": 0,
                         "last_received_quote": 0,
                         "last_successful_attestation": 0,
-                        "accept_attestations": True
+                        "accept_attestations": True,
                     }
 
                     if "verifier_ip" in json_body:
@@ -597,7 +596,7 @@ class AgentsHandler(BaseHandler):
                             agent_data["supported_version"] != "1.0",
                             agent_mtls_cert_enabled,
                             (agent_data["mtls_cert"] is None or agent_data["mtls_cert"] == "disabled"),
-                            mode == "pull"
+                            mode == "pull",
                         ]
                     ):
                         web_util.echo_json_response(self.req_handler, 400, "mTLS certificate for agent is required!")
@@ -1293,7 +1292,9 @@ class MbpolicyHandler(BaseHandler):
                 try:
                     mbpolicy = session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).one()
                 except NoResultFound:
-                    web_util.echo_json_response(self.req_handler, 404, f"Measured boot policy {mb_policy_name} not found")
+                    web_util.echo_json_response(
+                        self.req_handler, 404, f"Measured boot policy {mb_policy_name} not found"
+                    )
                     return
                 except SQLAlchemyError as e:
                     logger.error("SQLAlchemy Error: %s", e)
@@ -1538,7 +1539,9 @@ class VerifyEvidenceHandler(BaseHandler):
             # TODO - should we use different error codes for attestation failures even if we processed correctly?
             web_util.echo_json_response(self.req_handler, 200, "Success", attestation_response)
         except Exception:
-            web_util.echo_json_response(self.req_handler, 500, "Internal Server Error: Failed to process attestation data")
+            web_util.echo_json_response(
+                self.req_handler, 500, "Internal Server Error: Failed to process attestation data"
+            )
 
     def _tpm_verify(self, json_body: dict[str, Any]) -> Failure:
         quote = None

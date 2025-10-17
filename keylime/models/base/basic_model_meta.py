@@ -173,7 +173,7 @@ class BasicModelMeta(ABCMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        # A sub-model's schema will usually include it's parent's schema, 
+        # A sub-model's schema will usually include it's parent's schema,
         # so don't process sub-model declarations which reference this model
         for model in models:
             if model == cls:

@@ -1,10 +1,9 @@
 import re
 from inspect import iscoroutinefunction
 from typing import Any, Mapping, Optional
-from urllib.parse import urlparse, urlunparse, urljoin
+from urllib.parse import urljoin, urlparse, urlunparse
 
-import keylime.web.base as base
-
+import keylime.web.base as base  # pylint: disable=consider-using-from-import  # Avoid circular import
 from keylime.web.base.exceptions import (
     ActionDispatchError,
     ActionUndefined,

@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+
 from keylime.verification.base.verification_engine_meta import VerificationEngineMeta
+
 
 class VerificationEngine(ABC, metaclass=VerificationEngineMeta):
     @classmethod

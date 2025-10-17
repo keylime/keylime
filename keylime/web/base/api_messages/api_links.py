@@ -1,5 +1,5 @@
-from types import MappingProxyType
 from collections.abc import Mapping
+from types import MappingProxyType
 
 from keylime.web.base.api_messages.api_message_helpers import APIMessageHelpers
 from keylime.web.base.exceptions import InvalidMember
@@ -62,7 +62,7 @@ class APILinksMixin:
 
     def load_links(self, data):
         if not isinstance(data, Mapping):
-            raise TypeError("object loaded as JSON:API 'links' member must be a dict") 
+            raise TypeError("object loaded as JSON:API 'links' member must be a dict")
 
         for name, value in data.items():
             link = APILink.load(name, value)
@@ -82,7 +82,7 @@ class APILinksMixin:
         return self
 
     def render_links(self):
-        return { name: link.render() for name, link in self.links.items() }
+        return {name: link.render() for name, link in self.links.items()}
 
     @property
     def links(self):

@@ -1,17 +1,10 @@
 from functools import cache
 
-from keylime.models.base import *
 import keylime.models.verifier as verifier_models
+from keylime.models.base import *
 
-from keylime.mba import mba
-from keylime import config
-from keylime.common import algorithms
-
-from keylime.db.verifier_db import JSONPickleType
-from keylime.json import JSONPickler
 
 class VerifierAgent(PersistableModel):
-
     @classmethod
     def _schema(cls):
         cls._persist_as("verifiermain")
@@ -19,9 +12,9 @@ class VerifierAgent(PersistableModel):
 
         # Associations
         cls._belongs_to("ima_policy", verifier_models.IMAPolicy)
-        cls._field("ima_policy_id", Integer, refers_to="ima_policy.id")
+        cls._field("ima_policy_id", Integer, refers_to="ima_policy.id")  # pylint: disable=unexpected-keyword-arg
         cls._belongs_to("mb_policy", verifier_models.MBPolicy)
-        cls._field("mb_policy_id", Integer, refers_to="mb_policy.id")
+        cls._field("mb_policy_id", Integer, refers_to="mb_policy.id")  # pylint: disable=unexpected-keyword-arg
         cls._has_many("attestations", verifier_models.Attestation, preload=False)
 
         # The attestation key (AK) used by the TPM to sign attestations
@@ -90,13 +83,13 @@ class VerifierAgent(PersistableModel):
         # ------------------------------------------------------------------ #
         # QUESTION FOR REVIEWERS:
         # Are these fields for revocation still needed or can we remove them?
-        cls._field("tpm_version", Integer, nullable=True) # VERDICT: DROP
-        cls._field("revocation_key", String(2800)) # Revocation still supported; keep pull-only, output warning
-        cls._field("last_event_id", String(200), nullable=True) # Pull only possibly. Anderson will investigate further
+        cls._field("tpm_version", Integer, nullable=True)  # VERDICT: DROP
+        cls._field("revocation_key", String(2800))  # Revocation still supported; keep pull-only, output warning
+        cls._field("last_event_id", String(200), nullable=True)  # Pull only possibly. Anderson will investigate further
         # ------------------------------------------------------------------ #
         # TODO: remove above, based on feedback
 
     @property
-    @cache
+    @cache  # pylint: disable=method-cache-max-size-none  # Intentional unbounded cache for ORM property
     def latest_attestation(self):
         return verifier_models.Attestation.get_latest(self.agent_id)

@@ -1,17 +1,14 @@
-from types import MappingProxyType
 from collections.abc import Mapping, Sequence
-from functools import reduce
-
-import keylime.web.base as base
-import keylime.web.base.api_messages as api_messages
+from types import MappingProxyType
 
 from keylime import keylime_logging
-from keylime.web.base.api_messages.api_links import APILink, APILinksMixin
-from keylime.web.base.api_messages.api_meta import APIMeta, APIMetaMixin
+from keylime.models.base import BasicModel
+from keylime.web import base
 from keylime.web.base.api_messages.api_error import APIError
 from keylime.web.base.api_messages.api_info import APIInfo
-from keylime.web.base.exceptions import InvalidMessage, MissingMember, UnexpectedMember, InvalidMember, StopAction
-from keylime.models.base import BasicModel
+from keylime.web.base.api_messages.api_links import APILink, APILinksMixin
+from keylime.web.base.api_messages.api_meta import APIMeta, APIMetaMixin
+from keylime.web.base.exceptions import InvalidMember, InvalidMessage, MissingMember, StopAction, UnexpectedMember
 
 logger = keylime_logging.init_logging("web")
 
@@ -59,7 +56,7 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
         self._jsonapi = APIInfo()
 
         self.include(*items)
-        
+
         # JSON:API features not currently implemented:
         #   - "included" member
 
@@ -72,7 +69,7 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
 
         if self._data is None:
             self._data = resource
-            return
+            return self
 
         if isinstance(self._data, base.APIResource):
             self._data = [self._data]
@@ -112,7 +109,7 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
 
             if not self._data:
                 self._data = None
-        
+
         return self
 
     def clear_resources(self):
@@ -127,21 +124,21 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
             raise InvalidMember("error cannot be added to JSON:API message body which contains a 'data' member")
 
         if error in self._errors:
-            raise KeyError(f"error already exists in JSON:API 'errors' member")
+            raise KeyError("error already exists in JSON:API 'errors' member")
 
         self._errors.append(error)
         return self
 
     def load_errors(self, data):
         if not isinstance(data, Sequence):
-            raise TypeError("object loaded as JSON:API 'errors' member must be a sequence") 
+            raise TypeError("object loaded as JSON:API 'errors' member must be a sequence")
 
         for item in data:
-            error = APIError.load(item)
+            error = APIError.load(item)  # pylint: disable=no-member
             self.add_error(error)
 
         return self
-    
+
     def add_record_errors(self, records):
         errors = {}
         single_resource = False
@@ -175,7 +172,7 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
 
     def remove_error(self, error):
         if error not in self._errors:
-            raise KeyError(f"error does not exist in JSON:API 'errors' member")
+            raise KeyError("error does not exist in JSON:API 'errors' member")
 
         self._errors.remove(error)
         return self
@@ -185,7 +182,7 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
         return self
 
     def get_errors(self, code):
-        return [ error for error in self.errors if error.api_code == code or error.http_code == code ]
+        return [error for error in self.errors if code in (error.api_code, error.http_code)]
 
     def include(self, *items):
         for item in items:
@@ -217,10 +214,10 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
             if isinstance(self.data, base.APIResource):
                 output["data"] = self.data.render()
             else:
-                output["data"] = [ item.render() for item in self.data ]
+                output["data"] = [item.render() for item in self.data]
 
         if self.errors:
-            output["errors"] = [ error.render() for error in self.errors ]
+            output["errors"] = [error.render() for error in self.errors]
 
         if self.meta:
             output["meta"] = self.render_meta()
@@ -256,8 +253,8 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
         return bool(current_path and resource_path and self._get_current_path() != self._get_resource_path())
 
     def _infer_http_error_code(self):
-        client_codes = set( error.http_code for error in self.client_errors )
-        server_codes = set( error.http_code for error in self.server_errors )
+        client_codes = set(error.http_code for error in self.client_errors)
+        server_codes = set(error.http_code for error in self.server_errors)
 
         if len(client_codes) == 1 and len(server_codes) == 0:
             code = next(iter(client_codes))
@@ -277,7 +274,7 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
     def _infer_http_code(self):
         if self.errors:
             return self._infer_http_error_code()
-        
+
         return 201 if self._is_resource_new() else 200
 
     def _log_errors(self) -> None:
@@ -291,7 +288,7 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
 
     def send_via(self, controller, *, code=None, status=None, stop_action=True):
         if not isinstance(controller, base.Controller):
-            TypeError(
+            raise TypeError(
                 f"APIMessageBody cannot be sent via object of type '{controller.__class__.__name__}' (expects instance "
                 f"of Controller)"
             )
@@ -315,8 +312,7 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
     def data(self):
         if isinstance(self._data, list):
             return self._data.copy()
-        else:
-            return self._data
+        return self._data
 
     @property
     def errors(self):
@@ -324,11 +320,11 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
 
     @property
     def client_errors(self):
-        return [ error for error in self._errors if error.http_code >= 400 and error.http_code <= 499 ]
+        return [error for error in self._errors if error.http_code >= 400 and error.http_code <= 499]
 
     @property
     def server_errors(self):
-        return [ error for error in self._errors if error.http_code >= 500 and error.http_code <= 599 ]
+        return [error for error in self._errors if error.http_code >= 500 and error.http_code <= 599]
 
     @property
     def meta(self):

@@ -2,12 +2,12 @@ import re
 from inspect import isclass
 from typing import TYPE_CHECKING, Any, Optional, TypeAlias, Union
 
-from sqlalchemy import Column, ForeignKey, or_
+from sqlalchemy import Column, or_
 from sqlalchemy.types import TypeEngine
 
+from keylime.models.base.db import db_manager
 from keylime.models.base.errors import FieldDefinitionInvalid
 from keylime.models.base.type import ModelType
-from keylime.models.base.db import db_manager
 
 if TYPE_CHECKING:
     from keylime.models.base.basic_model import BasicModel
@@ -177,7 +177,7 @@ class ModelField:
 
         db_type = self.data_type.get_db_type(db_manager.engine.dialect)
         column_args = (self.name, db_type, *column_args)
-        
+
         return column_args
 
     @property

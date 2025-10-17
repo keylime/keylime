@@ -3,8 +3,9 @@ from keylime.web.base import Controller
 
 class AgentController(Controller):
     def _new_v2_handler(self):
+        # pylint: disable=import-outside-toplevel  # Avoid circular import
         from keylime import cloud_verifier_tornado as v2
-        
+
         tornado_app = self.action_handler.application
         tornado_req = self.action_handler.request
         return v2.AgentsHandler(tornado_app, tornado_req, override=self.action_handler)
@@ -18,7 +19,7 @@ class AgentController(Controller):
             # TODO: Replace with v3 implementation
 
     # GET /vx[.y]/agents/:id/
-    def show(self, agent_id, **_params):
+    def show(self, agent_id, **_params):  # pylint: disable=unused-argument  # Required by URL route pattern
         if self.major_version <= 2:
             self._new_v2_handler().get()
         else:
@@ -35,12 +36,12 @@ class AgentController(Controller):
             # TODO: Replace with v3 implementation
 
     # PATCH /v3[.x]/agents/:id/
-    def update(self, agent_id, **_params):
+    def update(self, agent_id, **_params):  # pylint: disable=unused-argument  # Required by URL route pattern
         self.respond(404)
         # TODO: Replace with v3 implementation
 
     # DELETE /vx[.y]/agents/:id/
-    def delete(self, agent_id, **_params):
+    def delete(self, agent_id, **_params):  # pylint: disable=unused-argument  # Required by URL route pattern
         if self.major_version <= 2:
             self._new_v2_handler().delete()
         else:
@@ -48,9 +49,9 @@ class AgentController(Controller):
             # TODO: Replace with v3 implementation
 
     # PUT /v2[.x]/agents/:id/reactivate/
-    def reactivate(self, agent_id, **_params):
+    def reactivate(self, agent_id, **_params):  # pylint: disable=unused-argument  # Required by URL route pattern
         self._new_v2_handler().put()
 
     # PUT /v2[.x]/agents/:id/stop/
-    def stop(self, agent_id, **_params):
+    def stop(self, agent_id, **_params):  # pylint: disable=unused-argument  # Required by URL route pattern
         self._new_v2_handler().put()

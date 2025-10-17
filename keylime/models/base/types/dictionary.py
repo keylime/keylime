@@ -89,7 +89,7 @@ class Dictionary(ModelType):
                 # Some dictionaries have ended up being serialised to JSON twice before being saved in the database
                 if isinstance(dictionary, str):
                     dictionary = json.loads(dictionary)
-                    
+
             except json.JSONDecodeError as err:
                 raise ValueError(f"string value cast to dictionary is not valid JSON: {repr(value)}") from err
 

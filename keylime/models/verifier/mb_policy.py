@@ -1,5 +1,6 @@
-from keylime.models.base import *
 import keylime.models.verifier as verifier_models
+from keylime.models.base import *
+
 
 class MBPolicy(PersistableModel):
     @classmethod
@@ -12,4 +13,3 @@ class MBPolicy(PersistableModel):
 
         cls._field("name", String(255))
         cls._field("mb_policy", Text)
-

@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from keylime.common.algorithms import Key, Encrypt, Hash, Sign, is_accepted
+from keylime.common.algorithms import Encrypt, Hash, Key, Sign, is_accepted
 
 
 class TestHash(unittest.TestCase):

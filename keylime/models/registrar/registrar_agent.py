@@ -156,13 +156,13 @@ class RegistrarAgent(PersistableModel):
                 logger.error(
                     "Certificate(s) %s may not conform to strict ASN.1 DER encoding rules and were rejected due to "
                     "config ('malformed_cert_action = reject')",
-                    keylime_logging.list_items(non_compliant_certs)
+                    keylime_logging.list_items(non_compliant_certs),
                 )
             case _:
                 logger.warning(
                     "Certificate(s) %s may not conform to strict ASN.1 DER encoding rules and were re-encoded before "
                     "parsing by python-cryptography",
-                    keylime_logging.list_items(non_compliant_certs)
+                    keylime_logging.list_items(non_compliant_certs),
                 )
 
     def _bind_ak_to_iak(self, iak_attest, iak_sign):
@@ -316,7 +316,7 @@ class RegistrarAgent(PersistableModel):
         return challenge.decode("utf-8")
 
     def verify_ak_response(self, response):
-        expected_response = crypto.do_hmac(self.key.encode(), self.agent_id)
+        expected_response = crypto.do_hmac(self.key.encode(), self.agent_id)  # pylint: disable=no-member
 
         result = hmac.compare_digest(response, expected_response)
 
@@ -324,6 +324,7 @@ class RegistrarAgent(PersistableModel):
         return result
 
     def commit_changes(self):
+        # pylint: disable=arguments-differ
         # Accept changes and write them to the database (unless fields have errors)
         super().commit_changes()
 
@@ -346,13 +347,14 @@ class RegistrarAgent(PersistableModel):
         if not only:
             only = ["agent_id", "ek_tpm", "ekcert", "aik_tpm", "mtls_cert", "ip", "port", "regcount"]
 
-            if self.virtual:
+            if self.virtual:  # pylint: disable=using-constant-test  # ORM defensive programming
                 only.append("provider_keys")
 
         output = super().render(only)
 
         # When operating in pull mode, ekcert is encoded as Base64 instead of PEM
         if output.get("ekcert"):
+            # pylint: disable=no-member
             output["ekcert"] = base64.b64encode(self.ekcert.public_bytes(Encoding.DER)).decode("utf-8")
 
         return output

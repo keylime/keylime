@@ -1,5 +1,3 @@
-
-
 class APIInfo:
     """Represents a JSON:API object which contains information about the JSON:API implementation.
 

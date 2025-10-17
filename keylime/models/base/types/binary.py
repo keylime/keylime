@@ -15,7 +15,7 @@ class Binary(ModelType):
     memory as a ``bytes`` object.
 
     When a model is rendered as JSON, fields of type ``Binary`` are encoded using Base64.
-    
+
     In a database, the object may be stored using the binary data type of the database engine (the default) or encoded
     using Base64 and stored as text.
 
@@ -113,8 +113,8 @@ class Binary(ModelType):
 
             try:
                 return bytes.fromhex(value)
-            except ValueError:
-                raise ValueError(f"string value cast to binary is not valid base64 or hex: '{value}'") # pylint: disable=raise-missing-from
+            except ValueError as exc:
+                raise ValueError(f"string value cast to binary is not valid base64 or hex: '{value}'") from exc
 
         else:
             raise TypeError(

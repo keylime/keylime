@@ -3,6 +3,7 @@ This is the backport of the dataclasses package (0.8) for Python 3.6.
 Only import it conditionally for Python 3.6.
 Source: https://pypi.org/project/dataclasses/
 """
+
 # pylint: skip-file
 # fmt: off
 

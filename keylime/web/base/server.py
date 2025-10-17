@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import tornado
 
-from keylime import config, keylime_logging, web_util, api_version
+from keylime import api_version, config, keylime_logging, web_util
 from keylime.web.base.action_handler import ActionHandler
 from keylime.web.base.route import Route
+
 # from keylime.web.base.stats_collector import StatsCollector
 
 if TYPE_CHECKING:
@@ -157,6 +158,7 @@ class Server(ABC):
 
             if obj.operating_mode == "push":
                 return func(obj, *args, **kwargs)
+            return None
 
         return push_only_wrapper
 
@@ -174,6 +176,7 @@ class Server(ABC):
 
             if obj.operating_mode == "pull":
                 return func(obj, *args, **kwargs)
+            return None
 
         return pull_only_wrapper
 
@@ -275,7 +278,10 @@ class Server(ABC):
 
         logger.info(
             "Listening on %s:%s (%s) with %s worker processes...",
-            self.bind_interface, ports, protocols, self.worker_count
+            self.bind_interface,
+            ports,
+            protocols,
+            self.worker_count,
         )
 
         # with StatsCollector():
@@ -302,7 +308,7 @@ class Server(ABC):
     def _set_option(self, name, **kwargs):
         """Sets server option by name either from given value or by obtaining it from user config. If the value is
         falsy, uses the given fallback value instead or ``None`` if no fallback is provided. Examples::
-        
+
             # Set option using provided value
             self._set_option("bind_interface", value="0.0.0.0")
 
@@ -332,19 +338,19 @@ class Server(ABC):
                 pass
 
             case {"from_config": config_name} if isinstance(config_name, str):
-                value = config.get(self.config_component, config_name, fallback=fallback) # type: ignore
+                value = config.get(self.config_component, config_name, fallback=fallback)  # type: ignore
 
             case {"from_config": (config_name, data_type)} if data_type is str:
-                value = config.get(self.config_component, config_name, fallback=fallback) # type: ignore
+                value = config.get(self.config_component, config_name, fallback=fallback)  # type: ignore
 
             case {"from_config": (config_name, data_type)} if data_type is int:
-                value = config.getint(self.config_component, config_name, fallback=fallback) # type: ignore
+                value = config.getint(self.config_component, config_name, fallback=fallback)  # type: ignore
 
             case {"from_config": (config_name, data_type)} if data_type is float:
-                value = config.getfloat(self.config_component, config_name, fallback=fallback) # type: ignore
+                value = config.getfloat(self.config_component, config_name, fallback=fallback)  # type: ignore
 
             case {"from_config": (config_name, data_type)} if data_type is bool:
-                value = config.getboolean(self.config_component, config_name, fallback=fallback) # type: ignore
+                value = config.getboolean(self.config_component, config_name, fallback=fallback)  # type: ignore
 
             case _:
                 raise TypeError(f"invalid arguments given when setting option '{name}' for {self.__class__.__name__}")

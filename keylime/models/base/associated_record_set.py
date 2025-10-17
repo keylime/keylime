@@ -1,5 +1,4 @@
-import keylime.models.base.associations as associations
-from keylime.models.base.record_set import RecordSet, RecordSetView
+from keylime.models.base.record_set import RecordSet
 
 
 class AssociatedRecordSet(RecordSet):
@@ -11,7 +10,7 @@ class AssociatedRecordSet(RecordSet):
     def __init__(self, parent_record: "BasicModel", association: "ModelAssociation") -> None:
         self._parent_record = parent_record
         self._association = association
-        super().__init__([], model = association.other_model)
+        super().__init__([], model=association.other_model)
 
     def _add_to_inverse(self, *inverse_records):
         if not self.association.inverse_association:
@@ -36,6 +35,8 @@ class AssociatedRecordSet(RecordSet):
             inverse_record_set.discard(self.parent_record, update_inverse=False)
 
     def _update_linked_fields(self, record):
+        import keylime.models.base.associations as associations  # pylint: disable=import-outside-toplevel,consider-using-from-import
+
         if not isinstance(self.association, associations.BelongsToAssociation):
             return
 
@@ -46,6 +47,8 @@ class AssociatedRecordSet(RecordSet):
             self.parent_record.change(field.name, record.values.get(field.linked_field))
 
     def _clear_linked_fields(self, record):
+        import keylime.models.base.associations as associations  # pylint: disable=import-outside-toplevel,consider-using-from-import
+
         if not isinstance(self.association, associations.BelongsToAssociation):
             return
 
@@ -79,7 +82,7 @@ class AssociatedRecordSet(RecordSet):
 
     def remove(self, record: "BasicModel", update_inverse: bool = True) -> "AssociatedRecordSet":
         super().remove(record)
-        
+
         self._clear_linked_fields(record)
 
         if update_inverse:
@@ -115,13 +118,6 @@ class AssociatedRecordSet(RecordSet):
             self._remove_from_inverse(*records)
 
         return self
-
-    def copy(self):
-        """Copy the AssociatedRecordSet as a RecordSet so that the returned set is no longer linked to an associated
-        record set. This means that modifications to the copied set are not reflected in the inverse record set of the
-        original.
-        """
-        return super().copy()
 
     @property
     def parent_record(self) -> "BasicModel":

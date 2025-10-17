@@ -3,8 +3,9 @@ from keylime.web.base import Controller
 
 class MBRefStateController(Controller):
     def _new_v2_handler(self):
+        # pylint: disable=import-outside-toplevel  # Avoid circular import
         from keylime import cloud_verifier_tornado as v2
-        
+
         tornado_app = self.action_handler.application
         tornado_req = self.action_handler.request
         return v2.MbpolicyHandler(tornado_app, tornado_req, override=self.action_handler)
@@ -20,7 +21,7 @@ class MBRefStateController(Controller):
 
     # GET /v3[.x]/refstates/uefi/:name
     # GET /v2[.x]/mbpolicies/:name
-    def show(self, name, **_params):
+    def show(self, name, **_params):  # pylint: disable=unused-argument  # Required by URL route pattern
         if self.major_version <= 2:
             self._new_v2_handler().get()
         else:
@@ -37,17 +38,17 @@ class MBRefStateController(Controller):
             # TODO: Replace with v3 implementation
 
     # PATCH /v3[.x]/refstates/uefi/:name
-    def update(self, name, **_params):
+    def update(self, name, **_params):  # pylint: disable=unused-argument  # Required by URL route pattern
         self.respond(404)
         # TODO: Replace with v3 implementation
 
     # PUT /v2[.x]/mbpolicies/:name
-    def overwrite(self, name, **_params):
+    def overwrite(self, name, **_params):  # pylint: disable=unused-argument  # Required by URL route pattern
         self._new_v2_handler().put()
 
     # DELETE /v3[.x]/refstates/uefi/:name
     # DELETE /v2[.x]/mbpolicies/:name
-    def delete(self, name, **_params):
+    def delete(self, name, **_params):  # pylint: disable=unused-argument  # Required by URL route pattern
         if self.major_version <= 2:
             self._new_v2_handler().delete()
         else:

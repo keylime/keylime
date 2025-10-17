@@ -1,13 +1,13 @@
 import re
 from typing import Any, Optional, Pattern, TypeAlias
 
-from sqlalchemy import Column, ForeignKey, ForeignKeyConstraint, Integer, Table, Text
+from sqlalchemy import ForeignKeyConstraint, Integer, Table, Text
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import RelationshipProperty, relationship
 
 from keylime.models.base.associations import (
-    EmbedsInlineAssociation,
     BelongsToAssociation,
+    EmbedsInlineAssociation,
     EntityAssociation,
     HasManyAssociation,
     HasOneAssociation,
@@ -69,20 +69,16 @@ class PersistableModelMeta(BasicModelMeta):
         return db_mapping
 
     @staticmethod
-    def __assoc_to_rship(association: "EntityAssociation", linked_fields) -> RelationshipProperty:
+    def __assoc_to_rship(association: "EntityAssociation", _linked_fields) -> RelationshipProperty:
         lazy = "joined" if association.preload else "noload"
 
-        return relationship(
-            association.other_model.db_mapping,
-            back_populates=association.inverse_of,
-            lazy=lazy
-        )
+        return relationship(association.other_model.db_mapping, back_populates=association.inverse_of, lazy=lazy)
 
     def get_db_column_items(cls, embedded_in=None):
         items = {name: field for name, field in cls.fields.items() if field.persist}
         items |= cls.embeds_one_associations | cls.embeds_many_associations
 
-        for sub_model in cls.sub_models:
+        for sub_model in cls.sub_models:  # pylint: disable=not-an-iterable
             items |= sub_model.get_db_column_items()
 
         for embed in cls.embeds_inline_associations.values():
@@ -102,7 +98,7 @@ class PersistableModelMeta(BasicModelMeta):
     @classmethod
     def __make_db_constraints(mcs, cls) -> Table:
         foreign_key_constraints = {}
-        
+
         linked_fields = {
             name: item
             for name, item in cls.get_db_column_items().items()
@@ -133,6 +129,7 @@ class PersistableModelMeta(BasicModelMeta):
 
     @classmethod
     def __make_relationships(mcs, cls) -> dict[str, relationship]:
+        # pylint: disable=protected-access
         relationships = {}
 
         for name, assoc in cls.entity_associations.items():
@@ -146,11 +143,13 @@ class PersistableModelMeta(BasicModelMeta):
         if not mcs._is_implementation(cls):
             raise TypeError(f"cannot create model field '{name}' on abstract class '{cls.__name__}'")
 
-        nullable = opts.get("nullable", False)
+        _nullable = opts.get("nullable", False)
         primary_key = opts.get("primary_key", False)
         column_kwargs = opts.get("column_kwargs", {})
 
-        if primary_key and "_id" in [name for (name, _, _) in cls.schema_helpers_used]:
+        if primary_key and "_id" in [
+            name for (name, _, _) in cls.schema_helpers_used
+        ]:  # pylint: disable=not-an-iterable
             raise SchemaInvalid(
                 f"cannot create primary key using field '{name}' for model '{cls.__name__}' which already has a "
                 f"single-field primary key defined using the 'cls._id(...)' schema helper"
@@ -203,6 +202,7 @@ class PersistableModelMeta(BasicModelMeta):
         type(cls)._log_schema_helper_use(cls, "_id", name, data_type)
 
     def _field(cls, name: str, data_type: DeclaredFieldType, **opts) -> None:
+        # pylint: disable=arguments-differ
         if not cls.schema_helpers_enabled:
             return
 
@@ -252,6 +252,7 @@ class PersistableModelMeta(BasicModelMeta):
         association = BelongsToAssociation(name, cls, *args, **kwargs)
         type(cls)._add_association(cls, association)
 
+        # pylint: disable=not-an-iterable
         if primary_key and "_id" in [name for (name, _, _) in cls.schema_helpers_used]:
             raise SchemaInvalid(
                 f"cannot create primary key using field '{name}_id' for model '{cls.__name__}' which already has a "
@@ -274,7 +275,7 @@ class PersistableModelMeta(BasicModelMeta):
 
         # If no primary key has been defined by the schema, create the default "id" primary key
         if not cls.primary_key:
-            field = type(cls)._make_field(cls, "id", Integer, primary_key=True)
+            _field = type(cls)._make_field(cls, "id", Integer, primary_key=True)
 
         # Prepare SQLAlchemy table object using the model's schema
         table = type(cls).__make_db_table(cls)

@@ -1,13 +1,13 @@
-import copy
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Optional, Union, overload
+from typing import TYPE_CHECKING, Optional, Union
+
 from sqlalchemy import Column
 
-from keylime.models.base.errors import AssociationTypeMismatch, AssociationValueInvalid
 from keylime.models.base.associated_record_set import AssociatedRecordSet
+from keylime.models.base.db import db_manager
+from keylime.models.base.errors import AssociationTypeMismatch, AssociationValueInvalid
 from keylime.models.base.types.dictionary import Dictionary
 from keylime.models.base.types.list import List
-from keylime.models.base.db import db_manager
 
 if TYPE_CHECKING:
     from keylime.models.base.basic_model import BasicModel
@@ -27,7 +27,13 @@ class ModelAssociation(ABC):
     [1] https://docs.python.org/3/howto/descriptor.html
     """
 
-    def __init__(self, name: str, parent_model: type["BasicModel"], other_model: type["BasicModel"], inverse_of: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        parent_model: type["BasicModel"],
+        other_model: type["BasicModel"],
+        inverse_of: Optional[str] = None,
+    ) -> None:
         self._name: str = name
         self._private_member: str = "_" + name
         self._parent_model: type["BasicModel"] = parent_model
@@ -81,7 +87,7 @@ class ModelAssociation(ABC):
     @property
     def name(self) -> str:
         return self._name
-    
+
     @property
     def parent_model(self) -> type["BasicModel"]:
         return self._parent_model
@@ -89,14 +95,13 @@ class ModelAssociation(ABC):
     @property
     def other_model(self) -> type["BasicModel"]:
         return self._other_model
-    
+
     @property
     def inverse_of(self) -> Optional[str]:
         if not self._inverse_of:
             # Get all associations which point from the associated model back to the parent model
             candidates = [
-                assoc for assoc in self.other_model.associations.values()
-                if assoc.other_model is self.parent_model
+                assoc for assoc in self.other_model.associations.values() if assoc.other_model is self.parent_model
             ]
 
             # If there is only one such association in the associated model, the inverse association is unambiguous
@@ -130,11 +135,11 @@ class ModelAssociation(ABC):
 class EmbeddedAssociation(ModelAssociation):
     def __init__(
         self,
-        name: str, 
-        parent_model: type["BasicModel"], 
+        name: str,
+        parent_model: type["BasicModel"],
         other_model: type["BasicModel"],
         nullable: bool = False,
-        inverse_of: Optional[str] = None
+        inverse_of: Optional[str] = None,
     ) -> None:
         self._nullable: bool = nullable
         super().__init__(name, parent_model, other_model, inverse_of)
@@ -258,7 +263,7 @@ class EntityAssociation(ModelAssociation):
 
         # If no foreign keys were declared for the association, see if is obtainable from the inverse association
         if not foreign_keys and search_inverse and self.inverse_association:
-            foreign_keys = self.inverse_association.get_foreign_keys(search_inverse = False)
+            foreign_keys = self.inverse_association.get_foreign_keys(search_inverse=False)
 
         return foreign_keys
 
@@ -379,14 +384,12 @@ class BelongsToAssociation(EntityAssociation):
         # try to discover it from the model declaration
         if not foreign_keys:
             foreign_keys = (
-                field.name
-                for field in self.parent_model.fields.values()
-                if field.linked_association == self.name
+                field.name for field in self.parent_model.fields.values() if field.linked_association == self.name
             )
 
         # If that fails, use the default
         if not foreign_keys:
-            foreign_keys = (f"{self.name}_id")
+            foreign_keys = f"{self.name}_id"
 
         return foreign_keys
 

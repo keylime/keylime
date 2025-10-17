@@ -1,8 +1,8 @@
 from datetime import timedelta
 
+import keylime.models.verifier as verifier_models
 from keylime import config, keylime_logging
 from keylime.models.base import *
-import keylime.models.verifier as verifier_models
 
 logger = keylime_logging.init_logging("verifier")
 
@@ -14,7 +14,9 @@ class Attestation(PersistableModel):
 
         # IDENTIFIERS
         cls._belongs_to("agent", verifier_models.VerifierAgent)
-        cls._field("agent_id", String(80), primary_key=True, refers_to="agent.agent_id")
+        cls._field(  # pylint: disable=unexpected-keyword-arg
+            "agent_id", String(80), primary_key=True, refers_to="agent.agent_id"
+        )
         cls._field("index", Integer, primary_key=True)
         # Each attestation is uniquely identifiable by an (agent_id, index) tuple; each agent has zero or more
         # attestations numbered incrementally from 0
@@ -134,11 +136,11 @@ class Attestation(PersistableModel):
         for item_data in evidence_data:
             try:
                 item = verifier_models.EvidenceItem.create(item_data)
-                self.evidence.add(item)
+                self.evidence.add(item)  # pylint: disable=no-member
             except TypeError:
                 self._add_error("evidence", "may only contain objects with key-value pairs")
 
-        self.system_info = SystemInfo.empty()
+        self.system_info = SystemInfo.empty()  # pylint: disable=attribute-defined-outside-init  # ORM dynamic attribute
         self.system_info.update(system_info_data)
 
         self.refresh_metadata()
@@ -169,7 +171,7 @@ class Attestation(PersistableModel):
         for i, item_data in enumerate(evidence_data):
             class_ = item_data.get("evidence_class")
             type_ = item_data.get("evidence_type")
-            
+
             if not class_ == self.evidence[i].evidence_class or not type_ == self.evidence[i].evidence_type:
                 self._add_error("evidence", "must appear in the same order as the evidence requested")
                 return
@@ -187,7 +189,7 @@ class Attestation(PersistableModel):
         if self.evidence_received_at:
             output |= self.render(["evidence_received_at"])
 
-        if self.verification_completed_at:
+        if self.verification_completed_at:  # pylint: disable=using-constant-test  # ORM defensive programming
             output |= self.render(["verification_completed_at"])
 
         return output
@@ -225,11 +227,13 @@ class Attestation(PersistableModel):
 
         if persist and not session:
             # Accept changes and write them to the database (unless fields have errors)
+            # pylint: disable=redefined-argument-from-local  # Context manager intentionally shadows parameter
             with db_manager.session_context_for(self, self.evidence) as session:
                 super().commit_changes(session)
 
                 for item in self.evidence:
                     item.commit_changes(session)
+            # pylint: enable=redefined-argument-from-local
         else:
             super().commit_changes(session, persist)
 
@@ -275,11 +279,11 @@ class Attestation(PersistableModel):
             if not self.agent_id:
                 return None
 
+            # pylint: disable=comparison-with-callable  # ORM framework pattern for querying
             attestation = Attestation.get(
-                Attestation.agent_id == self.agent_id,
-                Attestation.index < self.index,
-                sort_=desc("index")
+                Attestation.agent_id == self.agent_id, Attestation.index < self.index, sort_=desc("index")
             )
+            # pylint: enable=comparison-with-callable
 
             if attestation:
                 self._previous_attestation = attestation
@@ -292,13 +296,15 @@ class Attestation(PersistableModel):
             if not self.agent_id:
                 return None
 
+            # pylint: disable=comparison-with-callable  # ORM framework pattern for querying
             attestation = Attestation.get(
                 Attestation.agent_id == self.agent_id,
                 Attestation.stage == "verification_complete",
                 Attestation.failure_reason != "broken_evidence_chain",
                 Attestation.index < self.index,
-                sort_=desc("index")
+                sort_=desc("index"),
             )
+            # pylint: enable=comparison-with-callable
 
             if attestation:
                 self._previous_authenticated_attestation = attestation
@@ -311,12 +317,14 @@ class Attestation(PersistableModel):
             if not self.agent_id:
                 return None
 
+            # pylint: disable=comparison-with-callable  # ORM framework pattern for querying
             attestation = Attestation.get(
                 Attestation.agent_id == self.agent_id,
                 Attestation.evaluation == "pass",
                 Attestation.index < self.index,
-                sort_=desc("index")
+                sort_=desc("index"),
             )
+            # pylint: enable=comparison-with-callable
 
             if attestation:
                 self._previous_passed_attestation = attestation
@@ -346,8 +354,7 @@ class Attestation(PersistableModel):
     def next_attestation_expected_after(self):
         if self.evidence_received_at:
             return self.evidence_received_at + timedelta(seconds=config.getint("verifier", "quote_interval"))
-        else:
-            return self.capabilities_received_at
+        return self.capabilities_received_at
 
     @property
     def seconds_to_next_attestation(self):
@@ -384,7 +391,7 @@ class SystemInfo(PersistableModel):
         if only is None:
             only = []
 
-            if self.boot_time:
+            if self.boot_time:  # pylint: disable=using-constant-test  # ORM defensive programming
                 only.append("boot_time")
 
         return super().render(only)

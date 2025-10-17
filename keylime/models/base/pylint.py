@@ -56,12 +56,14 @@ def transform_model_class(cls: astroid.ClassDef) -> astroid.ClassDef:
     This has the effect of suppressing "access-member-before-definition" (E0203) and
     "attribute-defined-outside-init" (W0201) when accessing a field or association using dot notation.
     """
+    # pylint: disable=too-many-boolean-expressions
     if (
         isinstance(cls.parent, astroid.Module)
         and cls.name
         and cls.parent.name
         and cls.parent.name.startswith("keylime.models")
         and not cls.parent.name.startswith("keylime.models.base")
+        and "_schema" in cls.locals
     ):
         # Iterate over declarations in the body of the model's _schema method
         for exp in cls.locals["_schema"][0].body:
@@ -70,11 +72,9 @@ def transform_model_class(cls: astroid.ClassDef) -> astroid.ClassDef:
                 # Get the first argument of the function call as this is the name of the field/association
                 attr = exp.value.args[0].value
                 # Add an attribute for the field/association to the AST
-                cls.locals[attr] = [
-                    astroid.FunctionDef(
-                        attr, lineno=None, col_offset=None, parent=cls, end_lineno=None, end_col_offset=None
-                    )
-                ]
+                # Use extract_node to create a proper AST node that's compatible with newer astroid versions
+                fake_node = astroid.extract_node(f"def {attr}(): pass")
+                cls.locals[attr] = [fake_node]
 
     return cls
 

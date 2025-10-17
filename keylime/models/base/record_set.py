@@ -1,12 +1,11 @@
 from typing import Sequence, Union
 
-import keylime.models.base.basic_model
-import keylime.models.base.basic_model_meta
-
 
 class RecordSet(set["BasicModel"]):
-
     def __init__(self, records: Sequence["BasicModel"], model: "BasicModelMeta" = None) -> None:
+        import keylime.models.base.basic_model  # pylint: disable=import-outside-toplevel
+        import keylime.models.base.basic_model_meta  # pylint: disable=import-outside-toplevel
+
         if not records and not model:
             raise ValueError(f"{self.__class__.__name__} must be initialised with a sequence of records or a model")
 
@@ -28,8 +27,7 @@ class RecordSet(set["BasicModel"]):
     def __repr__(self):
         if self._order:
             return f"{self.__class__.__name__}({self._order})"
-        else:
-            return f"{self.__class__.__name__}(model={self.model.__name__})"
+        return f"{self.__class__.__name__}(model={self.model.__name__})"
 
     def __iter__(self):
         return iter(self._order)
@@ -71,7 +69,7 @@ class RecordSet(set["BasicModel"]):
     def discard(self, record: "BasicModel") -> "RecordSet":
         if record in self._order:
             self._order.remove(record)
-            
+
         super().discard(record)
         return self
 
@@ -90,12 +88,6 @@ class RecordSet(set["BasicModel"]):
 
     def to_list(self):
         return self._order.copy()
-    
-    def copy(self):
-        record_set = super().copy()
-        record_set._model = self._model
-        record_set._order = self._order.copy()
-        return record_set
 
     def copy(self):
         return RecordSet(self._order, model=self._model)
@@ -108,11 +100,11 @@ class RecordSet(set["BasicModel"]):
         return self._model
 
 
-class RecordSetView:
+class RecordSetView:  # pylint: disable=protected-access  # Intentional access to RecordSet internals
     def __init__(self, parent):
         if not isinstance(parent, (RecordSet, RecordSetView)):
             raise TypeError("a new record set view can only be instantiated from a record set or other view")
-             
+
         self._parent = parent
         self._content = parent.to_list()
         self._fallback = []
@@ -167,7 +159,7 @@ class RecordSetView:
         return new_view
 
     def pop(self):
-        raise NotImplemented("cannot pop from record set view")
+        raise NotImplementedError("cannot pop from record set view")
 
     def clear(self):
         if not self._content:
@@ -195,7 +187,7 @@ class RecordSetView:
     def filter(self, func=None, **criteria) -> "RecordSet":
         if not self._content:
             return self
-            
+
         new_view = self.view()
         new_view._content = []
 
@@ -213,20 +205,18 @@ class RecordSetView:
 
         if isinstance(self.parent, RecordSet):
             return RecordSetView(self.parent)
-        else:
-            return self.parent
+        return self.parent
 
     def result_if_empty(self, result):
         if not self._fallback:
             self._fallback = result
 
         return self
-    
+
     def result(self):
         if self._content:
             return RecordSet(self._content)
-        else:
-            return self._fallback
+        return self._fallback
 
     def to_list(self):
         return self._content.copy()

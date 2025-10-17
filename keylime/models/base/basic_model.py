@@ -5,9 +5,9 @@ from abc import ABC, abstractmethod
 from types import MappingProxyType
 from typing import Any, Container, Iterable, Mapping, Optional, Pattern, Sequence, Union
 
+from keylime.models.base.associations import EmbeddedInAssociation
 from keylime.models.base.basic_model_meta import BasicModelMeta
 from keylime.models.base.errors import FieldValueInvalid, UndefinedField
-from keylime.models.base.associations import EmbeddedInAssociation
 
 
 class BasicModel(ABC, metaclass=BasicModelMeta):
@@ -249,7 +249,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
             if not association:
                 self.change(name, value)
                 continue
-            
+
             if process_associations:
                 record_set = association.get_record_set(self)
                 value = [value] if not isinstance(value, list) else value
@@ -273,13 +273,12 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
         super().__setattr__(name, value)
 
     # TODO: Uncomment
-    """ def __getattribute__(self, name: str) -> Any:
-        try:
-            return super().__getattribute__(name)
-        except AttributeError:
-            msg = f"cannot get '{name}' as model '{type(self).__name__}' defines no field or attribute with that name"
-            raise AttributeError(msg) from None
-    """
+    # def __getattribute__(self, name: str) -> Any:
+    #     try:
+    #         return super().__getattribute__(name)
+    #     except AttributeError:
+    #         msg = f"cannot get '{name}' as model '{type(self).__name__}' defines no field or attribute with that name"
+    #         raise AttributeError(msg) from None
 
     def __repr__(self) -> str:
         """Returns a code-like string representation of the model instance
@@ -525,7 +524,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
             # If member name is the name of an embedded record, render the full record
             elif name in self.__class__.embeds_one_associations.keys():
                 self._render_embedded_record(name, data)
-            elif name in self.__class__.embeds_inline_associations.keys():
+            elif name in self.__class__.embeds_inline_associations.keys():  # pylint: disable=no-member
                 self._render_embedded_record(name, data)
             # If member name is the name of a set of embedded records, render as a list of records
             elif name in self.__class__.embeds_many_associations.keys():
@@ -536,7 +535,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
     def get_errors(self, associations=None, pointer_prefix=None, memo=None):
         if associations is None:
             associations = self.__class__.associations.values()
-            associations = [ assoc.name for assoc in associations if not isinstance(assoc, EmbeddedInAssociation) ]
+            associations = [assoc.name for assoc in associations if not isinstance(assoc, EmbeddedInAssociation)]
 
         if pointer_prefix is None:
             pointer_prefix = "/"
@@ -546,7 +545,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
 
         memo.add(id(self))
 
-        errors = { f"{pointer_prefix}{member}": errors for member, errors in self.errors.items() if len(errors) > 0 }
+        errors = {f"{pointer_prefix}{member}": errors for member, errors in self.errors.items() if len(errors) > 0}
 
         for assoc_name in associations:
             assoc = self.__class__.associations.get(assoc_name)

@@ -5,6 +5,7 @@ Revises: 57b24ee21dfa
 Create Date: 2024-02-23 00:02:34.715180
 
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -77,7 +78,7 @@ def upgrade_cloud_verifier():
         sa.Column("chosen_parameters__certification_key", sa.Text),
         sa.Column("chosen_parameters__starting_offset", sa.Integer),
         sa.Column("chosen_parameters__entry_count", sa.Integer),
-        sa.Column("chosen_parameters__format", sa.String(255)), # RFC 4288 length
+        sa.Column("chosen_parameters__format", sa.String(255)),  # RFC 4288 length
         sa.Column("chosen_parameters__meta", sa.Text),
         sa.Column("data__subject_data", sa.Text),
         sa.Column("data__message", sa.LargeBinary),
@@ -88,7 +89,7 @@ def upgrade_cloud_verifier():
         sa.Column("results__certified_entry_count", sa.Integer),
         sa.Column("results__meta", sa.Text),
         sa.ForeignKeyConstraint(["agent_id", "attestation_index"], ["attestations.agent_id", "attestations.index"]),
-        sa.PrimaryKeyConstraint("id")
+        sa.PrimaryKeyConstraint("id"),
     )
 
 

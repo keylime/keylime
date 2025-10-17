@@ -1,8 +1,7 @@
 from keylime import keylime_logging
-from keylime.models.base import Timestamp
-from keylime.models.verifier import VerifierAgent, Attestation
+from keylime.models.verifier import Attestation, VerifierAgent
 from keylime.verification import EngineDriver
-from keylime.web.base import Controller, APIMessageBody, APIResource, APIError, APILink, APIMeta
+from keylime.web.base import APIError, APILink, APIMessageBody, APIMeta, APIResource, Controller
 
 logger = keylime_logging.init_logging("web")
 
@@ -48,7 +47,7 @@ class AttestationController(Controller):
 
     The following paths may therefore refer to the same attestation resource if a total of five (5) attestations exist
     for agent 1:
-    
+
         * /v3/agents/1/attestations/4
         * /v3/agents/1/attestations/latest
 
@@ -64,7 +63,7 @@ class AttestationController(Controller):
 
     Creating Attestation Resources
     ------------------------------
-    
+
     An attestation resource is only creatable under certain conditions to enforce correct behaviour of untrusted agents
     which may make requests to the verifier at will.
 
@@ -76,7 +75,7 @@ class AttestationController(Controller):
           Requests");
         * verification of a previous attestation is still in progress (503 "Service Unavailable");
         * the request data is not valid despite having the right syntax (422 "Unprocessable Content");
-        * the request data cannot be accepted for some other reason, such as having an incorrect Content-Type (200 "Bad 
+        * the request data cannot be accepted for some other reason, such as having an incorrect Content-Type (200 "Bad
           Request"); or
         * the request was received while another request to create an attestation resource was still being processed
           (409 "Conflict").
@@ -85,10 +84,10 @@ class AttestationController(Controller):
     ``Retry-After`` HTTP header indicates the number of seconds after which the request will be accepted.
 
     Details about each error condition can be found by inspecting the ``errors`` structure in the JSON response.
-    
+
     Mutating Attestation Resources
     ------------------------------
-    
+
     Any given attestation resource may only be updated once after creation to supply the evidence for the attestation.
     At this point, assuming the received evidence is in the expected format, the resource becomes immutable for the
     remainder of its lifetime.
@@ -104,7 +103,7 @@ class AttestationController(Controller):
 
     In the final two cases, the request may be re-attempted. When a 503 status is returned, the ``Retry-After`` HTTP
     header indicates the estimated number of seconds after which the verifier will accept the evidence.
-    
+
     In all other cases, a new attestation resource must first be created before the verifier will accept evidence from
     that specific agent.
 
@@ -125,7 +124,7 @@ class AttestationController(Controller):
           received. The user should set ``quote_interval`` based on their desired attestation frequency.
 
         * To prevent attestations from taking so long as to exhaust the verifier's resources, e.g., if an agent, perhaps
-          maliciously, sends an excessive amount of data as evidence, the verifier will give up trying to verify an 
+          maliciously, sends an excessive amount of data as evidence, the verifier will give up trying to verify an
           attestation after a certain cut off is reached. This is determined by the ``verification_timeout`` config
           option. When set to 0 (the default), verifications will time out after m*3 seconds where m is the average time
           taken to process attestations since the verifier was started. When a value > 0 is given, this is interpreted
@@ -146,7 +145,7 @@ class AttestationController(Controller):
 
         * When an agent submits evidence but all the worker processes which are not dedicated to request handling are
           occupied by a verification task, the verifier will instruct the agent to wait a certain amount of time before
-          retrying. This value is determined by the formula n*m where n is a count of the requests which the verifier 
+          retrying. This value is determined by the formula n*m where n is a count of the requests which the verifier
           has had to reject for this reason (including the current request) and m is the average number of seconds the
           verifier has taken to complete each verification task since starting. The value n is reset to 0 when enough
           workers become available to service more verification tasks.
@@ -159,7 +158,7 @@ class AttestationController(Controller):
 
         if not agent:
             APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
-        
+
         results = Attestation.all(agent_id=agent_id)
 
         resources = [
@@ -202,7 +201,7 @@ class AttestationController(Controller):
 
     # POST /v3[.:minor]/agents/:agent_id/attestations
     @Controller.require_json_api
-    def create(self, agent_id, attestation, **params):
+    def create(self, agent_id, attestation, **params):  # pylint: disable=unused-argument  # Required by decorator
         agent = VerifierAgent.get(agent_id)
 
         if not agent:
@@ -260,7 +259,9 @@ class AttestationController(Controller):
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/:index
     @Controller.require_json_api
-    def update(self, agent_id, index, attestation, **params):
+    def update(
+        self, agent_id, index, attestation, **params
+    ):  # pylint: disable=unused-argument  # Required by decorator
         agent = VerifierAgent.get(agent_id)
 
         if not agent:
@@ -302,7 +303,7 @@ class AttestationController(Controller):
             APIResource("attestation", agent.latest_attestation.render_evidence_acknowledged()).include(
                 APILink("self", f"/{self.version}/agents/{agent_id}/attestations/{index}")
             ),
-            APIMeta("seconds_to_next_attestation", agent.latest_attestation.seconds_to_next_attestation)
+            APIMeta("seconds_to_next_attestation", agent.latest_attestation.seconds_to_next_attestation),
         ).send_via(self, code=202, stop_action=False)
 
         # Verify attestation after response is sent, so the agent does not need to wait for verification to complete

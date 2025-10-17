@@ -1,10 +1,8 @@
 from keylime import api_version, config, keylime_logging
 from keylime.common.migrations import apply
 from keylime.mba import mba
-
-from keylime.web import VerifierServer
 from keylime.models import da_manager, db_manager
-
+from keylime.web import VerifierServer
 
 logger = keylime_logging.init_logging("verifier")
 

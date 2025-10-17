@@ -1,10 +1,9 @@
 import math
-from datetime import timedelta
 
-from keylime import config, keylime_logging
-from keylime.models.base import *
 import keylime.models.verifier as verifier_models
+from keylime import keylime_logging
 from keylime.common import algorithms
+from keylime.models.base import *
 
 logger = keylime_logging.init_logging("verifier")
 
@@ -13,10 +12,12 @@ class EvidenceItem(PersistableModel):
     @classmethod
     def _schema(cls):
         cls._persist_as("evidence_items")
-        
+
         cls._belongs_to("attestation", verifier_models.Attestation)
-        cls._field("agent_id", String(80), refers_to="attestation.agent_id")
-        cls._field("attestation_index", Integer, refers_to="attestation.index")
+        cls._field("agent_id", String(80), refers_to="attestation.agent_id")  # pylint: disable=unexpected-keyword-arg
+        cls._field(  # pylint: disable=unexpected-keyword-arg
+            "attestation_index", Integer, refers_to="attestation.index"
+        )
 
         cls._field("evidence_class", OneOf("certification", "log"))
         cls._field("evidence_type", OneOf("tpm_quote", "uefi_log", "ima_log", String))
@@ -29,23 +30,25 @@ class EvidenceItem(PersistableModel):
     @classmethod
     def create(cls, data):
         if not isinstance(data, dict):
-            TypeError("each item in 'evidence_supported' must be a dictionary")
+            raise TypeError("each item in 'evidence_supported' must be a dictionary")
 
         evidence_item = EvidenceItem.empty()
         evidence_item.receive_capabilities(data)
         return evidence_item
 
     def refresh_metadata(self):
-        if self.attestation:
-            self.attestation.refresh_metadata()
+        if self.attestation:  # pylint: disable=using-constant-test
+            self.attestation.refresh_metadata()  # pylint: disable=no-member
 
     def receive_capabilities(self, data):
         self.cast_changes(data, ["evidence_class", "evidence_type"])
 
+        # pylint: disable=access-member-before-definition,comparison-with-callable,attribute-defined-outside-init
         if self.evidence_class == "certification" and not isinstance(self.capabilities, CertificationCapabilities):
             self.capabilities = CertificationCapabilities.empty()
         elif self.evidence_class == "log" and not isinstance(self.capabilities, LogCapabilities):
             self.capabilities = LogCapabilities.empty()
+        # pylint: enable=access-member-before-definition,comparison-with-callable,attribute-defined-outside-init
 
         self.capabilities.initialise()
         self.capabilities.update(data.get("capabilities"))
@@ -54,10 +57,12 @@ class EvidenceItem(PersistableModel):
         self.refresh_metadata()
 
     def initialise_parameters(self):
+        # pylint: disable=comparison-with-callable,attribute-defined-outside-init
         if self.evidence_class == "certification" and not isinstance(self.chosen_parameters, CertificationParameters):
             self.chosen_parameters = CertificationParameters.empty()
         elif self.evidence_class == "log" and not isinstance(self.chosen_parameters, LogParameters):
             self.chosen_parameters = LogParameters.empty()
+        # pylint: enable=comparison-with-callable,attribute-defined-outside-init
 
         self.chosen_parameters.initialise()
 
@@ -65,30 +70,32 @@ class EvidenceItem(PersistableModel):
         self.chosen_parameters.validate_choices(check_against=self.capabilities)
         self.refresh_metadata()
 
-    def generate_challenge(self, bit_length):
-        if self.evidence_class != "certification":
+    def generate_challenge(self, bit_length):  # pylint: disable=unused-argument  # Parameter reserved for future use
+        if self.evidence_class != "certification":  # pylint: disable=comparison-with-callable  # ORM framework pattern
             raise ValueError("challenge can only be generated for EvidenceItem with evidence_class 'certification'")
-        
+
+        # pylint: disable=comparison-with-callable,attribute-defined-outside-init
         if not isinstance(self.chosen_parameters, CertificationParameters):
             self.chosen_parameters = CertificationParameters.empty()
+        # pylint: enable=comparison-with-callable,attribute-defined-outside-init
 
         self.chosen_parameters.generate_challenge(bit_length)
         self.refresh_metadata()
 
     def receive_evidence(self, data):
+        # pylint: disable=access-member-before-definition,comparison-with-callable,attribute-defined-outside-init
         if self.evidence_class == "certification":
-
             if not isinstance(self.data, CertificationData):
                 self.data = CertificationData.empty()
 
             self.results = CertificationResults.empty()
 
         elif self.evidence_class == "log":
-
             if not isinstance(self.data, LogData):
                 self.data = LogData.empty()
 
             self.results = LogResults.empty()
+        # pylint: enable=access-member-before-definition,comparison-with-callable,attribute-defined-outside-init
 
         self.data.initialise()
         self.results.initialise()
@@ -100,7 +107,7 @@ class EvidenceItem(PersistableModel):
 
         if self.chosen_parameters:
             rendered_params = self.chosen_parameters.render()
-            
+
             if rendered_params:
                 output["chosen_parameters"] = rendered_params
 
@@ -117,7 +124,7 @@ class EvidenceItem(PersistableModel):
 
         if self.chosen_parameters:
             rendered_params = self.chosen_parameters.render()
-            
+
             if rendered_params:
                 output["chosen_parameters"] = rendered_params
 
@@ -130,29 +137,34 @@ class EvidenceItem(PersistableModel):
         return self.render_evidence_acknowledged()
 
     def compatible_with(self, evidence_item):
+        # pylint: disable=comparison-with-callable  # ORM framework pattern for type checking
         capabilities_compatible = (
-            (not self.capabilities and not evidence_item.capabilities)
-            or self.capabilities.values == evidence_item.capabilities.values
-        )
+            not self.capabilities and not evidence_item.capabilities
+        ) or self.capabilities.values == evidence_item.capabilities.values
+        # pylint: enable=comparison-with-callable
 
+        # pylint: disable=comparison-with-callable  # ORM framework pattern for field comparison
         return (
-            self.agent_id == evidence_item.agent_id and
-            self.attestation_index == evidence_item.attestation_index and
-            self.evidence_class == evidence_item.evidence_class and
-            self.evidence_type == evidence_item.evidence_type and
-            capabilities_compatible
+            self.agent_id == evidence_item.agent_id
+            and self.attestation_index == evidence_item.attestation_index
+            and self.evidence_class == evidence_item.evidence_class
+            and self.evidence_type == evidence_item.evidence_type
+            and capabilities_compatible
         )
+        # pylint: enable=comparison-with-callable
 
     @property
     def next_starting_offset(self):
-        if self.evidence_class != "log":
+        if self.evidence_class != "log":  # pylint: disable=comparison-with-callable  # ORM framework pattern
             raise AttributeError(f"'{self.evidence_class}' evidence item has no attribute 'next_starting_offset'")
 
+        # pylint: disable=comparison-with-callable  # ORM framework pattern for type checking
         if not self.capabilities or not self.capabilities.supports_partial_access:
             raise ValueError(
                 f"cannot determine 'next_starting_offset' for '{self.evidence_type}' evidence item which doesn't "
                 f"support partial access"
             )
+        # pylint: enable=comparison-with-callable
 
         if not self.chosen_parameters or self.chosen_parameters.starting_offset is None:
             return None
@@ -161,6 +173,7 @@ class EvidenceItem(PersistableModel):
             return None
 
         return self.chosen_parameters.starting_offset + self.results.certified_entry_count
+
 
 class Capabilities(PersistableModel):
     @classmethod
@@ -199,6 +212,7 @@ class Capabilities(PersistableModel):
 
         return super().render(only)
 
+
 class CertificationCapabilities(Capabilities):
     @classmethod
     def _schema(cls):
@@ -219,13 +233,13 @@ class CertificationCapabilities(Capabilities):
         cert_keys = data.get("certification_keys", [])
 
         if cert_keys:
-            self.certification_keys.clear()
+            self.certification_keys.clear()  # pylint: disable=no-member
 
             for key in cert_keys:
                 if isinstance(key, dict):
                     key = CertificationKey.create(key)
 
-                self.certification_keys.add(key)
+                self.certification_keys.add(key)  # pylint: disable=no-member
 
         self.validate_required("signature_schemes")
         self.validate_required("certification_keys")
@@ -242,7 +256,7 @@ class CertificationCapabilities(Capabilities):
             if self.available_subjects:
                 only.append("available_subjects")
 
-            if self.certification_keys:
+            if self.certification_keys:  # pylint: disable=no-member
                 only.append("certification_keys")
 
             output |= super().render(only)
@@ -254,6 +268,7 @@ class CertificationCapabilities(Capabilities):
             output["meta"] = rendered_meta
 
         return output
+
 
 class LogCapabilities(Capabilities):
     @classmethod
@@ -310,6 +325,7 @@ class LogCapabilities(Capabilities):
 
         return output
 
+
 class ChosenParameters(PersistableModel):
     @classmethod
     def _schema(cls):
@@ -330,6 +346,7 @@ class ChosenParameters(PersistableModel):
                 only.append("meta")
 
         return super().render(only)
+
 
 class CertificationParameters(ChosenParameters):
     @classmethod
@@ -379,12 +396,13 @@ class CertificationParameters(ChosenParameters):
             if self.selected_subjects:
                 only.append("selected_subjects")
 
-            if self.certification_key:
+            if self.certification_key:  # pylint: disable=no-member
                 only.append("certification_key")
 
             output |= super().render(only)
 
         return output
+
 
 class LogParameters(ChosenParameters):
     @classmethod
@@ -442,6 +460,7 @@ class LogParameters(ChosenParameters):
 
         return output
 
+
 class EvidenceData(PersistableModel):
     @classmethod
     def _schema(cls):
@@ -464,6 +483,7 @@ class EvidenceData(PersistableModel):
                 only.append("meta")
 
         return super().render(only)
+
 
 class CertificationData(EvidenceData):
     @classmethod
@@ -497,6 +517,7 @@ class CertificationData(EvidenceData):
 
         return super().render(only)
 
+
 class LogData(EvidenceData):
     @classmethod
     def _schema(cls):
@@ -508,7 +529,7 @@ class LogData(EvidenceData):
     def update(self, data):
         self.cast_changes(data, ["entry_count", "entries"])
 
-        requested_count = self.evidence_item.chosen_parameters.entry_count or math.inf
+        requested_count = self.evidence_item.chosen_parameters.entry_count or math.inf  # pylint: disable=no-member
 
         msg = f"must be no more than the number of entries requested ({requested_count})"
         self.validate_number("entry_count", ("<=", requested_count), msg=msg)
@@ -524,6 +545,7 @@ class LogData(EvidenceData):
                 only.append("meta")
 
         return super().render(only)
+
 
 class CertificationKey(PersistableModel):
     @classmethod
@@ -552,35 +574,35 @@ class CertificationKey(PersistableModel):
         return cert_key
 
     def _check_identifier_presence(self):
+        # pylint: disable=comparison-with-callable  # ORM framework pattern for type checking
         if self.key_class == "asymmetric" and not (self.server_identifier or self.local_identifier or self.public):
             self._add_error(
                 "server_identifier",
-                "is required when key_class is 'asymmetric' and neither local_identifier nor public has been provided"
+                "is required when key_class is 'asymmetric' and neither local_identifier nor public has been provided",
             )
 
             self._add_error(
                 "local_identifier",
-                "is required when key_class is 'asymmetric' and neither server_identifier nor public has been provided"
+                "is required when key_class is 'asymmetric' and neither server_identifier nor public has been provided",
             )
 
             self._add_error(
                 "public",
                 "is required when key_class is 'asymmetric' and neither server_identifier nor local_identifier has been"
-                "provided"
+                "provided",
             )
 
         elif self.key_class == "shared" and not (self.server_identifier or self.local_identifier):
             self._add_error(
-                "server_identifier",
-                "is required when key_class is 'shared' and local_identifier has not been provided"
+                "server_identifier", "is required when key_class is 'shared' and local_identifier has not been provided"
             )
 
             self._add_error(
-                "local_identifier",
-                "is required when key_class is 'shared' and server_identifier has not been provided"
+                "local_identifier", "is required when key_class is 'shared' and server_identifier has not been provided"
             )
 
             self.validate_absence("public", "is not allowable when key_class is 'shared'")
+        # pylint: enable=comparison-with-callable
 
     def _check_scheme_restriction(self):
         if not self.allowable_signature_schemes or not self.key_algorithm:
@@ -589,26 +611,37 @@ class CertificationKey(PersistableModel):
         for scheme in self.allowable_signature_schemes:
             if not algorithms.Sign.is_recognized(scheme):
                 continue
-            
+
             if algorithms.Sign(scheme).key_algorithm != algorithms.Key(self.key_algorithm):
                 self._add_error(
                     "allowable_signature_schemes",
-                    f"must not contain schemes incompatible with key_algorithm ('{self.key_algorithm}')"
+                    f"must not contain schemes incompatible with key_algorithm ('{self.key_algorithm}')",
                 )
                 return
 
     def update(self, data):
-        self.cast_changes(data, [
-            "key_class", "key_algorithm", "key_size", "server_identifier", "local_identifier",
-            "allowable_signature_schemes", "allowable_hash_algorithms", "public"
-        ])
+        self.cast_changes(
+            data,
+            [
+                "key_class",
+                "key_algorithm",
+                "key_size",
+                "server_identifier",
+                "local_identifier",
+                "allowable_signature_schemes",
+                "allowable_hash_algorithms",
+                "public",
+            ],
+        )
 
         self.validate_required(["key_class", "key_size"])
         self._check_identifier_presence()
         self._check_scheme_restriction()
 
+        # pylint: disable=comparison-with-callable  # ORM framework pattern for type checking
         if self.key_class == "asymmetric":
             self.validate_required("key_algorithm", "is required when key_class is 'asymmetric'")
+        # pylint: enable=comparison-with-callable
 
     def render(self, only=None):
         if only is None:
@@ -634,6 +667,7 @@ class CertificationKey(PersistableModel):
 
         return super().render(only)
 
+
 class Results(PersistableModel):
     @classmethod
     def _schema(cls):
@@ -657,10 +691,12 @@ class Results(PersistableModel):
 
         return super().render(only)
 
+
 class CertificationResults(Results):
     @classmethod
     def _schema(cls):
         super()._schema()
+
 
 class LogResults(Results):
     @classmethod

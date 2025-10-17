@@ -1,6 +1,7 @@
 from abc import ABCMeta
 from typing import Any
 
+
 class VerificationEngineMeta(ABCMeta):
     def __new__(mcs, new_cls_name: str, bases: tuple[type, ...], attrs: dict[str, Any]) -> "VerificationEngineMeta":
         cls = super().__new__(mcs, new_cls_name, bases, attrs)

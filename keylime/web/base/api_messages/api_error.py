@@ -1,26 +1,29 @@
 from types import MappingProxyType
 from typing import overload
 
-import keylime.web.base.api_messages as api_messages
-
-from keylime.web.base.api_messages.api_message_helpers import APIMessageHelpers
+import keylime.web.base.api_messages as api_messages  # pylint: disable=consider-using-from-import  # Avoid circular import
 from keylime.web.base.api_messages.api_links import APILink, APILinksMixin
-from keylime.web.base.exceptions import MissingMember, InvalidMember
+from keylime.web.base.api_messages.api_message_helpers import APIMessageHelpers
+from keylime.web.base.exceptions import InvalidMember, MissingMember
 
 
 class APIError(APILinksMixin):
     @overload
     def __init__(self, api_code):
         ...
+
     @overload
     def __init__(self, api_code, http_code):
         ...
+
     @overload
     def __init__(self, api_code, detail):
         ...
+
     @overload
     def __init__(self, api_code, http_code, detail):
         ...
+
     def __init__(self, *args):
         if not args:
             raise MissingMember("the error code (i.e., 'api_code') of a JSON:API error must not be empty")
@@ -85,7 +88,7 @@ class APIError(APILinksMixin):
     def clear_http_code(self):
         self._http_code = None
         return self
-    
+
     def set_detail(self, detail):
         if not isinstance(detail, str):
             raise InvalidMember("the description (i.e., 'detail') of a JSON:API error must be a str")

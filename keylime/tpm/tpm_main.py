@@ -254,6 +254,7 @@ class Tpm:
         mb_policy: Optional[str],
         hash_alg: Hash,
         count: int,
+        skip_data_pcr_check: bool = False,
     ) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
 
@@ -291,7 +292,7 @@ class Tpm:
             logger.error("No PCRs from bank '%s' found in TPM quote for agent '%s'", hash_alg.value, agent_id)
 
         # If additional data is provided, check its presence in the data PCR (defined by config.TPM_DATA_PCR)
-        if data is not None:
+        if data is not None and not skip_data_pcr_check:
             self._check_data_pcr(agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote)
 
         # Check for ima PCR
@@ -304,7 +305,7 @@ class Tpm:
             else:
                 if ima_measurement_list == "":
                     logger.info("No new IMA events received from agent '%s'", agent_id)
-                    
+
                 ima_failure = Tpm.__check_ima(
                     agentAttestState,
                     pcrs_dict[config.IMA_PCR],
@@ -324,8 +325,7 @@ class Tpm:
             logger.info("Checking measured boot PCRs against log for agent: %s", agent_id)
         else:
             logger.info(
-                "No measured boot policy configured for agent '%s'; skipping measured boot verification",
-                agent_id
+                "No measured boot policy configured for agent '%s'; skipping measured boot verification", agent_id
             )
 
         # Collect mismatched measured boot PCRs as measured_boot failures
@@ -451,9 +451,7 @@ class Tpm:
 
             if not mba.policy_is_valid(mb_policy):
                 logger.error("Invalid measured boot policy for agent '%s'", agent_id)
-                failure.add_event(
-                    f"invalid_mb_policy", "Invalid measured boot policy", True
-                )
+                failure.add_event("invalid_mb_policy", "Invalid measured boot policy", True)
 
         if not mb_failure and mba.policy_is_valid(mb_policy):
             mb_evaluate = config.get("verifier", "measured_boot_evaluate", fallback="once")
@@ -493,6 +491,7 @@ class Tpm:
         count: int = -1,
         skip_pcr_check: bool = False,
         skip_clock_check: bool = False,
+        skip_data_pcr_check: bool = False,
     ) -> Failure:
         if tpm_policy is None:
             tpm_policy = {}
@@ -502,7 +501,7 @@ class Tpm:
 
         failure = Failure(Component.QUOTE_VALIDATION)
 
-        # The underlying methods expect certain objects to be given b64 encoded, so convert 
+        # The underlying methods expect certain objects to be given b64 encoded, so convert
 
         if not isinstance(nonce, str):
             nonce = base64.b64encode(nonce).decode("utf-8")
@@ -561,7 +560,8 @@ class Tpm:
                 mb_measurement_list,
                 mb_policy,
                 hash_alg,
-                count
+                count,
+                skip_data_pcr_check,
             )
 
         return failure
