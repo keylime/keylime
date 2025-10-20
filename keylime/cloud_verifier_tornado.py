@@ -219,13 +219,13 @@ def store_attestation_state(agentAttestState: AgentAttestState) -> None:
 
 
 class BaseHandler(tornado.web.RequestHandler):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
         self._req_handler_override = kwargs.get("override")
         del kwargs["override"]
         super().__init__(*args, **kwargs)
 
     @property
-    def req_handler(self):
+    def req_handler(self):  # type: ignore[no-untyped-def]
         if self._req_handler_override:
             return self._req_handler_override
         return self

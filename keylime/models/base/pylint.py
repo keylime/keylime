@@ -1,6 +1,6 @@
 """
 Pylint/Astroid plugin to suppress overzealous error/warnings which arise when writing model definitions as a result
-of the meta-programming features used to implement the schema domain-specific language (DSL). Because they are 
+of the meta-programming features used to implement the schema domain-specific language (DSL). Because they are
 appropriate and expected in other areas of the codebase, we cannot simply disable the relevant errors/warnings.
 Instead, this plugin targets models specifically and modifies the in-memory Astroid representation of their source code
 to eliminate the conditions which produce the errors/warnings prior to consumption by Pylint.

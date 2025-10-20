@@ -1,6 +1,4 @@
-"""Database migration
-
-"""
+"""Database migration"""
 
 import logging
 import re

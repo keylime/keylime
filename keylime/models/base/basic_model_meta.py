@@ -99,7 +99,7 @@ class BasicModelMeta(ABCMeta):
         setattr(cls, name, value)
 
     @classmethod
-    def _make_field(mcs, cls: "BasicModelMeta", name: str, data_type: DeclaredFieldType, **opts) -> ModelField:  # type: ignore[reportSelfClassParameterName]
+    def _make_field(mcs, cls: "BasicModelMeta", name: str, data_type: DeclaredFieldType, **opts) -> ModelField:  # type: ignore[reportSelfClassParameterName, no-untyped-def]
         fields = mcs._getattr(cls, "__fields")
         associations = mcs._getattr(cls, "__associations")
 
@@ -169,7 +169,7 @@ class BasicModelMeta(ABCMeta):
 
         return cls
 
-    def _sub_models(cls, *models):
+    def _sub_models(cls, *models):  # type: ignore[no-untyped-def]
         if not cls.schema_helpers_enabled:
             return
 
@@ -191,7 +191,7 @@ class BasicModelMeta(ABCMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        association = EmbedsOneAssociation(name, cls, *args, **kwargs)
+        association = EmbedsOneAssociation(name, cls, *args, **kwargs)  # type: ignore[arg-type]
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_embeds_one", name, *args, **kwargs)
@@ -200,7 +200,7 @@ class BasicModelMeta(ABCMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        association = EmbedsManyAssociation(name, cls, *args, **kwargs)
+        association = EmbedsManyAssociation(name, cls, *args, **kwargs)  # type: ignore[arg-type]
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_embeds_many", name, *args, **kwargs)
@@ -209,7 +209,7 @@ class BasicModelMeta(ABCMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        association = EmbeddedInAssociation(name, cls, *args, **kwargs)
+        association = EmbeddedInAssociation(name, cls, *args, **kwargs)  # type: ignore[arg-type]
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_embedded_in", name, *args, **kwargs)
@@ -259,7 +259,7 @@ class BasicModelMeta(ABCMeta):
             cls.process_schema()
 
         sub_models = type(cls)._getattr(cls, "__sub_models")
-        return sub_models.copy()
+        return sub_models.copy()  # type: ignore[no-any-return]
 
     @property
     def fields(cls) -> Mapping[str, ModelField]:

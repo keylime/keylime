@@ -84,7 +84,7 @@ class Binary(ModelType):
 
     IncomingValue: TypeAlias = Union[bytes, str, None]
 
-    def __init__(self, persist_as=LargeBinary) -> None:
+    def __init__(self, persist_as: type[LargeBinary] | type[String] | LargeBinary | String = LargeBinary) -> None:
         if not isinstance(persist_as, (LargeBinary, String)) and not issubclass(persist_as, (LargeBinary, String)):
             raise TypeError("field of type 'Binary' must have a persist_as value of type 'LargeBinary' or 'String'")
 

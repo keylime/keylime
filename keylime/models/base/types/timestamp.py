@@ -10,7 +10,7 @@ class Timestamp(ModelType):
     IncomingValue: TypeAlias = Union[datetime, str, int, float, None]
 
     @staticmethod
-    def now():
+    def now() -> datetime:
         return datetime.now(tz=timezone.utc)
 
     def __init__(self) -> None:

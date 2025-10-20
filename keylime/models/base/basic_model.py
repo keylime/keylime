@@ -467,7 +467,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
         if not re.fullmatch(format, value):
             self._add_error(field, msg or "does not have the correct format")
 
-    def validate_snake_case(self, fields: Union[str, Sequence[str]], msg: Optional[str] = None):
+    def validate_snake_case(self, fields: Union[str, Sequence[str]], msg: Optional[str] = None) -> None:
         msg = msg or "can only contain lowercase letters, numbers and underscores"
 
         for field in fields:
@@ -501,7 +501,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
         return data
 
     def render(self, only: Optional[Sequence[str]] = None) -> dict[str, Any]:
-        data = {}
+        data: dict[str, Any] = {}
 
         # Locate record members by iterating through schema helper calls so that fields ane embedded records are
         # rendered in the order in which they were defined
@@ -524,7 +524,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
             # If member name is the name of an embedded record, render the full record
             elif name in self.__class__.embeds_one_associations.keys():
                 self._render_embedded_record(name, data)
-            elif name in self.__class__.embeds_inline_associations.keys():  # pylint: disable=no-member
+            elif name in self.__class__.embeds_inline_associations.keys():  # type: ignore[attr-defined]  # pylint: disable=no-member
                 self._render_embedded_record(name, data)
             # If member name is the name of a set of embedded records, render as a list of records
             elif name in self.__class__.embeds_many_associations.keys():
@@ -532,7 +532,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
 
         return data
 
-    def get_errors(self, associations=None, pointer_prefix=None, memo=None):
+    def get_errors(self, associations=None, pointer_prefix=None, memo=None):  # type: ignore[no-untyped-def]
         if associations is None:
             associations = self.__class__.associations.values()
             associations = [assoc.name for assoc in associations if not isinstance(assoc, EmbeddedInAssociation)]
@@ -549,6 +549,8 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
 
         for assoc_name in associations:
             assoc = self.__class__.associations.get(assoc_name)
+            if not assoc:
+                continue
             assoc_pointer_prefix = f"{pointer_prefix}{assoc_name}/"
             records = assoc.get_record_set(self)
 
@@ -557,7 +559,7 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
                     continue
 
                 record_pointer_prefix = f"{assoc_pointer_prefix}{index}/" if assoc.to_many else assoc_pointer_prefix
-                record_errors = record.get_errors(pointer_prefix=record_pointer_prefix, memo=memo)
+                record_errors = record.get_errors(pointer_prefix=record_pointer_prefix, memo=memo)  # type: ignore[no-untyped-call]
                 errors.update(record_errors)
 
         return errors
@@ -575,9 +577,9 @@ class BasicModel(ABC, metaclass=BasicModelMeta):
         return MappingProxyType({**self.committed, **self.changes})
 
     @property
-    def errors(self) -> Mapping[str, Mapping]:
-        return MappingProxyType(self._errors)
+    def errors(self) -> Mapping[str, list[str]]:
+        return MappingProxyType(self._errors)  # type: ignore[arg-type]
 
     @property
     def changes_valid(self) -> bool:
-        return len(self.get_errors()) == 0
+        return len(self.get_errors()) == 0  # type: ignore[no-untyped-call]

@@ -128,7 +128,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
     INST_ATTRS: tuple[str, ...] = (*BasicModel.INST_ATTRS, "_db_mapping_inst")
 
     @classmethod
-    def _build_filter_criterion(cls, name, values):
+    def _build_filter_criterion(cls, name: str, values: Any) -> Any:
         sa_field = getattr(cls.db_mapping, name)
 
         if values is None:
@@ -142,7 +142,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         return or_(*criteria)
 
     @classmethod
-    def _build_sort_criterion(cls, criterion):
+    def _build_sort_criterion(cls, criterion: Any) -> Any:
         if isinstance(criterion, str):
             criterion = asc(criterion)
 
@@ -153,7 +153,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         return asc(sa_field)
 
     @classmethod
-    def _query(cls, session, args, kwargs, subject=None):
+    def _query(cls, session: Any, args: Any, kwargs: Any, subject: Any = None) -> Any:
         if subject is None:
             subject = cls.db_mapping
 
@@ -246,11 +246,11 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         else:
             super().__init__(data, process_associations)  # type: ignore[reportArgumentType, arg-type]
 
-    def _get_inline_mapped_data(self, mapping_inst, assoc_name):
+    def _get_inline_mapped_data(self, mapping_inst: Any, assoc_name: str) -> Any:
         association = type(self).embeds_inline_associations[assoc_name]
-        associated_data = {}
+        associated_data: dict[str, Any] = {}
 
-        for db_name, item in association.other_model.get_db_column_items(embedded_in=association).items():
+        for db_name, item in association.other_model.get_db_column_items(embedded_in=association).items():  # type: ignore[attr-defined]
             value = getattr(mapping_inst, db_name)
 
             if value is None:
@@ -289,8 +289,8 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         if not process_associations:
             return
 
-        memo = set() if memo is None else memo
-        memo.add(id(mapping_inst))
+        memo_set: set[int] = set() if memo is None else memo  # type: ignore[assignment]
+        memo_set.add(id(mapping_inst))
 
         for name, association in type(self).associations.items():
             if isinstance(association, EmbedsInlineAssociation):
@@ -305,7 +305,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             record_set = association.get_record_set(self)
             associated_models = [association.other_model, *association.other_model.sub_models]
 
-            if id(associated_data[0]) in memo:
+            if id(associated_data[0]) in memo:  # type: ignore[operator]
                 continue
 
             for item in associated_data:
@@ -314,7 +314,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
 
                 for model in associated_models:
                     try:
-                        value = model(item, memo=memo)
+                        value = model(item, memo=memo)  # type: ignore[operator]
                     except UndefinedField as err:
                         exceptions.append(err)
                         continue
@@ -344,7 +344,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
 
         self._force_commit_changes()
 
-    def get_db_changes(self, embedded_in=None):
+    def get_db_changes(self, embedded_in: Any = None) -> dict[str, Any]:
         changes = self._changes.copy()
         dialect = db_manager.engine.dialect
 
@@ -369,7 +369,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             embed_record_set = embed.get_record_set(self)
 
             if embed_record_set:
-                changes |= embed_record_set[0].get_db_changes(embedded_in=embed)
+                changes |= embed_record_set[0].get_db_changes(embedded_in=embed)  # type: ignore[union-attr]
 
         if embedded_in:
             for field_name in changes.copy().keys():
@@ -377,7 +377,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
 
         return changes
 
-    def commit_changes(self, session=None, persist=True) -> None:
+    def commit_changes(self, session: Any = None, persist: bool = True) -> None:
         if not self.changes_valid:
             raise FieldValueInvalid(f"pending changes for model '{type(self).__name__}' have validation errors")
 
@@ -405,9 +405,9 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             embed_record_set = embed.get_record_set(self)
 
             if embed_record_set:
-                embed_record_set[0].commit_changes(persist=False)
+                embed_record_set[0].commit_changes(persist=False)  # type: ignore[call-arg, union-attr]
 
-    def delete(self, session=None, include_dependants=True) -> None:
+    def delete(self, session: Any = None, include_dependants: bool = True) -> None:
         if include_dependants:
             dependant_assocs = [*type(self).has_many_associations.values(), *type(self).has_one_associations.values()]
         else:
@@ -417,14 +417,16 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         with db_manager.session_context(session) as session:
             for assoc in dependant_assocs:
                 foreign_key_values = {
-                    key: self.values.get(assoc.other_model.fields[key].linked_field) for key in assoc.foreign_keys
+                    key: self.values.get(assoc.other_model.fields[key].linked_field) for key in assoc.foreign_keys  # type: ignore[arg-type]
                 }
                 assoc.other_model.delete_all(**foreign_key_values, session_=session)
 
             session.delete(self._db_mapping_inst)  # type: ignore[no-untyped-call]
         # pylint: enable=redefined-argument-from-local
 
-    def get_errors(self, associations=None, pointer_prefix=None, memo=None):
+    def get_errors(
+        self, associations: Any = None, pointer_prefix: Any = None, memo: Any = None
+    ) -> dict[str, list[str]]:
         if associations is None:
             associations = [
                 assoc.name
@@ -432,4 +434,4 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
                 if not isinstance(assoc, (EmbeddedInAssociation, BelongsToAssociation))
             ]
 
-        return super().get_errors(associations, pointer_prefix, memo)
+        return super().get_errors(associations, pointer_prefix, memo)  # type: ignore[no-untyped-call, no-any-return]

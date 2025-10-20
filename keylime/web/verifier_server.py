@@ -8,7 +8,7 @@ from keylime.web.verifier.server_info_controller import ServerInfoController
 
 
 class VerifierServer(Server):
-    def _setup(self):
+    def _setup(self) -> None:
         self._use_config("verifier")
         self._set_operating_mode(from_config="mode", fallback="push")
         self._set_bind_interface(from_config="ip")
@@ -17,18 +17,18 @@ class VerifierServer(Server):
         self._set_max_upload_size(from_config="max_upload_size")
         self._set_default_ssl_ctx()
 
-    def _routes(self):
+    def _routes(self) -> None:
         self._top_level_routes()
         self._v2_routes()
         self._v3_routes()
 
-    def _top_level_routes(self):
+    def _top_level_routes(self) -> None:
         self._get("/", ServerInfoController, "show_root")
         self._get("/versions", ServerInfoController, "show_versions")
         self._get("/version", ServerInfoController, "show_versions")
 
     @Server.version_scope(2)
-    def _v2_routes(self):
+    def _v2_routes(self) -> None:
         self._get("/", ServerInfoController, "show_version_root")
 
         # Routes for managing agent resources
@@ -45,7 +45,7 @@ class VerifierServer(Server):
         # Note: push-specific endpoints are only available from API v3 onwards
 
     @Server.version_scope(3)
-    def _v3_routes(self):
+    def _v3_routes(self) -> None:
         self._get("/", ServerInfoController, "show_version_root")
 
         # Routes for managing agent resources
@@ -61,13 +61,13 @@ class VerifierServer(Server):
         # Routes for on-demand verification of evidence in API v3+
         self._v3_evidence_routes()
 
-    def _agent_routes(self):
+    def _agent_routes(self) -> None:
         # Routes used to manage agents enrolled for verification
         self._get("/agents", AgentController, "index")
         self._get("/agents/:agent_id", AgentController, "show")
         self._delete("/agents/:agent_id", AgentController, "delete")
 
-    def _v2_agent_routes(self):
+    def _v2_agent_routes(self) -> None:
         # Routes used to manage agents enrolled for verification
         self._post("/agents/:agent_id", AgentController, "create")
 
@@ -76,14 +76,14 @@ class VerifierServer(Server):
         self._put("/agents/:agent_id/stop", AgentController, "stop")
         # Note: in v3+, these actions are performed by mutating agent resources directly
 
-    def _v3_agent_routes(self):
+    def _v3_agent_routes(self) -> None:
         # Routes used to manage agents enrolled for verification (which adhere to RFC 9110 semantics)
         self._post("/agents", AgentController, "create")
         self._patch("/agents/:agent_id", AgentController, "update")
         # Note: in pull mode, the update action includes turning polling on/off
 
     @Server.push_only
-    def _attestation_routes(self):
+    def _attestation_routes(self) -> None:
         self._get("/agents/:agent_id/attestations", AttestationController, "index", allow_insecure=True)
         self._post("/agents/:agent_id/attestations", AttestationController, "create", allow_insecure=True)
         self._get("/agents/:agent_id/attestations/latest", AttestationController, "show_latest", allow_insecure=True)
@@ -95,7 +95,7 @@ class VerifierServer(Server):
 
         # TODO: Remove "allow_insecure" above
 
-    def _v2_mb_routes(self):
+    def _v2_mb_routes(self) -> None:
         # Routes used to manage reference states for MB/UEFI verification
         self._get("/mbpolicies", MBRefStateController, "index")
         self._post("/mbpolicies/:name", MBRefStateController, "create")
@@ -103,7 +103,7 @@ class VerifierServer(Server):
         self._put("/mbpolicies/:name", MBRefStateController, "overwrite")
         self._delete("/mbpolicies/:name", MBRefStateController, "delete")
 
-    def _v3_mb_routes(self):
+    def _v3_mb_routes(self) -> None:
         # Routes used to manage reference states for MB/UEFI verification (which adhere to RFC 9110 semantics)
         self._get("/refstates/uefi", MBRefStateController, "index")
         self._post("/refstates/uefi", MBRefStateController, "create")
@@ -111,7 +111,7 @@ class VerifierServer(Server):
         self._patch("/refstates/uefi/:name", MBRefStateController, "update")
         self._delete("/refstates/uefi/:name", MBRefStateController, "delete")
 
-    def _v2_ima_routes(self):
+    def _v2_ima_routes(self) -> None:
         # Routes used to manage policies for IMA verification
         self._get("/allowlists", IMAPolicyController, "index")
         self._get("/allowlists/:name", IMAPolicyController, "show")
@@ -119,7 +119,7 @@ class VerifierServer(Server):
         self._put("/allowlists/:name", IMAPolicyController, "overwrite")
         self._delete("/allowlists/:name", IMAPolicyController, "delete")
 
-    def _v3_ima_routes(self):
+    def _v3_ima_routes(self) -> None:
         # Routes used to manage policies for IMA verification (which adhere to RFC 9110 semantics)
         self._get("/policies/ima", IMAPolicyController, "index")
         self._get("/policies/ima/:name", IMAPolicyController, "show")
@@ -127,10 +127,10 @@ class VerifierServer(Server):
         self._patch("/policies/ima/:name", IMAPolicyController, "update")
         self._delete("/policies/ima/:name", IMAPolicyController, "delete")
 
-    def _v2_evidence_routes(self):
+    def _v2_evidence_routes(self) -> None:
         # Routes for on-demand verification of evidence
         self._get("/verify/identity", EvidenceController, "process")
 
-    def _v3_evidence_routes(self):
+    def _v3_evidence_routes(self) -> None:
         # Routes for on-demand verification of evidence (which adhere to RFC 9110 semantics)
         self._post("/evidence", EvidenceController, "process")

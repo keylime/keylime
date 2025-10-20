@@ -6,7 +6,7 @@ from keylime.models.base.types.binary import Binary
 # TODO: Add documentation
 class Nonce(Binary):
     @staticmethod
-    def generate(num_of_bits, enforce_entropy=True):
+    def generate(num_of_bits: int, enforce_entropy: bool = True) -> bytes:
         if num_of_bits % 8 != 0:
             raise ValueError("Nonce.generate() must receive a value which is a multiple of 8")
 

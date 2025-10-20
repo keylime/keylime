@@ -13,13 +13,13 @@ class EvidenceController(Controller):
 
         tornado_app = self.action_handler.application
         tornado_req = self.action_handler.request
-        return v2.VerifyIdentityHandler(tornado_app, tornado_req, override=self.action_handler)
+        return v2.VerifyIdentityHandler(tornado_app, tornado_req, override=self.action_handler)  # type: ignore[no-untyped-call]
 
     # POST /v3[.x]/evidence
     # GET /v2[.x]/verify/identity
     def process(self, **_params):
-        if self.major_version <= 2:
-            self._new_v2_handler().get()
+        if self.major_version and self.major_version <= 2:
+            self._new_v2_handler().get()  # type: ignore[no-untyped-call]
         else:
             self.respond(404)
             # TODO: Replace with v3 implementation

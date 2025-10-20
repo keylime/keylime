@@ -1,8 +1,12 @@
-from typing import Sequence, Union
+from typing import TYPE_CHECKING, Any, Callable, Iterator, Sequence, Union
+
+if TYPE_CHECKING:
+    from keylime.models.base.basic_model import BasicModel
+    from keylime.models.base.basic_model_meta import BasicModelMeta
 
 
 class RecordSet(set["BasicModel"]):
-    def __init__(self, records: Sequence["BasicModel"], model: "BasicModelMeta" = None) -> None:
+    def __init__(self, records: Sequence["BasicModel"], model: "BasicModelMeta | None" = None) -> None:
         import keylime.models.base.basic_model  # pylint: disable=import-outside-toplevel
         import keylime.models.base.basic_model_meta  # pylint: disable=import-outside-toplevel
 
@@ -12,7 +16,8 @@ class RecordSet(set["BasicModel"]):
         if model and not isinstance(model, keylime.models.base.basic_model_meta.BasicModelMeta):
             raise TypeError(f"model used to initialise {self.__class__.__name__} must be a 'BasicModelMeta' instance")
 
-        self._model = model or type(records[0])
+        self._model: "BasicModelMeta" = model or type(records[0])  # type: ignore[assignment]
+        self._order: list["BasicModel"]
 
         for record in records:
             if not isinstance(record, keylime.models.base.basic_model.BasicModel):
@@ -24,21 +29,21 @@ class RecordSet(set["BasicModel"]):
         super().__init__(records)
         self._order = list(records)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self._order:
             return f"{self.__class__.__name__}({self._order})"
         return f"{self.__class__.__name__}(model={self.model.__name__})"
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator["BasicModel"]:
         return iter(self._order)
 
-    def __getitem__(self, arg):
+    def __getitem__(self, arg: int | slice) -> "BasicModel | list[BasicModel]":
         return self._order[arg]
 
-    def __copy__(self):
+    def __copy__(self) -> "RecordSet":
         return self.copy()
 
-    def add(self, record: "BasicModel") -> "RecordSet":
+    def add(self, record: "BasicModel") -> "RecordSet":  # type: ignore[override]
         if not isinstance(record, self.model):
             raise TypeError(
                 f"value of type '{record.__class__.__name__}' cannot be added to {self.__class__.__name__} with "
@@ -51,14 +56,14 @@ class RecordSet(set["BasicModel"]):
         super().add(record)
         return self
 
-    def update(self, *others):
+    def update(self, *others: Any) -> "RecordSet":  # type: ignore[override]
         for other in others:
             for record in other:
                 self.add(record)
 
         return self
 
-    def remove(self, record: "BasicModel") -> "RecordSet":
+    def remove(self, record: "BasicModel") -> "RecordSet":  # type: ignore[override]
         if record not in self._order or record not in self:
             raise KeyError("cannot remove record which does not exist in record set")
 
@@ -66,14 +71,14 @@ class RecordSet(set["BasicModel"]):
         super().remove(record)
         return self
 
-    def discard(self, record: "BasicModel") -> "RecordSet":
+    def discard(self, record: "BasicModel") -> "RecordSet":  # type: ignore[override]
         if record in self._order:
             self._order.remove(record)
 
         super().discard(record)
         return self
 
-    def pop(self) -> "RecordSet":
+    def pop(self) -> "BasicModel":  # type: ignore[override]
         if not self._order or not self:
             raise KeyError("cannot pop from empty record set")
 
@@ -81,18 +86,18 @@ class RecordSet(set["BasicModel"]):
         self.remove(record)
         return record
 
-    def clear(self) -> "RecordSet":
+    def clear(self) -> "RecordSet":  # type: ignore[override]
         self._order.clear()
         super().clear()
         return self
 
-    def to_list(self):
+    def to_list(self) -> list["BasicModel"]:
         return self._order.copy()
 
-    def copy(self):
+    def copy(self) -> "RecordSet":
         return RecordSet(self._order, model=self._model)
 
-    def view(self):
+    def view(self) -> "RecordSetView":
         return RecordSetView(self)
 
     @property
@@ -101,15 +106,15 @@ class RecordSet(set["BasicModel"]):
 
 
 class RecordSetView:  # pylint: disable=protected-access  # Intentional access to RecordSet internals
-    def __init__(self, parent):
+    def __init__(self, parent: Union["RecordSet", "RecordSetView"]) -> None:
         if not isinstance(parent, (RecordSet, RecordSetView)):
             raise TypeError("a new record set view can only be instantiated from a record set or other view")
 
-        self._parent = parent
-        self._content = parent.to_list()
-        self._fallback = []
+        self._parent: Union[RecordSet, RecordSetView] = parent
+        self._content: list["BasicModel"] = parent.to_list()
+        self._fallback: Any = []
 
-    def add(self, record):
+    def add(self, record: "BasicModel") -> "RecordSetView":
         if record not in self.record_set:
             raise KeyError("cannot add record to view which is not present in the view's record set")
 
@@ -123,11 +128,11 @@ class RecordSetView:  # pylint: disable=protected-access  # Intentional access t
                 break
 
         new_view = self.view()
-        insert_before = new_view._content.index(leader) + 1
+        insert_before = new_view._content.index(leader) + 1  # type: ignore[arg-type]
         new_view._content.insert(insert_before, record)
         return new_view
 
-    def update(self, *others):
+    def update(self, *others: Any) -> "RecordSetView":
         new_view = self.view()
 
         for other in others:
@@ -140,7 +145,7 @@ class RecordSetView:  # pylint: disable=protected-access  # Intentional access t
         new_view._parent = self._parent
         return new_view
 
-    def remove(self, record):
+    def remove(self, record: "BasicModel") -> "RecordSetView":
         if record not in self.record_set:
             raise KeyError("cannot remove record from view which is not present in the view's record set")
 
@@ -151,17 +156,17 @@ class RecordSetView:  # pylint: disable=protected-access  # Intentional access t
         new_view._content.remove(record)
         return new_view
 
-    def discard(self, record):
+    def discard(self, record: "BasicModel") -> "RecordSetView":
         if record not in self._content:
             return self
 
         new_view = self.remove(record)
         return new_view
 
-    def pop(self):
+    def pop(self) -> None:
         raise NotImplementedError("cannot pop from record set view")
 
-    def clear(self):
+    def clear(self) -> "RecordSetView":
         if not self._content:
             return self
 
@@ -169,11 +174,13 @@ class RecordSetView:  # pylint: disable=protected-access  # Intentional access t
         new_view._content.clear()
         return new_view
 
-    def _filter_func(self, func, criteria):
+    def _filter_func(
+        self, func: Callable[["BasicModel"], bool] | None, criteria: dict[str, Any]
+    ) -> Callable[["BasicModel"], bool]:
         if func:
             return func
 
-        def default_filter_func(record):
+        def default_filter_func(record: "BasicModel") -> bool:
             matches = True
 
             for field, value in criteria.items():
@@ -184,7 +191,7 @@ class RecordSetView:  # pylint: disable=protected-access  # Intentional access t
 
         return default_filter_func
 
-    def filter(self, func=None, **criteria) -> "RecordSet":
+    def filter(self, func: Callable[["BasicModel"], bool] | None = None, **criteria: Any) -> "RecordSetView":
         if not self._content:
             return self
 
@@ -199,7 +206,7 @@ class RecordSetView:  # pylint: disable=protected-access  # Intentional access t
 
         return new_view
 
-    def revert_if_empty(self):
+    def revert_if_empty(self) -> "RecordSetView":
         if self._content:
             return self
 
@@ -207,21 +214,21 @@ class RecordSetView:  # pylint: disable=protected-access  # Intentional access t
             return RecordSetView(self.parent)
         return self.parent
 
-    def result_if_empty(self, result):
+    def result_if_empty(self, result: Any) -> "RecordSetView":
         if not self._fallback:
             self._fallback = result
 
         return self
 
-    def result(self):
+    def result(self) -> Union[RecordSet, Any]:
         if self._content:
             return RecordSet(self._content)
         return self._fallback
 
-    def to_list(self):
+    def to_list(self) -> list["BasicModel"]:
         return self._content.copy()
 
-    def view(self):
+    def view(self) -> "RecordSetView":
         return RecordSetView(self)
 
     @property

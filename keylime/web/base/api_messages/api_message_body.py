@@ -1,5 +1,6 @@
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
+from typing import TYPE_CHECKING, Any
 
 from keylime import keylime_logging
 from keylime.models.base import BasicModel
@@ -10,57 +11,60 @@ from keylime.web.base.api_messages.api_links import APILink, APILinksMixin
 from keylime.web.base.api_messages.api_meta import APIMeta, APIMetaMixin
 from keylime.web.base.exceptions import InvalidMember, InvalidMessage, MissingMember, StopAction, UnexpectedMember
 
+if TYPE_CHECKING:
+    from keylime.web.base.controller import Controller
+
 logger = keylime_logging.init_logging("web")
 
 
 class APIMessageBody(APILinksMixin, APIMetaMixin):
     @classmethod
-    def load(cls, data):
+    def load(cls, data: Mapping[str, Any]) -> "APIMessageBody":
         if not isinstance(data, Mapping):
             raise InvalidMember(f"cannot load object of type '{data.__class__.__name__}' as JSON:API document")
 
-        data = data.copy()
+        data_dict = dict(data)  # type: ignore[assignment, attr-defined]
         message_body = cls()
 
-        if data.get("data"):
-            message_body.load_resources(data.pop("data"))
+        if data_dict.get("data"):
+            message_body.load_resources(data_dict.pop("data"))
 
-        if data.get("errors"):
-            message_body.load_errors(data.pop("errors"))
+        if data_dict.get("errors"):
+            message_body.load_errors(data_dict.pop("errors"))
 
-        if data.get("meta"):
-            message_body.load_meta(data.pop("meta"))
+        if data_dict.get("meta"):
+            message_body.load_meta(data_dict.pop("meta"))
 
-        if data.get("links"):
-            message_body.load_links(data.pop("links"))
+        if data_dict.get("links"):
+            message_body.load_links(data_dict.pop("links"))
 
-        if data.get("jsonapi"):
-            del data["jsonapi"]
+        if data_dict.get("jsonapi"):
+            del data_dict["jsonapi"]
 
-        if data:
-            raise UnexpectedMember(f"unexpected members given for a JSON:API message body: {list(data.keys())}")
+        if data_dict:
+            raise UnexpectedMember(f"unexpected members given for a JSON:API message body: {list(data_dict.keys())}")
 
         message_body.check_validity()
 
         return message_body
 
     @classmethod
-    def from_record_errors(cls, records):
+    def from_record_errors(cls, records: BasicModel | Sequence[BasicModel]) -> "APIMessageBody":
         return cls().add_record_errors(records)
 
-    def __init__(self, *items):
-        self._data = None
-        self._errors = []
-        self._meta = {}
-        self._links = {}
-        self._jsonapi = APIInfo()
+    def __init__(self, *items: base.APIResource | APIError | APIMeta | APILink):
+        self._data: base.APIResource | list[base.APIResource] | None = None
+        self._errors: list[APIError] = []
+        self._meta: dict[str, APIMeta] = {}
+        self._links: dict[str, APILink] = {}
+        self._jsonapi: APIInfo = APIInfo()
 
         self.include(*items)
 
         # JSON:API features not currently implemented:
         #   - "included" member
 
-    def add_resource(self, resource):
+    def add_resource(self, resource: base.APIResource) -> "APIMessageBody":
         if not isinstance(resource, base.APIResource):
             raise InvalidMember("resource added to JSON:API 'data' member must be an APIResource object")
 
@@ -85,38 +89,41 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
         self._data.append(resource)
         return self
 
-    def load_resources(self, data):
+    def load_resources(self, data: Mapping[str, Any] | Sequence[Mapping[str, Any]]) -> "APIMessageBody":
         if not isinstance(data, (Mapping, Sequence)):
             raise InvalidMember("the JSON:API 'data' member must be a mapping or sequence")
 
+        data_list: Sequence[Mapping[str, Any]]
         if isinstance(data, Mapping):
-            data = [data]
+            data_list = [data]
+        else:
+            data_list = data
 
-        for item in data:
+        for item in data_list:
             resource = base.APIResource.load(item)
             self.add_resource(resource)
 
         return self
 
-    def remove_resource(self, resource):
-        if resource != self._data and resource not in self._data:
+    def remove_resource(self, resource: base.APIResource) -> "APIMessageBody":
+        if resource != self._data and (not isinstance(self._data, list) or resource not in self._data):
             raise KeyError("resource does not exist in JSON:API 'data' member")
 
         if isinstance(self._data, base.APIResource):
             self._data = None
         else:
-            self._data.remove(resource)
+            self._data.remove(resource)  # type: ignore[union-attr]
 
             if not self._data:
                 self._data = None
 
         return self
 
-    def clear_resources(self):
+    def clear_resources(self) -> "APIMessageBody":
         self._data = None
         return self
 
-    def add_error(self, error):
+    def add_error(self, error: APIError) -> "APIMessageBody":
         if not isinstance(error, APIError):
             raise TypeError(f"cannot add item of type '{error.__class__.__name__}' to JSON:API 'errors' member")
 
@@ -129,25 +136,28 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
         self._errors.append(error)
         return self
 
-    def load_errors(self, data):
+    def load_errors(self, data: Sequence[Mapping[str, Any]]) -> "APIMessageBody":
         if not isinstance(data, Sequence):
             raise TypeError("object loaded as JSON:API 'errors' member must be a sequence")
 
         for item in data:
-            error = APIError.load(item)  # pylint: disable=no-member
+            error = APIError.load(item)  # type: ignore[attr-defined]  # pylint: disable=no-member
             self.add_error(error)
 
         return self
 
-    def add_record_errors(self, records):
-        errors = {}
+    def add_record_errors(self, records: BasicModel | Sequence[BasicModel]) -> "APIMessageBody":
+        errors: dict[str, list[str]] = {}
         single_resource = False
 
+        records_list: Sequence[BasicModel]
         if not isinstance(records, (list, tuple)):
-            records = [records]
+            records_list = [records]  # type: ignore[list-item]
             single_resource = True
+        else:
+            records_list = records
 
-        for index, record in enumerate(records):
+        for index, record in enumerate(records_list):
             if not isinstance(record, BasicModel):
                 raise TypeError(
                     f"{type(self).__name__}.from_record_errors() called using record of type {type(record).__name__} "
@@ -155,7 +165,7 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
                 )
 
             pointer_prefix = "/data/attributes/" if single_resource else f"/data/attributes/{index}/"
-            errors.update(record.get_errors(pointer_prefix=pointer_prefix))
+            errors.update(record.get_errors(pointer_prefix=pointer_prefix))  # type: ignore[no-untyped-call]
 
         for pointer, msgs in errors.items():
             pointer_parts = pointer.split("/")
@@ -170,21 +180,21 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
 
         return self
 
-    def remove_error(self, error):
+    def remove_error(self, error: APIError) -> "APIMessageBody":
         if error not in self._errors:
             raise KeyError("error does not exist in JSON:API 'errors' member")
 
         self._errors.remove(error)
         return self
 
-    def clear_errors(self):
+    def clear_errors(self) -> "APIMessageBody":
         self._errors.clear()
         return self
 
-    def get_errors(self, code):
+    def get_errors(self, code: str | int) -> list[APIError]:
         return [error for error in self.errors if code in (error.api_code, error.http_code)]
 
-    def include(self, *items):
+    def include(self, *items: base.APIResource | APIError | APIMeta | APILink) -> "APIMessageBody":
         for item in items:
             if isinstance(item, base.APIResource):
                 self.add_resource(item)
@@ -199,16 +209,16 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
 
         return self
 
-    def check_validity(self):
+    def check_validity(self) -> None:
         if not self._data and not self._errors and not self._meta:
             raise MissingMember(
                 "none of 'data', 'errors' or 'meta' is given for a JSON:API resource (at least one is required)"
             )
 
-    def render(self):
+    def render(self) -> dict[str, Any]:
         self.check_validity()
 
-        output = {}
+        output: dict[str, Any] = {}
 
         if self.data:
             if isinstance(self.data, base.APIResource):
@@ -230,29 +240,32 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
 
         return output
 
-    def _get_current_path(self):
+    def _get_current_path(self) -> str | None:
         current_location = self.links.get("self")
 
         if not current_location:
             return None
 
-        return base.Route.make_abs_path(current_location.href)
+        return base.Route.make_abs_path(current_location.href)  # type: ignore[no-any-return, arg-type]
 
-    def _get_resource_path(self):
+    def _get_resource_path(self) -> str | None:
         resource_location = self.data.links.get("self") if isinstance(self.data, base.APIResource) else None
 
         if not resource_location:
             return None
 
-        return base.Route.make_abs_path(resource_location.href, base_ref=self._get_current_path())
+        current_path = self._get_current_path()
+        if current_path:
+            return base.Route.make_abs_path(resource_location.href, base_ref=current_path)  # type: ignore[no-any-return, arg-type]
+        return base.Route.make_abs_path(resource_location.href)  # type: ignore[no-any-return, arg-type]
 
-    def _is_resource_new(self):
+    def _is_resource_new(self) -> bool:
         current_path = self._get_current_path()
         resource_path = self._get_resource_path()
 
         return bool(current_path and resource_path and self._get_current_path() != self._get_resource_path())
 
-    def _infer_http_error_code(self):
+    def _infer_http_error_code(self) -> int:
         client_codes = set(error.http_code for error in self.client_errors)
         server_codes = set(error.http_code for error in self.server_errors)
 
@@ -269,9 +282,9 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
         else:
             raise ValueError("cannot infer HTTP status code from APIMessageBody with both 4xx and 5xx series errors")
 
-        return code
+        return code  # type: ignore[return-value]
 
-    def _infer_http_code(self):
+    def _infer_http_code(self) -> int:
         if self.errors:
             return self._infer_http_error_code()
 
@@ -286,7 +299,9 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
         for error in self.errors:
             logger.warning("  • %s: %s", error.api_code, error.detail)
 
-    def send_via(self, controller, *, code=None, status=None, stop_action=True):
+    def send_via(
+        self, controller: "Controller", *, code: int | None = None, status: str | None = None, stop_action: bool = True
+    ) -> None:
         if not isinstance(controller, base.Controller):
             raise TypeError(
                 f"APIMessageBody cannot be sent via object of type '{controller.__class__.__name__}' (expects instance "
@@ -297,7 +312,9 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
             self.include(APILink("self", controller.path))
 
         if self._is_resource_new():
-            controller.set_header("Location", self._get_resource_path())
+            resource_path = self._get_resource_path()
+            if resource_path:
+                controller.set_header("Location", resource_path)
 
         if not code:
             code = self._infer_http_code()
@@ -309,31 +326,35 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
             raise StopAction
 
     @property
-    def data(self):
+    def data(self) -> base.APIResource | list[base.APIResource] | None:
         if isinstance(self._data, list):
             return self._data.copy()
         return self._data
 
     @property
-    def errors(self):
+    def errors(self) -> list[APIError]:
         return self._errors.copy()
 
     @property
-    def client_errors(self):
-        return [error for error in self._errors if error.http_code >= 400 and error.http_code <= 499]
+    def client_errors(self) -> list[APIError]:
+        return [
+            error for error in self._errors if error.http_code and error.http_code >= 400 and error.http_code <= 499
+        ]
 
     @property
-    def server_errors(self):
-        return [error for error in self._errors if error.http_code >= 500 and error.http_code <= 599]
+    def server_errors(self) -> list[APIError]:
+        return [
+            error for error in self._errors if error.http_code and error.http_code >= 500 and error.http_code <= 599
+        ]
 
     @property
-    def meta(self):
+    def meta(self) -> MappingProxyType[str, APIMeta]:
         return MappingProxyType(self._meta)
 
     @property
-    def links(self):
+    def links(self) -> MappingProxyType[str, APILink]:
         return MappingProxyType(self._links)
 
     @property
-    def jsonapi(self):
+    def jsonapi(self) -> APIInfo:
         return self._jsonapi

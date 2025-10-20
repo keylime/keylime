@@ -1,41 +1,44 @@
 from types import MappingProxyType
-from typing import overload
+from typing import TYPE_CHECKING, Any, overload
 
 import keylime.web.base.api_messages as api_messages  # pylint: disable=consider-using-from-import  # Avoid circular import
 from keylime.web.base.api_messages.api_links import APILink, APILinksMixin
 from keylime.web.base.api_messages.api_message_helpers import APIMessageHelpers
 from keylime.web.base.exceptions import InvalidMember, MissingMember
 
+if TYPE_CHECKING:
+    from keylime.web.base.controller import Controller
+
 
 class APIError(APILinksMixin):
     @overload
-    def __init__(self, api_code):
+    def __init__(self, api_code: str) -> None:
         ...
 
     @overload
-    def __init__(self, api_code, http_code):
+    def __init__(self, api_code: str, http_code: int) -> None:
         ...
 
     @overload
-    def __init__(self, api_code, detail):
+    def __init__(self, api_code: str, detail: str) -> None:
         ...
 
     @overload
-    def __init__(self, api_code, http_code, detail):
+    def __init__(self, api_code: str, http_code: int, detail: str) -> None:
         ...
 
-    def __init__(self, *args):
+    def __init__(self, *args: Any) -> None:  # type: ignore[misc]
         if not args:
             raise MissingMember("the error code (i.e., 'api_code') of a JSON:API error must not be empty")
 
         if not APIMessageHelpers.is_valid_name(args[0]):
             raise InvalidMember("the given error code (i.e., 'api_code') is not a valid JSON:API member name")
 
-        self._api_code = None
-        self._http_code = None
-        self._detail = None
-        self._source = None
-        self._links = {}
+        self._api_code: str | None = None
+        self._http_code: int | None = None
+        self._detail: str | None = None
+        self._source: dict[str, str] | None = None
+        self._links: dict[str, APILink] = {}
 
         self.set_api_code(args[0])
 
@@ -57,7 +60,7 @@ class APIError(APILinksMixin):
         #   - "title" member
         #   - "meta" member
 
-    def set_api_code(self, api_code):
+    def set_api_code(self, api_code: str) -> "APIError":
         if not APIMessageHelpers.is_valid_name(api_code):
             raise InvalidMember("invalid api_code given for a JSON:API error")
 
@@ -72,7 +75,7 @@ class APIError(APILinksMixin):
         self._api_code = api_code
         return self
 
-    def set_http_code(self, http_code):
+    def set_http_code(self, http_code: int) -> "APIError":
         if not http_code:
             raise InvalidMember("the status code (i.e., 'http_code') of a JSON:API error must not be empty")
 
@@ -85,11 +88,11 @@ class APIError(APILinksMixin):
         self._http_code = http_code
         return self
 
-    def clear_http_code(self):
+    def clear_http_code(self) -> "APIError":
         self._http_code = None
         return self
 
-    def set_detail(self, detail):
+    def set_detail(self, detail: str) -> "APIError":
         if not isinstance(detail, str):
             raise InvalidMember("the description (i.e., 'detail') of a JSON:API error must be a str")
 
@@ -99,11 +102,11 @@ class APIError(APILinksMixin):
         self._detail = detail
         return self
 
-    def clear_detail(self):
+    def clear_detail(self) -> "APIError":
         self._detail = None
         return self
 
-    def set_source(self, **kwargs):
+    def set_source(self, **kwargs: str) -> "APIError":
         match kwargs:
             case {"pointer": _} | {"parameter": _} | {"header": _}:
                 self._source = kwargs
@@ -111,11 +114,11 @@ class APIError(APILinksMixin):
             case _:
                 raise TypeError(f"{self.__class__}.set_source() received invalid keyword arguments")
 
-    def clear_source(self):
+    def clear_source(self) -> "APIError":
         self._source = None
         return self
 
-    def include(self, *items):
+    def include(self, *items: APILink) -> "APIError":
         for item in items:
             if isinstance(item, APILink):
                 self.add_link(item)
@@ -124,8 +127,8 @@ class APIError(APILinksMixin):
 
         return self
 
-    def render(self):
-        output = {}
+    def render(self) -> dict[str, Any]:
+        output: dict[str, Any] = {}
 
         if self.http_code:
             output["status"] = str(self.http_code)
@@ -143,21 +146,23 @@ class APIError(APILinksMixin):
 
         return output
 
-    def send_via(self, controller, *, code=None, status=None, stop_action=True):
+    def send_via(
+        self, controller: "Controller", *, code: int | None = None, status: str | None = None, stop_action: bool = True
+    ) -> None:
         api_messages.APIMessageBody(self).send_via(controller, code=code, status=status, stop_action=stop_action)
 
     @property
-    def api_code(self):
+    def api_code(self) -> str | None:
         return self._api_code
 
     @property
-    def http_code(self):
+    def http_code(self) -> int | None:
         return self._http_code
 
     @property
-    def detail(self):
+    def detail(self) -> str | None:
         return self._detail
 
     @property
-    def source(self):
+    def source(self) -> MappingProxyType[str, str] | None:
         return MappingProxyType(self._source) if self._source else None

@@ -139,7 +139,7 @@ class DBManager:
         return cast(Session, self._scoped_session())
 
     @contextmanager
-    def session_context(self, session=None) -> Iterator[Session]:
+    def session_context(self, session: Session | None = None) -> Iterator[Session]:
         if session:
             yield session
             return
@@ -154,7 +154,7 @@ class DBManager:
             raise
 
     @contextmanager
-    def session_context_for(self, *record_and_record_sets) -> Iterator[Session]:
+    def session_context_for(self, *record_and_record_sets: Any) -> Iterator[Session]:
         session = self.session()
         records = []
 

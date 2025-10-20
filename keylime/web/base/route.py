@@ -92,7 +92,7 @@ class Route:
     PATH_ABSOLUTE_REGEX = re.compile(f"^{PATH_ABSOLUTE}$")
 
     @staticmethod
-    def make_abs_path(ref: str, base_ref: str = "/"):
+    def make_abs_path(ref: str, base_ref: str = "/") -> str:
         """Converts any URI reference to an absolute path reference (see RFC 3986, section 4), resolved by
         using ``base_ref`` as the starting reference. When ``ref`` is expected to be a relative path reference
         (e.g., ``../..``), ``base_ref`` should be an absolute URI (including scheme).

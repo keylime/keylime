@@ -209,7 +209,7 @@ class Tpm:
             logger.debug("IMA measurement list of agent %s validated", agent_id)
         return failure
 
-    def _check_data_pcr(self, agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote):
+    def _check_data_pcr(self, agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote):  # type: ignore[no-untyped-def]
         agent_id = agentAttestState.get_agent_id()
         pcr_nums = set(pcrs_dict.keys())
 
@@ -286,14 +286,14 @@ class Tpm:
         pcr_nums = set(pcrs_dict.keys())
 
         if pcr_nums:
-            pcrf = keylime_logging.list_items(pcr_nums, sort=True)
+            pcrf = keylime_logging.list_items(pcr_nums, sort=True)  # type: ignore[no-untyped-call]
             logger.info("PCR(s) %s from bank '%s' found in TPM quote for agent '%s'", pcrf, hash_alg.value, agent_id)
         else:
             logger.error("No PCRs from bank '%s' found in TPM quote for agent '%s'", hash_alg.value, agent_id)
 
         # If additional data is provided, check its presence in the data PCR (defined by config.TPM_DATA_PCR)
         if data is not None and not skip_data_pcr_check:
-            self._check_data_pcr(agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote)
+            self._check_data_pcr(agentAttestState, pcrs_dict, data, hash_alg, failure, pcrs_in_quote)  # type: ignore[no-untyped-call]
 
         # Check for ima PCR
         if config.IMA_PCR in pcr_nums:
@@ -409,7 +409,7 @@ class Tpm:
         remaining_pcrs = sorted(pcr_nums - pcrs_in_quote)
 
         if remaining_pcrs:
-            pcrf = keylime_logging.list_items(remaining_pcrs)
+            pcrf = keylime_logging.list_items(remaining_pcrs)  # type: ignore[no-untyped-call]
             logger.info("Checking remaining PCR(s) %s in quote against TPM policy for agent '%s'", pcrf, agent_id)
         else:
             logger.info("No remaining PCRs in quote to check against TPM policy for agent '%s'", agent_id)
@@ -557,7 +557,7 @@ class Tpm:
                 ima_measurement_list,
                 runtime_policy,
                 ima_keyrings,
-                mb_measurement_list,
+                mb_measurement_list,  # type: ignore[arg-type]
                 mb_policy,
                 hash_alg,
                 count,
@@ -604,7 +604,7 @@ class Tpm:
         return None, current_clockinfo
 
     @staticmethod
-    def get_pcrs_from_quote(quote, compressed):
+    def get_pcrs_from_quote(quote, compressed):  # type: ignore[no-untyped-def]
         _, sigblob, pcrblob = Tpm._get_quote_parameters(quote, compressed)
         _, hash_alg, _ = struct.unpack_from(">HHH", sigblob, 0)
         _, pcrs_dict = getattr(tpm_util, "__get_and_hash_pcrs")(pcrblob, hash_alg)

@@ -1,175 +1,175 @@
 #!/usr/bin/env python3
 
 """
- This script parses the content of a configuration file and use the data to
- replace the values in templates to generate new configuration files.  The
- process is controlled by the "mapping" dictionary, provided through a JSON
- file.
+This script parses the content of a configuration file and use the data to
+replace the values in templates to generate new configuration files.  The
+process is controlled by the "mapping" dictionary, provided through a JSON
+file.
 
- ## Full mapping
+## Full mapping
 
- The full mapping dictionary has the "type" field set as "full".  Mappings
- without a "type" field are processed as if they were full mappings to support
- older versions of the mapping were the "type" field is missing.
+The full mapping dictionary has the "type" field set as "full".  Mappings
+without a "type" field are processed as if they were full mappings to support
+older versions of the mapping were the "type" field is missing.
 
- This dictionary maps the name of the new option to a dictionary with the info
- from the old configuration file format.
+This dictionary maps the name of the new option to a dictionary with the info
+from the old configuration file format.
 
- The dictionary has the following fields:
- * "version": The mapping version. Should match the target configuration version
- number
- * "type": The mapping type. For the full mapping, this should be set as "full".
- If this field is missing, the mapping will be treated as a full mapping for
- compatibility
- * "components": A dictionary which keys are the components for which the
- configuration files should be generated. The keys in the "components"
- dictionary should match the template file names without the extension (e.g.
- for the agent component, the key should be "agent" and the template file name
- should be "agent.j2").
- * "subcomponents": A dictionary which maps sections names without a version
- number to the main section name which has the version number. The idea is that
- only the main section contains the version number for the entire file (e.g. the
- "verifier" section in the "verifier.conf" file) which will be inherited by the
- subcomponents.
+The dictionary has the following fields:
+* "version": The mapping version. Should match the target configuration version
+number
+* "type": The mapping type. For the full mapping, this should be set as "full".
+If this field is missing, the mapping will be treated as a full mapping for
+compatibility
+* "components": A dictionary which keys are the components for which the
+configuration files should be generated. The keys in the "components"
+dictionary should match the template file names without the extension (e.g.
+for the agent component, the key should be "agent" and the template file name
+should be "agent.j2").
+* "subcomponents": A dictionary which maps sections names without a version
+number to the main section name which has the version number. The idea is that
+only the main section contains the version number for the entire file (e.g. the
+"verifier" section in the "verifier.conf" file) which will be inherited by the
+subcomponents.
 
- For each component in the "components" dictionary, the value is a dictionary
- which keys are the option names in the new configuration files and the value is
- a dictionary with the information used to find the data in the old
- configuration file. For each option name the value is a dictionary with the
- following fields:
+For each component in the "components" dictionary, the value is a dictionary
+which keys are the option names in the new configuration files and the value is
+a dictionary with the information used to find the data in the old
+configuration file. For each option name the value is a dictionary with the
+following fields:
 
- * "section": The section from the old configuration file
- * "option": The name of the option in the old configuration file
- * "default" The default value to use in case the option is missing in the
- old configuration file
+* "section": The section from the old configuration file
+* "option": The name of the option in the old configuration file
+* "default" The default value to use in case the option is missing in the
+old configuration file
 
- All values are treated as strings.
+All values are treated as strings.
 
- An example could be:
+An example could be:
 
- {
-     "version": "1.0",
-     "type": "full",
-     "components": {
-         "a_component": {
-             "some_option": {
-                 "section": "some_section",
-                 "option" : "some_old_option_name",
-                 "default": "default",
-             },
-             another_option: {
-                 "section": "another_section",
-                 "option" : "another_old_option_name",
-                 "default": "default_value",
-             }
-         },
-         "another_component": {
-             "an_option": {
-                 "section": "some_section",
-                 "option" : "some_old_option_name",
-                 "default": "default",
-             },
-             "another_option": {
-                 "section": "another_section",
-                 "option" : "another_old_option_name",
-                 "default": "default_value",
-             }
-         }
-     },
-     "subcomponents" {
-        "another_section": "some_section"
-     }
- }
+{
+    "version": "1.0",
+    "type": "full",
+    "components": {
+        "a_component": {
+            "some_option": {
+                "section": "some_section",
+                "option" : "some_old_option_name",
+                "default": "default",
+            },
+            another_option: {
+                "section": "another_section",
+                "option" : "another_old_option_name",
+                "default": "default_value",
+            }
+        },
+        "another_component": {
+            "an_option": {
+                "section": "some_section",
+                "option" : "some_old_option_name",
+                "default": "default",
+            },
+            "another_option": {
+                "section": "another_section",
+                "option" : "another_old_option_name",
+                "default": "default_value",
+            }
+        }
+    },
+    "subcomponents" {
+       "another_section": "some_section"
+    }
+}
 
- Check "templates/2.0/mapping.json" file for an example.
+Check "templates/2.0/mapping.json" file for an example.
 
- ## Update mapping
+## Update mapping
 
- This mapping dictionary is used to modify a configuration without listing all
- the options. Changes can be donemade through operations, specified as
- dictionaries.
+This mapping dictionary is used to modify a configuration without listing all
+the options. Changes can be donemade through operations, specified as
+dictionaries.
 
- The dictionary has the following fields:
+The dictionary has the following fields:
 
- * "version": The mapping version. Should match the target configuration version
- number
- * "type": The mapping type. For the update mapping, this should be set as
- "update". If this field is missing, the mapping will be treated as a full
- mapping for compatibility
- * "components": A dictionary which keys are the components for which the
- operations are performed. For each component, a dictionary with operations as
- keys and operands as values should be provided. For each operation the operands
- should be provided using the correct dictionary format.
+* "version": The mapping version. Should match the target configuration version
+number
+* "type": The mapping type. For the update mapping, this should be set as
+"update". If this field is missing, the mapping will be treated as a full
+mapping for compatibility
+* "components": A dictionary which keys are the components for which the
+operations are performed. For each component, a dictionary with operations as
+keys and operands as values should be provided. For each operation the operands
+should be provided using the correct dictionary format.
 
- The supported operations are:
+The supported operations are:
 
- * Add a new option
+* Add a new option
 
- To add optios, the component to be modified in the mapping should contain the
- "add" field set with a dictionary mapping the option name to be added to the
- default value to set. Example:
+To add optios, the component to be modified in the mapping should contain the
+"add" field set with a dictionary mapping the option name to be added to the
+default value to set. Example:
 
- {
-     "version": "3.1",
-     "type": "update",
-     "components": {
-         "comp_a": {
-             "add": {
-                 "new_option": "value",
-                 "new_option2": "value2"
-             }
-         }
-     }
- }
+{
+    "version": "3.1",
+    "type": "update",
+    "components": {
+        "comp_a": {
+            "add": {
+                "new_option": "value",
+                "new_option2": "value2"
+            }
+        }
+    }
+}
 
- * Remove an option
+* Remove an option
 
- To remove options, the component to be modified in the mapping should contain
- the "remove" field set with a list of options names to be removed. Example:
+To remove options, the component to be modified in the mapping should contain
+the "remove" field set with a list of options names to be removed. Example:
 
- {
-     "version": "3.1",
-     "type": "update",
-     "components": {
-         "comp_a": {
-             "remove": ["unused_option", "another_unused_option"]
-         }
-     }
- }
+{
+    "version": "3.1",
+    "type": "update",
+    "components": {
+        "comp_a": {
+            "remove": ["unused_option", "another_unused_option"]
+        }
+    }
+}
 
- * Replace an option
+* Replace an option
 
- To replace options, the component to be modified in the mapping should contain
- the "replace" field set with a dictionary mapping names to be replaced to a
- dictionary specifying the section to receive the replacement, the new option
- name, and the default value. Example:
+To replace options, the component to be modified in the mapping should contain
+the "replace" field set with a dictionary mapping names to be replaced to a
+dictionary specifying the section to receive the replacement, the new option
+name, and the default value. Example:
 
- {
-     "version": "3.1",
-     "type": "update",
-     "components": {
-         "comp_a": {
-             "replace": {
-                 "old_option_to_replace": {
-                     "section": "new_section",
-                     "option": "new_option",
-                     "default": "value"
-                 },
-                 "old_value": {
-                     "section": "other_section",
-                     "option": "other_new_option",
-                     "default": "value"
-                 }
-             }
-         }
-     }
- }
+{
+    "version": "3.1",
+    "type": "update",
+    "components": {
+        "comp_a": {
+            "replace": {
+                "old_option_to_replace": {
+                    "section": "new_section",
+                    "option": "new_option",
+                    "default": "value"
+                },
+                "old_value": {
+                    "section": "other_section",
+                    "option": "other_new_option",
+                    "default": "value"
+                }
+            }
+        }
+    }
+}
 
- Multiple operations can be performed through the same update mapping.
+Multiple operations can be performed through the same update mapping.
 
- The idea is to provide new templates, mapping, and adjust script for new
- versions of the configuration, allowing the user to easily convert from a
- version of the configuration file to the next.
+The idea is to provide new templates, mapping, and adjust script for new
+versions of the configuration, allowing the user to easily convert from a
+version of the configuration file to the next.
 """
 
 import argparse

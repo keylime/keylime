@@ -1,3 +1,5 @@
+from typing import cast
+
 from keylime import keylime_logging
 from keylime.models.verifier import Attestation, VerifierAgent
 from keylime.verification import EngineDriver
@@ -153,28 +155,28 @@ class AttestationController(Controller):
 
     # GET /v3[.:minor]/agents/:agent_id/attestations
     @Controller.require_json_api
-    def index(self, agent_id, **_params):
-        agent = VerifierAgent.get(agent_id)
+    def index(self, agent_id, **_params):  # type: ignore[no-untyped-def]
+        agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
 
         if not agent:
             APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
 
-        results = Attestation.all(agent_id=agent_id)
+        results = cast(list[Attestation], Attestation.all(agent_id=agent_id))
 
         resources = [
-            APIResource("attestation", attestation.render_state()).include(
+            APIResource("attestation", attestation.render_state()).include(  # type: ignore[no-untyped-call]
                 APILink("self", f"{self.path}/{attestation.index}")
             )
             for attestation in results
         ]
 
-        APIMessageBody(*resources).send_via(self)
+        APIMessageBody(*resources).send_via(self)  # type: ignore[no-untyped-call]
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/:index
     @Controller.require_json_api
-    def show(self, agent_id, index, **_params):
-        agent = VerifierAgent.get(agent_id)
-        attestation = Attestation.get(agent_id=agent_id, index=index)
+    def show(self, agent_id, index, **_params):  # type: ignore[no-untyped-def]
+        agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
+        attestation = cast(Attestation | None, Attestation.get(agent_id=agent_id, index=index))
 
         if not agent:
             APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
@@ -182,61 +184,63 @@ class AttestationController(Controller):
         if not attestation:
             APIError("not_found", f"No attestation {index} exists for agent '{agent_id}'.").send_via(self)
 
-        APIResource("attestation", attestation.render_state()).include(
+        APIResource("attestation", attestation.render_state()).include(  # type: ignore[no-untyped-call, union-attr]
             APILink("self", f"/{self.version}/agents/{agent_id}/attestations/{index}")
-        ).send_via(self)
+        ).send_via(
+            self
+        )  # type: ignore[no-untyped-call]
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/latest
     @Controller.require_json_api
-    def show_latest(self, agent_id, **_params):
-        agent = VerifierAgent.get(agent_id)
+    def show_latest(self, agent_id, **_params):  # type: ignore[no-untyped-def]
+        agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
 
         if not agent:
             APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
 
-        if not agent.latest_attestation:
+        if not agent.latest_attestation:  # type: ignore[union-attr]
             APIError("not_found", f"No attestation exists for agent '{agent_id}'.").send_via(self)
 
-        self.show(agent_id, agent.latest_attestation.index, **_params)
+        self.show(agent_id, agent.latest_attestation.index, **_params)  # type: ignore[union-attr]
 
     # POST /v3[.:minor]/agents/:agent_id/attestations
     @Controller.require_json_api
-    def create(self, agent_id, attestation, **params):  # pylint: disable=unused-argument  # Required by decorator
-        agent = VerifierAgent.get(agent_id)
+    def create(self, agent_id, attestation, **params):  # type: ignore[no-untyped-def]  # pylint: disable=unused-argument
+        agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
 
         if not agent:
             APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
 
-        if not agent.accept_attestations:
+        if not agent.accept_attestations:  # type: ignore[union-attr]
             APIError("agent_attestations_disabled", 403).set_detail(
                 f"Attestations for agent '{agent_id}' are currently disabled. This may be due to a previous "
                 f"attestation not passing verification."
             ).send_via(self)
 
-        if agent.latest_attestation and agent.latest_attestation.verification_in_progress:
-            self.set_header("Retry-After", agent.latest_attestation.seconds_to_decision)
+        if agent.latest_attestation and agent.latest_attestation.verification_in_progress:  # type: ignore[union-attr]
+            self.set_header("Retry-After", agent.latest_attestation.seconds_to_decision)  # type: ignore[no-untyped-call, union-attr]
             APIError("verification_in_progress", 503).set_detail(
                 f"Cannot create attestation for agent '{agent_id}' while the last attestation is still being "
                 f"verified. The active verification task is expected to complete or time out within "
-                f"{agent.latest_attestation.seconds_to_decision} seconds."
+                f"{agent.latest_attestation.seconds_to_decision} seconds."  # type: ignore[union-attr]
             ).send_via(self)
 
-        if agent.latest_attestation and not agent.latest_attestation.ready_for_next_attestation:
-            self.set_header("Retry-After", agent.latest_attestation.seconds_to_next_attestation)
+        if agent.latest_attestation and not agent.latest_attestation.ready_for_next_attestation:  # type: ignore[union-attr]
+            self.set_header("Retry-After", agent.latest_attestation.seconds_to_next_attestation)  # type: ignore[no-untyped-call, union-attr]
             APIError("premature_attestation", 429).set_detail(
                 f"Cannot create attestation for agent '{agent_id}' before the configured interval has elapsed. "
-                f"Wait {agent.latest_attestation.seconds_to_next_attestation} seconds before trying again."
+                f"Wait {agent.latest_attestation.seconds_to_next_attestation} seconds before trying again."  # type: ignore[union-attr]
             ).send_via(self)
 
-        attestation_record = Attestation.create(agent)
-        attestation_record.receive_capabilities(attestation)
-        EngineDriver(attestation_record).process_capabilities()
+        attestation_record = Attestation.create(agent)  # type: ignore[no-untyped-call]
+        attestation_record.receive_capabilities(attestation)  # type: ignore[no-untyped-call]
+        EngineDriver(attestation_record).process_capabilities()  # type: ignore[no-untyped-call]
 
         if not attestation_record.changes_valid:
-            APIMessageBody.from_record_errors(attestation_record).send_via(self)
+            APIMessageBody.from_record_errors(attestation_record).send_via(self)  # type: ignore[no-untyped-call]
 
         try:
-            attestation_record.commit_changes()
+            attestation_record.commit_changes()  # type: ignore[no-untyped-call]
         except ValueError:
             # Another attestation for this agent was created while this request is being processed. Reject the request
             # as otherwise the new attestation may be created prior to or shortly after evidence is received and
@@ -253,71 +257,75 @@ class AttestationController(Controller):
         log_data = (attestation_record.index, agent_id)
         logger.info("Created attestation %s for agent '%s', sending chosen parameters", *log_data)
 
-        APIResource("attestation", attestation_record.render_evidence_requested()).include(
+        APIResource("attestation", attestation_record.render_evidence_requested()).include(  # type: ignore[no-untyped-call]
             APILink("self", f"{self.path}/{attestation_record.index}")
-        ).send_via(self)
+        ).send_via(
+            self
+        )  # type: ignore[no-untyped-call]
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/:index
     @Controller.require_json_api
     def update(
         self, agent_id, index, attestation, **params
-    ):  # pylint: disable=unused-argument  # Required by decorator
-        agent = VerifierAgent.get(agent_id)
+    ):  # type: ignore[no-untyped-def]  # pylint: disable=unused-argument
+        agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
 
         if not agent:
             APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
 
         # If there are no attestations for the agent, the attestation at 'index' does not exist
-        if not agent.latest_attestation:
+        if not agent.latest_attestation:  # type: ignore[union-attr]
             APIError("not_found", f"No attestation {index} exists for agent '{agent_id}'.").send_via(self)
 
         # Only allow the attestation at 'index' to be updated if it is the latest attestation
-        if str(agent.latest_attestation.index) != index:
+        if str(agent.latest_attestation.index) != index:  # type: ignore[union-attr]
             APIError("old_attestation", 403).set_detail(
                 f"Attestation {index} is not the latest for agent '{agent_id}'. Only evidence for the most recent "
                 f"attestation may be updated."
             ).send_via(self)
 
-        if agent.latest_attestation.stage != "awaiting_evidence":
+        if agent.latest_attestation.stage != "awaiting_evidence":  # type: ignore[union-attr]
             APIError("evidence_immutable", 403).set_detail(
                 f"Cannot alter evidence for attestation {index} which has already been received and accepted."
             ).send_via(self)
 
-        if not agent.latest_attestation.challenges_valid:
+        if not agent.latest_attestation.challenges_valid:  # type: ignore[union-attr]
             APIError("challenges_expired", 403).set_detail(
-                f"Challenges for attestation {index} expired at {agent.latest_attestation.challenges_expire_at}. "
+                f"Challenges for attestation {index} expired at {agent.latest_attestation.challenges_expire_at}. "  # type: ignore[union-attr]
                 f"Create a new attestation and try again."
             ).send_via(self)
 
-        agent.latest_attestation.receive_evidence(attestation)
-        driver = EngineDriver(agent.latest_attestation).process_evidence()
+        agent.latest_attestation.receive_evidence(attestation)  # type: ignore[no-untyped-call, union-attr]
+        driver = EngineDriver(agent.latest_attestation).process_evidence()  # type: ignore[no-untyped-call, union-attr]
 
         # Send error if the received evidence appears invalid
-        if not agent.latest_attestation.changes_valid:
-            APIMessageBody.from_record_errors(agent.latest_attestation).send_via(self)
+        if not agent.latest_attestation.changes_valid:  # type: ignore[union-attr]
+            APIMessageBody.from_record_errors(agent.latest_attestation).send_via(self)  # type: ignore[no-untyped-call, union-attr]
 
-        agent.latest_attestation.commit_changes()
+        agent.latest_attestation.commit_changes()  # type: ignore[no-untyped-call, union-attr]
 
         # Send acknowledgement of received evidence, but continue executing
         APIMessageBody(
-            APIResource("attestation", agent.latest_attestation.render_evidence_acknowledged()).include(
+            APIResource("attestation", agent.latest_attestation.render_evidence_acknowledged()).include(  # type: ignore[no-untyped-call, union-attr]
                 APILink("self", f"/{self.version}/agents/{agent_id}/attestations/{index}")
             ),
-            APIMeta("seconds_to_next_attestation", agent.latest_attestation.seconds_to_next_attestation),
-        ).send_via(self, code=202, stop_action=False)
+            APIMeta("seconds_to_next_attestation", agent.latest_attestation.seconds_to_next_attestation),  # type: ignore[union-attr]
+        ).send_via(
+            self, code=202, stop_action=False
+        )  # type: ignore[no-untyped-call]
 
         # Verify attestation after response is sent, so the agent does not need to wait for verification to complete
-        driver.verify_evidence()
+        driver.verify_evidence()  # type: ignore[no-untyped-call]
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/latest
     @Controller.require_json_api
-    def update_latest(self, agent_id, attestation, **params):
-        agent = VerifierAgent.get(agent_id)
+    def update_latest(self, agent_id, attestation, **params):  # type: ignore[no-untyped-def]
+        agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
 
         if not agent:
             APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
 
-        if not agent.latest_attestation:
+        if not agent.latest_attestation:  # type: ignore[union-attr]
             APIError("not_found", f"No attestation exists for agent '{agent_id}'.").send_via(self)
 
-        self.update(agent_id, agent.latest_attestation.index, attestation, **params)
+        self.update(agent_id, agent.latest_attestation.index, attestation, **params)  # type: ignore[union-attr]

@@ -246,5 +246,5 @@ class OneOf(ModelType):
         return self._permitted.copy()
 
     @property
-    def native_type(self) -> Optional[type]:
+    def native_type(self) -> type | None:  # type: ignore[override]
         return None

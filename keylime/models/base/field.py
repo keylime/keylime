@@ -34,7 +34,7 @@ class ModelField:
     _data_type: ModelType
     _nullable: bool
 
-    def __init__(self, parent: "BasicModelMeta", name: str, data_type: DeclaredFieldType, **opts) -> None:
+    def __init__(self, parent: "BasicModelMeta", name: str, data_type: DeclaredFieldType, **opts) -> None:  # type: ignore[no-untyped-def]
         # pylint: disable=redefined-builtin
 
         if not re.match(ModelField.FIELD_NAME_REGEX, name):
@@ -81,12 +81,12 @@ class ModelField:
     def __delete__(self, obj: Optional["BasicModel"]) -> None:
         self.__set__(obj, None)
 
-    def __eq__(self, other):
-        sa_field = getattr(self.parent.db_mapping, self.name)
+    def __eq__(self, other: Any) -> Any:
+        sa_field = getattr(self.parent.db_mapping, self.name)  # type: ignore[attr-defined]
         return sa_field.__eq__(other)
 
-    def __ne__(self, other):
-        sa_field = getattr(self.parent.db_mapping, self.name)
+    def __ne__(self, other: Any) -> Any:
+        sa_field = getattr(self.parent.db_mapping, self.name)  # type: ignore[attr-defined]
 
         # SQL is unusual in that `WHERE field != "value"` will not return rows where the field is NULL. Most DB engines
         # have a null-safe equality operator but SQLAlchemy does not use this by default. To mimic the more intuitive
@@ -96,23 +96,23 @@ class ModelField:
 
         return sa_field.__ne__(other)
 
-    def __lt__(self, other):
-        sa_field = getattr(self.parent.db_mapping, self.name)
+    def __lt__(self, other: Any) -> Any:
+        sa_field = getattr(self.parent.db_mapping, self.name)  # type: ignore[attr-defined]
         return sa_field.__lt__(other)
 
-    def __le__(self, other):
-        sa_field = getattr(self.parent.db_mapping, self.name)
+    def __le__(self, other: Any) -> Any:
+        sa_field = getattr(self.parent.db_mapping, self.name)  # type: ignore[attr-defined]
         return sa_field.__le__(other)
 
-    def __gt__(self, other):
-        sa_field = getattr(self.parent.db_mapping, self.name)
+    def __gt__(self, other: Any) -> Any:
+        sa_field = getattr(self.parent.db_mapping, self.name)  # type: ignore[attr-defined]
         return sa_field.__gt__(other)
 
-    def __ge__(self, other):
-        sa_field = getattr(self.parent.db_mapping, self.name)
+    def __ge__(self, other: Any) -> Any:
+        sa_field = getattr(self.parent.db_mapping, self.name)  # type: ignore[attr-defined]
         return sa_field.__ge__(other)
 
-    def to_column(self, name=None) -> Optional[Column]:
+    def to_column(self, name: str | None = None) -> Optional[Column]:
         if not self.persist:
             return None
 
@@ -140,11 +140,11 @@ class ModelField:
 
     @property
     def persist(self) -> bool:
-        return self._persist
+        return self._persist  # type: ignore[no-any-return]
 
     @property
     def render(self) -> bool:
-        return self._render
+        return self._render  # type: ignore[no-any-return]
 
     @property
     def refers_to(self) -> Optional[str]:
@@ -162,7 +162,7 @@ class ModelField:
         if not self.refers_to:
             return None
 
-        return self.parent.belongs_to_associations[self.linked_association].other_model.table_name
+        return self.parent.belongs_to_associations[self.linked_association].other_model.table_name  # type: ignore[attr-defined, no-any-return]
 
     @property
     def linked_field(self) -> Optional[str]:

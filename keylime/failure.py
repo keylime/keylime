@@ -1,6 +1,5 @@
-"""Tagging of failure events that might cause revocation in Keylime.
+"""Tagging of failure events that might cause revocation in Keylime."""
 
-"""
 # pylint: disable=R0401
 
 import enum

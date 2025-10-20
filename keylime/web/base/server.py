@@ -145,7 +145,7 @@ class Server(ABC):
         return version_scope_decorator
 
     @staticmethod
-    def push_only(func):
+    def push_only(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)  # preserves the name and module of func when introspected
         def push_only_wrapper(obj: Server, *args: Any, **kwargs: Any) -> Any:
             if not isinstance(obj, Server):
@@ -163,7 +163,7 @@ class Server(ABC):
         return push_only_wrapper
 
     @staticmethod
-    def pull_only(func):
+    def pull_only(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)  # preserves the name and module of func when introspected
         def pull_only_wrapper(obj: Server, *args: Any, **kwargs: Any) -> Any:
             if not isinstance(obj, Server):
@@ -189,7 +189,7 @@ class Server(ABC):
         before starting the server with `server.start()`.
         """
         # Set defaults for server options
-        self.__config_component = None
+        self.__config_component: str | None = None
         self.__operating_mode = None
         self.__bind_interface: str = "127.0.0.1"
         self.__http_port: Optional[int] = 80
@@ -305,7 +305,7 @@ class Server(ABC):
         """Sets config component (i.e., namespace) used to locate config values when setting server options."""
         self.__config_component = component
 
-    def _set_option(self, name, **kwargs):
+    def _set_option(self, name: str, **kwargs: Any) -> None:
         """Sets server option by name either from given value or by obtaining it from user config. If the value is
         falsy, uses the given fallback value instead or ``None`` if no fallback is provided. Examples::
 
@@ -357,11 +357,11 @@ class Server(ABC):
 
         setattr(self, attr_name, value or fallback)
 
-    def _set_operating_mode(self, **kwargs):
+    def _set_operating_mode(self, **kwargs: Any) -> None:
         """Sets operating mode of the server (push or pull)."""
         self._set_option("operating_mode", **kwargs)
 
-    def _set_bind_interface(self, **kwargs):
+    def _set_bind_interface(self, **kwargs: Any) -> None:
         """Sets the IP address or hostname to use to identify the network interface on which to listen for incoming
         requests. Examples::
 
@@ -381,7 +381,7 @@ class Server(ABC):
 
         self._set_option("bind_interface", **kwargs)
 
-    def _set_http_port(self, **kwargs):
+    def _set_http_port(self, **kwargs: Any) -> None:
         """Sets port on which to listen for HTTP requests."""
 
         if "from_config" in kwargs:
@@ -389,7 +389,7 @@ class Server(ABC):
 
         self._set_option("http_port", **kwargs)
 
-    def _set_https_port(self, **kwargs):
+    def _set_https_port(self, **kwargs: Any) -> None:
         """Sets port on which to listen for HTTPS (HTTP over TLS) requests."""
 
         if "from_config" in kwargs:
@@ -397,7 +397,7 @@ class Server(ABC):
 
         self._set_option("https_port", **kwargs)
 
-    def _set_max_upload_size(self, **kwargs):
+    def _set_max_upload_size(self, **kwargs: Any) -> None:
         """Sets the maximum payload size in bytes that the server should accept in an HTTP request."""
 
         if "from_config" in kwargs:
@@ -408,7 +408,7 @@ class Server(ABC):
 
         self._set_option("max_upload_size", **kwargs)
 
-    def _set_ssl_ctx(self, **kwargs):
+    def _set_ssl_ctx(self, **kwargs: Any) -> None:
         """Sets the values used to secure TLS sessions. See https://docs.python.org/3/library/ssl.html#ssl.SSLContext"""
 
         if "from_config" in kwargs:
@@ -416,7 +416,7 @@ class Server(ABC):
 
         self._set_option("ssl_ctx", **kwargs)
 
-    def _set_default_ssl_ctx(self):
+    def _set_default_ssl_ctx(self) -> None:
         """Generates the ssl_ctx using values from user config."""
 
         if not self.config_component:

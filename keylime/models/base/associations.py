@@ -167,7 +167,7 @@ class EmbedsOneAssociation(EmbeddedAssociation):
     def __set__(self, parent_record: "BasicModel", other_record: "BasicModel") -> None:
         self._set_one(parent_record, other_record)
 
-    def to_column(self, name=None) -> Optional[Column]:
+    def to_column(self, name: str | None = None) -> Optional[Column]:
         if not name:
             name = self.name
 
@@ -209,7 +209,7 @@ class EmbedsManyAssociation(EmbeddedAssociation):
     ) -> Union["AssociatedRecordSet", "EmbedsManyAssociation", None]:
         return self._get_many(parent_record)
 
-    def to_column(self, name=None) -> Optional[Column]:
+    def to_column(self, name: str | None = None) -> Optional[Column]:
         if not name:
             name = self.name
 
@@ -259,7 +259,7 @@ class EntityAssociation(ModelAssociation):
         foreign_keys: Optional[tuple[str, ...]] = None,
         preload: bool = True,
     ) -> None:
-        self._foreign_keys: Optional[str] = foreign_keys
+        self._foreign_keys: Optional[tuple[str, ...]] = foreign_keys
         self._preload: bool = preload
         super().__init__(name, parent_model, other_model, inverse_of)
 
@@ -267,8 +267,8 @@ class EntityAssociation(ModelAssociation):
         foreign_keys = self._foreign_keys or ()
 
         # If no foreign keys were declared for the association, see if is obtainable from the inverse association
-        if not foreign_keys and search_inverse and self.inverse_association:
-            foreign_keys = self.inverse_association.get_foreign_keys(search_inverse=False)
+        if not foreign_keys and search_inverse and self.inverse_association:  # type: ignore[arg-type]
+            foreign_keys = self.inverse_association.get_foreign_keys(search_inverse=False)  # type: ignore[arg-type, union-attr]
 
         return foreign_keys
 
@@ -355,7 +355,7 @@ class BelongsToAssociation(EntityAssociation):
         other_model: type["PersistableModel"],
         nullable: bool = False,
         inverse_of: Optional[str] = None,
-        foreign_keys: Optional[str] = None,
+        foreign_keys: Optional[tuple[str, ...]] = None,
         preload: bool = True,
     ):
         self._nullable: bool = nullable
@@ -378,8 +378,8 @@ class BelongsToAssociation(EntityAssociation):
 
         # Populate record's foreign key fields with the corresponding values from the associated record
         for field in type(parent_record).fields.values():
-            if field.linked_association == self.name:
-                foreign_value = getattr(other_record, field.linked_field)
+            if field.linked_association == self.name and field.linked_field:
+                foreign_value = getattr(other_record, field.linked_field)  # type: ignore[arg-type]
                 setattr(parent_record, field.name, foreign_value)
 
     def get_foreign_keys(self, search_inverse: bool = True) -> tuple[str, ...]:
@@ -388,13 +388,13 @@ class BelongsToAssociation(EntityAssociation):
         # If no foreign key was declared for the association (or the inverse association),
         # try to discover it from the model declaration
         if not foreign_keys:
-            foreign_keys = (
+            foreign_keys = tuple(
                 field.name for field in self.parent_model.fields.values() if field.linked_association == self.name
             )
 
         # If that fails, use the default
         if not foreign_keys:
-            foreign_keys = f"{self.name}_id"
+            foreign_keys = (f"{self.name}_id",)
 
         return foreign_keys
 

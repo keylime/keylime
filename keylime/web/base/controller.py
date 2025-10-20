@@ -85,7 +85,7 @@ class Controller:
     JSON_MEDIA_TYPE_REGEX = re.compile("^application\\/(?:[a-z-.]+\\+)?json")
 
     @staticmethod
-    def require_json(func):
+    def require_json(func):  # type: ignore[no-untyped-def]
         @wraps(func)  # preserves the name and module of func when introspected
         def require_json_wrapper(obj: Controller, *args: Any, **kwargs: Any) -> Any:
             if not isinstance(obj, Controller):
@@ -104,7 +104,7 @@ class Controller:
         return require_json_wrapper
 
     @staticmethod
-    def require_json_api(func):
+    def require_json_api(func):  # type: ignore[no-untyped-def]
         @wraps(func)  # preserves the name and module of func when introspected
         def require_json_api_wrapper(obj: Controller, *args: Any, **kwargs: Any) -> Any:
             if not isinstance(obj, Controller):
@@ -240,7 +240,7 @@ class Controller:
 
     def __init__(self, action_handler: "ActionHandler") -> None:
         self._action_handler: "ActionHandler" = action_handler
-        self._api_request_body = None
+        self._api_request_body: Optional[APIMessageBody] = None
         self._path_params: Optional[PathParams] = None
         self._query_params: Optional[QueryParams] = None
         self._form_params: Optional[FormParams] = None
@@ -248,8 +248,8 @@ class Controller:
         self._major_version: Optional[int] = None
         self._minor_version: Optional[int] = None
 
-    def _infer_response_code(self):
-        if not self.request_method == "POST":
+    def _infer_response_code(self) -> int:
+        if self.request_method != "POST":
             return 200
 
         location_header = self.response_headers.get("Location")
@@ -294,7 +294,7 @@ class Controller:
             raise TypeError(f"content_type '{content_type}' is not of type str")
 
         if not code:
-            code = self._infer_response_code()
+            code = self._infer_response_code()  # type: ignore[no-untyped-call]
 
         if not status:
             status = http.client.responses[code]
@@ -315,8 +315,8 @@ class Controller:
         code: int = 200,
         status: Optional[str] = None,
         data: Optional[JSONObjectConvertible | JSONArrayConvertible] = None,
-        suppress_jsonapi_error=False,
-        suppress_version_error=False,
+        suppress_jsonapi_error: bool = False,
+        suppress_version_error: bool = False,
     ) -> None:
         """Converts a Python data structure to JSON and wraps it in the following boilerplate JSON object
         which is returned by all v2 endpoints:
@@ -384,7 +384,7 @@ class Controller:
         self.action_handler.set_header("Location", path)
         self.send_response(code)
 
-    def set_header(self, name, value):
+    def set_header(self, name: str, value: str) -> None:
         self.action_handler.set_header(name, value)
 
     def log_model_errors(self, model: "BasicModel", logger: "Logger") -> None:
@@ -455,7 +455,8 @@ class Controller:
 
     @property
     def request_method(self) -> str:
-        return self.action_handler.request.method.upper()
+        method = self.action_handler.request.method
+        return method.upper() if method else ""
 
     @property
     def request_headers(self) -> "HTTPHeaders":
@@ -473,13 +474,13 @@ class Controller:
         return self.action_handler.request.body
 
     @property
-    def api_request_body(self):
+    def api_request_body(self) -> Optional[APIMessageBody]:
         if not self._api_request_body:
             content_type = self.request_headers.get("Content-Type")
 
             if content_type and content_type.startswith("application/vnd.api+json"):
                 try:
-                    self._api_request_body = APIMessageBody.load(self.json_params)
+                    self._api_request_body = APIMessageBody.load(self.json_params)  # type: ignore[assignment]
                 except InvalidMessage as err:
                     raise ParamDecodeError("request body not interpretable as valid JSON:API message") from err
 
@@ -564,26 +565,29 @@ class Controller:
 
     @property
     def api_params(self) -> JSONObjectConvertible:
-        api_params = {}
+        api_params: dict[str, Any] = {}
 
         if not self.api_request_body:
             return api_params
 
         if self.api_request_body.data and not isinstance(self.api_request_body.data, list):
             resource_type = self.api_request_body.data.type
-            api_params[resource_type] = self.api_request_body.data.attributes
+            api_params[resource_type] = self.api_request_body.data.attributes  # type: ignore[index]
 
             if self.api_request_body.data.id:
-                api_params[resource_type]["id"] = self.api_request_body.data.id
+                api_params[resource_type]["id"] = self.api_request_body.data.id  # type: ignore[index]
 
             if self.api_request_body.data.meta:
-                api_params[resource_type]["meta"] = self.api_request_body.data.meta
+                api_params[resource_type]["meta"] = self.api_request_body.data.meta  # type: ignore[index]
 
         if self.api_request_body.data:
-            api_params["data"] = self.api_request_body.data.render()
+            if isinstance(self.api_request_body.data, list):
+                api_params["data"] = [item.render() for item in self.api_request_body.data]  # type: ignore[misc]
+            else:
+                api_params["data"] = self.api_request_body.data.render()  # type: ignore[misc]
 
         if self.api_request_body.meta:
-            api_params["meta"] = self.api_request.meta  # pylint: disable=no-member
+            api_params["meta"] = self.api_request_body.meta
 
         return api_params
 
@@ -637,7 +641,7 @@ class Controller:
         return self._minor_version
 
     @property
-    def version(self):
+    def version(self) -> Optional[str]:
         if self.major_version and self.minor_version:
             return f"{self.major_version}.{self.minor_version}"
         if self.major_version:

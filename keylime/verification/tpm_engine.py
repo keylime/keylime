@@ -1,4 +1,5 @@
 import math
+from typing import TYPE_CHECKING, Any
 
 from keylime import config, keylime_logging
 from keylime.agentstates import AgentAttestState, TPMClockInfo
@@ -10,20 +11,23 @@ from keylime.tpm import tpm2_objects, tpm_util
 from keylime.tpm.tpm_main import Tpm
 from keylime.verification.base import EngineDriver, VerificationEngine
 
+if TYPE_CHECKING:
+    from keylime.models.verifier import Attestation
+
 logger = keylime_logging.init_logging("verifier")
 
 
 class TPMEngine(VerificationEngine):
     @classmethod
-    def register_callbacks(cls):
+    def register_callbacks(cls) -> None:
         EngineDriver.register_parameter_mutator(cls, ("tpm_quote", "uefi_log", "ima_log"))
         EngineDriver.register_evidence_evaluator(cls, ("tpm_quote", "uefi_log", "ima_log"))
 
-    def __init__(self, attestation):
+    def __init__(self, attestation: "Attestation") -> None:
         super().__init__(attestation)
-        self._attest_state = None
+        self._attest_state: AgentAttestState | None = None
 
-    def _validate_system_info(self):
+    def _validate_system_info(self) -> None:
         if not self.expects_ima_log:
             return
 
@@ -32,12 +36,12 @@ class TPMEngine(VerificationEngine):
         if self.attestation.system_info is not None:
             self.attestation.system_info.validate_required("boot_time")
 
-    def _validate_tpm_quote_items(self):
+    def _validate_tpm_quote_items(self) -> None:
         # pylint: disable=protected-access
         allowable_sig_schemes = self.attestation.agent.accept_tpm_signing_algs
         allowable_hash_algs = self.attestation.agent.accept_tpm_hash_algs
 
-        tpm_quote_items = self.attestation.evidence.view().filter(
+        tpm_quote_items = self.attestation.evidence.view().filter(  # type: ignore[attr-defined]
             evidence_class="certification", evidence_type="tpm_quote"
         )
 
@@ -69,8 +73,8 @@ class TPMEngine(VerificationEngine):
                 msg = "must have a PCR bank for a hash algorithm allowable for agent"
                 item.capabilities._add_error("available_subjects", msg)
 
-    def _validate_ima_log_items(self):
-        ima_log_items = self.attestation.evidence.view().filter(evidence_class="certification", evidence_type="ima_log")
+    def _validate_ima_log_items(self) -> None:
+        ima_log_items = self.attestation.evidence.view().filter(evidence_class="certification", evidence_type="ima_log")  # type: ignore[attr-defined]
 
         for item in ima_log_items.result():
             item.validate_required("capabilities")
@@ -78,17 +82,17 @@ class TPMEngine(VerificationEngine):
             if item.capabilities:
                 item.capabilities.validate_required("entry_count")
 
-    def _select_tpm_quote_item(self):
+    def _select_tpm_quote_item(self) -> Any:
         if not self.expects_tpm_quote:
             return None
 
-        tpm_quote_items = self.attestation.evidence.view().filter(
+        tpm_quote_items = self.attestation.evidence.view().filter(  # type: ignore[attr-defined]
             evidence_class="certification", evidence_type="tpm_quote"
         )
 
         if not tpm_quote_items.result():
             # pylint: disable=no-member
-            self._add_error("evidence", "must contain a certification item of type 'tpm_quote' per agent policy")
+            self._add_error("evidence", "must contain a certification item of type 'tpm_quote' per agent policy")  # type: ignore[attr-defined]
             return None
 
         allowable_sig_schemes = self.attestation.agent.accept_tpm_signing_algs
@@ -109,15 +113,15 @@ class TPMEngine(VerificationEngine):
 
         if isinstance(tpm_quote_items.result(), str):
             tip = tpm_quote_items.result()
-            self._add_error(  # pylint: disable=no-member
+            self._add_error(  # type: ignore[attr-defined]  # pylint: disable=no-member
                 "evidence", f"must have 'tpm_quote' with capabilities which are valid and satisfy agent policy ({tip})"
             )
             return None
 
         return tpm_quote_items.to_list()[0]
 
-    def _signature_scheme_choices(self, evidence_item):
-        scheme_choices = []
+    def _signature_scheme_choices(self, evidence_item: Any) -> list[str]:
+        scheme_choices: list[str] = []
 
         for agent_scheme in self.attestation.agent.accept_tpm_signing_algs:
             if agent_scheme not in evidence_item.capabilities.signature_schemes:
@@ -133,8 +137,8 @@ class TPMEngine(VerificationEngine):
 
         return scheme_choices
 
-    def _key_algorithm_choices(self, evidence_item):
-        algorithm_choices = []
+    def _key_algorithm_choices(self, evidence_item: Any) -> list[str]:
+        algorithm_choices: list[str] = []
 
         for scheme_choice in self._signature_scheme_choices(evidence_item):
             key_alg = algorithms.Sign(scheme_choice).key_algorithm.value
@@ -146,8 +150,8 @@ class TPMEngine(VerificationEngine):
 
         return algorithm_choices
 
-    def _hash_algorithm_choices(self, evidence_item):
-        algorithm_choices = []
+    def _hash_algorithm_choices(self, evidence_item: Any) -> list[str]:
+        algorithm_choices: list[str] = []
 
         for agent_alg in self.attestation.agent.accept_tpm_hash_algs:
             if agent_alg not in evidence_item.capabilities.hash_algorithms:
@@ -163,7 +167,7 @@ class TPMEngine(VerificationEngine):
 
         return algorithm_choices
 
-    def _certification_key_choices(self, evidence_item):
+    def _certification_key_choices(self, evidence_item: Any) -> list[Any]:
         # Get schemes and algorithms which are supported by both the certifier and the verifier and enabled for the
         # agent, ordered according to user-configured priority
         scheme_choices = self._signature_scheme_choices(evidence_item)
@@ -198,7 +202,7 @@ class TPMEngine(VerificationEngine):
         )
 
         # Determine sort priority for a given certifcation key according to user-configured scheme/algorithm preferences
-        def sort_priority(cert_key):
+        def sort_priority(cert_key: Any) -> int:
             priority = key_algorithm_choices.index(cert_key.key_algorithm)
 
             if cert_key.allowable_signature_schemes:
@@ -210,18 +214,18 @@ class TPMEngine(VerificationEngine):
             return priority
 
         # Sort keys according to priority
-        cert_keys = cert_keys.to_list()
-        cert_keys.sort(key=sort_priority)
+        cert_keys_list: list[Any] = cert_keys.to_list()
+        cert_keys_list.sort(key=sort_priority)
 
-        return cert_keys
+        return cert_keys_list
 
-    def _select_certification_key(self, evidence_item):
+    def _select_certification_key(self, evidence_item: Any) -> None:
         cert_keys = self._certification_key_choices(evidence_item)
 
         if cert_keys:
             evidence_item.chosen_parameters.certification_key = cert_keys[0]
 
-    def _select_subjects(self, evidence_item):
+    def _select_subjects(self, evidence_item: Any) -> None:
         # pylint: disable=protected-access
         # The PCR banks which may be requested, i.e., the hash algs supported by the TPM and enabled for the agent
         alg_choices = self._hash_algorithm_choices(evidence_item)
@@ -230,7 +234,7 @@ class TPMEngine(VerificationEngine):
         # The PCR numbers for which the agent can produce quotes, grouped by available PCR bank
         available_subjects = evidence_item.capabilities.available_subjects
         # The PCR numbers for each PCR bank to include in the quote (none to start)
-        selected_subjects = {}
+        selected_subjects: dict[Any, Any] = {}
         # Whether at least one suitable PCR bank is identified or not
         found = False
 
@@ -263,7 +267,7 @@ class TPMEngine(VerificationEngine):
 
         evidence_item.chosen_parameters.selected_subjects = selected_subjects
 
-    def _select_signature_scheme(self, evidence_item):
+    def _select_signature_scheme(self, evidence_item: Any) -> None:
         if not evidence_item.chosen_parameters or not evidence_item.chosen_parameters.certification_key:
             return
 
@@ -279,7 +283,7 @@ class TPMEngine(VerificationEngine):
         if possible_schemes:
             evidence_item.chosen_parameters.signature_scheme = possible_schemes[0]
 
-    def _select_hash_algorithm(self, evidence_item):
+    def _select_hash_algorithm(self, evidence_item: Any) -> None:
         params = evidence_item.chosen_parameters
 
         if not params or not params.certification_key or not params.selected_subjects:
@@ -297,13 +301,13 @@ class TPMEngine(VerificationEngine):
         if possible_algorithms:
             evidence_item.chosen_parameters.hash_algorithm = possible_algorithms[0]
 
-    def _select_uefi_log_item(self):
+    def _select_uefi_log_item(self) -> Any:
         # pylint: disable=protected-access
         if not self.expects_uefi_log:
             return None
 
         uefi_log_items = (
-            self.attestation.evidence.view()
+            self.attestation.evidence.view()  # type: ignore[attr-defined]
             .filter(evidence_class="log", evidence_type="uefi_log")
             .result_if_empty("must contain a log item of type 'uefi_log' per agent policy")
             .filter(lambda item: "application/octet-stream" in item.capabilities.formats)
@@ -316,13 +320,13 @@ class TPMEngine(VerificationEngine):
 
         return uefi_log_items.to_list()[0]
 
-    def _select_ima_log_item(self):
+    def _select_ima_log_item(self) -> Any:
         # pylint: disable=protected-access
         if not self.expects_ima_log:
             return None
 
         ima_log_items = (
-            self.attestation.evidence.view()
+            self.attestation.evidence.view()  # type: ignore[attr-defined]
             .filter(evidence_class="log", evidence_type="ima_log")
             .result_if_empty("must contain a log item of type 'ima_log' per agent policy")
             .filter(
@@ -337,7 +341,7 @@ class TPMEngine(VerificationEngine):
 
         return ima_log_items.to_list()[0]
 
-    def _determine_ima_offset(self, evidence_item):
+    def _determine_ima_offset(self, evidence_item: Any) -> Any:
         # pylint: disable=protected-access
         if not self.expects_ima_log:
             return None
@@ -369,7 +373,7 @@ class TPMEngine(VerificationEngine):
 
         return starting_offset
 
-    def _process_tpm_quote_capabilities(self, evidence_requested):
+    def _process_tpm_quote_capabilities(self, evidence_requested: Any) -> None:
         selected_item = self._select_tpm_quote_item()
 
         if not selected_item:
@@ -384,7 +388,7 @@ class TPMEngine(VerificationEngine):
 
         evidence_requested.append(selected_item)
 
-    def _process_uefi_log_capabilities(self, evidence_requested):
+    def _process_uefi_log_capabilities(self, evidence_requested: Any) -> None:
         selected_item = self._select_uefi_log_item()
 
         if not selected_item:
@@ -393,7 +397,7 @@ class TPMEngine(VerificationEngine):
         selected_item.chosen_parameters.format = "application/octet-stream"
         evidence_requested.append(selected_item)
 
-    def _process_ima_log_capabilities(self, evidence_requested):
+    def _process_ima_log_capabilities(self, evidence_requested: Any) -> None:
         selected_item = self._select_ima_log_item()
 
         if not selected_item:
@@ -404,7 +408,7 @@ class TPMEngine(VerificationEngine):
 
         evidence_requested.append(selected_item)
 
-    def _get_pull_mode_quote(self, evidence_item):
+    def _get_pull_mode_quote(self, evidence_item: Any) -> str:
         data = evidence_item.data.render(["message", "signature", "subject_data"])
 
         quoteblob = data["message"]
@@ -413,18 +417,18 @@ class TPMEngine(VerificationEngine):
 
         return f"r{quoteblob}:{sigblob}:{pcrblob}"
 
-    def _parse_tpm_clock_info(self, evidence_item):
+    def _parse_tpm_clock_info(self, evidence_item: Any) -> TPMClockInfo:
         # pylint: disable=protected-access
         quote = self._get_pull_mode_quote(evidence_item)
         clock_info_dict = Tpm._tpm2_clock_info_from_quote(quote, False)
         return TPMClockInfo.from_dict(clock_info_dict)
 
-    def _parse_pcrs(self, evidence_item):
+    def _parse_pcrs(self, evidence_item: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         pcrblob = evidence_item.data.subject_data
         _pcr_select_count, tpml_pcr_selection, pcr_values = getattr(tpm_util, "__get_pcrs_from_blob")(pcrblob)
 
-        pcrs = {}
-        unknown = {}
+        pcrs: dict[str, Any] = {}
+        unknown: dict[str, Any] = {}
         idx = 0
 
         for tpm_alg_id, _pcr_mask in tpml_pcr_selection.items():
@@ -451,17 +455,19 @@ class TPMEngine(VerificationEngine):
 
         return (pcrs, unknown)
 
-    def _attest_state_pcrs(self, evidence_item):
+    def _attest_state_pcrs(self, evidence_item: Any) -> dict[int, bytes]:
         pcrs, _ = self._parse_pcrs(evidence_item)
         hash_alg = evidence_item.chosen_parameters.hash_algorithm
         pcr_pairs = pcrs.get(hash_alg)
+        if not pcr_pairs:
+            return {}
         return {int(num): bytes.fromhex(val[2:]) for num, val in pcr_pairs.items()}
 
-    def _attest_state_ima_pcrs(self, evidence_item):
+    def _attest_state_ima_pcrs(self, evidence_item: Any) -> dict[int, bytes]:
         return {num: val for num, val in self._attest_state_pcrs(evidence_item).items() if num == config.IMA_PCR}
 
-    def _render_tpm_quote_info(self):
-        tpm_quote_items = self.attestation.evidence.view().filter(
+    def _render_tpm_quote_info(self) -> None:
+        tpm_quote_items = self.attestation.evidence.view().filter(  # type: ignore[attr-defined]
             evidence_class="certification", evidence_type="tpm_quote"
         )
 
@@ -480,7 +486,7 @@ class TPMEngine(VerificationEngine):
                 "safe": clock_info.safe,
             }
 
-    def _process_tpm_quote_evidence(self):
+    def _process_tpm_quote_evidence(self) -> None:
         # pylint: disable=protected-access
         self._render_tpm_quote_info()
         selected_item = self._select_tpm_quote_item()
@@ -501,7 +507,7 @@ class TPMEngine(VerificationEngine):
                 selected_item.data._add_error("subject_data", "must contain at least the PCRs requested")
                 break
 
-    def _process_ima_log_evidence(self):
+    def _process_ima_log_evidence(self) -> None:
         # pylint: disable=protected-access
         selected_item = self._select_ima_log_item()
 
@@ -524,7 +530,7 @@ class TPMEngine(VerificationEngine):
             )
             selected_item.data._add_error("entries", msg)
 
-    def _determine_failure_reason(self, failure):
+    def _determine_failure_reason(self, failure: Any) -> None:
         if not failure:
             logger.info("Attestation %s for agent '%s' successfully passed verification", self.index, self.agent_id)
             return
@@ -561,8 +567,8 @@ class TPMEngine(VerificationEngine):
         msg = "Attestation %s for agent '%s' failed verification due to policy violations (see above)"
         logger.warning(msg, self.index, self.agent_id)
 
-    def _get_pcr_policy(self, pcr_bank):
-        policy = {}
+    def _get_pcr_policy(self, pcr_bank: str) -> dict[int, list[str]]:
+        policy: dict[int, list[str]] = {}
         pcr_size = algorithms.Hash(pcr_bank).get_hex_size()
 
         for pcr_num, allowed_vals in self.agent.tpm_policy.items():
@@ -581,7 +587,7 @@ class TPMEngine(VerificationEngine):
 
         return policy
 
-    def _clear_agent_fields(self):
+    def _clear_agent_fields(self) -> None:
         if self.previous_authenticated_attestation:
             return
 
@@ -602,10 +608,10 @@ class TPMEngine(VerificationEngine):
         self.agent.last_received_quote = None
         self.agent.last_successful_attestation = None
 
-    def _process_results(self, failure):
+    def _process_results(self, failure: Any) -> None:
         ima_log_item = self._select_ima_log_item()
 
-        if ima_log_item:
+        if ima_log_item and self.attest_state:
             starting_offset = ima_log_item.chosen_parameters.starting_offset
             ima_log_item.results.certified_entry_count = self.attest_state.next_ima_ml_entry - starting_offset
 
@@ -616,14 +622,14 @@ class TPMEngine(VerificationEngine):
             self.attestation.evaluation = "fail"
             self.agent.accept_attestations = False
 
-        self.attestation.refresh_metadata()
+        self.attestation.refresh_metadata()  # type: ignore[no-untyped-call]
         self._determine_failure_reason(failure)
 
         # Only save new learned keyrings if quote was authenticated
-        if self.failure_reason != "broken_evidence_chain":
+        if self.failure_reason != "broken_evidence_chain" and self.attest_state:
             self.agent.learned_ima_keyrings = self.attest_state.get_ima_keyrings().to_json()
 
-    def process_capabilities(self, evidence_requested):
+    def process_capabilities(self, evidence_requested: Any) -> None:
         self._validate_system_info()
         self._validate_tpm_quote_items()
         self._validate_ima_log_items()
@@ -631,11 +637,11 @@ class TPMEngine(VerificationEngine):
         self._process_uefi_log_capabilities(evidence_requested)
         self._process_ima_log_capabilities(evidence_requested)
 
-    def process_evidence(self):
+    def process_evidence(self) -> None:
         self._process_tpm_quote_evidence()
         self._process_ima_log_evidence()
 
-    def verify_evidence(self):
+    def verify_evidence(self) -> None:
         logger.info("Starting verification of attestation %s for agent '%s'...", self.index, self.agent_id)
 
         tpm_quote_item = self._select_tpm_quote_item()
@@ -656,11 +662,11 @@ class TPMEngine(VerificationEngine):
             data=None,
             quote=self._get_pull_mode_quote(tpm_quote_item),
             aikTpmFromRegistrar=self.agent.ak_tpm,
-            tpm_policy=self._get_pcr_policy(tpm_quote_item.chosen_parameters.hash_algorithm),
+            tpm_policy=self._get_pcr_policy(tpm_quote_item.chosen_parameters.hash_algorithm),  # type: ignore[arg-type]
             ima_measurement_list=ima_entries,
             runtime_policy=self.ima_policy,
             hash_alg=algorithms.Hash(tpm_quote_item.chosen_parameters.hash_algorithm),
-            ima_keyrings=self.attest_state.get_ima_keyrings(),
+            ima_keyrings=self.attest_state.get_ima_keyrings() if self.attest_state else None,  # type: ignore[arg-type]
             mb_measurement_list=uefi_entries,
             mb_policy=self.uefi_ref_state,
             compressed=False,
@@ -690,15 +696,15 @@ class TPMEngine(VerificationEngine):
         #         self.previous_attestation.delete()
 
     @property
-    def uefi_ref_state(self):
+    def uefi_ref_state(self) -> Any:
         return self.agent.mb_policy.mb_policy
 
     @property
-    def ima_policy(self):
+    def ima_policy(self) -> Any:
         return self.agent.ima_policy.ima_policy
 
     @property
-    def required_pcr_nums(self):
+    def required_pcr_nums(self) -> list[int]:
         # Get PCRs with list of allowable values in tpm_policy
         pcrs = {int(num) for num, allowed_vals in self.agent.tpm_policy.items() if num.isdigit() and allowed_vals}
 
@@ -713,16 +719,16 @@ class TPMEngine(VerificationEngine):
         return sorted(list(pcrs))
 
     @property
-    def expects_tpm_quote(self):
+    def expects_tpm_quote(self) -> bool:
         return bool(self.required_pcr_nums)
 
     @property
-    def expects_uefi_log(self):
-        return self.agent.mb_policy and self.agent.mb_policy.mb_policy
+    def expects_uefi_log(self) -> bool:
+        return bool(self.agent.mb_policy and self.agent.mb_policy.mb_policy)
 
     @property
-    def expects_ima_log(self):
-        return (
+    def expects_ima_log(self) -> bool:
+        return bool(
             self.agent.ima_policy
             and self.agent.ima_policy.ima_policy
             and self.agent.ima_policy.generator
@@ -730,32 +736,32 @@ class TPMEngine(VerificationEngine):
         )
 
     @property
-    def previous_authenticated_tpm_quote(self):
+    def previous_authenticated_tpm_quote(self) -> Any:
         # pylint: disable=protected-access
-        return TPMEngine(self.previous_authenticated_attestation)._select_tpm_quote_item()
+        return TPMEngine(self.previous_authenticated_attestation)._select_tpm_quote_item()  # type: ignore[arg-type]
 
     @property
-    def previous_passed_tpm_quote(self):
+    def previous_passed_tpm_quote(self) -> Any:
         # pylint: disable=protected-access
-        return TPMEngine(self.previous_passed_attestation)._select_tpm_quote_item()
+        return TPMEngine(self.previous_passed_attestation)._select_tpm_quote_item()  # type: ignore[arg-type]
 
     @property
-    def previous_authenticated_ima_log(self):
+    def previous_authenticated_ima_log(self) -> Any:
         # pylint: disable=protected-access
-        return TPMEngine(self.previous_authenticated_attestation)._select_ima_log_item()
+        return TPMEngine(self.previous_authenticated_attestation)._select_ima_log_item()  # type: ignore[arg-type]
 
     @property
-    def previous_passed_ima_log(self):
+    def previous_passed_ima_log(self) -> Any:
         # pylint: disable=protected-access
-        return TPMEngine(self.previous_passed_attestation)._select_ima_log_item()
+        return TPMEngine(self.previous_passed_attestation)._select_ima_log_item()  # type: ignore[arg-type]
 
     @property
-    def previous_ima_log(self):
+    def previous_ima_log(self) -> Any:
         # pylint: disable=protected-access
-        return TPMEngine(self.previous_attestation)._select_ima_log_item()
+        return TPMEngine(self.previous_attestation)._select_ima_log_item()  # type: ignore[arg-type]
 
     @property
-    def attest_state(self):
+    def attest_state(self) -> AgentAttestState | None:
         """The most current verification state of the attested system as understood by the verifier, returned as an
         AgentAttestState object. This object contains the parameters which are used as input to Keylime's low-level
         verification functions in ``keylime.tpm``. During verification, these functions update the AgentAttestState
@@ -808,7 +814,7 @@ class TPMEngine(VerificationEngine):
         if self._attest_state:
             return self._attest_state
 
-        state = AgentAttestState(self.attestation.agent_id)
+        state = AgentAttestState(self.attestation.agent_id)  # type: ignore[attr-defined]
         state.set_boottime(int(self.attestation.system_info.boot_time.timestamp()))
 
         # Retrieve clock info from previous quote
@@ -826,7 +832,7 @@ class TPMEngine(VerificationEngine):
 
             # Retrieve keys learned from ima-buf entries received in prior IMA logs
             if ima_log_item.chosen_parameters.starting_offset != 0:
-                ima_keyrings.update(ImaKeyrings.from_json(self.agent.learned_ima_keyrings or {}))
+                ima_keyrings.update(ImaKeyrings.from_json(self.agent.learned_ima_keyrings or {}))  # type: ignore[no-untyped-call]
 
             # Set starting offset of IMA log
             state.set_next_ima_ml_entry(ima_log_item.chosen_parameters.starting_offset)

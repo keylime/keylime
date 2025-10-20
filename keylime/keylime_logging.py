@@ -18,7 +18,7 @@ except KeyError:
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id")
 
 
-def list_items(items, *, sort=False, with_and=True):
+def list_items(items, *, sort=False, with_and=True):  # type: ignore[no-untyped-def]
     if sort:
         items = sorted(items)
 

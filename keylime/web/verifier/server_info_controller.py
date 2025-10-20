@@ -17,7 +17,7 @@ class ServerInfoController(Controller):
 
         tornado_app = self.action_handler.application
         tornado_req = self.action_handler.request
-        return v2.VersionHandler(tornado_app, tornado_req, override=self.action_handler)
+        return v2.VersionHandler(tornado_app, tornado_req, override=self.action_handler)  # type: ignore[no-untyped-call]
 
     def show_root(self, **_params):
         """The root endpoint may be used by clients which understand API v3+ to determine the current API version of the
@@ -36,8 +36,8 @@ class ServerInfoController(Controller):
         """A request issued for the top-level path of a given API version results in a 200 response when the server
         supports that version.
         """
-        if self.major_version <= 2:
-            self._new_v2_main_handler().get()
+        if self.major_version and self.major_version <= 2:
+            self._new_v2_main_handler().get()  # type: ignore[no-untyped-call]
         else:
             self.respond(200)
 
@@ -50,6 +50,6 @@ class ServerInfoController(Controller):
         "/v3.0/") to determine whether it is available on the server or not.
         """
         if config.get("verifier", "mode", fallback="pull") == "pull":
-            self._new_v2_version_handler().get()
+            self._new_v2_version_handler().get()  # type: ignore[no-untyped-call]
         else:
             self.respond(410, "Gone")

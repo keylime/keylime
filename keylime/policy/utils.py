@@ -56,9 +56,9 @@ class Magic(bytes, enum.Enum):
     LZO = b"\x89\x4c\x5a\x4f\x00\x0d"
     BZIP2 = b"BZh"
     GZIP = b"\x1f\x8b"
-    ZSTD = b"\x28\xB5\x2F\xFD"
+    ZSTD = b"\x28\xb5\x2f\xfd"
     LZ4 = b"\x04\x22\x4d\x18"
-    XZ = b"\xFD\x37\x7A\x58\x5A\x00"
+    XZ = b"\xfd\x37\x7a\x58\x5a\x00"
 
 
 class Compression(str, enum.Enum):
@@ -82,9 +82,9 @@ class Compression(str, enum.Enum):
         MAGIC_LZO: bytes = b"\x89\x4c\x5a\x4f\x00\x0d"
         MAGIC_BZIP2: bytes = b"BZh"
         MAGIC_GZIP: bytes = b"\x1f\x8b"
-        MAGIC_ZSTD: bytes = b"\x28\xB5\x2F\xFD"
+        MAGIC_ZSTD: bytes = b"\x28\xb5\x2f\xfd"
         MAGIC_LZ4: bytes = b"\x04\x22\x4d\x18"
-        MAGIC_XZ: bytes = b"\xFD\x37\x7A\x58\x5A\x00"
+        MAGIC_XZ: bytes = b"\xfd\x37\x7a\x58\x5a\x00"
         MAGIC_ZCK_V1: bytes = b"\x00ZCK1"
         MAGIC_ZCK_DET_V1: bytes = b"\x00ZHR1"
 

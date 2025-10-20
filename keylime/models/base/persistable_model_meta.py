@@ -69,20 +69,20 @@ class PersistableModelMeta(BasicModelMeta):
         return db_mapping
 
     @staticmethod
-    def __assoc_to_rship(association: "EntityAssociation", _linked_fields) -> RelationshipProperty:
+    def __assoc_to_rship(association: "EntityAssociation", _linked_fields) -> RelationshipProperty:  # type: ignore[no-untyped-def]
         lazy = "joined" if association.preload else "noload"
 
         return relationship(association.other_model.db_mapping, back_populates=association.inverse_of, lazy=lazy)
 
-    def get_db_column_items(cls, embedded_in=None):
+    def get_db_column_items(cls, embedded_in: Any = None) -> dict[str, Any]:
         items = {name: field for name, field in cls.fields.items() if field.persist}
-        items |= cls.embeds_one_associations | cls.embeds_many_associations
+        items |= cls.embeds_one_associations | cls.embeds_many_associations  # type: ignore[arg-type]
 
         for sub_model in cls.sub_models:  # pylint: disable=not-an-iterable
-            items |= sub_model.get_db_column_items()
+            items |= sub_model.get_db_column_items()  # type: ignore[attr-defined]
 
         for embed in cls.embeds_inline_associations.values():
-            items |= embed.other_model.get_db_column_items(embedded_in=embed)
+            items |= embed.other_model.get_db_column_items(embedded_in=embed)  # type: ignore[attr-defined]
 
         if embedded_in:
             for column_name in items.copy().keys():
@@ -91,13 +91,13 @@ class PersistableModelMeta(BasicModelMeta):
         return items
 
     @classmethod
-    def __make_db_columns(mcs, cls) -> Table:
+    def __make_db_columns(mcs, cls: Any) -> Any:
         columns = [item.to_column(name) for name, item in cls.get_db_column_items().items()]
-        return columns
+        return columns  # type: ignore[return-value]
 
     @classmethod
-    def __make_db_constraints(mcs, cls) -> Table:
-        foreign_key_constraints = {}
+    def __make_db_constraints(mcs, cls: Any) -> Any:
+        foreign_key_constraints: dict[str, Any] = {}
 
         linked_fields = {
             name: item
@@ -106,29 +106,31 @@ class PersistableModelMeta(BasicModelMeta):
         }
 
         for name, field in linked_fields.items():
-            local_fields, linked_refs = foreign_key_constraints.get(field.linked_association, ([], []))
-            local_fields.append(name)
-            linked_refs.append(f"{field.linked_table}.{field.linked_field}")
-            foreign_key_constraints[field.linked_association] = (local_fields, linked_refs)
+            assoc_name = field.linked_association
+            if assoc_name:
+                local_fields, linked_refs = foreign_key_constraints.get(assoc_name, ([], []))  # type: ignore[arg-type]
+                local_fields.append(name)
+                linked_refs.append(f"{field.linked_table}.{field.linked_field}")
+                foreign_key_constraints[assoc_name] = (local_fields, linked_refs)  # type: ignore[index]
 
         constraints = [ForeignKeyConstraint(*constraint_args) for constraint_args in foreign_key_constraints.values()]
 
-        return constraints
+        return constraints  # type: ignore[return-value]
 
     @classmethod
-    def __make_db_table(mcs, cls) -> Table:
+    def __make_db_table(mcs, cls: Any) -> Table:
         db_table = Table(cls.table_name, db_manager.registry.metadata)
 
-        for column in mcs.__make_db_columns(cls):
+        for column in mcs.__make_db_columns(cls):  # type: ignore[attr-defined]
             db_table.append_column(column)
 
-        for constraint in mcs.__make_db_constraints(cls):
+        for constraint in mcs.__make_db_constraints(cls):  # type: ignore[attr-defined]
             db_table.append_constraint(constraint)
 
         return db_table
 
     @classmethod
-    def __make_relationships(mcs, cls) -> dict[str, relationship]:
+    def __make_relationships(mcs, cls: Any) -> dict[str, Any]:
         # pylint: disable=protected-access
         relationships = {}
 
@@ -139,7 +141,7 @@ class PersistableModelMeta(BasicModelMeta):
         return relationships
 
     @classmethod
-    def _make_field(mcs, cls: "BasicModelMeta", name: str, data_type: DeclaredFieldType, **opts) -> ModelField:  # type: ignore[reportSelfClassParameterName]
+    def _make_field(mcs, cls: "BasicModelMeta", name: str, data_type: DeclaredFieldType, **opts) -> ModelField:  # type: ignore[reportSelfClassParameterName, no-untyped-def]
         if not mcs._is_implementation(cls):
             raise TypeError(f"cannot create model field '{name}' on abstract class '{cls.__name__}'")
 
@@ -201,7 +203,7 @@ class PersistableModelMeta(BasicModelMeta):
         type(cls)._make_field(cls, name, data_type, primary_key=True)
         type(cls)._log_schema_helper_use(cls, "_id", name, data_type)
 
-    def _field(cls, name: str, data_type: DeclaredFieldType, **opts) -> None:
+    def _field(cls, name: str, data_type: DeclaredFieldType, **opts: Any) -> None:  # type: ignore[override]
         # pylint: disable=arguments-differ
         if not cls.schema_helpers_enabled:
             return
@@ -222,7 +224,7 @@ class PersistableModelMeta(BasicModelMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        association = EmbedsInlineAssociation(name, cls, *args, **kwargs)
+        association = EmbedsInlineAssociation(name, cls, *args, **kwargs)  # type: ignore[arg-type]
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_embeds_inline", name, *args, **kwargs)
@@ -231,7 +233,7 @@ class PersistableModelMeta(BasicModelMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        association = HasOneAssociation(name, cls, *args, **kwargs)
+        association = HasOneAssociation(name, cls, *args, **kwargs)  # type: ignore[arg-type]
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_has_one", name, *args, **kwargs)
@@ -240,7 +242,7 @@ class PersistableModelMeta(BasicModelMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        association = HasManyAssociation(name, cls, *args, **kwargs)
+        association = HasManyAssociation(name, cls, *args, **kwargs)  # type: ignore[arg-type]
 
         type(cls)._add_association(cls, association)
         type(cls)._log_schema_helper_use(cls, "_has_many", name, *args, **kwargs)
@@ -249,7 +251,7 @@ class PersistableModelMeta(BasicModelMeta):
         if not cls.schema_helpers_enabled:
             return
 
-        association = BelongsToAssociation(name, cls, *args, **kwargs)
+        association = BelongsToAssociation(name, cls, *args, **kwargs)  # type: ignore[arg-type]
         type(cls)._add_association(cls, association)
 
         # pylint: disable=not-an-iterable
@@ -297,7 +299,7 @@ class PersistableModelMeta(BasicModelMeta):
         if cls.schema_awaiting_processing:
             cls.process_schema()
 
-        return type(cls)._getattr(cls, "__table_name")
+        return type(cls)._getattr(cls, "__table_name")  # type: ignore[no-any-return]
 
     @property
     def db_mapping(cls) -> type:

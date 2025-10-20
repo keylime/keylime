@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import overload
+from typing import TYPE_CHECKING, Any, overload
 
 import keylime.web.base.api_messages as api_messages  # pylint: disable=consider-using-from-import  # Avoid circular import
 from keylime.web.base.api_messages.api_links import APILink, APILinksMixin
@@ -8,58 +8,61 @@ from keylime.web.base.api_messages.api_message_helpers import APIMessageHelpers
 from keylime.web.base.api_messages.api_meta import APIMeta, APIMetaMixin
 from keylime.web.base.exceptions import InvalidMember, MissingMember, UnexpectedMember
 
+if TYPE_CHECKING:
+    from keylime.web.base.controller import Controller
+
 
 class APIResource(APILinksMixin, APIMetaMixin):
     @classmethod
-    def load(cls, data):
+    def load(cls, data: Mapping[str, Any]) -> "APIResource":
         if not isinstance(data, Mapping):
             raise InvalidMember(f"cannot load object of type '{data.__class__.__name__}' as JSON:API resource")
 
-        data = data.copy()
-        resource = cls(data.pop("type"))
+        data_dict = dict(data)  # type: ignore[assignment, attr-defined]
+        resource = cls(data_dict.pop("type"))
 
-        if data.get("id"):
-            resource.set_id(data.pop("id"))
+        if data_dict.get("id"):
+            resource.set_id(data_dict.pop("id"))
 
-        if data.get("attributes"):
-            resource.load_attributes(data.pop("attributes"))
+        if data_dict.get("attributes"):
+            resource.load_attributes(data_dict.pop("attributes"))
 
-        if data.get("links"):
-            resource.load_links(data.pop("links"))
+        if data_dict.get("links"):
+            resource.load_links(data_dict.pop("links"))
 
-        if data.get("meta"):
-            resource.load_meta(data.pop("meta"))
+        if data_dict.get("meta"):
+            resource.load_meta(data_dict.pop("meta"))
 
-        if data:
-            raise UnexpectedMember(f"unexpected members given for a JSON:API resource: {list(data.keys())}")
+        if data_dict:
+            raise UnexpectedMember(f"unexpected members given for a JSON:API resource: {list(data_dict.keys())}")
 
         return resource
 
     @overload
-    def __init__(self, res_type):
+    def __init__(self, res_type: str) -> None:
         ...
 
     @overload
-    def __init__(self, res_type, res_id):
+    def __init__(self, res_type: str, res_id: str) -> None:
         ...
 
     @overload
-    def __init__(self, res_type, attributes):
+    def __init__(self, res_type: str, attributes: dict[str, Any]) -> None:
         ...
 
     @overload
-    def __init__(self, res_type, res_id, attributes):
+    def __init__(self, res_type: str, res_id: str, attributes: dict[str, Any]) -> None:
         ...
 
-    def __init__(self, *args):
+    def __init__(self, *args: Any) -> None:  # type: ignore[misc]
         if not args:
             raise MissingMember("no 'type' given for a JSON:API resource")
 
-        self._type = None
-        self._id = None
-        self._attributes = {}
-        self._links = {}
-        self._meta = {}
+        self._type: str | None = None
+        self._id: str | None = None
+        self._attributes: dict[str, Any] = {}
+        self._links: dict[str, APILink] = {}
+        self._meta: dict[str, APIMeta] = {}
 
         self.set_type(args[0])
 
@@ -81,14 +84,14 @@ class APIResource(APILinksMixin, APIMetaMixin):
         #   - "lid" member
         #   - link objects in the "links" field
 
-    def set_type(self, res_type):
+    def set_type(self, res_type: str) -> "APIResource":
         if not APIMessageHelpers.is_valid_name(res_type):
             raise InvalidMember("invalid 'type' given for a JSON:API resource")
 
         self._type = res_type
         return self
 
-    def set_id(self, res_id):
+    def set_id(self, res_id: str) -> "APIResource":
         if not isinstance(res_id, str):
             raise InvalidMember("the 'id' of a JSON:API resource must be a string")
 
@@ -98,11 +101,11 @@ class APIResource(APILinksMixin, APIMetaMixin):
         self._id = res_id
         return self
 
-    def clear_id(self):
+    def clear_id(self) -> "APIResource":
         self._id = None
         return self
 
-    def add_attribute(self, name, value):
+    def add_attribute(self, name: str, value: Any) -> "APIResource":
         if not APIMessageHelpers.is_valid_name(name):
             raise InvalidMember("attribute name added to JSON:API resource is not valid")
 
@@ -115,31 +118,32 @@ class APIResource(APILinksMixin, APIMetaMixin):
         self._attributes[name] = value
         return self
 
-    def load_attributes(self, data):
+    def load_attributes(self, data: Mapping[str, Any]) -> "APIResource":
         if not isinstance(data, Mapping):
             raise TypeError("object loaded as JSON:API 'attributes' member must be a mapping")
 
-        if data.get("id"):
-            self.set_id(data.get("id"))
-            del data["id"]
+        data_copy: dict[str, Any] = dict(data)  # Create mutable copy
+        if data_copy.get("id"):
+            self.set_id(data_copy.get("id"))  # type: ignore[arg-type]
+            del data_copy["id"]
 
-        for name, value in data.items():
+        for name, value in data_copy.items():
             self.add_attribute(name, value)
 
         return self
 
-    def remove_attribute(self, name):
+    def remove_attribute(self, name: str) -> "APIResource":
         if name not in self._attributes:
             raise KeyError(f"attribute '{name}' does not exist in JSON:API resource")
 
         del self._attributes[name]
         return self
 
-    def clear_attributes(self):
+    def clear_attributes(self) -> "APIResource":
         self._attributes.clear()
         return self
 
-    def include(self, *items):
+    def include(self, *items: APILink | APIMeta) -> "APIResource":
         for item in items:
             if isinstance(item, APILink):
                 self.add_link(item)
@@ -150,8 +154,8 @@ class APIResource(APILinksMixin, APIMetaMixin):
 
         return self
 
-    def render(self):
-        output = {"type": self.type}
+    def render(self) -> dict[str, Any]:
+        output: dict[str, Any] = {"type": self.type}
 
         if self.id:
             output["id"] = self.id
@@ -167,17 +171,19 @@ class APIResource(APILinksMixin, APIMetaMixin):
 
         return output
 
-    def send_via(self, controller, *, code=None, status=None, stop_action=True):
+    def send_via(
+        self, controller: "Controller", *, code: int | None = None, status: str | None = None, stop_action: bool = True
+    ) -> None:
         api_messages.APIMessageBody(self).send_via(controller, code=code, status=status, stop_action=stop_action)
 
     @property
-    def type(self):
+    def type(self) -> str | None:
         return self._type
 
     @property
-    def id(self):
+    def id(self) -> str | None:
         return self._id
 
     @property
-    def attributes(self):
+    def attributes(self) -> MappingProxyType[str, Any]:
         return MappingProxyType(self._attributes)
