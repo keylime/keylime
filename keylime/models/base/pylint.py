@@ -67,6 +67,9 @@ def transform_model_class(cls: astroid.ClassDef) -> astroid.ClassDef:
     ):
         # Iterate over declarations in the body of the model's _schema method
         for exp in cls.locals["_schema"][0].body:
+            # Skip Import/ImportFrom statements (e.g., lazy imports to avoid circular dependencies)
+            if isinstance(exp, (astroid.Import, astroid.ImportFrom)):
+                continue
             # Only declarations which create a new field or association are relevant
             if exp.value.func.attrname in MODEL_TRANSFORMING_METHODS:
                 # Get the first argument of the function call as this is the name of the field/association

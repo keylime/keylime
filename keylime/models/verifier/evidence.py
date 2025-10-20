@@ -1,6 +1,5 @@
 import math
 
-import keylime.models.verifier as verifier_models
 from keylime import keylime_logging
 from keylime.common import algorithms
 from keylime.models.base import *
@@ -11,6 +10,9 @@ logger = keylime_logging.init_logging("verifier")
 class EvidenceItem(PersistableModel):
     @classmethod
     def _schema(cls):
+        # Lazy import to avoid circular dependency
+        import keylime.models.verifier as verifier_models  # pylint: disable=import-outside-toplevel
+
         cls._persist_as("evidence_items")
 
         cls._belongs_to("attestation", verifier_models.Attestation)

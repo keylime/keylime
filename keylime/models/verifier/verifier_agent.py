@@ -1,12 +1,14 @@
 from functools import cache
 
-import keylime.models.verifier as verifier_models
 from keylime.models.base import *
 
 
 class VerifierAgent(PersistableModel):
     @classmethod
     def _schema(cls):
+        # Lazy import to avoid circular dependency
+        import keylime.models.verifier as verifier_models  # pylint: disable=import-outside-toplevel
+
         cls._persist_as("verifiermain")
         cls._id("agent_id", String(80))
 
@@ -92,4 +94,7 @@ class VerifierAgent(PersistableModel):
     @property
     @cache  # pylint: disable=method-cache-max-size-none  # Intentional unbounded cache for ORM property
     def latest_attestation(self):
+        # Lazy import to avoid circular dependency
+        import keylime.models.verifier as verifier_models  # pylint: disable=import-outside-toplevel
+
         return verifier_models.Attestation.get_latest(self.agent_id)

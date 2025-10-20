@@ -3,13 +3,13 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from sqlalchemy import Column
 
-from keylime.models.base.associated_record_set import AssociatedRecordSet
 from keylime.models.base.db import db_manager
 from keylime.models.base.errors import AssociationTypeMismatch, AssociationValueInvalid
 from keylime.models.base.types.dictionary import Dictionary
 from keylime.models.base.types.list import List
 
 if TYPE_CHECKING:
+    from keylime.models.base.associated_record_set import AssociatedRecordSet
     from keylime.models.base.basic_model import BasicModel
     from keylime.models.base.persistable_model import PersistableModel
 
@@ -43,7 +43,7 @@ class ModelAssociation(ABC):
     @abstractmethod
     def __get__(
         self, parent_record: "BasicModel", objtype: Optional[type["BasicModel"]] = None
-    ) -> Union[AssociatedRecordSet, "BasicModel", "ModelAssociation", None]:
+    ) -> Union["AssociatedRecordSet", "BasicModel", "ModelAssociation", None]:
         pass
 
     def __delete__(self, parent_record: "BasicModel") -> None:
@@ -61,7 +61,7 @@ class ModelAssociation(ABC):
 
         return None
 
-    def _get_many(self, parent_record: "BasicModel") -> Union[AssociatedRecordSet, "ModelAssociation", None]:
+    def _get_many(self, parent_record: "BasicModel") -> Union["AssociatedRecordSet", "ModelAssociation", None]:
         if parent_record is None:
             return self
 
@@ -78,8 +78,13 @@ class ModelAssociation(ABC):
         record_set.clear()
         record_set.add(other_record)
 
-    def get_record_set(self, parent_record: "BasicModel") -> AssociatedRecordSet:
+    def get_record_set(self, parent_record: "BasicModel") -> "AssociatedRecordSet":
         if not hasattr(parent_record, self._private_member):
+            # Lazy import to avoid circular dependency
+            from keylime.models.base.associated_record_set import (  # pylint: disable=import-outside-toplevel
+                AssociatedRecordSet,
+            )
+
             setattr(parent_record, self._private_member, AssociatedRecordSet(parent_record, self))
 
         return getattr(parent_record, self._private_member)  # type: ignore[no-any-return]
@@ -217,7 +222,7 @@ class EmbedsManyAssociation(EmbeddedAssociation):
 
     if TYPE_CHECKING:
 
-        def _get_many(self, parent_record: "BasicModel") -> Union[AssociatedRecordSet, "EmbedsManyAssociation", None]:
+        def _get_many(self, parent_record: "BasicModel") -> Union["AssociatedRecordSet", "EmbedsManyAssociation", None]:
             ...
 
 
@@ -280,7 +285,7 @@ class EntityAssociation(ModelAssociation):
         def _get_one(self, parent_record: "BasicModel") -> Union["PersistableModel", "EntityAssociation", None]:
             ...
 
-        def _get_many(self, parent_record: "BasicModel") -> Union[AssociatedRecordSet, "EntityAssociation", None]:
+        def _get_many(self, parent_record: "BasicModel") -> Union["AssociatedRecordSet", "EntityAssociation", None]:
             ...
 
         @property
@@ -333,7 +338,7 @@ class HasManyAssociation(EntityAssociation):
 
     if TYPE_CHECKING:
 
-        def _get_many(self, parent_record: "BasicModel") -> Union[AssociatedRecordSet, "HasManyAssociation", None]:
+        def _get_many(self, parent_record: "BasicModel") -> Union["AssociatedRecordSet", "HasManyAssociation", None]:
             ...
 
 

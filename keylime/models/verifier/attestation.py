@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-import keylime.models.verifier as verifier_models
 from keylime import config, keylime_logging
 from keylime.models.base import *
 
@@ -10,6 +9,9 @@ logger = keylime_logging.init_logging("verifier")
 class Attestation(PersistableModel):
     @classmethod
     def _schema(cls):
+        # Lazy import to avoid circular dependency
+        import keylime.models.verifier as verifier_models  # pylint: disable=import-outside-toplevel
+
         cls._persist_as("attestations")
 
         # IDENTIFIERS
@@ -122,6 +124,9 @@ class Attestation(PersistableModel):
         #     attestation.starting_ima_offset = agent.next_ima_ml_entry
 
     def receive_capabilities(self, data):
+        # Lazy import to avoid circular dependency
+        import keylime.models.verifier as verifier_models  # pylint: disable=import-outside-toplevel
+
         evidence_data = data.get("evidence_supported", [])
         system_info_data = data.get("system_info", {})
 
