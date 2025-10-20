@@ -1,3 +1,5 @@
+# pyright: reportAttributeAccessIssue=false
+# ORM model with dynamically-created attributes from metaclasses
 import math
 
 from keylime import keylime_logging

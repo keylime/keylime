@@ -1,3 +1,5 @@
+# pyright: reportAttributeAccessIssue=false
+# Uses ORM models with dynamically-created attributes from metaclasses
 from typing import cast
 
 from keylime import keylime_logging

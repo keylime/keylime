@@ -1,3 +1,5 @@
+# pyright: reportAttributeAccessIssue=false
+# Uses ORM models with dynamically-created attributes from metaclasses
 import re
 from typing import TYPE_CHECKING, Any, overload
 

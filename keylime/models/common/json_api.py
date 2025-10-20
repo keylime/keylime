@@ -1,3 +1,5 @@
+# pyright: reportAttributeAccessIssue=false
+# ORM models with dynamically-created attributes from metaclasses
 from keylime.models.base import *
 
 
@@ -81,7 +83,7 @@ class APIDocument(APIModel):
             return None
 
     @property
-    def errors(self):  # pylint: disable=function-redefined
+    def errors(self):  # pylint: disable=function-redefined  # type: ignore[reportIncompatibleMethodOverride]
         return self.values.get("errors")
 
     def render(self, only=None):

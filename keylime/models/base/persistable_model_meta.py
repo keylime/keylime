@@ -53,7 +53,7 @@ class PersistableModelMeta(BasicModelMeta):
 
     # pylint: disable=using-constant-test, no-value-for-parameter, unused-private-member, unsupported-membership-test, no-else-return
 
-    DeclaredFieldType: TypeAlias = BasicModelMeta.DeclaredFieldType
+    DeclaredFieldType: TypeAlias = BasicModelMeta.DeclaredFieldType  # type: ignore[reportIncompatibleVariableOverride, reportAssignmentType]
 
     TABLE_NAME_REGEX: Pattern = re.compile(r"^[A-Za-z_]+[A-Za-z0-9_]*$")
 

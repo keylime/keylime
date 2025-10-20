@@ -1,3 +1,5 @@
+# pyright: reportAttributeAccessIssue=false
+# ORM model with dynamically-created attributes from metaclasses
 from functools import cache
 
 from keylime.models.base import *

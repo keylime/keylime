@@ -1,3 +1,5 @@
+# pyright: reportAttributeAccessIssue=false
+# ORM model with dynamically-created attributes from metaclasses
 from datetime import timedelta
 
 from keylime import config, keylime_logging
@@ -60,7 +62,7 @@ class Attestation(PersistableModel):
             return
 
         last_attestation = Attestation.get_latest(self.agent_id)
-        self.index = Attestation.get_latest(self.agent_id).index + 1 if last_attestation else 0
+        self.index = last_attestation.index + 1 if last_attestation else 0  # type: ignore[reportOptionalMemberAccess]
 
     def _set_stage(self):
         if self.evaluation and self.evaluation != "pending":

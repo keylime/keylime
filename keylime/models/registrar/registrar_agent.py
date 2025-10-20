@@ -1,3 +1,5 @@
+# pyright: reportAttributeAccessIssue=false
+# ORM model with dynamically-created attributes from metaclasses
 import base64
 import hmac
 
@@ -323,7 +325,7 @@ class RegistrarAgent(PersistableModel):
         self.change("active", result)
         return result
 
-    def commit_changes(self):
+    def commit_changes(self):  # type: ignore[reportIncompatibleMethodOverride]
         # pylint: disable=arguments-differ
         # Accept changes and write them to the database (unless fields have errors)
         super().commit_changes()
