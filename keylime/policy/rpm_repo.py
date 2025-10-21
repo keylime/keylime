@@ -25,6 +25,8 @@ from keylime.types import PathLike_str
 
 logger = Logger().logger()
 
+MAX_WORKERS_DEFAULT = 8
+
 
 def _parse_rpm_header(hdr: rpm.hdr) -> Tuple[Dict[str, List[str]], Dict[str, List[bytes]]]:
     # First, the file digests.
@@ -110,6 +112,7 @@ def analyze_local_repo(
     digests: Optional[Dict[str, List[str]]] = None,
     imasigs: Optional[Dict[str, List[bytes]]] = None,
     jobs: Optional[int] = None,
+    max_workers: int = MAX_WORKERS_DEFAULT,
 ) -> Tuple[Dict[str, List[str]], Dict[str, List[bytes]], bool]:
     """
     Analyze a local repository.
@@ -121,6 +124,7 @@ def analyze_local_repo(
     :param imasigs: dict of str and a list of bytes, to store the files and
                        their associated IMA signatures
     :param jobs: integer, the number of jobs to use when processing the rpms
+    :param max_workers: integer, the maximum number of workers used for RPM processing
     :return: tuple with the dict of digests, the dict of IMA signatures and a
              boolean indicating the success of this method
     """
@@ -163,7 +167,7 @@ def analyze_local_repo(
     else:
         logger.warning("Warning. Unsigned repository. Continuing the RPM scanning")
 
-    jobs = jobs if jobs else multiprocessing.cpu_count()
+    jobs = jobs if jobs else min(multiprocessing.cpu_count(), max_workers)
 
     if not digests:
         digests = {}
@@ -254,7 +258,11 @@ def _parse_xml_file(filepath: str) -> Any:
 
 
 def _analyze_remote_repo(
-    repo: str, digests: Optional[Dict[str, List[str]]], imasigs: Optional[Dict[str, List[bytes]]], jobs: Optional[int]
+    repo: str,
+    digests: Optional[Dict[str, List[str]]],
+    imasigs: Optional[Dict[str, List[bytes]]],
+    jobs: Optional[int],
+    max_workers: int = MAX_WORKERS_DEFAULT,
 ) -> Tuple[Dict[str, List[str]], Dict[str, List[bytes]], bool]:
     # Make the repo ends with "/", so we can be considered as a base URL
     repo = repo if (repo).endswith("/") else f"{repo}/"
@@ -318,7 +326,7 @@ def _analyze_remote_repo(
     # single thread (asyncio) or multiple process.  To avoid change
     # all the stack, I go for synchronous functions but with many
     # process.  In the future we can move all to asyncio.
-    jobs = jobs if jobs else (multiprocessing.cpu_count() * 8)
+    jobs = jobs if jobs else max_workers
 
     # Analyze all the RPMs in parallel
     with multiprocessing.Pool(jobs) as pool:
@@ -334,10 +342,11 @@ def analyze_remote_repo(
     digests: Optional[Dict[str, List[str]]] = None,
     imasigs: Optional[Dict[str, List[bytes]]] = None,
     jobs: Optional[int] = None,
+    max_workers: int = MAX_WORKERS_DEFAULT,
 ) -> Tuple[Dict[str, List[str]], Dict[str, List[bytes]], bool]:
     """Analyze a remote repository."""
     try:
-        return _analyze_remote_repo(str(*repourl), digests, imasigs, jobs)
+        return _analyze_remote_repo(str(*repourl), digests, imasigs, jobs, max_workers)
     except Exception as exc:
         logger.error(exc)
         return {}, {}, False
