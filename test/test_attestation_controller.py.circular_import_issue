@@ -1,0 +1,291 @@
+"""
+Unit tests for keylime.web.verifier.attestation_controller module
+"""
+
+import json
+import unittest
+from unittest.mock import MagicMock, Mock, patch
+
+from keylime.web.verifier.attestation_controller import AttestationController
+
+
+class TestAttestationController(unittest.TestCase):
+    """Test cases for the AttestationController"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.mock_handler = MagicMock()
+        self.mock_handler.request = MagicMock()
+        self.mock_handler.request.body = b'{}'
+        self.mock_handler.request.headers = {}
+        self.controller = AttestationController(self.mock_handler)
+
+    def test_controller_initialization(self):
+        """Test that controller initializes correctly"""
+        self.assertIsNotNone(self.controller)
+        self.assertEqual(self.controller.action_handler, self.mock_handler)
+
+    @patch('keylime.web.verifier.attestation_controller.Attestation')
+    @patch('keylime.web.verifier.attestation_controller.VerifierAgent')
+    def test_create_new_attestation(self, mock_agent_class, mock_attestation_class):
+        """Test creating a new attestation"""
+        # Setup mocks
+        mock_agent = MagicMock()
+        mock_agent.agent_id = "test-agent-123"
+        mock_agent_class.get.return_value = mock_agent
+
+        mock_attestation = MagicMock()
+        mock_attestation.agent_id = "test-agent-123"
+        mock_attestation.index = 0
+        mock_attestation_class.create.return_value = mock_attestation
+
+        # Mock request parameters
+        params = {
+            "agent_id": "test-agent-123",
+            "evidence_supported": json.dumps([
+                {
+                    "evidence_class": "certification",
+                    "evidence_type": "tpm_quote",
+                    "capabilities": {}
+                }
+            ])
+        }
+
+        with patch.object(self.controller, 'respond') as mock_respond:
+            self.controller.create(**params)
+
+            # Verify agent lookup
+            mock_agent_class.get.assert_called_once_with("test-agent-123")
+
+            # Verify attestation creation
+            mock_attestation_class.create.assert_called_once()
+
+            # Verify response
+            mock_respond.assert_called_once()
+            call_args = mock_respond.call_args[0]
+            self.assertEqual(call_args[0], 201)  # HTTP 201 Created
+
+    @patch('keylime.web.verifier.attestation_controller.Attestation')
+    def test_show_attestation(self, mock_attestation_class):
+        """Test showing an existing attestation"""
+        # Setup mock
+        mock_attestation = MagicMock()
+        mock_attestation.agent_id = "test-agent-123"
+        mock_attestation.index = 5
+        mock_attestation.stage = "verification_complete"
+        mock_attestation.evaluation = "pass"
+        mock_attestation_class.get.return_value = mock_attestation
+
+        params = {
+            "agent_id": "test-agent-123",
+            "attestation_index": "5"
+        }
+
+        with patch.object(self.controller, 'respond') as mock_respond:
+            self.controller.show(**params)
+
+            # Verify attestation lookup
+            mock_attestation_class.get.assert_called_once()
+
+            # Verify response
+            mock_respond.assert_called_once()
+            call_args = mock_respond.call_args[0]
+            self.assertEqual(call_args[0], 200)  # HTTP 200 OK
+
+    @patch('keylime.web.verifier.attestation_controller.Attestation')
+    def test_show_attestation_not_found(self, mock_attestation_class):
+        """Test showing a non-existent attestation returns 404"""
+        # Setup mock to return None
+        mock_attestation_class.get.return_value = None
+
+        params = {
+            "agent_id": "test-agent-123",
+            "attestation_index": "999"
+        }
+
+        with patch.object(self.controller, 'respond') as mock_respond:
+            self.controller.show(**params)
+
+            # Verify 404 response
+            mock_respond.assert_called_once()
+            call_args = mock_respond.call_args[0]
+            self.assertEqual(call_args[0], 404)  # HTTP 404 Not Found
+
+    @patch('keylime.web.verifier.attestation_controller.Attestation')
+    def test_index_attestations(self, mock_attestation_class):
+        """Test listing attestations for an agent"""
+        # Setup mocks
+        mock_attestation1 = MagicMock()
+        mock_attestation1.index = 0
+        mock_attestation2 = MagicMock()
+        mock_attestation2.index = 1
+
+        mock_attestation_class.all.return_value = [mock_attestation1, mock_attestation2]
+
+        params = {
+            "agent_id": "test-agent-123"
+        }
+
+        with patch.object(self.controller, 'respond') as mock_respond:
+            self.controller.index(**params)
+
+            # Verify attestations lookup
+            mock_attestation_class.all.assert_called_once()
+
+            # Verify response
+            mock_respond.assert_called_once()
+            call_args = mock_respond.call_args[0]
+            self.assertEqual(call_args[0], 200)  # HTTP 200 OK
+
+    @patch('keylime.web.verifier.attestation_controller.Attestation')
+    @patch('keylime.web.verifier.attestation_controller.EngineDriver')
+    def test_update_attestation_with_evidence(self, mock_driver_class, mock_attestation_class):
+        """Test updating attestation with evidence data"""
+        # Setup mocks
+        mock_attestation = MagicMock()
+        mock_attestation.agent_id = "test-agent-123"
+        mock_attestation.index = 0
+        mock_attestation_class.get.return_value = mock_attestation
+
+        mock_driver = MagicMock()
+        mock_driver_class.return_value = mock_driver
+
+        evidence_data = json.dumps({
+            "evidence": [
+                {
+                    "evidence_class": "certification",
+                    "evidence_type": "tpm_quote",
+                    "data": {
+                        "quote": "mock-quote-data"
+                    }
+                }
+            ]
+        })
+
+        params = {
+            "agent_id": "test-agent-123",
+            "attestation_index": "0",
+            "body": evidence_data
+        }
+
+        with patch.object(self.controller, 'respond') as mock_respond:
+            with patch.object(self.controller, 'get_params', return_value=params):
+                self.controller.update(**params)
+
+                # Verify attestation lookup
+                mock_attestation_class.get.assert_called()
+
+                # Verify response
+                mock_respond.assert_called()
+
+    @patch('keylime.web.verifier.attestation_controller.Attestation')
+    def test_delete_attestation(self, mock_attestation_class):
+        """Test deleting an attestation"""
+        # Setup mock
+        mock_attestation = MagicMock()
+        mock_attestation.agent_id = "test-agent-123"
+        mock_attestation.index = 5
+        mock_attestation_class.get.return_value = mock_attestation
+
+        params = {
+            "agent_id": "test-agent-123",
+            "attestation_index": "5"
+        }
+
+        with patch.object(self.controller, 'respond') as mock_respond:
+            self.controller.delete(**params)
+
+            # Verify attestation lookup
+            mock_attestation_class.get.assert_called_once()
+
+            # Verify delete was called
+            mock_attestation.delete.assert_called_once()
+
+            # Verify response
+            mock_respond.assert_called_once()
+            call_args = mock_respond.call_args[0]
+            self.assertEqual(call_args[0], 200)  # HTTP 200 OK
+
+    @patch('keylime.web.verifier.attestation_controller.Attestation')
+    def test_latest_attestation(self, mock_attestation_class):
+        """Test getting the latest attestation for an agent"""
+        # Setup mock
+        mock_attestation = MagicMock()
+        mock_attestation.agent_id = "test-agent-123"
+        mock_attestation.index = 10
+        mock_attestation_class.get_latest.return_value = mock_attestation
+
+        params = {
+            "agent_id": "test-agent-123"
+        }
+
+        with patch.object(self.controller, 'respond') as mock_respond:
+            self.controller.latest(**params)
+
+            # Verify get_latest call
+            mock_attestation_class.get_latest.assert_called_once_with("test-agent-123")
+
+            # Verify response
+            mock_respond.assert_called_once()
+            call_args = mock_respond.call_args[0]
+            self.assertEqual(call_args[0], 200)  # HTTP 200 OK
+
+    @patch('keylime.web.verifier.attestation_controller.Attestation')
+    def test_latest_attestation_not_found(self, mock_attestation_class):
+        """Test getting latest attestation when none exists"""
+        # Setup mock to return None
+        mock_attestation_class.get_latest.return_value = None
+
+        params = {
+            "agent_id": "test-agent-123"
+        }
+
+        with patch.object(self.controller, 'respond') as mock_respond:
+            self.controller.latest(**params)
+
+            # Verify 404 response
+            mock_respond.assert_called_once()
+            call_args = mock_respond.call_args[0]
+            self.assertEqual(call_args[0], 404)  # HTTP 404 Not Found
+
+    def test_validate_evidence_supported_format(self):
+        """Test validation of evidence_supported parameter format"""
+        # Test with valid JSON array
+        valid_evidence = json.dumps([
+            {
+                "evidence_class": "certification",
+                "evidence_type": "tpm_quote"
+            }
+        ])
+
+        params = {"evidence_supported": valid_evidence}
+
+        # Should not raise exception
+        try:
+            parsed = json.loads(params["evidence_supported"])
+            self.assertIsInstance(parsed, list)
+        except Exception as e:
+            self.fail(f"Valid evidence_supported raised exception: {e}")
+
+    def test_validate_evidence_supported_invalid_json(self):
+        """Test validation rejects invalid JSON"""
+        invalid_evidence = "not valid json"
+
+        params = {"evidence_supported": invalid_evidence}
+
+        # Should raise exception when parsing
+        with self.assertRaises(json.JSONDecodeError):
+            json.loads(params["evidence_supported"])
+
+    def test_validate_evidence_supported_not_array(self):
+        """Test validation rejects non-array JSON"""
+        non_array_evidence = json.dumps({"not": "an array"})
+
+        params = {"evidence_supported": non_array_evidence}
+
+        parsed = json.loads(params["evidence_supported"])
+        self.assertNotIsInstance(parsed, list)
+
+
+if __name__ == "__main__":
+    unittest.main()

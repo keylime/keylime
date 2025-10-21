@@ -165,7 +165,11 @@ class EmbedsOneAssociation(EmbeddedAssociation):
         return self._get_one(parent_record)
 
     def __set__(self, parent_record: "BasicModel", other_record: "BasicModel") -> None:
-        self._set_one(parent_record, other_record)
+        if other_record is None and self.nullable:
+            record_set = self.get_record_set(parent_record)
+            record_set.clear()
+        else:
+            self._set_one(parent_record, other_record)
 
     def to_column(self, name: str | None = None) -> Optional[Column]:
         if not name:
@@ -191,7 +195,11 @@ class EmbedsInlineAssociation(EmbeddedAssociation):
         return self._get_one(parent_record)
 
     def __set__(self, parent_record: "BasicModel", other_record: "BasicModel") -> None:
-        self._set_one(parent_record, other_record)
+        if other_record is None and self.nullable:
+            record_set = self.get_record_set(parent_record)
+            record_set.clear()
+        else:
+            self._set_one(parent_record, other_record)
 
     @property
     def to_one(self) -> bool:
@@ -367,6 +375,11 @@ class BelongsToAssociation(EntityAssociation):
         return self._get_one(parent_record)
 
     def __set__(self, parent_record: "BasicModel", other_record: "PersistableModel") -> None:
+        if other_record is None and self.nullable:
+            record_set = self.get_record_set(parent_record)
+            record_set.clear()
+            return
+
         if not type(other_record).id_field:
             raise AssociationValueInvalid(
                 f"adding record to '{type(parent_record).__name__}.{self.name}' failed because "
