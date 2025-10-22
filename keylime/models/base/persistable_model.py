@@ -305,7 +305,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             record_set = association.get_record_set(self)
             associated_models = [association.other_model, *association.other_model.sub_models]
 
-            if id(associated_data[0]) in memo:  # type: ignore[operator]
+            if id(associated_data[0]) in memo_set:  # type: ignore[operator]
                 continue
 
             for item in associated_data:
@@ -314,7 +314,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
 
                 for model in associated_models:
                     try:
-                        value = model(item, memo=memo)  # type: ignore[operator]
+                        value = model(item, memo=memo_set)  # type: ignore[operator]
                     except UndefinedField as err:
                         exceptions.append(err)
                         continue

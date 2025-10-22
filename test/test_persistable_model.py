@@ -239,5 +239,134 @@ class TestPersistableModelQueries(unittest.TestCase):
         self.assertEqual(ids, [])
 
 
+# Test models for association testing (memo_set bug)
+# Define ParentItem first, then ChildItem, then add has_many to ParentItem
+class ParentItem(PersistableModel):
+    """Parent model for testing has_many/belongs_to associations"""
+
+    @classmethod
+    def _schema(cls):
+        cls._persist_as("parent_items")
+        cls._id("id", Integer)
+        cls._field("name", String(50))
+
+
+class ChildItem(PersistableModel):
+    """Child model for testing has_many/belongs_to associations"""
+
+    @classmethod
+    def _schema(cls):
+        cls._persist_as("child_items")
+        cls._id("id", Integer)
+        cls._field("parent_id", Integer, refers_to="parent.id")  # pylint: disable=unexpected-keyword-arg
+        cls._belongs_to("parent", ParentItem)
+        cls._field("name", String(50))
+
+
+# Add has_many after ChildItem is defined
+ParentItem._has_many("children", ChildItem, foreign_keys=["parent_id"])  # pylint: disable=protected-access
+
+
+class TestPersistableModelWithAssociations(unittest.TestCase):
+    """Test cases for PersistableModel with associations (memo_set bug regression test)
+
+    This test class verifies that the memo_set bug in _init_from_mapping is fixed.
+
+    THE BUG:
+    --------
+    In persistable_model.py, the _init_from_mapping() method had a bug where it created
+    memo_set from the memo parameter on line 292, but then used the original memo parameter
+    on lines 308 and 317 instead of using memo_set.
+
+    This caused TypeError when memo=None (the default) because:
+    - Line 308: `if id(associated_data[0]) in memo` fails with "argument of type 'NoneType' is not iterable"
+    - Line 317: `value = model(item, memo=memo)` passes None instead of the initialized set
+
+    THE FIX:
+    --------
+    Lines 308 and 317 now use memo_set instead of memo.
+
+    This test ensures the bug doesn't regress by actually creating models with associations
+    and fetching them from the database.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up database schema once for all tests"""
+        # pylint: disable=protected-access
+        # Use same db_manager as other tests (already initialized in TestPersistableModelQueries)
+        if not db_manager._engine:
+            db_manager._engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+            db_manager._registry = registry()
+            db_manager._service = "test"
+        # pylint: enable=protected-access
+
+        # Process schema for association models
+        ChildItem.process_schema()
+        ParentItem.process_schema()
+
+    def setUp(self):
+        """Set up test database and populate with test data"""
+        # Create tables
+        ParentItem.db_table.create(db_manager.engine, checkfirst=True)
+        ChildItem.db_table.create(db_manager.engine, checkfirst=True)
+
+    def tearDown(self):
+        """Clean up test database"""
+        ChildItem.db_table.drop(db_manager.engine, checkfirst=True)
+        ParentItem.db_table.drop(db_manager.engine, checkfirst=True)
+
+    def test_fetch_model_with_associations(self):
+        """Test fetching model with belongs_to association (memo_set bug regression test)
+
+        This test would have failed with the memo_set bug because:
+        1. We insert a parent and child into the database with belongs_to association
+        2. We fetch the child back using get()
+        3. The fetch triggers _init_from_mapping with memo=None
+        4. The method tries to load parent association
+        5. Without the fix, line 308 would fail with: "argument of type 'NoneType' is not iterable"
+
+        With the fix, memo_set is used instead of memo, so the test passes.
+        """
+        # Insert parent and child directly into database
+        with db_manager.session_context() as session:
+            # Create parent
+            parent_mapping = ParentItem.db_mapping(id=1, name="Parent1")
+            session.add(parent_mapping)
+
+            # Create child that belongs_to the parent
+            child_mapping = ChildItem.db_mapping(id=1, parent_id=1, name="Child1")
+            session.add(child_mapping)
+
+            session.commit()
+
+        # Fetch child - this triggers _init_from_mapping with memo=None
+        # The child has a belongs_to("parent") association, so _init_from_mapping
+        # will try to load the associated parent record.
+        #
+        # Before the fix, this would raise at line 308:
+        # TypeError: argument of type 'NoneType' is not iterable
+        # when checking: if id(associated_data[0]) in memo
+        #
+        # After the fix (using memo_set instead of memo), this works correctly
+        child = ChildItem.get(1)
+
+        # Verify the child was fetched successfully
+        self.assertIsNotNone(child)
+        # pylint: disable=no-member  # Dynamic ORM attributes
+        self.assertEqual(child.id, 1)  # type: ignore[attr-defined]
+        self.assertEqual(child.name, "Child1")  # type: ignore[attr-defined]
+        self.assertEqual(child.parent_id, 1)  # type: ignore[attr-defined]
+
+        # Verify parent association was loaded (belongs_to with preload=True by default)
+        parent = child.parent  # type: ignore[attr-defined]
+        # pylint: enable=no-member
+        self.assertIsNotNone(parent)
+        # pylint: disable=no-member  # Dynamic ORM attributes
+        self.assertEqual(parent.id, 1)  # type: ignore[attr-defined]
+        self.assertEqual(parent.name, "Parent1")  # type: ignore[attr-defined]
+        # pylint: enable=no-member
+
+
 if __name__ == "__main__":
     unittest.main()
