@@ -267,9 +267,10 @@ class AttestationController(Controller):
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/:index
     @Controller.require_json_api
-    def update(
-        self, agent_id, index, attestation, **params
-    ):  # type: ignore[no-untyped-def]  # pylint: disable=unused-argument
+    def update(self, agent_id, index, **params):  # type: ignore[no-untyped-def]  # pylint: disable=unused-argument
+        # Extract attestation from params - it should be provided by the API request
+        attestation = params.get("attestation")
+
         agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
 
         if not agent:
@@ -297,6 +298,11 @@ class AttestationController(Controller):
                 f"Create a new attestation and try again."
             ).send_via(self)
 
+        if attestation is None:
+            APIError("invalid_request", 400).set_detail(
+                "Request body must include attestation evidence data."
+            ).send_via(self)
+
         agent.latest_attestation.receive_evidence(attestation)  # type: ignore[no-untyped-call, union-attr]
         driver = EngineDriver(agent.latest_attestation).process_evidence()  # type: ignore[no-untyped-call, union-attr]
 
@@ -321,7 +327,7 @@ class AttestationController(Controller):
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/latest
     @Controller.require_json_api
-    def update_latest(self, agent_id, attestation, **params):  # type: ignore[no-untyped-def]
+    def update_latest(self, agent_id, **params):  # type: ignore[no-untyped-def]
         agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
 
         if not agent:
@@ -330,4 +336,5 @@ class AttestationController(Controller):
         if not agent.latest_attestation:  # type: ignore[union-attr]
             APIError("not_found", f"No attestation exists for agent '{agent_id}'.").send_via(self)
 
-        self.update(agent_id, agent.latest_attestation.index, attestation, **params)  # type: ignore[union-attr]
+        # Call update with the same params, which includes attestation
+        self.update(agent_id, agent.latest_attestation.index, **params)  # type: ignore[union-attr]
