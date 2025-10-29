@@ -4,14 +4,15 @@
     "components": {
         "agent": {
             "add": {
-                "agent_data_path": "/var/lib/keylime/agent_data.json",
+                "agent_data_path": "agent_data.json",
                 "verifier_url": "https://localhost:8881",
                 "exponential_backoff_max_retries": "5",
                 "exponential_backoff_initial_delay": "10000",
-                "exponential_backoff_max_delay": "360000",
+                "exponential_backoff_max_delay": "300000",
                 "certification_keys_server_identifier": "ak",
-                "ima_ml_count_file": "/tmp/ima_ml_count",
-                "uefi_logs_evidence_version": "1.0"
+                "ima_ml_count_file": "/sys/kernel/security/ima/measurements",
+                "uefi_logs_evidence_version": "2.1",
+                "attestation_interval_seconds": "60"
             }
         },
         "verifier": {
