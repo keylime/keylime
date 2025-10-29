@@ -236,6 +236,7 @@ agents (e.g., agents behind firewalls or NAT).
 * Agents deployed behind firewalls or NAT
 * Cloud or edge deployments where direct connectivity is limited
 * When agents need to control their own attestation schedule
+* Security-sensitive deployments where agents should not expose server endpoints (reducing attack surface by using only outbound connections)
 
 .. note::
     The push model options were introduced in configuration version 2.5 and
@@ -446,6 +447,8 @@ Pull Model Specific Options
 Push Model Specific Options
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+These options are located in the ``[revocations]`` section of the verifier configuration.
+
 .. list-table::
     :header-rows: 1
     :widths: 25 12 15 48
@@ -455,15 +458,15 @@ Push Model Specific Options
       - Version
       - Environment Variable
     * - ``mode``
-      - (empty)
+      - ``pull``
       - 2.5
       - ``KEYLIME_VERIFIER_REVOCATIONS_MODE``
     * - ``challenge_lifetime``
-      - (empty)
+      - ``1800``
       - 2.5
       - ``KEYLIME_VERIFIER_REVOCATIONS_CHALLENGE_LIFETIME``
     * - ``verification_timeout``
-      - (empty)
+      - ``0``
       - 2.5
       - ``KEYLIME_VERIFIER_REVOCATIONS_VERIFICATION_TIMEOUT``
 
@@ -986,41 +989,41 @@ Push Model Specific Options
       - Version
       - Environment Variable
     * - ``agent_data_path``
-      - ``""``
+      - ``agent_data.json``
       - 2.5
       - ``KEYLIME_AGENT_AGENT_DATA_PATH``
     * - ``verifier_url``
-      - ``""``
+      - ``https://localhost:8881``
       - 2.5
       - ``KEYLIME_AGENT_VERIFIER_URL``
     * - ``certification_keys_server_identifier``
-      - ``""``
+      - ``ak``
       - 2.5
       - ``KEYLIME_AGENT_CERTIFICATION_KEYS_SERVER_IDENTIFIER``
-    * - ``disabled_signing_algorithms``
-      - ``""``
-      - 2.5
-      - ``KEYLIME_AGENT_DISABLED_SIGNING_ALGORITHMS``
     * - ``ima_ml_count_file``
-      - ``""``
+      - ``/sys/kernel/security/ima/measurements``
       - 2.5
       - ``KEYLIME_AGENT_IMA_ML_COUNT_FILE``
     * - ``uefi_logs_evidence_version``
-      - ``""``
+      - ``2.1``
       - 2.5
       - ``KEYLIME_AGENT_UEFI_LOGS_EVIDENCE_VERSION``
     * - ``exponential_backoff_max_retries``
-      - ``""``
+      - ``5``
       - 2.5
       - ``KEYLIME_AGENT_EXPONENTIAL_BACKOFF_MAX_RETRIES``
     * - ``exponential_backoff_initial_delay``
-      - ``""``
+      - ``10000``
       - 2.5
       - ``KEYLIME_AGENT_EXPONENTIAL_BACKOFF_INITIAL_DELAY``
     * - ``exponential_backoff_max_delay``
-      - ``""``
+      - ``300000``
       - 2.5
       - ``KEYLIME_AGENT_EXPONENTIAL_BACKOFF_MAX_DELAY``
+    * - ``attestation_interval_seconds``
+      - ``60``
+      - 2.5
+      - ``KEYLIME_AGENT_ATTESTATION_INTERVAL_SECONDS``
 
 Logging Configuration (``/etc/keylime/logging.conf``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
