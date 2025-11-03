@@ -1,3 +1,15 @@
+import asyncio
+from typing import List, Optional
+
+import tornado.httpserver
+import tornado.ioloop
+import tornado.process
+from sqlalchemy.exc import SQLAlchemyError
+
+from keylime import cloud_verifier_common, cloud_verifier_tornado, config, keylime_logging
+from keylime.common import states
+from keylime.db.keylime_db import SessionManager, make_engine
+from keylime.db.verifier_db import VerfierMain
 from keylime.web.base.server import Server
 from keylime.web.verifier.agent_controller import AgentController
 from keylime.web.verifier.attestation_controller import AttestationController
@@ -6,11 +18,117 @@ from keylime.web.verifier.ima_policy_controller import IMAPolicyController
 from keylime.web.verifier.mb_ref_state_controller import MBRefStateController
 from keylime.web.verifier.server_info_controller import ServerInfoController
 
+logger = keylime_logging.init_logging("verifier")
+
 
 class VerifierServer(Server):
+    def __init__(self) -> None:
+        super().__init__()
+        self._prepare_agents_on_startup()
+        self._worker_agents: Optional[List[VerfierMain]] = None
+
+    def start_multi(self) -> None:  # pylint: disable=no-member
+        """Override to support PULL mode agent activation across multiple workers."""
+        # Get all agents from database before forking (only needed for PULL mode)
+        logger.info("start_multi() called with operating_mode: %s", self.operating_mode)
+        all_agents: List[VerfierMain] = []
+        if self.operating_mode == "pull":
+            verifier_id = config.get("verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
+            logger.info("Querying agents for verifier_id: %s", verifier_id)
+            all_agents = cloud_verifier_tornado.get_agents_by_verifier_id(verifier_id)
+            logger.info("Found %d agents in database before forking", len(all_agents))
+
+        # Log server startup (copied from base class)
+        ports = ""
+        protocols = ""
+        if self._Server__tornado_http_sockets:  # type: ignore # pylint: disable=no-member
+            ports = str(self.http_port)
+            protocols = "HTTP"
+        if self._Server__tornado_https_sockets and self.ssl_ctx:  # type: ignore # pylint: disable=no-member
+            ports = f"{ports}/{self.https_port}" if ports else f"{self.https_port}"
+            protocols = f"{protocols}/S" if protocols else "HTTPS"
+        logger.info(
+            "Listening on %s:%s (%s) with %s worker processes...",
+            self.bind_interface,
+            ports,
+            protocols,
+            self.worker_count,
+        )
+
+        # Fork worker processes - returns task_id in each child process
+        task_id = tornado.process.fork_processes(self.worker_count)
+
+        # Distribute agents to this worker using round-robin (task_id is the worker index)
+        if self.operating_mode == "pull" and all_agents:
+            self._worker_agents = [all_agents[i] for i in range(task_id, len(all_agents), self.worker_count)]
+            logger.info("Worker %d assigned %d agent(s)", task_id, len(self._worker_agents))
+
+        # Start this worker's HTTP/HTTPS servers and activate agents
+        self.start_single()
+
+    def start_single(self) -> None:  # type: ignore[override]  # pylint: disable=attribute-defined-outside-init,invalid-overridden-method
+        """Override to support PULL mode agent activation after server startup."""
+        # Start HTTP/HTTPS servers (logic copied from parent to allow agent activation before blocking)
+        # pylint: disable=no-member
+        if self._Server__tornado_http_sockets:  # type: ignore
+            http_server = tornado.httpserver.HTTPServer(
+                self._Server__tornado_app, ssl_options=None, max_buffer_size=self.max_upload_size  # type: ignore
+            )
+            http_server.add_sockets(self._Server__tornado_http_sockets)  # type: ignore
+            self._Server__tornado_http_server = http_server  # type: ignore # pylint: disable=attribute-defined-outside-init
+
+        if self._Server__tornado_https_sockets and self.ssl_ctx:  # type: ignore
+            https_server = tornado.httpserver.HTTPServer(
+                self._Server__tornado_app, ssl_options=self.ssl_ctx, max_buffer_size=self.max_upload_size  # type: ignore
+            )
+            https_server.add_sockets(self._Server__tornado_https_sockets)  # type: ignore
+            self._Server__tornado_https_server = https_server  # type: ignore # pylint: disable=attribute-defined-outside-init
+        # pylint: enable=no-member
+
+        # Activate agents for PULL mode
+        if self.operating_mode == "pull" and self._worker_agents:
+            verifier_host = config.get("verifier", "ip")
+            verifier_port = config.get("verifier", "port")
+            logger.info("Activating %d agent(s) for PULL mode", len(self._worker_agents))
+            asyncio.ensure_future(
+                cloud_verifier_tornado.activate_agents(self._worker_agents, verifier_host, int(verifier_port))
+            )
+
+        # Wait forever (until event loop is stopped)
+        tornado.ioloop.IOLoop.current().start()
+
+    def _prepare_agents_on_startup(self) -> None:
+        """Prepare agents in database for verifier startup.
+
+        This method resets agents in reactivate states to START so activate_agents()
+        can restart their polling loops. This matches the old architecture behavior.
+        """
+        # Create database engine and session context
+        engine = make_engine("cloud_verifier")
+        session_manager = SessionManager()
+
+        with session_manager.session_context(engine) as session:
+            try:
+                # Reset agents in APPROVED_REACTIVATE_STATES to START state
+                # This matches the old architecture (cloud_verifier_tornado.py:2332-2338)
+                query_all = session.query(VerfierMain).all()
+                for row in query_all:
+                    if row.operational_state in states.APPROVED_REACTIVATE_STATES:
+                        row.operational_state = states.START  # type: ignore
+
+                # Log remaining agents
+                num = session.query(VerfierMain).count()
+                if num > 0:
+                    agent_ids = [row[0] for row in session.query(VerfierMain.agent_id).all()]
+                    logger.info("Agent ids in db loaded from file: %s", agent_ids)
+
+            except SQLAlchemyError as e:
+                logger.error("Error preparing agents on startup: %s", e)
+                raise
+
     def _setup(self) -> None:
         self._use_config("verifier")
-        self._set_operating_mode(from_config="mode", fallback="push")
+        self._set_operating_mode(from_config="mode", fallback="pull")
         self._set_bind_interface(from_config="ip")
         self._set_http_port(value=None)  # verifier does not accept insecure connections
         self._set_https_port(from_config="port")
