@@ -137,6 +137,7 @@ def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, Any]:
         "last_received_quote",
         "last_successful_attestation",
         "tpm_clockinfo",
+        "accept_attestations",
     ]
     agent_dict = {}
     for field in fields:
