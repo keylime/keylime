@@ -204,3 +204,855 @@ To ignore the input files and use the default value for all options, the
 
 Finally, to process a single mapping file, the mapping file path can be passed
 via the ``--mapping`` option
+
+Attestation Models: Pull vs Push
+---------------------------------
+
+Keylime supports two attestation models that determine how the verifier obtains
+attestation evidence from agents:
+
+Pull Model (Traditional)
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the pull model, the verifier actively polls agents at regular intervals to
+retrieve attestation evidence. This is the default and traditional mode of
+operation.
+
+**Use Cases:**
+
+* Traditional deployments where the verifier can directly connect to agents
+* Environments with stable network connectivity
+* When you need fine-grained control over attestation frequency
+
+Push Model (Agent-Driven)
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the push model, agents periodically push their attestation evidence to the
+verifier. This mode is useful when the verifier cannot directly connect to
+agents (e.g., agents behind firewalls or NAT).
+
+**Use Cases:**
+
+* Agents deployed behind firewalls or NAT
+* Cloud or edge deployments where direct connectivity is limited
+* When agents need to control their own attestation schedule
+* Security-sensitive deployments where agents should not expose server endpoints (reducing attack surface by using only outbound connections)
+
+.. note::
+    The push model options were introduced in configuration version 2.5 and
+   requires the push attestation agent.
+
+Configuration Options Reference
+--------------------------------
+
+This section provides comprehensive tables of all configuration options for each
+Keylime component, including default values, environment variable overrides, and
+applicability to pull/push attestation models.
+
+Verifier Configuration (``/etc/keylime/verifier.conf``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Common Options (Both Models)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table::
+    :header-rows: 1
+    :widths: 25 12 15 48
+
+    * - Option
+      - Default
+      - Version
+      - Environment Variable
+    * - ``version``
+      - ``2.5``
+      - 2.0
+      - ``KEYLIME_VERIFIER_VERSION``
+    * - ``uuid``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_VERIFIER_UUID``
+    * - ``ip``
+      - ``"127.0.0.1"``
+      - 2.0
+      - ``KEYLIME_VERIFIER_IP``
+    * - ``port``
+      - ``8881``
+      - 2.0
+      - ``KEYLIME_VERIFIER_PORT``
+    * - ``registrar_ip``
+      - ``127.0.0.1``
+      - 2.0
+      - ``KEYLIME_VERIFIER_REGISTRAR_IP``
+    * - ``registrar_port``
+      - ``8891``
+      - 2.0
+      - ``KEYLIME_VERIFIER_REGISTRAR_PORT``
+    * - ``enable_agent_mtls``
+      - ``True``
+      - 2.0
+      - ``KEYLIME_VERIFIER_ENABLE_AGENT_MTLS``
+    * - ``tls_dir``
+      - ``generate``
+      - 2.0
+      - ``KEYLIME_VERIFIER_TLS_DIR``
+    * - ``server_key``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_VERIFIER_SERVER_KEY``
+    * - ``server_key_password``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_VERIFIER_SERVER_KEY_PASSWORD``
+    * - ``server_cert``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_VERIFIER_SERVER_CERT``
+    * - ``trusted_client_ca``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_VERIFIER_TRUSTED_CLIENT_CA``
+    * - ``client_key``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_VERIFIER_CLIENT_KEY``
+    * - ``client_key_password``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_VERIFIER_CLIENT_KEY_PASSWORD``
+    * - ``client_cert``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_VERIFIER_CLIENT_CERT``
+    * - ``trusted_server_ca``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_VERIFIER_TRUSTED_SERVER_CA``
+    * - ``database_url``
+      - ``sqlite``
+      - 2.0
+      - ``KEYLIME_VERIFIER_DATABASE_URL``
+    * - ``database_pool_sz_ovfl``
+      - ``5,10``
+      - 2.0
+      - ``KEYLIME_VERIFIER_DATABASE_POOL_SZ_OVFL``
+    * - ``auto_migrate_db``
+      - ``True``
+      - 2.0
+      - ``KEYLIME_VERIFIER_AUTO_MIGRATE_DB``
+    * - ``num_workers``
+      - ``0``
+      - 2.0
+      - ``KEYLIME_VERIFIER_NUM_WORKERS``
+    * - ``max_upload_size``
+      - ``104857600``
+      - 2.0
+      - ``KEYLIME_VERIFIER_MAX_UPLOAD_SIZE``
+    * - ``measured_boot_policy_name``
+      - ``accept-all``
+      - 2.0
+      - ``KEYLIME_VERIFIER_MEASURED_BOOT_POLICY_NAME``
+    * - ``measured_boot_imports``
+      - ``[]``
+      - 2.0
+      - ``KEYLIME_VERIFIER_MEASURED_BOOT_IMPORTS``
+    * - ``measured_boot_evaluate``
+      - ``once``
+      - 2.0
+      - ``KEYLIME_VERIFIER_MEASURED_BOOT_EVALUATE``
+    * - ``severity_labels``
+      - ``["info", "notice", ...]``
+      - 2.0
+      - ``KEYLIME_VERIFIER_SEVERITY_LABELS``
+    * - ``severity_policy``
+      - ``[{"event_id": ".*", ...}]``
+      - 2.0
+      - ``KEYLIME_VERIFIER_SEVERITY_POLICY``
+    * - ``ignore_tomtou_errors``
+      - ``False``
+      - 2.0
+      - ``KEYLIME_VERIFIER_IGNORE_TOMTOU_ERRORS``
+    * - ``durable_attestation_import``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_VERIFIER_DURABLE_ATTESTATION_IMPORT``
+    * - ``persistent_store_url``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_VERIFIER_PERSISTENT_STORE_URL``
+    * - ``transparency_log_url``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_VERIFIER_TRANSPARENCY_LOG_URL``
+    * - ``time_stamp_authority_url``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_VERIFIER_TIME_STAMP_AUTHORITY_URL``
+    * - ``time_stamp_authority_certs_path``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_VERIFIER_TIME_STAMP_AUTHORITY_CERTS_PATH``
+    * - ``persistent_store_format``
+      - ``json``
+      - 2.0
+      - ``KEYLIME_VERIFIER_PERSISTENT_STORE_FORMAT``
+    * - ``persistent_store_encoding``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_VERIFIER_PERSISTENT_STORE_ENCODING``
+    * - ``transparency_log_sign_algo``
+      - ``sha256``
+      - 2.0
+      - ``KEYLIME_VERIFIER_TRANSPARENCY_LOG_SIGN_ALGO``
+    * - ``signed_attributes``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_VERIFIER_SIGNED_ATTRIBUTES``
+    * - ``require_allow_list_signatures``
+      - ``False``
+      - 2.0
+      - ``KEYLIME_VERIFIER_REQUIRE_ALLOW_LIST_SIGNATURES``
+
+Pull Model Specific Options
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table::
+    :header-rows: 1
+    :widths: 25 12 15 48
+
+    * - Option
+      - Default
+      - Version
+      - Environment Variable
+    * - ``quote_interval``
+      - ``2``
+      - 2.0
+      - ``KEYLIME_VERIFIER_QUOTE_INTERVAL``
+    * - ``retry_interval``
+      - ``2``
+      - 2.0
+      - ``KEYLIME_VERIFIER_RETRY_INTERVAL``
+    * - ``max_retries``
+      - ``5``
+      - 2.0
+      - ``KEYLIME_VERIFIER_MAX_RETRIES``
+    * - ``exponential_backoff``
+      - ``True``
+      - 2.0
+      - ``KEYLIME_VERIFIER_EXPONENTIAL_BACKOFF``
+    * - ``request_timeout``
+      - ``60.0``
+      - 2.0
+      - ``KEYLIME_VERIFIER_REQUEST_TIMEOUT``
+
+Push Model Specific Options
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These options are located in the ``[revocations]`` section of the verifier configuration.
+
+.. list-table::
+    :header-rows: 1
+    :widths: 25 12 15 48
+
+    * - Option
+      - Default
+      - Version
+      - Environment Variable
+    * - ``mode``
+      - ``pull``
+      - 2.5
+      - ``KEYLIME_VERIFIER_REVOCATIONS_MODE``
+    * - ``challenge_lifetime``
+      - ``1800``
+      - 2.5
+      - ``KEYLIME_VERIFIER_REVOCATIONS_CHALLENGE_LIFETIME``
+    * - ``verification_timeout``
+      - ``0``
+      - 2.5
+      - ``KEYLIME_VERIFIER_REVOCATIONS_VERIFICATION_TIMEOUT``
+
+Revocations Section
+^^^^^^^^^^^^^^^^^^^
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 12 15 43
+
+    * - Option
+      - Default
+      - Version
+      - Environment Variable
+    * - ``enabled_revocation_notifications``
+      - ``['agent']``
+      - 2.0
+      - ``KEYLIME_VERIFIER_REVOCATIONS_ENABLED_REVOCATION_NOTIFICATIONS``
+    * - ``zmq_ip``
+      - ``127.0.0.1``
+      - 2.0
+      - ``KEYLIME_VERIFIER_REVOCATIONS_ZMQ_IP``
+    * - ``zmq_port``
+      - ``8992``
+      - 2.0
+      - ``KEYLIME_VERIFIER_REVOCATIONS_ZMQ_PORT``
+    * - ``webhook_url``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_VERIFIER_REVOCATIONS_WEBHOOK_URL``
+
+Registrar Configuration (``/etc/keylime/registrar.conf``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 12 15 43
+
+    * - Option
+      - Default
+      - Version
+      - Environment Variable
+    * - ``version``
+      - ``2.5``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_VERSION``
+    * - ``ip``
+      - ``"127.0.0.1"``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_IP``
+    * - ``port``
+      - ``8890``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_PORT``
+    * - ``tls_port``
+      - ``8891``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_TLS_PORT``
+    * - ``tls_dir``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_TLS_DIR``
+    * - ``server_key``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_SERVER_KEY``
+    * - ``server_key_password``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_REGISTRAR_SERVER_KEY_PASSWORD``
+    * - ``server_cert``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_SERVER_CERT``
+    * - ``trusted_client_ca``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_TRUSTED_CLIENT_CA``
+    * - ``database_url``
+      - ``sqlite``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_DATABASE_URL``
+    * - ``database_pool_sz_ovfl``
+      - ``5,10``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_DATABASE_POOL_SZ_OVFL``
+    * - ``auto_migrate_db``
+      - ``True``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_AUTO_MIGRATE_DB``
+    * - ``durable_attestation_import``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_REGISTRAR_DURABLE_ATTESTATION_IMPORT``
+    * - ``persistent_store_url``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_REGISTRAR_PERSISTENT_STORE_URL``
+    * - ``transparency_log_url``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_REGISTRAR_TRANSPARENCY_LOG_URL``
+    * - ``time_stamp_authority_url``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_REGISTRAR_TIME_STAMP_AUTHORITY_URL``
+    * - ``time_stamp_authority_certs_path``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_REGISTRAR_TIME_STAMP_AUTHORITY_CERTS_PATH``
+    * - ``persistent_store_format``
+      - ``json``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_PERSISTENT_STORE_FORMAT``
+    * - ``persistent_store_encoding``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_REGISTRAR_PERSISTENT_STORE_ENCODING``
+    * - ``transparency_log_sign_algo``
+      - ``sha256``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_TRANSPARENCY_LOG_SIGN_ALGO``
+    * - ``signed_attributes``
+      - ``ek_tpm,aik_tpm,ekcert``
+      - 2.0
+      - ``KEYLIME_REGISTRAR_SIGNED_ATTRIBUTES``
+    * - ``tpm_identity``
+      - ``default``
+      - 2.1
+      - ``KEYLIME_REGISTRAR_TPM_IDENTITY``
+    * - ``malformed_cert_action``
+      - ``warn``
+      - 2.4
+      - ``KEYLIME_REGISTRAR_MALFORMED_CERT_ACTION``
+
+Tenant Configuration (``/etc/keylime/tenant.conf``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 12 15 43
+
+    * - Option
+      - Default
+      - Version
+      - Environment Variable
+    * - ``version``
+      - ``2.5``
+      - 2.0
+      - ``KEYLIME_TENANT_VERSION``
+    * - ``verifier_ip``
+      - ``127.0.0.1``
+      - 2.0
+      - ``KEYLIME_TENANT_VERIFIER_IP``
+    * - ``verifier_port``
+      - ``8881``
+      - 2.0
+      - ``KEYLIME_TENANT_VERIFIER_PORT``
+    * - ``registrar_ip``
+      - ``127.0.0.1``
+      - 2.0
+      - ``KEYLIME_TENANT_REGISTRAR_IP``
+    * - ``registrar_port``
+      - ``8891``
+      - 2.0
+      - ``KEYLIME_TENANT_REGISTRAR_PORT``
+    * - ``tls_dir``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_TENANT_TLS_DIR``
+    * - ``enable_agent_mtls``
+      - ``True``
+      - 2.0
+      - ``KEYLIME_TENANT_ENABLE_AGENT_MTLS``
+    * - ``client_key``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_TENANT_CLIENT_KEY``
+    * - ``client_key_password``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_TENANT_CLIENT_KEY_PASSWORD``
+    * - ``client_cert``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_TENANT_CLIENT_CERT``
+    * - ``trusted_server_ca``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_TENANT_TRUSTED_SERVER_CA``
+    * - ``tpm_cert_store``
+      - ``/var/lib/keylime/tpm_cert_store``
+      - 2.0
+      - ``KEYLIME_TENANT_TPM_CERT_STORE``
+    * - ``max_payload_size``
+      - ``1048576``
+      - 2.0
+      - ``KEYLIME_TENANT_MAX_PAYLOAD_SIZE``
+    * - ``accept_tpm_hash_algs``
+      - ``['sha512', 'sha384', 'sha256']``
+      - 2.0
+      - ``KEYLIME_TENANT_ACCEPT_TPM_HASH_ALGS``
+    * - ``accept_tpm_encryption_algs``
+      - ``['ecc', 'rsa']``
+      - 2.0
+      - ``KEYLIME_TENANT_ACCEPT_TPM_ENCRYPTION_ALGS``
+    * - ``accept_tpm_signing_algs``
+      - ``['ecschnorr', 'rsassa']``
+      - 2.0
+      - ``KEYLIME_TENANT_ACCEPT_TPM_SIGNING_ALGS``
+    * - ``exponential_backoff``
+      - ``True``
+      - 2.0
+      - ``KEYLIME_TENANT_EXPONENTIAL_BACKOFF``
+    * - ``retry_interval``
+      - ``2``
+      - 2.0
+      - ``KEYLIME_TENANT_RETRY_INTERVAL``
+    * - ``max_retries``
+      - ``5``
+      - 2.0
+      - ``KEYLIME_TENANT_MAX_RETRIES``
+    * - ``request_timeout``
+      - ``60``
+      - 2.0
+      - ``KEYLIME_TENANT_REQUEST_TIMEOUT``
+    * - ``require_ek_cert``
+      - ``True``
+      - 2.0
+      - ``KEYLIME_TENANT_REQUIRE_EK_CERT``
+    * - ``ek_check_script``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_TENANT_EK_CHECK_SCRIPT``
+    * - ``mb_refstate``
+      - (empty)
+      - 2.0
+      - ``KEYLIME_TENANT_MB_REFSTATE``
+
+CA Configuration (``/etc/keylime/ca.conf``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 15 15 40
+
+    * - Option
+      - Default
+      - Version
+      - Environment Variable
+    * - ``version``
+      - ``2.5``
+      - 2.0
+      - ``KEYLIME_CA_VERSION``
+    * - ``password``
+      - ``default``
+      - 2.0
+      - ``KEYLIME_CA_PASSWORD``
+    * - ``cert_country``
+      - ``US``
+      - 2.0
+      - ``KEYLIME_CA_CERT_COUNTRY``
+    * - ``cert_ca_name``
+      - ``Keylime Certificate Authority``
+      - 2.0
+      - ``KEYLIME_CA_CERT_CA_NAME``
+    * - ``cert_state``
+      - ``MA``
+      - 2.0
+      - ``KEYLIME_CA_CERT_STATE``
+    * - ``cert_locality``
+      - ``Lexington``
+      - 2.0
+      - ``KEYLIME_CA_CERT_LOCALITY``
+    * - ``cert_organization``
+      - ``MITLL``
+      - 2.0
+      - ``KEYLIME_CA_CERT_ORGANIZATION``
+    * - ``cert_org_unit``
+      - ``53``
+      - 2.0
+      - ``KEYLIME_CA_CERT_ORG_UNIT``
+    * - ``cert_ca_lifetime``
+      - ``3650``
+      - 2.0
+      - ``KEYLIME_CA_CERT_CA_LIFETIME``
+    * - ``cert_lifetime``
+      - ``365``
+      - 2.0
+      - ``KEYLIME_CA_CERT_LIFETIME``
+    * - ``cert_bits``
+      - ``2048``
+      - 2.0
+      - ``KEYLIME_CA_CERT_BITS``
+    * - ``cert_crl_dist``
+      - ``http://localhost:38080/crl``
+      - 2.0
+      - ``KEYLIME_CA_CERT_CRL_DIST``
+
+Agent Configuration (``/etc/keylime/agent.conf``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. warning::
+    The Python agent is deprecated and will be removed in version 7.0.0!
+    Please migrate to the Rust-based agent from https://github.com/keylime/rust-keylime/
+
+Common Options (Both Models)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table::
+    :header-rows: 1
+    :widths: 28 12 12 48
+
+    * - Option
+      - Default
+      - Version
+      - Environment Variable
+    * - ``version``
+      - ``"2.5"``
+      - 2.0
+      - ``KEYLIME_AGENT_VERSION``
+    * - ``api_versions``
+      - ``"default"``
+      - 2.4
+      - ``KEYLIME_AGENT_API_VERSIONS``
+    * - ``uuid``
+      - ``"d432fbb3-d2f1-4a97-9ef7-75bd81c00000"``
+      - 2.0
+      - ``KEYLIME_AGENT_UUID``
+    * - ``ip``
+      - ``"127.0.0.1"``
+      - 2.0
+      - ``KEYLIME_AGENT_IP``
+    * - ``port``
+      - ``9002``
+      - 2.0
+      - ``KEYLIME_AGENT_PORT``
+    * - ``contact_ip``
+      - ``"127.0.0.1"``
+      - 2.0
+      - ``KEYLIME_AGENT_CONTACT_IP``
+    * - ``contact_port``
+      - ``9002``
+      - 2.0
+      - ``KEYLIME_AGENT_CONTACT_PORT``
+    * - ``registrar_ip``
+      - ``"127.0.0.1"``
+      - 2.0
+      - ``KEYLIME_AGENT_REGISTRAR_IP``
+    * - ``registrar_port``
+      - ``8890``
+      - 2.0
+      - ``KEYLIME_AGENT_REGISTRAR_PORT``
+    * - ``enable_agent_mtls``
+      - ``true``
+      - 2.0
+      - ``KEYLIME_AGENT_ENABLE_AGENT_MTLS``
+    * - ``tls_dir``
+      - ``"default"``
+      - 2.0
+      - ``KEYLIME_AGENT_TLS_DIR``
+    * - ``server_key``
+      - ``"default"``
+      - 2.0
+      - ``KEYLIME_AGENT_SERVER_KEY``
+    * - ``server_key_password``
+      - ``""``
+      - 2.0
+      - ``KEYLIME_AGENT_SERVER_KEY_PASSWORD``
+    * - ``server_cert``
+      - ``"default"``
+      - 2.0
+      - ``KEYLIME_AGENT_SERVER_CERT``
+    * - ``trusted_client_ca``
+      - ``"default"``
+      - 2.0
+      - ``KEYLIME_AGENT_TRUSTED_CLIENT_CA``
+    * - ``enc_keyname``
+      - ``"derived_tci_key"``
+      - 2.0
+      - ``KEYLIME_AGENT_ENC_KEYNAME``
+    * - ``dec_payload_file``
+      - ``"decrypted_payload"``
+      - 2.0
+      - ``KEYLIME_AGENT_DEC_PAYLOAD_FILE``
+    * - ``secure_size``
+      - ``"1m"``
+      - 2.0
+      - ``KEYLIME_AGENT_SECURE_SIZE``
+    * - ``tpm_ownerpassword``
+      - ``""``
+      - 2.0
+      - ``KEYLIME_AGENT_TPM_OWNERPASSWORD``
+    * - ``extract_payload_zip``
+      - ``true``
+      - 2.0
+      - ``KEYLIME_AGENT_EXTRACT_PAYLOAD_ZIP``
+    * - ``enable_revocation_notifications``
+      - ``true``
+      - 2.0
+      - ``KEYLIME_AGENT_ENABLE_REVOCATION_NOTIFICATIONS``
+    * - ``revocation_notification_ip``
+      - ``"127.0.0.1"``
+      - 2.0
+      - ``KEYLIME_AGENT_REVOCATION_NOTIFICATION_IP``
+    * - ``revocation_notification_port``
+      - ``8992``
+      - 2.0
+      - ``KEYLIME_AGENT_REVOCATION_NOTIFICATION_PORT``
+    * - ``revocation_cert``
+      - ``"default"``
+      - 2.0
+      - ``KEYLIME_AGENT_REVOCATION_CERT``
+    * - ``revocation_actions``
+      - ``"[]"``
+      - 2.0
+      - ``KEYLIME_AGENT_REVOCATION_ACTIONS``
+    * - ``payload_script``
+      - ``"autorun.sh"``
+      - 2.0
+      - ``KEYLIME_AGENT_PAYLOAD_SCRIPT``
+    * - ``enable_insecure_payload``
+      - ``false``
+      - 2.0
+      - ``KEYLIME_AGENT_ENABLE_INSECURE_PAYLOAD``
+    * - ``measure_payload_pcr``
+      - ``-1``
+      - 2.0
+      - ``KEYLIME_AGENT_MEASURE_PAYLOAD_PCR``
+    * - ``exponential_backoff``
+      - ``true``
+      - 2.0
+      - ``KEYLIME_AGENT_EXPONENTIAL_BACKOFF``
+    * - ``retry_interval``
+      - ``2``
+      - 2.0
+      - ``KEYLIME_AGENT_RETRY_INTERVAL``
+    * - ``max_retries``
+      - ``4``
+      - 2.0
+      - ``KEYLIME_AGENT_MAX_RETRIES``
+    * - ``tpm_hash_alg``
+      - ``"sha256"``
+      - 2.0
+      - ``KEYLIME_AGENT_TPM_HASH_ALG``
+    * - ``tpm_encryption_alg``
+      - ``"rsa"``
+      - 2.0
+      - ``KEYLIME_AGENT_TPM_ENCRYPTION_ALG``
+    * - ``tpm_signing_alg``
+      - ``"rsassa"``
+      - 2.0
+      - ``KEYLIME_AGENT_TPM_SIGNING_ALG``
+    * - ``ek_handle``
+      - ``"generate"``
+      - 2.0
+      - ``KEYLIME_AGENT_EK_HANDLE``
+    * - ``enable_iak_idevid``
+      - ``false``
+      - 2.1
+      - ``KEYLIME_AGENT_ENABLE_IAK_IDEVID``
+    * - ``iak_idevid_template``
+      - ``"detect"``
+      - 2.1
+      - ``KEYLIME_AGENT_IAK_IDEVID_TEMPLATE``
+    * - ``iak_idevid_asymmetric_alg``
+      - ``"rsa"``
+      - 2.1
+      - ``KEYLIME_AGENT_IAK_IDEVID_ASYMMETRIC_ALG``
+    * - ``iak_idevid_name_alg``
+      - ``"sha256"``
+      - 2.1
+      - ``KEYLIME_AGENT_IAK_IDEVID_NAME_ALG``
+    * - ``idevid_password``
+      - ``""``
+      - 2.3
+      - ``KEYLIME_AGENT_IDEVID_PASSWORD``
+    * - ``idevid_handle``
+      - ``""``
+      - 2.3
+      - ``KEYLIME_AGENT_IDEVID_HANDLE``
+    * - ``iak_password``
+      - ``""``
+      - 2.3
+      - ``KEYLIME_AGENT_IAK_PASSWORD``
+    * - ``iak_handle``
+      - ``""``
+      - 2.3
+      - ``KEYLIME_AGENT_IAK_HANDLE``
+    * - ``iak_cert``
+      - ``"default"``
+      - 2.1
+      - ``KEYLIME_AGENT_IAK_CERT``
+    * - ``idevid_cert``
+      - ``"default"``
+      - 2.1
+      - ``KEYLIME_AGENT_IDEVID_CERT``
+    * - ``run_as``
+      - ``"keylime:tss"``
+      - 2.0
+      - ``KEYLIME_AGENT_RUN_AS``
+    * - ``ima_ml_path``
+      - ``"default"``
+      - 2.2
+      - ``KEYLIME_AGENT_IMA_ML_PATH``
+    * - ``measuredboot_ml_path``
+      - ``"default"``
+      - 2.2
+      - ``KEYLIME_AGENT_MEASUREDBOOT_ML_PATH``
+
+Push Model Specific Options
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table::
+    :header-rows: 1
+    :widths: 35 12 12 41
+
+    * - Option
+      - Default
+      - Version
+      - Environment Variable
+    * - ``agent_data_path``
+      - ``agent_data.json``
+      - 2.5
+      - ``KEYLIME_AGENT_AGENT_DATA_PATH``
+    * - ``verifier_url``
+      - ``https://localhost:8881``
+      - 2.5
+      - ``KEYLIME_AGENT_VERIFIER_URL``
+    * - ``certification_keys_server_identifier``
+      - ``ak``
+      - 2.5
+      - ``KEYLIME_AGENT_CERTIFICATION_KEYS_SERVER_IDENTIFIER``
+    * - ``ima_ml_count_file``
+      - ``/sys/kernel/security/ima/measurements``
+      - 2.5
+      - ``KEYLIME_AGENT_IMA_ML_COUNT_FILE``
+    * - ``uefi_logs_evidence_version``
+      - ``2.1``
+      - 2.5
+      - ``KEYLIME_AGENT_UEFI_LOGS_EVIDENCE_VERSION``
+    * - ``exponential_backoff_max_retries``
+      - ``5``
+      - 2.5
+      - ``KEYLIME_AGENT_EXPONENTIAL_BACKOFF_MAX_RETRIES``
+    * - ``exponential_backoff_initial_delay``
+      - ``10000``
+      - 2.5
+      - ``KEYLIME_AGENT_EXPONENTIAL_BACKOFF_INITIAL_DELAY``
+    * - ``exponential_backoff_max_delay``
+      - ``300000``
+      - 2.5
+      - ``KEYLIME_AGENT_EXPONENTIAL_BACKOFF_MAX_DELAY``
+    * - ``attestation_interval_seconds``
+      - ``60``
+      - 2.5
+      - ``KEYLIME_AGENT_ATTESTATION_INTERVAL_SECONDS``
+
+Logging Configuration (``/etc/keylime/logging.conf``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The logging configuration follows Python's standard logging configuration format.
+See the Python logging documentation for details on configuring handlers, formatters,
+and loggers. The version option can be overridden with ``KEYLIME_LOGGING_VERSION``.
+
+Configuration Version History
+------------------------------
+
+.. list-table::
+    :header-rows: 1
+    :widths: 15 70
+
+    * - Version
+      - Changes
+    * - 2.0
+      - Base configuration structure, pull model support
+    * - 2.1
+      - Added IAK/IDevID support, ``tpm_identity`` for registrar
+    * - 2.2
+      - Added ``ima_ml_path`` and ``measuredboot_ml_path`` configuration
+    * - 2.3
+      - Added persisted key handles for IAK/IDevID (``iak_handle``, ``idevid_handle``)
+    * - 2.4
+      - Added ``api_versions`` for agent, ``malformed_cert_action`` for registrar
+    * - 2.5
+      - **Push model support**: Added ``mode``, ``challenge_lifetime``, ``verification_timeout`` for verifier; ``verifier_url``, ``agent_data_path``, exponential backoff options for agent
+
+For detailed information on all configuration options for each component, refer
+to the configuration files in ``/etc/keylime/`` and their inline documentation.

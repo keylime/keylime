@@ -38,20 +38,20 @@ contact_ip = "{{ agent.contact_ip }}"
 contact_port = {{ agent.contact_port }}
 
 # Path to store agent persistent data
-agent_data_path = "{{ agent_data_path }}"
+agent_data_path = "{{ agent.agent_data_path }}"
 
 # Verifier Information (Push Model specific).
 # Verifier URL
-verifier_url = "{{ agent_verifier_url }}"
+verifier_url = "{{ agent.verifier_url }}"
 
 # Server identifier for certification keys
-certification_keys_server_identifier = "{{ agent_certification_keys_server_identifier }}"
+certification_keys_server_identifier = "{{ agent.certification_keys_server_identifier }}"
 
 # File to store the IMA measurement list count
-ima_ml_count_file = "{{ agent_ima_ml_count_file }}"
+ima_ml_count_file = "{{ agent.ima_ml_count_file }}"
 
 # Evidence version for UEFI logs
-uefi_logs_evidence_version = "{{ agent_uefi_logs_evidence_version }}"
+uefi_logs_evidence_version = "{{ agent.uefi_logs_evidence_version }}"
 
 # The address and port of registrar server which agent communicate with
 registrar_ip = "{{ agent.registrar_ip }}"
@@ -168,11 +168,14 @@ measure_payload_pcr = {{ agent.measure_payload_pcr }}
 # Wether or not to use an exponantial backoff algorithm for retries.
 exponential_backoff = {{ agent.exponential_backoff }}
 # Maximum number of retries for exponential backoff
-exponential_backoff_max_retries = {{ agent_exponential_backoff_max_retries }}
+exponential_backoff_max_retries = {{ agent.exponential_backoff_max_retries }}
 # Initial delay in milliseconds for exponential backoff
-exponential_backoff_initial_delay = {{ agent_exponential_backoff_initial_delay }}
+exponential_backoff_initial_delay = {{ agent.exponential_backoff_initial_delay }}
 # Maximum delay in milliseconds for exponential backoff
-exponential_backoff_max_delay = {{ agent_exponential_backoff_max_delay }}
+exponential_backoff_max_delay = {{ agent.exponential_backoff_max_delay }}
+
+# Interval in seconds between attestation attempts in push mode (agent-driven attestation)
+attestation_interval_seconds = {{ agent.attestation_interval_seconds }}
 
 # Either how long to wait between failed attempts to communicate with the TPM
 # in seconds, or the base for the exponential backoff algorithm if enabled via
