@@ -53,21 +53,41 @@ logger = keylime_logging.init_logging("verifier")
 
 GLOBAL_POLICY_CACHE: Dict[str, Dict[str, str]] = {}
 
-set_severity_config(config.getlist("verifier", "severity_labels"), config.getlist("verifier", "severity_policy"))
+# Module-level globals that are initialized lazily to avoid loading
+# verifier configuration when this module is imported by other components
+engine: Optional[Engine] = None
+rmc: Optional[Any] = None
+_verifier_config_initialized = False
 
-try:
-    engine = make_engine("cloud_verifier")
-except SQLAlchemyError as err:
-    logger.error("Error creating SQL engine or session: %s", err)
-    sys.exit(1)
 
-try:
-    rmc = record.get_record_mgt_class(config.get("verifier", "durable_attestation_import", fallback=""))
-    if rmc:
-        rmc = rmc("verifier")
-except record.RecordManagementException as rme:
-    logger.error("Error initializing Durable Attestation: %s", rme)
-    sys.exit(1)
+def _initialize_verifier_config() -> None:
+    """
+    Initialize verifier-specific configuration.
+    This is called lazily to avoid loading verifier config when this module
+    is imported by other components (e.g., registrar).
+    """
+    global engine, rmc, _verifier_config_initialized
+
+    if _verifier_config_initialized:
+        return
+
+    set_severity_config(config.getlist("verifier", "severity_labels"), config.getlist("verifier", "severity_policy"))
+
+    try:
+        engine = make_engine("cloud_verifier")
+    except SQLAlchemyError as err:
+        logger.error("Error creating SQL engine or session: %s", err)
+        sys.exit(1)
+
+    try:
+        rmc = record.get_record_mgt_class(config.get("verifier", "durable_attestation_import", fallback=""))
+        if rmc:
+            rmc = rmc("verifier")
+    except record.RecordManagementException as rme:
+        logger.error("Error initializing Durable Attestation: %s", rme)
+        sys.exit(1)
+
+    _verifier_config_initialized = True
 
 
 @contextmanager
@@ -78,8 +98,9 @@ def session_context() -> Iterator[Session]:
         with session_context() as session:
             # use session
     """
+    _initialize_verifier_config()
     session_manager = SessionManager()
-    with session_manager.session_context(engine) as session:
+    with session_manager.session_context(engine) as session:  # type: ignore
         yield session
 
 
@@ -2310,6 +2331,8 @@ def get_agents_by_verifier_id(verifier_id: str) -> List[VerfierMain]:
 def main() -> None:
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
     called as a function by an external program."""
+
+    _initialize_verifier_config()
 
     config.check_version("verifier", logger=logger)
 
