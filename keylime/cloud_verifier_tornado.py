@@ -37,10 +37,11 @@ from keylime.common.version import str_to_version
 from keylime.config import DEFAULT_TIMEOUT
 from keylime.da import record
 from keylime.db.keylime_db import SessionManager, make_engine
-from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpolicy
+from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierAttestations, VerifierMbpolicy
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
 from keylime.mba import mba
+from keylime.models.verifier import Attestation, EvidenceItem
 from keylime.shared_data import (
     cache_policy,
     cleanup_agent_policy_cache,
@@ -216,6 +217,22 @@ def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
 
 def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
     get_AgentAttestStates().delete_by_agent_id(agent_id)
+    # Delete in FK dependency order:
+    # Push-mode tables:
+    #   1. evidence_items (FK to attestations)
+    #   2. attestations (FK to agent)
+    # Legacy/shared tables:
+    #   3. VerifierAttestations (legacy attestations table, FK to agent)
+    # Agent and policies:
+    #   4. agent
+    #   5. allowlists/mbpolicies (by name, not FK)
+    # NOTE: Authentication sessions are NOT deleted when an agent is removed.
+    # This allows agents to maintain their authentication tokens through policy
+    # updates (DELETE + POST) and re-enrollment without needing to re-authenticate.
+    # Sessions will expire naturally based on their token_expires_at timestamp.
+    EvidenceItem.delete_all(agent_id=agent_id, session_=session)
+    Attestation.delete_all(agent_id=agent_id, session_=session)
+    session.query(VerifierAttestations).filter_by(agent_id=agent_id).delete()
     session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
     session.query(VerifierAllowlist).filter_by(name=agent_id).delete()
     session.query(VerifierMbpolicy).filter_by(name=agent_id).delete()
@@ -526,25 +543,48 @@ class AgentsHandler(BaseHandler):
                 agent_id,
             )
 
-            op_state = agent.operational_state
-            if op_state in (states.SAVED, states.FAILED, states.TERMINATED, states.TENANT_FAILED, states.INVALID_QUOTE):
+            # Check verifier mode - push mode doesn't use operational_state state machine
+            mode = config.get("verifier", "mode", fallback="pull")
+
+            # In push mode, directly delete the agent since operational_state is not used
+            # In pull mode, check operational_state to determine deletion vs termination
+            if mode == "push":
+                # Push mode: Always delete immediately (synchronous deletion)
                 try:
                     verifier_db_delete_agent(session, agent_id)
+                    web_util.echo_json_response(self.req_handler, 200, "Success")
+                    logger.info("DELETE (push mode) returning 200 response for agent id: %s", agent_id)
                 except SQLAlchemyError as e:
-                    logger.error("SQLAlchemy Error: %s", e)
-                web_util.echo_json_response(self.req_handler, 200, "Success")
-                logger.info("DELETE returning 200 response for agent id: %s", agent_id)
+                    logger.error("SQLAlchemy Error deleting agent in push mode: %s", e)
+                    web_util.echo_json_response(self.req_handler, 500, "Internal Server Error")
             else:
-                try:
-                    update_agent = session.query(VerfierMain).get(agent_id)
-                    assert update_agent
-                    update_agent.operational_state = states.TERMINATED
-                    session.add(update_agent)
-                    # session.commit() is automatically called by context manager
-                    web_util.echo_json_response(self.req_handler, 202, "Accepted")
-                    logger.info("DELETE returning 202 response for agent id: %s", agent_id)
-                except SQLAlchemyError as e:
-                    logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
+                # Pull mode: Use operational_state to determine deletion behavior
+                op_state = agent.operational_state
+                if op_state in (
+                    states.SAVED,
+                    states.FAILED,
+                    states.TERMINATED,
+                    states.TENANT_FAILED,
+                    states.INVALID_QUOTE,
+                ):
+                    try:
+                        verifier_db_delete_agent(session, agent_id)
+                        web_util.echo_json_response(self.req_handler, 200, "Success")
+                        logger.info("DELETE (pull mode) returning 200 response for agent id: %s", agent_id)
+                    except SQLAlchemyError as e:
+                        logger.error("SQLAlchemy Error deleting agent in pull mode: %s", e)
+                        web_util.echo_json_response(self.req_handler, 500, "Internal Server Error")
+                else:
+                    try:
+                        update_agent = session.query(VerfierMain).get(agent_id)
+                        assert update_agent
+                        update_agent.operational_state = states.TERMINATED
+                        session.add(update_agent)
+                        # session.commit() is automatically called by context manager
+                        web_util.echo_json_response(self.req_handler, 202, "Accepted")
+                        logger.info("DELETE (pull mode) returning 202 response for agent id: %s", agent_id)
+                    except SQLAlchemyError as e:
+                        logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
 
     def post(self) -> None:
         """This method handles the POST requests to add agents to the Cloud Verifier.

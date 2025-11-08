@@ -622,7 +622,9 @@ class TPMEngine(VerificationEngine):
 
         Updates both shared memory (for current workers) and database (for persistence).
         """
+        logger.debug("_extend_auth_token() called for agent '%s'", self.agent_id)
         session_data = AuthSession.get_active_session_for_agent(self.agent_id)
+        logger.debug("get_active_session_for_agent returned: %s", session_data)
 
         if session_data:
             session_lifetime = config.getint("verifier", "session_lifetime")
@@ -675,10 +677,18 @@ class TPMEngine(VerificationEngine):
                 self._extend_auth_token()
         else:
             self.attestation.evaluation = "fail"
-            self.agent.accept_attestations = False
 
-            # Invalidate authentication session on attestation failure
-            AuthSession.delete_active_session_for_agent(self.agent_id)
+            # In pull mode, disable attestations immediately on failure (verifier controls attestation cadence)
+            # In push mode, allow agent to retry with exponential backoff until token expires
+            mode = config.get("verifier", "mode", fallback="pull")
+            if mode == "pull":
+                self.agent.accept_attestations = False
+                # Invalidate authentication session on attestation failure in pull mode
+                AuthSession.delete_active_session_for_agent(self.agent_id)
+            # In push mode, token remains valid and agent can retry.
+            # Token is NOT extended on failed attestations (extension only happens for successful attestations above).
+            # Agent will get 503 Service Unavailable if it retries too quickly (due to attestation_interval check).
+            # When token expires, agent will get 401 and must re-authenticate.
 
         self.attestation.refresh_metadata()  # type: ignore[no-untyped-call]
         self._determine_failure_reason(failure)
