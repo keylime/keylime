@@ -200,5 +200,93 @@ class TestTPMEngineProcessResults(unittest.TestCase):
         self.assertEqual(self.mock_attestation.evaluation, "fail")
 
 
+class TestTPMEngineFreshPolicy(unittest.TestCase):
+    """Tests for TPMEngine fresh policy loading"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        # Create mock attestation with required attributes
+        self.mock_attestation = MagicMock()
+        self.mock_attestation.agent_id = "test-agent-123"
+        self.mock_attestation.system_info = None
+        self.mock_attestation.evidence = MagicMock()
+
+        # Mock evidence view to return empty results
+        mock_view = MagicMock()
+        mock_view.filter.return_value = mock_view
+        mock_view.result.return_value = []
+        self.mock_attestation.evidence.view.return_value = mock_view
+
+        # Create mock agent with IMA policy
+        self.mock_agent = MagicMock()
+        self.mock_agent.agent_id = "test-agent-123"
+        self.mock_agent.ima_policy = MagicMock()
+        self.mock_agent.ima_policy.ima_policy = {"verification-keys": "old-keys", "version": 1}
+        self.mock_agent.ima_policy_id = 42
+        self.mock_agent.mb_policy = None
+        self.mock_agent.tpm_policy = {}
+        self.mock_agent.ak_tpm = "mock-ak"
+        self.mock_agent.accept_tpm_signing_algs = []
+        self.mock_agent.accept_tpm_hash_algs = []
+
+        self.mock_attestation.agent = self.mock_agent
+
+        # Create engine instance
+        self.engine = TPMEngine(self.mock_attestation)
+
+    @patch("keylime.models.base.db_manager.session_context")
+    def test_ima_policy_reload_bypasses_cache(self, mock_session_context):
+        """Test that ima_policy property reloads fresh policy from database"""
+        # Create a fresh agent with updated policy ID
+        fresh_agent = MagicMock()
+        fresh_agent.ima_policy_id = 43  # Different ID indicates policy was updated
+
+        # Mock database query result with new policy
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = ['{"verification-keys": "new-keys", "version": 2}']
+        mock_session = MagicMock()
+        mock_session.execute.return_value = mock_result
+        mock_session_context.return_value.__enter__.return_value = mock_session
+
+        # Simulate verify_evidence() reloading the agent
+        self.engine._fresh_agent = fresh_agent  # pylint: disable=attribute-defined-outside-init
+
+        # Access the ima_policy property
+        policy = self.engine.ima_policy
+
+        # Verify the fresh policy from database was used, not the cached one
+        self.assertEqual(policy["verification-keys"], "new-keys")
+        self.assertEqual(policy["version"], 2)
+
+        # Verify raw SQL query was executed to bypass ORM cache
+        mock_session.execute.assert_called_once()
+
+    def test_ima_policy_uses_cached_when_no_fresh_agent(self):
+        """Test that ima_policy falls back to cached policy when no fresh agent"""
+        # Access the ima_policy property without setting _fresh_agent
+        policy = self.engine.ima_policy
+
+        # Verify the cached policy from the original agent was used
+        self.assertEqual(policy["verification-keys"], "old-keys")
+        self.assertEqual(policy["version"], 1)
+
+    def test_agent_property_uses_fresh_agent_when_available(self):
+        """Test that agent property returns fresh agent when available"""
+        # Create a fresh agent
+        fresh_agent = MagicMock()
+        fresh_agent.agent_id = "test-agent-123"
+        fresh_agent.attestation_count = 5  # Different from original
+
+        # Simulate verify_evidence() reloading the agent
+        self.engine._fresh_agent = fresh_agent  # pylint: disable=attribute-defined-outside-init
+
+        # Access the agent property
+        agent = self.engine.agent
+
+        # Verify the fresh agent was returned
+        self.assertEqual(agent.attestation_count, 5)
+        self.assertIs(agent, fresh_agent)
+
+
 if __name__ == "__main__":
     unittest.main()
