@@ -2,7 +2,8 @@
 # Uses ORM models with dynamically-created attributes from metaclasses
 from typing import cast
 
-from keylime import keylime_logging
+from keylime import config, keylime_logging
+from keylime.common import retry
 from keylime.models.verifier import Attestation, VerifierAgent
 from keylime.verification import EngineDriver
 from keylime.web.base import APIError, APILink, APIMessageBody, APIMeta, APIResource, Controller
@@ -219,8 +220,32 @@ class AttestationController(Controller):
                 f"attestation not passing verification."
             ).send_via(self)
 
+        # Per enhancement #103, section "Error Conditions for Attestation Protocol":
+        # If last attestation failed AND policy hasn't changed, return 503 with exponential backoff
+        if (
+            agent.latest_attestation  # type: ignore[union-attr]
+            and agent.latest_attestation.evaluation == "fail"  # type: ignore[union-attr]
+            and agent.latest_attestation.stage == "verification_complete"  # type: ignore[union-attr]
+        ):
+            # Calculate retry-after using exponential backoff (same formula as rest of codebase)
+            exponential_backoff = config.getboolean("verifier", "exponential_backoff", fallback=True)
+            retry_interval = config.getfloat("verifier", "retry_interval", fallback=2.0)
+            max_interval = config.getint("verifier", "quote_interval", fallback=60)
+            consecutive_failures = agent.consecutive_attestation_failures or 1  # type: ignore[union-attr]
+
+            # Use existing retry_time function for consistency with rest of codebase
+            retry_after = retry.retry_time(exponential_backoff, retry_interval, consecutive_failures, logger)
+            retry_after = min(int(retry_after), max_interval)
+
+            self.set_header("Retry-After", str(retry_after))  # type: ignore[no-untyped-call]
+            APIError("attestation_failed_retry", 503).set_detail(
+                f"Last attestation for agent '{agent_id}' failed verification. "
+                f"Retry with exponential backoff (wait at least {retry_after} seconds). "
+                f"If the failure was due to policy violation, update the policy or fix the agent before retrying."
+            ).send_via(self)
+
         if agent.latest_attestation and agent.latest_attestation.verification_in_progress:  # type: ignore[union-attr]
-            self.set_header("Retry-After", agent.latest_attestation.seconds_to_decision)  # type: ignore[no-untyped-call, union-attr]
+            self.set_header("Retry-After", str(agent.latest_attestation.seconds_to_decision))  # type: ignore[no-untyped-call, union-attr]
             APIError("verification_in_progress", 503).set_detail(
                 f"Cannot create attestation for agent '{agent_id}' while the last attestation is still being "
                 f"verified. The active verification task is expected to complete or time out within "
@@ -228,7 +253,7 @@ class AttestationController(Controller):
             ).send_via(self)
 
         if agent.latest_attestation and not agent.latest_attestation.ready_for_next_attestation:  # type: ignore[union-attr]
-            self.set_header("Retry-After", agent.latest_attestation.seconds_to_next_attestation)  # type: ignore[no-untyped-call, union-attr]
+            self.set_header("Retry-After", str(agent.latest_attestation.seconds_to_next_attestation))  # type: ignore[no-untyped-call, union-attr]
             APIError("premature_attestation", 429).set_detail(
                 f"Cannot create attestation for agent '{agent_id}' before the configured interval has elapsed. "
                 f"Wait {agent.latest_attestation.seconds_to_next_attestation} seconds before trying again."  # type: ignore[union-attr]

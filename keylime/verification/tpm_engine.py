@@ -672,11 +672,20 @@ class TPMEngine(VerificationEngine):
             self.attestation.evaluation = "pass"
             self.agent.attestation_count += 1
 
+            # Reset consecutive failures counter on success
+            self.agent.consecutive_attestation_failures = 0
+
             # Extend authentication token on successful attestation
             if config.getboolean("verifier", "extend_token_on_attestation", fallback=True):
                 self._extend_auth_token()
         else:
             self.attestation.evaluation = "fail"
+
+            # Increment consecutive failures counter for exponential backoff (per enhancement #103)
+            if self.agent.consecutive_attestation_failures is None:
+                self.agent.consecutive_attestation_failures = 1
+            else:
+                self.agent.consecutive_attestation_failures += 1
 
             # In pull mode, disable attestations immediately on failure (verifier controls attestation cadence)
             # In push mode, allow agent to retry with exponential backoff until token expires
@@ -710,6 +719,18 @@ class TPMEngine(VerificationEngine):
         self._process_ima_log_evidence()
 
     def verify_evidence(self) -> None:
+        # Reload agent from database to get fresh policy references
+        # This ensures we use the latest policy even if it was updated while this attestation was in-flight
+        # Note: A better long-term solution would be implementing an atomic policy update endpoint
+        from keylime.models.verifier import VerifierAgent  # pylint: disable=import-outside-toplevel
+
+        self._fresh_agent = VerifierAgent.get(self.agent_id)  # pylint: disable=attribute-defined-outside-init
+
+        if not self._fresh_agent:
+            logger.warning(
+                "Could not reload agent '%s' from database, using cached agent (policy may be stale)", self.agent_id
+            )
+
         logger.info("Starting verification of attestation %s for agent '%s'...", self.index, self.agent_id)
 
         tpm_quote_item = self._select_tpm_quote_item()
@@ -764,11 +785,40 @@ class TPMEngine(VerificationEngine):
         #         self.previous_attestation.delete()
 
     @property
+    def agent(self) -> Any:
+        # Use freshly reloaded agent if available (for up-to-date policies)
+        if hasattr(self, "_fresh_agent") and self._fresh_agent:
+            return self._fresh_agent
+        return super().agent
+
+    @property
     def uefi_ref_state(self) -> Any:
         return self.agent.mb_policy.mb_policy
 
     @property
     def ima_policy(self) -> Any:
+        # If using a fresh agent, bypass SQLAlchemy's identity map cache by querying the database directly
+        # This is necessary because policy updates use DELETE-CREATE which may reuse the same policy ID,
+        # causing the identity map to return stale cached policy objects
+        if hasattr(self, "_fresh_agent") and self._fresh_agent and self._fresh_agent.ima_policy_id:  # type: ignore[attr-defined]
+            # pylint: disable=import-outside-toplevel
+            import json
+
+            from sqlalchemy import text
+
+            from keylime.models.base import db_manager
+
+            # Query the database directly using raw SQL to completely bypass ORM caching
+            with db_manager.session_context() as session:
+                result = session.execute(
+                    text("SELECT ima_policy FROM allowlists WHERE id = :policy_id"),
+                    {"policy_id": self._fresh_agent.ima_policy_id},  # type: ignore[attr-defined]
+                ).fetchone()
+
+                if result and result[0]:
+                    # Parse the JSON policy stored in the database
+                    return json.loads(result[0])
+
         return self.agent.ima_policy.ima_policy
 
     @property

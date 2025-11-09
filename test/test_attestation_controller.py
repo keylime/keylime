@@ -316,5 +316,230 @@ class TestAttestationControllerErrorMessages(unittest.TestCase):
         self.assertEqual(args[1], 400)
 
 
+class TestAttestationControllerExponentialBackoff(unittest.TestCase):
+    """Test exponential backoff behavior when attestation fails.
+
+    These tests verify that the verifier implements 503 Service Unavailable
+    with exponential backoff when an agent retries after a failed attestation.
+    """
+
+    def setUp(self) -> None:
+        """Set up test fixtures"""
+        # Create a mock action_handler with minimal required attributes
+        self.mock_action_handler = Mock()
+        self.mock_action_handler.request = Mock()
+        self.mock_action_handler.request.method = "POST"
+        self.mock_action_handler.request.path = "/v3/agents/test-agent-123/attestations"
+        self.mock_action_handler.request.headers = Mock()
+        self.mock_action_handler.request.headers.get = Mock(return_value="application/vnd.api+json")
+        self.mock_action_handler.request.headers.copy = Mock(return_value={})
+
+        # Create the controller with the mock action_handler
+        self.controller = cast(AttestationController, AttestationController(self.mock_action_handler))
+
+        # Mock the api_request_body to satisfy the @require_json_api decorator
+        self.controller._api_request_body = Mock()  # pylint: disable=protected-access
+
+        self.agent_id = "test-agent-123"
+
+    @patch("keylime.config.getint")
+    @patch("keylime.common.retry.retry_time")
+    @patch("keylime.web.verifier.attestation_controller.APIError")
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_create_returns_503_after_failed_attestation(
+        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getint
+    ):
+        """Test that create() returns 503 Service Unavailable after a failed attestation.
+
+        When the last attestation failed verification, the verifier should return
+        503 with exponential backoff Retry-After header to prevent DoS.
+        """
+        # Setup mock agent with failed latest attestation
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_agent.accept_attestations = True
+        mock_agent.consecutive_attestation_failures = 2
+
+        mock_attestation = Mock()
+        mock_attestation.evaluation = "fail"
+        mock_attestation.stage = "verification_complete"
+        mock_agent.latest_attestation = mock_attestation
+        mock_agent_class.get.return_value = mock_agent
+
+        # Mock config value for quote_interval (max cap)
+        mock_getint.return_value = 100  # High enough that it won't cap our retry value
+
+        # Mock retry calculation to return predictable value
+        mock_retry_time.return_value = 8.0  # 2nd retry with exponential backoff
+
+        # Mock APIError to prevent actual error sending
+        mock_error = Mock()
+        mock_error.set_detail = Mock(return_value=mock_error)
+        mock_error.send_via = Mock(side_effect=StopAction)
+        mock_api_error_class.return_value = mock_error
+
+        # Mock set_header to verify Retry-After is set
+        self.controller.set_header = Mock()
+
+        # Call should trigger 503 error
+        try:
+            self.controller.create(self.agent_id, attestation={})
+        except StopAction:
+            pass  # Expected when error is sent
+
+        # Should set Retry-After header with exponential backoff value
+        self.controller.set_header.assert_called_once_with("Retry-After", "8")
+
+        # Should create 503 error
+        mock_api_error_class.assert_called_with("attestation_failed_retry", 503)
+        mock_error.set_detail.assert_called_once()
+
+    @patch("keylime.config.getint")
+    @patch("keylime.common.retry.retry_time")
+    @patch("keylime.web.verifier.attestation_controller.APIError")
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_create_uses_consecutive_failures_for_backoff(
+        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getint
+    ):
+        """Test that consecutive failure count is used for exponential backoff calculation.
+
+        The retry delay should increase based on the number of consecutive failures.
+        """
+        # Setup mock agent with multiple consecutive failures
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_agent.accept_attestations = True
+        mock_agent.consecutive_attestation_failures = 5
+
+        mock_attestation = Mock()
+        mock_attestation.evaluation = "fail"
+        mock_attestation.stage = "verification_complete"
+        mock_agent.latest_attestation = mock_attestation
+        mock_agent_class.get.return_value = mock_agent
+
+        # Mock config value for quote_interval (max cap)
+        mock_getint.return_value = 100  # High enough that it won't cap our retry value
+
+        # Mock retry calculation
+        mock_retry_time.return_value = 32.0
+
+        # Mock APIError to prevent actual error sending
+        mock_error = Mock()
+        mock_error.set_detail = Mock(return_value=mock_error)
+        mock_error.send_via = Mock(side_effect=StopAction)
+        mock_api_error_class.return_value = mock_error
+
+        # Mock set_header
+        self.controller.set_header = Mock()
+
+        # Call should trigger 503 error
+        try:
+            self.controller.create(self.agent_id, attestation={})
+        except StopAction:
+            pass
+
+        # Verify retry_time was called with consecutive failures count
+        mock_retry_time.assert_called_once()
+        call_args = mock_retry_time.call_args[0]
+        self.assertEqual(call_args[2], 5)  # consecutive_failures parameter
+
+    @patch("keylime.config.getint")
+    @patch("keylime.common.retry.retry_time")
+    @patch("keylime.web.verifier.attestation_controller.APIError")
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_create_caps_retry_after_at_quote_interval(
+        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getint
+    ):
+        """Test that Retry-After is capped at quote_interval to prevent excessive delays.
+
+        Even with many consecutive failures, the retry delay should not exceed
+        the configured quote_interval.
+        """
+        # Setup mock agent with many consecutive failures
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_agent.accept_attestations = True
+        mock_agent.consecutive_attestation_failures = 10
+
+        mock_attestation = Mock()
+        mock_attestation.evaluation = "fail"
+        mock_attestation.stage = "verification_complete"
+        mock_agent.latest_attestation = mock_attestation
+        mock_agent_class.get.return_value = mock_agent
+
+        # Mock config value for quote_interval (max cap) - set to 60 to test capping
+        mock_getint.return_value = 60
+
+        # Mock retry calculation to return a very high value
+        mock_retry_time.return_value = 1024.0
+
+        # Mock APIError to prevent actual error sending
+        mock_error = Mock()
+        mock_error.set_detail = Mock(return_value=mock_error)
+        mock_error.send_via = Mock(side_effect=StopAction)
+        mock_api_error_class.return_value = mock_error
+
+        # Mock set_header
+        self.controller.set_header = Mock()
+
+        # Call should trigger 503 error
+        try:
+            self.controller.create(self.agent_id, attestation={})
+        except StopAction:
+            pass
+
+        # Should cap at max_interval (quote_interval config = 60)
+        # The actual retry_after should be min(1024, 60) = 60
+        self.controller.set_header.assert_called_once_with("Retry-After", "60")
+
+    @patch("keylime.web.verifier.attestation_controller.Attestation")
+    @patch("keylime.web.verifier.attestation_controller.EngineDriver")
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_create_succeeds_when_no_failed_attestation(
+        self, mock_agent_class, mock_engine_driver_class, mock_attestation_class
+    ):
+        """Test that create() succeeds when last attestation passed or doesn't exist.
+
+        The exponential backoff should only apply when the last attestation failed.
+        """
+        # Setup mock agent with passing attestation
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_agent.accept_attestations = True
+        mock_agent.consecutive_attestation_failures = 0
+
+        mock_attestation = Mock()
+        mock_attestation.evaluation = "pass"  # Not failed
+        mock_attestation.stage = "verification_complete"
+        mock_attestation.verification_in_progress = False
+        mock_attestation.ready_for_next_attestation = True
+        mock_agent.latest_attestation = mock_attestation
+        mock_agent_class.get.return_value = mock_agent
+
+        # Mock new attestation creation
+        mock_new_attestation = Mock()
+        mock_new_attestation.index = 42
+        mock_new_attestation.changes_valid = True
+        mock_new_attestation.commit_changes = Mock()
+        mock_new_attestation.receive_capabilities = Mock()
+        mock_new_attestation.render_evidence_requested = Mock(return_value={})
+        mock_attestation_class.create.return_value = mock_new_attestation
+
+        # Mock EngineDriver
+        mock_driver = Mock()
+        mock_driver.process_capabilities = Mock()
+        mock_engine_driver_class.return_value = mock_driver
+
+        # Mock APIResource and APILink to prevent actual response sending
+        with patch("keylime.web.verifier.attestation_controller.APIResource") as mock_resource:
+            with patch("keylime.web.verifier.attestation_controller.APILink"):
+                mock_resource_instance = Mock()
+                mock_resource_instance.include = Mock(return_value=mock_resource_instance)
+                mock_resource_instance.send_via = Mock()
+                mock_resource.return_value = mock_resource_instance
+
+                # Should succeed without triggering 503
+                self.controller.create(self.agent_id, attestation={})
+
+                # Verify new attestation was created
+                mock_attestation_class.create.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
