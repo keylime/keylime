@@ -46,6 +46,9 @@ class VerifierAgent(PersistableModel):
         # Indicates whether attestations will be accepted for this agent
         cls._field("accept_attestations", Boolean)
 
+        # Track consecutive attestation failures for exponential backoff (per enhancement #103)
+        cls._field("consecutive_attestation_failures", Integer, nullable=True)
+
         # ------------------------------------------------------------------ #
         # PULL-MODE ONLY FIELDS:
 
