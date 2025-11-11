@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Sequence
 from sqlalchemy.orm import Session
 
 from keylime import config, keylime_logging
+from keylime.common.algorithms import hash_token_for_log
 from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain
 from keylime.models.base import *
@@ -277,9 +278,9 @@ class AuthSession(PersistableModel):
                 sessions_cache[session_data["session_id"]] = session_data  # type: ignore[index]
 
                 logger.debug(
-                    "Restored auth session for agent '%s' from database (token: %s)",
+                    "Restored auth session for agent '%s' from database (token hash: %s)",
                     agent_id,
-                    db_session.token,  # type: ignore[attr-defined]
+                    hash_token_for_log(db_session.token),  # type: ignore[attr-defined]
                 )
 
                 return session_data  # type: ignore[return-value]

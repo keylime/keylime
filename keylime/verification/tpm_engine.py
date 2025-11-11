@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from keylime import config, keylime_logging
 from keylime.agentstates import AgentAttestState, TPMClockInfo
 from keylime.common import algorithms
+from keylime.common.algorithms import hash_token_for_log
 from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyring, ImaKeyrings
@@ -624,7 +625,16 @@ class TPMEngine(VerificationEngine):
         """
         logger.debug("_extend_auth_token() called for agent '%s'", self.agent_id)
         session_data = AuthSession.get_active_session_for_agent(self.agent_id)
-        logger.debug("get_active_session_for_agent returned: %s", session_data)
+
+        # Log session data with token hashed for security
+        if session_data:
+            logged_data = session_data.copy()
+            if "token" in logged_data:
+                logged_data["token_hash"] = hash_token_for_log(logged_data["token"])
+                del logged_data["token"]
+            logger.debug("get_active_session_for_agent returned: %s", logged_data)
+        else:
+            logger.debug("get_active_session_for_agent returned: None")
 
         if session_data:
             session_lifetime = config.getint("verifier", "session_lifetime")
@@ -648,13 +658,16 @@ class TPMEngine(VerificationEngine):
                     auth_session.token_expires_at = new_expiry
                     auth_session.commit_changes()
                     logger.debug(
-                        "Extended auth token for agent '%s' (token %s) in database until %s",
+                        "Extended auth token for agent '%s' (token hash: %s) in database until %s",
                         self.agent_id,
-                        token,
+                        hash_token_for_log(token),
                         new_expiry,
                     )
                 else:
-                    logger.warning("Could not find auth session in database for token %s to extend", token)
+                    logger.warning(
+                        "Could not find auth session in database for token hash: %s to extend",
+                        hash_token_for_log(token),
+                    )
 
             if session_id:
                 logger.debug(
