@@ -627,7 +627,7 @@ class AgentsHandler(BaseHandler):
                         "v": json_body.get("v", None),
                         "ip": agent_ip,
                         "port": agent_port,
-                        "operational_state": states.START,
+                        "operational_state": states.GET_QUOTE if mode == "push" else states.START,
                         "public_key": "",
                         "tpm_policy": json_body["tpm_policy"],
                         "meta_data": json_body["metadata"],
