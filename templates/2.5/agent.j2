@@ -62,6 +62,20 @@ registrar_port = {{ agent.registrar_port }}
 # on https://github.com/keylime/keylime/security/advisories/GHSA-2m39-75g9-ff5r
 enable_agent_mtls = {{ agent.enable_agent_mtls }}
 
+# Accept invalid TLS certificates (INSECURE - for testing only)
+# When enabled, the agent will accept self-signed or invalid certificates
+# This option is specific to the push attestation model.
+# This should ONLY be used for testing or development environments
+# Default: False (secure)
+tls_accept_invalid_certs = {{ agent.tls_accept_invalid_certs }}
+
+# Accept invalid TLS hostnames (INSECURE - for testing only)
+# When enabled, the agent will accept certificates with mismatched hostnames
+# This option is specific to the push attestation model.
+# This should ONLY be used for testing or development environments
+# Default: False (secure)
+tls_accept_invalid_hostnames = {{ agent.tls_accept_invalid_hostnames }}
+
 # The 'tls_dir' option define the directory where the keys and certificates are
 # stored.
 #
@@ -276,3 +290,10 @@ ima_ml_path = "{{ agent.ima_ml_path }}"
 # If set as a relative path, it will be considered from the root path "/".
 # If set as an absolute path, it will use it without changes
 measuredboot_ml_path = "{{ agent.measuredboot_ml_path }}"
+
+# Enable challenge-response authentication for push model attestation.
+# When enabled, the agent will authenticate with the verifier using TPM-based
+# proof of possession before sending attestation evidence.
+# This option is specific to the push attestation model.
+# The default is False (disabled).
+enable_authentication = {{ agent.enable_authentication }}
