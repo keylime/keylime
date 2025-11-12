@@ -1,12 +1,13 @@
 # pyright: reportAttributeAccessIssue=false
 # Uses ORM models with dynamically-created attributes from metaclasses
 import math
+import time
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from keylime import config, keylime_logging
 from keylime.agentstates import AgentAttestState, TPMClockInfo
-from keylime.common import algorithms
+from keylime.common import algorithms, states
 from keylime.common.algorithms import hash_token_for_log
 from keylime.failure import Component, Failure
 from keylime.ima import ima
@@ -683,10 +684,22 @@ class TPMEngine(VerificationEngine):
 
         if not failure:
             self.attestation.evaluation = "pass"
-            self.agent.attestation_count += 1
+            # Update the ORIGINAL agent object (self.attestation.agent), not the fresh agent (self.agent)
+            # The fresh agent is used for reading policies but updates must go to the original
+            self.attestation.agent.attestation_count += 1
 
             # Reset consecutive failures counter on success
-            self.agent.consecutive_attestation_failures = 0
+            self.attestation.agent.consecutive_attestation_failures = 0
+
+            # Update operational state to GET_QUOTE if not already set
+            # This ensures the agent shows as actively attesting in status queries
+            if not self.attestation.agent.operational_state or self.attestation.agent.operational_state == states.START:
+                self.attestation.agent.operational_state = states.GET_QUOTE
+
+            # Update timestamps to reflect successful attestation
+            current_time = int(time.time())
+            self.attestation.agent.last_received_quote = current_time
+            self.attestation.agent.last_successful_attestation = current_time
 
             # Extend authentication token on successful attestation
             if config.getboolean("verifier", "extend_token_on_attestation", fallback=True):

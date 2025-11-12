@@ -348,6 +348,7 @@ class AttestationController(Controller):
         )  # type: ignore[no-untyped-call]
 
         # Verify attestation after response is sent, so the agent does not need to wait for verification to complete
+        # Note: verify_evidence() calls _commit_verification_results() which commits agent changes
         driver.verify_evidence()  # type: ignore[no-untyped-call]
 
     # PATCH /v3[.:minor]/agents/:agent_id/attestations/latest
