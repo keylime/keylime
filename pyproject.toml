@@ -26,5 +26,7 @@ ignore = [
     "keylime/da/examples/redis.py",
     "keylime/da/examples/file.py",
     "test/data/template-invalid-adjust/2.0/adjust.py",
+    "test/test_session_controller.py",
+    "test/test_verifier_server.py",
 ]
 reportMissingImports = false
