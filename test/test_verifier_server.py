@@ -111,17 +111,19 @@ class TestVerifierServerRoutes(unittest.TestCase):
 
     def test_v2_agent_routes(self):
         """Test that v2 agent routes are configured."""
-        # Create instance without calling __init__ to avoid port binding
-        server = VerifierServer.__new__(VerifierServer)
-        server._post = MagicMock()  # pylint: disable=protected-access
-        server._put = MagicMock()  # pylint: disable=protected-access
+        with patch.object(VerifierServer, "_prepare_agents_on_startup"):
+            with patch.object(VerifierServer, "_setup"):
+                with patch.object(VerifierServer, "_routes"):
+                    server = VerifierServer()
+                    server._post = MagicMock()  # pylint: disable=protected-access
+                    server._put = MagicMock()  # pylint: disable=protected-access
 
-        # Call _v2_agent_routes
-        server._v2_agent_routes()  # pylint: disable=protected-access
+                    # Call _v2_agent_routes
+                    server._v2_agent_routes()  # pylint: disable=protected-access
 
-        # Verify routes were registered
-        self.assertEqual(server._post.call_count, 1)  # create  # pylint: disable=protected-access
-        self.assertEqual(server._put.call_count, 2)  # reactivate, stop  # pylint: disable=protected-access
+                    # Verify routes were registered
+                    self.assertEqual(server._post.call_count, 1)  # create  # pylint: disable=protected-access
+                    self.assertEqual(server._put.call_count, 2)  # reactivate, stop  # pylint: disable=protected-access
 
 
 class TestVerifierServerInitialization(unittest.TestCase):
