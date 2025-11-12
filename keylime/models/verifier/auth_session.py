@@ -82,9 +82,7 @@ class AuthSession(PersistableModel):
         """
         # Get all active sessions and compare tokens in constant time
         # to prevent timing attacks that could leak token values
-        session = get_session()
-        # Filter for active sessions - SQLAlchemy converts bool fields to proper SQL WHERE clause
-        all_sessions = session.query(AuthSession).filter(AuthSession.active).all()  # type: ignore[arg-type]
+        all_sessions = AuthSession.all(active=True)
 
         auth_session = None
         for candidate in all_sessions:
@@ -95,6 +93,8 @@ class AuthSession(PersistableModel):
         if not auth_session:
             return False
 
+        # Use old engine to query VerfierMain (legacy model)
+        session = get_session()
         agent = (
             session.query(VerfierMain)
             .filter(VerfierMain.agent_id == auth_session.agent_id)  # type: ignore[attr-defined]
