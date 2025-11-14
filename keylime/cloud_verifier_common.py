@@ -267,6 +267,42 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
     if agent.ima_policy.generator and agent.ima_policy.generator > ima.RUNTIME_POLICY_GENERATOR.EmptyAllowList:
         has_runtime_policy = 1
 
+    # Get attestation status based on mode (PUSH vs PULL)
+    # PULL mode: operational_state is not None - check operational_state
+    # PUSH mode: operational_state is None - check accept_attestations
+    attestation_status = "PENDING"
+
+    if agent.operational_state is not None:
+        # PULL mode: determine status based on operational_state
+        from keylime.common import states  # pylint: disable=import-outside-toplevel
+
+        # Active attestation states indicate PASS
+        if agent.operational_state in (
+            states.GET_QUOTE,
+            states.GET_QUOTE_RETRY,
+            states.PROVIDE_V,
+            states.PROVIDE_V_RETRY,
+        ):
+            attestation_status = "PASS"
+        # Failed states indicate FAIL
+        elif agent.operational_state in (states.FAILED, states.INVALID_QUOTE, states.TENANT_FAILED):
+            attestation_status = "FAIL"
+        # Other states (REGISTERED, START, SAVED, TERMINATED) are PENDING
+        else:
+            attestation_status = "PENDING"
+    else:
+        # PUSH mode: determine status based on accept_attestations flag
+        if hasattr(agent, "accept_attestations") and agent.accept_attestations is True:
+            attestation_status = "PASS"
+        elif hasattr(agent, "accept_attestations") and agent.accept_attestations is False:
+            attestation_status = "FAIL"
+        else:
+            attestation_status = "PENDING"
+
+    # Get attestation period from config
+    attestation_period_seconds = config.getfloat("verifier", "quote_interval", fallback=2.0)
+    attestation_period = f"{int(attestation_period_seconds)}s"
+
     response = {
         "operational_state": agent.operational_state,
         "v": agent.v,
@@ -290,6 +326,8 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         "attestation_count": agent.attestation_count,
         "last_received_quote": agent.last_received_quote,
         "last_successful_attestation": agent.last_successful_attestation,
+        "attestation_status": attestation_status,
+        "attestation_period": attestation_period,
     }
     return response
 
