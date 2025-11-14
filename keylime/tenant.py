@@ -208,6 +208,15 @@ class Tenant:
             if self.agent_port is None and self.registrar_data["port"] is not None:
                 self.agent_port = self.registrar_data["port"]
 
+        # Re-evaluate push_model based on whether we have agent IP/port after reading registrar
+        # If agent has IP/port (either from command line or registrar), it's PULL mode
+        # Only explicit --push-model flag overrides this detection
+        if not args.get("push_model", False):
+            if self.agent_ip is not None and self.agent_port is not None:
+                self.push_model = False  # Agent has IP/port, so it's PULL mode
+            else:
+                self.push_model = True  # No IP/port, so it's PUSH mode
+
         # If ip/port are still None, that's okay for push-mode (verifier will handle it)
         # The verifier's mode config determines whether ip/port are required
 
