@@ -18,6 +18,10 @@ class ActionIncompleteError(ActionError):
     pass
 
 
+class StopAction(Exception):
+    pass
+
+
 class RouteError(Exception):
     pass
 
@@ -39,4 +43,28 @@ class ControllerError(Exception):
 
 
 class ParamDecodeError(ControllerError):
+    pass
+
+
+class RequiredContentMissing(ControllerError):
+    pass
+
+
+class APIMessageError(Exception):
+    pass
+
+
+class InvalidMessage(APIMessageError):
+    pass
+
+
+class MissingMember(InvalidMessage):
+    pass
+
+
+class UnexpectedMember(InvalidMessage):
+    pass
+
+
+class InvalidMember(InvalidMessage):
     pass

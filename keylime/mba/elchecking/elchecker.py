@@ -31,7 +31,8 @@ def policy_load(policy_path: Optional[str] = None) -> str:
 
 def policy_is_valid(mb_refstate: Optional[str]) -> bool:
     """
-    Returns true if the policy argument is a valid nonempty policy
+    Returns true if the policy argument is a valid policy.
+    An empty dict {} is considered valid (accept-all policy).
     """
     if not mb_refstate:
         return False
@@ -39,9 +40,8 @@ def policy_is_valid(mb_refstate: Optional[str]) -> bool:
         mb_refstate_obj = json.loads(mb_refstate)
     except Exception as _:
         return False
-    if not mb_refstate_obj:
-        return False
-    if len(mb_refstate_obj) == 0:
+    # mb_refstate_obj can be an empty dict {} which is valid (accept-all)
+    if mb_refstate_obj is None:
         return False
     return True
 

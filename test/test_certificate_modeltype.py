@@ -192,6 +192,129 @@ d4wslruibXBsLPtJw2c6vTC2SV2F1PXwy5j1OKU+D6nxaaItQvWADEjcTg==
         result = self.cert_type.cast("")
         self.assertIsNone(result)
 
+    def test_infer_encoding_disabled_string(self):
+        """Test that the string 'disabled' is identified as 'disabled'."""
+        encoding = self.cert_type.infer_encoding("disabled")
+        self.assertEqual(encoding, "disabled")
+
+    def test_asn1_compliant_disabled_string(self):
+        """Test that 'disabled' string is considered ASN.1 compliant."""
+        compliant = self.cert_type.asn1_compliant("disabled")
+        self.assertTrue(compliant)
+
+    def test_cast_invalid_type_raises_type_error(self):
+        """Test that casting an invalid type raises TypeError."""
+        with self.assertRaises(TypeError) as context:
+            self.cert_type.cast(12345)  # type: ignore[arg-type]
+
+        self.assertIn("should be one of 'str', 'bytes' or 'cryptography.x509.Certificate'", str(context.exception))
+
+    def test_cast_invalid_der_data_raises_value_error(self):
+        """Test that casting invalid DER bytes raises ValueError."""
+        invalid_der = b"invalid_der_data"
+
+        with self.assertRaises(ValueError) as context:
+            self.cert_type.cast(invalid_der)
+
+        self.assertIn("appears DER encoded but cannot be deserialized", str(context.exception))
+
+    def test_cast_invalid_pem_data_raises_value_error(self):
+        """Test that casting invalid PEM string raises ValueError."""
+        invalid_pem = "-----BEGIN CERTIFICATE-----\ninvalid_pem_data\n-----END CERTIFICATE-----"
+
+        with self.assertRaises(ValueError) as context:
+            self.cert_type.cast(invalid_pem)
+
+        # The error message may vary depending on which parser fails
+        error_msg = str(context.exception)
+        self.assertTrue(
+            "appears PEM encoded but cannot be deserialized" in error_msg or "Incorrect padding" in error_msg,
+            f"Unexpected error message: {error_msg}",
+        )
+
+    def test_cast_invalid_base64_data_raises_value_error(self):
+        """Test that casting invalid Base64 string raises ValueError."""
+        invalid_b64 = "!!!invalid_base64!!!"
+
+        with self.assertRaises(ValueError) as context:
+            self.cert_type.cast(invalid_b64)
+
+        self.assertIn("appears Base64 encoded but cannot be deserialized", str(context.exception))
+
+    def test_dump_none_returns_none(self):
+        """Test that dumping None returns None."""
+        result = self.cert_type._dump(None)  # pylint: disable=protected-access
+        self.assertIsNone(result)
+
+    def test_dump_valid_certificate_returns_base64(self):
+        """Test that dumping a valid certificate returns Base64 DER string."""
+        result = self.cert_type._dump(self.compliant_cert_pem)  # pylint: disable=protected-access
+
+        self.assertIsInstance(result, str)
+        assert result is not None  # For type checker
+        # Verify it's valid Base64
+        decoded = base64.b64decode(result)
+        # Verify it can be loaded as a certificate
+        cert = cryptography.x509.load_der_x509_certificate(decoded)
+        self.assertIsInstance(cert, cryptography.x509.Certificate)
+
+    def test_dump_wrapped_certificate_returns_base64(self):
+        """Test that dumping a CertificateWrapper returns Base64 DER string."""
+        wrapped_cert = wrap_certificate(self.compliant_cert, None)
+        result = self.cert_type._dump(wrapped_cert)  # pylint: disable=protected-access
+
+        self.assertIsInstance(result, str)
+        assert result is not None  # For type checker
+        # Verify it's valid Base64
+        decoded = base64.b64decode(result)
+        cert = cryptography.x509.load_der_x509_certificate(decoded)
+        self.assertIsInstance(cert, cryptography.x509.Certificate)
+
+    def test_render_none_returns_none(self):
+        """Test that rendering None returns None."""
+        result = self.cert_type.render(None)
+        self.assertIsNone(result)
+
+    def test_render_valid_certificate_returns_pem(self):
+        """Test that rendering a valid certificate returns PEM string."""
+        result = self.cert_type.render(self.compliant_cert)
+
+        self.assertIsInstance(result, str)
+        assert result is not None  # For type checker
+        self.assertTrue(result.startswith("-----BEGIN CERTIFICATE-----"))
+        self.assertTrue(result.endswith("-----END CERTIFICATE-----\n"))
+
+    def test_render_wrapped_certificate_returns_pem(self):
+        """Test that rendering a CertificateWrapper returns PEM string."""
+        wrapped_cert = wrap_certificate(self.compliant_cert, None)
+        result = self.cert_type.render(wrapped_cert)
+
+        self.assertIsInstance(result, str)
+        assert result is not None  # For type checker
+        self.assertTrue(result.startswith("-----BEGIN CERTIFICATE-----"))
+        self.assertTrue(result.endswith("-----END CERTIFICATE-----\n"))
+
+    def test_render_base64_string_returns_pem(self):
+        """Test that rendering a Base64 string returns PEM string."""
+        der_bytes = self.compliant_cert.public_bytes(Encoding.DER)
+        b64_string = base64.b64encode(der_bytes).decode("utf-8")
+
+        result = self.cert_type.render(b64_string)
+
+        self.assertIsInstance(result, str)
+        assert result is not None  # For type checker
+        self.assertTrue(result.startswith("-----BEGIN CERTIFICATE-----"))
+        self.assertTrue(result.endswith("-----END CERTIFICATE-----\n"))
+
+    def test_native_type_property(self):
+        """Test that native_type property returns CertificateWrapper class."""
+        self.assertEqual(self.cert_type.native_type, CertificateWrapper)
+
+    def test_generate_error_msg(self):
+        """Test that generate_error_msg returns appropriate error message."""
+        msg = self.cert_type.generate_error_msg(None)
+        self.assertEqual(msg, "must be a valid X.509 certificate in PEM format or otherwise encoded using Base64")
+
 
 if __name__ == "__main__":
     unittest.main()

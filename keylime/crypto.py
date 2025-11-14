@@ -114,9 +114,11 @@ def rsa_export_privkey(private_key: RSAPrivateKey, password: Optional[str] = Non
     return private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.BestAvailableEncryption(password.encode("utf-8"))
-        if password
-        else serialization.NoEncryption(),
+        encryption_algorithm=(
+            serialization.BestAvailableEncryption(password.encode("utf-8"))
+            if password
+            else serialization.NoEncryption()
+        ),
     )
 
 

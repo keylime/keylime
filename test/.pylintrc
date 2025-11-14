@@ -1,0 +1,17 @@
+[MASTER]
+jobs=1
+ignore-paths=^.*test/data/template-invalid-adjust/.*$
+load-plugins=keylime.models.base.pylint
+
+[MESSAGES CONTROL]
+# Inherit most settings from parent pylintrc, but add R0401 to disable list
+# R0401 (cyclic-import): Disabled for test files because tests import keylime modules
+# with circular dependencies in their architecture (models.base, models.verifier, web.base)
+# that are resolved correctly by Python at runtime and are benign.
+disable=C0103,C0111,C0115,C0116,C0301,C0302,W0511,W0603,W0703,W0719,R0401,R0801,R0902,R0903,R0904,R0911,R0912,R0913,R0914,R0915,R0917
+
+[TYPECHECK]
+ignored-modules=zmq,alembic.op,alembic.context,cryptography.hazmat.primitives.asymmetric.rsa,gpg
+
+[LOGGING]
+enable=logging

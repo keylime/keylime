@@ -1,6 +1,6 @@
 """
 Pylint/Astroid plugin to suppress overzealous error/warnings which arise when writing model definitions as a result
-of the meta-programming features used to implement the schema domain-specific language (DSL). Because they are 
+of the meta-programming features used to implement the schema domain-specific language (DSL). Because they are
 appropriate and expected in other areas of the codebase, we cannot simply disable the relevant errors/warnings.
 Instead, this plugin targets models specifically and modifies the in-memory Astroid representation of their source code
 to eliminate the conditions which produce the errors/warnings prior to consumption by Pylint.
@@ -56,25 +56,28 @@ def transform_model_class(cls: astroid.ClassDef) -> astroid.ClassDef:
     This has the effect of suppressing "access-member-before-definition" (E0203) and
     "attribute-defined-outside-init" (W0201) when accessing a field or association using dot notation.
     """
+    # pylint: disable=too-many-boolean-expressions
     if (
         isinstance(cls.parent, astroid.Module)
         and cls.name
         and cls.parent.name
         and cls.parent.name.startswith("keylime.models")
         and not cls.parent.name.startswith("keylime.models.base")
+        and "_schema" in cls.locals
     ):
         # Iterate over declarations in the body of the model's _schema method
         for exp in cls.locals["_schema"][0].body:
+            # Skip Import/ImportFrom statements (e.g., lazy imports to avoid circular dependencies)
+            if isinstance(exp, (astroid.Import, astroid.ImportFrom)):
+                continue
             # Only declarations which create a new field or association are relevant
             if exp.value.func.attrname in MODEL_TRANSFORMING_METHODS:
                 # Get the first argument of the function call as this is the name of the field/association
                 attr = exp.value.args[0].value
                 # Add an attribute for the field/association to the AST
-                cls.locals[attr] = [
-                    astroid.FunctionDef(
-                        attr, lineno=None, col_offset=None, parent=cls, end_lineno=None, end_col_offset=None
-                    )
-                ]
+                # Use extract_node to create a proper AST node that's compatible with newer astroid versions
+                fake_node = astroid.extract_node(f"def {attr}(): pass")
+                cls.locals[attr] = [fake_node]
 
     return cls
 

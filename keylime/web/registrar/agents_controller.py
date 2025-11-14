@@ -20,7 +20,7 @@ class AgentsController(Controller):
             self.respond(404, f"Agent with ID '{agent_id}' not found")
             return
 
-        if not agent.active:
+        if not agent.active:  # type: ignore[attr-defined]
             self.respond(404, f"Agent with ID '{agent_id}' has not been activated")
             return
 
@@ -29,8 +29,8 @@ class AgentsController(Controller):
     # POST /v2[.:minor]/agents/[:agent_id]
     def create(self, agent_id, **params):
         agent = RegistrarAgent.get(agent_id) or RegistrarAgent.empty()  # type: ignore[no-untyped-call]
-        agent.update({"agent_id": agent_id, **params})
-        challenge = agent.produce_ak_challenge()
+        agent.update({"agent_id": agent_id, **params})  # type: ignore[union-attr]
+        challenge = agent.produce_ak_challenge()  # type: ignore[union-attr]
 
         if not challenge or not agent.changes_valid:
             self.log_model_errors(agent, logger)
@@ -59,7 +59,7 @@ class AgentsController(Controller):
             self.respond(404, f"Agent with ID '{agent_id}' not found")
             return
 
-        accepted = agent.verify_ak_response(auth_tag)
+        accepted = agent.verify_ak_response(auth_tag)  # type: ignore[attr-defined]
 
         if accepted:
             agent.commit_changes()

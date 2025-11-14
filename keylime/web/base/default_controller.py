@@ -21,14 +21,17 @@ class DefaultController(Controller):
     def malformed_params(self, **_params: Any) -> None:
         self.send_response(400, "Malformed Request Parameter")
 
-    def action_dispatch_error(self, **_param: Any) -> None:
+    def action_dispatch_error(self, **_params: Any) -> None:
         self.send_response(400, "Bad Request")
 
-    def action_exception(self, **_param: Any) -> None:
+    def format_not_allowed(self, **_params: Any) -> None:
+        self.send_response(415, "Unsupported Media Type")
+
+    def action_exception(self, **_params: Any) -> None:
         self.send_response(500, "Internal Server Error")
 
-    def incomplete_action(self, **_param: Any) -> None:
+    def incomplete_action(self, **_params: Any) -> None:
         self.send_response(500, "Internal Server Error")
 
-    def handler_exception(self, **_param: Any) -> None:
+    def handler_exception(self, **_params: Any) -> None:
         self.send_response(500, "Internal Server Error")

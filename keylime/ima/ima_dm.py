@@ -1,6 +1,6 @@
 """Parser and validator for device mapper IMA events
 
-  - https://www.kernel.org/doc/html/v5.15/admin-guide/device-mapper/dm-ima.html
+- https://www.kernel.org/doc/html/v5.15/admin-guide/device-mapper/dm-ima.html
 
 """
 

@@ -113,9 +113,11 @@ def cmd_mkcert(workingdir: str, name: str, password: Optional[str] = None) -> No
         priv[0][name] = pk.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.BestAvailableEncryption(password.encode("utf-8"))
-            if password
-            else serialization.NoEncryption(),
+            encryption_algorithm=(
+                serialization.BestAvailableEncryption(password.encode("utf-8"))
+                if password
+                else serialization.NoEncryption()
+            ),
         )
 
         # increment serial number after successful creation

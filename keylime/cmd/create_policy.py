@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-""" Create a JSON allowlist/policy from given files as input """
+"""Create a JSON allowlist/policy from given files as input"""
 
 import argparse
 import binascii

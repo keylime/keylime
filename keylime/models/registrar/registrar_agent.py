@@ -1,3 +1,5 @@
+# pyright: reportAttributeAccessIssue=false
+# ORM model with dynamically-created attributes from metaclasses
 import base64
 import hmac
 
@@ -6,7 +8,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from keylime import cert_utils, config, crypto, keylime_logging
 from keylime.models.base import (
-    Base64Bytes,
+    Binary,
     Boolean,
     Certificate,
     Dictionary,
@@ -29,17 +31,17 @@ class RegistrarAgent(PersistableModel):
         cls._id("agent_id", String(80))
 
         # The endorsement key (EK) of the TPM
-        cls._field("ek_tpm", Base64Bytes)
+        cls._field("ek_tpm", Binary(persist_as=String))
         # The endorsement key (EK) certificate used to verify the TPM as genuine
         cls._field("ekcert", Certificate, nullable=True)
         # The attestation key (AK) used by Keylime to prepare TPM quotes
-        cls._field("aik_tpm", Base64Bytes)
+        cls._field("aik_tpm", Binary(persist_as=String))
         # The initial attestation key (IAK) used when registering with a DevID
-        cls._field("iak_tpm", Base64Bytes, nullable=True)
+        cls._field("iak_tpm", Binary(persist_as=String), nullable=True)
         # The initial attestation key (IAK) certificate used to verify IAK authenticity
         cls._field("iak_cert", Certificate, nullable=True)
         # The signing key used as initial device identity (IDevID) key
-        cls._field("idevid_tpm", Base64Bytes, nullable=True)
+        cls._field("idevid_tpm", Binary(persist_as=String), nullable=True)
         # The initial device identity (IDevID) certificate used to verify IDevID authenticity
         cls._field("idevid_cert", Certificate, nullable=True)
         # The HMAC key used to verify the response produced by TPM2_ActivateCredential to bind the AK to the EK
@@ -149,9 +151,6 @@ class RegistrarAgent(PersistableModel):
         if not non_compliant_certs:
             return
 
-        names = ", ".join(non_compliant_certs)
-        names = " and".join(names.rsplit(",", 1))
-
         match config.get("registrar", "malformed_cert_action"):
             case "ignore":
                 return
@@ -159,13 +158,13 @@ class RegistrarAgent(PersistableModel):
                 logger.error(
                     "Certificate(s) %s may not conform to strict ASN.1 DER encoding rules and were rejected due to "
                     "config ('malformed_cert_action = reject')",
-                    names,
+                    keylime_logging.list_items(non_compliant_certs),
                 )
             case _:
                 logger.warning(
                     "Certificate(s) %s may not conform to strict ASN.1 DER encoding rules and were re-encoded before "
                     "parsing by python-cryptography",
-                    names,
+                    keylime_logging.list_items(non_compliant_certs),
                 )
 
     def _bind_ak_to_iak(self, iak_attest, iak_sign):
@@ -319,14 +318,15 @@ class RegistrarAgent(PersistableModel):
         return challenge.decode("utf-8")
 
     def verify_ak_response(self, response):
-        expected_response = crypto.do_hmac(self.key.encode(), self.agent_id)
+        expected_response = crypto.do_hmac(self.key.encode(), self.agent_id)  # pylint: disable=no-member
 
         result = hmac.compare_digest(response, expected_response)
 
         self.change("active", result)
         return result
 
-    def commit_changes(self):
+    def commit_changes(self):  # type: ignore[reportIncompatibleMethodOverride]
+        # pylint: disable=arguments-differ
         # Accept changes and write them to the database (unless fields have errors)
         super().commit_changes()
 
@@ -336,7 +336,7 @@ class RegistrarAgent(PersistableModel):
 
             # Prepare all record data to be sent to a DA backend according to each field's data type
             for name, field in self.__class__.fields.items():
-                agent_data[name] = field.data_type.da_dump(self.committed.get(name))
+                agent_data[name] = field.data_type.da_dump(self.values.get(name))
 
             # Write dumped data to DA backend as an "agent data" record
             da_manager.backend.record_create(agent_data, None, None, None)
@@ -349,13 +349,14 @@ class RegistrarAgent(PersistableModel):
         if not only:
             only = ["agent_id", "ek_tpm", "ekcert", "aik_tpm", "mtls_cert", "ip", "port", "regcount"]
 
-            if self.virtual:
+            if self.virtual:  # pylint: disable=using-constant-test  # ORM defensive programming
                 only.append("provider_keys")
 
         output = super().render(only)
 
         # When operating in pull mode, ekcert is encoded as Base64 instead of PEM
         if output.get("ekcert"):
+            # pylint: disable=no-member
             output["ekcert"] = base64.b64encode(self.ekcert.public_bytes(Encoding.DER)).decode("utf-8")
 
         return output

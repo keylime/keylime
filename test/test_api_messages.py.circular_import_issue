@@ -1,0 +1,336 @@
+"""
+Unit tests for keylime.web.base.api_messages module
+"""
+
+import unittest
+from unittest.mock import MagicMock, patch
+
+# Import directly from submodules to avoid circular import
+from keylime.web.base.api_messages.api_error import APIError
+from keylime.web.base.api_messages.api_info import APIInfo
+from keylime.web.base.api_messages.api_links import APILink
+from keylime.web.base.api_messages.api_message_body import APIMessageBody
+from keylime.web.base.api_messages.api_meta import APIMeta
+from keylime.web.base.api_messages.api_resource import APIResource
+
+
+class TestAPIMessageBody(unittest.TestCase):
+    """Test cases for APIMessageBody"""
+
+    def test_api_message_body_initialization(self):
+        """Test that APIMessageBody initializes correctly"""
+        body = APIMessageBody.empty()
+        self.assertIsNotNone(body)
+
+    def test_api_message_body_with_data(self):
+        """Test APIMessageBody with data"""
+        body = APIMessageBody.empty()
+        body.update({"test_key": "test_value"})
+
+        rendered = body.render()
+        self.assertIn("test_key", rendered)
+        self.assertEqual(rendered["test_key"], "test_value")
+
+    def test_api_message_body_render_empty(self):
+        """Test rendering empty APIMessageBody"""
+        body = APIMessageBody.empty()
+        rendered = body.render()
+
+        self.assertIsInstance(rendered, dict)
+
+
+class TestAPIError(unittest.TestCase):
+    """Test cases for APIError"""
+
+    def test_api_error_initialization(self):
+        """Test that APIError initializes correctly"""
+        error = APIError.empty()
+        self.assertIsNotNone(error)
+
+    def test_api_error_with_status_and_title(self):
+        """Test APIError with status and title"""
+        error = APIError.empty()
+        error.update({
+            "status": "400",
+            "title": "Bad Request",
+            "detail": "Invalid parameter provided"
+        })
+
+        rendered = error.render()
+        self.assertEqual(rendered["status"], "400")
+        self.assertEqual(rendered["title"], "Bad Request")
+        self.assertEqual(rendered["detail"], "Invalid parameter provided")
+
+    def test_api_error_with_source(self):
+        """Test APIError with source information"""
+        error = APIError.empty()
+        error.update({
+            "status": "422",
+            "title": "Validation Error",
+            "source": {"pointer": "/data/attributes/name"}
+        })
+
+        rendered = error.render()
+        self.assertIn("source", rendered)
+        self.assertEqual(rendered["source"]["pointer"], "/data/attributes/name")
+
+    def test_api_error_minimal(self):
+        """Test APIError with minimal information"""
+        error = APIError.empty()
+        error.update({"status": "500"})
+
+        rendered = error.render()
+        self.assertIn("status", rendered)
+
+
+class TestAPIResource(unittest.TestCase):
+    """Test cases for APIResource"""
+
+    def test_api_resource_initialization(self):
+        """Test that APIResource initializes correctly"""
+        resource = APIResource.empty()
+        self.assertIsNotNone(resource)
+
+    def test_api_resource_with_type_and_id(self):
+        """Test APIResource with type and id"""
+        resource = APIResource.empty()
+        resource.update({
+            "type": "agents",
+            "id": "test-agent-123"
+        })
+
+        rendered = resource.render()
+        self.assertEqual(rendered["type"], "agents")
+        self.assertEqual(rendered["id"], "test-agent-123")
+
+    def test_api_resource_with_attributes(self):
+        """Test APIResource with attributes"""
+        resource = APIResource.empty()
+        resource.update({
+            "type": "agents",
+            "id": "test-agent-123",
+            "attributes": {
+                "ip": "192.168.1.100",
+                "port": 9002
+            }
+        })
+
+        rendered = resource.render()
+        self.assertIn("attributes", rendered)
+        self.assertEqual(rendered["attributes"]["ip"], "192.168.1.100")
+        self.assertEqual(rendered["attributes"]["port"], 9002)
+
+    def test_api_resource_with_relationships(self):
+        """Test APIResource with relationships"""
+        resource = APIResource.empty()
+        resource.update({
+            "type": "attestations",
+            "id": "0",
+            "relationships": {
+                "agent": {
+                    "data": {"type": "agents", "id": "test-agent-123"}
+                }
+            }
+        })
+
+        rendered = resource.render()
+        self.assertIn("relationships", rendered)
+        self.assertIn("agent", rendered["relationships"])
+
+    def test_api_resource_with_links(self):
+        """Test APIResource with links"""
+        resource = APIResource.empty()
+        resource.update({
+            "type": "agents",
+            "id": "test-agent-123",
+            "links": {
+                "self": "/v3.0/agents/test-agent-123"
+            }
+        })
+
+        rendered = resource.render()
+        self.assertIn("links", rendered)
+        self.assertEqual(rendered["links"]["self"], "/v3.0/agents/test-agent-123")
+
+
+class TestAPILink(unittest.TestCase):
+    """Test cases for APILink"""
+
+    def test_api_link_initialization(self):
+        """Test that APILink initializes correctly"""
+        link = APILink.empty()
+        self.assertIsNotNone(link)
+
+    def test_api_link_with_href(self):
+        """Test APILink with href"""
+        link = APILink.empty()
+        link.update({"href": "/v3.0/agents"})
+
+        rendered = link.render()
+        self.assertEqual(rendered["href"], "/v3.0/agents")
+
+    def test_api_link_with_meta(self):
+        """Test APILink with meta information"""
+        link = APILink.empty()
+        link.update({
+            "href": "/v3.0/agents",
+            "meta": {"count": 10}
+        })
+
+        rendered = link.render()
+        self.assertIn("meta", rendered)
+        self.assertEqual(rendered["meta"]["count"], 10)
+
+
+class TestAPIMeta(unittest.TestCase):
+    """Test cases for APIMeta"""
+
+    def test_api_meta_initialization(self):
+        """Test that APIMeta initializes correctly"""
+        meta = APIMeta.empty()
+        self.assertIsNotNone(meta)
+
+    def test_api_meta_with_data(self):
+        """Test APIMeta with metadata"""
+        meta = APIMeta.empty()
+        meta.update({
+            "version": "3.0",
+            "timestamp": "2025-01-15T12:00:00Z"
+        })
+
+        rendered = meta.render()
+        self.assertEqual(rendered["version"], "3.0")
+        self.assertEqual(rendered["timestamp"], "2025-01-15T12:00:00Z")
+
+    def test_api_meta_with_pagination(self):
+        """Test APIMeta with pagination info"""
+        meta = APIMeta.empty()
+        meta.update({
+            "page": {
+                "current": 1,
+                "total": 5
+            }
+        })
+
+        rendered = meta.render()
+        self.assertIn("page", rendered)
+        self.assertEqual(rendered["page"]["current"], 1)
+        self.assertEqual(rendered["page"]["total"], 5)
+
+
+class TestAPIInfo(unittest.TestCase):
+    """Test cases for APIInfo"""
+
+    def test_api_info_initialization(self):
+        """Test that APIInfo initializes correctly"""
+        info = APIInfo.empty()
+        self.assertIsNotNone(info)
+
+    def test_api_info_with_message(self):
+        """Test APIInfo with message"""
+        info = APIInfo.empty()
+        info.update({"message": "Operation successful"})
+
+        rendered = info.render()
+        self.assertEqual(rendered["message"], "Operation successful")
+
+    def test_api_info_with_details(self):
+        """Test APIInfo with additional details"""
+        info = APIInfo.empty()
+        info.update({
+            "message": "Agent registered",
+            "details": {
+                "agent_id": "test-agent-123",
+                "timestamp": "2025-01-15T12:00:00Z"
+            }
+        })
+
+        rendered = info.render()
+        self.assertIn("details", rendered)
+        self.assertEqual(rendered["details"]["agent_id"], "test-agent-123")
+
+
+class TestAPIMessageIntegration(unittest.TestCase):
+    """Integration tests for API message components"""
+
+    def test_complete_success_response(self):
+        """Test building a complete success response"""
+        # Create resource
+        resource = APIResource.empty()
+        resource.update({
+            "type": "agents",
+            "id": "test-agent-123",
+            "attributes": {
+                "ip": "192.168.1.100",
+                "active": True
+            },
+            "links": {
+                "self": "/v3.0/agents/test-agent-123"
+            }
+        })
+
+        # Create meta
+        meta = APIMeta.empty()
+        meta.update({
+            "version": "3.0",
+            "timestamp": "2025-01-15T12:00:00Z"
+        })
+
+        rendered_resource = resource.render()
+        rendered_meta = meta.render()
+
+        self.assertIn("type", rendered_resource)
+        self.assertIn("id", rendered_resource)
+        self.assertIn("attributes", rendered_resource)
+        self.assertIn("version", rendered_meta)
+
+    def test_complete_error_response(self):
+        """Test building a complete error response"""
+        # Create error
+        error = APIError.empty()
+        error.update({
+            "status": "404",
+            "title": "Not Found",
+            "detail": "Agent with ID 'nonexistent' not found",
+            "source": {"parameter": "agent_id"}
+        })
+
+        # Create meta
+        meta = APIMeta.empty()
+        meta.update({
+            "timestamp": "2025-01-15T12:00:00Z"
+        })
+
+        rendered_error = error.render()
+        rendered_meta = meta.render()
+
+        self.assertEqual(rendered_error["status"], "404")
+        self.assertEqual(rendered_error["title"], "Not Found")
+        self.assertIn("timestamp", rendered_meta)
+
+    def test_resource_collection_response(self):
+        """Test building a response for a collection of resources"""
+        resources = []
+
+        for i in range(3):
+            resource = APIResource.empty()
+            resource.update({
+                "type": "attestations",
+                "id": str(i),
+                "attributes": {
+                    "stage": "verification_complete",
+                    "evaluation": "pass"
+                }
+            })
+            resources.append(resource)
+
+        rendered_resources = [r.render() for r in resources]
+
+        self.assertEqual(len(rendered_resources), 3)
+        for i, rendered in enumerate(rendered_resources):
+            self.assertEqual(rendered["id"], str(i))
+            self.assertEqual(rendered["type"], "attestations")
+
+
+if __name__ == "__main__":
+    unittest.main()

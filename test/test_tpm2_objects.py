@@ -675,15 +675,15 @@ class TestEccSignatureParsing(unittest.TestCase):
     def test_der_int_encoding(self):
         """Test DER integer encoding helper function"""
         # Test positive number that doesn't need padding
-        test_bytes = b"\x7F"  # 127, no padding needed
+        test_bytes = b"\x7f"  # 127, no padding needed
         der_encoded = der_int(test_bytes)
-        expected = b"\x02\x01\x7F"  # INTEGER tag + length + value
+        expected = b"\x02\x01\x7f"  # INTEGER tag + length + value
         self.assertEqual(der_encoded, expected)
 
         # Test positive number that needs zero padding (high bit set)
-        test_bytes = b"\xFF"  # 255, needs zero padding
+        test_bytes = b"\xff"  # 255, needs zero padding
         der_encoded = der_int(test_bytes)
-        expected = b"\x02\x02\x00\xFF"  # INTEGER tag + length + zero padding + value
+        expected = b"\x02\x02\x00\xff"  # INTEGER tag + length + zero padding + value
         self.assertEqual(der_encoded, expected)
 
     def test_der_len_encoding(self):
@@ -694,7 +694,7 @@ class TestEccSignatureParsing(unittest.TestCase):
 
         # Test long form (>= 128)
         long_len = der_len(300)  # 0x012C
-        expected = b"\x82\x01\x2C"  # Long form: 0x80 | 2 bytes, then 0x012C
+        expected = b"\x82\x01\x2c"  # Long form: 0x80 | 2 bytes, then 0x012C
         self.assertEqual(long_len, expected)
 
     def test_signature_format_validation_comprehensive(self):
