@@ -211,7 +211,9 @@ class Tenant:
         # If ip/port are still None, that's okay for push-mode (verifier will handle it)
         # The verifier's mode config determines whether ip/port are required
 
-        self.set_full_id_str()
+        # Initialize ID strings early (will be updated after API detection with full info)
+        self.agent_fid_str = f"Agent {self.agent_uuid}"
+        self.verifier_fid_str = "Verifier"
 
         # Auto-detection for API version
         self.supported_version = args["supported_version"]
@@ -290,6 +292,9 @@ class Tenant:
                 self.agent_port,
             )
             self.supported_version = api_version
+
+        # Set the full ID strings for both PUSH and PULL modes
+        self.set_full_id_str()
 
         # Now set the cv_agent_ip
         if "cv_agent_ip" in args and args["cv_agent_ip"] is not None:
@@ -714,13 +719,13 @@ class Tenant:
             res = response_json.pop("results")
             response_json["results"] = {self.agent_uuid: res}
 
-            # Handle both pull-mode (integer states) and push-mode (string states)
-            operational_state = response_json["results"][self.agent_uuid]["operational_state"]
-            if isinstance(operational_state, int):
-                # Pull-mode: convert integer state to string representation
-                operational_state = states.state_to_str(operational_state)
+            # operational_state is a PULL-mode only field and may be None for PUSH mode agents
+            op_state_value = response_json["results"][self.agent_uuid]["operational_state"]
+            if op_state_value is not None:
+                operational_state = states.state_to_str(op_state_value)
                 response_json["results"][self.agent_uuid]["operational_state"] = operational_state
-            # Push-mode: operational_state is already a string, no conversion needed
+            else:
+                response_json["results"][self.agent_uuid]["operational_state"] = "N/A (Push Mode)"
 
             logger.info("Agent Info from %s:\n%s", self.verifier_fid_str, json.dumps(response_json["results"]))
 
@@ -803,13 +808,12 @@ class Tenant:
 
         if response.status_code == 200:
             for agent in response_json["results"].keys():
-                # Handle both pull-mode (integer states) and push-mode (string states)
-                operational_state = response_json["results"][agent]["operational_state"]
-                if isinstance(operational_state, int):
-                    # Pull-mode: convert integer state to string representation
-                    operational_state = states.state_to_str(operational_state)
-                    response_json["results"][agent]["operational_state"] = operational_state
-                # Push-mode: operational_state is already a string, no conversion needed
+                # operational_state is a PULL-mode only field and may be None for PUSH mode agents
+                op_state_value = response_json["results"][agent]["operational_state"]
+                if op_state_value is not None:
+                    response_json["results"][agent]["operational_state"] = states.state_to_str(op_state_value)
+                else:
+                    response_json["results"][agent]["operational_state"] = "N/A (Push Mode)"
             logger.info("Bulk Agent Info:\n%s", json.dumps(response_json["results"]))
 
             return response_json
@@ -886,7 +890,7 @@ class Tenant:
                         #                            numtries,
                         #                        )
                         raise UserError(
-                            f"{self.agent_fid_str,} was not deleted from {self.verifier_fid_str} after {numtries} tries"
+                            f"{self.agent_fid_str} was not deleted from {self.verifier_fid_str} after {numtries} tries"
                         )
 
                     next_retry = retry.retry_time(self.exponential_backoff, self.retry_interval, numtries, logger)
