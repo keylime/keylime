@@ -27,6 +27,7 @@ from keylime import (
     config,
     json,
     keylime_logging,
+    push_agent_monitor,
     revocation_notifier,
     signing,
     tornado_requests,
@@ -252,6 +253,9 @@ def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
 
 
 def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
+    # Cancel any pending timeout for PUSH mode agents
+    push_agent_monitor.cancel_agent_timeout(agent_id)
+
     get_AgentAttestStates().delete_by_agent_id(agent_id)
     # Delete in FK dependency order:
     # Push-mode tables:

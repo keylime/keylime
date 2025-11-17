@@ -5,7 +5,7 @@ import time
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
-from keylime import config, keylime_logging
+from keylime import agent_util, config, keylime_logging, push_agent_monitor
 from keylime.agentstates import AgentAttestState, TPMClockInfo
 from keylime.common import algorithms, states
 from keylime.common.algorithms import hash_token_for_log
@@ -700,6 +700,10 @@ class TPMEngine(VerificationEngine):
             current_time = int(time.time())
             self.attestation.agent.last_received_quote = current_time
             self.attestation.agent.last_successful_attestation = current_time
+
+            # Schedule timeout for PUSH mode agents (event-driven monitoring)
+            if agent_util.is_push_mode_agent(self.attestation.agent):
+                push_agent_monitor.schedule_agent_timeout(self.attestation.agent.agent_id)
 
             # Extend authentication token on successful attestation
             if config.getboolean("verifier", "extend_token_on_attestation", fallback=True):
