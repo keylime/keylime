@@ -252,10 +252,10 @@ zmq_port = {{ revocations.zmq_port }}
 webhook_url = {{ revocations.webhook_url }}
 
 # Attestation mode. Can be 'pull' (traditional) or 'push' (agent-driven).
-mode = {{ verifier_mode }}
+mode = {{ revocations.mode }}
 #
 # Lifetime in seconds for challanges sent to agents in push mode.
-challenge_lifetime = {{ verifier_challenge_lifetime }}
+challenge_lifetime = {{ revocations.challenge_lifetime }}
 #
 # Timeout in seconds for a single evidence verification task (0 = auto).
-verification_timeout = {{ verifier_verification_timeout }}
+verification_timeout = {{ revocations.verification_timeout }}
