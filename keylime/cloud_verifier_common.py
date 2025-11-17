@@ -3,7 +3,7 @@ import base64
 import time
 from typing import Any, Dict, Optional, Union
 
-from keylime import config, crypto, json, keylime_logging
+from keylime import agent_util, config, crypto, json, keylime_logging
 from keylime.agentstates import AgentAttestState, AgentAttestStates, TPMClockInfo
 from keylime.common import algorithms
 from keylime.db.verifier_db import VerfierMain
@@ -268,11 +268,19 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         has_runtime_policy = 1
 
     # Get attestation status based on mode (PUSH vs PULL)
-    # PULL mode: operational_state is not None - check operational_state
-    # PUSH mode: operational_state is None - check accept_attestations
+    # Use is_push_mode_agent() to correctly identify PUSH mode agents
+    # (checks both operational_state is None AND ip/port are None)
     attestation_status = "PENDING"
 
-    if agent.operational_state is not None:
+    if agent_util.is_push_mode_agent(agent):
+        # PUSH mode: determine status based on accept_attestations flag
+        if hasattr(agent, "accept_attestations") and agent.accept_attestations is True:
+            attestation_status = "PASS"
+        elif hasattr(agent, "accept_attestations") and agent.accept_attestations is False:
+            attestation_status = "FAIL"
+        else:
+            attestation_status = "PENDING"
+    else:
         # PULL mode: determine status based on operational_state
         from keylime.common import states  # pylint: disable=import-outside-toplevel
 
@@ -288,14 +296,6 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         elif agent.operational_state in (states.FAILED, states.INVALID_QUOTE, states.TENANT_FAILED):
             attestation_status = "FAIL"
         # Other states (REGISTERED, START, SAVED, TERMINATED) are PENDING
-        else:
-            attestation_status = "PENDING"
-    else:
-        # PUSH mode: determine status based on accept_attestations flag
-        if hasattr(agent, "accept_attestations") and agent.accept_attestations is True:
-            attestation_status = "PASS"
-        elif hasattr(agent, "accept_attestations") and agent.accept_attestations is False:
-            attestation_status = "FAIL"
         else:
             attestation_status = "PENDING"
 
