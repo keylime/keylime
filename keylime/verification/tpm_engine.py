@@ -691,6 +691,10 @@ class TPMEngine(VerificationEngine):
             # Reset consecutive failures counter on success
             self.attestation.agent.consecutive_attestation_failures = 0
 
+            # Re-enable attestations on successful attestation
+            # This allows PUSH mode agents to recover from timeout-induced FAIL status
+            self.attestation.agent.accept_attestations = True
+
             # Update operational state to GET_QUOTE if not already set
             # This ensures the agent shows as actively attesting in status queries
             if not self.attestation.agent.operational_state or self.attestation.agent.operational_state == states.START:
