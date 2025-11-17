@@ -541,5 +541,83 @@ class TestAttestationControllerExponentialBackoff(unittest.TestCase):
                 mock_attestation_class.create.assert_called_once()
 
 
+class TestAttestationRecovery(unittest.TestCase):
+    """Test that PUSH mode agents can recover from timeout-induced failures"""
+
+    def setUp(self) -> None:
+        """Set up test fixtures"""
+        self.mock_action_handler = Mock()
+        self.mock_action_handler.request = Mock()
+        self.mock_action_handler.request.method = "POST"
+        self.mock_action_handler.request.path = "/v3/agents/test-agent/attestations"
+        self.mock_action_handler.request.headers = Mock()
+        self.mock_action_handler.request.headers.get = Mock(return_value="application/vnd.api+json")
+        self.mock_action_handler.request.headers.copy = Mock(return_value={})
+
+        self.controller = cast(AttestationController, AttestationController(self.mock_action_handler))
+        self.controller._api_request_body = Mock()  # pylint: disable=protected-access
+
+    @patch("keylime.web.verifier.attestation_controller.agent_util.is_push_mode_agent")
+    @patch("keylime.models.verifier.verifier_agent.VerifierAgent.get")
+    def test_push_mode_agent_can_attest_when_disabled(self, mock_get, mock_is_push_mode):
+        """PUSH mode agents should be allowed to attest even when accept_attestations=False"""
+        # Create a PUSH mode agent with attestations disabled (simulating timeout)
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_agent.agent_id = "test-push-agent"
+        mock_agent.accept_attestations = False  # Disabled due to timeout
+        mock_agent.ip = None  # PUSH mode
+        mock_agent.port = None  # PUSH mode
+        mock_agent.latest_attestation = None  # No previous attestations
+
+        mock_get.return_value = mock_agent
+        mock_is_push_mode.return_value = True
+
+        # Mock Attestation.create to prevent actual database operations
+        with patch("keylime.models.verifier.Attestation.create") as mock_attestation_create:
+            # Mock the attestation record
+            mock_attestation_record = Mock()
+            mock_attestation_record.index = 0
+            mock_attestation_record.changes_valid = True
+            mock_attestation_record.receive_capabilities = Mock()
+            mock_attestation_record.commit_changes = Mock()
+            mock_attestation_record.render_evidence_requested = Mock(return_value={})
+            mock_attestation_create.return_value = mock_attestation_record
+
+            # Mock EngineDriver
+            with patch("keylime.web.verifier.attestation_controller.EngineDriver") as mock_engine:
+                mock_engine.return_value.process_capabilities = Mock()
+
+                with patch("keylime.web.verifier.attestation_controller.APIResource") as mock_resource:
+                    mock_resource_instance = Mock()
+                    mock_resource_instance.include = Mock(return_value=mock_resource_instance)
+                    mock_resource_instance.send_via = Mock()
+                    mock_resource.return_value = mock_resource_instance
+
+                    with patch("keylime.web.verifier.attestation_controller.APILink"):
+                        # This should NOT raise StopAction with 403 for PUSH mode agents
+                        # (even though accept_attestations=False)
+                        # If create() succeeds, the agent was allowed to attest (correct!)
+                        self.controller.create("test-push-agent", attestation={})
+
+    @patch("keylime.web.verifier.attestation_controller.agent_util.is_push_mode_agent")
+    @patch("keylime.models.verifier.verifier_agent.VerifierAgent.get")
+    def test_pull_mode_agent_rejected_when_disabled(self, mock_get, mock_is_push_mode):
+        """PULL mode agents should be rejected when accept_attestations=False"""
+        # Create a PULL mode agent with attestations disabled
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_agent.agent_id = "test-pull-agent"
+        mock_agent.accept_attestations = False  # Disabled due to failure
+        mock_agent.ip = "127.0.0.1"  # PULL mode
+        mock_agent.port = 9002  # PULL mode
+
+        mock_get.return_value = mock_agent
+        mock_is_push_mode.return_value = False
+
+        # This SHOULD raise StopAction for PULL mode agents
+        # (The logged message confirms it's agent_attestations_disabled 403 error)
+        with self.assertRaises(StopAction):
+            self.controller.create("test-pull-agent", attestation={})
+
+
 if __name__ == "__main__":
     unittest.main()

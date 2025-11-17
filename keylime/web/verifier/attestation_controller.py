@@ -2,7 +2,7 @@
 # Uses ORM models with dynamically-created attributes from metaclasses
 from typing import cast
 
-from keylime import config, keylime_logging
+from keylime import agent_util, config, keylime_logging
 from keylime.common import retry
 from keylime.models.verifier import Attestation, VerifierAgent
 from keylime.verification import EngineDriver
@@ -214,11 +214,18 @@ class AttestationController(Controller):
         if not agent:
             APIError("not_found", f"No enrolled agent with ID '{agent_id}'.").send_via(self)
 
+        # Check if attestations are disabled
+        # For PULL mode: reject if accept_attestations=False (verifier controls attestation timing)
+        # For PUSH mode: allow even if accept_attestations=False (agent needs to recover from timeout)
         if not agent.accept_attestations:  # type: ignore[union-attr]
-            APIError("agent_attestations_disabled", 403).set_detail(
-                f"Attestations for agent '{agent_id}' are currently disabled. This may be due to a previous "
-                f"attestation not passing verification."
-            ).send_via(self)
+            # In PUSH mode, allow attestation attempt even when disabled - this enables recovery
+            # from timeout-induced failures by allowing the agent to re-attest successfully
+            if not agent_util.is_push_mode_agent(agent):  # type: ignore[arg-type]
+                # PULL mode: reject attestations when disabled
+                APIError("agent_attestations_disabled", 403).set_detail(
+                    f"Attestations for agent '{agent_id}' are currently disabled. This may be due to a previous "
+                    f"attestation not passing verification."
+                ).send_via(self)
 
         # Per enhancement #103, section "Error Conditions for Attestation Protocol":
         # If last attestation failed AND policy hasn't changed, return 503 with exponential backoff
