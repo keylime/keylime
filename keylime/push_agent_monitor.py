@@ -225,7 +225,7 @@ def check_push_agent_timeouts() -> None:
                     )
 
             if timed_out_count > 0:
-                logger.info("Marked %d PUSH mode agent(s) as failed due to timeout", timed_out_count)
+                logger.debug("Marked %d PUSH mode agent(s) as failed due to timeout", timed_out_count)
 
     except Exception as e:
         logger.error("Error checking PUSH mode agent timeouts: %s", e)
