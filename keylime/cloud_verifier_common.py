@@ -277,7 +277,9 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         # Agent must have successfully attested at least once to show PASS
         if hasattr(agent, "accept_attestations") and agent.accept_attestations is True:
             # Only show PASS if agent has successfully attested at least once
-            if agent.attestation_count > 0:
+            # Use explicit type-safe comparison for attestation_count to satisfy type checkers
+            attestation_count_value = getattr(agent, "attestation_count", None)
+            if attestation_count_value is not None and attestation_count_value > 0:
                 attestation_status = "PASS"
             else:
                 attestation_status = "PENDING"
