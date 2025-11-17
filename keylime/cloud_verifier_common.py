@@ -273,9 +273,14 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
     attestation_status = "PENDING"
 
     if agent_util.is_push_mode_agent(agent):
-        # PUSH mode: determine status based on accept_attestations flag
+        # PUSH mode: determine status based on accept_attestations flag and attestation history
+        # Agent must have successfully attested at least once to show PASS
         if hasattr(agent, "accept_attestations") and agent.accept_attestations is True:
-            attestation_status = "PASS"
+            # Only show PASS if agent has successfully attested at least once
+            if agent.attestation_count > 0:
+                attestation_status = "PASS"
+            else:
+                attestation_status = "PENDING"
         elif hasattr(agent, "accept_attestations") and agent.accept_attestations is False:
             attestation_status = "FAIL"
         else:
