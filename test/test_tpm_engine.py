@@ -199,6 +199,49 @@ class TestTPMEngineProcessResults(unittest.TestCase):
         # Evaluation should be set to fail
         self.assertEqual(self.mock_attestation.evaluation, "fail")
 
+    @patch("keylime.verification.tpm_engine.config.getboolean")
+    @patch("keylime.verification.tpm_engine.agent_util.is_push_mode_agent")
+    @patch("keylime.verification.tpm_engine.push_agent_monitor.schedule_agent_timeout")
+    def test_process_results_success_recovers_from_timeout(
+        self, mock_schedule_timeout, mock_is_push_mode, mock_getboolean
+    ):
+        """Successful attestation should re-enable accept_attestations for PUSH mode recovery"""
+        # Configure mocks
+        mock_getboolean.return_value = True  # extend_token_on_attestation
+        mock_is_push_mode.return_value = True  # PUSH mode agent
+
+        # Simulate agent that has timed out (accept_attestations=False)
+        self.mock_agent.accept_attestations = False
+
+        # Mock _extend_auth_token
+        with patch.object(self.engine, "_extend_auth_token"):
+            with patch.object(self.engine, "_select_ima_log_item", return_value=None):
+                with patch.object(self.engine, "_determine_failure_reason"):
+                    with patch.object(type(self.engine), "attest_state", new_callable=PropertyMock, return_value=None):
+                        with patch.object(
+                            type(self.engine), "failure_reason", new_callable=PropertyMock, return_value=None
+                        ):
+                            # Process results with no failure (successful attestation)
+                            self.engine._process_results(None)
+
+        # accept_attestations should be re-enabled for recovery
+        self.assertTrue(
+            self.mock_agent.accept_attestations,
+            "Successful attestation should re-enable accept_attestations to allow PUSH mode agents to recover from timeout",
+        )
+
+        # Consecutive failures should be reset
+        self.assertEqual(self.mock_agent.consecutive_attestation_failures, 0)
+
+        # Attestation count should increment
+        self.assertEqual(self.mock_agent.attestation_count, 1)
+
+        # Timeout should be scheduled for PUSH mode
+        mock_schedule_timeout.assert_called_once_with("test-agent-123")
+
+        # Evaluation should be set to pass
+        self.assertEqual(self.mock_attestation.evaluation, "pass")
+
 
 class TestTPMEngineFreshPolicy(unittest.TestCase):
     """Tests for TPMEngine fresh policy loading"""
