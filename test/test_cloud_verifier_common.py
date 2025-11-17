@@ -1,10 +1,12 @@
-"""Unit tests for cloud_verifier_tornado helper functions
+"""Unit tests for cloud_verifier_common helper functions
 
-This module tests the _from_db_obj() function which converts database
-objects to dictionaries when restoring agent state after verifier restart.
+This module tests:
+1. _from_db_obj() function which converts database objects to dictionaries
+2. process_get_status() function which generates agent status responses
 
-The test verifies that all VerfierMain database columns are included in
-the field list, preventing regressions where fields are accidentally omitted.
+The tests verify that all VerfierMain database columns are included in
+the field list, and that attestation status is correctly reported based
+on agent state.
 
 It also tests the singleton SessionManager initialization for thread safety
 and verifies SQLAlchemy 2.0 API compliance.
@@ -16,6 +18,8 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
+from keylime import cloud_verifier_common
+from keylime.common import states
 from keylime.db.verifier_db import VerfierMain
 
 
@@ -775,6 +779,170 @@ class TestInitializeVerifierConfigErrorPaths(unittest.TestCase):
 
         # Verify sys.exit(1) was called
         mock_sys.exit.assert_called_once_with(1)
+
+
+class TestProcessGetStatus(unittest.TestCase):
+    """Test process_get_status() attestation status logic.
+
+    This test verifies that attestation_status is correctly determined based on:
+    - PUSH mode: accept_attestations flag AND attestation history
+    - PULL mode: operational_state
+
+    Regression test for: PUSH mode agents showing PASS status before first attestation
+    """
+
+    def _create_mock_agent(
+        self,
+        operational_state=None,
+        ip=None,
+        port=None,
+        accept_attestations=True,
+        attestation_count=0,
+    ):
+        """Helper to create a mock agent with specified attributes."""
+        agent = MagicMock(spec=VerfierMain)
+        agent.operational_state = operational_state
+        agent.ip = ip
+        agent.port = port
+        agent.accept_attestations = accept_attestations
+        agent.attestation_count = attestation_count
+        agent.last_received_quote = 0
+        agent.last_successful_attestation = 0
+        agent.v = None
+        agent.tpm_policy = "{}"
+        agent.meta_data = "{}"
+        agent.mb_policy = MagicMock()
+        agent.mb_policy.mb_policy = None
+        agent.ima_policy = MagicMock()
+        agent.ima_policy.generator = 0
+        agent.accept_tpm_hash_algs = ["sha256"]
+        agent.accept_tpm_encryption_algs = ["rsa"]
+        agent.accept_tpm_signing_algs = ["rsassa"]
+        agent.hash_alg = ""
+        agent.enc_alg = ""
+        agent.sign_alg = ""
+        agent.verifier_id = "default"
+        agent.verifier_ip = "127.0.0.1"
+        agent.verifier_port = 8881
+        agent.severity_level = None
+        agent.last_event_id = None
+        return agent
+
+    def test_push_mode_agent_pending_before_first_attestation(self):
+        """Test PUSH mode agent shows PENDING before first attestation."""
+        # Create PUSH mode agent (ip=None, port=None)
+        # with accept_attestations=True but attestation_count=0
+        agent = self._create_mock_agent(
+            operational_state=states.GET_QUOTE,  # PUSH mode sets this
+            ip=None,
+            port=None,
+            accept_attestations=True,
+            attestation_count=0,  # Never attested
+        )
+
+        status = cloud_verifier_common.process_get_status(agent)
+
+        # Should be PENDING because agent has never attested
+        self.assertEqual(
+            status["attestation_status"],
+            "PENDING",
+            "PUSH mode agent should show PENDING before first attestation, even if accept_attestations=True",
+        )
+
+    def test_push_mode_agent_pass_after_attestation(self):
+        """Test PUSH mode agent shows PASS after successful attestation."""
+        # Create PUSH mode agent with attestation_count > 0
+        agent = self._create_mock_agent(
+            operational_state=states.GET_QUOTE,
+            ip=None,
+            port=None,
+            accept_attestations=True,
+            attestation_count=1,  # Has attested
+        )
+
+        status = cloud_verifier_common.process_get_status(agent)
+
+        # Should be PASS because agent has attested and accept_attestations=True
+        self.assertEqual(
+            status["attestation_status"],
+            "PASS",
+            "PUSH mode agent should show PASS after successful attestation",
+        )
+
+    def test_push_mode_agent_fail_when_not_accepting(self):
+        """Test PUSH mode agent shows FAIL when accept_attestations=False."""
+        # Create PUSH mode agent with accept_attestations=False
+        agent = self._create_mock_agent(
+            operational_state=states.GET_QUOTE,
+            ip=None,
+            port=None,
+            accept_attestations=False,  # Timed out or failed
+            attestation_count=1,
+        )
+
+        status = cloud_verifier_common.process_get_status(agent)
+
+        # Should be FAIL because accept_attestations=False
+        self.assertEqual(
+            status["attestation_status"],
+            "FAIL",
+            "PUSH mode agent should show FAIL when accept_attestations=False",
+        )
+
+    def test_pull_mode_agent_pass_in_get_quote_state(self):
+        """Test PULL mode agent shows PASS in GET_QUOTE state."""
+        # Create PULL mode agent (has ip and port)
+        agent = self._create_mock_agent(
+            operational_state=states.GET_QUOTE,
+            ip="127.0.0.1",
+            port=9002,
+            attestation_count=0,  # PULL mode doesn't check this
+        )
+
+        status = cloud_verifier_common.process_get_status(agent)
+
+        # Should be PASS because operational_state is GET_QUOTE
+        self.assertEqual(
+            status["attestation_status"],
+            "PASS",
+            "PULL mode agent should show PASS in GET_QUOTE state",
+        )
+
+    def test_pull_mode_agent_pending_in_start_state(self):
+        """Test PULL mode agent shows PENDING in START state."""
+        # Create PULL mode agent in START state
+        agent = self._create_mock_agent(
+            operational_state=states.START,
+            ip="127.0.0.1",
+            port=9002,
+        )
+
+        status = cloud_verifier_common.process_get_status(agent)
+
+        # Should be PENDING because operational_state is START
+        self.assertEqual(
+            status["attestation_status"],
+            "PENDING",
+            "PULL mode agent should show PENDING in START state",
+        )
+
+    def test_pull_mode_agent_fail_in_failed_state(self):
+        """Test PULL mode agent shows FAIL in FAILED state."""
+        # Create PULL mode agent in FAILED state
+        agent = self._create_mock_agent(
+            operational_state=states.FAILED,
+            ip="127.0.0.1",
+            port=9002,
+        )
+
+        status = cloud_verifier_common.process_get_status(agent)
+
+        # Should be FAIL because operational_state is FAILED
+        self.assertEqual(
+            status["attestation_status"],
+            "FAIL",
+            "PULL mode agent should show FAIL in FAILED state",
+        )
 
 
 if __name__ == "__main__":
