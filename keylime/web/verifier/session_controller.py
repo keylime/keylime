@@ -294,12 +294,16 @@ class SessionController(Controller):
                                     "challenge": base64.b64encode(auth_session.nonce).decode("utf-8")
                                 },
                                 "data": {
-                                    "message": base64.b64encode(auth_session.ak_attest).decode("utf-8")
-                                    if auth_session.ak_attest
-                                    else "",
-                                    "signature": base64.b64encode(auth_session.ak_sign).decode("utf-8")
-                                    if auth_session.ak_sign
-                                    else "",
+                                    "message": (
+                                        base64.b64encode(auth_session.ak_attest).decode("utf-8")
+                                        if auth_session.ak_attest
+                                        else ""
+                                    ),
+                                    "signature": (
+                                        base64.b64encode(auth_session.ak_sign).decode("utf-8")
+                                        if auth_session.ak_sign
+                                        else ""
+                                    ),
                                 },
                             }
                         ],
@@ -347,12 +351,16 @@ class SessionController(Controller):
                             "authentication_type": "tpm_pop",
                             "chosen_parameters": {"challenge": base64.b64encode(auth_session.nonce).decode("utf-8")},
                             "data": {
-                                "message": base64.b64encode(auth_session.ak_attest).decode("utf-8")
-                                if auth_session.ak_attest
-                                else "",
-                                "signature": base64.b64encode(auth_session.ak_sign).decode("utf-8")
-                                if auth_session.ak_sign
-                                else "",
+                                "message": (
+                                    base64.b64encode(auth_session.ak_attest).decode("utf-8")
+                                    if auth_session.ak_attest
+                                    else ""
+                                ),
+                                "signature": (
+                                    base64.b64encode(auth_session.ak_sign).decode("utf-8")
+                                    if auth_session.ak_sign
+                                    else ""
+                                ),
                             },
                         }
                     ],
