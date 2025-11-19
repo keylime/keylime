@@ -229,10 +229,12 @@ class AttestationController(Controller):
 
         # Per enhancement #103, section "Error Conditions for Attestation Protocol":
         # If last attestation failed AND policy hasn't changed, return 503 with exponential backoff
+        # Skip this for PUSH mode agents to allow immediate recovery from timeout-induced failures
         if (
             agent.latest_attestation  # type: ignore[union-attr]
             and agent.latest_attestation.evaluation == "fail"  # type: ignore[union-attr]
             and agent.latest_attestation.stage == "verification_complete"  # type: ignore[union-attr]
+            and not agent_util.is_push_mode_agent(agent)  # type: ignore[arg-type]
         ):
             # Calculate retry-after using exponential backoff (same formula as rest of codebase)
             exponential_backoff = config.getboolean("verifier", "exponential_backoff", fallback=True)
