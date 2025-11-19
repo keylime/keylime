@@ -728,13 +728,15 @@ class Tenant:
             res = response_json.pop("results")
             response_json["results"] = {self.agent_uuid: res}
 
-            # operational_state is a PULL-mode only field and may be None for PUSH mode agents
-            op_state_value = response_json["results"][self.agent_uuid]["operational_state"]
-            if op_state_value is not None:
-                operational_state = states.state_to_str(op_state_value)
-                response_json["results"][self.agent_uuid]["operational_state"] = operational_state
+            # operational_state is a PULL-mode only field
+            # For PUSH mode (--push-model flag), show "Not applicable (Push Mode)"
+            if self.push_model:
+                response_json["results"][self.agent_uuid]["operational_state"] = "Not applicable (Push Mode)"
             else:
-                response_json["results"][self.agent_uuid]["operational_state"] = "N/A (Push Mode)"
+                op_state_value = response_json["results"][self.agent_uuid]["operational_state"]
+                if op_state_value is not None:
+                    operational_state = states.state_to_str(op_state_value)
+                    response_json["results"][self.agent_uuid]["operational_state"] = operational_state
 
             logger.info("Agent Info from %s:\n%s", self.verifier_fid_str, json.dumps(response_json["results"]))
 
