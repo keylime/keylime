@@ -358,6 +358,10 @@ class TestAttestationControllerExponentialBackoff(unittest.TestCase):
         mock_agent = Mock(spec=VerifierAgent)
         mock_agent.accept_attestations = True
         mock_agent.consecutive_attestation_failures = 2
+        # Configure as PULL mode agent (has operational_state, ip, and port)
+        mock_agent.operational_state = 7  # GET_QUOTE state
+        mock_agent.ip = "127.0.0.1"
+        mock_agent.port = 9002
 
         mock_attestation = Mock()
         mock_attestation.evaluation = "fail"
@@ -408,6 +412,10 @@ class TestAttestationControllerExponentialBackoff(unittest.TestCase):
         mock_agent = Mock(spec=VerifierAgent)
         mock_agent.accept_attestations = True
         mock_agent.consecutive_attestation_failures = 5
+        # Configure as PULL mode agent (has operational_state, ip, and port)
+        mock_agent.operational_state = 7  # GET_QUOTE state
+        mock_agent.ip = "127.0.0.1"
+        mock_agent.port = 9002
 
         mock_attestation = Mock()
         mock_attestation.evaluation = "fail"
@@ -457,6 +465,10 @@ class TestAttestationControllerExponentialBackoff(unittest.TestCase):
         mock_agent = Mock(spec=VerifierAgent)
         mock_agent.accept_attestations = True
         mock_agent.consecutive_attestation_failures = 10
+        # Configure as PULL mode agent (has operational_state, ip, and port)
+        mock_agent.operational_state = 7  # GET_QUOTE state
+        mock_agent.ip = "127.0.0.1"
+        mock_agent.port = 9002
 
         mock_attestation = Mock()
         mock_attestation.evaluation = "fail"
