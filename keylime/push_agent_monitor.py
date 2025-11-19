@@ -26,9 +26,9 @@ from keylime.db.verifier_db import VerfierMain
 logger = keylime_logging.init_logging("push_agent_monitor")
 
 # Timeout multiplier for quote_interval
-# We wait 3x the quote_interval before marking an agent as failed
+# We wait 2x the quote_interval before marking an agent as failed
 # This allows for network delays and processing time
-TIMEOUT_MULTIPLIER = 3.0
+TIMEOUT_MULTIPLIER = 2.0
 
 # In-memory map of agent_id -> timeout handle for active timeouts
 # This allows us to cancel/reschedule timeouts without database queries

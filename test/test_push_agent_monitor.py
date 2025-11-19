@@ -144,11 +144,11 @@ class TestPushAgentMonitor(unittest.TestCase):
         mock_time.return_value = self.current_time
 
         # Create a timed-out PUSH mode agent (received attestation 10 seconds ago)
-        # Timeout threshold is quote_interval * TIMEOUT_MULTIPLIER = 2.0 * 3.0 = 6.0 seconds
+        # Timeout threshold is quote_interval * TIMEOUT_MULTIPLIER = 2.0 * 2.0 = 4.0 seconds
         self._create_push_agent(
             agent_id="timed-out-agent",
             accept_attestations=True,
-            last_received_quote=self.current_time - 10,  # 10 seconds ago (> 6 second threshold)
+            last_received_quote=self.current_time - 10,  # 10 seconds ago (> 4 second threshold)
             operational_state=None,  # PUSH mode
         )
 
@@ -250,7 +250,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_check_push_agent_timeouts_multiple_agents(self, mock_time, mock_make_engine, mock_config):
         """Test timeout detection with multiple agents in different states."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0  # quote_interval = 2 seconds (threshold = 6 seconds)
+        mock_config.getfloat.return_value = 2.0  # quote_interval = 2 seconds (threshold = 4 seconds)
         mock_make_engine.return_value = self.engine
         mock_time.return_value = self.current_time
 
@@ -264,13 +264,13 @@ class TestPushAgentMonitor(unittest.TestCase):
         self._create_push_agent(
             agent_id="healthy-2",
             accept_attestations=True,
-            last_received_quote=self.current_time - 5,  # Healthy (5s ago, just under threshold)
+            last_received_quote=self.current_time - 3,  # Healthy (3s ago, just under threshold)
             operational_state=None,
         )
         self._create_push_agent(
             agent_id="timed-out-1",
             accept_attestations=True,
-            last_received_quote=self.current_time - 7,  # Timed out (7s ago)
+            last_received_quote=self.current_time - 5,  # Timed out (5s ago)
             operational_state=None,
         )
         self._create_push_agent(
@@ -319,8 +319,8 @@ class TestPushAgentMonitor(unittest.TestCase):
         for interval in test_intervals:
             with self.subTest(quote_interval=interval):
                 expected_threshold = interval * TIMEOUT_MULTIPLIER
-                # The threshold should be 3x the quote_interval
-                self.assertEqual(expected_threshold, interval * 3.0)
+                # The threshold should be 2x the quote_interval
+                self.assertEqual(expected_threshold, interval * 2.0)
 
     def test_is_push_mode_agent(self):
         """Test the is_push_mode_agent() function with various agent configurations."""
