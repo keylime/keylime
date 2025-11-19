@@ -3,13 +3,14 @@ import base64
 import time
 from typing import Any, Dict, Optional, Union
 
-from keylime import config, crypto, json, keylime_logging
+from keylime import agent_util, config, crypto, json, keylime_logging
 from keylime.agentstates import AgentAttestState, AgentAttestStates, TPMClockInfo
 from keylime.common import algorithms
 from keylime.db.verifier_db import VerfierMain
 from keylime.failure import Component, Event, Failure
 from keylime.ima import file_signatures, ima
 from keylime.ima.types import RuntimePolicyType
+from keylime.push_agent_monitor import get_maximum_attestation_interval
 from keylime.tpm import tpm_util
 from keylime.tpm.tpm_main import Tpm
 
@@ -267,6 +268,53 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
     if agent.ima_policy.generator and agent.ima_policy.generator > ima.RUNTIME_POLICY_GENERATOR.EmptyAllowList:
         has_runtime_policy = 1
 
+    # Get attestation status based on mode (PUSH vs PULL)
+    # Use is_push_mode_agent() to correctly identify PUSH mode agents
+    # (checks both operational_state is None AND ip/port are None)
+    attestation_status = "PENDING"
+
+    if agent_util.is_push_mode_agent(agent):
+        # PUSH mode: determine status based on accept_attestations flag and attestation history
+        # Agent must have successfully attested at least once to show PASS
+        if hasattr(agent, "accept_attestations") and agent.accept_attestations is True:
+            # Only show PASS if agent has successfully attested at least once
+            # Use explicit type-safe comparison for attestation_count to satisfy type checkers
+            attestation_count_value = getattr(agent, "attestation_count", None)
+            if attestation_count_value is not None and attestation_count_value > 0:
+                attestation_status = "PASS"
+            else:
+                attestation_status = "PENDING"
+        elif hasattr(agent, "accept_attestations") and agent.accept_attestations is False:
+            attestation_status = "FAIL"
+        else:
+            attestation_status = "PENDING"
+    else:
+        # PULL mode: determine status based on operational_state
+        from keylime.common import states  # pylint: disable=import-outside-toplevel
+
+        # Active attestation states indicate PASS
+        if agent.operational_state in (
+            states.GET_QUOTE,
+            states.GET_QUOTE_RETRY,
+            states.PROVIDE_V,
+            states.PROVIDE_V_RETRY,
+        ):
+            attestation_status = "PASS"
+        # Failed states indicate FAIL
+        elif agent.operational_state in (states.FAILED, states.INVALID_QUOTE, states.TENANT_FAILED):
+            attestation_status = "FAIL"
+        # Other states (REGISTERED, START, SAVED, TERMINATED) are PENDING
+        else:
+            attestation_status = "PENDING"
+
+    # Get attestation period from config
+    attestation_period_seconds = config.getfloat("verifier", "quote_interval", fallback=2.0)
+    attestation_period = f"{int(attestation_period_seconds)}s"
+
+    # Calculate maximum attestation interval (timeout threshold)
+    maximum_attestation_interval_seconds = get_maximum_attestation_interval(attestation_period_seconds)
+    maximum_attestation_interval = f"{int(maximum_attestation_interval_seconds)}s"
+
     response = {
         "operational_state": agent.operational_state,
         "v": agent.v,
@@ -290,6 +338,9 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         "attestation_count": agent.attestation_count,
         "last_received_quote": agent.last_received_quote,
         "last_successful_attestation": agent.last_successful_attestation,
+        "attestation_status": attestation_status,
+        "attestation_period": attestation_period,
+        "maximum_attestation_interval": maximum_attestation_interval,
     }
     return response
 

@@ -36,6 +36,7 @@
 #  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+import base64
 import binascii
 import os
 import string
@@ -338,7 +339,31 @@ def checkquote(
     # Check that reported nonce is expected one
     retDict = tpm2_objects.unmarshal_tpms_attest(quoteblob)
     extradata = retDict["extraData"]
-    if extradata.decode("utf-8") != nonce:
+
+    # The nonce parameter might be base64-encoded (push mode) or raw bytes/string (pull mode)
+    # The extradata from TPM is always raw bytes
+    # Auto-detect the encoding by trying both interpretations
+
+    nonce_matched = False
+
+    # Try raw interpretation first (pull mode - most common)
+    if isinstance(nonce, str):
+        if extradata == nonce.encode("utf-8"):
+            nonce_matched = True
+    elif isinstance(nonce, bytes):
+        if extradata == nonce:
+            nonce_matched = True
+
+    # If raw interpretation didn't match, try base64 decoding (push mode)
+    if not nonce_matched and isinstance(nonce, str):
+        try:
+            decoded = base64.b64decode(nonce)
+            if extradata == decoded:
+                nonce_matched = True
+        except Exception:
+            pass
+
+    if not nonce_matched:
         raise Exception("The nonce from the attestation differs from the expected nonce")
 
     # Check that correct quote_digest was used which is equivalent to hash(quoteblob)

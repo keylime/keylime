@@ -17,6 +17,7 @@ from keylime.web.verifier.evidence_controller import EvidenceController
 from keylime.web.verifier.ima_policy_controller import IMAPolicyController
 from keylime.web.verifier.mb_ref_state_controller import MBRefStateController
 from keylime.web.verifier.server_info_controller import ServerInfoController
+from keylime.web.verifier.session_controller import SessionController
 
 logger = keylime_logging.init_logging("verifier")
 
@@ -178,6 +179,8 @@ class VerifierServer(Server):
         self._v3_ima_routes()
         # Routes for on-demand verification of evidence in API v3+
         self._v3_evidence_routes()
+        # Routes for agent athentication
+        self._v3_authentication_routes()
 
     def _agent_routes(self) -> None:
         # Routes used to manage agents enrolled for verification
@@ -202,16 +205,14 @@ class VerifierServer(Server):
 
     @Server.push_only
     def _attestation_routes(self) -> None:
-        self._get("/agents/:agent_id/attestations", AttestationController, "index", allow_insecure=True)
-        self._post("/agents/:agent_id/attestations", AttestationController, "create", allow_insecure=True)
-        self._get("/agents/:agent_id/attestations/latest", AttestationController, "show_latest", allow_insecure=True)
-        self._patch(
-            "/agents/:agent_id/attestations/latest", AttestationController, "update_latest", allow_insecure=True
-        )
-        self._get("/agents/:agent_id/attestations/:index", AttestationController, "show", allow_insecure=True)
-        self._patch("/agents/:agent_id/attestations/:index", AttestationController, "update", allow_insecure=True)
-
-        # TODO: Remove "allow_insecure" above
+        # Routes for managing push attestation resources
+        # Note: These routes must use HTTPS to protect sensitive TPM quotes and attestation evidence in transit.
+        self._get("/agents/:agent_id/attestations", AttestationController, "index")
+        self._post("/agents/:agent_id/attestations", AttestationController, "create")
+        self._get("/agents/:agent_id/attestations/latest", AttestationController, "show_latest")
+        self._patch("/agents/:agent_id/attestations/latest", AttestationController, "update_latest")
+        self._get("/agents/:agent_id/attestations/:index", AttestationController, "show")
+        self._patch("/agents/:agent_id/attestations/:index", AttestationController, "update")
 
     def _v2_mb_routes(self) -> None:
         # Routes used to manage reference states for MB/UEFI verification
@@ -252,3 +253,14 @@ class VerifierServer(Server):
     def _v3_evidence_routes(self) -> None:
         # Routes for on-demand verification of evidence (which adhere to RFC 9110 semantics)
         self._post("/evidence", EvidenceController, "process")
+
+    def _v3_authentication_routes(self) -> None:
+        # Routes for agent authentication
+        # Note: These routes must use HTTPS to protect challenges and authentication tokens in transit.
+        # While the authentication protocol uses TPM proof of possession instead of mTLS certificates,
+        # TLS encryption is still required to prevent interception and replay attacks.
+        self._post("/sessions", SessionController, "create_session")
+        self._patch("/sessions/:session_id", SessionController, "update_session")
+        self._get("/agents/:agent_id/session/:token", SessionController, "show")
+        self._post("/agents/:agent_id/session", SessionController, "create")
+        self._patch("/agents/:agent_id/session/:token", SessionController, "update")
