@@ -10,7 +10,7 @@ from keylime.db.verifier_db import VerfierMain
 from keylime.failure import Component, Event, Failure
 from keylime.ima import file_signatures, ima
 from keylime.ima.types import RuntimePolicyType
-from keylime.push_agent_monitor import TIMEOUT_MULTIPLIER
+from keylime.push_agent_monitor import get_maximum_attestation_interval
 from keylime.tpm import tpm_util
 from keylime.tpm.tpm_main import Tpm
 
@@ -312,7 +312,7 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
     attestation_period = f"{int(attestation_period_seconds)}s"
 
     # Calculate maximum attestation interval (timeout threshold)
-    maximum_attestation_interval_seconds = attestation_period_seconds * TIMEOUT_MULTIPLIER
+    maximum_attestation_interval_seconds = get_maximum_attestation_interval(attestation_period_seconds)
     maximum_attestation_interval = f"{int(maximum_attestation_interval_seconds)}s"
 
     response = {

@@ -15,11 +15,11 @@ from keylime.agent_util import is_push_mode_agent
 from keylime.db.keylime_db import SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpolicy
 from keylime.push_agent_monitor import (
-    TIMEOUT_MULTIPLIER,
     _agent_timeout_handles,
     _mark_agent_failed,
     cancel_agent_timeout,
     check_push_agent_timeouts,
+    get_maximum_attestation_interval,
     schedule_agent_timeout,
 )
 
@@ -144,7 +144,7 @@ class TestPushAgentMonitor(unittest.TestCase):
         mock_time.return_value = self.current_time
 
         # Create a timed-out PUSH mode agent (received attestation 10 seconds ago)
-        # Timeout threshold is quote_interval * TIMEOUT_MULTIPLIER = 2.0 * 2.0 = 4.0 seconds
+        # Timeout threshold is get_maximum_attestation_interval(2.0) = 4.0 seconds
         self._create_push_agent(
             agent_id="timed-out-agent",
             accept_attestations=True,
@@ -310,15 +310,14 @@ class TestPushAgentMonitor(unittest.TestCase):
         assert never_connected is not None  # Type narrowing for pyright
         self.assertTrue(never_connected.accept_attestations)
 
-    @patch("keylime.push_agent_monitor.config")
-    def test_timeout_threshold_calculation(self, _mock_config):
+    def test_timeout_threshold_calculation(self):
         """Test that the timeout threshold is calculated correctly."""
         # Test with different quote_interval values
         test_intervals = [1.0, 2.0, 5.0, 10.0]
 
         for interval in test_intervals:
             with self.subTest(quote_interval=interval):
-                expected_threshold = interval * TIMEOUT_MULTIPLIER
+                expected_threshold = get_maximum_attestation_interval(interval)
                 # The threshold should be 2x the quote_interval
                 self.assertEqual(expected_threshold, interval * 2.0)
 
@@ -392,7 +391,7 @@ class TestPushAgentMonitor(unittest.TestCase):
         mock_config.getfloat.assert_called_once_with("verifier", "quote_interval", fallback=2.0)
 
         # Verify timeout was scheduled with correct parameters
-        expected_timeout = quote_interval * TIMEOUT_MULTIPLIER
+        expected_timeout = get_maximum_attestation_interval(quote_interval)
         mock_ioloop.call_later.assert_called_once()
         call_args = mock_ioloop.call_later.call_args
         self.assertEqual(call_args[0][0], expected_timeout)  # timeout_seconds
@@ -658,7 +657,7 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertIn("test-agent-3", mock_logger.warning.call_args[0][1])
 
         # Verify timeout seconds is correct
-        expected_timeout = quote_interval * TIMEOUT_MULTIPLIER
+        expected_timeout = get_maximum_attestation_interval(quote_interval)
         self.assertEqual(mock_logger.warning.call_args[0][2], expected_timeout)
 
     @patch("keylime.push_agent_monitor.logger")

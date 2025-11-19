@@ -28,11 +28,23 @@ logger = keylime_logging.init_logging("push_agent_monitor")
 # Timeout multiplier for quote_interval
 # We wait 2x the quote_interval before marking an agent as failed
 # This allows for network delays and processing time
-TIMEOUT_MULTIPLIER = 2.0
+_TIMEOUT_MULTIPLIER = 2.0
 
 # In-memory map of agent_id -> timeout handle for active timeouts
 # This allows us to cancel/reschedule timeouts without database queries
 _agent_timeout_handles: Dict[str, object] = {}
+
+
+def get_maximum_attestation_interval(quote_interval: float) -> float:
+    """Calculate the maximum attestation interval (timeout threshold).
+
+    Args:
+        quote_interval: The configured quote interval in seconds
+
+    Returns:
+        The maximum attestation interval (quote_interval * multiplier)
+    """
+    return quote_interval * _TIMEOUT_MULTIPLIER
 
 
 def _mark_agent_failed(agent_id: str) -> None:
@@ -62,7 +74,7 @@ def _mark_agent_failed(agent_id: str) -> None:
             # Only update if currently accepting attestations
             if agent.accept_attestations is True:  # pyright: ignore[reportGeneralTypeIssues]
                 quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
-                timeout_seconds = quote_interval * TIMEOUT_MULTIPLIER
+                timeout_seconds = quote_interval * _TIMEOUT_MULTIPLIER
 
                 logger.warning(
                     "Agent %s has timed out (no attestation received within %.1f seconds). "
@@ -88,7 +100,7 @@ def schedule_agent_timeout(agent_id: str, timeout_seconds: Optional[float] = Non
 
     Args:
         agent_id: The agent ID to schedule timeout for
-        timeout_seconds: Custom timeout in seconds (defaults to quote_interval * TIMEOUT_MULTIPLIER)
+        timeout_seconds: Custom timeout in seconds (defaults to quote_interval * _TIMEOUT_MULTIPLIER)
     """
     try:
         # Cancel any existing timeout for this agent
@@ -97,7 +109,7 @@ def schedule_agent_timeout(agent_id: str, timeout_seconds: Optional[float] = Non
         # Calculate timeout if not provided
         if timeout_seconds is None:
             quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
-            timeout_seconds = quote_interval * TIMEOUT_MULTIPLIER
+            timeout_seconds = quote_interval * _TIMEOUT_MULTIPLIER
 
         # Schedule the timeout callback
         io_loop = tornado.ioloop.IOLoop.current()
@@ -146,12 +158,12 @@ def check_push_agent_timeouts() -> None:
     2. Checks if last_received_quote timestamp is older than timeout threshold
     3. Sets accept_attestations = False for agents that have timed out
 
-    The timeout threshold is calculated as: quote_interval * TIMEOUT_MULTIPLIER
+    The timeout threshold is calculated as: quote_interval * _TIMEOUT_MULTIPLIER
     """
     try:
         # Get quote interval from config
         quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
-        timeout_seconds = quote_interval * TIMEOUT_MULTIPLIER
+        timeout_seconds = quote_interval * _TIMEOUT_MULTIPLIER
         current_time = int(time.time())
 
         # Create database session
