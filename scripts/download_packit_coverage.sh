@@ -23,7 +23,7 @@ fi
 ##############################################
 
 # maximum duration of the task in seconds
-MAX_DURATION="${MAX_DURATION:-5400}"  # 90 minutes
+MAX_DURATION="${MAX_DURATION:-6000}"  # 100 minutes
 
 # delay in seconds before doing another URL read
 # should not be too short not to exceed GitHub API quota
@@ -82,7 +82,7 @@ function do_GitHub_API_call() {
     done
 
     if [ ${DURATION} -ge ${MAX_DURATION} ]; then
-         echo "Error: Maximum job diration exceeded. Terminating" 1>&2
+         echo "Error: Maximum job duration exceeded. Terminating" 1>&2
          exit 9
     fi
 
