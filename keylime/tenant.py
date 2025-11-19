@@ -208,14 +208,12 @@ class Tenant:
             if self.agent_port is None and self.registrar_data["port"] is not None:
                 self.agent_port = self.registrar_data["port"]
 
-        # Re-evaluate push_model based on whether we have agent IP/port after reading registrar
-        # If agent has IP/port (either from command line or registrar), it's PULL mode
-        # Only explicit --push-model flag overrides this detection
+        # Set push_model based on explicit --push-model flag
+        # Default to PULL mode (False) if flag not provided
         if not args.get("push_model", False):
-            if self.agent_ip is not None and self.agent_port is not None:
-                self.push_model = False  # Agent has IP/port, so it's PULL mode
-            else:
-                self.push_model = True  # No IP/port, so it's PUSH mode
+            self.push_model = False
+        else:
+            self.push_model = True
 
         # If ip/port are still None, that's okay for push-mode (verifier will handle it)
         # The verifier's mode config determines whether ip/port are required
@@ -824,7 +822,7 @@ class Tenant:
                 if op_state_value is not None:
                     response_json["results"][agent]["operational_state"] = states.state_to_str(op_state_value)
                 else:
-                    response_json["results"][agent]["operational_state"] = "N/A (Push Mode)"
+                    response_json["results"][agent]["operational_state"] = "Not applicable (Push Mode)"
             logger.info("Bulk Agent Info:\n%s", json.dumps(response_json["results"]))
 
             return response_json
@@ -1751,17 +1749,12 @@ def main() -> None:
     config.check_version("tenant", logger=logger)
 
     mytenant = Tenant()
-    # Auto-detect push vs pull mode based on whether user provided agent ip/port
-    # If --push-model flag is provided, use it; otherwise infer from presence of -t/-c flags
+    # Set push_model based on explicit --push-model flag
+    # This must be done before dispatching to commands (status, add, etc.)
     if hasattr(args, "push_model") and args.push_model:
         mytenant.push_model = True
-    elif hasattr(args, "agent_ip") and args.agent_ip:
-        mytenant.push_model = False  # User provided -t, so it's pull mode
-    elif hasattr(args, "agent_port") and args.agent_port:
-        mytenant.push_model = False  # User provided -c, so it's pull mode
     else:
-        # No ip/port provided, assume push mode
-        mytenant.push_model = True
+        mytenant.push_model = False
 
     if args.agent_uuid is not None:
         mytenant.agent_uuid = args.agent_uuid
