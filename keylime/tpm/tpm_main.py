@@ -10,13 +10,20 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
 from keylime import cert_utils, config, json, keylime_logging
 from keylime.agentstates import AgentAttestState, TPMClockInfo
-from keylime.common.algorithms import Hash
+from keylime.common.algorithms import Hash, Sign
 from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyrings
 from keylime.ima.types import RuntimePolicyType
 from keylime.mba import mba
 from keylime.tpm import tpm2_objects, tpm_util
+from keylime.tpm.errors import (
+    HashAlgorithmMismatch,
+    IncorrectSignature,
+    ObjectNameMismatch,
+    QualifyingDataMismatch,
+    SignatureAlgorithmMismatch,
+)
 
 logger = keylime_logging.init_logging("tpm")
 
@@ -48,6 +55,110 @@ class Tpm:
             raise
 
         return (keyblob, key)
+
+    @staticmethod
+    def _unpackv(structure: bytes, offset: int = 0) -> Tuple[bytes, bytes]:
+        """Extracts a variable-length buffer from a binary structure where the length of the buffer is specified by the
+        first two bytes of the structure.
+        """
+        structure = structure[offset:]
+        (size,) = struct.unpack_from(">H", structure)
+        structure = structure[2:]
+        (buffer,) = struct.unpack_from(f">{size}s", structure)
+        structure = structure[len(buffer) :]
+        return buffer, structure
+
+    # Mapping from keylime.common.algorithms enums to TPM algorithm constants
+    # Used for validating that TPM attestations use expected cryptographic algorithms
+    HASH_ALG_TO_TPM = {
+        Hash.SHA1: tpm2_objects.TPM_ALG_SHA1,
+        Hash.SHA256: tpm2_objects.TPM_ALG_SHA256,
+        Hash.SHA384: tpm2_objects.TPM_ALG_SHA384,
+        Hash.SHA512: tpm2_objects.TPM_ALG_SHA512,
+    }
+
+    SIGN_ALG_TO_TPM = {
+        Sign.RSASSA: tpm2_objects.TPM_ALG_RSASSA,
+        Sign.RSAPSS: tpm2_objects.TPM_ALG_RSAPSS,
+        Sign.ECDSA: tpm2_objects.TPM_ALG_ECDSA,
+    }
+
+    @staticmethod
+    def verify_tpm_object(
+        tpm_object: bytes,
+        key: bytes,
+        attest: bytes,
+        sig: bytes,
+        qual: Optional[bytes] = None,
+        _hash_alg: Optional[Hash] = None,
+        _sign_alg: Optional[Sign] = None,
+    ) -> bool:
+        # Convert TPM pub key to Python public key object
+        pub = tpm2_objects.pubkey_from_tpm2b_public(key)
+
+        if not isinstance(pub, (RSAPublicKey, EllipticCurvePublicKey)):
+            raise ValueError(f"Unsupported key type {type(pub).__name__}")
+
+        # Skip over qualifiedSigner field, so that we can locate the qualifying data which comes after
+        _key_name, rest = Tpm._unpackv(attest, 6)
+        # Extract buffer from extraData
+        qual_buffer, rest = Tpm._unpackv(rest)
+
+        # Check that qualifying data matches
+        if qual and qual != qual_buffer:
+            raise QualifyingDataMismatch("qualifying data does not match TPM2B_ATTEST structure")
+
+        # Check object is present in attest structure
+        if tpm2_objects.get_tpm2b_public_name(tpm_object) != rest[27:61].hex():
+            raise ObjectNameMismatch("name of TPM object not found in TPM2B_ATTEST structure")
+
+        # Calculate digest from attest info
+        digest, hashfunc = tpm_util.crypt_hash(attest, sig[2:4])
+        # Extract signature algorithm and size
+        sig_alg, _, sig_size = struct.unpack_from(">HHH", sig, 0)
+
+        # Validate hash algorithm matches expected value (prevents downgrade attacks)
+        if _hash_alg:
+            expected_hash_alg = Tpm.HASH_ALG_TO_TPM.get(_hash_alg)
+            actual_hash_alg = int.from_bytes(sig[2:4], "big")
+            if expected_hash_alg and actual_hash_alg != expected_hash_alg:
+                raise HashAlgorithmMismatch(
+                    f"hash algorithm in signature was {actual_hash_alg:#x}, "
+                    f"expected {expected_hash_alg:#x} ({_hash_alg})"
+                )
+
+        # Validate signature algorithm matches expected value (prevents downgrade attacks)
+        if _sign_alg:
+            expected_sign_alg = Tpm.SIGN_ALG_TO_TPM.get(_sign_alg)
+            if expected_sign_alg and sig_alg != expected_sign_alg:
+                raise SignatureAlgorithmMismatch(
+                    f"signature algorithm was {sig_alg:#x}, " f"expected {expected_sign_alg:#x} ({_sign_alg})"
+                )
+
+        # Compare signed digest against calculated digest and verify signature:
+
+        try:
+            if isinstance(pub, RSAPublicKey):
+                if sig_alg in [tpm2_objects.TPM_ALG_RSASSA, tpm2_objects.TPM_ALG_RSAPSS]:
+                    (signature,) = struct.unpack_from(f"{sig_size}s", sig, 6)
+                    tpm_util.verify(pub, signature, digest, hashfunc, sig_alg, hashfunc.digest_size)
+                else:
+                    raise ValueError(f"Unsupported quote signature algorithm '{sig_alg:#x}' for RSA keys")
+
+            if isinstance(pub, EllipticCurvePublicKey):
+                if sig_alg in [tpm2_objects.TPM_ALG_ECDSA]:
+                    der_sig = tpm_util.ecdsa_der_from_tpm(sig, pub)
+                    tpm_util.verify(pub, der_sig, digest, hashfunc)
+                else:
+                    raise ValueError(f"Unsupported quote signature algorithm '{sig_alg:#x}' for EC keys")
+
+        except InvalidSignature as exc:
+            raise IncorrectSignature(
+                f"signature does not verify, using the RSA key given, against the provided TPM object and"
+                f"qualifying data, hashed using {hashfunc}"
+            ) from exc
+
+        return True
 
     @staticmethod
     def verify_aik_with_iak(uuid: str, aik_tpm: bytes, iak_tpm: bytes, iak_attest: bytes, iak_sign: bytes) -> bool:

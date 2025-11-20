@@ -11,14 +11,21 @@
                 "exponential_backoff_max_delay": "360000",
                 "certification_keys_server_identifier": "ak",
                 "ima_ml_count_file": "/tmp/ima_ml_count",
-                "uefi_logs_evidence_version": "1.0"
+                "uefi_logs_evidence_version": "1.0",
+                "tls_accept_invalid_certs": "False",
+                "tls_accept_invalid_hostnames": "False",
+                "enable_authentication": "False"
             }
         },
         "verifier": {
             "add": {
                 "mode": "pull",
                 "challenge_lifetime": "1800",
-                "verification_timeout":  "0"
+                "verification_timeout":  "0",
+                "session_create_rate_limit_per_ip": "50",
+                "session_create_rate_limit_window_ip": "60",
+                "session_create_rate_limit_per_agent": "15",
+                "session_create_rate_limit_window_agent": "60"
             }
         }
     }

@@ -37,10 +37,18 @@ from keylime.common.version import str_to_version
 from keylime.config import DEFAULT_TIMEOUT
 from keylime.da import record
 from keylime.db.keylime_db import SessionManager, make_engine
-from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpolicy
+from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierAttestations, VerifierMbpolicy
 from keylime.failure import MAX_SEVERITY_LABEL, Component, Event, Failure, set_severity_config
 from keylime.ima import ima
 from keylime.mba import mba
+from keylime.models.verifier import Attestation, EvidenceItem
+from keylime.shared_data import (
+    cache_policy,
+    cleanup_agent_policy_cache,
+    clear_agent_policy_cache,
+    get_cached_policy,
+    initialize_agent_policy_cache,
+)
 from keylime.tee import snp
 
 try:
@@ -51,7 +59,6 @@ except RuntimeError:
 
 logger = keylime_logging.init_logging("verifier")
 
-GLOBAL_POLICY_CACHE: Dict[str, Dict[str, str]] = {}
 
 # Module-level globals that are initialized lazily to avoid loading
 # verifier configuration when this module is imported by other components
@@ -171,48 +178,61 @@ def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, Any]:
     return agent_dict
 
 
-def verifier_read_policy_from_cache(ima_policy_data: Dict[str, str]) -> str:
-    checksum = ima_policy_data.get("checksum", "")
-    name = ima_policy_data.get("name", "empty")
-    agent_id = ima_policy_data.get("agent_id", "")
+def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
+    checksum = ""
+    name = "empty"
+    agent_id = str(stored_agent.agent_id)
 
-    if not agent_id:
-        return ""
+    # Initialize agent policy cache if it doesn't exist
+    initialize_agent_policy_cache(agent_id)
 
-    if agent_id not in GLOBAL_POLICY_CACHE:
-        GLOBAL_POLICY_CACHE[agent_id] = {}
-        GLOBAL_POLICY_CACHE[agent_id][""] = ""
+    if stored_agent.ima_policy:
+        checksum = str(stored_agent.ima_policy.checksum)
+        name = stored_agent.ima_policy.name
 
-    if checksum not in GLOBAL_POLICY_CACHE[agent_id]:
-        if len(GLOBAL_POLICY_CACHE[agent_id]) > 1:
-            # Perform a cleanup of the contents, IMA policy checksum changed
-            logger.debug(
-                "Cleaning up policy cache for policy named %s, with checksum %s, used by agent %s",
-                name,
-                checksum,
-                agent_id,
-            )
+    # Check if policy is already cached
+    cached_policy = get_cached_policy(agent_id, checksum)
+    if cached_policy is not None:
+        return cached_policy
 
-            GLOBAL_POLICY_CACHE[agent_id] = {}
-            GLOBAL_POLICY_CACHE[agent_id][""] = ""
+    # Policy not cached, need to clean up and load from database
+    cleanup_agent_policy_cache(agent_id, checksum)
 
-        logger.debug(
-            "IMA policy named %s, with checksum %s, used by agent %s is not present on policy cache on this verifier, performing SQLAlchemy load",
-            name,
-            checksum,
-            agent_id,
-        )
+    logger.debug(
+        "IMA policy named %s, with checksum %s, used by agent %s is not present on policy cache on this verifier, performing SQLAlchemy load",
+        name,
+        checksum,
+        agent_id,
+    )
 
-        # Get the large ima_policy content - it's already loaded in ima_policy_data
-        ima_policy = ima_policy_data.get("ima_policy", "")
-        assert isinstance(ima_policy, str)
-        GLOBAL_POLICY_CACHE[agent_id][checksum] = ima_policy
+    # Actually contacts the database and load the (large) ima_policy column for "allowlists" table
+    ima_policy = stored_agent.ima_policy.ima_policy
+    assert isinstance(ima_policy, str)
 
-    return GLOBAL_POLICY_CACHE[agent_id][checksum]
+    # Cache the policy for future use
+    cache_policy(agent_id, checksum, ima_policy)
+
+    return ima_policy
 
 
 def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
     get_AgentAttestStates().delete_by_agent_id(agent_id)
+    # Delete in FK dependency order:
+    # Push-mode tables:
+    #   1. evidence_items (FK to attestations)
+    #   2. attestations (FK to agent)
+    # Legacy/shared tables:
+    #   3. VerifierAttestations (legacy attestations table, FK to agent)
+    # Agent and policies:
+    #   4. agent
+    #   5. allowlists/mbpolicies (by name, not FK)
+    # NOTE: Authentication sessions are NOT deleted when an agent is removed.
+    # This allows agents to maintain their authentication tokens through policy
+    # updates (DELETE + POST) and re-enrollment without needing to re-authenticate.
+    # Sessions will expire naturally based on their token_expires_at timestamp.
+    EvidenceItem.delete_all(agent_id=agent_id, session_=session)
+    Attestation.delete_all(agent_id=agent_id, session_=session)
+    session.query(VerifierAttestations).filter_by(agent_id=agent_id).delete()
     session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
     session.query(VerifierAllowlist).filter_by(name=agent_id).delete()
     session.query(VerifierMbpolicy).filter_by(name=agent_id).delete()
@@ -517,32 +537,54 @@ class AgentsHandler(BaseHandler):
                 return
 
             # Cleanup the cache when the agent is deleted. Do it early.
-            if agent_id in GLOBAL_POLICY_CACHE:
-                del GLOBAL_POLICY_CACHE[agent_id]
-                logger.debug(
-                    "Cleaned up policy cache from all entries used by agent %s",
-                    agent_id,
-                )
+            clear_agent_policy_cache(agent_id)
+            logger.debug(
+                "Cleaned up policy cache from all entries used by agent %s",
+                agent_id,
+            )
 
-            op_state = agent.operational_state
-            if op_state in (states.SAVED, states.FAILED, states.TERMINATED, states.TENANT_FAILED, states.INVALID_QUOTE):
+            # Check verifier mode - push mode doesn't use operational_state state machine
+            mode = config.get("verifier", "mode", fallback="pull")
+
+            # In push mode, directly delete the agent since operational_state is not used
+            # In pull mode, check operational_state to determine deletion vs termination
+            if mode == "push":
+                # Push mode: Always delete immediately (synchronous deletion)
                 try:
                     verifier_db_delete_agent(session, agent_id)
+                    web_util.echo_json_response(self.req_handler, 200, "Success")
+                    logger.info("DELETE (push mode) returning 200 response for agent id: %s", agent_id)
                 except SQLAlchemyError as e:
-                    logger.error("SQLAlchemy Error: %s", e)
-                web_util.echo_json_response(self.req_handler, 200, "Success")
-                logger.info("DELETE returning 200 response for agent id: %s", agent_id)
+                    logger.error("SQLAlchemy Error deleting agent in push mode: %s", e)
+                    web_util.echo_json_response(self.req_handler, 500, "Internal Server Error")
             else:
-                try:
-                    update_agent = session.query(VerfierMain).get(agent_id)
-                    assert update_agent
-                    update_agent.operational_state = states.TERMINATED
-                    session.add(update_agent)
-                    # session.commit() is automatically called by context manager
-                    web_util.echo_json_response(self.req_handler, 202, "Accepted")
-                    logger.info("DELETE returning 202 response for agent id: %s", agent_id)
-                except SQLAlchemyError as e:
-                    logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
+                # Pull mode: Use operational_state to determine deletion behavior
+                op_state = agent.operational_state
+                if op_state in (
+                    states.SAVED,
+                    states.FAILED,
+                    states.TERMINATED,
+                    states.TENANT_FAILED,
+                    states.INVALID_QUOTE,
+                ):
+                    try:
+                        verifier_db_delete_agent(session, agent_id)
+                        web_util.echo_json_response(self.req_handler, 200, "Success")
+                        logger.info("DELETE (pull mode) returning 200 response for agent id: %s", agent_id)
+                    except SQLAlchemyError as e:
+                        logger.error("SQLAlchemy Error deleting agent in pull mode: %s", e)
+                        web_util.echo_json_response(self.req_handler, 500, "Internal Server Error")
+                else:
+                    try:
+                        update_agent = session.query(VerfierMain).get(agent_id)
+                        assert update_agent
+                        update_agent.operational_state = states.TERMINATED
+                        session.add(update_agent)
+                        # session.commit() is automatically called by context manager
+                        web_util.echo_json_response(self.req_handler, 202, "Accepted")
+                        logger.info("DELETE (pull mode) returning 202 response for agent id: %s", agent_id)
+                    except SQLAlchemyError as e:
+                        logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
 
     def post(self) -> None:
         """This method handles the POST requests to add agents to the Cloud Verifier.
@@ -570,7 +612,7 @@ class AgentsHandler(BaseHandler):
                         "v": json_body.get("v", None),
                         "ip": json_body["cloudagent_ip"],
                         "port": int(json_body["cloudagent_port"]),
-                        "operational_state": states.START,
+                        "operational_state": states.GET_QUOTE if mode == "push" else states.START,
                         "public_key": "",
                         "tpm_policy": json_body["tpm_policy"],
                         "meta_data": json_body["metadata"],
@@ -2047,7 +2089,6 @@ async def process_agent(
         stored_agent = None
 
         # First database operation - read agent data and extract all needed data within session context
-        ima_policy_data = {}
         mb_policy_data = None
         with session_context() as session:
             try:
@@ -2062,15 +2103,6 @@ async def process_agent(
                     .filter_by(agent_id=str(agent["agent_id"]))
                     .first()
                 )
-
-                # Extract IMA policy data within session context to avoid DetachedInstanceError
-                if stored_agent and stored_agent.ima_policy:
-                    ima_policy_data = {
-                        "checksum": str(stored_agent.ima_policy.checksum),
-                        "name": stored_agent.ima_policy.name,
-                        "agent_id": str(stored_agent.agent_id),
-                        "ima_policy": stored_agent.ima_policy.ima_policy,  # Extract the large content too
-                    }
 
                 # Extract MB policy data within session context
                 if stored_agent and stored_agent.mb_policy:
@@ -2156,7 +2188,10 @@ async def process_agent(
             logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
 
         # Load agent's IMA policy
-        runtime_policy = verifier_read_policy_from_cache(ima_policy_data)
+        if stored_agent:
+            runtime_policy = verifier_read_policy_from_cache(stored_agent)
+        else:
+            runtime_policy = ""
 
         # Get agent's measured boot policy
         mb_policy = mb_policy_data

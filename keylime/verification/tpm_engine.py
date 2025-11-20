@@ -1,14 +1,20 @@
 # pyright: reportAttributeAccessIssue=false
 # Uses ORM models with dynamically-created attributes from metaclasses
 import math
+import time
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from keylime import config, keylime_logging
 from keylime.agentstates import AgentAttestState, TPMClockInfo
-from keylime.common import algorithms
+from keylime.common import algorithms, states
+from keylime.common.algorithms import hash_token_for_log
 from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyring, ImaKeyrings
+from keylime.models.base.types import Timestamp  # type: ignore[attr-defined]
+from keylime.models.verifier.auth_session import AuthSession
+from keylime.shared_data import get_shared_memory
 from keylime.tpm import tpm2_objects, tpm_util
 from keylime.tpm.tpm_main import Tpm
 from keylime.verification.base import EngineDriver, VerificationEngine
@@ -610,6 +616,65 @@ class TPMEngine(VerificationEngine):
         self.agent.last_received_quote = None
         self.agent.last_successful_attestation = None
 
+    def _extend_auth_token(self) -> None:
+        """Extend the authentication token validity on successful attestation.
+
+        Since successful TPM2_Quote verification proves AK possession,
+        we can extend the token instead of requiring periodic re-authentication.
+
+        Updates both shared memory (for current workers) and database (for persistence).
+        """
+        logger.debug("_extend_auth_token() called for agent '%s'", self.agent_id)
+        session_data = AuthSession.get_active_session_for_agent(self.agent_id)
+
+        # Log session data with token hashed for security
+        if session_data:
+            logged_data = session_data.copy()
+            if "token" in logged_data:
+                logged_data["token_hash"] = hash_token_for_log(logged_data["token"])
+                del logged_data["token"]
+            logger.debug("get_active_session_for_agent returned: %s", logged_data)
+        else:
+            logger.debug("get_active_session_for_agent returned: None")
+
+        if session_data:
+            session_lifetime = config.getint("verifier", "session_lifetime")
+            new_expiry = Timestamp.now() + timedelta(seconds=session_lifetime)
+
+            # Update token expiration in shared memory (for current worker processes)
+            shared_memory = get_shared_memory()
+            sessions_cache = shared_memory.get_or_create_dict("auth_sessions")
+            session_id = session_data.get("session_id")
+
+            if session_id and session_id in sessions_cache:
+                session_data["token_expires_at"] = new_expiry
+                sessions_cache[session_id] = session_data  # Trigger update
+
+            # Always update database record (for other workers and persistence)
+            # This is separate from shared memory update and must work even after verifier restart
+            token = session_data.get("token")
+            if token:
+                auth_session = AuthSession.get(token)
+                if auth_session:
+                    auth_session.token_expires_at = new_expiry
+                    auth_session.commit_changes()
+                    logger.debug(
+                        "Extended auth token for agent '%s' (token hash: %s) in database until %s",
+                        self.agent_id,
+                        hash_token_for_log(token),
+                        new_expiry,
+                    )
+                else:
+                    logger.warning(
+                        "Could not find auth session in database for token hash: %s to extend",
+                        hash_token_for_log(token),
+                    )
+
+            if session_id:
+                logger.debug(
+                    "Extended auth token for agent '%s' (session %s) until %s", self.agent_id, session_id, new_expiry
+                )
+
     def _process_results(self, failure: Any) -> None:
         ima_log_item = self._select_ima_log_item()
 
@@ -619,10 +684,46 @@ class TPMEngine(VerificationEngine):
 
         if not failure:
             self.attestation.evaluation = "pass"
-            self.agent.attestation_count += 1
+            # Update the ORIGINAL agent object (self.attestation.agent), not the fresh agent (self.agent)
+            # The fresh agent is used for reading policies but updates must go to the original
+            self.attestation.agent.attestation_count += 1
+
+            # Reset consecutive failures counter on success
+            self.attestation.agent.consecutive_attestation_failures = 0
+
+            # Update operational state to GET_QUOTE if not already set
+            # This ensures the agent shows as actively attesting in status queries
+            if not self.attestation.agent.operational_state or self.attestation.agent.operational_state == states.START:
+                self.attestation.agent.operational_state = states.GET_QUOTE
+
+            # Update timestamps to reflect successful attestation
+            current_time = int(time.time())
+            self.attestation.agent.last_received_quote = current_time
+            self.attestation.agent.last_successful_attestation = current_time
+
+            # Extend authentication token on successful attestation
+            if config.getboolean("verifier", "extend_token_on_attestation", fallback=True):
+                self._extend_auth_token()
         else:
             self.attestation.evaluation = "fail"
-            self.agent.accept_attestations = False
+
+            # Increment consecutive failures counter for exponential backoff (per enhancement #103)
+            if self.agent.consecutive_attestation_failures is None:
+                self.agent.consecutive_attestation_failures = 1
+            else:
+                self.agent.consecutive_attestation_failures += 1
+
+            # In pull mode, disable attestations immediately on failure (verifier controls attestation cadence)
+            # In push mode, allow agent to retry with exponential backoff until token expires
+            mode = config.get("verifier", "mode", fallback="pull")
+            if mode == "pull":
+                self.agent.accept_attestations = False
+                # Invalidate authentication session on attestation failure in pull mode
+                AuthSession.delete_active_session_for_agent(self.agent_id)
+            # In push mode, token remains valid and agent can retry.
+            # Token is NOT extended on failed attestations (extension only happens for successful attestations above).
+            # Agent will get 503 Service Unavailable if it retries too quickly (due to attestation_interval check).
+            # When token expires, agent will get 401 and must re-authenticate.
 
         self.attestation.refresh_metadata()  # type: ignore[no-untyped-call]
         self._determine_failure_reason(failure)
@@ -644,6 +745,18 @@ class TPMEngine(VerificationEngine):
         self._process_ima_log_evidence()
 
     def verify_evidence(self) -> None:
+        # Reload agent from database to get fresh policy references
+        # This ensures we use the latest policy even if it was updated while this attestation was in-flight
+        # Note: A better long-term solution would be implementing an atomic policy update endpoint
+        from keylime.models.verifier import VerifierAgent  # pylint: disable=import-outside-toplevel
+
+        self._fresh_agent = VerifierAgent.get(self.agent_id)  # pylint: disable=attribute-defined-outside-init
+
+        if not self._fresh_agent:
+            logger.warning(
+                "Could not reload agent '%s' from database, using cached agent (policy may be stale)", self.agent_id
+            )
+
         logger.info("Starting verification of attestation %s for agent '%s'...", self.index, self.agent_id)
 
         tpm_quote_item = self._select_tpm_quote_item()
@@ -698,11 +811,40 @@ class TPMEngine(VerificationEngine):
         #         self.previous_attestation.delete()
 
     @property
+    def agent(self) -> Any:
+        # Use freshly reloaded agent if available (for up-to-date policies)
+        if hasattr(self, "_fresh_agent") and self._fresh_agent:
+            return self._fresh_agent
+        return super().agent
+
+    @property
     def uefi_ref_state(self) -> Any:
         return self.agent.mb_policy.mb_policy
 
     @property
     def ima_policy(self) -> Any:
+        # If using a fresh agent, bypass SQLAlchemy's identity map cache by querying the database directly
+        # This is necessary because policy updates use DELETE-CREATE which may reuse the same policy ID,
+        # causing the identity map to return stale cached policy objects
+        if hasattr(self, "_fresh_agent") and self._fresh_agent and self._fresh_agent.ima_policy_id:  # type: ignore[attr-defined]
+            # pylint: disable=import-outside-toplevel
+            import json
+
+            from sqlalchemy import text
+
+            from keylime.models.base import db_manager
+
+            # Query the database directly using raw SQL to completely bypass ORM caching
+            with db_manager.session_context() as session:
+                result = session.execute(
+                    text("SELECT ima_policy FROM allowlists WHERE id = :policy_id"),
+                    {"policy_id": self._fresh_agent.ima_policy_id},  # type: ignore[attr-defined]
+                ).fetchone()
+
+                if result and result[0]:
+                    # Parse the JSON policy stored in the database
+                    return json.loads(result[0])
+
         return self.agent.ima_policy.ima_policy
 
     @property

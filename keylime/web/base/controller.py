@@ -482,6 +482,10 @@ class Controller:
                 try:
                     self._api_request_body = APIMessageBody.load(self.json_params)  # type: ignore[assignment]
                 except InvalidMessage as err:
+                    from keylime import keylime_logging  # pylint: disable=import-outside-toplevel
+
+                    logger = keylime_logging.init_logging("web")
+                    logger.error("JSON:API validation failed. Request body: %s. Error: %s", self.json_params, err)
                     raise ParamDecodeError("request body not interpretable as valid JSON:API message") from err
 
         return self._api_request_body
@@ -572,13 +576,15 @@ class Controller:
 
         if self.api_request_body.data and not isinstance(self.api_request_body.data, list):
             resource_type = self.api_request_body.data.type
-            api_params[resource_type] = self.api_request_body.data.attributes  # type: ignore[index]
+            # Convert attributes to mutable dict to avoid mappingproxy assignment error
+            if resource_type:
+                api_params[resource_type] = dict(self.api_request_body.data.attributes)
 
-            if self.api_request_body.data.id:
-                api_params[resource_type]["id"] = self.api_request_body.data.id  # type: ignore[index]
+                if self.api_request_body.data.id:
+                    api_params[resource_type]["id"] = self.api_request_body.data.id
 
-            if self.api_request_body.data.meta:
-                api_params[resource_type]["meta"] = self.api_request_body.data.meta  # type: ignore[index]
+                if self.api_request_body.data.meta:
+                    api_params[resource_type]["meta"] = self.api_request_body.data.meta
 
         if self.api_request_body.data:
             if isinstance(self.api_request_body.data, list):

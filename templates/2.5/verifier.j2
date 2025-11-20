@@ -259,3 +259,25 @@ challenge_lifetime = {{ verifier_challenge_lifetime }}
 #
 # Timeout in seconds for a single evidence verification task (0 = auto).
 verification_timeout = {{ verifier_verification_timeout }}
+#
+# Rate limiting for session creation endpoint (POST /sessions) in push mode.
+# These settings prevent denial-of-service attacks where an attacker floods the verifier
+# with session creation requests. Only applies when mode = 'push'.
+#
+# Maximum number of session creation requests per IP address within the time window.
+# Allows for multiple agents from same IP (testing, NAT scenarios).
+# Default: 50
+session_create_rate_limit_per_ip = {{ verifier.session_create_rate_limit_per_ip }}
+#
+# Time window in seconds for IP-based rate limiting.
+# Default: 60
+session_create_rate_limit_window_ip = {{ verifier.session_create_rate_limit_window_ip }}
+#
+# Maximum number of session creation requests per agent_id within the time window.
+# Allows for agent retries (agent default is 3 retries, this allows ~5 auth attempts).
+# Default: 15
+session_create_rate_limit_per_agent = {{ verifier.session_create_rate_limit_per_agent }}
+#
+# Time window in seconds for agent-based rate limiting.
+# Default: 60
+session_create_rate_limit_window_agent = {{ verifier.session_create_rate_limit_window_agent }}
