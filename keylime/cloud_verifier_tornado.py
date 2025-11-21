@@ -5,6 +5,7 @@ import multiprocessing
 import os
 import signal
 import sys
+import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -64,7 +65,9 @@ logger = keylime_logging.init_logging("verifier")
 # verifier configuration when this module is imported by other components
 engine: Optional[Engine] = None
 rmc: Optional[Any] = None
+_session_manager: Optional[SessionManager] = None
 _verifier_config_initialized = False
+_init_lock = threading.Lock()
 
 
 def _initialize_verifier_config() -> None:
@@ -72,29 +75,41 @@ def _initialize_verifier_config() -> None:
     Initialize verifier-specific configuration.
     This is called lazily to avoid loading verifier config when this module
     is imported by other components (e.g., registrar).
-    """
-    global engine, rmc, _verifier_config_initialized
 
+    Thread-safe initialization using double-checked locking pattern.
+    """
+    global engine, rmc, _session_manager, _verifier_config_initialized
+
+    # Fast path: already initialized (no lock needed)
     if _verifier_config_initialized:
         return
 
-    set_severity_config(config.getlist("verifier", "severity_labels"), config.getlist("verifier", "severity_policy"))
+    # Acquire lock for initialization
+    with _init_lock:
+        # Double-check after acquiring lock
+        if _verifier_config_initialized:
+            return
 
-    try:
-        engine = make_engine("cloud_verifier")
-    except SQLAlchemyError as err:
-        logger.error("Error creating SQL engine or session: %s", err)
-        sys.exit(1)
+        set_severity_config(config.getlist("verifier", "severity_labels"), config.getlist("verifier", "severity_policy"))
 
-    try:
-        rmc = record.get_record_mgt_class(config.get("verifier", "durable_attestation_import", fallback=""))
-        if rmc:
-            rmc = rmc("verifier")
-    except record.RecordManagementException as rme:
-        logger.error("Error initializing Durable Attestation: %s", rme)
-        sys.exit(1)
+        try:
+            engine = make_engine("cloud_verifier")
+        except SQLAlchemyError as err:
+            logger.error("Error creating SQL engine or session: %s", err)
+            sys.exit(1)
 
-    _verifier_config_initialized = True
+        try:
+            rmc = record.get_record_mgt_class(config.get("verifier", "durable_attestation_import", fallback=""))
+            if rmc:
+                rmc = rmc("verifier")
+        except record.RecordManagementException as rme:
+            logger.error("Error initializing Durable Attestation: %s", rme)
+            sys.exit(1)
+
+        # Initialize singleton session manager for this worker process
+        _session_manager = SessionManager()
+
+        _verifier_config_initialized = True
 
 
 @contextmanager
@@ -106,8 +121,8 @@ def session_context() -> Iterator[Session]:
             # use session
     """
     _initialize_verifier_config()
-    session_manager = SessionManager()
-    with session_manager.session_context(engine) as session:  # type: ignore
+    assert _session_manager is not None, "Session manager not initialized"
+    with _session_manager.session_context(engine) as session:  # type: ignore
         yield session
 
 
