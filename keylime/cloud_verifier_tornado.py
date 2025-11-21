@@ -260,7 +260,7 @@ def store_attestation_state(agentAttestState: AgentAttestState) -> None:
         agent_id = agentAttestState.agent_id
         try:
             with session_context() as session:
-                update_agent = session.query(VerfierMain).get(agentAttestState.get_agent_id())
+                update_agent = session.get(VerfierMain, agentAttestState.get_agent_id())
                 assert update_agent
                 update_agent.boottime = agentAttestState.get_boottime()
                 update_agent.next_ima_ml_entry = agentAttestState.get_next_ima_ml_entry()
@@ -591,9 +591,9 @@ class AgentsHandler(BaseHandler):
                         web_util.echo_json_response(self.req_handler, 500, "Internal Server Error")
                 else:
                     try:
-                        update_agent = session.query(VerfierMain).get(agent_id)
+                        update_agent = session.get(VerfierMain, agent_id)  # type: ignore[attr-defined]
                         assert update_agent
-                        update_agent.operational_state = states.TERMINATED
+                        update_agent.operational_state = states.TERMINATED  # pyright: ignore
                         session.add(update_agent)
                         # session.commit() is automatically called by context manager
                         web_util.echo_json_response(self.req_handler, 202, "Accepted")
