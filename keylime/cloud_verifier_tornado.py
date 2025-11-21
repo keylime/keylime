@@ -90,7 +90,9 @@ def _initialize_verifier_config() -> None:
         if _verifier_config_initialized:
             return
 
-        set_severity_config(config.getlist("verifier", "severity_labels"), config.getlist("verifier", "severity_policy"))
+        set_severity_config(
+            config.getlist("verifier", "severity_labels"), config.getlist("verifier", "severity_policy")
+        )
 
         try:
             engine = make_engine("cloud_verifier")
@@ -260,15 +262,15 @@ def store_attestation_state(agentAttestState: AgentAttestState) -> None:
         agent_id = agentAttestState.agent_id
         try:
             with session_context() as session:
-                update_agent = session.get(VerfierMain, agentAttestState.get_agent_id())
+                update_agent = session.get(VerfierMain, agentAttestState.get_agent_id())  # type: ignore[attr-defined]
                 assert update_agent
-                update_agent.boottime = agentAttestState.get_boottime()
-                update_agent.next_ima_ml_entry = agentAttestState.get_next_ima_ml_entry()
+                update_agent.boottime = agentAttestState.get_boottime()  # pyright: ignore
+                update_agent.next_ima_ml_entry = agentAttestState.get_next_ima_ml_entry()  # pyright: ignore
                 ima_pcrs_dict = agentAttestState.get_ima_pcrs()
-                update_agent.ima_pcrs = list(ima_pcrs_dict.keys())
+                update_agent.ima_pcrs = list(ima_pcrs_dict.keys())  # pyright: ignore
                 for pcr_num, value in ima_pcrs_dict.items():
                     setattr(update_agent, f"pcr{pcr_num}", value)
-                update_agent.learned_ima_keyrings = agentAttestState.get_ima_keyrings().to_json()
+                update_agent.learned_ima_keyrings = agentAttestState.get_ima_keyrings().to_json()  # pyright: ignore
                 session.add(update_agent)
                 # session.commit() is automatically called by context manager
         except SQLAlchemyError as e:
