@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from keylime import cloud_verifier_common, cloud_verifier_tornado, config, keylime_logging
 from keylime.common import states
+from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain
 from keylime.web.base.server import Server
 from keylime.web.verifier.agent_controller import AgentController
@@ -102,27 +103,40 @@ class VerifierServer(Server):
 
         This method resets agents in reactivate states to START so activate_agents()
         can restart their polling loops. This matches the old architecture behavior.
+
+        IMPORTANT: This runs in the parent process before forking. We create a
+        temporary engine and dispose it immediately to avoid leaking connections
+        to child worker processes.
         """
-        # Use the singleton session manager from cloud_verifier_tornado to avoid
-        # creating orphaned database connections that get inherited by forked workers
-        with cloud_verifier_tornado.session_context() as session:
-            try:
-                # Reset agents in APPROVED_REACTIVATE_STATES to START state
-                # This matches the old architecture (cloud_verifier_tornado.py:2332-2338)
-                query_all = session.query(VerfierMain).all()
-                for row in query_all:
-                    if row.operational_state in states.APPROVED_REACTIVATE_STATES:
-                        row.operational_state = states.START  # type: ignore
+        # Create a temporary engine/session for this one-time initialization
+        # This matches the old cloud_verifier_tornado.py pattern (lines 2371-2386)
+        engine = make_engine("cloud_verifier")
+        session_manager = SessionManager()
 
-                # Log remaining agents
-                num = session.query(VerfierMain).count()
-                if num > 0:
-                    agent_ids = [row[0] for row in session.query(VerfierMain.agent_id).all()]
-                    logger.info("Agent ids in db loaded from file: %s", agent_ids)
+        try:
+            with session_manager.session_context(engine) as session:
+                try:
+                    # Reset agents in APPROVED_REACTIVATE_STATES to START state
+                    # This matches the old architecture (cloud_verifier_tornado.py:2332-2338)
+                    query_all = session.query(VerfierMain).all()
+                    for row in query_all:
+                        if row.operational_state in states.APPROVED_REACTIVATE_STATES:
+                            row.operational_state = states.START  # type: ignore
 
-            except SQLAlchemyError as e:
-                logger.error("Error preparing agents on startup: %s", e)
-                raise
+                    # Log remaining agents
+                    num = session.query(VerfierMain).count()
+                    if num > 0:
+                        agent_ids = [row[0] for row in session.query(VerfierMain.agent_id).all()]
+                        logger.info("Agent ids in db loaded from file: %s", agent_ids)
+
+                except SQLAlchemyError as e:
+                    logger.error("Error preparing agents on startup: %s", e)
+                    raise
+        finally:
+            # Dispose the engine to close all connections before forking
+            # This prevents child processes from inheriting invalid connections
+            # Matches cloud_verifier_tornado.py:2411 (engine.dispose() after fork)
+            engine.dispose()
 
     def _setup(self) -> None:
         self._use_config("verifier")
