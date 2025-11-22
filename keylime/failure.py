@@ -106,9 +106,9 @@ class Failure:
         self._sub_components = sub_components
         self.events = []
         self.recoverable = True
-        self.highest_severity_event: Optional[
-            Event
-        ] = None  # This only holds the first event that has the highest severity
+        self.highest_severity_event: Optional[Event] = (
+            None  # This only holds the first event that has the highest severity
+        )
         self.highest_severity: Optional[SeverityLabel] = None
 
     def _add(self, event: Event) -> None:

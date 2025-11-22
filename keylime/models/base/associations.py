@@ -184,8 +184,7 @@ class EmbedsOneAssociation(EmbeddedAssociation):
 
     if TYPE_CHECKING:
 
-        def _get_one(self, parent_record: "BasicModel") -> Union["BasicModel", "EmbedsOneAssociation", None]:
-            ...
+        def _get_one(self, parent_record: "BasicModel") -> Union["BasicModel", "EmbedsOneAssociation", None]: ...
 
 
 class EmbedsInlineAssociation(EmbeddedAssociation):
@@ -207,8 +206,7 @@ class EmbedsInlineAssociation(EmbeddedAssociation):
 
     if TYPE_CHECKING:
 
-        def _get_one(self, parent_record: "BasicModel") -> Union["BasicModel", "EmbedsInlineAssociation", None]:
-            ...
+        def _get_one(self, parent_record: "BasicModel") -> Union["BasicModel", "EmbedsInlineAssociation", None]: ...
 
 
 class EmbedsManyAssociation(EmbeddedAssociation):
@@ -230,8 +228,9 @@ class EmbedsManyAssociation(EmbeddedAssociation):
 
     if TYPE_CHECKING:
 
-        def _get_many(self, parent_record: "BasicModel") -> Union["AssociatedRecordSet", "EmbedsManyAssociation", None]:
-            ...
+        def _get_many(
+            self, parent_record: "BasicModel"
+        ) -> Union["AssociatedRecordSet", "EmbedsManyAssociation", None]: ...
 
 
 class EmbeddedInAssociation(EmbeddedAssociation):
@@ -249,8 +248,7 @@ class EmbeddedInAssociation(EmbeddedAssociation):
 
     if TYPE_CHECKING:
 
-        def _get_one(self, parent_record: "BasicModel") -> Union["BasicModel", "EmbedsOneAssociation", None]:
-            ...
+        def _get_one(self, parent_record: "BasicModel") -> Union["BasicModel", "EmbedsOneAssociation", None]: ...
 
 
 class EntityAssociation(ModelAssociation):
@@ -290,19 +288,15 @@ class EntityAssociation(ModelAssociation):
 
     if TYPE_CHECKING:
 
-        def _get_one(self, parent_record: "BasicModel") -> Union["PersistableModel", "EntityAssociation", None]:
-            ...
+        def _get_one(self, parent_record: "BasicModel") -> Union["PersistableModel", "EntityAssociation", None]: ...
 
-        def _get_many(self, parent_record: "BasicModel") -> Union["AssociatedRecordSet", "EntityAssociation", None]:
-            ...
+        def _get_many(self, parent_record: "BasicModel") -> Union["AssociatedRecordSet", "EntityAssociation", None]: ...
 
         @property
-        def other_model(self) -> type["PersistableModel"]:
-            ...
+        def other_model(self) -> type["PersistableModel"]: ...
 
         @property
-        def inverse_association(self) -> Optional["EntityAssociation"]:
-            ...
+        def inverse_association(self) -> Optional["EntityAssociation"]: ...
 
 
 class HasOneAssociation(EntityAssociation):
@@ -325,8 +319,7 @@ class HasOneAssociation(EntityAssociation):
 
     if TYPE_CHECKING:
 
-        def _get_one(self, parent_record: "BasicModel") -> Union["PersistableModel", "HasOneAssociation", None]:
-            ...
+        def _get_one(self, parent_record: "BasicModel") -> Union["PersistableModel", "HasOneAssociation", None]: ...
 
 
 class HasManyAssociation(EntityAssociation):
@@ -346,8 +339,9 @@ class HasManyAssociation(EntityAssociation):
 
     if TYPE_CHECKING:
 
-        def _get_many(self, parent_record: "BasicModel") -> Union["AssociatedRecordSet", "HasManyAssociation", None]:
-            ...
+        def _get_many(
+            self, parent_record: "BasicModel"
+        ) -> Union["AssociatedRecordSet", "HasManyAssociation", None]: ...
 
 
 class BelongsToAssociation(EntityAssociation):
@@ -421,9 +415,7 @@ class BelongsToAssociation(EntityAssociation):
 
     if TYPE_CHECKING:
 
-        def _get_one(self, parent_record: "BasicModel") -> Union["PersistableModel", "BelongsToAssociation", None]:
-            ...
+        def _get_one(self, parent_record: "BasicModel") -> Union["PersistableModel", "BelongsToAssociation", None]: ...
 
         @property
-        def foreign_key(self) -> str:
-            ...
+        def foreign_key(self) -> str: ...
