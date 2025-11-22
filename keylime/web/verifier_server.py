@@ -8,7 +8,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from keylime import cloud_verifier_common, cloud_verifier_tornado, config, keylime_logging
 from keylime.common import states
-from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain
 from keylime.web.base.server import Server
 from keylime.web.verifier.agent_controller import AgentController
@@ -104,11 +103,9 @@ class VerifierServer(Server):
         This method resets agents in reactivate states to START so activate_agents()
         can restart their polling loops. This matches the old architecture behavior.
         """
-        # Create database engine and session context
-        engine = make_engine("cloud_verifier")
-        session_manager = SessionManager()
-
-        with session_manager.session_context(engine) as session:
+        # Use the singleton session manager from cloud_verifier_tornado to avoid
+        # creating orphaned database connections that get inherited by forked workers
+        with cloud_verifier_tornado.session_context() as session:
             try:
                 # Reset agents in APPROVED_REACTIVATE_STATES to START state
                 # This matches the old architecture (cloud_verifier_tornado.py:2332-2338)
