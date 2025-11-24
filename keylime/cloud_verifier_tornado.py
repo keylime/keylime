@@ -57,6 +57,7 @@ GLOBAL_POLICY_CACHE: Dict[str, Dict[str, str]] = {}
 # verifier configuration when this module is imported by other components
 engine: Optional[Engine] = None
 rmc: Optional[Any] = None
+session_manager: Optional[SessionManager] = None
 _verifier_config_initialized = False
 
 
@@ -66,7 +67,7 @@ def _initialize_verifier_config() -> None:
     This is called lazily to avoid loading verifier config when this module
     is imported by other components (e.g., registrar).
     """
-    global engine, rmc, _verifier_config_initialized
+    global engine, rmc, session_manager, _verifier_config_initialized
 
     if _verifier_config_initialized:
         return
@@ -78,6 +79,9 @@ def _initialize_verifier_config() -> None:
     except SQLAlchemyError as err:
         logger.error("Error creating SQL engine or session: %s", err)
         sys.exit(1)
+
+    # Create a single SessionManager instance for this process
+    session_manager = SessionManager()
 
     try:
         rmc = record.get_record_mgt_class(config.get("verifier", "durable_attestation_import", fallback=""))
@@ -99,7 +103,8 @@ def session_context() -> Iterator[Session]:
             # use session
     """
     _initialize_verifier_config()
-    session_manager = SessionManager()
+    # Use the shared SessionManager instance for this process
+    assert session_manager is not None, "SessionManager not initialized"
     with session_manager.session_context(engine) as session:  # type: ignore
         yield session
 
