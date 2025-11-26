@@ -114,6 +114,25 @@ def _initialize_verifier_config() -> None:
         _verifier_config_initialized = True
 
 
+def reset_verifier_config() -> None:
+    """
+    Reset verifier configuration state after fork.
+
+    This should be called by worker processes after forking to clear
+    inherited global state and force re-initialization with fresh
+    database connections.
+    """
+    global engine, rmc, _session_manager, _verifier_config_initialized
+
+    if engine:
+        engine.dispose()
+
+    engine = None
+    rmc = None
+    _session_manager = None
+    _verifier_config_initialized = False
+
+
 @contextmanager
 def session_context() -> Iterator[Session]:
     """

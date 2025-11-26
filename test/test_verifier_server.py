@@ -256,8 +256,8 @@ class TestVerifierServerEngineDisposal(unittest.TestCase):
             "_prepare_agents_on_startup should document why engine disposal is needed",
         )
 
-    def test_start_multi_disposes_global_engine_after_fork(self):
-        """Verify start_multi() disposes global singleton engine in each worker after forking."""
+    def test_start_multi_resets_verifier_config_after_fork(self):
+        """Verify start_multi() resets verifier config in each worker after forking."""
         # Read the source code
         server_path = os.path.join(os.path.dirname(__file__), "..", "keylime", "web", "verifier_server.py")
 
@@ -280,32 +280,25 @@ class TestVerifierServerEngineDisposal(unittest.TestCase):
             "start_multi should call tornado.process.fork_processes",
         )
 
-        # After fork, should dispose the global engine
+        # After fork, should reset verifier config (which handles engine disposal)
         # Look for the pattern after fork_processes()
         fork_index = method_body.find("fork_processes")
         after_fork = method_body[fork_index:]
 
         self.assertIn(
-            "cloud_verifier_tornado.engine",
+            "reset_verifier_config()",
             after_fork,
-            "start_multi should reference the global singleton engine after forking",
+            "start_multi must call reset_verifier_config() after forking to clear inherited database state",
         )
 
         self.assertIn(
-            ".dispose()",
+            "cloud_verifier_tornado.reset_verifier_config()",
             after_fork,
-            "start_multi must dispose global engine in worker after forking",
+            "start_multi should call cloud_verifier_tornado.reset_verifier_config() after forking",
         )
 
-        # Should have conditional check for engine existence
-        self.assertIn(
-            "if cloud_verifier_tornado.engine",
-            after_fork,
-            "start_multi should check if global engine exists before disposing",
-        )
-
-    def test_engine_disposal_happens_before_worker_operations(self):
-        """Verify engine disposal occurs after fork but before any worker operations."""
+    def test_verifier_config_reset_happens_before_worker_operations(self):
+        """Verify verifier config reset occurs after fork but before any worker operations."""
         # Read the source code
         server_path = os.path.join(os.path.dirname(__file__), "..", "keylime", "web", "verifier_server.py")
 
@@ -321,46 +314,54 @@ class TestVerifierServerEngineDisposal(unittest.TestCase):
 
         # Extract the order of operations
         fork_index = method_body.find("fork_processes")
-        dispose_index = method_body.find("engine.dispose()")
+        reset_index = method_body.find("reset_verifier_config()")
         start_single_index = method_body.find("self.start_single()")
 
         # All should be present
         self.assertNotEqual(fork_index, -1, "fork_processes call not found")
-        self.assertNotEqual(dispose_index, -1, "engine.dispose() call not found")
+        self.assertNotEqual(reset_index, -1, "reset_verifier_config() call not found")
         self.assertNotEqual(start_single_index, -1, "start_single() call not found")
 
-        # Correct order: fork -> dispose -> start_single
+        # Correct order: fork -> reset_verifier_config -> start_single
         self.assertLess(
             fork_index,
-            dispose_index,
-            "Engine disposal must happen AFTER forking",
+            reset_index,
+            "Verifier config reset must happen AFTER forking",
         )
         self.assertLess(
-            dispose_index,
+            reset_index,
             start_single_index,
-            "Engine disposal must happen BEFORE starting worker server",
+            "Verifier config reset must happen BEFORE starting worker server",
         )
 
-    def test_disposal_pattern_matches_old_architecture(self):
-        """Verify disposal pattern matches old cloud_verifier_tornado.py (line 2412)."""
+    def test_reset_pattern_is_documented(self):
+        """Verify reset_verifier_config() pattern is documented."""
         # Read the source code
         server_path = os.path.join(os.path.dirname(__file__), "..", "keylime", "web", "verifier_server.py")
 
         with open(server_path, encoding="utf-8") as f:
             source = f.read()
 
-        # Should reference the old pattern in comments
-        self.assertIn(
-            "cloud_verifier_tornado.py",
-            source,
-            "Should document that pattern matches old cloud_verifier_tornado.py architecture",
-        )
+        # Find the start_multi method
+        pattern = r"def start_multi\(self\).*?(?=\n    def |\Z)"
+        match = re.search(pattern, source, re.DOTALL)
 
-        # Should mention line 2412 (the old engine.dispose() location)
-        self.assertIn(
-            "2412",
-            source,
-            "Should reference line 2412 from old cloud_verifier_tornado.py where engine.dispose() was called",
+        assert match is not None
+        method_body = match.group(0)
+
+        # Should document why reset is needed after fork
+        fork_index = method_body.find("fork_processes")
+        after_fork = method_body[fork_index:]
+
+        # Should mention critical concepts: reset, inherited state, parent process
+        critical_terms = ["reset", "inherit", "parent", "database"]
+        found_terms = [term for term in critical_terms if term.lower() in after_fork.lower()]
+
+        self.assertGreaterEqual(
+            len(found_terms),
+            3,
+            f"start_multi should document why reset_verifier_config() is needed after fork. "
+            f"Expected mentions of reset/inherit/parent/database, found: {found_terms}",
         )
 
 

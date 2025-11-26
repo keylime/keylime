@@ -59,12 +59,10 @@ class VerifierServer(Server):
         # Fork worker processes - returns task_id in each child process
         task_id = tornado.process.fork_processes(self.worker_count)
 
-        # CRITICAL: Dispose any database connections inherited from parent process
-        # This matches the old cloud_verifier_tornado.py pattern (line 2412)
-        # Without this, workers inherit corrupted database connections from the parent
-        if cloud_verifier_tornado.engine:
-            cloud_verifier_tornado.engine.dispose()
-            logger.debug("Worker %d disposed inherited database engine", task_id)
+        # CRITICAL: Reset any database state inherited from parent process.
+        # The parent initializes globals when querying agents (line 39), so children
+        # inherit initialized state. We must reset to trigger lazy re-initialization.
+        cloud_verifier_tornado.reset_verifier_config()
 
         # Distribute agents to this worker using round-robin (task_id is the worker index)
         if self.operating_mode == "pull" and all_agents:
