@@ -5,6 +5,7 @@ import multiprocessing
 import os
 import signal
 import sys
+import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -64,7 +65,9 @@ logger = keylime_logging.init_logging("verifier")
 # verifier configuration when this module is imported by other components
 engine: Optional[Engine] = None
 rmc: Optional[Any] = None
+_session_manager: Optional[SessionManager] = None
 _verifier_config_initialized = False
+_init_lock = threading.Lock()
 
 
 def _initialize_verifier_config() -> None:
@@ -72,29 +75,62 @@ def _initialize_verifier_config() -> None:
     Initialize verifier-specific configuration.
     This is called lazily to avoid loading verifier config when this module
     is imported by other components (e.g., registrar).
-    """
-    global engine, rmc, _verifier_config_initialized
 
+    Thread-safe initialization using double-checked locking pattern.
+    """
+    global engine, rmc, _session_manager, _verifier_config_initialized
+
+    # Fast path: already initialized (no lock needed)
     if _verifier_config_initialized:
         return
 
-    set_severity_config(config.getlist("verifier", "severity_labels"), config.getlist("verifier", "severity_policy"))
+    # Acquire lock for initialization
+    with _init_lock:
+        # Double-check after acquiring lock
+        if _verifier_config_initialized:
+            return
 
-    try:
-        engine = make_engine("cloud_verifier")
-    except SQLAlchemyError as err:
-        logger.error("Error creating SQL engine or session: %s", err)
-        sys.exit(1)
+        set_severity_config(
+            config.getlist("verifier", "severity_labels"), config.getlist("verifier", "severity_policy")
+        )
 
-    try:
-        rmc = record.get_record_mgt_class(config.get("verifier", "durable_attestation_import", fallback=""))
-        if rmc:
-            rmc = rmc("verifier")
-    except record.RecordManagementException as rme:
-        logger.error("Error initializing Durable Attestation: %s", rme)
-        sys.exit(1)
+        try:
+            engine = make_engine("cloud_verifier")
+        except SQLAlchemyError as err:
+            logger.error("Error creating SQL engine or session: %s", err)
+            sys.exit(1)
 
-    _verifier_config_initialized = True
+        try:
+            rmc = record.get_record_mgt_class(config.get("verifier", "durable_attestation_import", fallback=""))
+            if rmc:
+                rmc = rmc("verifier")
+        except record.RecordManagementException as rme:
+            logger.error("Error initializing Durable Attestation: %s", rme)
+            sys.exit(1)
+
+        # Initialize singleton session manager for this worker process
+        _session_manager = SessionManager()
+
+        _verifier_config_initialized = True
+
+
+def reset_verifier_config() -> None:
+    """
+    Reset verifier configuration state after fork.
+
+    This should be called by worker processes after forking to clear
+    inherited global state and force re-initialization with fresh
+    database connections.
+    """
+    global engine, rmc, _session_manager, _verifier_config_initialized
+
+    if engine:
+        engine.dispose()
+
+    engine = None
+    rmc = None
+    _session_manager = None
+    _verifier_config_initialized = False
 
 
 @contextmanager
@@ -106,8 +142,8 @@ def session_context() -> Iterator[Session]:
             # use session
     """
     _initialize_verifier_config()
-    session_manager = SessionManager()
-    with session_manager.session_context(engine) as session:  # type: ignore
+    assert _session_manager is not None, "Session manager not initialized"
+    with _session_manager.session_context(engine) as session:  # type: ignore
         yield session
 
 
@@ -245,15 +281,15 @@ def store_attestation_state(agentAttestState: AgentAttestState) -> None:
         agent_id = agentAttestState.agent_id
         try:
             with session_context() as session:
-                update_agent = session.query(VerfierMain).get(agentAttestState.get_agent_id())
+                update_agent = session.get(VerfierMain, agentAttestState.get_agent_id())  # type: ignore[attr-defined]
                 assert update_agent
-                update_agent.boottime = agentAttestState.get_boottime()
-                update_agent.next_ima_ml_entry = agentAttestState.get_next_ima_ml_entry()
+                update_agent.boottime = agentAttestState.get_boottime()  # pyright: ignore
+                update_agent.next_ima_ml_entry = agentAttestState.get_next_ima_ml_entry()  # pyright: ignore
                 ima_pcrs_dict = agentAttestState.get_ima_pcrs()
-                update_agent.ima_pcrs = list(ima_pcrs_dict.keys())
+                update_agent.ima_pcrs = list(ima_pcrs_dict.keys())  # pyright: ignore
                 for pcr_num, value in ima_pcrs_dict.items():
                     setattr(update_agent, f"pcr{pcr_num}", value)
-                update_agent.learned_ima_keyrings = agentAttestState.get_ima_keyrings().to_json()
+                update_agent.learned_ima_keyrings = agentAttestState.get_ima_keyrings().to_json()  # pyright: ignore
                 session.add(update_agent)
                 # session.commit() is automatically called by context manager
         except SQLAlchemyError as e:
@@ -576,9 +612,9 @@ class AgentsHandler(BaseHandler):
                         web_util.echo_json_response(self.req_handler, 500, "Internal Server Error")
                 else:
                     try:
-                        update_agent = session.query(VerfierMain).get(agent_id)
+                        update_agent = session.get(VerfierMain, agent_id)  # type: ignore[attr-defined]
                         assert update_agent
-                        update_agent.operational_state = states.TERMINATED
+                        update_agent.operational_state = states.TERMINATED  # pyright: ignore
                         session.add(update_agent)
                         # session.commit() is automatically called by context manager
                         web_util.echo_json_response(self.req_handler, 202, "Accepted")
