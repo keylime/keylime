@@ -27,6 +27,7 @@ from keylime import (
     config,
     json,
     keylime_logging,
+    push_agent_monitor,
     revocation_notifier,
     signing,
     tornado_requests,
@@ -252,6 +253,9 @@ def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
 
 
 def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
+    # Cancel any pending timeout for PUSH mode agents
+    push_agent_monitor.cancel_agent_timeout(agent_id)
+
     get_AgentAttestStates().delete_by_agent_id(agent_id)
     # Delete in FK dependency order:
     # Push-mode tables:
@@ -644,10 +648,25 @@ class AgentsHandler(BaseHandler):
                     logger.warning("POST returning 400 response. Expected non zero content length.")
                 else:
                     json_body = json.loads(self.request.body)
+
+                    # For push-mode agents, ip/port should be None (agent pushes to verifier)
+                    # For pull-mode agents, ip/port are required (verifier pulls from agent)
+                    # The verifier's mode config determines this, not the tenant
+                    if mode == "push":
+                        # Push-mode: ignore any ip/port sent by tenant, always use None
+                        agent_ip = None
+                        agent_port = None
+                    else:
+                        # Pull-mode: use ip/port from tenant request
+                        agent_ip = json_body.get("cloudagent_ip")
+                        agent_port = json_body.get("cloudagent_port")
+                        if agent_port is not None:
+                            agent_port = int(agent_port)
+
                     agent_data = {
                         "v": json_body.get("v", None),
-                        "ip": json_body["cloudagent_ip"],
-                        "port": int(json_body["cloudagent_port"]),
+                        "ip": agent_ip,
+                        "port": agent_port,
                         "operational_state": states.GET_QUOTE if mode == "push" else states.START,
                         "public_key": "",
                         "tpm_policy": json_body["tpm_policy"],
@@ -951,19 +970,42 @@ class AgentsHandler(BaseHandler):
                     return
 
                 if "reactivate" in rest_params:
-                    agent = _from_db_obj(db_agent)
+                    # Check if this is a push-mode agent (no ip/port) or pull-mode agent
+                    is_push_mode = db_agent.ip is None and db_agent.port is None
 
-                    if agent["mtls_cert"] and agent["mtls_cert"] != "disabled":
-                        agent["ssl_context"] = web_util.generate_agent_tls_context(
-                            "verifier", agent["mtls_cert"], logger=logger
-                        )
-                    if agent["ssl_context"] is None:
-                        logger.warning("Connecting to agent without mTLS: %s", agent_id)
+                    if is_push_mode:
+                        # For push-mode agents: just re-enable attestations
+                        # Don't start polling thread - agent will push attestations
+                        try:
+                            session.query(VerfierMain).filter(
+                                VerfierMain.agent_id == agent_id
+                            ).update(  # pyright: ignore
+                                {"accept_attestations": True}
+                            )
+                            # session.commit() is automatically called by context manager
+                            web_util.echo_json_response(self.req_handler, 200, "Success")
+                            logger.info(
+                                "PUT returning 200 response for push-mode agent id: %s (accept_attestations re-enabled)",
+                                agent_id,
+                            )
+                        except SQLAlchemyError as e:
+                            logger.error("SQLAlchemy Error during push-mode reactivate: %s", e)
+                            web_util.echo_json_response(self.req_handler, 500, "Internal server error")
+                    else:
+                        # For pull-mode agents: start polling thread
+                        agent = _from_db_obj(db_agent)
 
-                    agent["operational_state"] = states.START
-                    asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
-                    web_util.echo_json_response(self.req_handler, 200, "Success")
-                    logger.info("PUT returning 200 response for agent id: %s", agent_id)
+                        if agent["mtls_cert"] and agent["mtls_cert"] != "disabled":
+                            agent["ssl_context"] = web_util.generate_agent_tls_context(
+                                "verifier", agent["mtls_cert"], logger=logger
+                            )
+                        if agent["ssl_context"] is None:
+                            logger.warning("Connecting to agent without mTLS: %s", agent_id)
+
+                        agent["operational_state"] = states.START
+                        asyncio.ensure_future(process_agent(agent, states.GET_QUOTE))
+                        web_util.echo_json_response(self.req_handler, 200, "Success")
+                        logger.info("PUT returning 200 response for pull-mode agent id: %s", agent_id)
                 elif "stop" in rest_params:
                     # do stuff for terminate
                     logger.debug("Stopping polling on %s", agent_id)
