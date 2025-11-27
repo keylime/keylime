@@ -13,6 +13,7 @@ Integration points:
 This approach eliminates continuous database polling, significantly reducing load.
 """
 
+import threading
 import time
 from typing import Dict, Optional
 
@@ -20,7 +21,6 @@ import tornado.ioloop
 from sqlalchemy import and_, or_
 
 from keylime import config, keylime_logging
-from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain
 
 logger = keylime_logging.init_logging("push_agent_monitor")
@@ -32,7 +32,9 @@ _TIMEOUT_MULTIPLIER = 2.0
 
 # In-memory map of agent_id -> timeout handle for active timeouts
 # This allows us to cancel/reschedule timeouts without database queries
+# Access to this dictionary must be protected by _agent_timeout_handles_lock
 _agent_timeout_handles: Dict[str, object] = {}
+_agent_timeout_handles_lock = threading.Lock()
 
 
 def get_maximum_attestation_interval(quote_interval: float) -> float:
@@ -47,7 +49,7 @@ def get_maximum_attestation_interval(quote_interval: float) -> float:
     return quote_interval * _TIMEOUT_MULTIPLIER
 
 
-def _mark_agent_failed(agent_id: str) -> None:
+def _mark_agent_failed(agent_id: str, expected_handle: object) -> None:
     """Mark a specific agent as failed due to timeout.
 
     This is called when a scheduled timeout fires, indicating the agent
@@ -55,16 +57,31 @@ def _mark_agent_failed(agent_id: str) -> None:
 
     Args:
         agent_id: The agent ID to mark as failed
+        expected_handle: The timeout handle that was scheduled (used to verify
+                        this callback hasn't been superseded by a newer timeout)
     """
     try:
-        # Remove from timeout handles map
-        _agent_timeout_handles.pop(agent_id, None)
+        # Verify active timeout for this agent
+        # This prevents a race where:
+        # 1. Old timeout H1 is scheduled
+        # 2. New attestation arrives, cancels H1, schedules new timeout H2
+        # 3. H1 was already queued and executes anyway
+        # 4. H1 would incorrectly remove H2 from the dictionary
+        with _agent_timeout_handles_lock:
+            current_handle = _agent_timeout_handles.get(agent_id)
+            if current_handle != expected_handle:
+                # Handle cancelled/superseded by a newer timeout, exit without database modification
+                return
 
-        # Update database to mark agent as failed
-        engine = make_engine("cloud_verifier")
-        session_manager = SessionManager()
+            # Still active timeout, remove it from the map
+            _agent_timeout_handles.pop(agent_id, None)
 
-        with session_manager.session_context(engine) as session:
+        # Import here to avoid circular dependency issues
+        # pylint: disable=import-outside-toplevel
+        from keylime.cloud_verifier_tornado import session_context
+
+        # Update database to mark agent as failed using singleton session context
+        with session_context() as session:
             agent = session.query(VerfierMain).filter_by(agent_id=agent_id).first()
 
             if agent is None:
@@ -112,11 +129,15 @@ def schedule_agent_timeout(agent_id: str, timeout_seconds: Optional[float] = Non
             timeout_seconds = quote_interval * _TIMEOUT_MULTIPLIER
 
         # Schedule the timeout callback
+        # Pass the timeout_handle to the callback so it can verify it's still active
+        # The lambda captures timeout_handle by reference, which will be assigned before the callback executes
         io_loop = tornado.ioloop.IOLoop.current()
-        timeout_handle = io_loop.call_later(timeout_seconds, _mark_agent_failed, agent_id)
+        timeout_handle = io_loop.call_later(timeout_seconds, lambda: _mark_agent_failed(agent_id, timeout_handle))
 
         # Store the handle so we can cancel it later if needed
-        _agent_timeout_handles[agent_id] = timeout_handle
+        # Protect dictionary access with lock
+        with _agent_timeout_handles_lock:
+            _agent_timeout_handles[agent_id] = timeout_handle
 
         logger.debug(
             "Scheduled timeout for agent %s (will fire in %.1f seconds if no attestation received)",
@@ -137,7 +158,9 @@ def cancel_agent_timeout(agent_id: str) -> None:
     Args:
         agent_id: The agent ID to cancel timeout for
     """
-    timeout_handle = _agent_timeout_handles.pop(agent_id, None)
+    # Protect dictionary access with lock
+    with _agent_timeout_handles_lock:
+        timeout_handle = _agent_timeout_handles.pop(agent_id, None)
 
     if timeout_handle is not None:
         try:
@@ -166,11 +189,12 @@ def check_push_agent_timeouts() -> None:
         timeout_seconds = quote_interval * _TIMEOUT_MULTIPLIER
         current_time = int(time.time())
 
-        # Create database session
-        engine = make_engine("cloud_verifier")
-        session_manager = SessionManager()
+        # Import here to avoid circular dependency issues
+        # pylint: disable=import-outside-toplevel
+        from keylime.cloud_verifier_tornado import session_context
 
-        with session_manager.session_context(engine) as session:
+        # Use singleton session context to avoid engine leaks
+        with session_context() as session:
             # Query all PUSH mode agents using the same logic as is_push_mode_agent():
             # 1. operational_state IS NULL (never polled), OR
             # 2. ip IS NULL AND port IS NULL (cannot be contacted/polled)

@@ -106,13 +106,14 @@ class TestPushAgentMonitor(unittest.TestCase):
         return agent
 
     @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
+    @patch("keylime.cloud_verifier_tornado.session_context")
     @patch("keylime.push_agent_monitor.time.time")
-    def test_check_push_agent_timeouts_healthy_agent(self, mock_time, mock_make_engine, mock_config):
+    def test_check_push_agent_timeouts_healthy_agent(self, mock_time, mock_session_context, mock_config):
         """Test that healthy agents are not marked as failed."""
         # Configure mocks
         mock_config.getfloat.return_value = 2.0  # quote_interval = 2 seconds
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
 
         # Create a healthy PUSH mode agent (received attestation 1 second ago)
@@ -133,14 +134,15 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertTrue(agent.accept_attestations)
 
     @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
+    @patch("keylime.cloud_verifier_tornado.session_context")
     @patch("keylime.push_agent_monitor.time.time")
-    def test_check_push_agent_timeouts_timed_out_agent(self, mock_time, mock_make_engine, mock_config):
+    def test_check_push_agent_timeouts_timed_out_agent(self, mock_time, mock_session_context, mock_config):
         """Test that timed-out agents are marked as failed."""
         # Configure mocks
         quote_interval = 2.0
         mock_config.getfloat.return_value = quote_interval
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
 
         # Create a timed-out PUSH mode agent (received attestation 10 seconds ago)
@@ -162,13 +164,14 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertFalse(agent.accept_attestations)
 
     @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
+    @patch("keylime.cloud_verifier_tornado.session_context")
     @patch("keylime.push_agent_monitor.time.time")
-    def test_check_push_agent_timeouts_never_received_attestation(self, mock_time, mock_make_engine, mock_config):
+    def test_check_push_agent_timeouts_never_received_attestation(self, mock_time, mock_session_context, mock_config):
         """Test that agents that never received an attestation are not marked as failed."""
         # Configure mocks
         mock_config.getfloat.return_value = 2.0
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
 
         # Create a PUSH mode agent that has never received an attestation
@@ -189,13 +192,14 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertTrue(agent.accept_attestations)
 
     @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
+    @patch("keylime.cloud_verifier_tornado.session_context")
     @patch("keylime.push_agent_monitor.time.time")
-    def test_check_push_agent_timeouts_already_failed_agent(self, mock_time, mock_make_engine, mock_config):
+    def test_check_push_agent_timeouts_already_failed_agent(self, mock_time, mock_session_context, mock_config):
         """Test that already-failed agents are not updated again (to prevent log spam)."""
         # Configure mocks
         mock_config.getfloat.return_value = 2.0
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
 
         # Create a timed-out PUSH mode agent that's already marked as failed
@@ -216,13 +220,14 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertFalse(agent.accept_attestations)
 
     @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
+    @patch("keylime.cloud_verifier_tornado.session_context")
     @patch("keylime.push_agent_monitor.time.time")
-    def test_check_push_agent_timeouts_pull_mode_agent_ignored(self, mock_time, mock_make_engine, mock_config):
+    def test_check_push_agent_timeouts_pull_mode_agent_ignored(self, mock_time, mock_session_context, mock_config):
         """Test that PULL mode agents are ignored by the timeout check."""
         # Configure mocks
         mock_config.getfloat.return_value = 2.0
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
 
         # Create a PULL mode agent (has IP and port set)
@@ -245,13 +250,14 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertTrue(agent.accept_attestations)
 
     @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
+    @patch("keylime.cloud_verifier_tornado.session_context")
     @patch("keylime.push_agent_monitor.time.time")
-    def test_check_push_agent_timeouts_multiple_agents(self, mock_time, mock_make_engine, mock_config):
+    def test_check_push_agent_timeouts_multiple_agents(self, mock_time, mock_session_context, mock_config):
         """Test timeout detection with multiple agents in different states."""
         # Configure mocks
         mock_config.getfloat.return_value = 2.0  # quote_interval = 2 seconds (threshold = 4 seconds)
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
 
         # Create multiple agents with different states
@@ -395,8 +401,8 @@ class TestPushAgentMonitor(unittest.TestCase):
         mock_ioloop.call_later.assert_called_once()
         call_args = mock_ioloop.call_later.call_args
         self.assertEqual(call_args[0][0], expected_timeout)  # timeout_seconds
-        self.assertEqual(call_args[0][1], _mark_agent_failed)  # callback function
-        self.assertEqual(call_args[0][2], "test-agent-1")  # agent_id
+        # Note: callback is now a lambda, so we can't check it directly
+        self.assertTrue(callable(call_args[0][1]))  # callback function is callable
 
         # Verify handle was stored
         self.assertIn("test-agent-1", _agent_timeout_handles)
@@ -420,8 +426,8 @@ class TestPushAgentMonitor(unittest.TestCase):
         mock_ioloop.call_later.assert_called_once()
         call_args = mock_ioloop.call_later.call_args
         self.assertEqual(call_args[0][0], custom_timeout)
-        self.assertEqual(call_args[0][1], _mark_agent_failed)
-        self.assertEqual(call_args[0][2], "test-agent-2")
+        # Note: callback is now a lambda, so we can't check it directly
+        self.assertTrue(callable(call_args[0][1]))  # callback function is callable
 
         # Verify handle was stored
         self.assertIn("test-agent-2", _agent_timeout_handles)
@@ -568,21 +574,23 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertEqual(len(_agent_timeout_handles), 0)
 
     @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
-    def test_mark_agent_failed_success(self, mock_make_engine, mock_config):
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_mark_agent_failed_success(self, mock_session_context, mock_config):
         """Test successfully marking an agent as failed."""
         # Configure mocks
         mock_config.getfloat.return_value = 2.0
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
 
         # Create agent
         self._create_push_agent("test-agent-1", accept_attestations=True)
 
         # Add to timeout handles
-        _agent_timeout_handles["test-agent-1"] = Mock()
+        mock_handle = Mock()
+        _agent_timeout_handles["test-agent-1"] = mock_handle
 
         # Mark agent as failed
-        _mark_agent_failed("test-agent-1")
+        _mark_agent_failed("test-agent-1", mock_handle)
 
         # Verify agent was marked as failed
         agent = self.session.query(VerfierMain).filter_by(agent_id="test-agent-1").first()
@@ -594,18 +602,20 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertNotIn("test-agent-1", _agent_timeout_handles)
 
     @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
-    def test_mark_agent_failed_already_failed(self, mock_make_engine, mock_config):
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_mark_agent_failed_already_failed(self, mock_session_context, mock_config):
         """Test marking an already-failed agent (should be a no-op)."""
         # Configure mocks
         mock_config.getfloat.return_value = 2.0
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
 
         # Create agent that's already failed
         self._create_push_agent("test-agent-2", accept_attestations=False)
 
         # Mark agent as failed
-        _mark_agent_failed("test-agent-2")
+        mock_handle = Mock()
+        _mark_agent_failed("test-agent-2", mock_handle)
 
         # Verify agent is still marked as failed (no change)
         agent = self.session.query(VerfierMain).filter_by(agent_id="test-agent-2").first()
@@ -614,18 +624,19 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertFalse(agent.accept_attestations)
 
     @patch("keylime.push_agent_monitor.logger")
-    @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
-    def test_mark_agent_failed_agent_not_found(self, mock_make_engine, _mock_config, mock_logger):
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_mark_agent_failed_agent_not_found(self, mock_session_context, mock_logger):
         """Test marking an agent that doesn't exist in the database."""
         # Configure mocks
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
 
         # Add to timeout handles
-        _agent_timeout_handles["nonexistent-agent"] = Mock()
+        mock_handle = Mock()
+        _agent_timeout_handles["nonexistent-agent"] = mock_handle
 
         # Mark nonexistent agent as failed - should not raise
-        _mark_agent_failed("nonexistent-agent")
+        _mark_agent_failed("nonexistent-agent", mock_handle)
 
         # Verify warning was logged
         mock_logger.warning.assert_called_once()
@@ -636,19 +647,24 @@ class TestPushAgentMonitor(unittest.TestCase):
 
     @patch("keylime.push_agent_monitor.logger")
     @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
-    def test_mark_agent_failed_logs_timeout_info(self, mock_make_engine, mock_config, mock_logger):
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_mark_agent_failed_logs_timeout_info(self, mock_session_context, mock_config, mock_logger):
         """Test that marking an agent as failed logs appropriate information."""
         # Configure mocks
         quote_interval = 2.0
         mock_config.getfloat.return_value = quote_interval
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
 
         # Create agent
         self._create_push_agent("test-agent-3", accept_attestations=True)
 
+        # Add to timeout handles
+        mock_handle = Mock()
+        _agent_timeout_handles["test-agent-3"] = mock_handle
+
         # Mark agent as failed
-        _mark_agent_failed("test-agent-3")
+        _mark_agent_failed("test-agent-3", mock_handle)
 
         # Verify warning was logged with timeout information
         mock_logger.warning.assert_called_once()
@@ -661,17 +677,18 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertEqual(mock_logger.warning.call_args[0][2], expected_timeout)
 
     @patch("keylime.push_agent_monitor.logger")
-    @patch("keylime.push_agent_monitor.make_engine")
-    def test_mark_agent_failed_handles_exception(self, mock_make_engine, mock_logger):
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_mark_agent_failed_handles_exception(self, mock_session_context, mock_logger):
         """Test that exceptions during mark_agent_failed are caught and logged."""
         # Configure mock to raise exception
-        mock_make_engine.side_effect = RuntimeError("Database connection error")
+        mock_session_context.side_effect = RuntimeError("Database connection error")
 
         # Add to timeout handles
-        _agent_timeout_handles["test-agent-4"] = Mock()
+        mock_handle = Mock()
+        _agent_timeout_handles["test-agent-4"] = mock_handle
 
         # Mark agent as failed - should not raise
-        _mark_agent_failed("test-agent-4")
+        _mark_agent_failed("test-agent-4", mock_handle)
 
         # Verify error was logged
         mock_logger.error.assert_called_once()
@@ -681,12 +698,13 @@ class TestPushAgentMonitor(unittest.TestCase):
         self.assertNotIn("test-agent-4", _agent_timeout_handles)
 
     @patch("keylime.push_agent_monitor.config")
-    @patch("keylime.push_agent_monitor.make_engine")
-    def test_mark_agent_failed_removes_handle_before_db_update(self, mock_make_engine, mock_config):
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_mark_agent_failed_removes_handle_before_db_update(self, mock_session_context, mock_config):
         """Test that the timeout handle is removed before attempting database update."""
         # Configure mocks
         mock_config.getfloat.return_value = 2.0
-        mock_make_engine.return_value = self.engine
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
 
         # Create agent
         self._create_push_agent("test-agent-5", accept_attestations=True)
@@ -696,7 +714,7 @@ class TestPushAgentMonitor(unittest.TestCase):
         _agent_timeout_handles["test-agent-5"] = mock_handle
 
         # Mark agent as failed
-        _mark_agent_failed("test-agent-5")
+        _mark_agent_failed("test-agent-5", mock_handle)
 
         # Verify handle was removed (even before we check the database result)
         self.assertNotIn("test-agent-5", _agent_timeout_handles)
