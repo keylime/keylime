@@ -28,16 +28,59 @@ class AgentsController(Controller):
 
     # POST /v2[.:minor]/agents/[:agent_id]
     def create(self, agent_id, **params):
+        """Register a new agent or re-register an existing agent.
+
+        For new agents, this:
+        1. Validates TPM identity (EK/AIK or IAK/IDevID)
+        2. Generates an AK challenge encrypted with the EK
+        3. Stores agent record in pending state
+        4. Returns challenge blob to agent
+
+        For existing agents (re-registration with same UUID):
+        1. Verifies TPM identity has not changed (security check)
+        2. If identity changed: rejects with 403 Forbidden
+        3. If identity same: allows re-registration (e.g., after agent restart)
+
+        Security: Re-registration with a different TPM is forbidden to prevent
+        UUID spoofing attacks where an attacker could impersonate a legitimate
+        agent by reusing its UUID.
+        """
+        # Attempt to load existing agent, or create new empty agent
         agent = RegistrarAgent.get(agent_id) or RegistrarAgent.empty()  # type: ignore[no-untyped-call]
+
+        # Update agent with new data (this includes TPM identity validation)
         agent.update({"agent_id": agent_id, **params})  # type: ignore[union-attr]
+
+        # Check specifically for TPM identity change security violation
+        # The update() method will have added an error to "agent_id" field if identity changed
+        if not agent.changes_valid and "agent_id" in agent.errors:  # type: ignore[union-attr]
+            # Check if this is a TPM identity security violation (vs other validation error)
+            agent_id_errors = agent.errors.get("agent_id", [])  # type: ignore[union-attr]
+            is_tpm_identity_violation = any("different TPM identity" in str(err) for err in agent_id_errors)
+
+            if is_tpm_identity_violation:
+                # Log the validation errors (includes security warning)
+                self.log_model_errors(agent, logger)
+
+                # Return 403 Forbidden (not 400 Bad Request)
+                # 403 indicates a policy violation, not a malformed request
+                self.respond(403, "Agent re-registration with different TPM identity is forbidden for security reasons")
+                return
+
+        # Generate AK challenge (encrypts nonce with EK)
+        # This will return None if EK/AIK are invalid
         challenge = agent.produce_ak_challenge()  # type: ignore[union-attr]
 
+        # Check for any validation errors or challenge generation failure
         if not challenge or not agent.changes_valid:
             self.log_model_errors(agent, logger)
             self.respond(400, "Could not register agent with invalid data")
             return
 
+        # Save agent to database (still in inactive state until challenge response verified)
         agent.commit_changes()
+
+        # Return challenge blob for agent to decrypt
         self.respond(200, "Success", {"blob": challenge})
 
     # DELETE /v2[.:minor]/agents/:agent_id/

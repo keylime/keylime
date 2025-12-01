@@ -141,6 +141,108 @@ class RegistrarAgent(PersistableModel):
 
         return compliant
 
+    def _check_tpm_identity_immutable(self):
+        """
+        Checks that TPM identity fields are not being changed during re-registration.
+
+        This prevents an attacker from registering with the same UUID but a different TPM,
+        which would allow them to impersonate the original agent and bypass attestation.
+
+        Checked fields (EK-based identity only):
+        - ek_tpm: Endorsement Key (primary TPM identity)
+        - ekcert: EK Certificate (binds EK to TPM manufacturer)
+        - aik_tpm: Attestation Key (bound to EK via MakeCredential/ActivateCredential)
+
+        Note: IAK/IDevID fields are NOT checked and can change on re-registration.
+
+        This check only applies to existing agents (those loaded from the database).
+        New agents created via RegistrarAgent.empty() have no committed values and are
+        allowed to set identity fields during initial registration.
+
+        If the agent needs to be registered with a new TPM (e.g., hardware replacement),
+        the old agent record must be explicitly deleted first.
+        """
+        # Define TPM identity fields that must remain immutable once set
+        # Only checking EK-based identity (ek_tpm, ekcert, aik_tpm)
+        # IAK/IDevID fields (iak_tpm, iak_cert, idevid_tpm, idevid_cert) are not checked
+        identity_fields = ["ek_tpm", "ekcert", "aik_tpm"]
+
+        # Only check for existing agents (those loaded from database)
+        # New agents created via empty() will have no committed values
+        if not self.committed:
+            return
+
+        # Track which fields have been changed
+        changed_fields = []
+
+        for field_name in identity_fields:
+            # Skip fields that are not being changed in this update
+            if field_name not in self.changes:
+                continue
+
+            # Get the old (committed/database) and new (proposed) values
+            old_value = self.committed.get(field_name)
+            new_value = self.changes.get(field_name)
+
+            # Allow setting a previously unset field (e.g., adding EK cert later)
+            if old_value is None:
+                continue
+
+            # Reject attempts to remove an already-set identity field
+            if new_value is None:
+                changed_fields.append(field_name)
+                continue
+
+            # Compare values based on field type
+            if field_name == "ekcert":
+                # For certificates, compare the actual certificate bytes
+                # Note: We compare full certificate, not just public key, because:
+                # 1. User requirement: reject if certificate changed even if same public key
+                # 2. Certificate contains more than just key (issuer, validity period, etc.)
+                # 3. Different cert for same key could indicate compromise or unauthorized replacement
+                try:
+                    old_cert_bytes = old_value.public_bytes(Encoding.DER)
+                    new_cert_bytes = new_value.public_bytes(Encoding.DER)
+
+                    if old_cert_bytes != new_cert_bytes:
+                        changed_fields.append(field_name)
+                except Exception:
+                    # If we can't extract certificate bytes, treat as changed to be safe
+                    changed_fields.append(field_name)
+            else:
+                # For TPM keys (ek_tpm, aik_tpm), compare as binary data
+                # These are Binary(persist_as=String) fields, so they could be bytes or base64 strings
+                try:
+                    old_bytes = old_value if isinstance(old_value, bytes) else base64.b64decode(old_value)
+                    new_bytes = new_value if isinstance(new_value, bytes) else base64.b64decode(new_value)
+
+                    if old_bytes != new_bytes:
+                        changed_fields.append(field_name)
+                except Exception:
+                    # If comparison fails (e.g., invalid base64), treat as changed to be safe
+                    changed_fields.append(field_name)
+
+        # If any TPM identity fields were changed, this is a security violation
+        if changed_fields:
+            # Log security warning for audit trail
+            # Include agent_id and changed fields, but NOT the actual TPM values (sensitive data)
+            logger.warning(
+                "SECURITY: Rejected attempt to re-register agent '%s' with different TPM identity. "
+                "Changed fields: %s. This indicates a potential UUID spoofing attack. "
+                "The existing agent must be deleted before registering with a new TPM. "
+                "If this is unexpected, investigate for compromise.",
+                self.agent_id,
+                ", ".join(changed_fields),
+            )
+
+            # Add validation error to prevent registration
+            # Using "agent_id" field for the error because it's the UUID that's being improperly reused
+            self._add_error(
+                "agent_id",
+                f"cannot re-register with different TPM identity. Changed fields: {', '.join(changed_fields)}. "
+                "To register this UUID with a new TPM, delete the existing agent record first.",
+            )
+
     def _check_all_cert_compliance(self):
         non_compliant_certs = []
 
@@ -278,6 +380,11 @@ class RegistrarAgent(PersistableModel):
             ["agent_id", "ek_tpm", "ekcert", "aik_tpm", "iak_tpm", "iak_cert", "idevid_tpm", "idevid_cert", "ip"]
             + ["port", "mtls_cert"],
         )
+
+        # SECURITY CHECK: Verify TPM identity is not being changed on re-registration
+        # This must happen after cast_changes() (so we have new values to compare)
+        # but before other validation (so we reject immediately without processing further)
+        self._check_tpm_identity_immutable()
 
         # Log info about received EK or IAK/IDevID
         self._log_root_identity()
