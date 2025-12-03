@@ -1,5 +1,8 @@
+from sqlalchemy.exc import IntegrityError
+
 from keylime import keylime_logging
 from keylime.models import RegistrarAgent
+from keylime.shared_data import get_shared_memory
 from keylime.web.base import Controller
 
 logger = keylime_logging.init_logging("registrar")
@@ -44,42 +47,80 @@ class AgentsController(Controller):
         Security: Re-registration with a different TPM is forbidden to prevent
         UUID spoofing attacks where an attacker could impersonate a legitimate
         agent by reusing its UUID.
+
+        Race condition protection: Uses per-agent locks from SharedDataManager to prevent
+        race conditions between concurrent registration requests for the same agent_id.
+        This ensures the check-validate-commit sequence is atomic. Additionally, database
+        constraint violations (e.g., duplicate UUIDs from concurrent requests) are caught
+        and returned as 403 Forbidden.
         """
-        # Attempt to load existing agent, or create new empty agent
-        agent = RegistrarAgent.get(agent_id) or RegistrarAgent.empty()  # type: ignore[no-untyped-call]
+        # Get shared memory manager and per-agent lock storage
+        shared_mem = get_shared_memory()
+        agent_locks = shared_mem.get_or_create_dict("agent_registration_locks")
 
-        # Update agent with new data (this includes TPM identity validation)
-        agent.update({"agent_id": agent_id, **params})  # type: ignore[union-attr]
+        # Get or create a lock specific to this agent_id
+        if agent_id not in agent_locks:
+            agent_locks[agent_id] = shared_mem.manager.Lock()
 
-        # Check specifically for TPM identity change security violation
-        # The update() method will have added an error to "agent_id" field if identity changed
-        if not agent.changes_valid and "agent_id" in agent.errors:  # type: ignore[union-attr]
-            # Check if this is a TPM identity security violation (vs other validation error)
-            agent_id_errors = agent.errors.get("agent_id", [])  # type: ignore[union-attr]
-            is_tpm_identity_violation = any("different TPM identity" in str(err) for err in agent_id_errors)
+        agent_lock = agent_locks[agent_id]
 
-            if is_tpm_identity_violation:
-                # Log the validation errors (includes security warning)
+        # CRITICAL SECTION: Acquire lock to make check-validate-commit atomic
+        with agent_lock:
+            # Step 1: Load existing agent or create new one (inside lock)
+            agent = RegistrarAgent.get(agent_id) or RegistrarAgent.empty()  # type: ignore[no-untyped-call]
+
+            # Step 2: Update agent with new data and validate (inside lock)
+            agent.update({"agent_id": agent_id, **params})  # type: ignore[union-attr]
+
+            # Step 3: Check for TPM identity change security violation
+            if not agent.changes_valid and "agent_id" in agent.errors:  # type: ignore[union-attr]
+                # Check if this is a TPM identity security violation (vs other validation error)
+                agent_id_errors = agent.errors.get("agent_id", [])  # type: ignore[union-attr]
+                is_tpm_identity_violation = any("different TPM identity" in str(err) for err in agent_id_errors)
+
+                if is_tpm_identity_violation:
+                    # Log the validation errors (includes security warning)
+                    self.log_model_errors(agent, logger)
+
+                    # Return 403 Forbidden
+                    # 403 indicates a policy violation, not a malformed request
+                    self.respond(
+                        403, "Agent re-registration with different TPM identity is forbidden for security reasons"
+                    )
+                    return
+
+            # Step 4: Generate AK challenge (inside lock)
+            challenge = agent.produce_ak_challenge()  # type: ignore[union-attr]
+
+            # Step 5: Check for any validation errors or challenge generation failure
+            if not challenge or not agent.changes_valid:
                 self.log_model_errors(agent, logger)
-
-                # Return 403 Forbidden (not 400 Bad Request)
-                # 403 indicates a policy violation, not a malformed request
-                self.respond(403, "Agent re-registration with different TPM identity is forbidden for security reasons")
+                self.respond(400, "Could not register agent with invalid data")
                 return
 
-        # Generate AK challenge (encrypts nonce with EK)
-        # This will return None if EK/AIK are invalid
-        challenge = agent.produce_ak_challenge()  # type: ignore[union-attr]
+            # Step 6: Commit to database (inside lock)
+            # This ensures no other request can modify the agent between validation and commit
+            try:
+                agent.commit_changes()
+            except IntegrityError as e:
+                # Database constraint violation - most likely duplicate agent_id
+                # This can happen if two requests try to register the same new UUID simultaneously
+                # and both pass validation before either commits (database race condition)
+                logger.warning(
+                    "SECURITY: Agent registration failed due to database constraint violation for agent_id '%s'. "
+                    "This UUID may already be registered by a concurrent request or the agent already exists. "
+                    "Database error: %s",
+                    agent_id,
+                    str(e),
+                )
+                self.respond(
+                    403,
+                    f"Agent with UUID '{agent_id}' cannot be registered. "
+                    "This UUID is already in use or a concurrent registration is in progress.",
+                )
+                return
 
-        # Check for any validation errors or challenge generation failure
-        if not challenge or not agent.changes_valid:
-            self.log_model_errors(agent, logger)
-            self.respond(400, "Could not register agent with invalid data")
-            return
-
-        # Save agent to database (still in inactive state until challenge response verified)
-        agent.commit_changes()
-
+        # Lock released - safe to respond to client
         # Return challenge blob for agent to decrypt
         self.respond(200, "Success", {"blob": challenge})
 

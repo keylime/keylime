@@ -5,6 +5,7 @@ import cryptography
 from keylime import api_version, config, keylime_logging
 from keylime.common.migrations import apply
 from keylime.models import da_manager, db_manager
+from keylime.shared_data import initialize_shared_memory
 from keylime.web import RegistrarServer
 
 logger = keylime_logging.init_logging("registrar")
@@ -54,6 +55,11 @@ def main() -> None:
     db_manager.make_engine("registrar")
     # Prepare backend for durable attestation, if configured
     da_manager.make_backend("registrar")
+
+    # Initialize shared memory for cross-process synchronization
+    # CRITICAL: Must be called before server.start_multi() to ensure all forked
+    # worker processes share the same manager instance for agent registration locks
+    initialize_shared_memory()
 
     # Start HTTP server
     server = RegistrarServer()

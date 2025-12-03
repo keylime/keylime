@@ -11,6 +11,8 @@ import unittest
 from typing import cast
 from unittest.mock import MagicMock, patch
 
+from sqlalchemy.exc import IntegrityError
+
 from keylime.web.registrar.agents_controller import AgentsController
 
 
@@ -343,6 +345,166 @@ class TestAgentsControllerActivate(unittest.TestCase):
         self.assertIn(self.test_auth_tag, call_args[0][1])
         self.assertIn(self.test_agent_id, call_args[0][1])
         self.assertIn("deleted", call_args[0][1])
+
+
+class TestAgentsControllerConcurrency(unittest.TestCase):
+    """Test cases for concurrent registration TOCTOU race condition protection."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        mock_action_handler = MagicMock()
+        self.controller = cast(AgentsController, AgentsController(mock_action_handler))
+        self.controller.respond = MagicMock()
+        self.controller.log_model_errors = MagicMock()
+        self.test_agent_id = "concurrent-test-agent"
+
+    @patch("keylime.web.registrar.agents_controller.get_shared_memory")
+    @patch("keylime.models.RegistrarAgent.get")
+    def test_concurrent_registration_uses_locking(self, mock_get, mock_shared_mem):
+        """Test that concurrent registration attempts use per-agent locking.
+
+        This test verifies that the locking mechanism is invoked to prevent
+        TOCTOU race conditions during concurrent registration.
+        """
+        # Mock shared memory manager with lock support
+        mock_manager = MagicMock()
+        mock_lock = MagicMock()
+        mock_lock.__enter__ = MagicMock(return_value=None)
+        mock_lock.__exit__ = MagicMock(return_value=None)
+        mock_manager.Lock.return_value = mock_lock
+
+        mock_agent_locks = MagicMock()
+        mock_agent_locks.__contains__ = MagicMock(return_value=False)
+        mock_agent_locks.__setitem__ = MagicMock()
+        mock_agent_locks.__getitem__ = MagicMock(return_value=mock_lock)
+
+        mock_shared_mem.return_value.get_or_create_dict.return_value = mock_agent_locks
+        mock_shared_mem.return_value.manager = mock_manager
+
+        # Mock agent that doesn't exist yet (new registration)
+        mock_get.return_value = None
+
+        mock_agent = MagicMock()
+        mock_agent.changes_valid = True
+        mock_agent.errors = {}
+        mock_agent.produce_ak_challenge.return_value = "challenge_blob"
+
+        with patch("keylime.models.RegistrarAgent.empty", return_value=mock_agent):
+            params = {"ek_tpm": "ek_key", "aik_tpm": "aik_key"}
+            self.controller.create(self.test_agent_id, **params)
+
+        # Verify lock was acquired and released
+        mock_lock.__enter__.assert_called_once()
+        mock_lock.__exit__.assert_called_once()
+
+        # Verify successful registration
+        mock_agent.commit_changes.assert_called_once()
+        self.controller.respond.assert_called_once_with(200, "Success", {"blob": "challenge_blob"})  # type: ignore[attr-defined]
+
+    @patch("keylime.web.registrar.agents_controller.get_shared_memory")
+    @patch("keylime.models.RegistrarAgent.get")
+    def test_different_agents_use_different_locks(self, mock_get, mock_shared_mem):
+        """Test that different agent_ids use different locks for parallel registration.
+
+        This ensures that registrations for different agents don't block each other,
+        only concurrent registrations for the same agent_id are serialized.
+        """
+        # Mock shared memory manager
+        mock_manager = MagicMock()
+
+        def mock_lock_factory():
+            """Return a new lock each time."""
+            return MagicMock()
+
+        mock_manager.Lock.side_effect = mock_lock_factory
+
+        mock_agent_locks = {}
+
+        def mock_getitem(_self, key):  # pylint: disable=unused-argument
+            return mock_agent_locks.get(key)
+
+        def mock_setitem(_self, key, value):  # pylint: disable=unused-argument
+            mock_agent_locks[key] = value
+
+        def mock_contains(_self, key):  # pylint: disable=unused-argument
+            return key in mock_agent_locks
+
+        mock_locks_dict = MagicMock()
+        mock_locks_dict.__contains__ = mock_contains
+        mock_locks_dict.__setitem__ = mock_setitem
+        mock_locks_dict.__getitem__ = mock_getitem
+
+        mock_shared_mem.return_value.get_or_create_dict.return_value = mock_locks_dict
+        mock_shared_mem.return_value.manager = mock_manager
+
+        # Register two different agents
+        mock_get.return_value = None
+
+        for agent_id in ["agent-a", "agent-b"]:
+            mock_agent = MagicMock()
+            mock_agent.changes_valid = True
+            mock_agent.errors = {}
+            mock_agent.produce_ak_challenge.return_value = f"challenge_{agent_id}"
+
+            with patch("keylime.models.RegistrarAgent.empty", return_value=mock_agent):
+                self.controller.respond = MagicMock()  # Reset for each call
+                params = {"ek_tpm": f"ek_{agent_id}", "aik_tpm": f"aik_{agent_id}"}
+                self.controller.create(agent_id, **params)
+
+        # Verify that two different locks were created (one per agent)
+        self.assertEqual(len(mock_agent_locks), 2)
+        self.assertIn("agent-a", mock_agent_locks)
+        self.assertIn("agent-b", mock_agent_locks)
+        # Verify they are different lock objects
+        self.assertIsNot(mock_agent_locks["agent-a"], mock_agent_locks["agent-b"])
+
+    @patch("keylime.web.registrar.agents_controller.get_shared_memory")
+    @patch("keylime.models.RegistrarAgent.get")
+    def test_concurrent_new_registration_database_constraint_violation(self, mock_get, mock_shared_mem):
+        """Test that database constraint violations during concurrent new agent registration return 403.
+
+        This handles the edge case where two requests both create empty agents for the same UUID,
+        both pass validation, but the second commit fails with IntegrityError due to duplicate
+        primary key. This should return 403 Forbidden, not 500 Internal Server Error.
+        """
+        # Mock shared memory manager with lock support
+        mock_manager = MagicMock()
+        mock_lock = MagicMock()
+        mock_lock.__enter__ = MagicMock(return_value=None)
+        mock_lock.__exit__ = MagicMock(return_value=None)
+        mock_manager.Lock.return_value = mock_lock
+
+        mock_agent_locks = MagicMock()
+        mock_agent_locks.__contains__ = MagicMock(return_value=False)
+        mock_agent_locks.__setitem__ = MagicMock()
+        mock_agent_locks.__getitem__ = MagicMock(return_value=mock_lock)
+
+        mock_shared_mem.return_value.get_or_create_dict.return_value = mock_agent_locks
+        mock_shared_mem.return_value.manager = mock_manager
+
+        # Mock agent that doesn't exist yet (new registration)
+        mock_get.return_value = None
+
+        mock_agent = MagicMock()
+        mock_agent.changes_valid = True
+        mock_agent.errors = {}
+        mock_agent.produce_ak_challenge.return_value = "challenge_blob"
+
+        # Simulate IntegrityError during commit (duplicate primary key)
+        # IntegrityError(statement, params, orig) where orig is the original exception
+        orig_exception = Exception("UNIQUE constraint failed: registrarmain.agent_id")
+        mock_agent.commit_changes.side_effect = IntegrityError("INSERT INTO registrarmain ...", None, orig_exception)
+
+        with patch("keylime.models.RegistrarAgent.empty", return_value=mock_agent):
+            params = {"ek_tpm": "ek_key", "aik_tpm": "aik_key"}
+            self.controller.create(self.test_agent_id, **params)
+
+        # Verify 403 Forbidden response (not 500)
+        self.controller.respond.assert_called_once()  # type: ignore[attr-defined]
+        call_args = self.controller.respond.call_args  # type: ignore[attr-defined]
+        self.assertEqual(call_args[0][0], 403)
+        self.assertIn(self.test_agent_id, call_args[0][1])
+        self.assertIn("already in use", call_args[0][1])
 
 
 if __name__ == "__main__":
