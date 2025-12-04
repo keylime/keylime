@@ -67,7 +67,13 @@ class RegistrarAgent(PersistableModel):
     def empty(cls):
         agent = super().empty()
         agent.provider_keys = {}
+        agent._tpm_identity_violation = False  # pylint: disable=protected-access
         return agent
+
+    @property
+    def has_tpm_identity_violation(self):
+        """Returns True if a TPM identity violation was detected during validation."""
+        return getattr(self, "_tpm_identity_violation", False)
 
     def _check_key_against_cert(self, tpm_key_field, cert_field):
         # If neither key nor certificate is being updated, no need to check
@@ -224,6 +230,9 @@ class RegistrarAgent(PersistableModel):
 
         # If any TPM identity fields were changed, this is a security violation
         if changed_fields:
+            # Set flag to indicate TPM identity violation occurred
+            self._tpm_identity_violation = True  # pylint: disable=attribute-defined-outside-init
+
             # Log security warning for audit trail
             # Include agent_id and changed fields, but NOT the actual TPM values (sensitive data)
             logger.warning(

@@ -191,6 +191,7 @@ class TestAgentsControllerCreate(unittest.TestCase):
         mock_agent.changes_valid = False
         # Error not related to TPM identity
         mock_agent.errors = {"ek_tpm": ["must be a valid TPM2B_PUBLIC structure"]}
+        mock_agent.has_tpm_identity_violation = False  # Not a TPM identity violation
         mock_agent.produce_ak_challenge.return_value = None
         mock_get.return_value = None
 
@@ -237,6 +238,7 @@ class TestAgentsControllerCreate(unittest.TestCase):
         mock_agent = MagicMock()
         mock_agent.changes_valid = False
         mock_agent.errors = {"agent_id": ["must be a valid UUID format"]}  # Not about TPM identity
+        mock_agent.has_tpm_identity_violation = False  # Not a TPM identity violation
         mock_agent.produce_ak_challenge.return_value = None
         mock_get.return_value = None
 

@@ -73,21 +73,15 @@ class AgentsController(Controller):
             agent.update({"agent_id": agent_id, **params})  # type: ignore[union-attr]
 
             # Step 3: Check for TPM identity change security violation
-            if not agent.changes_valid and "agent_id" in agent.errors:  # type: ignore[union-attr]
-                # Check if this is a TPM identity security violation (vs other validation error)
-                agent_id_errors = agent.errors.get("agent_id", [])  # type: ignore[union-attr]
-                is_tpm_identity_violation = any("different TPM identity" in str(err) for err in agent_id_errors)
+            # Use explicit flag instead of fragile string matching for security check
+            if not agent.changes_valid and agent.has_tpm_identity_violation:  # type: ignore[union-attr]
+                # Log the validation errors (includes security warning)
+                self.log_model_errors(agent, logger)
 
-                if is_tpm_identity_violation:
-                    # Log the validation errors (includes security warning)
-                    self.log_model_errors(agent, logger)
-
-                    # Return 403 Forbidden
-                    # 403 indicates a policy violation, not a malformed request
-                    self.respond(
-                        403, "Agent re-registration with different TPM identity is forbidden for security reasons"
-                    )
-                    return
+                # Return 403 Forbidden
+                # 403 indicates a policy violation, not a malformed request
+                self.respond(403, "Agent re-registration with different TPM identity is forbidden for security reasons")
+                return
 
             # Step 4: Generate AK challenge (inside lock)
             challenge = agent.produce_ak_challenge()  # type: ignore[union-attr]
