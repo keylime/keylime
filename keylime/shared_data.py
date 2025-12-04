@@ -58,6 +58,12 @@ class FlatDictView:
         with self._lock:
             return self._store.get(self._make_key(key), default)
 
+    def pop(self, key: Any, default: Any = None) -> Any:
+        """Remove and return value for key, or default if key not present."""
+        flat_key = self._make_key(key)
+        with self._lock:
+            return self._store.pop(flat_key, default)
+
     def keys(self) -> List[Any]:
         """Return keys in this namespace."""
         prefix = f"dict:{self._namespace}:"

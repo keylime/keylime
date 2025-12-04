@@ -133,6 +133,12 @@ class AgentsController(Controller):
             return
 
         agent.delete()
+
+        # Clean up the registration lock from shared memory to prevent memory leak
+        shared_mem = get_shared_memory()
+        agent_locks = shared_mem.get_or_create_dict("agent_registration_locks")
+        agent_locks.pop(agent_id, None)
+
         self.respond(200, "Success")
 
     # POST /v2[.:minor]/agents/:agent_id/[activate]
@@ -150,6 +156,11 @@ class AgentsController(Controller):
             self.respond(200, "Success")
         else:
             agent.delete()
+
+            # Clean up the registration lock from shared memory to prevent memory leak
+            shared_mem = get_shared_memory()
+            agent_locks = shared_mem.get_or_create_dict("agent_registration_locks")
+            agent_locks.pop(agent_id, None)
 
             self.respond(
                 400,
