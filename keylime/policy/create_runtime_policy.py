@@ -1043,8 +1043,12 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
 
     policy["ima"]["ignored_keyrings"].extend(args.ignored_keyrings)
     if args.get_keyrings or args.get_ima_buf:
+        ima_list = args.ima_measurement_list
+        if ima_list is None:
+            # Use the default list, when one is not specified.
+            ima_list = IMA_MEASUREMENT_LIST
         policy["keyrings"], policy["ima-buf"], ok = process_ima_buf_in_measurement_list(
-            args.ima_measurement_list,
+            ima_list,
             policy["ima"]["ignored_keyrings"],
             args.get_keyrings,
             policy["keyrings"],
