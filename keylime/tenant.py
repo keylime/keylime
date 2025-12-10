@@ -727,9 +727,9 @@ class Tenant:
             response_json["results"] = {self.agent_uuid: res}
 
             # operational_state is a PULL-mode only field
-            # For PUSH mode (--push-model flag), show "Not applicable (Push Mode)"
+            # For PUSH mode (--push-model flag), remove it from the response
             if self.push_model:
-                response_json["results"][self.agent_uuid]["operational_state"] = "Not applicable (Push Mode)"
+                response_json["results"][self.agent_uuid].pop("operational_state", None)
             else:
                 op_state_value = response_json["results"][self.agent_uuid]["operational_state"]
                 if op_state_value is not None:
