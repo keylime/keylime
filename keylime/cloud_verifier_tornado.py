@@ -490,6 +490,9 @@ class AgentsHandler(BaseHandler):
                     logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
 
                 if agent is not None:
+                    # Refresh agent from database to ensure we have the latest consecutive_attestation_failures
+                    # This is critical for PUSH mode status detection when failures occur
+                    session.refresh(agent)
                     response = cloud_verifier_common.process_get_status(agent)
                     web_util.echo_json_response(self.req_handler, 200, "Success", response)
                 else:
@@ -533,6 +536,8 @@ class AgentsHandler(BaseHandler):
 
                     json_response = {}
                     for agent in agent_list:
+                        # Refresh agent from database to ensure fresh consecutive_attestation_failures
+                        session.refresh(agent)
                         json_response[agent.agent_id] = cloud_verifier_common.process_get_status(agent)
 
                     web_util.echo_json_response(self.req_handler, 200, "Success", json_response)
