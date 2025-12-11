@@ -798,6 +798,7 @@ class TestProcessGetStatus(unittest.TestCase):
         port=None,
         accept_attestations=True,
         attestation_count=0,
+        consecutive_attestation_failures=None,
     ):
         """Helper to create a mock agent with specified attributes."""
         agent = MagicMock(spec=VerfierMain)
@@ -806,6 +807,7 @@ class TestProcessGetStatus(unittest.TestCase):
         agent.port = port
         agent.accept_attestations = accept_attestations
         agent.attestation_count = attestation_count
+        agent.consecutive_attestation_failures = consecutive_attestation_failures
         agent.last_received_quote = 0
         agent.last_successful_attestation = 0
         agent.v = None
@@ -887,6 +889,36 @@ class TestProcessGetStatus(unittest.TestCase):
             status["attestation_status"],
             "FAIL",
             "PUSH mode agent should show FAIL when accept_attestations=False",
+        )
+
+    def test_push_mode_agent_fail_with_consecutive_failures(self):
+        """Test PUSH mode agent shows FAIL when recent attestations failed.
+
+        Regression test for race condition where:
+        - Agent previously attested successfully (attestation_count > 0)
+        - Recent attestations are failing (consecutive_attestation_failures > 0)
+        - Timeout hasn't fired yet (accept_attestations = True)
+        - Status should show FAIL (not PASS)
+        """
+        # Create PUSH mode agent that has attested successfully before
+        # but recent attestations are failing
+        agent = self._create_mock_agent(
+            operational_state=states.GET_QUOTE,
+            ip=None,
+            port=None,
+            accept_attestations=True,  # Timeout hasn't fired yet
+            attestation_count=5,  # Has previously attested successfully
+            consecutive_attestation_failures=2,  # Recent attestations failed
+        )
+
+        status = cloud_verifier_common.process_get_status(agent)
+
+        # Should be FAIL because recent attestations failed
+        # even though accept_attestations=True and attestation_count > 0
+        self.assertEqual(
+            status["attestation_status"],
+            "FAIL",
+            "PUSH mode agent should show FAIL when consecutive_attestation_failures > 0",
         )
 
     def test_pull_mode_agent_pass_in_get_quote_state(self):

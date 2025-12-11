@@ -276,16 +276,23 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
     if agent_util.is_push_mode_agent(agent):
         # PUSH mode: determine status based on accept_attestations flag and attestation history
         # Agent must have successfully attested at least once to show PASS
-        if hasattr(agent, "accept_attestations") and agent.accept_attestations is True:
-            # Only show PASS if agent has successfully attested at least once
-            # Use explicit type-safe comparison for attestation_count to satisfy type checkers
-            attestation_count_value = getattr(agent, "attestation_count", None)
-            if attestation_count_value is not None and attestation_count_value > 0:
-                attestation_status = "PASS"
-            else:
-                attestation_status = "PENDING"
-        elif hasattr(agent, "accept_attestations") and agent.accept_attestations is False:
+        if hasattr(agent, "accept_attestations") and agent.accept_attestations is False:
+            # Timeout has fired - agent is not accepting attestations
             attestation_status = "FAIL"
+        elif hasattr(agent, "accept_attestations") and agent.accept_attestations is True:
+            # Check if there are recent failures (consecutive_attestation_failures > 0)
+            # This prevents showing PASS when recent attestations failed but timeout hasn't fired yet
+            consecutive_failures = getattr(agent, "consecutive_attestation_failures", None)
+            if consecutive_failures is not None and consecutive_failures > 0:
+                attestation_status = "FAIL"
+            else:
+                # Only show PASS if agent has successfully attested at least once
+                # Use explicit type-safe comparison for attestation_count to satisfy type checkers
+                attestation_count_value = getattr(agent, "attestation_count", None)
+                if attestation_count_value is not None and attestation_count_value > 0:
+                    attestation_status = "PASS"
+                else:
+                    attestation_status = "PENDING"
         else:
             attestation_status = "PENDING"
     else:
