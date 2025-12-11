@@ -716,10 +716,11 @@ class TPMEngine(VerificationEngine):
             self.attestation.evaluation = "fail"
 
             # Increment consecutive failures counter for exponential backoff (per enhancement #103)
-            if self.agent.consecutive_attestation_failures is None:
-                self.agent.consecutive_attestation_failures = 1
+            # Update the ORIGINAL agent object (self.attestation.agent), not the fresh agent (self.agent)
+            if self.attestation.agent.consecutive_attestation_failures is None:
+                self.attestation.agent.consecutive_attestation_failures = 1
             else:
-                self.agent.consecutive_attestation_failures += 1
+                self.attestation.agent.consecutive_attestation_failures += 1
 
             # In pull mode, disable attestations immediately on failure (verifier controls attestation cadence)
             # In push mode, allow agent to retry with exponential backoff until token expires
