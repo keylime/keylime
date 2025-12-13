@@ -18,7 +18,10 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from keylime import cloud_verifier_common
+from keylime.cloud_verifier_tornado import get_agents_by_verifier_id
 from keylime.common import states
 from keylime.db.verifier_db import VerfierMain
 
@@ -424,8 +427,6 @@ class TestStoreAttestationStateExecution(unittest.TestCase):
     @patch("keylime.cloud_verifier_tornado.logger")
     def test_store_attestation_state_handles_exception(self, mock_logger, mock_session_context):
         """Verify store_attestation_state() handles SQLAlchemy exceptions."""
-        from sqlalchemy.exc import SQLAlchemyError  # pylint: disable=import-outside-toplevel
-
         from keylime.cloud_verifier_tornado import (  # pylint: disable=import-outside-toplevel
             AgentAttestState,
             store_attestation_state,
@@ -726,8 +727,6 @@ class TestInitializeVerifierConfigErrorPaths(unittest.TestCase):
         self, mock_sys, mock_make_engine, mock_config, _mock_set_severity
     ):
         """Verify _initialize_verifier_config() handles SQLAlchemy errors."""
-        from sqlalchemy.exc import SQLAlchemyError  # pylint: disable=import-outside-toplevel
-
         import keylime.cloud_verifier_tornado as cvt  # pylint: disable=import-outside-toplevel
 
         # Mock configuration
@@ -975,6 +974,35 @@ class TestProcessGetStatus(unittest.TestCase):
             "FAIL",
             "PULL mode agent should show FAIL in FAILED state",
         )
+
+
+class TestGetAgentsByVerifierIdErrorHandling(unittest.TestCase):
+    """Test error handling in get_agents_by_verifier_id()."""
+
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    @patch("keylime.cloud_verifier_tornado.logger")
+    def test_get_agents_by_verifier_id_logs_warning_on_error(self, mock_logger, mock_session_context):
+        """Verify warning is logged when agent loading fails."""
+        # Mock session to raise SQLAlchemyError
+        mock_session = MagicMock()
+        mock_session_context.return_value.__enter__.return_value = mock_session
+        mock_session.query.side_effect = SQLAlchemyError("Database error")
+
+        # Call function
+        result = get_agents_by_verifier_id("test-verifier-id")
+
+        # Should return empty list
+        self.assertEqual(result, [])
+
+        # Should log error with verifier_id
+        mock_logger.error.assert_called_once()
+        error_call_args = str(mock_logger.error.call_args)
+        self.assertIn("test-verifier-id", error_call_args)
+
+        # Should log warning about no agents
+        mock_logger.warning.assert_called_once()
+        warning_call_args = str(mock_logger.warning.call_args)
+        self.assertIn("Failed to load agents", warning_call_args)
 
 
 if __name__ == "__main__":

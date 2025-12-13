@@ -2442,13 +2442,35 @@ def get_agents_by_verifier_id(verifier_id: str) -> List[VerfierMain]:
         with session_context() as session:
             return session.query(VerfierMain).filter_by(verifier_id=verifier_id).all()
     except SQLAlchemyError as e:
-        logger.error("SQLAlchemy Error: %s", e)
+        logger.error("SQLAlchemy Error querying agents for verifier %s: %s", verifier_id, e)
+        logger.warning("Failed to load agents from database - worker will start with no agents")
     return []
 
 
 def main() -> None:
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
-    called as a function by an external program."""
+    called as a function by an external program.
+
+    MULTIPROCESSING + DATABASE PATTERN:
+
+    This verifier uses multiprocessing to run multiple worker processes. To avoid
+    database connection leaks, we follow this pattern:
+
+    1. Parent process (this function):
+       - Creates tables and performs minimal DB operations
+       - Passes verifier_id to workers (not agent data from DB queries)
+
+    2. Worker processes (server_process function):
+       - Call engine.dispose() immediately to close inherited connections
+       - Query their own data AFTER disposing inherited connections
+       - Register shutdown handlers that cleanup sessions + dispose engine
+
+    3. SQLite uses NullPool (no connection caching) to prevent connection
+       pooling issues with multiprocessing. Connections are opened on-demand
+       and closed immediately after use.
+
+    See keylime/db/keylime_db.py make_engine() for NullPool configuration.
+    """
 
     _initialize_verifier_config()
 
@@ -2507,10 +2529,15 @@ def main() -> None:
 
     sockets = tornado.netutil.bind_sockets(int(verifier_port), address=verifier_host)
 
-    def server_process(task_id: int, agents: List[VerfierMain]) -> None:
+    def server_process(task_id: int, num_workers: int, verifier_id_str: str) -> None:
         logger.info("Starting server of process %s", task_id)
         assert isinstance(engine, Engine)
+        # Dispose engine to close any inherited DB connections from parent
         engine.dispose()
+
+        # Query agents AFTER engine.dispose() to avoid inheriting open connections
+        agents = get_agents_by_verifier_id(verifier_id_str)
+        active_agents = [agents[i] for i in range(task_id, len(agents), num_workers)]
         server = tornado.httpserver.HTTPServer(app, ssl_options=ssl_ctx, max_buffer_size=max_upload_size)
         server.add_sockets(sockets)
 
@@ -2526,6 +2553,12 @@ def main() -> None:
             # Wait for all connections to be closed and then stop ioloop
             async def stop() -> None:
                 await server.close_all_connections()
+                # Clean up scoped session to release any held connections
+                if _session_manager is not None:
+                    _session_manager.cleanup()
+                # Dispose engine to close all pooled DB connections before shutdown
+                if engine is not None:
+                    engine.dispose()
                 tornado.ioloop.IOLoop.current().stop()
 
             asyncio.ensure_future(stop())
@@ -2538,7 +2571,7 @@ def main() -> None:
 
         server.start()
         # Reactivate agents
-        asyncio.ensure_future(activate_agents(agents, verifier_host, int(verifier_port)))
+        asyncio.ensure_future(activate_agents(active_agents, verifier_host, int(verifier_port)))
         tornado.ioloop.IOLoop.current().start()
         logger.debug("Server %s stopped.", task_id)
         sys.exit(0)
@@ -2570,10 +2603,11 @@ def main() -> None:
     if num_workers <= 0:
         num_workers = tornado.process.cpu_count()
 
-    agents = get_agents_by_verifier_id(verifier_id)
+    # Don't query agents in parent before fork - this opens DB connections
+    # that get inherited by child processes and leaked
+    # Instead, pass verifier_id to each worker to query after engine.dispose()
     for task_id in range(0, num_workers):
-        active_agents = [agents[i] for i in range(task_id, len(agents), num_workers)]
-        process = multiprocessing.Process(target=server_process, args=(task_id, active_agents))
+        process = multiprocessing.Process(target=server_process, args=(task_id, num_workers, verifier_id))
         process.start()
         processes.append(process)
 
