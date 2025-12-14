@@ -224,8 +224,7 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
     mbref_p.add_argument(
         "-e",
         "--eventlog-file",
-        type=argparse.FileType("rb"),
-        default=sys.stdin,
+        type=str,
         required=True,
         help="Binary UEFI eventlog (Normally /sys/kernel/security/tpm0/binary_bios_measurements)",
     )
@@ -238,8 +237,8 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
     mbref_p.add_argument(
         "-o",
         "--output",
-        type=argparse.FileType("w"),
-        default=sys.stdout,
+        type=str,
+        default=None,
         help="Output path for the generated measured boot policy",
     )
 
@@ -250,18 +249,19 @@ def get_arg_parser(create_parser: _SubparserType, parent_parser: argparse.Argume
 def create_mb_refstate(args: argparse.Namespace) -> Optional[Dict[str, object]]:
     """Create a measured boot reference state."""
     try:
-        log_bin = args.eventlog_file.read()
+        with open(args.eventlog_file, "rb") as eventlog_file:
+            log_bin = eventlog_file.read()
 
         failure, log_data = parse_binary_bootlog(log_bin)
         if failure or not log_data:
             logger.error(
                 "Parsing of binary boot measurements (%s) failed with: %s",
-                args.eventlog_file.name,
+                args.eventlog_file,
                 list(map(lambda x: x.context, failure.events)),
             )
             return None
     except Exception as exc:
-        logger.error("Parsing of binary boot measurements (%s) failed with: %s", args.eventlog_file.name, exc)
+        logger.error("Parsing of binary boot measurements (%s) failed with: %s", args.eventlog_file, exc)
         return None
 
     events = log_data.get("events")
@@ -292,5 +292,16 @@ def create_mb_refstate(args: argparse.Namespace) -> Optional[Dict[str, object]]:
         **get_mok(events),
         **get_kernel(events, has_secureboot),
     }
-    json.dump(mb_refstate, args.output)
+
+    # Write output to file or stdout
+    if args.output:
+        try:
+            with open(args.output, "w", encoding="utf-8") as output_file:
+                json.dump(mb_refstate, output_file)
+        except (PermissionError, OSError) as exc:
+            logger.error("Failed to write output file (%s): %s", args.output, exc)
+            return None
+    else:
+        json.dump(mb_refstate, sys.stdout)
+
     return mb_refstate

@@ -307,13 +307,24 @@ def enrich(log: Dict[str, Any]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("infile", nargs="?", type=argparse.FileType("r"), default=sys.stdin)
+    parser.add_argument("infile", nargs="?", type=str, default=None)
     parser.add_argument("-o", "--output", choices=("yaml", "json"), default="yaml")
     args = parser.parse_args()
-    try:
-        log = yaml.load(args.infile, Loader=yaml.CSafeLoader)
-    except Exception:
-        log = yaml.load(args.infile, Loader=yaml.SafeLoader)
+
+    # Read from file or stdin
+    if args.infile:
+        with open(args.infile, "r", encoding="utf-8") as infile:
+            try:
+                log = yaml.load(infile, Loader=yaml.CSafeLoader)
+            except (AttributeError, ImportError):
+                # CSafeLoader not available, fall back to SafeLoader
+                log = yaml.load(infile, Loader=yaml.SafeLoader)
+    else:
+        try:
+            log = yaml.load(sys.stdin, Loader=yaml.CSafeLoader)
+        except (AttributeError, ImportError):
+            # CSafeLoader not available, fall back to SafeLoader
+            log = yaml.load(sys.stdin, Loader=yaml.SafeLoader)
     try:
         enrich(log)
     except Exception:
