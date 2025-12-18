@@ -4,8 +4,10 @@ Copyright 2024 Red Hat, Inc.
 """
 
 import argparse
+import json
 import os
 import platform
+import tempfile
 import unittest
 
 from keylime.policy import create_mb_policy
@@ -744,3 +746,94 @@ class CreateMeasuredBootPolicy_Test(unittest.TestCase):
 
                 mb_policy = create_mb_policy.create_mb_refstate(args)
                 self.assertEqual(mb_policy is not None, expected, msg=f"args = {args}")
+
+    def test_create_mb_refstate_with_output_file(self):
+        """Test create_mb_refstate() writes to output file when specified."""
+        # Create argument parser
+        parent_parser = argparse.ArgumentParser(add_help=False)
+        main_parser = argparse.ArgumentParser()
+        subparser = main_parser.add_subparsers(title="actions")
+        parser = create_mb_policy.get_arg_parser(subparser, parent_parser)
+
+        event_log = os.path.join(DATA_DIR, "binary_bios_measurements-secureboot")
+
+        # Test with output file
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as output_file:
+            output_path = output_file.name
+
+        try:
+            args = parser.parse_args(["-e", event_log, "-o", output_path])
+            mb_policy = create_mb_policy.create_mb_refstate(args)
+
+            # Verify policy was created
+            self.assertIsNotNone(mb_policy)
+
+            # Verify output file was written
+            self.assertTrue(os.path.exists(output_path))
+
+            # Verify output file contains valid JSON
+            with open(output_path, "r", encoding="utf-8") as f:
+                written_policy = json.load(f)
+                self.assertEqual(written_policy, mb_policy)
+
+        finally:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+    def test_create_mb_refstate_file_not_found(self):
+        """Test create_mb_refstate() handles missing eventlog file gracefully."""
+        parent_parser = argparse.ArgumentParser(add_help=False)
+        main_parser = argparse.ArgumentParser()
+        subparser = main_parser.add_subparsers(title="actions")
+        parser = create_mb_policy.get_arg_parser(subparser, parent_parser)
+
+        nonexistent_file = os.path.join(DATA_DIR, "nonexistent_file.bin")
+        self.assertFalse(os.path.exists(nonexistent_file))
+
+        args = parser.parse_args(["-e", nonexistent_file])
+        mb_policy = create_mb_policy.create_mb_refstate(args)
+
+        # Should return None on error
+        self.assertIsNone(mb_policy)
+
+    @unittest.skipIf(os.geteuid() == 0, "Test requires non-root user (root bypasses permissions)")
+    def test_create_mb_refstate_permission_error(self):
+        """Test create_mb_refstate() handles permission errors gracefully."""
+        parent_parser = argparse.ArgumentParser(add_help=False)
+        main_parser = argparse.ArgumentParser()
+        subparser = main_parser.add_subparsers(title="actions")
+        parser = create_mb_policy.get_arg_parser(subparser, parent_parser)
+
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".bin") as f:
+            no_read_file = f.name
+            f.write(b"\x00" * 100)
+
+        try:
+            os.chmod(no_read_file, 0o000)
+            args = parser.parse_args(["-e", no_read_file])
+            mb_policy = create_mb_policy.create_mb_refstate(args)
+            self.assertIsNone(mb_policy)
+        finally:
+            os.chmod(no_read_file, 0o644)
+            os.unlink(no_read_file)
+
+    @unittest.skipIf(os.geteuid() == 0, "Test requires non-root user (root bypasses permissions)")
+    def test_create_mb_refstate_output_permission_error(self):
+        """Test create_mb_refstate() handles output permission errors gracefully."""
+        parent_parser = argparse.ArgumentParser(add_help=False)
+        main_parser = argparse.ArgumentParser()
+        subparser = main_parser.add_subparsers(title="actions")
+        parser = create_mb_policy.get_arg_parser(subparser, parent_parser)
+
+        event_log = os.path.join(DATA_DIR, "binary_bios_measurements-secureboot")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = os.path.join(tmpdir, "no_write")
+            os.mkdir(output_dir)
+            os.chmod(output_dir, 0o555)
+            output_path = os.path.join(output_dir, "output.json")
+            args = parser.parse_args(["-e", event_log, "-o", output_path])
+
+            # Should handle the error gracefully and return None
+            mb_policy = create_mb_policy.create_mb_refstate(args)
+            self.assertIsNone(mb_policy)

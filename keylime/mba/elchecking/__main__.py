@@ -15,8 +15,8 @@ from . import policies
 mba.load_imports()
 parser = argparse.ArgumentParser()
 parser.add_argument("policy_name", choices=policies.get_policy_names())
-parser.add_argument("refstate_file", type=argparse.FileType("rt"))
-parser.add_argument("eventlog_file", type=argparse.FileType("rb"), default=sys.stdin)
+parser.add_argument("refstate_file", type=str)
+parser.add_argument("eventlog_file", nargs="?", type=str, default=None)
 args = parser.parse_args()
 policy = policies.get_policy(args.policy_name)
 if policy is None:
@@ -25,9 +25,45 @@ if policy is None:
         file=sys.stderr,
     )
     sys.exit(1)
-refstate_str = args.refstate_file.read()
-refstate = json.loads(refstate_str)
-log_bin = args.eventlog_file.read()
+# Read refstate file with error handling
+try:
+    with open(args.refstate_file, "rt", encoding="utf-8") as refstate_file:
+        refstate_str = refstate_file.read()
+except FileNotFoundError:
+    print(f"Error: Reference state file '{args.refstate_file}' not found.", file=sys.stderr)
+    sys.exit(1)
+except PermissionError:
+    print(f"Error: Permission denied reading reference state file '{args.refstate_file}'.", file=sys.stderr)
+    sys.exit(1)
+except OSError as e:
+    print(f"Error: Failed to read reference state file '{args.refstate_file}': {e}", file=sys.stderr)
+    sys.exit(1)
+
+# Parse refstate JSON with error handling
+try:
+    refstate = json.loads(refstate_str)
+except json.JSONDecodeError as e:
+    print(f"Error: Invalid JSON in reference state file '{args.refstate_file}': {e}", file=sys.stderr)
+    sys.exit(1)
+
+# Read eventlog file or stdin with error handling
+try:
+    if args.eventlog_file:
+        with open(args.eventlog_file, "rb") as eventlog_file:
+            log_bin = eventlog_file.read()
+    else:
+        # Read from stdin in binary mode
+        log_bin = sys.stdin.buffer.read()
+except FileNotFoundError:
+    print(f"Error: Event log file '{args.eventlog_file}' not found.", file=sys.stderr)
+    sys.exit(1)
+except PermissionError:
+    print(f"Error: Permission denied reading event log file '{args.eventlog_file}'.", file=sys.stderr)
+    sys.exit(1)
+except OSError as e:
+    source = args.eventlog_file if args.eventlog_file else "stdin"
+    print(f"Error: Failed to read event log from {source}: {e}", file=sys.stderr)
+    sys.exit(1)
 _, log_data = tpm2_tools_elparser.parse_binary_bootlog(log_bin)
 with open("/tmp/parsed.json", "wt", encoding="utf-8") as log_data_file:
     log_data_file.write(json.dumps(log_data, indent=True))
