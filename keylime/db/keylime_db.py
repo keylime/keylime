@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from keylime import config, keylime_logging
 
@@ -59,6 +60,13 @@ def make_engine(service: str, **engine_args: Any) -> Engine:
                 os.makedirs(kl_dir, 0o700)
 
             engine_args["connect_args"] = {"check_same_thread": False}
+            # Use NullPool for SQLite to avoid connection pooling issues with multiprocessing
+            # NullPool creates a new connection for each request and closes it immediately
+            # after use, preventing connections from being inherited by forked processes.
+            # This is critical for the verifier's multiprocessing architecture where the
+            # parent process does DB initialization before forking worker processes.
+            # See cloud_verifier_tornado.py main() for the fork pattern.
+            engine_args["poolclass"] = NullPool
 
         if not url.count("sqlite:"):
             # sqlite does not support setting pool size and max overflow, only
@@ -108,6 +116,18 @@ class SessionManager:
             logger.error("Error creating SQL session manager %s", err)
         return cast(Session, self._scoped_session())
 
+    def cleanup(self) -> None:
+        """
+        Clean up the scoped session to release any held connections.
+        This should be called during shutdown to ensure proper cleanup.
+
+        In multiprocessing scenarios, each worker process should call this
+        during its shutdown sequence BEFORE calling engine.dispose() to ensure
+        all sessions are properly closed and returned to the connection pool.
+        """
+        if self._scoped_session is not None:
+            self._scoped_session.remove()  # type: ignore[no-untyped-call]
+
     @contextmanager
     def session_context(self, engine: Engine) -> Iterator[Session]:
         """
@@ -126,5 +146,4 @@ class SessionManager:
         finally:
             # Important: remove the session from the scoped session registry
             # to prevent connection leaks with scoped_session
-            if self._scoped_session is not None:
-                self._scoped_session.remove()  # type: ignore[no-untyped-call]
+            self.cleanup()
