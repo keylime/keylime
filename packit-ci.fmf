@@ -71,6 +71,7 @@ adjust:
      - /compatibility/basic-attestation-on-localhost-with-allowlist-excludelist
      - /functional/add-agent-with-malformed-ek-cert
      - /functional/agent_UUID_assignment_options
+     - /functional/agent-resilience-and-reattestation/.*
      - /functional/basic-attestation-on-localhost
      - /functional/basic-attestation-with-custom-certificates
      - /functional/basic-attestation-with-concatenated-certificates
@@ -91,7 +92,7 @@ adjust:
      - /functional/keylime-policy-commands
      - /functional/keylime_tenant-commands-on-localhost
      - /functional/keylime_tenant-ima-signature-sanity
-     - /functional/measured-boot-swtpm-sanity
+     - /functional/measured-boot-swtpm-sanity/.*
      - /functional/service-logfiles-logging
      - /functional/tenant-runtime-policy-sanity
      - /functional/tpm-issuer-cert-using-ecc
@@ -104,6 +105,7 @@ adjust:
      - /regression/cve-2023-38200
      - /regression/cve-2023-38201
      - /regression/CVE-2023-3674
+     - /regression/CVE-2025-13609
      - /regression/issue-1380-agent-removed-and-re-added
      - /regression/keylime-agent-option-override-through-envvar
      - /regression/db-connection-leak-reproducer
