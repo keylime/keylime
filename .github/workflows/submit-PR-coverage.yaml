@@ -15,7 +15,7 @@ jobs:
     - name: Wait for Packit tests to finish and download coverage.xml file
       run: ./download_packit_coverage.sh
       env:
-        MAX_DURATION: 5400
+        MAX_DURATION: 7200
         SLEEP_DELAY: 120
     - name: List downloaded files
       run: ls coverage*
@@ -25,6 +25,7 @@ jobs:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         files: scripts/coverage.unittests.xml
+        disable_search: true
         flags: unittests
     - name: Upload coverage.testsuite.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565303 # v2
@@ -32,6 +33,7 @@ jobs:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         files: scripts/coverage.testsuite.xml
+        disable_search: true
         flags: testsuite
     - name: Upload coverage.packit.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565303 # v2
@@ -39,4 +41,5 @@ jobs:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         files: scripts/coverage.packit.xml
+        disable_search: true
         flags: packit-e2e

@@ -35,8 +35,8 @@ PROJECT="keylime/keylime"
 
 # TF_JOB_DESC points to a Testing farm job that does code coverage measurement and 
 # uploads coverage XML files to a web drive
-# currently we are doing that in a job running tests on Fedora-41
-TF_JOB_DESC="testing-farm:fedora-41-x86_64"
+# currently we are doing that in a job running tests on Fedora-43
+TF_JOB_DESC="testing-farm:fedora-43-x86_64"
 TF_ARTIFACTS_URL_PREFIX="https://artifacts.dev.testing-farm.io"
 TF_COVERAGE_DATA_DIR="/setup/generate_coverage_report.*/data"
 
