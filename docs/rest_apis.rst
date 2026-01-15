@@ -22,6 +22,10 @@ Changes from v2.4 to v2.5
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 API version 2.5 was first implemented in Keylime 7.14.0.
 
+* Modified `POST /v2.5/verify/evidence` endpoint:
+    * Changed `valid` response field from integer (1/0) to boolean (true/false)
+    * Added `claims` field to response containing verified claims
+    * Added TEE (Trusted Execution Environment) verification support
 * Modified `GET /v2.5/quotes/integrity` endpoint:
     * `enc_alg` field in agent responses were modified to return explicit
       bit-length formats (e.g., ``rsa2048``, ``rsa3072``, ``ecc256``,
@@ -43,7 +47,9 @@ Changes from v2.3 to v2.4
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 API version 2.4 was first implemented in Keylime 7.13.0.
 
-* Added `POST /v2.4/verify/evidence` experimental endpoint to the verifier
+* Added `POST /v2.4/verify/evidence` experimental endpoint to the verifier:
+    * Allows 3rd party verification of TPM attestation evidence (quotes, IMA logs, measured boot) against policies
+    * Returns `valid` field (integer: 1 for valid, 0 for invalid) and `failures` array with validation errors
 
 Changes from v2.2 to v2.3
 ~~~~~~~~~~~~~~~~~~~~~~~~~
