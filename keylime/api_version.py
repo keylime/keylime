@@ -1,6 +1,6 @@
 import re
 from logging import Logger
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 from packaging import version
 
@@ -32,6 +32,54 @@ def latest_minor_version(version_type: VersionType) -> str:
 
 def all_versions() -> List[str]:
     return VERSIONS.copy()
+
+
+def negotiate_version(
+    remote_versions: Union[str, List[str]],
+    local_versions: Optional[List[str]] = None,
+    raise_on_error: bool = False,
+) -> Optional[str]:
+    """
+    Negotiate highest API version supported by both local and remote components.
+
+    This function can be used for any version negotiation scenario:
+    - Tenant negotiating with agent
+    - Tenant negotiating with verifier
+    - Tenant negotiating with registrar
+    - Verifier negotiating with agent
+
+    Args:
+        remote_versions: Single version string or list from remote component
+        local_versions: Versions supported locally (default: all_versions())
+        raise_on_error: If True, raise ValueError when no compatible version found.
+                        If False (default), return None.
+
+    Returns:
+        Highest mutually supported version, or None if incompatible and raise_on_error=False
+
+    Raises:
+        ValueError: If no compatible version found and raise_on_error=True
+    """
+    if local_versions is None:
+        local_versions = all_versions()
+
+    # Handle both old (string) and new (list) remote responses
+    if isinstance(remote_versions, str):
+        remote_versions = [remote_versions]
+
+    # Find intersection
+    common = set(remote_versions) & set(local_versions)
+
+    if not common:
+        if raise_on_error:
+            raise ValueError(
+                f"No compatible API version found. "
+                f"Local supports: {local_versions}, Remote supports: {remote_versions}"
+            )
+        return None
+
+    # Return highest version (using packaging.version for proper comparison)
+    return max(common, key=version.parse)
 
 
 def is_supported_version(version_type: VersionType) -> bool:

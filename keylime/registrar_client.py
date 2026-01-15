@@ -44,24 +44,61 @@ def check_mandatory_fields(results: Dict[str, Any]) -> bool:
     return True
 
 
+def getVersions(
+    registrar_ip: str,
+    registrar_port: str,
+    tls_context: Optional[ssl.SSLContext],
+) -> Optional[Dict[str, Any]]:
+    """
+    Fetch supported API versions from the registrar's /version endpoint.
+
+    :returns: JSON structure containing version info, or None on failure
+    """
+    try:
+        client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
+        response = client.get("/version")
+
+        if response.status_code != 200:
+            logger.warning("Failed to get versions from registrar: %s", response.status_code)
+            return None
+
+        response_body: Dict[str, Any] = response.json()
+        if "results" not in response_body:
+            logger.warning("Unexpected response format from registrar /version endpoint")
+            return None
+
+        results: Dict[str, Any] = response_body["results"]
+        return results
+
+    except Exception as e:
+        logger.warning("Error fetching versions from registrar: %s", e)
+        return None
+
+
 def getData(
-    registrar_ip: str, registrar_port: str, agent_id: str, tls_context: Optional[ssl.SSLContext]
+    registrar_ip: str,
+    registrar_port: str,
+    agent_id: str,
+    tls_context: Optional[ssl.SSLContext],
+    api_version: Optional[str] = None,
 ) -> Optional[RegistrarData]:
     """
     Get the agent data from the registrar.
 
     This is called by the tenant code
 
+    :param api_version: Optional API version to use. If None, uses current version.
     :returns: JSON structure containing the agent data
     """
     # make absolutely sure you don't ask for data that contains AIK keys unauthenticated
     if not tls_context:
         raise Exception("It is unsafe to use this interface to query AIKs without server-authenticated TLS.")
 
+    version = api_version or API_VERSION
     response = None
     try:
         client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
-        response = client.get(f"/v{API_VERSION}/agents/{agent_id}")
+        response = client.get(f"/v{version}/agents/{agent_id}")
         response_body = response.json()
 
         if response.status_code == 404:
@@ -112,18 +149,23 @@ def getData(
 
 
 def doRegistrarDelete(
-    registrar_ip: str, registrar_port: str, agent_id: str, tls_context: Optional[ssl.SSLContext]
+    registrar_ip: str,
+    registrar_port: str,
+    agent_id: str,
+    tls_context: Optional[ssl.SSLContext],
+    api_version: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Delete the given agent from the registrar.
 
     This is called by the tenant code
 
+    :param api_version: Optional API version to use. If None, uses current version.
     :returns: The request response body
     """
-
+    version = api_version or API_VERSION
     client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
-    response = client.delete(f"/v{API_VERSION}/agents/{agent_id}")
+    response = client.delete(f"/v{version}/agents/{agent_id}")
     response_body: Dict[str, Any] = response.json()
 
     if response.status_code == 200:
@@ -136,17 +178,22 @@ def doRegistrarDelete(
 
 
 def doRegistrarList(
-    registrar_ip: str, registrar_port: str, tls_context: Optional[ssl.SSLContext]
+    registrar_ip: str,
+    registrar_port: str,
+    tls_context: Optional[ssl.SSLContext],
+    api_version: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Get the list of registered agents from the registrar.
 
     This is called by the tenant code
 
+    :param api_version: Optional API version to use. If None, uses current version.
     :returns: The request response body
     """
+    version = api_version or API_VERSION
     client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
-    response = client.get(f"/v{API_VERSION}/agents/")
+    response = client.get(f"/v{version}/agents/")
     response_body: Dict[str, Any] = response.json()
 
     if response.status_code != 200:

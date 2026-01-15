@@ -668,6 +668,24 @@ class AgentsHandler(BaseHandler):
                         if agent_port is not None:
                             agent_port = int(agent_port)
 
+                    # Validate supported_version from tenant
+                    supported_version = json_body.get("supported_version")
+                    if supported_version:
+                        # Check if verifier supports this version
+                        if not keylime_api_version.is_supported_version(supported_version):
+                            logger.warning(
+                                "Agent %s requested API version %s which is not supported by verifier. "
+                                "Verifier supports: %s. Will attempt version negotiation on first contact.",
+                                agent_id,
+                                supported_version,
+                                keylime_api_version.all_versions(),
+                            )
+                            # Use verifier's current version as fallback
+                            supported_version = keylime_api_version.current_version()
+                    else:
+                        # No version provided, default to current
+                        supported_version = keylime_api_version.current_version()
+
                     agent_data = {
                         "v": json_body.get("v", None),
                         "ip": agent_ip,
@@ -681,7 +699,7 @@ class AgentsHandler(BaseHandler):
                         "accept_tpm_hash_algs": json_body["accept_tpm_hash_algs"],
                         "accept_tpm_encryption_algs": json_body["accept_tpm_encryption_algs"],
                         "accept_tpm_signing_algs": json_body["accept_tpm_signing_algs"],
-                        "supported_version": json_body["supported_version"],
+                        "supported_version": supported_version,
                         "ak_tpm": json_body["ak_tpm"],
                         "mtls_cert": json_body.get("mtls_cert", None),
                         "hash_alg": "",
@@ -1870,7 +1888,11 @@ class VerifyEvidenceHandler(BaseHandler):
 async def update_agent_api_version(
     agent: Dict[str, Any], timeout: float = DEFAULT_TIMEOUT
 ) -> Union[Dict[str, Any], None]:
+    """
+    Query agent's /version endpoint and negotiate compatible API version.
+    """
     agent_id = agent["agent_id"]
+    old_version = agent.get("supported_version")
 
     logger.info("Agent %s API version bump detected, trying to update stored API version", agent_id)
     kwargs = {}
@@ -1895,31 +1917,66 @@ async def update_agent_api_version(
 
     try:
         json_response = json.loads(response.body)
-        new_version = json_response["results"]["supported_version"]
-        old_version = agent["supported_version"]
 
-        # Only update the API version to use if it is supported by the verifier
-        if new_version in keylime_api_version.all_versions():
-            new_version_tuple = str_to_version(new_version)
-            old_version_tuple = str_to_version(old_version)
+        # Try new format first (list of versions)
+        agent_versions = json_response["results"].get("supported_versions")
 
-            assert new_version_tuple, f"Agent {agent_id} version {new_version} is invalid"
-            assert old_version_tuple, f"Agent {agent_id} version {old_version} is invalid"
+        # Fall back to old format (single version)
+        if agent_versions is None:
+            agent_versions = json_response["results"].get("supported_version")
 
-            # Check that the new version is greater than current version
-            if new_version_tuple <= old_version_tuple:
+        if agent_versions:
+            # Negotiate compatible version
+            negotiated = keylime_api_version.negotiate_version(agent_versions)
+
+            if negotiated is None:
+                # No compatible version
+                logger.error(
+                    "No compatible API version between verifier and agent %s. "
+                    "Agent supports: %s, Verifier supports: %s",
+                    agent_id,
+                    agent_versions,
+                    keylime_api_version.all_versions(),
+                )
+                return None
+
+            # Check if version actually changed
+            if negotiated == old_version:
+                logger.debug("Agent %s already using negotiated version %s", agent_id, negotiated)
+                return agent  # No change needed
+
+            # Validate negotiated version
+            if not keylime_api_version.validate_version(negotiated):
+                logger.error("Negotiated version %s for agent %s is invalid", negotiated, agent_id)
+                return None
+
+            # Check that the negotiated version is greater than current version (prevent downgrade)
+            negotiated_tuple = str_to_version(negotiated)
+            if not negotiated_tuple:
+                logger.error("Agent %s negotiated version %s is invalid", agent_id, negotiated)
+                return None
+
+            # Only check for downgrade if there was a previous version
+            old_version_tuple = None
+            if old_version is not None:
+                old_version_tuple = str_to_version(old_version)
+                if not old_version_tuple:
+                    logger.error("Agent %s stored version %s is invalid", agent_id, old_version)
+                    return None
+
+            if old_version_tuple is not None and negotiated_tuple <= old_version_tuple:
                 logger.warning(
                     "Agent %s API version %s is lower or equal to previous version %s",
                     agent_id,
-                    new_version,
+                    negotiated,
                     old_version,
                 )
                 return None
 
-            logger.info("Agent %s new API version %s is supported", agent_id, new_version)
+            logger.info("Agent %s new API version %s is supported", agent_id, negotiated)
 
             with session_context() as session:
-                agent["supported_version"] = new_version
+                agent["supported_version"] = negotiated
 
                 # Remove keys that should not go to the DB
                 agent_db = dict(agent)
@@ -1929,8 +1986,9 @@ async def update_agent_api_version(
 
                 session.query(VerfierMain).filter_by(agent_id=agent_id).update(agent_db)  # pyright: ignore
                 # session.commit() is automatically called by context manager
+
         else:
-            logger.warning("Agent %s new API version %s is not supported", agent_id, new_version)
+            logger.warning("Agent %s did not provide version information", agent_id)
             return None
 
     except SQLAlchemyError as e:
