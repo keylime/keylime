@@ -29,6 +29,15 @@ API version 2.5 was first implemented in Keylime 7.14.0.
 * Server-side automatic normalization ensures backward compatibility:
     * ``rsa`` → ``rsa2048``
     * ``ecc`` → ``ecc256``
+* Enhanced `GET /version` endpoint to support API version negotiation:
+    * Added `supported_versions` field containing an array of all API versions
+      the agent supports
+    * Retained `supported_version` field for backward compatibility (contains
+      latest version)
+    * Tenant and verifier now negotiate to use the highest mutually supported
+      API version instead of blindly using the agent's latest version
+    * Prevents compatibility issues when newer agents communicate with older
+      tenants/verifiers
 
 Changes from v2.3 to v2.4
 ~~~~~~~~~~~~~~~~~~~~~~~~~
