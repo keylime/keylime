@@ -281,13 +281,56 @@ class Tenant:
                 if res and res.status_code == 200:
                     try:
                         data = res.json()
-                        api_version = data["results"]["supported_version"]
-                        if keylime_api_version.validate_version(api_version) and self.supported_version is None:
-                            self.supported_version = api_version
+
+                        # Try new format first (list of versions)
+                        agent_versions = data["results"].get("supported_versions")
+
+                        # Fall back to old format (single version) for backward compatibility
+                        if agent_versions is None:
+                            agent_versions = data["results"].get("supported_version")
+
+                        if agent_versions:
+                            # Negotiate compatible version
+                            negotiated = keylime_api_version.negotiate_version(agent_versions)
+
+                            if negotiated is None:
+                                # No compatible version found
+                                logger.error(
+                                    "No compatible API version between tenant and agent %s. "
+                                    "Agent supports: %s, Tenant supports: %s",
+                                    self.agent_uuid,
+                                    agent_versions,
+                                    keylime_api_version.all_versions(),
+                                )
+                                raise UserError(
+                                    f"Agent {self.agent_uuid} has no compatible API version. "
+                                    f"Agent supports: {agent_versions}, "
+                                    f"Tenant supports: {keylime_api_version.all_versions()}"
+                                )
+
+                            # Validate and use negotiated version
+                            if keylime_api_version.validate_version(negotiated) and self.supported_version is None:
+                                self.supported_version = negotiated
+                                logger.info(
+                                    "Negotiated API version %s with agent %s (agent: %s, tenant: %s)",
+                                    negotiated,
+                                    self.agent_uuid,
+                                    agent_versions if isinstance(agent_versions, list) else [agent_versions],
+                                    keylime_api_version.all_versions(),
+                                )
+                            elif not keylime_api_version.validate_version(negotiated):
+                                logger.warning(
+                                    "Negotiated version %s is invalid, using current: %s",
+                                    negotiated,
+                                    keylime_api_version.current_version(),
+                                )
+                                if self.supported_version is None:
+                                    self.supported_version = keylime_api_version.current_version()
                         else:
-                            logger.warning("API version provided by the agent is not valid")
-                    except (TypeError, KeyError):
-                        pass
+                            logger.warning("Agent did not provide version information")
+
+                    except (TypeError, KeyError) as e:
+                        logger.warning("Failed to parse agent version response: %s", e)
 
         if self.supported_version is None:
             api_version = keylime_api_version.current_version()
