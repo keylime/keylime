@@ -77,7 +77,10 @@ class Tenant:
 
     mb_policy = None
     mb_policy_name: str = ""
-    supported_version: Optional[str] = None
+    supported_version: Optional[str] = None  # Deprecated: use agent_api_version
+    agent_api_version: Optional[str] = None
+    verifier_api_version: Optional[str] = None
+    registrar_api_version: Optional[str] = None
 
     client_cert = None
     client_key = None
@@ -180,6 +183,131 @@ class Tenant:
         if self.registrar_ip:
             self.registrar_fid_str = f"{self.registrar_fid_str} ({self.registrar_ip}:{self.registrar_port})"
 
+    def _fetch_server_versions(
+        self, base_url: str, tls_context: Optional[ssl.SSLContext], server_name: str
+    ) -> Optional[List[str]]:
+        """Fetch supported versions from a server's /version endpoint.
+
+        Args:
+            base_url: The server's base URL (host:port)
+            tls_context: TLS context for secure connection
+            server_name: Human-readable name for logging
+
+        Returns:
+            List of supported version strings, or None on failure
+        """
+        try:
+            client = RequestsClient(base_url, True, tls_context=tls_context)
+            response = client.get("/version", timeout=self.request_timeout)
+
+            if response.status_code == 410:
+                # 410 Gone: Server is in push mode and doesn't support /version
+                logger.debug("%s returned 410 (push mode), falling back to current version", server_name)
+                return None
+
+            if response.status_code != 200:
+                logger.warning("Failed to get versions from %s: %s", server_name, response.status_code)
+                return None
+
+            response_body: Dict[str, Any] = response.json()
+            if "results" not in response_body or "supported_versions" not in response_body["results"]:
+                logger.warning("Unexpected response format from %s /version endpoint", server_name)
+                return None
+
+            versions: List[str] = response_body["results"]["supported_versions"]
+            return versions
+
+        except Exception as e:
+            logger.warning("Error fetching versions from %s: %s", server_name, e)
+            return None
+
+    def _negotiate_server_version(self, server_versions: Optional[List[str]], server_name: str) -> str:
+        """Negotiate API version with a server.
+
+        In pull mode, API version 3.0+ is excluded since it is for push attestation only.
+        In push mode, all versions including 3.0 are available.
+
+        Args:
+            server_versions: List of versions supported by the server, or None
+            server_name: Human-readable name for error messages
+
+        Returns:
+            Negotiated version string
+
+        Raises:
+            UserError: If no compatible version is found
+        """
+        # API version 3.0 is for push attestation only; exclude it in pull mode
+        if self.push_model:
+            local_versions = None  # Use all versions including 3.0
+        else:
+            local_versions = [v for v in keylime_api_version.all_versions() if keylime_api_version.major(v) < 3]
+
+        if server_versions is None:
+            # Fall back to current version when we can't reach the server
+            if self.api_version is None:
+                raise UserError("Tenant API version is not set")
+            logger.debug("Cannot negotiate version with %s, using current version %s", server_name, self.api_version)
+            return self.api_version
+
+        try:
+            negotiated = keylime_api_version.negotiate_version(server_versions, local_versions, raise_on_error=True)
+            if negotiated is None:
+                raise UserError(f"Failed to negotiate API version with {server_name}")
+            logger.debug("Negotiated API version %s with %s", negotiated, server_name)
+            return negotiated
+        except ValueError:
+            supported = local_versions if local_versions is not None else keylime_api_version.all_versions()
+            raise UserError(
+                f"No compatible API version with {server_name}. "
+                f"Tenant supports: {supported}, "
+                f"Server supports: {server_versions}"
+            ) from None
+
+    def negotiate_verifier_version(self) -> None:
+        """Fetch and negotiate API version with the verifier."""
+        server_versions = self._fetch_server_versions(self.verifier_base_url, self.tls_context, "verifier")
+        self.verifier_api_version = self._negotiate_server_version(server_versions, "verifier")
+        logger.info("Using API version %s for verifier communication", self.verifier_api_version)
+
+    def negotiate_registrar_version(self) -> None:
+        """Fetch and negotiate API version with the registrar."""
+        if not self.registrar_ip or not self.registrar_port:
+            raise UserError("registrar_ip and registrar_port must be configured for version negotiation")
+
+        base_url = f"{bracketize_ipv6(self.registrar_ip)}:{self.registrar_port}"
+        server_versions = self._fetch_server_versions(base_url, self.tls_context, "registrar")
+        self.registrar_api_version = self._negotiate_server_version(server_versions, "registrar")
+        logger.info("Using API version %s for registrar communication", self.registrar_api_version)
+
+    def ensure_verifier_version(self) -> str:
+        """Ensure verifier API version is negotiated and return it.
+
+        Performs lazy negotiation: only negotiates if not already done.
+
+        Returns:
+            The negotiated verifier API version
+        """
+        if self.verifier_api_version is None:
+            self.negotiate_verifier_version()
+        if self.verifier_api_version is None:
+            raise UserError("Failed to negotiate API version with verifier")
+        return self.verifier_api_version
+
+    def ensure_registrar_version(self) -> str:
+        """Ensure registrar API version is negotiated and return it.
+
+        Performs lazy negotiation: only negotiates if not already done.
+
+        Returns:
+            The negotiated registrar API version
+        """
+        if self.registrar_api_version is None:
+            self.negotiate_registrar_version()
+        if self.registrar_api_version is None:
+            raise UserError("Failed to negotiate API version with registrar")
+        return self.registrar_api_version
+
     def init_add(self, args: Dict[str, Any]) -> None:
         """Set up required values. Command line options can overwrite these config values
 
@@ -222,11 +350,14 @@ class Tenant:
         self.agent_fid_str = f"Agent {self.agent_uuid}"
         self.verifier_fid_str = "Verifier"
 
-        # Auto-detection for API version
-        self.supported_version = args["supported_version"]
+        # Auto-detection for agent API version
+        # Use agent_api_version from args (set by --agent-api-version or deprecated --supported-version)
+        self.agent_api_version = args.get("agent_api_version")
+        # Also set supported_version for backward compatibility
+        self.supported_version = self.agent_api_version
         # Default to 1.0 if the agent did not send a mTLS certificate
-        if self.registrar_data.get("mtls_cert", None) is None and self.supported_version is None:
-            self.supported_version = "1.0"
+        if self.registrar_data.get("mtls_cert", None) is None and self.agent_api_version is None:
+            self.agent_api_version = "1.0"
         # Try to contact agent to get API version if in pull-mode and we have contact info
         # Skip in push-mode since agent will send attestations to verifier directly
         elif not self.push_model and self.agent_ip is not None and self.agent_port is not None:
@@ -281,24 +412,70 @@ class Tenant:
                 if res and res.status_code == 200:
                     try:
                         data = res.json()
-                        api_version = data["results"]["supported_version"]
-                        if keylime_api_version.validate_version(api_version) and self.supported_version is None:
-                            self.supported_version = api_version
-                        else:
-                            logger.warning("API version provided by the agent is not valid")
-                    except (TypeError, KeyError):
-                        pass
 
-        if self.supported_version is None:
-            api_version = keylime_api_version.current_version()
+                        # Try new format first (list of versions)
+                        agent_versions = data["results"].get("supported_versions")
+
+                        # Fall back to old format (single version) for backward compatibility
+                        if agent_versions is None:
+                            agent_versions = data["results"].get("supported_version")
+
+                        if agent_versions:
+                            # Negotiate compatible version
+                            negotiated = keylime_api_version.negotiate_version(agent_versions)
+
+                            if negotiated is None:
+                                # No compatible version found
+                                logger.error(
+                                    "No compatible API version between tenant and agent %s. "
+                                    "Agent supports: %s, Tenant supports: %s",
+                                    self.agent_uuid,
+                                    agent_versions,
+                                    keylime_api_version.all_versions(),
+                                )
+                                raise UserError(
+                                    f"Agent {self.agent_uuid} has no compatible API version. "
+                                    f"Agent supports: {agent_versions}, "
+                                    f"Tenant supports: {keylime_api_version.all_versions()}"
+                                )
+
+                            # Validate and use negotiated version
+                            if keylime_api_version.validate_version(negotiated) and self.agent_api_version is None:
+                                self.agent_api_version = negotiated
+                                logger.info(
+                                    "Negotiated API version %s with agent %s (agent: %s, tenant: %s)",
+                                    negotiated,
+                                    self.agent_uuid,
+                                    agent_versions if isinstance(agent_versions, list) else [agent_versions],
+                                    keylime_api_version.all_versions(),
+                                )
+                            elif not keylime_api_version.validate_version(negotiated):
+                                logger.warning(
+                                    "Negotiated version %s is invalid, using current: %s",
+                                    negotiated,
+                                    keylime_api_version.current_version(),
+                                )
+                                if self.agent_api_version is None:
+                                    self.agent_api_version = keylime_api_version.current_version()
+                        else:
+                            logger.warning("Agent did not provide version information")
+
+                    except (TypeError, KeyError) as e:
+                        logger.warning("Failed to parse agent version response: %s", e)
+
+        if self.agent_api_version is None:
+            fallback_version = keylime_api_version.current_version()
             logger.warning(
                 "Could not detect supported API version. Defaulting to %s (push_model=%s, agent_ip=%s, agent_port=%s)",
-                api_version,
+                fallback_version,
                 self.push_model,
                 self.agent_ip,
                 self.agent_port,
             )
-            self.supported_version = api_version
+            self.agent_api_version = fallback_version
+
+        # Keep supported_version in sync for backward compatibility
+        self.supported_version = self.agent_api_version
 
         # Set the full ID strings for both PUSH and PULL modes
         self.set_full_id_str()
@@ -537,7 +714,7 @@ class Tenant:
             quote,
             self.registrar_data["aik_tpm"],
             hash_alg=hash_alg,
-            compressed=(self.supported_version == "1.0"),
+            compressed=(self.agent_api_version == "1.0"),
         )
         if failure:
             if self.registrar_data["regcount"] > 1:
@@ -628,12 +805,14 @@ class Tenant:
             "accept_tpm_signing_algs": self.accept_tpm_signing_algs,
             "ak_tpm": self.registrar_data["aik_tpm"],
             "mtls_cert": self.registrar_data.get("mtls_cert", None),
-            "supported_version": self.supported_version,
+            "supported_version": self.agent_api_version,
         }
         json_message = json.dumps(data)
         do_cv = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cv.post(
-            (f"/v{self.api_version}/agents/{self.agent_uuid}"), data=json_message, timeout=self.request_timeout
+            (f"/v{self.ensure_verifier_version()}/agents/{self.agent_uuid}"),
+            data=json_message,
+            timeout=self.request_timeout,
         )
 
         if response.status_code == 503:
@@ -698,7 +877,9 @@ class Tenant:
 
         do_cvstatus = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
 
-        response = do_cvstatus.get((f"/v{self.api_version}/agents/{self.agent_uuid}"), timeout=self.request_timeout)
+        response = do_cvstatus.get(
+            (f"/v{self.ensure_verifier_version()}/agents/{self.agent_uuid}"), timeout=self.request_timeout
+        )
 
         response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
 
@@ -762,7 +943,9 @@ class Tenant:
 
         self.set_full_id_str()
 
-        response = do_cvstatus.get(f"/v{self.api_version}/agents/?verifier={verifier_id}", timeout=self.request_timeout)
+        response = do_cvstatus.get(
+            f"/v{self.ensure_verifier_version()}/agents/?verifier={verifier_id}", timeout=self.request_timeout
+        )
 
         response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
 
@@ -810,7 +993,8 @@ class Tenant:
         self.set_full_id_str()
 
         response = do_cvstatus.get(
-            f"/v{self.api_version}/agents/?bulk={True}&verifier={verifier_id}", timeout=self.request_timeout
+            f"/v{self.ensure_verifier_version()}/agents/?bulk={True}&verifier={verifier_id}",
+            timeout=self.request_timeout,
         )
 
         response_json = Tenant._jsonify_response(response, print_response=False)
@@ -860,7 +1044,9 @@ class Tenant:
                 self.set_full_id_str()
 
         do_cvdelete = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = do_cvdelete.delete(f"/v{self.api_version}/agents/{self.agent_uuid}", timeout=self.request_timeout)
+        response = do_cvdelete.delete(
+            f"/v{self.ensure_verifier_version()}/agents/{self.agent_uuid}", timeout=self.request_timeout
+        )
 
         response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
 
@@ -1051,7 +1237,7 @@ class Tenant:
 
         do_cvreactivate = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvreactivate.put(
-            f"/v{self.api_version}/agents/{self.agent_uuid}/reactivate",
+            f"/v{self.ensure_verifier_version()}/agents/{self.agent_uuid}/reactivate",
             data=b"",
             timeout=self.request_timeout,
         )
@@ -1076,7 +1262,7 @@ class Tenant:
 
     def do_cvstop(self) -> None:
         """Stop declared active agent"""
-        params = f"/v{self.api_version}/agents/{self.agent_uuid}/stop"
+        params = f"/v{self.ensure_verifier_version()}/agents/{self.agent_uuid}/stop"
         do_cvstop = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = do_cvstop.put(params, data=b"", timeout=self.request_timeout)
 
@@ -1110,7 +1296,7 @@ class Tenant:
         # Note: We need a specific retry handler (perhaps in common), no point having localised unless we have too.
         while True:
             try:
-                params = f"/v{self.supported_version}/quotes/identity?nonce=%s" % (self.nonce)
+                params = f"/v{self.agent_api_version}/quotes/identity?nonce=%s" % (self.nonce)
                 cloudagent_base_url = f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}"
 
                 if self.enable_agent_mtls and self.registrar_data and self.registrar_data["mtls_cert"]:
@@ -1202,7 +1388,7 @@ class Tenant:
                 data["payload"] = self.payload.decode("utf-8")
 
             # post encrypted U back to CloudAgent
-            params = f"/v{self.supported_version}/keys/ukey"
+            params = f"/v{self.agent_api_version}/keys/ukey"
             cloudagent_base_url = f"{bracketize_ipv6(self.agent_ip)}:{self.agent_port}"
 
             if self.enable_agent_mtls and self.registrar_data and self.registrar_data["mtls_cert"]:
@@ -1246,14 +1432,14 @@ class Tenant:
                         tls_context=self.agent_tls_context,
                     ) as do_verify:
                         response = do_verify.get(
-                            f"/v{self.supported_version}/keys/verify?challenge={challenge}",
+                            f"/v{self.agent_api_version}/keys/verify?challenge={challenge}",
                             timeout=self.request_timeout,
                         )
                 else:
                     logger.warning("Connecting to %s without using mTLS!", self.agent_fid_str)
                     do_verify = RequestsClient(cloudagent_base_url, tls_enabled=False)
                     response = do_verify.get(
-                        f"/v{self.supported_version}/keys/verify?challenge={challenge}", timeout=self.request_timeout
+                        f"/v{self.agent_api_version}/keys/verify?challenge={challenge}", timeout=self.request_timeout
                     )
 
                 response_json = Tenant._jsonify_response(response, print_response=False, raise_except=True)
@@ -1357,7 +1543,9 @@ class Tenant:
 
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.post(
-            f"/v{self.api_version}/allowlists/{self.runtime_policy_name}", data=body, timeout=self.request_timeout
+            f"/v{self.ensure_verifier_version()}/allowlists/{self.runtime_policy_name}",
+            data=body,
+            timeout=self.request_timeout,
         )
         response_json = Tenant._jsonify_response(response)
 
@@ -1369,7 +1557,9 @@ class Tenant:
 
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.put(
-            f"/v{self.api_version}/allowlists/{self.runtime_policy_name}", data=body, timeout=self.request_timeout
+            f"/v{self.ensure_verifier_version()}/allowlists/{self.runtime_policy_name}",
+            data=body,
+            timeout=self.request_timeout,
         )
         response_json = Tenant._jsonify_response(response)
 
@@ -1380,7 +1570,9 @@ class Tenant:
         if not name:
             raise UserError("--allowlist_name or --runtime_policy_name is required to delete a runtime policy")
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = cv_client.delete(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
+        response = cv_client.delete(
+            f"/v{self.ensure_verifier_version()}/allowlists/{name}", timeout=self.request_timeout
+        )
         response_json = Tenant._jsonify_response(response)
 
         if response.status_code >= 400:
@@ -1390,7 +1582,7 @@ class Tenant:
         if not name:
             raise UserError("--allowlist_name or --runtime_policy_name is required to show a runtime policy")
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = cv_client.get(f"/v{self.api_version}/allowlists/{name}", timeout=self.request_timeout)
+        response = cv_client.get(f"/v{self.ensure_verifier_version()}/allowlists/{name}", timeout=self.request_timeout)
         print(f"Show allowlist command response: {response.status_code}.")
         response_json = Tenant._jsonify_response(response)
 
@@ -1399,7 +1591,7 @@ class Tenant:
 
     def do_list_runtime_policy(self) -> None:
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = cv_client.get(f"/v{self.api_version}/allowlists/", timeout=self.request_timeout)
+        response = cv_client.get(f"/v{self.ensure_verifier_version()}/allowlists/", timeout=self.request_timeout)
         print(f"list command response: {response.status_code}.")
         response_json = Tenant._jsonify_response(response)
 
@@ -1430,7 +1622,9 @@ class Tenant:
 
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.post(
-            f"/v{self.api_version}/mbpolicies/{self.mb_policy_name}", data=body, timeout=self.request_timeout
+            f"/v{self.ensure_verifier_version()}/mbpolicies/{self.mb_policy_name}",
+            data=body,
+            timeout=self.request_timeout,
         )
         response_json = Tenant._jsonify_response(response)
 
@@ -1442,7 +1636,9 @@ class Tenant:
 
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
         response = cv_client.put(
-            f"/v{self.api_version}/mbpolicies/{self.mb_policy_name}", data=body, timeout=self.request_timeout
+            f"/v{self.ensure_verifier_version()}/mbpolicies/{self.mb_policy_name}",
+            data=body,
+            timeout=self.request_timeout,
         )
         response_json = Tenant._jsonify_response(response)
 
@@ -1453,7 +1649,9 @@ class Tenant:
         if not name:
             raise UserError("--mb_policy_name is required to delete a runtime policy")
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = cv_client.delete(f"/v{self.api_version}/mbpolicies/{name}", timeout=self.request_timeout)
+        response = cv_client.delete(
+            f"/v{self.ensure_verifier_version()}/mbpolicies/{name}", timeout=self.request_timeout
+        )
         response_json = Tenant._jsonify_response(response)
 
         if response.status_code >= 400:
@@ -1463,7 +1661,7 @@ class Tenant:
         if not name:
             raise UserError("--mb_policy_name is required to show a runtime policy")
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = cv_client.get(f"/v{self.api_version}/mbpolicies/{name}", timeout=self.request_timeout)
+        response = cv_client.get(f"/v{self.ensure_verifier_version()}/mbpolicies/{name}", timeout=self.request_timeout)
         print(f"showmbpolicy command response: {response.status_code}.")
         response_json = Tenant._jsonify_response(response)
 
@@ -1472,7 +1670,7 @@ class Tenant:
 
     def do_list_mb_policy(self) -> None:  # pylint: disable=unused-argument
         cv_client = RequestsClient(self.verifier_base_url, True, tls_context=self.tls_context)
-        response = cv_client.get(f"/v{self.api_version}/mbpolicies/", timeout=self.request_timeout)
+        response = cv_client.get(f"/v{self.ensure_verifier_version()}/mbpolicies/", timeout=self.request_timeout)
         print(f"listmbpolicy command response: {response.status_code}.")
         response_json = Tenant._jsonify_response(response)
 
@@ -1733,14 +1931,27 @@ def main() -> None:
         help="The name of the measure boot policy to operate with",
     )
     parser.add_argument(
+        "--agent-api-version",
+        default=None,
+        action="store",
+        dest="agent_api_version",
+        help="API version to use for agent communication. Detected automatically by default",
+    )
+    parser.add_argument(
         "--supported-version",
         default=None,
         action="store",
         dest="supported_version",
-        help="API version that is supported by the agent. Detected automatically by default",
+        help="DEPRECATED: Use --agent-api-version instead. API version to use for agent communication",
     )
 
     args = parser.parse_args()
+
+    # Handle deprecated --supported-version argument
+    if args.supported_version is not None:
+        logger.warning("--supported-version is deprecated. Use --agent-api-version instead.")
+        if args.agent_api_version is None:
+            args.agent_api_version = args.supported_version
 
     argerr, argerrmsg = options.get_opts_error(args)
     if argerr:
