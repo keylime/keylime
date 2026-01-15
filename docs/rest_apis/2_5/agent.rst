@@ -3,9 +3,9 @@ Agent
 
 .. http:get::  /version
 
-    Returns what API version the agent supports. This endpoint might not be implemented by all agents.
+    Returns what API version(s) the agent supports. This endpoint might not be implemented by all agents.
 
-    **Example response**:
+    **Example response (new format)**:
 
     .. sourcecode:: json
 
@@ -13,14 +13,28 @@ Agent
           "code": 200,
           "status": "Success",
           "results": {
-            "supported_version": "2.5"
+            "supported_version": "2.2",
+            "supported_versions": ["2.1", "2.2"]
+          }
+        }
+
+    **Example response (legacy format)**:
+
+    .. sourcecode:: json
+
+        {
+          "code": 200,
+          "status": "Success",
+          "results": {
+            "supported_version": "2.2"
           }
         }
 
     :>json int code: HTTP status code
     :>json string status: Status as string
     :>json object results: Results as a JSON object
-    :>json string supported_version: The latest version the agent supports.
+    :>json string supported_version: The latest API version the agent supports (for backward compatibility)
+    :>json array supported_versions: (optional) Array of all API versions the agent supports. Agents implementing version negotiation include this field. The tenant/verifier will negotiate to use the highest mutually supported version.
 
 .. http:get::  /v2.5/agent/info
 
