@@ -12,9 +12,9 @@
                 "certification_keys_server_identifier": "ak",
                 "ima_ml_count_file": "/tmp/ima_ml_count",
                 "uefi_logs_evidence_version": "1.0",
-                "tls_accept_invalid_certs": "False",
-                "tls_accept_invalid_hostnames": "False",
-                "enable_authentication": "False"
+                "tls_accept_invalid_certs": "false",
+                "tls_accept_invalid_hostnames": "false",
+                "enable_authentication": "false"
             }
         },
         "verifier": {
