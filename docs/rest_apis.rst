@@ -13,9 +13,22 @@ Check the :ref:`Changelog` section for the differences between versions
    rest_apis/2_2/2_2.rst
    rest_apis/2_3/2_3.rst
    rest_apis/2_4/2_4.rst
+   rest_apis/2_5/2_5.rst
 
 Changelog
 _________
+
+Changes from v2.4 to v2.5
+~~~~~~~~~~~~~~~~~~~~~~~~~
+API version 2.5 was first implemented in Keylime 7.14.0.
+
+* Modified `GET /v2.5/quotes/integrity` endpoint:
+    * `enc_alg` field in agent responses were modified to return explicit
+      bit-length formats (e.g., ``rsa2048``, ``rsa3072``, ``ecc256``,
+      ``ecc384``)
+* Server-side automatic normalization ensures backward compatibility:
+    * ``rsa`` → ``rsa2048``
+    * ``ecc`` → ``ecc256``
 
 Changes from v2.3 to v2.4
 ~~~~~~~~~~~~~~~~~~~~~~~~~
