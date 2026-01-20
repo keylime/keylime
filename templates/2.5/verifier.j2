@@ -92,6 +92,32 @@ client_cert = {{ verifier.client_cert }}
 # If set as 'default', the value is set as '[cacert.crt]'
 trusted_server_ca = {{ verifier.trusted_server_ca }}
 
+# Authorization provider to use for access control decisions.
+#
+# Available providers:
+#   simple - Default provider implementing 4-category access control:
+#            - PUBLIC: No authentication (version info, evidence verification)
+#            - AGENT_ONLY: PoP bearer token + resource ownership (attestations)
+#            - AGENT_OR_ADMIN: PoP token or mTLS certificate (read own agent)
+#            - ADMIN: mTLS client certificate (all management operations)
+#
+# The 'simple' provider enforces strict separation between agent and admin
+# authentication methods:
+#   - Agents authenticate via PoP (Proof-of-Possession) bearer tokens only
+#   - Admins authenticate via mTLS client certificates only
+#   - If an Authorization header is present, mTLS is never used (prevents
+#     privilege escalation)
+#
+# SECURITY NOTE: Never distribute client certificates signed by the verifier's
+# trusted CA to agents. Agents should only have PoP tokens for authentication.
+#
+# Certificate requirements:
+#   - Pull mode agents: Self-signed server certs are acceptable. If CA-issued,
+#     must have Server Authentication EKU only.
+#   - Push mode agents: No client certs from trusted CA. Use PoP tokens only.
+#   - Admins: Client certs signed by trusted CA with Client Authentication EKU.
+authorization_provider = {{ verifier.authorization_provider }}
+
 # Database URL Configuration
 # See this document https://keylime.readthedocs.io/en/latest/installation.html#database-support
 # for instructions on using different database configurations.

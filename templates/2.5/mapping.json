@@ -27,7 +27,13 @@
                 "session_create_rate_limit_per_agent": "15",
                 "session_create_rate_limit_window_agent": "60",
                 "session_lifetime": "180",
-                "extend_token_on_attestation": "True"
+                "extend_token_on_attestation": "True",
+                "authorization_provider": "simple"
+            }
+        },
+        "registrar": {
+            "add": {
+                "authorization_provider": "simple"
             }
         }
     }

@@ -49,6 +49,25 @@ server_cert = {{ registrar.server_cert }}
 # If set as 'default', the value is set as '[cacert.crt]'
 trusted_client_ca = {{ registrar.trusted_client_ca }}
 
+# Authorization provider to use for access control decisions.
+#
+# Available providers:
+#   simple - Default provider implementing 2-category access control:
+#            - PUBLIC: No authentication (agent registration, activation, version)
+#            - ADMIN: mTLS client certificate (listing, viewing, deleting registrations)
+#
+# The 'simple' provider enforces strict separation:
+#   - Agent registration endpoints are public (no authentication required)
+#   - Management endpoints require mTLS client certificate authentication
+#
+# SECURITY NOTE: Never distribute client certificates signed by the registrar's
+# trusted CA to agents. Agents should register via public endpoints only.
+#
+# Certificate requirements:
+#   - Agents: No client certs needed (public registration endpoints)
+#   - Admins: Client certs signed by trusted CA with Client Authentication EKU
+authorization_provider = {{ registrar.authorization_provider }}
+
 # Database URL Configuration
 # See this document https://keylime.readthedocs.io/en/latest/installation.html#database-support
 # for instructions on using different database configurations.
