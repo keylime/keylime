@@ -14,7 +14,7 @@
                 "uefi_logs_evidence_version": "1.0",
                 "tls_accept_invalid_certs": "false",
                 "tls_accept_invalid_hostnames": "false",
-                "enable_authentication": "false"
+                "enable_authentication": "true"
             }
         },
         "verifier": {
@@ -25,7 +25,9 @@
                 "session_create_rate_limit_per_ip": "50",
                 "session_create_rate_limit_window_ip": "60",
                 "session_create_rate_limit_per_agent": "15",
-                "session_create_rate_limit_window_agent": "60"
+                "session_create_rate_limit_window_agent": "60",
+                "session_lifetime": "180",
+                "extend_token_on_attestation": "True"
             }
         }
     }
