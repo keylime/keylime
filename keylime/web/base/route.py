@@ -1,6 +1,6 @@
 import re
 from inspect import iscoroutinefunction
-from typing import Any, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Mapping, Optional
 from urllib.parse import urljoin, urlparse, urlunparse
 
 import keylime.web.base as base  # pylint: disable=consider-using-from-import  # Avoid circular import
@@ -11,6 +11,9 @@ from keylime.web.base.exceptions import (
     InvalidPathOrPattern,
     PatternMismatch,
 )
+
+if TYPE_CHECKING:
+    from keylime.authorization.provider import Action
 
 
 class Route:
@@ -149,7 +152,14 @@ class Route:
         return segments
 
     def __init__(
-        self, method: str, pattern: str, controller: type[base.Controller], action: str, allow_insecure: bool = False
+        self,
+        method: str,
+        pattern: str,
+        controller: type[base.Controller],
+        action: str,
+        allow_insecure: bool = False,
+        requires_auth: bool = False,
+        auth_action: Optional["Action"] = None,
     ) -> None:
         """Instantiates a newly created route with the given method, pattern, controller and action. Typically, this
         should be done by using the helper methods in the ``Server`` abstract base class.
@@ -159,6 +169,9 @@ class Route:
         :param controller: A class which inherits from ``Controller`` and contains the actions for this route
         :param action: The name of an instance method in the controller which will be called on a matching request
         :param allow_insecure: Whether this route should accept requests made over insecure HTTP (default: ``False``)
+        :param requires_auth: Whether this route requires authorization checking (default: ``False``)
+        :param auth_action: The authorization Action for this route. Required when requires_auth is True.
+                           Specifies what action the user is attempting to perform for authorization decisions.
 
         :raises: :class:`TypeError`: An argument is of an incorrect type
         :raises: :class:`InvalidMethod`: The given HTTP method is not one accepted by the Routes class
@@ -195,6 +208,8 @@ class Route:
         self._controller = controller
         self._action = action
         self._allow_insecure = bool(allow_insecure)
+        self._requires_auth = bool(requires_auth)
+        self._auth_action = auth_action
 
         self._parse_pattern()
 
@@ -418,3 +433,11 @@ class Route:
     @property
     def allow_insecure(self) -> bool:
         return self._allow_insecure
+
+    @property
+    def requires_auth(self) -> bool:
+        return self._requires_auth
+
+    @property
+    def auth_action(self) -> Optional["Action"]:
+        return self._auth_action

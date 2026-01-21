@@ -16,6 +16,7 @@ from keylime.web.base.route import Route
 if TYPE_CHECKING:
     from ssl import SSLContext
 
+    from keylime.authorization.provider import Action
     from keylime.web.base.controller import Controller
 
 logger = keylime_logging.init_logging("web")
@@ -92,7 +93,15 @@ class Server(ABC):
     @staticmethod
     def _new_scoped_route(pattern_prefix: str, route: Route) -> Route:
         pattern = pattern_prefix + route.pattern
-        return Route(route.method, pattern, route.controller, route.action, route.allow_insecure)
+        return Route(
+            route.method,
+            pattern,
+            route.controller,
+            route.action,
+            route.allow_insecure,
+            route.requires_auth,
+            route.auth_action,
+        )
 
     @staticmethod
     def _make_versioned_routes(major_version: int, route: Route) -> list[Route]:
@@ -189,6 +198,7 @@ class Server(ABC):
         before starting the server with `server.start()`.
         """
         # Set defaults for server options
+        self.__component: str = "unknown"  # Component name (e.g., "verifier", "registrar")
         self.__config_component: str | None = None
         self.__operating_mode = None
         self.__bind_interface: str = "127.0.0.1"
@@ -361,6 +371,18 @@ class Server(ABC):
         """Sets operating mode of the server (push or pull)."""
         self._set_option("operating_mode", **kwargs)
 
+    def _set_component(self, component: str) -> None:
+        """Sets the component name for this server.
+
+        The component name is used for component-aware authorization mappings.
+        For example, the same route pattern may map to different actions
+        depending on whether it's in the verifier or registrar.
+
+        Args:
+            component: Component name (e.g., "verifier", "registrar")
+        """
+        self.__component = component
+
     def _set_bind_interface(self, **kwargs: Any) -> None:
         """Sets the IP address or hostname to use to identify the network interface on which to listen for incoming
         requests. Examples::
@@ -426,47 +448,103 @@ class Server(ABC):
         ssl_ctx.verify_mode = CERT_OPTIONAL
         self._set_option("ssl_ctx", value=ssl_ctx)
 
-    def _get(self, pattern: str, controller: type["Controller"], action: str, allow_insecure: bool = False) -> None:
+    def _get(
+        self,
+        pattern: str,
+        controller: type["Controller"],
+        action: str,
+        allow_insecure: bool = False,
+        requires_auth: bool = False,
+        auth_action: Optional["Action"] = None,
+    ) -> None:
         """Creates a new route to handle incoming GET requests issued for paths which match the given
         pattern. Must be called from a Server subclass's ``self._routes`` method.
         """
-        self.__routes.append(Route("get", pattern, controller, action, allow_insecure))
+        self.__routes.append(Route("get", pattern, controller, action, allow_insecure, requires_auth, auth_action))
 
-    def _head(self, pattern: str, controller: type["Controller"], action: str, allow_insecure: bool = False) -> None:
+    def _head(
+        self,
+        pattern: str,
+        controller: type["Controller"],
+        action: str,
+        allow_insecure: bool = False,
+        requires_auth: bool = False,
+        auth_action: Optional["Action"] = None,
+    ) -> None:
         """Creates a new route to handle incoming HEAD requests issued for paths which match the given
         pattern. Must be called from a Server subclass's ``self._routes`` method.
         """
-        self.__routes.append(Route("head", pattern, controller, action, allow_insecure))
+        self.__routes.append(Route("head", pattern, controller, action, allow_insecure, requires_auth, auth_action))
 
-    def _post(self, pattern: str, controller: type["Controller"], action: str, allow_insecure: bool = False) -> None:
+    def _post(
+        self,
+        pattern: str,
+        controller: type["Controller"],
+        action: str,
+        allow_insecure: bool = False,
+        requires_auth: bool = False,
+        auth_action: Optional["Action"] = None,
+    ) -> None:
         """Creates a new route to handle incoming POST requests issued for paths which match the given
         pattern. Must be called from a Server subclass's ``self._routes`` method.
         """
-        self.__routes.append(Route("post", pattern, controller, action, allow_insecure))
+        self.__routes.append(Route("post", pattern, controller, action, allow_insecure, requires_auth, auth_action))
 
-    def _put(self, pattern: str, controller: type["Controller"], action: str, allow_insecure: bool = False) -> None:
+    def _put(
+        self,
+        pattern: str,
+        controller: type["Controller"],
+        action: str,
+        allow_insecure: bool = False,
+        requires_auth: bool = False,
+        auth_action: Optional["Action"] = None,
+    ) -> None:
         """Creates a new route to handle incoming PUT requests issued for paths which match the given
         pattern. Must be called from a Server subclass's ``self._routes`` method.
         """
-        self.__routes.append(Route("put", pattern, controller, action, allow_insecure))
+        self.__routes.append(Route("put", pattern, controller, action, allow_insecure, requires_auth, auth_action))
 
-    def _patch(self, pattern: str, controller: type["Controller"], action: str, allow_insecure: bool = False) -> None:
+    def _patch(
+        self,
+        pattern: str,
+        controller: type["Controller"],
+        action: str,
+        allow_insecure: bool = False,
+        requires_auth: bool = False,
+        auth_action: Optional["Action"] = None,
+    ) -> None:
         """Creates a new route to handle incoming PATCH requests issued for paths which match the given
         pattern. Must be called from a Server subclass's ``self._routes`` method.
         """
-        self.__routes.append(Route("patch", pattern, controller, action, allow_insecure))
+        self.__routes.append(Route("patch", pattern, controller, action, allow_insecure, requires_auth, auth_action))
 
-    def _delete(self, pattern: str, controller: type["Controller"], action: str, allow_insecure: bool = False) -> None:
+    def _delete(
+        self,
+        pattern: str,
+        controller: type["Controller"],
+        action: str,
+        allow_insecure: bool = False,
+        requires_auth: bool = False,
+        auth_action: Optional["Action"] = None,
+    ) -> None:
         """Creates a new route to handle incoming DELETE requests issued for paths which match the given
         pattern. Must be called from a Server subclass's ``self._routes`` method.
         """
-        self.__routes.append(Route("delete", pattern, controller, action, allow_insecure))
+        self.__routes.append(Route("delete", pattern, controller, action, allow_insecure, requires_auth, auth_action))
 
-    def _options(self, pattern: str, controller: type["Controller"], action: str, allow_insecure: bool = False) -> None:
+    def _options(
+        self,
+        pattern: str,
+        controller: type["Controller"],
+        action: str,
+        allow_insecure: bool = False,
+        requires_auth: bool = False,
+        auth_action: Optional["Action"] = None,
+    ) -> None:
         """Creates a new route to handle incoming OPTIONS requests issued for paths which match the given
         pattern. Must be called from a Server subclass's ``self._routes`` method.
         """
-        self.__routes.append(Route("options", pattern, controller, action, allow_insecure))
+        self.__routes.append(Route("options", pattern, controller, action, allow_insecure, requires_auth, auth_action))
 
     def first_matching_route(self, method: Optional[str], path: str) -> Optional[Route]:
         """Gets the highest-priority route which matches the given ``method`` and ``path``."""
@@ -483,6 +561,11 @@ class Server(ABC):
     @property
     def config_component(self) -> Optional[str]:
         return self.__config_component
+
+    @property
+    def component(self) -> str:
+        """Get the component name for this server (e.g., 'verifier', 'registrar')."""
+        return self.__component
 
     @property
     def operating_mode(self) -> Optional[str]:
