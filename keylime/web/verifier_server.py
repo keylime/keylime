@@ -7,6 +7,7 @@ import tornado.process
 from sqlalchemy.exc import SQLAlchemyError
 
 from keylime import cloud_verifier_common, cloud_verifier_tornado, config, keylime_logging
+from keylime.authorization.provider import Action
 from keylime.common import states
 from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain
@@ -145,6 +146,7 @@ class VerifierServer(Server):
             engine.dispose()
 
     def _setup(self) -> None:
+        self._set_component("verifier")
         self._use_config("verifier")
         self._set_operating_mode(from_config="mode", fallback="pull")
         self._set_bind_interface(from_config="ip")
@@ -159,21 +161,23 @@ class VerifierServer(Server):
         self._v3_routes()
 
     def _top_level_routes(self) -> None:
-        self._get("/", ServerInfoController, "show_root")
-        self._get("/versions", ServerInfoController, "show_versions")
-        self._get("/version", ServerInfoController, "show_versions")
+        # Public routes - no authentication required
+        self._get("/", ServerInfoController, "show_root", auth_action=Action.READ_SERVER_INFO)
+        self._get("/versions", ServerInfoController, "show_versions", auth_action=Action.READ_VERSION)
+        self._get("/version", ServerInfoController, "show_versions", auth_action=Action.READ_VERSION)
 
     @Server.version_scope(2)
     def _v2_routes(self) -> None:
-        self._get("/", ServerInfoController, "show_version_root")
+        # Public: version info
+        self._get("/", ServerInfoController, "show_version_root", auth_action=Action.READ_SERVER_INFO)
 
-        # Routes for managing agent resources
+        # Routes for managing agent resources (admin + agent-read-own)
         self._agent_routes()
-        # Agent management routes which are replaced in API v3
+        # Agent management routes which are replaced in API v3 (admin only)
         self._v2_agent_routes()
-        # Routes for managing measured boot verification in API v2
+        # Routes for managing measured boot verification in API v2 (admin only)
         self._v2_mb_routes()
-        # Routes for managing IMA verification in API v2
+        # Routes for managing IMA verification in API v2 (admin only)
         self._v2_ima_routes()
         # Routes for on-demand identity verification in API v2 (public)
         self._v2_identity_routes()
@@ -184,106 +188,237 @@ class VerifierServer(Server):
 
     @Server.version_scope(3)
     def _v3_routes(self) -> None:
-        self._get("/", ServerInfoController, "show_version_root")
+        # Public: version info
+        self._get("/", ServerInfoController, "show_version_root", auth_action=Action.READ_SERVER_INFO)
 
-        # Routes for managing agent resources
+        # Routes for managing agent resources (admin + agent-read-own)
         self._agent_routes()
-        # Agent management routes available from API v3
+        # Agent management routes available from API v3 (admin only)
         self._v3_agent_routes()
-        # Routes for managing push attestation resources (API v3+ only)
+        # Routes for managing push attestation resources (API v3+ only, agent + admin)
         self._attestation_routes()
-        # Routes for managing measured boot verification in API v3+
+        # Routes for managing measured boot verification in API v3+ (admin only)
         self._v3_mb_routes()
-        # Routes for managing IMA verification in API v3+
+        # Routes for managing IMA verification in API v3+ (admin only)
         self._v3_ima_routes()
-        # Routes for on-demand verification of evidence in API v3+
+        # Routes for on-demand verification of evidence in API v3+ (public)
         self._v3_evidence_routes()
-        # Routes for agent athentication
+        # Routes for agent authentication (public - creates sessions)
         self._v3_authentication_routes()
 
     def _agent_routes(self) -> None:
         # Routes used to manage agents enrolled for verification
-        self._get("/agents", AgentController, "index")
-        self._get("/agents/:agent_id", AgentController, "show")
-        self._delete("/agents/:agent_id", AgentController, "delete")
+        # Admin: list all agents
+        self._get("/agents", AgentController, "index", requires_auth=True, auth_action=Action.LIST_AGENTS)
+        # Agent/Admin: read agent status (agent can read own, admin can read any)
+        self._get("/agents/:agent_id", AgentController, "show", requires_auth=True, auth_action=Action.READ_AGENT)
+        # Admin: delete agent
+        self._delete(
+            "/agents/:agent_id", AgentController, "delete", requires_auth=True, auth_action=Action.DELETE_AGENT
+        )
 
     def _v2_agent_routes(self) -> None:
-        # Routes used to manage agents enrolled for verification
-        self._post("/agents/:agent_id", AgentController, "create")
+        # Routes used to manage agents enrolled for verification (admin only)
+        self._post("/agents/:agent_id", AgentController, "create", requires_auth=True, auth_action=Action.CREATE_AGENT)
 
-        # Routes used in pull mode to control polling for attestations from agents
-        self._put("/agents/:agent_id/reactivate", AgentController, "reactivate")
-        self._put("/agents/:agent_id/stop", AgentController, "stop")
+        # Routes used in pull mode to control polling for attestations from agents (admin only)
+        self._put(
+            "/agents/:agent_id/reactivate",
+            AgentController,
+            "reactivate",
+            requires_auth=True,
+            auth_action=Action.REACTIVATE_AGENT,
+        )
+        self._put("/agents/:agent_id/stop", AgentController, "stop", requires_auth=True, auth_action=Action.STOP_AGENT)
         # Note: in v3+, these actions are performed by mutating agent resources directly
 
     def _v3_agent_routes(self) -> None:
-        # Routes used to manage agents enrolled for verification (which adhere to RFC 9110 semantics)
-        self._post("/agents", AgentController, "create")
-        self._patch("/agents/:agent_id", AgentController, "update")
+        # Routes used to manage agents enrolled for verification (admin only, RFC 9110 semantics)
+        self._post("/agents", AgentController, "create", requires_auth=True, auth_action=Action.CREATE_AGENT)
+        self._patch("/agents/:agent_id", AgentController, "update", requires_auth=True, auth_action=Action.UPDATE_AGENT)
         # Note: in pull mode, the update action includes turning polling on/off
 
     @Server.push_only
     def _attestation_routes(self) -> None:
         # Routes for managing push attestation resources
         # Note: These routes must use HTTPS to protect sensitive TPM quotes and attestation evidence in transit.
-        self._get("/agents/:agent_id/attestations", AttestationController, "index")
-        self._post("/agents/:agent_id/attestations", AttestationController, "create")
-        self._get("/agents/:agent_id/attestations/latest", AttestationController, "show_latest")
-        self._patch("/agents/:agent_id/attestations/latest", AttestationController, "update_latest")
-        self._get("/agents/:agent_id/attestations/:index", AttestationController, "show")
-        self._patch("/agents/:agent_id/attestations/:index", AttestationController, "update")
+        # Admin: list/read attestations
+        self._get(
+            "/agents/:agent_id/attestations",
+            AttestationController,
+            "index",
+            requires_auth=True,
+            auth_action=Action.LIST_ATTESTATIONS,
+        )
+        self._get(
+            "/agents/:agent_id/attestations/latest",
+            AttestationController,
+            "show_latest",
+            requires_auth=True,
+            auth_action=Action.READ_ATTESTATION,
+        )
+        self._get(
+            "/agents/:agent_id/attestations/:index",
+            AttestationController,
+            "show",
+            requires_auth=True,
+            auth_action=Action.READ_ATTESTATION,
+        )
+        # Agent: submit attestations (agent can only submit for own agent_id)
+        self._post(
+            "/agents/:agent_id/attestations",
+            AttestationController,
+            "create",
+            requires_auth=True,
+            auth_action=Action.SUBMIT_ATTESTATION,
+        )
+        self._patch(
+            "/agents/:agent_id/attestations/latest",
+            AttestationController,
+            "update_latest",
+            requires_auth=True,
+            auth_action=Action.SUBMIT_ATTESTATION,
+        )
+        self._patch(
+            "/agents/:agent_id/attestations/:index",
+            AttestationController,
+            "update",
+            requires_auth=True,
+            auth_action=Action.SUBMIT_ATTESTATION,
+        )
 
     def _v2_mb_routes(self) -> None:
-        # Routes used to manage reference states for MB/UEFI verification
-        self._get("/mbpolicies", MBRefStateController, "index")
-        self._post("/mbpolicies/:name", MBRefStateController, "create")
-        self._get("/mbpolicies/:name", MBRefStateController, "show")
-        self._put("/mbpolicies/:name", MBRefStateController, "overwrite")
-        self._delete("/mbpolicies/:name", MBRefStateController, "delete")
+        # Routes used to manage reference states for MB/UEFI verification (admin only)
+        self._get("/mbpolicies", MBRefStateController, "index", requires_auth=True, auth_action=Action.LIST_MB_POLICIES)
+        self._post(
+            "/mbpolicies/:name", MBRefStateController, "create", requires_auth=True, auth_action=Action.CREATE_MB_POLICY
+        )
+        self._get(
+            "/mbpolicies/:name", MBRefStateController, "show", requires_auth=True, auth_action=Action.READ_MB_POLICY
+        )
+        self._put(
+            "/mbpolicies/:name",
+            MBRefStateController,
+            "overwrite",
+            requires_auth=True,
+            auth_action=Action.UPDATE_MB_POLICY,
+        )
+        self._delete(
+            "/mbpolicies/:name", MBRefStateController, "delete", requires_auth=True, auth_action=Action.DELETE_MB_POLICY
+        )
 
     def _v3_mb_routes(self) -> None:
-        # Routes used to manage reference states for MB/UEFI verification (which adhere to RFC 9110 semantics)
-        self._get("/refstates/uefi", MBRefStateController, "index")
-        self._post("/refstates/uefi", MBRefStateController, "create")
-        self._get("/refstates/uefi/:name", MBRefStateController, "show")
-        self._patch("/refstates/uefi/:name", MBRefStateController, "update")
-        self._delete("/refstates/uefi/:name", MBRefStateController, "delete")
+        # Routes used to manage reference states for MB/UEFI verification (admin only, RFC 9110 semantics)
+        self._get(
+            "/refstates/uefi", MBRefStateController, "index", requires_auth=True, auth_action=Action.LIST_MB_POLICIES
+        )
+        self._post(
+            "/refstates/uefi", MBRefStateController, "create", requires_auth=True, auth_action=Action.CREATE_MB_POLICY
+        )
+        self._get(
+            "/refstates/uefi/:name", MBRefStateController, "show", requires_auth=True, auth_action=Action.READ_MB_POLICY
+        )
+        self._patch(
+            "/refstates/uefi/:name",
+            MBRefStateController,
+            "update",
+            requires_auth=True,
+            auth_action=Action.UPDATE_MB_POLICY,
+        )
+        self._delete(
+            "/refstates/uefi/:name",
+            MBRefStateController,
+            "delete",
+            requires_auth=True,
+            auth_action=Action.DELETE_MB_POLICY,
+        )
 
     def _v2_ima_routes(self) -> None:
-        # Routes used to manage policies for IMA verification
-        self._get("/allowlists", IMAPolicyController, "index")
-        self._get("/allowlists/:name", IMAPolicyController, "show")
-        self._post("/allowlists/:name", IMAPolicyController, "create")
-        self._put("/allowlists/:name", IMAPolicyController, "overwrite")
-        self._delete("/allowlists/:name", IMAPolicyController, "delete")
+        # Routes used to manage policies for IMA verification (admin only)
+        self._get(
+            "/allowlists", IMAPolicyController, "index", requires_auth=True, auth_action=Action.LIST_RUNTIME_POLICIES
+        )
+        self._get(
+            "/allowlists/:name", IMAPolicyController, "show", requires_auth=True, auth_action=Action.READ_RUNTIME_POLICY
+        )
+        self._post(
+            "/allowlists/:name",
+            IMAPolicyController,
+            "create",
+            requires_auth=True,
+            auth_action=Action.CREATE_RUNTIME_POLICY,
+        )
+        self._put(
+            "/allowlists/:name",
+            IMAPolicyController,
+            "overwrite",
+            requires_auth=True,
+            auth_action=Action.UPDATE_RUNTIME_POLICY,
+        )
+        self._delete(
+            "/allowlists/:name",
+            IMAPolicyController,
+            "delete",
+            requires_auth=True,
+            auth_action=Action.DELETE_RUNTIME_POLICY,
+        )
 
     def _v3_ima_routes(self) -> None:
-        # Routes used to manage policies for IMA verification (which adhere to RFC 9110 semantics)
-        self._get("/policies/ima", IMAPolicyController, "index")
-        self._get("/policies/ima/:name", IMAPolicyController, "show")
-        self._post("/policies/ima", IMAPolicyController, "create")
-        self._patch("/policies/ima/:name", IMAPolicyController, "update")
-        self._delete("/policies/ima/:name", IMAPolicyController, "delete")
+        # Routes used to manage policies for IMA verification (admin only, RFC 9110 semantics)
+        self._get(
+            "/policies/ima", IMAPolicyController, "index", requires_auth=True, auth_action=Action.LIST_RUNTIME_POLICIES
+        )
+        self._get(
+            "/policies/ima/:name",
+            IMAPolicyController,
+            "show",
+            requires_auth=True,
+            auth_action=Action.READ_RUNTIME_POLICY,
+        )
+        self._post(
+            "/policies/ima", IMAPolicyController, "create", requires_auth=True, auth_action=Action.CREATE_RUNTIME_POLICY
+        )
+        self._patch(
+            "/policies/ima/:name",
+            IMAPolicyController,
+            "update",
+            requires_auth=True,
+            auth_action=Action.UPDATE_RUNTIME_POLICY,
+        )
+        self._delete(
+            "/policies/ima/:name",
+            IMAPolicyController,
+            "delete",
+            requires_auth=True,
+            auth_action=Action.DELETE_RUNTIME_POLICY,
+        )
 
     def _v2_identity_routes(self) -> None:
         # Routes for on-demand identity verification (public - allows third-party verification)
-        self._get("/verify/identity", IdentityController, "verify")  # Public: VERIFY_IDENTITY
+        self._get("/verify/identity", IdentityController, "verify", auth_action=Action.VERIFY_IDENTITY)
 
     def _v2_evidence_routes(self) -> None:
         # Routes for on-demand evidence verification in v2 (public - allows third-party verification)
-        self._post("/verify/evidence", EvidenceController, "process")  # Public: VERIFY_EVIDENCE
+        self._post("/verify/evidence", EvidenceController, "process", auth_action=Action.VERIFY_EVIDENCE)
 
     def _v3_evidence_routes(self) -> None:
         # Routes for on-demand verification of evidence in v3+ (public - allows third-party verification)
-        self._post("/verify/evidence", EvidenceController, "process")  # Public: VERIFY_EVIDENCE
+        self._post("/verify/evidence", EvidenceController, "process", auth_action=Action.VERIFY_EVIDENCE)
 
     def _v3_authentication_routes(self) -> None:
         # Routes for agent authentication
         # Note: These routes must use HTTPS to protect challenges and authentication tokens in transit.
         # While the authentication protocol uses TPM proof of possession instead of mTLS certificates,
         # TLS encryption is still required to prevent interception and replay attacks.
-        self._post("/sessions", SessionController, "create_session")
-        self._patch("/sessions/:session_id", SessionController, "update_session")
-        self._get("/agents/:agent_id/session/:token", SessionController, "show")
-        self._post("/agents/:agent_id/session", SessionController, "create")
-        self._patch("/agents/:agent_id/session/:token", SessionController, "update")
+
+        # Public: session creation (agent initiates authentication with TPM PoP)
+        self._post("/sessions", SessionController, "create_session", auth_action=Action.CREATE_SESSION)
+        # Public: session update handles both initial PoP completion (anonymous) and token extension
+        # The session controller validates the PoP response or existing token internally
+        self._patch("/sessions/:session_id", SessionController, "update_session", auth_action=Action.EXTEND_SESSION)
+
+        # Legacy session routes (kept for backwards compatibility)
+        # These routes pass the token in the URL path; the session controller validates it internally
+        self._get("/agents/:agent_id/session/:token", SessionController, "show", auth_action=Action.EXTEND_SESSION)
+        self._post("/agents/:agent_id/session", SessionController, "create", auth_action=Action.CREATE_SESSION)
+        self._patch("/agents/:agent_id/session/:token", SessionController, "update", auth_action=Action.EXTEND_SESSION)
