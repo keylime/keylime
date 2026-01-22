@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional
 from tornado.web import RequestHandler
 
 from keylime import keylime_logging
+from keylime.authorization.manager import get_authorization_manager
+from keylime.authorization.provider import Action, AuthorizationRequest
 from keylime.models.base.types import Timestamp  # type: ignore[attr-defined]
 from keylime.models.verifier.auth_session import AuthSession
 from keylime.web.base.default_controller import DefaultController
@@ -213,6 +215,261 @@ class ActionHandler(RequestHandler):
         # Set response header to include request ID
         self.set_header("X-Request-ID", self.request_id)
 
+    def _extract_identity(self) -> tuple[str, str]:
+        """Extract identity from bearer token or mTLS certificate.
+
+        Authentication methods are mutually exclusive and determined by the
+        presence of an Authorization header:
+
+        - Authorization header present → agent authentication path
+          - Valid bearer token → identity_type = "agent"
+          - Invalid/expired token → identity_type = "anonymous" (denied)
+          - NEVER falls back to mTLS (prevents privilege escalation)
+
+        - No Authorization header → admin authentication path
+          - Valid mTLS certificate → identity_type = "admin"
+          - No certificate → identity_type = "anonymous"
+
+        Security Model:
+            Agents authenticate via PoP (Proof-of-Possession) bearer tokens only.
+            Admins authenticate via mTLS client certificates only.
+
+            IMPORTANT: Never distribute client certificates signed by the verifier's
+            trusted CA to agents. Agents should only have PoP tokens. If an agent
+            had a valid client certificate AND didn't send an Authorization header,
+            they would be identified as an admin.
+
+            Certificate Requirements:
+            - Pull mode agents: Self-signed server certs are acceptable (trust comes
+              from TPM quote). If CA-issued, must have Server Authentication EKU only.
+            - Push mode agents: Never use client certs from trusted CA. Use PoP
+              tokens only.
+            - Admins: Client certs signed by trusted CA with Client Authentication EKU.
+
+        Returns:
+            Tuple of (identity, identity_type) where:
+            - identity: The identifier (agent_id from token, CN from cert, or "anonymous")
+            - identity_type: One of:
+                - "agent": PoP bearer token present and valid (agent_id)
+                - "admin": mTLS certificate present, no Authorization header
+                - "anonymous": No valid authentication
+        """
+        auth_header = self.request.headers.get("Authorization")
+
+        # If Authorization header is present, this is an agent authentication attempt
+        # We NEVER fall back to mTLS - this prevents privilege escalation attacks
+        if auth_header:
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+                auth_session = AuthSession.get(token)
+                if auth_session and auth_session.agent_id:  # type: ignore[attr-defined]
+                    # Check if token is still valid
+                    now = Timestamp.now()
+                    if auth_session.token_expires_at >= now:  # type: ignore[attr-defined]
+                        logger.debug("Extracted agent identity from bearer token: %s", auth_session.agent_id)  # type: ignore[attr-defined]
+                        return (auth_session.agent_id, "agent")  # type: ignore[attr-defined]
+                    logger.debug("Bearer token expired for agent: %s", auth_session.agent_id)  # type: ignore[attr-defined]
+                else:
+                    logger.debug("Invalid bearer token provided")
+            else:
+                logger.debug("Malformed Authorization header (expected 'Bearer <token>')")
+
+            # Authorization header present but invalid - return anonymous, do NOT try mTLS
+            return ("anonymous", "anonymous")
+
+        # No Authorization header - check for mTLS certificate (admin authentication)
+        try:
+            cert_dict = self.request.get_ssl_certificate()
+            if cert_dict and isinstance(cert_dict, dict):
+                # Extract CN (Common Name) from subject
+                cn = None
+                subject = cert_dict.get("subject", ())
+                for rdn in subject:
+                    for name_tuple in rdn:
+                        if name_tuple[0] == "commonName":
+                            cn = name_tuple[1]
+                            break
+                    if cn:
+                        break
+
+                if cn:
+                    # Extract SAN (Subject Alternative Name) for enhanced logging
+                    san_info = self._extract_san_from_cert(cert_dict)
+                    if san_info:
+                        logger.debug(
+                            "Extracted admin identity from mTLS certificate: CN=%s, SAN={%s}",
+                            cn,
+                            san_info,
+                        )
+                    else:
+                        logger.debug("Extracted admin identity from mTLS certificate: CN=%s", cn)
+                    return (cn, "admin")
+        except Exception as e:
+            logger.debug("Failed to extract mTLS certificate: %s", e)
+
+        # No authenticated identity found
+        return ("anonymous", "anonymous")
+
+    def _extract_san_from_cert(self, cert_dict: dict[Any, Any]) -> str:
+        """Extract Subject Alternative Name (SAN) information from certificate.
+
+        Extracts email, DNS, and URI entries from the certificate's SAN extension
+        for enhanced audit logging.
+
+        Args:
+            cert_dict: Certificate dictionary from get_ssl_certificate()
+
+        Returns:
+            Formatted string with SAN entries, or empty string if no SAN found
+        """
+        san_entries = []
+        subject_alt_name = cert_dict.get("subjectAltName", ())
+
+        for san_type, san_value in subject_alt_name:
+            # Include email, DNS, URI, and IP Address entries
+            if san_type in ("email", "DNS", "URI", "IP Address"):
+                san_entries.append(f"{san_type}={san_value}")
+
+        return ", ".join(san_entries)
+
+    def _get_action_from_route(self) -> Optional[Action]:
+        """Get the authorization Action for the current route.
+
+        Returns:
+            Action enum value from route metadata, or None if not set
+        """
+        if not self.matching_route:
+            return None
+
+        return self.matching_route.auth_action
+
+    def _get_resource_from_route(self) -> Optional[str]:
+        """Extract resource identifier from the matched route path.
+
+        Returns:
+            Resource identifier (e.g., agent_id, policy name) or None
+        """
+        if not self.matching_route:
+            return None
+
+        try:
+            # Extract path parameters from the matched route
+            params = self.matching_route.capture_params(self.request.path)
+
+            # Priority order: agent_id > name > session_id
+            if "agent_id" in params:
+                return params["agent_id"]
+            if "name" in params:
+                return params["name"]
+            if "session_id" in params:
+                return params["session_id"]
+
+            return None
+        except Exception as e:
+            logger.debug("Failed to extract resource from route: %s", e)
+            return None
+
+    def _check_authorization(self) -> bool:
+        """Check if the current request is authorized.
+
+        Returns:
+            True if authorized, False if denied (response already sent)
+        """
+        # Skip authorization check if route doesn't require auth
+        if not self.matching_route or not self.matching_route.requires_auth:
+            return True
+
+        # Extract identity from request
+        identity, identity_type = self._extract_identity()
+
+        # Get action from route
+        action = self._get_action_from_route()
+        if not action:
+            # Could not map route to action - deny by default (fail-safe)
+            logger.error(
+                "Authorization denied: could not map route to action: %s %s",
+                self.request.method,
+                self.request.path,
+            )
+            self.set_status(403)
+            self.write(
+                {
+                    "errors": [
+                        {
+                            "status": "403",
+                            "title": "Forbidden",
+                            "detail": "Could not determine required permissions for this operation",
+                        }
+                    ]
+                }
+            )
+            self.finish()
+            return False
+
+        # Get resource from route
+        resource = self._get_resource_from_route()
+
+        # Create authorization request
+        auth_request = AuthorizationRequest(
+            identity=identity, identity_type=identity_type, action=action, resource=resource
+        )
+
+        # Call authorization manager for this component
+        try:
+            auth_manager = get_authorization_manager(self.server.component)
+            auth_response = auth_manager.authorize(auth_request)
+
+            if not auth_response.allowed:
+                # Authorization denied
+                logger.warning(
+                    "Authorization denied: identity=%s, action=%s, resource=%s, reason=%s",
+                    identity,
+                    action.value,
+                    resource,
+                    auth_response.reason,
+                )
+                self.set_status(403)
+                self.write(
+                    {
+                        "errors": [
+                            {
+                                "status": "403",
+                                "title": "Forbidden",
+                                "detail": auth_response.reason,
+                            }
+                        ]
+                    }
+                )
+                self.finish()
+                return False
+
+            # Authorization granted
+            logger.debug(
+                "Authorization granted: identity=%s, action=%s, resource=%s",
+                identity,
+                action.value,
+                resource,
+            )
+            return True
+
+        except Exception as e:
+            # Authorization manager error - fail safe (deny)
+            logger.error("Authorization check failed with error: %s", e, exc_info=True)
+            self.set_status(500)
+            self.write(
+                {
+                    "errors": [
+                        {
+                            "status": "500",
+                            "title": "Internal Server Error",
+                            "detail": "Authorization system error",
+                        }
+                    ]
+                }
+            )
+            self.finish()
+            return False
+
     def _validate_authentication(self) -> bool:
         """Validate the authentication token from the Authorization header.
 
@@ -227,7 +484,11 @@ class ActionHandler(RequestHandler):
         # Extract token from Authorization header
         auth_header = self.request.headers.get("Authorization")
         if not auth_header:
-            # No authentication provided - for now, allow (backwards compatibility)
+            # No Authorization header is expected for admin (mTLS) and public
+            # requests. This method only validates bearer tokens when present;
+            # the authorization layer (_check_authorization) is responsible for
+            # enforcing access control based on the extracted identity, which
+            # will be "admin" (mTLS cert) or "anonymous" (no credentials).
             return True
 
         # Parse Bearer token
@@ -328,6 +589,11 @@ class ActionHandler(RequestHandler):
         # Validate authentication token if provided
         if not self._validate_authentication():
             # Authentication failed, response already sent
+            return
+
+        # Check authorization
+        if not self._check_authorization():
+            # Authorization denied, response already sent
             return
 
     async def process_request(self) -> None:
