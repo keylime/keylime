@@ -8,17 +8,19 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from keylime import config, keylime_logging
 
 logger = keylime_logging.init_logging("keylime_db")
 
 
-# make sure referential integrity is working for SQLite
+# Configure SQLite pragmas for safety and performance
 @event.listens_for(Engine, "connect")  # type: ignore
 def _set_sqlite_pragma(dbapi_connection: SQLite3Connection, _: Any) -> None:
     if isinstance(dbapi_connection, SQLite3Connection):
         cursor = dbapi_connection.cursor()
+        # Enable foreign key constraints
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
@@ -59,6 +61,8 @@ def make_engine(service: str, **engine_args: Any) -> Engine:
                 os.makedirs(kl_dir, 0o700)
 
             engine_args["connect_args"] = {"check_same_thread": False}
+            # Use NullPool for SQLite to avoid connection pooling issues with multiprocessing
+            engine_args["poolclass"] = NullPool
 
         if not url.count("sqlite:"):
             # sqlite does not support setting pool size and max overflow, only
@@ -124,7 +128,7 @@ class SessionManager:
             session.rollback()
             raise
         finally:
-            # Important: remove the session from the scoped session registry
-            # to prevent connection leaks with scoped_session
+            # Close this specific session and remove from scoped registry
+            session.close()
             if self._scoped_session is not None:
                 self._scoped_session.remove()  # type: ignore[no-untyped-call]

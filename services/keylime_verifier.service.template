@@ -12,6 +12,10 @@ ExecStart=KEYLIMEDIR/keylime_verifier
 Restart=on-failure
 TimeoutSec=60s
 RestartSec=120s
+# Use KillMode=process so only the main process receives SIGTERM.
+# This allows the parent to gracefully shut down child workers,
+# ensuring database transactions complete before process termination.
+KillMode=process
 
 [Install]
 WantedBy=default.target

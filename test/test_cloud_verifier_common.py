@@ -18,7 +18,10 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from keylime import cloud_verifier_common
+from keylime.cloud_verifier_tornado import get_agents_by_verifier_id
 from keylime.common import states
 from keylime.db.verifier_db import VerfierMain
 
@@ -424,8 +427,6 @@ class TestStoreAttestationStateExecution(unittest.TestCase):
     @patch("keylime.cloud_verifier_tornado.logger")
     def test_store_attestation_state_handles_exception(self, mock_logger, mock_session_context):
         """Verify store_attestation_state() handles SQLAlchemy exceptions."""
-        from sqlalchemy.exc import SQLAlchemyError  # pylint: disable=import-outside-toplevel
-
         from keylime.cloud_verifier_tornado import (  # pylint: disable=import-outside-toplevel
             AgentAttestState,
             store_attestation_state,
@@ -726,8 +727,6 @@ class TestInitializeVerifierConfigErrorPaths(unittest.TestCase):
         self, mock_sys, mock_make_engine, mock_config, _mock_set_severity
     ):
         """Verify _initialize_verifier_config() handles SQLAlchemy errors."""
-        from sqlalchemy.exc import SQLAlchemyError  # pylint: disable=import-outside-toplevel
-
         import keylime.cloud_verifier_tornado as cvt  # pylint: disable=import-outside-toplevel
 
         # Mock configuration
@@ -975,6 +974,117 @@ class TestProcessGetStatus(unittest.TestCase):
             "FAIL",
             "PULL mode agent should show FAIL in FAILED state",
         )
+
+
+class TestGetAgentsByVerifierIdErrorHandling(unittest.TestCase):
+    """Test error handling in get_agents_by_verifier_id()."""
+
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_get_agents_by_verifier_id_success(self, mock_session_context):
+        """Verify get_agents_by_verifier_id() successfully queries agents."""
+        # Mock session and agents
+        mock_session = MagicMock()
+        mock_session_context.return_value.__enter__.return_value = mock_session
+
+        # Create mock agents
+        mock_agent1 = MagicMock(spec=VerfierMain)
+        mock_agent1.verifier_id = "test-verifier-id"
+        mock_agent2 = MagicMock(spec=VerfierMain)
+        mock_agent2.verifier_id = "test-verifier-id"
+
+        mock_query = MagicMock()
+        mock_query.filter_by.return_value.all.return_value = [mock_agent1, mock_agent2]
+        mock_session.query.return_value = mock_query
+
+        # Call function
+        result = get_agents_by_verifier_id("test-verifier-id")
+
+        # Should return the agents
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0], mock_agent1)
+        self.assertEqual(result[1], mock_agent2)
+
+        # Verify query was called correctly
+        mock_session.query.assert_called_once()
+        mock_query.filter_by.assert_called_once_with(verifier_id="test-verifier-id")
+
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    @patch("keylime.cloud_verifier_tornado.logger")
+    def test_get_agents_by_verifier_id_logs_warning_on_error(self, mock_logger, mock_session_context):
+        """Verify warning is logged when agent loading fails."""
+        # Mock session to raise SQLAlchemyError
+        mock_session = MagicMock()
+        mock_session_context.return_value.__enter__.return_value = mock_session
+        mock_session.query.side_effect = SQLAlchemyError("Database error")
+
+        # Call function
+        result = get_agents_by_verifier_id("test-verifier-id")
+
+        # Should return empty list
+        self.assertEqual(result, [])
+
+        # Should log error with verifier_id
+        mock_logger.error.assert_called_once()
+        error_call_args = str(mock_logger.error.call_args)
+        self.assertIn("test-verifier-id", error_call_args)
+
+        # Should log warning about no agents
+        mock_logger.warning.assert_called_once()
+        warning_call_args = str(mock_logger.warning.call_args)
+        self.assertIn("Failed to load agents", warning_call_args)
+
+
+class TestSessionManagerCleanup(unittest.TestCase):
+    """Test SessionManager session_context() for proper resource cleanup."""
+
+    def test_session_context_closes_session_and_removes_from_registry(self):
+        """Verify session_context() closes session and calls remove() on scoped_session."""
+        from keylime.db.keylime_db import SessionManager  # pylint: disable=import-outside-toplevel
+
+        sm = SessionManager()
+        mock_engine = MagicMock()
+        mock_scoped_session = MagicMock()
+        mock_session = MagicMock()
+
+        # Mock the scoped_session to return a session
+        mock_scoped_session.return_value = mock_session
+        sm._scoped_session = mock_scoped_session  # pylint: disable=protected-access
+        sm.engine = mock_engine
+
+        # Use the context manager
+        with sm.session_context(mock_engine):
+            pass
+
+        # Verify session.close() was called
+        mock_session.close.assert_called()
+        # Verify remove() was called on scoped_session
+        mock_scoped_session.remove.assert_called()
+
+    def test_session_context_cleanup_even_on_exception(self):
+        """Verify session_context() cleans up even when exception occurs."""
+        from keylime.db.keylime_db import SessionManager  # pylint: disable=import-outside-toplevel
+
+        sm = SessionManager()
+        mock_engine = MagicMock()
+        mock_scoped_session = MagicMock()
+        mock_session = MagicMock()
+
+        # Mock the scoped_session to return a session
+        mock_scoped_session.return_value = mock_session
+        sm._scoped_session = mock_scoped_session  # pylint: disable=protected-access
+        sm.engine = mock_engine
+
+        # Use the context manager and raise exception
+        with self.assertRaises(ValueError):
+            with sm.session_context(mock_engine):
+                raise ValueError("Test exception")
+
+        # Verify cleanup was called even though exception occurred
+        mock_scoped_session.remove.assert_called()
+        # Verify rollback was called on exception
+        mock_session.rollback.assert_called_once()
+        # Verify session.close() was called
+        mock_session.close.assert_called()
 
 
 if __name__ == "__main__":
