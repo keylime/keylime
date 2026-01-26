@@ -11,6 +11,7 @@ from keylime.authorization.provider import Action
 from keylime.common import states
 from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain
+from keylime.models.verifier.auth_session import AuthSession
 from keylime.web.base.server import Server
 from keylime.web.verifier.agent_controller import AgentController
 from keylime.web.verifier.attestation_controller import AttestationController
@@ -28,6 +29,7 @@ class VerifierServer(Server):
     def __init__(self) -> None:
         super().__init__()
         self._prepare_agents_on_startup()
+        self._clear_stale_sessions_on_startup()
         self._worker_agents: Optional[List[VerfierMain]] = None
 
     def start_multi(self) -> None:  # pylint: disable=no-member
@@ -144,6 +146,20 @@ class VerifierServer(Server):
             # This prevents child processes from inheriting invalid connections
             # Matches cloud_verifier_tornado.py:2411 (engine.dispose() after fork)
             engine.dispose()
+
+    def _clear_stale_sessions_on_startup(self) -> None:
+        """Clear expired authentication sessions from database on verifier startup.
+
+        This cleans up expired sessions that accumulated while the verifier was down.
+        Valid sessions are preserved in the database and will be restored to shared
+        memory when agents use them, allowing agents to continue using valid tokens
+        after a verifier restart without re-authentication.
+        """
+        try:
+            AuthSession.clear_expired_sessions_on_startup()
+        except Exception as e:
+            logger.error("Error clearing expired sessions on startup: %s", e)
+            # Don't fail startup, but log the error
 
     def _setup(self) -> None:
         self._set_component("verifier")

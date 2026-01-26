@@ -259,7 +259,8 @@ class SessionController(Controller):
             self.send_response(code=200, body=response_data)
             return
 
-        # Now persist to database and verify PoP
+        # Verify PoP first - do NOT delete existing sessions until PoP succeeds
+        # This prevents an attacker with a stolen session_id from invalidating a legitimate agent's sessions
         auth_session = AuthSession.create_from_memory(auth_session_data, agent, params)
 
         # Check if there are any actual errors (non-empty error lists)
@@ -318,6 +319,12 @@ class SessionController(Controller):
             del sessions_cache[session_id]  # type: ignore[arg-type]
             self.send_response(code=401, body=response_data)
             return
+
+        # PoP verification succeeded - now safe to delete existing active sessions
+        # This prevents multiple concurrent active sessions per agent
+        # SECURITY: Only delete AFTER successful PoP to prevent session invalidation attacks
+        logger.debug("PoP succeeded - deleting any existing active sessions for agent '%s'", agent_id)
+        AuthSession.delete_active_session_for_agent(agent_id)
 
         # Persist to database
         auth_session.commit_changes()

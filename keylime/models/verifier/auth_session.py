@@ -72,7 +72,7 @@ class AuthSession(PersistableModel):
     def authenticate_agent(cls, token: str):  # type: ignore[no-untyped-def]
         """Authenticate an agent using their session token.
 
-        Uses constant-time comparison to prevent timing attacks.
+        Uses indexed database lookup for performance (O(1) instead of O(n)).
 
         Args:
             token: The session token to verify
@@ -80,17 +80,24 @@ class AuthSession(PersistableModel):
         Returns:
             VerfierMain object if authenticated, False otherwise
         """
-        # Get all active sessions and compare tokens in constant time
-        # to prevent timing attacks that could leak token values
-        all_sessions = AuthSession.all(active=True)
-
-        auth_session = None
-        for candidate in all_sessions:
-            if secrets.compare_digest(str(candidate.token), str(token)):  # type: ignore[attr-defined]
-                auth_session = candidate
-                # No break - must check all sessions to maintain constant time
+        # Use indexed lookup by token (much faster than scanning all sessions)
+        auth_session = AuthSession.get(token)
 
         if not auth_session:
+            return False
+
+        # Validate session is active
+        if not getattr(auth_session, "active", False):
+            return False
+
+        # Validate session hasn't expired
+        token_expires_at = getattr(auth_session, "token_expires_at", None)
+        if token_expires_at and token_expires_at < Timestamp.now():
+            logger.debug(
+                "Authentication attempted with expired token for agent '%s' (expired at %s)",
+                getattr(auth_session, "agent_id", "unknown"),
+                token_expires_at,
+            )
             return False
 
         # Use old engine to query VerfierMain (legacy model)
@@ -229,10 +236,21 @@ class AuthSession(PersistableModel):
 
     @classmethod
     def delete_stale(cls, agent_id: str) -> None:
+        """Delete stale sessions from database for an agent.
+
+        Removes sessions where:
+        - nonce_expires_at has passed (for pending auth sessions)
+        - token_expires_at has passed (for active sessions with tokens)
+        """
         agent_sessions = AuthSession.all(agent_id=agent_id)
+        now = Timestamp.now()
 
         for session in agent_sessions:
-            if session.nonce_expires_at >= Timestamp.now() or session.token_expires_at >= Timestamp.now():  # type: ignore[attr-defined]
+            nonce_expires = session.nonce_expires_at  # type: ignore[attr-defined]
+            token_expires = session.token_expires_at  # type: ignore[attr-defined]
+
+            # Delete if expired (expiration time is in the past)
+            if (nonce_expires and nonce_expires < now) or (token_expires and token_expires < now):
                 session.delete()
 
     @classmethod
@@ -292,7 +310,8 @@ class AuthSession(PersistableModel):
         """Delete active authentication session for an agent.
 
         Used when an agent fails attestation or is excluded to invalidate
-        their authentication token.
+        their authentication token. Also used before creating a new session
+        to prevent multiple concurrent active sessions for the same agent.
 
         Args:
             agent_id: The agent identifier
@@ -300,11 +319,62 @@ class AuthSession(PersistableModel):
         shared_memory = get_shared_memory()
         sessions_cache = shared_memory.get_or_create_dict("auth_sessions")
 
+        deleted_count = 0
         for session_id, session_data in list(sessions_cache.items()):
             if session_data.get("agent_id") == agent_id and session_data.get("active"):
                 del sessions_cache[session_id]  # type: ignore[arg-type]
-                logger.info("Deleted auth session %s for excluded agent '%s'", session_id, agent_id)
-                break  # Only one active session per agent
+                deleted_count += 1
+                logger.info("Deleted active session %s for agent '%s'", session_id, agent_id)
+
+        if deleted_count > 0:
+            logger.info("Deleted %d active session(s) for agent '%s' from memory", deleted_count, agent_id)
+
+        # Also delete from database to ensure persistence (single DELETE query)
+        if cls.schema_awaiting_processing:  # pylint: disable=using-constant-test
+            cls.process_schema()
+
+        with db_manager.session_context() as session:
+            agent_id_col = cls.db_table.columns["agent_id"]
+            active_col = cls.db_table.columns["active"]
+            delete_stmt = cls.db_table.delete().where((agent_id_col == agent_id) & (active_col == True))  # noqa: E712  # pylint: disable=singleton-comparison
+            result = session.execute(delete_stmt)
+            db_deleted_count = result.rowcount  # type: ignore[attr-defined]
+            session.commit()
+
+        if db_deleted_count > 0:
+            logger.debug("Deleted %d active database session(s) for agent '%s'", db_deleted_count, agent_id)
+
+    @classmethod
+    def clear_expired_sessions_on_startup(cls) -> None:
+        """Clear expired authentication sessions from database on verifier startup.
+
+        This is called on verifier startup to clean up expired sessions that
+        accumulated while the verifier was down. Valid sessions are preserved
+        and will be restored from database to memory when accessed.
+
+        Note: Shared memory is always empty after restart, so no need to clear it.
+        Sessions will be lazy-loaded from database as needed.
+        """
+        if cls.schema_awaiting_processing:  # pylint: disable=using-constant-test
+            cls.process_schema()
+
+        # ISO8601 timestamps are lexicographically sortable, so string comparison works
+        now_str = Timestamp.now().isoformat(timespec="microseconds")
+
+        # Single DELETE query instead of fetching all + individual deletes
+        with db_manager.session_context() as session:
+            token_expires_col = cls.db_table.columns["token_expires_at"]
+            delete_stmt = cls.db_table.delete().where(token_expires_col < now_str)
+            result = session.execute(delete_stmt)
+            expired_count = result.rowcount  # type: ignore[attr-defined]
+            session.commit()
+
+        if expired_count > 0:
+            logger.info(
+                "Cleaned up %d expired authentication session(s) from database on verifier startup", expired_count
+            )
+        else:
+            logger.debug("No expired sessions to clean up on verifier startup")
 
     def initialise(self, agent_id: str) -> None:
         if "agent_id" not in self.values:

@@ -379,8 +379,11 @@ class TestSessionControllerUpdateSession(unittest.TestCase):
 
     @patch("keylime.web.verifier.session_controller.get_session")
     @patch("keylime.models.verifier.auth_session.AuthSession.create_from_memory")
+    @patch("keylime.models.verifier.auth_session.AuthSession.delete_active_session_for_agent")
     @patch("keylime.web.verifier.session_controller.config")
-    def test_update_session_success(self, mock_config, mock_create_from_memory, mock_get_session):
+    def test_update_session_success(
+        self, mock_config, _mock_delete_active, mock_create_from_memory, mock_get_session
+    ):
         """Test successful session update."""
         # Create session in cache
         now = Timestamp.now()
