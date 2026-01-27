@@ -3,6 +3,8 @@
 environment:
   RUST_IMA_EMULATOR: 1
   TPM_BINARY_MEASUREMENTS: /var/tmp/binary_bios_measurements
+  RUST_KEYLIME_UPSTREAM_URL: "https://github.com/ansasaki/rust-keylime.git"
+  RUST_KEYLIME_UPSTREAM_BRANCH: "rsa2048"
 
 context:
   swtpm: yes
