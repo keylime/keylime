@@ -157,7 +157,6 @@ class AttestationController(Controller):
     """
 
     # GET /v3[.:minor]/agents/:agent_id/attestations
-    @Controller.require_json_api
     def index(self, agent_id, **_params):  # type: ignore[no-untyped-def]
         agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
 
@@ -176,7 +175,6 @@ class AttestationController(Controller):
         APIMessageBody(*resources).send_via(self)  # type: ignore[no-untyped-call]
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/:index
-    @Controller.require_json_api
     def show(self, agent_id, index, **_params):  # type: ignore[no-untyped-def]
         agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
         attestation = cast(Attestation | None, Attestation.get(agent_id=agent_id, index=index))
@@ -194,7 +192,6 @@ class AttestationController(Controller):
         )  # type: ignore[no-untyped-call]
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/latest
-    @Controller.require_json_api
     def show_latest(self, agent_id, **_params):  # type: ignore[no-untyped-def]
         agent = cast(VerifierAgent | None, VerifierAgent.get(agent_id))
 
@@ -204,7 +201,7 @@ class AttestationController(Controller):
         if not agent.latest_attestation:  # type: ignore[union-attr]
             APIError("not_found", f"No attestation exists for agent '{agent_id}'.").send_via(self)
 
-        self.show(agent_id, agent.latest_attestation.index, **_params)  # type: ignore[union-attr]
+        self.show(agent_id, agent.latest_attestation.index, **_params)  # type: ignore[union-attr, no-untyped-call]
 
     # POST /v3[.:minor]/agents/:agent_id/attestations
     @Controller.require_json_api
