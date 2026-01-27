@@ -172,7 +172,15 @@ class AttestationController(Controller):
             for attestation in results
         ]
 
-        APIMessageBody(*resources).send_via(self)  # type: ignore[no-untyped-call]
+        # JSON:API requires at least 'data', 'errors', or 'meta'
+        # For empty results, we need to set _data to [] to satisfy validity check
+        if resources:
+            APIMessageBody(*resources).send_via(self)  # type: ignore[no-untyped-call]
+        else:
+            # Send empty data array for agents with no attestations
+            body = APIMessageBody()
+            body._data = []  # type: ignore[attr-defined]  # pylint: disable=protected-access
+            body.send_via(self)  # type: ignore[no-untyped-call]
 
     # GET /v3[.:minor]/agents/:agent_id/attestations/:index
     def show(self, agent_id, index, **_params):  # type: ignore[no-untyped-def]
