@@ -631,5 +631,126 @@ class TestAttestationRecovery(unittest.TestCase):
             self.controller.create("test-pull-agent", attestation={})
 
 
+class TestAttestationControllerGetMethods(unittest.TestCase):
+    """Test that GET methods work without JSON:API request body requirement.
+
+    The @Controller.require_json_api decorator should not be present on GET
+    methods (index, show, show_latest) because GET requests don't have bodies
+    per HTTP spec. This was causing HTTP 415 errors.
+
+    POST and PATCH methods should still have the decorator since they do
+    require JSON:API request bodies.
+    """
+
+    def setUp(self) -> None:
+        """Set up test fixtures"""
+        # Create a mock action_handler for GET requests
+        self.mock_action_handler = Mock()
+        self.mock_action_handler.request = Mock()
+        self.mock_action_handler.request.method = "GET"
+        self.mock_action_handler.request.path = "/v3/agents/test-agent-123/attestations"
+        self.mock_action_handler.request.headers = Mock()
+        self.mock_action_handler.request.headers.get = Mock(return_value=None)  # No Content-Type for GET
+        self.mock_action_handler.request.headers.copy = Mock(return_value={})
+
+        # Create the controller
+        self.controller = cast(AttestationController, AttestationController(self.mock_action_handler))
+
+        self.agent_id = "test-agent-123"
+
+    @patch("keylime.web.verifier.attestation_controller.APIMessageBody")
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_index_works_without_json_api_body(self, mock_agent_class, mock_api_message_body):
+        """Test index() (GET /v3/agents/:id/attestations) works without JSON:API body.
+
+        Before fix: Would require JSON:API content-type and fail with 415
+        After fix: Works without any content-type requirement
+        """
+        # Setup mock agent with attestations
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_agent_class.get.return_value = mock_agent
+
+        # Mock Attestation.all to return empty list
+        with patch("keylime.web.verifier.attestation_controller.Attestation") as mock_attestation:
+            mock_attestation.all.return_value = []
+
+            # Mock APIMessageBody
+            mock_message_body = Mock()
+            mock_message_body.send_via = Mock()
+            mock_api_message_body.return_value = mock_message_body
+
+            # This should work without requiring _api_request_body to be set
+            # (which is what @require_json_api decorator would check)
+            self.controller.index(self.agent_id)
+
+            # Verify it called the right methods
+            mock_agent_class.get.assert_called_once_with(self.agent_id)
+            mock_attestation.all.assert_called_once_with(agent_id=self.agent_id)
+
+    @patch("keylime.web.verifier.attestation_controller.APIResource")
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_show_works_without_json_api_body(self, mock_agent_class, mock_api_resource):
+        """Test show() (GET /v3/agents/:id/attestations/:index) works without JSON:API body.
+
+        Before fix: Would require JSON:API content-type and fail with 415
+        After fix: Works without any content-type requirement
+        """
+        # Setup mock agent and attestation
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_attestation = Mock()
+        mock_attestation.render_state = Mock(return_value={})
+        mock_agent_class.get.return_value = mock_agent
+
+        # Mock Attestation.get
+        with patch("keylime.web.verifier.attestation_controller.Attestation") as mock_attestation_class:
+            mock_attestation_class.get.return_value = mock_attestation
+
+            # Mock APIResource chain
+            mock_resource = Mock()
+            mock_resource.include = Mock(return_value=mock_resource)
+            mock_resource.send_via = Mock()
+            mock_api_resource.return_value = mock_resource
+
+            with patch("keylime.web.verifier.attestation_controller.APILink"):
+                # This should work without requiring _api_request_body
+                self.controller.show(self.agent_id, "0")
+
+                # Verify it called the right methods
+                mock_agent_class.get.assert_called_once_with(self.agent_id)
+                mock_attestation_class.get.assert_called_once_with(agent_id=self.agent_id, index="0")
+
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_show_latest_works_without_json_api_body(self, mock_agent_class):
+        """Test show_latest() (GET /v3/agents/:id/attestations/latest) works without JSON:API body.
+
+        Before fix: Would require JSON:API content-type and fail with 415
+        After fix: Works without any content-type requirement
+        """
+        # Setup mock agent with latest attestation
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_attestation = Mock()
+        mock_attestation.index = "5"
+        mock_attestation.render_state = Mock(return_value={})
+        mock_agent.latest_attestation = mock_attestation
+        mock_agent_class.get.return_value = mock_agent
+
+        # Mock Attestation.get for the show() call
+        with patch("keylime.web.verifier.attestation_controller.Attestation") as mock_attestation_class:
+            mock_attestation_class.get.return_value = mock_attestation
+
+            with patch("keylime.web.verifier.attestation_controller.APIResource") as mock_resource_class:
+                mock_resource = Mock()
+                mock_resource.include = Mock(return_value=mock_resource)
+                mock_resource.send_via = Mock()
+                mock_resource_class.return_value = mock_resource
+
+                with patch("keylime.web.verifier.attestation_controller.APILink"):
+                    # This should work without requiring _api_request_body
+                    self.controller.show_latest(self.agent_id)
+
+                    # Verify it called show() with the latest attestation index
+                    mock_attestation_class.get.assert_called_once_with(agent_id=self.agent_id, index="5")
+
+
 if __name__ == "__main__":
     unittest.main()
