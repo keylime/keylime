@@ -670,7 +670,45 @@ class TestAttestationControllerGetMethods(unittest.TestCase):
         mock_agent = Mock(spec=VerifierAgent)
         mock_agent_class.get.return_value = mock_agent
 
-        # Mock Attestation.all to return empty list
+        # Mock Attestation.all to return some attestations
+        with patch("keylime.web.verifier.attestation_controller.Attestation") as mock_attestation_class:
+            mock_attestation1 = Mock()
+            mock_attestation1.index = 0
+            mock_attestation1.render_state = Mock(return_value={"state": "complete"})
+            mock_attestation_class.all.return_value = [mock_attestation1]
+
+            # Mock APIMessageBody
+            mock_message_body = Mock()
+            mock_message_body.send_via = Mock()
+            mock_api_message_body.return_value = mock_message_body
+
+            with patch("keylime.web.verifier.attestation_controller.APIResource") as mock_resource_class:
+                mock_resource = Mock()
+                mock_resource.include = Mock(return_value=mock_resource)
+                mock_resource_class.return_value = mock_resource
+
+                with patch("keylime.web.verifier.attestation_controller.APILink"):
+                    # This should work without requiring _api_request_body to be set
+                    # (which is what @require_json_api decorator would check)
+                    self.controller.index(self.agent_id)
+
+                    # Verify it called the right methods
+                    mock_agent_class.get.assert_called_once_with(self.agent_id)
+                    mock_attestation_class.all.assert_called_once_with(agent_id=self.agent_id)
+
+    @patch("keylime.web.verifier.attestation_controller.APIMessageBody")
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_index_returns_empty_array_for_no_attestations(self, mock_agent_class, mock_api_message_body):
+        """Test index() returns valid JSON:API response with empty data array.
+
+        Before fix: Would fail with HTTP 500 due to invalid JSON:API (no data/errors/meta)
+        After fix: Returns HTTP 200 with {"data": []}
+        """
+        # Setup mock agent with no attestations
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_agent_class.get.return_value = mock_agent
+
+        # Mock Attestation.all to return empty list (no attestations)
         with patch("keylime.web.verifier.attestation_controller.Attestation") as mock_attestation:
             mock_attestation.all.return_value = []
 
@@ -679,13 +717,18 @@ class TestAttestationControllerGetMethods(unittest.TestCase):
             mock_message_body.send_via = Mock()
             mock_api_message_body.return_value = mock_message_body
 
-            # This should work without requiring _api_request_body to be set
-            # (which is what @require_json_api decorator would check)
+            # Call index() with agent that has no attestations
             self.controller.index(self.agent_id)
 
-            # Verify it called the right methods
-            mock_agent_class.get.assert_called_once_with(self.agent_id)
-            mock_attestation.all.assert_called_once_with(agent_id=self.agent_id)
+            # Verify APIMessageBody was created
+            mock_api_message_body.assert_called_once_with()
+
+            # Verify _data was explicitly set to empty list
+            # This is critical to avoid HTTP 500 error
+            self.assertEqual(mock_message_body._data, [])  # pylint: disable=protected-access
+
+            # Verify send_via was called
+            mock_message_body.send_via.assert_called_once_with(self.controller)
 
     @patch("keylime.web.verifier.attestation_controller.APIResource")
     @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
