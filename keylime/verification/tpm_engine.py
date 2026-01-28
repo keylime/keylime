@@ -113,8 +113,10 @@ class TPMEngine(VerificationEngine):
         )
 
         if not tpm_quote_items.result():
-            # pylint: disable=no-member
-            self._add_error("evidence", "must contain a certification item of type 'tpm_quote' per agent policy")  # type: ignore[attr-defined]
+            # pylint: disable=protected-access
+            self.attestation._add_error(
+                "evidence", "must contain a certification item of type 'tpm_quote' per agent policy"
+            )
             return None
 
         allowable_sig_schemes = self.attestation.agent.accept_tpm_signing_algs
@@ -138,7 +140,8 @@ class TPMEngine(VerificationEngine):
 
         if isinstance(tpm_quote_items.result(), str):
             tip = tpm_quote_items.result()
-            self._add_error(  # type: ignore[attr-defined]  # pylint: disable=no-member
+            # pylint: disable=protected-access
+            self.attestation._add_error(
                 "evidence", f"must have 'tpm_quote' with capabilities which are valid and satisfy agent policy ({tip})"
             )
             return None
