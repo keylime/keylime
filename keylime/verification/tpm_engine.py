@@ -56,7 +56,21 @@ class TPMEngine(VerificationEngine):
         for item in tpm_quote_items.result():
             item_sig_schemes = item.capabilities.signature_schemes
             item_hash_algs = item.capabilities.hash_algorithms
-            pcr_banks = item.capabilities.available_subjects.keys()
+            available_subjects = item.capabilities.available_subjects
+
+            # Validate available_subjects is a dictionary for tpm_quote evidence
+            if available_subjects is None:
+                item.capabilities._add_error("available_subjects", "is required for tpm_quote evidence")
+                continue
+
+            if not isinstance(available_subjects, dict):
+                item.capabilities._add_error(
+                    "available_subjects",
+                    "must be a dictionary mapping PCR bank names to PCR numbers for tpm_quote evidence",
+                )
+                continue
+
+            pcr_banks = available_subjects.keys()
 
             useable_key_found = False
 
@@ -113,7 +127,10 @@ class TPMEngine(VerificationEngine):
             .result_if_empty("check 'signature_schemes'")
             .filter(lambda item: any(alg in allowable_hash_algs for alg in item.capabilities.hash_algorithms))
             .result_if_empty("check 'hash_algorithms'")
-            .filter(lambda item: any(alg in allowable_hash_algs for alg in item.capabilities.available_subjects.keys()))
+            .filter(
+                lambda item: isinstance(item.capabilities.available_subjects, dict)
+                and any(alg in allowable_hash_algs for alg in item.capabilities.available_subjects.keys())
+            )
             .result_if_empty("check PCR banks in 'available_subjects'")
             .filter(self._certification_key_choices)
             .result_if_empty("check schemes and algorithms in 'certification_keys'")
@@ -196,9 +213,13 @@ class TPMEngine(VerificationEngine):
             # which is also an available PCR bank
             .filter(
                 lambda cert_key: cert_key.allowable_hash_algorithms is None
-                or any(
-                    algorithm in hash_algorithm_choices and evidence_item.capabilities.available_subjects.get(algorithm)
-                    for algorithm in cert_key.allowable_hash_algorithms
+                or (
+                    isinstance(evidence_item.capabilities.available_subjects, dict)
+                    and any(
+                        algorithm in hash_algorithm_choices
+                        and evidence_item.capabilities.available_subjects.get(algorithm)
+                        for algorithm in cert_key.allowable_hash_algorithms
+                    )
                 )
             )
             # Prefer certification keys which have a public key (if present) equal to the ak of the agent
@@ -241,6 +262,15 @@ class TPMEngine(VerificationEngine):
         key_allowed_algs = evidence_item.chosen_parameters.certification_key.allowable_hash_algorithms
         # The PCR numbers for which the agent can produce quotes, grouped by available PCR bank
         available_subjects = evidence_item.capabilities.available_subjects
+
+        # Validate available_subjects is a dictionary (should have been caught earlier in validation)
+        if not isinstance(available_subjects, dict):
+            self.attestation._add_error(
+                "evidence",
+                "must have 'tpm_quote' with available_subjects as a dictionary mapping PCR banks to PCR numbers",
+            )
+            return
+
         # The PCR numbers for each PCR bank to include in the quote (none to start)
         selected_subjects: dict[Any, Any] = {}
         # Whether at least one suitable PCR bank is identified or not
