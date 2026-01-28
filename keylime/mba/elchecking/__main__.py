@@ -15,8 +15,10 @@ from . import policies
 mba.load_imports()
 parser = argparse.ArgumentParser()
 parser.add_argument("policy_name", choices=policies.get_policy_names())
-parser.add_argument("refstate_file", type=argparse.FileType("rt"))
-parser.add_argument("eventlog_file", type=argparse.FileType("rb"), default=sys.stdin)
+parser.add_argument("refstate_file", help="Path to reference state file (text mode)")
+parser.add_argument(
+    "eventlog_file", nargs="?", default="-", help="Path to event log file (binary mode), use '-' for stdin"
+)
 args = parser.parse_args()
 policy = policies.get_policy(args.policy_name)
 if policy is None:
@@ -25,9 +27,17 @@ if policy is None:
         file=sys.stderr,
     )
     sys.exit(1)
-refstate_str = args.refstate_file.read()
+
+with open(args.refstate_file, "rt", encoding="utf-8") as refstate_file:
+    refstate_str = refstate_file.read()
 refstate = json.loads(refstate_str)
-log_bin = args.eventlog_file.read()
+
+if args.eventlog_file == "-":
+    log_bin = sys.stdin.buffer.read()
+else:
+    with open(args.eventlog_file, "rb") as eventlog_file:
+        log_bin = eventlog_file.read()
+
 _, log_data = tpm2_tools_elparser.parse_binary_bootlog(log_bin)
 with open("/tmp/parsed.json", "wt", encoding="utf-8") as log_data_file:
     log_data_file.write(json.dumps(log_data, indent=True))
