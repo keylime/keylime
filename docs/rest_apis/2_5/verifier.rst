@@ -1,7 +1,7 @@
 Verifier
 ~~~~~~~~
 
-.. http:get::  /v2.4/agents/{agent_id:UUID}
+.. http:get::  /v2.5/agents/{agent_id:UUID}
 
     Get status of agent `agent_id` from Verifier
 
@@ -37,7 +37,7 @@ Verifier
               "rsassa"
             ],
             "hash_alg": "sha256",
-            "enc_alg": "rsa",
+            "enc_alg": "rsa2048",
             "sign_alg": "rsassa",
             "verifier_id": "default",
             "verifier_ip": "127.0.0.1",
@@ -66,7 +66,7 @@ Verifier
     :>json list[string] accept_tpm_encryption_algs: Accepted TPM encryption algorithms.
     :>json list[string] accept_tpm_signing_algs: Accepted TPM signing algorithms.
     :>json string hash_alg: Used hashing algorithm.
-    :>json string enc_alg: Used encryption algorithm.
+    :>json string enc_alg: Used encryption algorithm. In API v2.5+, this includes explicit bit-length (e.g., rsa2048, ecc256). Generic formats (rsa, ecc) are normalized to their defaults.
     :>json string sign_alg: Used signing algorithm.
     :>json string verifier_id: Name of the verifier that is used. (Only important if multiple verifiers are used)
     :>json string verifier_ip: IP of the verifier that is used.
@@ -78,7 +78,7 @@ Verifier
     :>json int last_successful_attestation: Timestamp of the last quote received from the agent which verified successfully. A value of 0 indicates no valid quotes have been received. May be `null` after upgrading from a previous Keylime version.
 
 
-.. http:post::  /v2.4/agents/{agent_id:UUID}
+.. http:post::  /v2.5/agents/{agent_id:UUID}
 
     Add new agent `instance_id` to Verifier.
 
@@ -152,7 +152,7 @@ Verifier
     :>json object results: Results as a JSON object (empty)
 
 
-.. http:delete::  /v2.4/agents/{agent_id:UUID}
+.. http:delete::  /v2.5/agents/{agent_id:UUID}
 
     Terminate instance `agent_id`.
 
@@ -167,7 +167,7 @@ Verifier
         }
 
 
-.. http:put::  /v2.4/agents/{agent_id:UUID}/reactivate
+.. http:put::  /v2.5/agents/{agent_id:UUID}/reactivate
 
     Start agent `agent_id` (for an already bootstrapped `agent_id` node)
 
@@ -186,7 +186,7 @@ Verifier
     :>json object results: Results as a JSON object (empty)
 
 
-.. http:put::  /v2.4/agents/{agent_id:UUID}/stop
+.. http:put::  /v2.5/agents/{agent_id:UUID}/stop
 
     Stop Verifier polling on `agent_id`, but don’t delete (for an already started `agent_id`).
     This will make the agent verification fail.
@@ -206,7 +206,7 @@ Verifier
     :>json object results: Results as a JSON object (empty)
 
 
-.. http:post::  /v2.4/allowlists/{runtime_policy_name:string}
+.. http:post::  /v2.5/allowlists/{runtime_policy_name:string}
 
     Add new named IMA policy `runtime_policy_name` to Verifier.
 
@@ -227,7 +227,7 @@ Verifier
     :<json string runtime_policy_key: Optional runtime policy detached signature key, base64-encoded. Must also provide `runtime_policy_sig`.
 
 
-.. http:get::  /v2.4/allowlists/[runtime_policy_name:string]
+.. http:get::  /v2.5/allowlists/[runtime_policy_name:string]
 
     If `runtime_policy_name` is provided, get the named runtime policies from the Verifier.
 
@@ -264,7 +264,7 @@ Verifier
           "status": "Success",
           "results": {
             "runtimepolicy names": [
-                "runtimepolicyname1", 
+                "runtimepolicyname1",
                 "runtimepolicyname2"
             ],
           }
@@ -276,7 +276,7 @@ Verifier
     :>json list[string] runtimepolicy names: List of names of the runtime policies.
 
 
-.. http:delete::  /v2.4/allowlist/{runtime_policy_name:string}
+.. http:delete::  /v2.5/allowlist/{runtime_policy_name:string}
 
     Delete IMA policy `runtime_policy_name`.
 
@@ -295,7 +295,7 @@ Verifier
     :>json object results: Results as a JSON object (empty)
 
 
-.. http:get::  /v2.4/verify/identity
+.. http:get::  /v2.5/verify/identity
 
     Verify the identity of a node monitored by keylime
 
@@ -303,7 +303,7 @@ Verifier
 
     .. sourcecode:: http
 
-       GET /v2.4/verify/identity?agent_uuid=e1ef9f28-be55-47b0-a6c1-8bef90294b93&hash_alg=sha256&nonce=DGHFH6EQVYGKP7YHNVEAFQQR5TN4W4JA&quote=r/1RDR4AYACIACzy[...] HTTP/1.1
+       GET /v2.5/verify/identity?agent_uuid=e1ef9f28-be55-47b0-a6c1-8bef90294b93&hash_alg=sha256&nonce=DGHFH6EQVYGKP7YHNVEAFQQR5TN4W4JA&quote=r/1RDR4AYACIACzy[...] HTTP/1.1
        Host: example.com
        Accept: application/json
 
@@ -331,7 +331,7 @@ Verifier
     :<json int valid: A boolean 1 for valid, 0 for invalid identity.
 
 
-.. http:get::  /v2.4/mbpolicies/{policy_name:string}
+.. http:get::  /v2.5/mbpolicies/{policy_name:string}
 
     Get the measured boot policy named `policy_name`
 
@@ -351,7 +351,7 @@ Verifier
     :>json object results: Results as a JSON object
     :<json int valid: A boolean 1 for valid, 0 for invalid identity.
 
-.. http:post::  /v2.4/verify/evidence
+.. http:post::  /v2.5/verify/evidence
 
     Verify the evidence against policy. This is useful for 3rd party integrations for things like:
     * CI/CD pipelines that generate policy
@@ -361,20 +361,23 @@ Verifier
 
     .. sourcecode:: http
 
-       POST /v2.4/verify/evidence HTTP/1.1
+       POST /v2.5/verify/evidence HTTP/1.1
        Host: example.com
        Accept: application/json
 
         {
-          "nonce": "DGHFH6EQVYGKP7YHNVEAFQQR5TN4W4JA",
-          "quote": "r/1RDR4AYACIACzy[...]",
-          "hash_alg": "sha256",
-          "tpm_ak": "ARgAAQALAAUAcgAAABAAFAALCAAA[...]",
-          "tpm_ek": "BABEwIE88dIfqH0FQLJAg8u3+ZOg[...]",
-          "tpm_policy": "{\"22\": [\"0000000000000000000000000000000000000001\", \"0000000000000000000000000000000000000000000000000000000000000001\",[...]",
-          "runtime_policy": "{\"meta": {\"version\": 1, \"timestamp\": "2025-02-24 21:33:17.574168"}, \"digests\": {\"/boot/System.map-6.2.9-300.fc38.x86_64": ["dc720f9c236[...]",
-          "mb_policy": "[...]",
-          "ima_measurement_list": "10 0adefe762c149c7cec19da62f0da1297fcfbffff ima-ng sha256:0000000000000000000000000000000000000000000000000000000000000000 boot_aggregate[...]",
+          "type": "tpm",
+          "data": {
+            "nonce": "DGHFH6EQVYGKP7YHNVEAFQQR5TN4W4JA",
+            "quote": "r/1RDR4AYACIACzy[...]",
+            "hash_alg": "sha256",
+            "tpm_ak": "ARgAAQALAAUAcgAAABAAFAALCAAA[...]",
+            "tpm_ek": "BABEwIE88dIfqH0FQLJAg8u3+ZOg[...]",
+            "tpm_policy": "{\"22\": [\"0000000000000000000000000000000000000001\", \"0000000000000000000000000000000000000000000000000000000000000001\",[...]",
+            "runtime_policy": "{\"meta": {\"version\": 1, \"timestamp\": "2025-02-24 21:33:17.574168"}, \"digests\": {\"/boot/System.map-6.2.9-300.fc38.x86_64": ["dc720f9c236[...]",
+            "mb_policy": "[...]",
+            "ima_measurement_list": "10 0adefe762c149c7cec19da62f0da1297fcfbffff ima-ng sha256:0000000000000000000000000000000000000000000000000000000000000000 boot_aggregate[...]",
+          }
         }
 
     :<json string nonce: The onetime nonce being used for identity verification.
@@ -397,13 +400,24 @@ Verifier
           "code": 200,
           "status": "Success",
           "results": {
-            "valid": 0,
+            "valid": false,
             "failures": [
                 {
                   "type": "ima.validation.ima-ng.not_in_allowlist",
                   "context": { "message": "File not found in allowlist: /root/evil.sh" },
                 }
-            ]
+            ],
+            "claims": {
+                "nonce": "DGHFH6EQVYGKP7YHNVEAFQQR5TN4W4JA",
+                "quote": "r/1RDR4AYACIACzy[...]",
+                "hash_alg": "sha256",
+                "tpm_ak": "ARgAAQALAAUAcgAAABAAFAALCAAA[...]",
+                "tpm_ek": "BABEwIE88dIfqH0FQLJAg8u3+ZOg[...]",
+                "tpm_policy": "{\"22\": [\"0000000000000000000000000000000000000001\", \"0000000000000000000000000000000000000000000000000000000000000001\",[...]",
+                "runtime_policy": "{\"meta": {\"version\": 1, \"timestamp\": "2025-02-24 21:33:17.574168"}, \"digests\": {\"/boot/System.map-6.2.9-300.fc38.x86_64": ["dc720f9c236[...]",
+                "mb_policy": "[...]",
+                "ima_measurement_list": "10 0adefe762c149c7cec19da62f0da1297fcfbffff ima-ng sha256:0000000000000000000000000000000000000000000000000000000000000000 boot_aggregate[...]",
+            }
           }
         }
 
@@ -414,4 +428,5 @@ Verifier
     :<json array failures: A list of optional failure objects for the different ways the evidence failed verification
     :<json string type: The Keylime specific type of failure
     :<json object context: More context, such as a human readable message about the failure
+    :<json object claims: The claims that were used for verification. May be empty if verification was unsuccessful.
 

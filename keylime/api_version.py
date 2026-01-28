@@ -1,14 +1,14 @@
 import re
 from logging import Logger
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 from packaging import version
 
 VersionType = Union[int, float, str]
 
-CURRENT_VERSION: str = "2.4"
-VERSIONS: List[str] = ["1.0", "2.0", "2.1", "2.2", "2.3", "2.4", "3.0"]
-LATEST_VERSIONS: Dict[str, str] = {"1": "1.0", "2": "2.4", "3": "3.0"}
+CURRENT_VERSION: str = "2.5"
+VERSIONS: List[str] = ["1.0", "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "3.0"]
+LATEST_VERSIONS: Dict[str, str] = {"1": "1.0", "2": "2.5", "3": "3.0"}
 DEPRECATED_VERSIONS: List[str] = ["1.0"]
 
 
@@ -32,6 +32,36 @@ def latest_minor_version(version_type: VersionType) -> str:
 
 def all_versions() -> List[str]:
     return VERSIONS.copy()
+
+
+def negotiate_version(
+    agent_versions: Union[str, List[str]], tenant_versions: Optional[List[str]] = None
+) -> Optional[str]:
+    """
+    Negotiate highest API version supported by both agent and tenant.
+
+    Args:
+        agent_versions: Single version string or list from agent
+        tenant_versions: Versions supported by tenant (default: all_versions())
+
+    Returns:
+        Highest mutually supported version, or None if incompatible
+    """
+    if tenant_versions is None:
+        tenant_versions = all_versions()
+
+    # Handle both old (string) and new (list) agent responses
+    if isinstance(agent_versions, str):
+        agent_versions = [agent_versions]
+
+    # Find intersection
+    common = set(agent_versions) & set(tenant_versions)
+
+    if not common:
+        return None
+
+    # Return highest version (using packaging.version for proper comparison)
+    return max(common, key=version.parse)
 
 
 def is_supported_version(version_type: VersionType) -> bool:

@@ -1,0 +1,11 @@
+RESTful API for Keylime (v2.5)
+------------------------------
+
+The version API version 2.5 was first implemented in Keylime 7.14.0
+
+.. toctree::
+   :maxdepth: 2
+
+   verifier.rst
+   agent.rst
+   registrar.rst
