@@ -58,6 +58,11 @@ class TPMEngine(VerificationEngine):
             item_hash_algs = item.capabilities.hash_algorithms
             available_subjects = item.capabilities.available_subjects
 
+            # Validate hash_algorithms is present for tpm_quote evidence
+            if item_hash_algs is None:
+                item.capabilities._add_error("hash_algorithms", "is required for tpm_quote evidence")
+                continue
+
             # Validate available_subjects is a dictionary for tpm_quote evidence
             if available_subjects is None:
                 item.capabilities._add_error("available_subjects", "is required for tpm_quote evidence")
@@ -96,13 +101,17 @@ class TPMEngine(VerificationEngine):
                 item.capabilities._add_error("available_subjects", msg)
 
     def _validate_ima_log_items(self) -> None:
-        ima_log_items = self.attestation.evidence.view().filter(evidence_class="certification", evidence_type="ima_log")  # type: ignore[attr-defined]
+        # pylint: disable=protected-access
+        ima_log_items = self.attestation.evidence.view().filter(evidence_class="log", evidence_type="ima_log")  # type: ignore[attr-defined]
 
         for item in ima_log_items.result():
             item.validate_required("capabilities")
 
             if item.capabilities:
                 item.capabilities.validate_required("entry_count")
+                # Validate formats is present for ima_log evidence
+                if item.capabilities.formats is None:
+                    item.capabilities._add_error("formats", "is required for ima_log evidence")
 
     def _select_tpm_quote_item(self) -> Any:
         if not self.expects_tpm_quote:
@@ -127,7 +136,10 @@ class TPMEngine(VerificationEngine):
             .result_if_empty("check 'component_version'")
             .filter(lambda item: any(alg in allowable_sig_schemes for alg in item.capabilities.signature_schemes))
             .result_if_empty("check 'signature_schemes'")
-            .filter(lambda item: any(alg in allowable_hash_algs for alg in item.capabilities.hash_algorithms))
+            .filter(
+                lambda item: item.capabilities.hash_algorithms is not None
+                and any(alg in allowable_hash_algs for alg in item.capabilities.hash_algorithms)
+            )
             .result_if_empty("check 'hash_algorithms'")
             .filter(
                 lambda item: isinstance(item.capabilities.available_subjects, dict)
@@ -351,7 +363,10 @@ class TPMEngine(VerificationEngine):
             self.attestation.evidence.view()  # type: ignore[attr-defined]
             .filter(evidence_class="log", evidence_type="uefi_log")
             .result_if_empty("must contain a log item of type 'uefi_log' per agent policy")
-            .filter(lambda item: "application/octet-stream" in item.capabilities.formats)
+            .filter(
+                lambda item: item.capabilities.formats is not None
+                and "application/octet-stream" in item.capabilities.formats
+            )
             .result_if_empty("must have 'uefi_log' with format 'application/octet-stream'")
         )
 
@@ -371,7 +386,9 @@ class TPMEngine(VerificationEngine):
             .filter(evidence_class="log", evidence_type="ima_log")
             .result_if_empty("must contain a log item of type 'ima_log' per agent policy")
             .filter(
-                lambda item: "text/plain" in item.capabilities.formats and item.capabilities.supports_partial_access
+                lambda item: item.capabilities.formats is not None
+                and "text/plain" in item.capabilities.formats
+                and item.capabilities.supports_partial_access
             )
             .result_if_empty("must have 'ima_log' with format 'text/plain' and which supports partial access")
         )
