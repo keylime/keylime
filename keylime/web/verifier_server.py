@@ -14,6 +14,7 @@ from keylime.web.base.server import Server
 from keylime.web.verifier.agent_controller import AgentController
 from keylime.web.verifier.attestation_controller import AttestationController
 from keylime.web.verifier.evidence_controller import EvidenceController
+from keylime.web.verifier.identity_controller import IdentityController
 from keylime.web.verifier.ima_policy_controller import IMAPolicyController
 from keylime.web.verifier.mb_ref_state_controller import MBRefStateController
 from keylime.web.verifier.server_info_controller import ServerInfoController
@@ -174,7 +175,9 @@ class VerifierServer(Server):
         self._v2_mb_routes()
         # Routes for managing IMA verification in API v2
         self._v2_ima_routes()
-        # Routes for on-demand verification of evidence in API v2
+        # Routes for on-demand identity verification in API v2 (public)
+        self._v2_identity_routes()
+        # Routes for on-demand evidence verification in API v2 (public)
         self._v2_evidence_routes()
 
         # Note: push-specific endpoints are only available from API v3 onwards
@@ -262,13 +265,17 @@ class VerifierServer(Server):
         self._patch("/policies/ima/:name", IMAPolicyController, "update")
         self._delete("/policies/ima/:name", IMAPolicyController, "delete")
 
+    def _v2_identity_routes(self) -> None:
+        # Routes for on-demand identity verification (public - allows third-party verification)
+        self._get("/verify/identity", IdentityController, "verify")  # Public: VERIFY_IDENTITY
+
     def _v2_evidence_routes(self) -> None:
-        # Routes for on-demand verification of evidence
-        self._get("/verify/identity", EvidenceController, "process")
+        # Routes for on-demand evidence verification in v2 (public - allows third-party verification)
+        self._post("/verify/evidence", EvidenceController, "process")  # Public: VERIFY_EVIDENCE
 
     def _v3_evidence_routes(self) -> None:
-        # Routes for on-demand verification of evidence (which adhere to RFC 9110 semantics)
-        self._post("/evidence", EvidenceController, "process")
+        # Routes for on-demand verification of evidence in v3+ (public - allows third-party verification)
+        self._post("/verify/evidence", EvidenceController, "process")  # Public: VERIFY_EVIDENCE
 
     def _v3_authentication_routes(self) -> None:
         # Routes for agent authentication

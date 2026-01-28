@@ -281,3 +281,14 @@ session_create_rate_limit_per_agent = {{ verifier.session_create_rate_limit_per_
 # Time window in seconds for agent-based rate limiting.
 # Default: 60
 session_create_rate_limit_window_agent = {{ verifier.session_create_rate_limit_window_agent }}
+#
+# Lifetime in seconds for authentication session tokens.
+# After this time, agents must re-authenticate to continue submitting attestations.
+# Default: 180 (3 minutes)
+session_lifetime = {{ verifier.session_lifetime }}
+#
+# Whether to automatically extend the session token expiry when an agent
+# submits an attestation. When enabled, active agents won't need to re-authenticate
+# as long as they continue attesting within the session_lifetime window.
+# Default: true
+extend_token_on_attestation = {{ verifier.extend_token_on_attestation }}

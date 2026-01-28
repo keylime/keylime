@@ -174,28 +174,12 @@ payload_script = "{{ agent.payload_script }}"
 # https://github.com/keylime/keylime/security/advisories/GHSA-2m39-75g9-ff5r
 enable_insecure_payload = {{ agent.enable_insecure_payload }}
 
-# Extend the delivered payload into a PCR of choice.
-# Specify a PCR number to turn it on.
-# Set to -1 or any negative or out of range PCR value to turn off.
-measure_payload_pcr = {{ agent.measure_payload_pcr }}
-
-# Wether or not to use an exponantial backoff algorithm for retries.
-exponential_backoff = {{ agent.exponential_backoff }}
 # Maximum number of retries for exponential backoff
-exponential_backoff_max_retries = {{ agent_exponential_backoff_max_retries }}
+exponential_backoff_max_retries = {{ agent.exponential_backoff_max_retries }}
 # Initial delay in milliseconds for exponential backoff
-exponential_backoff_initial_delay = {{ agent_exponential_backoff_initial_delay }}
+exponential_backoff_initial_delay = {{ agent.exponential_backoff_initial_delay }}
 # Maximum delay in milliseconds for exponential backoff
-exponential_backoff_max_delay = {{ agent_exponential_backoff_max_delay }}
-
-# Either how long to wait between failed attempts to communicate with the TPM
-# in seconds, or the base for the exponential backoff algorithm if enabled via
-# "exponential_backoff" option.
-# Floating point values are accepted.
-retry_interval = {{ agent.retry_interval }}
-
-# Integer number of retries to communicate with the TPM before giving up.
-max_retries = {{ agent.max_retries }}
+exponential_backoff_max_delay = {{ agent.exponential_backoff_max_delay }}
 
 # List of hash algorithms used for PCRs
 # Accepted values: sha512, sha384, sha256, sha1
