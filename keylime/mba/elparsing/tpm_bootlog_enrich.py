@@ -307,13 +307,25 @@ def enrich(log: Dict[str, Any]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("infile", nargs="?", type=argparse.FileType("r"), default=sys.stdin)
+    parser.add_argument("infile", nargs="?", default="-", help="Input file path, use '-' for stdin")
     parser.add_argument("-o", "--output", choices=("yaml", "json"), default="yaml")
     args = parser.parse_args()
+
+    if args.infile == "-":
+        infile = sys.stdin
+    else:
+        infile = open(args.infile, "r", encoding="utf-8")  # pylint: disable=consider-using-with
+
     try:
-        log = yaml.load(args.infile, Loader=yaml.CSafeLoader)
-    except Exception:
-        log = yaml.load(args.infile, Loader=yaml.SafeLoader)
+        try:
+            log = yaml.load(infile, Loader=yaml.CSafeLoader)
+        except Exception:
+            if args.infile != "-":
+                infile.seek(0)
+            log = yaml.load(infile, Loader=yaml.SafeLoader)
+    finally:
+        if args.infile != "-":
+            infile.close()
     try:
         enrich(log)
     except Exception:
