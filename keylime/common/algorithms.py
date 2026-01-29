@@ -141,22 +141,3 @@ class Sign(str, enum.Enum):
         if self.value.startswith("ec"):
             return Key("ecc")
         raise NotImplementedError(f"key algorithm for signature scheme '{self.value}' is not known")
-
-
-def hash_token_for_log(token: str, length: int = 8) -> str:
-    """Hash a token for safe logging.
-
-    Returns the first `length` characters of the SHA256 hash of the token.
-    This allows tokens to be identified in logs for debugging purposes without
-    exposing the actual token value.
-
-    Args:
-        token: The authentication token to hash
-        length: Number of hash characters to return (default: 8)
-
-    Returns:
-        First `length` characters of SHA256 hash, or empty string if token is empty
-    """
-    if not token:
-        return ""
-    return hashlib.sha256(token.encode()).hexdigest()[:length]

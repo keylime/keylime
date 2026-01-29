@@ -203,3 +203,50 @@ def decrypt(ciphertext: bytes, key: bytes) -> bytes:
 
     decryptor = Cipher(algorithms.AES(key), modes.GCM(iv, tag), backend=default_backend()).decryptor()
     return decryptor.update(ciphertext) + decryptor.finalize()
+
+
+def hash_token_for_log(token: str, length: int = 8) -> str:
+    """Hash a token for safe logging.
+
+    Returns the first `length` characters of the SHA256 hash of the token.
+    This allows tokens to be identified in logs for debugging purposes without
+    exposing the actual token value.
+
+    Args:
+        token: The authentication token to hash
+        length: Number of hash characters to return (default: 8)
+
+    Returns:
+        First `length` characters of SHA256 hash, or empty string if token is empty
+    """
+    if not token:
+        return ""
+    return hashlib.sha256(token.encode()).hexdigest()[:length]
+
+
+def hash_token_for_storage(token: str) -> str:
+    """Hash a token for secure storage in the database.
+
+    Uses SHA-256 to create a one-way hash of the token. This is appropriate for
+    high-entropy tokens (e.g., secrets.token_urlsafe(32) with ~192 bits of
+    entropy) where brute-force attacks are infeasible.
+
+    Security rationale:
+    - High-entropy tokens don't require slow hashing functions (bcrypt, argon2)
+      because brute-forcing 192+ bits is computationally infeasible
+    - SHA-256 provides collision resistance and one-way hashing
+
+    Args:
+        token: The authentication token to hash for storage
+
+    Returns:
+        Full SHA256 hex digest (64 characters) for database storage
+
+    Raises:
+        ValueError: If token is empty or None
+    """
+    if not token:
+        raise ValueError("Token cannot be empty for storage")
+    digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
+    digest.update(token.encode())
+    return digest.finalize().hex()

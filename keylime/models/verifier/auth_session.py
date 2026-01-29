@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Sequence
 from sqlalchemy.orm import Session
 
 from keylime import config, keylime_logging
-from keylime.common.algorithms import hash_token_for_log
+from keylime.crypto import hash_token_for_log
 from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain
 from keylime.models.base import *

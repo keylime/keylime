@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from keylime import agent_util, config, keylime_logging, push_agent_monitor
 from keylime.agentstates import AgentAttestState, TPMClockInfo
 from keylime.common import algorithms, states
-from keylime.common.algorithms import hash_token_for_log
+from keylime.crypto import hash_token_for_log
 from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyring, ImaKeyrings
