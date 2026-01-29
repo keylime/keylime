@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any
 from keylime import agent_util, config, keylime_logging, push_agent_monitor
 from keylime.agentstates import AgentAttestState, TPMClockInfo
 from keylime.common import algorithms, states
-from keylime.crypto import hash_token_for_log
 from keylime.failure import Component, Failure
 from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyring, ImaKeyrings
@@ -677,12 +676,12 @@ class TPMEngine(VerificationEngine):
         logger.debug("_extend_auth_token() called for agent '%s'", self.agent_id)
         session_data = AuthSession.get_active_session_for_agent(self.agent_id)
 
-        # Log session data with token hashed for security
+        # Log session data (session_id is the hash - safe to log, but truncate for cleaner output)
         if session_data:
             logged_data = session_data.copy()
-            if "token" in logged_data:
-                logged_data["token_hash"] = hash_token_for_log(logged_data["token"])
-                del logged_data["token"]
+            # Truncate session_id for cleaner logging (show prefix only)
+            if "session_id" in logged_data:
+                logged_data["session_id"] = logged_data["session_id"][:8] + "..."
             logger.debug("get_active_session_for_agent returned: %s", logged_data)
         else:
             logger.debug("get_active_session_for_agent returned: None")
@@ -702,22 +701,24 @@ class TPMEngine(VerificationEngine):
 
             # Always update database record (for other workers and persistence)
             # This is separate from shared memory update and must work even after verifier restart
-            token = session_data.get("token")
-            if token:
-                auth_session = AuthSession.get(token)
+            # session_id is the hash of the token (stored as primary key in DB)
+            session_id = session_data.get("session_id")
+            if session_id:
+                # Direct lookup by session_id (primary key)
+                auth_session = AuthSession.get(session_id)
                 if auth_session:
                     auth_session.token_expires_at = new_expiry
                     auth_session.commit_changes()
                     logger.debug(
-                        "Extended auth token for agent '%s' (token hash: %s) in database until %s",
+                        "Extended auth token for agent '%s' (session_id prefix: %s) in database until %s",
                         self.agent_id,
-                        hash_token_for_log(token),
+                        session_id[:8] if session_id else "",
                         new_expiry,
                     )
                 else:
                     logger.warning(
-                        "Could not find auth session in database for token hash: %s to extend",
-                        hash_token_for_log(token),
+                        "Could not find auth session in database for session_id prefix: %s to extend",
+                        session_id[:8] if session_id else "",
                     )
 
             if session_id:

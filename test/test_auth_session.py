@@ -5,6 +5,7 @@ import unittest
 from datetime import timedelta
 from unittest.mock import MagicMock, PropertyMock, patch
 
+from keylime.crypto import generate_session_token, generate_token_salt, hash_token_for_storage
 from keylime.models.base.types import Timestamp
 from keylime.models.verifier.auth_session import AuthSession
 from keylime.shared_data import cleanup_global_shared_memory, get_shared_memory
@@ -175,15 +176,25 @@ class TestAuthSessionHelpers(unittest.TestCase):
         # Should return None
         self.assertIsNone(result)
 
+    @patch("keylime.models.verifier.auth_session.AuthSession.cache_session")
     @patch("keylime.models.verifier.auth_session.AuthSession.all")
-    def test_get_active_session_for_agent_from_database(self, mock_all):
+    def test_get_active_session_for_agent_from_database(self, mock_all, mock_cache_session):
         """Test that get_active_session_for_agent falls back to database."""
+
+
         now = Timestamp.now()
         future_time = now + timedelta(seconds=60)
 
-        # Mock database session
+        # session_id is UUID, token_hash is PBKDF2 hash of the token with salt
+        test_session_id = "550e8400-e29b-41d4-a716-446655440000"
+        test_token_salt = generate_token_salt()
+        test_token_hash = hash_token_for_storage("db-token-456", test_token_salt)
+
+        # Mock database session with actual values (not MagicMock for simple types)
         mock_session = MagicMock()
-        mock_session.token = "db-token-456"
+        mock_session.session_id = test_session_id
+        mock_session.token_hash = test_token_hash
+        mock_session.token_salt = test_token_salt
         mock_session.agent_id = self.test_agent_id
         mock_session.active = True
         mock_session.token_expires_at = future_time
@@ -196,11 +207,11 @@ class TestAuthSessionHelpers(unittest.TestCase):
         # Should return session data from database
         self.assertIsNotNone(result)
         self.assertEqual(result["agent_id"], self.test_agent_id)  # type: ignore[index]
-        self.assertEqual(result["token"], "db-token-456")  # type: ignore[index]
+        self.assertEqual(result["session_id"], test_session_id)  # type: ignore[index]
+        self.assertEqual(result["token_hash"], test_token_hash)  # type: ignore[index]
 
-        # Should also populate shared memory cache
-        session_id = hash("db-token-456")
-        self.assertIn(session_id, self.sessions_cache)
+        # Should call cache_session to populate shared memory cache
+        mock_cache_session.assert_called_once()
 
     @patch("keylime.models.base.db_manager.session_context")
     def test_delete_active_session_for_agent(self, mock_session_context):
@@ -213,6 +224,13 @@ class TestAuthSessionHelpers(unittest.TestCase):
         mock_session_context.return_value.__enter__ = MagicMock(return_value=mock_session)
         mock_session_context.return_value.__exit__ = MagicMock(return_value=False)
 
+        # Create an active session in shared memory (before the with block)
+        self.sessions_cache["session-9"] = {  # type: ignore[index]
+            "session_id": "session-9",
+            "agent_id": self.test_agent_id,
+            "active": True,
+        }
+
         # Mock the metaclass properties
         with patch.object(
             type(AuthSession), "schema_awaiting_processing", new_callable=PropertyMock, return_value=False
@@ -222,13 +240,6 @@ class TestAuthSessionHelpers(unittest.TestCase):
             mock_table.columns = {"agent_id": MagicMock(), "active": MagicMock()}
             mock_table.delete.return_value.where.return_value = MagicMock()
             mock_db_table.return_value = mock_table
-
-            # Create an active session in shared memory
-            self.sessions_cache["session-9"] = {  # type: ignore[index]
-                "session_id": "session-9",
-                "agent_id": self.test_agent_id,
-                "active": True,
-            }
 
             # Delete the session
             AuthSession.delete_active_session_for_agent(self.test_agent_id)
@@ -247,6 +258,18 @@ class TestAuthSessionHelpers(unittest.TestCase):
         mock_session_context.return_value.__enter__ = MagicMock(return_value=mock_session)
         mock_session_context.return_value.__exit__ = MagicMock(return_value=False)
 
+        # Create inactive and active sessions (before the with block)
+        self.sessions_cache["session-10"] = {  # type: ignore[index]
+            "session_id": "session-10",
+            "agent_id": self.test_agent_id,
+            "active": False,
+        }
+        self.sessions_cache["session-11"] = {  # type: ignore[index]
+            "session_id": "session-11",
+            "agent_id": self.test_agent_id,
+            "active": True,
+        }
+
         # Mock the metaclass properties
         with patch.object(
             type(AuthSession), "schema_awaiting_processing", new_callable=PropertyMock, return_value=False
@@ -256,18 +279,6 @@ class TestAuthSessionHelpers(unittest.TestCase):
             mock_table.columns = {"agent_id": MagicMock(), "active": MagicMock()}
             mock_table.delete.return_value.where.return_value = MagicMock()
             mock_db_table.return_value = mock_table
-
-            # Create inactive and active sessions
-            self.sessions_cache["session-10"] = {  # type: ignore[index]
-                "session_id": "session-10",
-                "agent_id": self.test_agent_id,
-                "active": False,
-            }
-            self.sessions_cache["session-11"] = {  # type: ignore[index]
-                "session_id": "session-11",
-                "agent_id": self.test_agent_id,
-                "active": True,
-            }
 
             # Delete active session
             AuthSession.delete_active_session_for_agent(self.test_agent_id)
@@ -287,6 +298,18 @@ class TestAuthSessionHelpers(unittest.TestCase):
         mock_session_context.return_value.__enter__ = MagicMock(return_value=mock_session)
         mock_session_context.return_value.__exit__ = MagicMock(return_value=False)
 
+        # Create sessions for different agents (before the with block)
+        self.sessions_cache["session-12"] = {  # type: ignore[index]
+            "session_id": "session-12",
+            "agent_id": self.test_agent_id,
+            "active": True,
+        }
+        self.sessions_cache["session-13"] = {  # type: ignore[index]
+            "session_id": "session-13",
+            "agent_id": "other-agent-789",
+            "active": True,
+        }
+
         # Mock the metaclass properties
         with patch.object(
             type(AuthSession), "schema_awaiting_processing", new_callable=PropertyMock, return_value=False
@@ -296,18 +319,6 @@ class TestAuthSessionHelpers(unittest.TestCase):
             mock_table.columns = {"agent_id": MagicMock(), "active": MagicMock()}
             mock_table.delete.return_value.where.return_value = MagicMock()
             mock_db_table.return_value = mock_table
-
-            # Create sessions for different agents
-            self.sessions_cache["session-12"] = {  # type: ignore[index]
-                "session_id": "session-12",
-                "agent_id": self.test_agent_id,
-                "active": True,
-            }
-            self.sessions_cache["session-13"] = {  # type: ignore[index]
-                "session_id": "session-13",
-                "agent_id": "other-agent-789",
-                "active": True,
-            }
 
             # Delete session for test_agent_id
             AuthSession.delete_active_session_for_agent(self.test_agent_id)
@@ -389,8 +400,8 @@ class TestAuthSessionCore(unittest.TestCase):
         self.assertIn("authentication_supported", result["errors"])
 
     @patch("keylime.models.verifier.auth_session.get_session")
-    @patch.object(AuthSession, "get")
-    def test_authenticate_agent_success(self, mock_get, mock_get_session):
+    @patch.object(AuthSession, "get_by_token")
+    def test_authenticate_agent_success(self, mock_get_by_token, mock_get_session):
         """Test successful agent authentication with valid token."""
         # Create a mock agent
         mock_agent = MagicMock()
@@ -401,13 +412,13 @@ class TestAuthSessionCore(unittest.TestCase):
         mock_db_session.query.return_value.filter.return_value.one_or_none.return_value = mock_agent
         mock_get_session.return_value = mock_db_session
 
-        # Mock AuthSession.get to return an active session
+        # Mock AuthSession.get_by_token to return an active session
         mock_auth_session = MagicMock()
-        mock_auth_session.token = "test-token"
+        mock_auth_session.session_id = "550e8400-e29b-41d4-a716-446655440000"
         mock_auth_session.active = True
         mock_auth_session.agent_id = self.test_agent_id
         mock_auth_session.token_expires_at = Timestamp.now() + timedelta(hours=1)
-        mock_get.return_value = mock_auth_session
+        mock_get_by_token.return_value = mock_auth_session
 
         result = AuthSession.authenticate_agent("test-token")
 
@@ -415,24 +426,24 @@ class TestAuthSessionCore(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result.agent_id, self.test_agent_id)  # type: ignore[union-attr]
 
-    @patch.object(AuthSession, "get")
-    def test_authenticate_agent_inactive_session(self, mock_get):
+    @patch.object(AuthSession, "get_by_token")
+    def test_authenticate_agent_inactive_session(self, mock_get_by_token):
         """Test that inactive sessions cannot authenticate."""
-        # Mock AuthSession.get to return an inactive session
+        # Mock AuthSession.get_by_token to return an inactive session
         mock_auth_session = MagicMock()
         mock_auth_session.active = False
-        mock_get.return_value = mock_auth_session
+        mock_get_by_token.return_value = mock_auth_session
 
         result = AuthSession.authenticate_agent("test-token")
 
         # Should return False
         self.assertFalse(result)
 
-    @patch.object(AuthSession, "get")
-    def test_authenticate_agent_no_session(self, mock_get):
+    @patch.object(AuthSession, "get_by_token")
+    def test_authenticate_agent_no_session(self, mock_get_by_token):
         """Test that authentication fails when session doesn't exist."""
-        # Mock AuthSession.get to return None (no session exists)
-        mock_get.return_value = None
+        # Mock AuthSession.get_by_token to return None (no session found)
+        mock_get_by_token.return_value = None
 
         result = AuthSession.authenticate_agent("test-token")
 
@@ -480,14 +491,22 @@ class TestAuthSessionCore(unittest.TestCase):
     @patch.object(AuthSession, "empty")
     def test_create_from_memory(self, mock_empty):
         """Test AuthSession.create_from_memory()."""
+
+
         # Mock agent
         mock_agent = MagicMock()
         mock_agent.agent_id = self.test_agent_id
 
-        # Create session data
+        # Create session data (token format: session_id.secret, token_hash is PBKDF2)
         now = Timestamp.now()
+        test_session_id = "550e8400-e29b-41d4-a716-446655440000"
+        test_token = generate_session_token(test_session_id)  # Format: session_id.secret
+        test_token_salt = generate_token_salt()
         session_data = {
-            "token": "test-token",
+            "session_id": test_session_id,
+            "token": test_token,
+            "token_salt": test_token_salt,
+            "token_hash": hash_token_for_storage(test_token, test_token_salt),
             "agent_id": self.test_agent_id,
             "nonce": b"test-nonce",
             "nonce_created_at": now,
@@ -506,7 +525,10 @@ class TestAuthSessionCore(unittest.TestCase):
         AuthSession.create_from_memory(session_data, mock_agent, pop_request)
 
         # Verify session attributes were set
-        self.assertEqual(mock_session.token, "test-token")
+        self.assertEqual(mock_session.token, test_token)
+        self.assertEqual(mock_session.session_id, test_session_id)
+        self.assertEqual(mock_session.token_salt, test_token_salt)
+        self.assertEqual(mock_session.token_hash, session_data["token_hash"])
         self.assertEqual(mock_session.agent_id, self.test_agent_id)
         self.assertEqual(mock_session.nonce, b"test-nonce")
         self.assertFalse(mock_session.active)

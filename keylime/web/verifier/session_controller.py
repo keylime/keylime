@@ -7,7 +7,6 @@ from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain
 from keylime.models.base import Timestamp
 from keylime.models.verifier import AuthSession
-from keylime.shared_data import get_shared_memory
 from keylime.web.base import Controller
 
 logger = keylime_logging.init_logging("verifier")
@@ -103,10 +102,8 @@ class SessionController(Controller):
             return
 
         # Store in shared memory for access by other worker processes
-        shared_memory = get_shared_memory()
-        sessions_cache = shared_memory.get_or_create_dict("auth_sessions")
-        session_id = auth_session["session_id"]
-        sessions_cache[session_id] = auth_session
+        # Uses dual-key cache: primary by session_id, index by token_hash
+        AuthSession.cache_session(auth_session)
 
         # Clean up stale sessions from shared memory
         AuthSession.delete_stale_from_memory(agent_id)
@@ -136,11 +133,8 @@ class SessionController(Controller):
             self.send_response(code=400, body=error_body)
             return
 
-        # Retrieve session from shared memory
-        shared_memory = get_shared_memory()
-        sessions_cache = shared_memory.get_or_create_dict("auth_sessions")
-
-        # session_id is a UUID string, use it directly for lookup
+        # Retrieve session from shared memory cache
+        sessions_cache = AuthSession._get_sessions_cache()  # pylint: disable=protected-access
         auth_session_data = sessions_cache.get(session_id)
 
         if not auth_session_data:
@@ -162,7 +156,7 @@ class SessionController(Controller):
         if nonce_expires_at and nonce_expires_at < Timestamp.now():
             logger.warning("Nonce expired for session %s (agent %s)", session_id, agent_id)
             # Per spec: return 200 with evaluation:fail, not 401
-            del sessions_cache[session_id]  # type: ignore[arg-type]
+            AuthSession.uncache_session(session_id)
 
             # Extract proof data from the request if provided
             data = params.get("data", {})
@@ -188,12 +182,12 @@ class SessionController(Controller):
                                 "authentication_class": "pop",
                                 "authentication_type": "tpm_pop",
                                 "chosen_parameters": {
-                                    "challenge": base64.b64encode(auth_session_data.get("nonce")).decode("utf-8")
+                                    "challenge": base64.b64encode(auth_session_data.get("nonce")).decode("utf-8")  # type: ignore[arg-type]
                                 },
                                 "data": {"message": message, "signature": signature},
                             }
                         ],
-                        "created_at": auth_session_data.get("nonce_created_at").isoformat(),
+                        "created_at": auth_session_data.get("nonce_created_at").isoformat(),  # type: ignore[union-attr]
                         "challenges_expire_at": nonce_expires_at.isoformat(),
                         "response_received_at": Timestamp.now().isoformat(),
                         "token_expires_at": None,
@@ -242,20 +236,20 @@ class SessionController(Controller):
                                 "authentication_class": "pop",
                                 "authentication_type": "tpm_pop",
                                 "chosen_parameters": {
-                                    "challenge": base64.b64encode(auth_session_data.get("nonce")).decode("utf-8")
+                                    "challenge": base64.b64encode(auth_session_data.get("nonce")).decode("utf-8")  # type: ignore[arg-type]
                                 },
                                 "data": {"message": message, "signature": signature},
                             }
                         ],
-                        "created_at": auth_session_data.get("nonce_created_at").isoformat(),
-                        "challenges_expire_at": auth_session_data.get("nonce_expires_at").isoformat(),
+                        "created_at": auth_session_data.get("nonce_created_at").isoformat(),  # type: ignore[union-attr]
+                        "challenges_expire_at": auth_session_data.get("nonce_expires_at").isoformat(),  # type: ignore[union-attr]
                         "response_received_at": response_received_at.isoformat(),
                     },
                 }
             }
 
-            # Delete from shared memory
-            del sessions_cache[session_id]  # type: ignore[arg-type]
+            # Delete from shared memory (cache + token index)
+            AuthSession.uncache_session(session_id)
             self.send_response(code=200, body=response_data)
             return
 
@@ -315,8 +309,8 @@ class SessionController(Controller):
                 }
             }
 
-            # Delete from shared memory on failure
-            del sessions_cache[session_id]  # type: ignore[arg-type]
+            # Delete from shared memory on failure (cache + token index)
+            AuthSession.uncache_session(session_id)
             self.send_response(code=401, body=response_data)
             return
 
@@ -329,19 +323,19 @@ class SessionController(Controller):
         # Persist to database
         auth_session.commit_changes()
 
-        # Keep session in shared memory for token extension optimization
-        if config.getboolean("verifier", "extend_token_on_attestation", fallback=True):
-            # Keep the session in shared memory so it can be extended on successful attestations
-            sessions_cache[session_id] = {  # type: ignore[index]
+        # Cache session for fast authentication lookups (avoids PBKDF2 on every request)
+        # The plaintext token is stored in cache for fast comparison
+        AuthSession.cache_session(
+            {
                 "session_id": session_id,
-                "token": auth_session.token,
+                "token": auth_session.token,  # Plaintext for fast cache comparison
+                "token_salt": auth_session.token_salt,
+                "token_hash": auth_session.token_hash,
                 "agent_id": auth_session.agent_id,
                 "active": True,
                 "token_expires_at": auth_session.token_expires_at,
             }
-        else:
-            # Delete from shared memory after successful persistence (original behavior)
-            del sessions_cache[session_id]  # type: ignore[arg-type]
+        )
 
         # Build proper JSON-API response with required fields
         response_data = {
@@ -384,17 +378,18 @@ class SessionController(Controller):
     def show(self, agent_id, token, **_params):
         AuthSession.delete_stale(agent_id)
 
-        agent = AuthSession.get(agent_id, token)
+        # Look up session by token hash (tokens are never stored in plaintext)
+        auth_session = AuthSession.get_by_token(token)
 
-        if not agent:
+        if not auth_session or auth_session.agent_id != agent_id:
             self.respond(404, f"Agent with ID '{agent_id}' not found")
             return
 
-        if not agent.active:  # type: ignore[attr-defined]
+        if not auth_session.active:  # type: ignore[attr-defined]
             self.respond(404, f"Agent with ID '{agent_id}' has not been activated")
             return
 
-        self.respond(200, "Success", agent.render())
+        self.respond(200, "Success", auth_session.render())
 
     # POST /v3[.:minor]/agents/:agent_id/session
     def create(self, agent_id, **params):
@@ -424,13 +419,14 @@ class SessionController(Controller):
         session = get_session()
         agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
 
-        auth_session = AuthSession.get(agent_id=agent_id, token=token)
+        # Look up session by token hash (tokens are never stored in plaintext)
+        auth_session = AuthSession.get_by_token(token)
 
-        if not auth_session:
+        if not auth_session or auth_session.agent_id != agent_id:
             self.respond(404)
             return
 
-        auth_session.receive_pop(agent, params)  # type: ignore[attr-defined]
+        auth_session.receive_pop(agent, params)  # type: ignore[attr-defined, arg-type]
 
         if auth_session.errors:  # type: ignore[attr-defined]
             # Log errors internally for debugging

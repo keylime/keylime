@@ -381,9 +381,7 @@ class TestSessionControllerUpdateSession(unittest.TestCase):
     @patch("keylime.models.verifier.auth_session.AuthSession.create_from_memory")
     @patch("keylime.models.verifier.auth_session.AuthSession.delete_active_session_for_agent")
     @patch("keylime.web.verifier.session_controller.config")
-    def test_update_session_success(
-        self, mock_config, _mock_delete_active, mock_create_from_memory, mock_get_session
-    ):
+    def test_update_session_success(self, mock_config, _mock_delete_active, mock_create_from_memory, mock_get_session):
         """Test successful session update."""
         # Create session in cache
         now = Timestamp.now()
@@ -391,10 +389,13 @@ class TestSessionControllerUpdateSession(unittest.TestCase):
 
         self.sessions_cache[self.test_session_id] = {  # type: ignore[index]
             "session_id": self.test_session_id,
+            "token": "test-token",  # Plaintext token (in memory only)
             "agent_id": self.test_agent_id,
             "nonce": nonce,
             "nonce_created_at": now,
             "nonce_expires_at": now + timedelta(seconds=60),
+            "hash_algorithm": "sha256",
+            "signing_scheme": "rsassa",
         }
 
         # Mock database query to return an agent
@@ -410,8 +411,11 @@ class TestSessionControllerUpdateSession(unittest.TestCase):
         # Mock AuthSession.create_from_memory to return valid session
         mock_auth_session = MagicMock()
         mock_auth_session.errors = {}  # No errors
+        mock_auth_session.session_id = self.test_session_id
         mock_auth_session.agent_id = self.test_agent_id
         mock_auth_session.token = "test-token"
+        mock_auth_session.token_salt = "0" * 32  # Placeholder salt
+        mock_auth_session.token_hash = "0" * 64  # Placeholder hash
         mock_auth_session.nonce = nonce
         mock_auth_session.nonce_created_at = now
         mock_auth_session.nonce_expires_at = now + timedelta(seconds=60)
@@ -466,12 +470,13 @@ class TestSessionControllerLegacyEndpoints(unittest.TestCase):
         """Clean up after tests."""
         cleanup_global_shared_memory()
 
-    @patch("keylime.models.verifier.auth_session.AuthSession.get")
+    @patch("keylime.models.verifier.auth_session.AuthSession.get_by_token")
     @patch("keylime.models.verifier.auth_session.AuthSession.delete_stale")
     def test_show_success(self, _mock_delete_stale, mock_get):
         """Test successful show endpoint."""
-        # Mock AuthSession.get to return agent
+        # Mock AuthSession.get_by_token to return agent
         mock_agent = MagicMock()
+        mock_agent.agent_id = self.test_agent_id
         mock_agent.active = True
         mock_agent.render.return_value = {"token": self.test_token}
         mock_get.return_value = mock_agent
@@ -484,11 +489,11 @@ class TestSessionControllerLegacyEndpoints(unittest.TestCase):
         call_args = self.controller.respond.call_args  # type: ignore[attr-defined]
         self.assertEqual(call_args[0][0], 200)
 
-    @patch("keylime.models.verifier.auth_session.AuthSession.get")
+    @patch("keylime.models.verifier.auth_session.AuthSession.get_by_token")
     @patch("keylime.models.verifier.auth_session.AuthSession.delete_stale")
     def test_show_not_found(self, _mock_delete_stale, mock_get):
         """Test show endpoint with non-existent agent."""
-        # Mock AuthSession.get to return None
+        # Mock AuthSession.get_by_token to return None
         mock_get.return_value = None
 
         # Call show
@@ -499,11 +504,11 @@ class TestSessionControllerLegacyEndpoints(unittest.TestCase):
         call_args = self.controller.respond.call_args  # type: ignore[attr-defined]
         self.assertEqual(call_args[0][0], 404)
 
-    @patch("keylime.models.verifier.auth_session.AuthSession.get")
+    @patch("keylime.models.verifier.auth_session.AuthSession.get_by_token")
     @patch("keylime.models.verifier.auth_session.AuthSession.delete_stale")
     def test_show_not_active(self, _mock_delete_stale, mock_get):
         """Test show endpoint with inactive agent."""
-        # Mock AuthSession.get to return inactive agent
+        # Mock AuthSession.get_by_token to return inactive agent
         mock_agent = MagicMock()
         mock_agent.active = False
         mock_get.return_value = mock_agent
@@ -562,7 +567,7 @@ class TestSessionControllerLegacyEndpoints(unittest.TestCase):
         self.assertEqual(call_args[0][0], 404)
 
     @patch("keylime.web.verifier.session_controller.get_session")
-    @patch("keylime.models.verifier.auth_session.AuthSession.get")
+    @patch("keylime.models.verifier.auth_session.AuthSession.get_by_token")
     def test_update_success(self, mock_get, mock_get_session):
         """Test successful update endpoint."""
         # Mock database query
@@ -572,8 +577,9 @@ class TestSessionControllerLegacyEndpoints(unittest.TestCase):
         mock_session.query.return_value.filter.return_value.one_or_none.return_value = mock_agent
         mock_get_session.return_value = mock_session
 
-        # Mock AuthSession.get
+        # Mock AuthSession.get_by_token
         mock_auth_session = MagicMock()
+        mock_auth_session.agent_id = self.test_agent_id
         mock_auth_session.errors = {}
         mock_auth_session.render.return_value = {"token": self.test_token}
         mock_auth_session.receive_pop = MagicMock()
@@ -590,10 +596,10 @@ class TestSessionControllerLegacyEndpoints(unittest.TestCase):
         self.assertEqual(call_args[0][0], 200)
 
     @patch("keylime.web.verifier.session_controller.get_session")
-    @patch("keylime.models.verifier.auth_session.AuthSession.get")
+    @patch("keylime.models.verifier.auth_session.AuthSession.get_by_token")
     def test_update_not_found(self, mock_get, _mock_get_session):
         """Test update endpoint with non-existent session."""
-        # Mock AuthSession.get to return None
+        # Mock AuthSession.get_by_token to return None
         mock_get.return_value = None
 
         # Call update

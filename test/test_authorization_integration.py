@@ -67,7 +67,7 @@ class TestIdentityExtraction(unittest.TestCase):
         future_time = Timestamp.now() + timedelta(hours=1)
         mock_session.token_expires_at = future_time
 
-        with patch("keylime.web.base.action_handler.AuthSession.get", return_value=mock_session):
+        with patch("keylime.web.base.action_handler.AuthSession.get_by_token", return_value=mock_session):
             identity, identity_type = handler._extract_identity()  # pylint: disable=protected-access
 
         self.assertEqual(identity, agent_id)
@@ -87,7 +87,7 @@ class TestIdentityExtraction(unittest.TestCase):
         past_time = Timestamp.now() - timedelta(hours=1)
         mock_session.token_expires_at = past_time  # Expired
 
-        with patch("keylime.web.base.action_handler.AuthSession.get", return_value=mock_session):
+        with patch("keylime.web.base.action_handler.AuthSession.get_by_token", return_value=mock_session):
             identity, identity_type = handler._extract_identity()  # pylint: disable=protected-access
 
         self.assertEqual(identity, "anonymous")
@@ -99,7 +99,7 @@ class TestIdentityExtraction(unittest.TestCase):
         handler = self._create_handler_with_auth_header("Bearer invalid-token")
 
         # Mock AuthSession.get returning None (not found)
-        with patch("keylime.web.base.action_handler.AuthSession.get", return_value=None):
+        with patch("keylime.web.base.action_handler.AuthSession.get_by_token", return_value=None):
             identity, identity_type = handler._extract_identity()  # pylint: disable=protected-access
 
         self.assertEqual(identity, "anonymous")
@@ -124,7 +124,7 @@ class TestIdentityExtraction(unittest.TestCase):
         handler.request.get_ssl_certificate = MagicMock(return_value=cert_dict)
 
         # Mock AuthSession.get returning None (invalid token)
-        with patch("keylime.web.base.action_handler.AuthSession.get", return_value=None):
+        with patch("keylime.web.base.action_handler.AuthSession.get_by_token", return_value=None):
             identity, identity_type = handler._extract_identity()  # pylint: disable=protected-access
 
         # Should be anonymous, NOT admin (mTLS should not be checked)
@@ -320,7 +320,7 @@ class TestAuthorizationCheckFlow(unittest.TestCase):
         handler.set_status.assert_called_with(403)  # type: ignore[union-attr]
         handler.finish.assert_called()  # type: ignore[union-attr]
 
-    @patch("keylime.web.base.action_handler.AuthSession.get")
+    @patch("keylime.web.base.action_handler.AuthSession.get_by_token")
     @patch("keylime.web.base.action_handler.get_authorization_manager")
     def test_agent_can_access_own_resource(self, mock_get_manager, mock_auth_session_get):
         """Test that agent can access their own resource."""
@@ -353,7 +353,7 @@ class TestAuthorizationCheckFlow(unittest.TestCase):
         self.assertTrue(result)
         handler.set_status.assert_not_called()  # type: ignore[union-attr]
 
-    @patch("keylime.web.base.action_handler.AuthSession.get")
+    @patch("keylime.web.base.action_handler.AuthSession.get_by_token")
     @patch("keylime.web.base.action_handler.get_authorization_manager")
     def test_agent_cannot_access_other_agent_resource(self, mock_get_manager, mock_auth_session_get):
         """Test that agent cannot access another agent's resource."""

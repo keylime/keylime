@@ -261,7 +261,8 @@ class ActionHandler(RequestHandler):
         if auth_header:
             if auth_header.startswith("Bearer "):
                 token = auth_header[7:]
-                auth_session = AuthSession.get(token)
+                # Look up by token hash (tokens are never stored in plaintext)
+                auth_session = AuthSession.get_by_token(token)
                 if auth_session and auth_session.agent_id:  # type: ignore[attr-defined]
                     # Check if token is still valid
                     now = Timestamp.now()
@@ -507,10 +508,10 @@ class ActionHandler(RequestHandler):
 
         token = auth_header[7:]  # Remove "Bearer " prefix
 
-        # Look up token in database
-        auth_session = AuthSession.get(token)
+        # Look up token by hash in database
+        auth_session = AuthSession.get_by_token(token)
         if not auth_session:
-            logger.warning("Authentication token not found: %s", token[:10] + "...")
+            logger.warning("Authentication token not found (hash prefix: %s...)", token[:8] if token else "")
             self.set_status(401)
             self.write(
                 {"errors": [{"status": "401", "title": "Unauthorized", "detail": "Invalid authentication token"}]}
