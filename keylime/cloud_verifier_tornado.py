@@ -1956,22 +1956,24 @@ async def update_agent_api_version(
                 logger.error("Agent %s negotiated version %s is invalid", agent_id, negotiated)
                 return None
 
-            # Only check for downgrade if there was a previous version
-            old_version_tuple = None
-            if old_version is not None:
+            # Only check for downgrade if there was a previous version and successful attestation.
+            # If attestation_count == 0, the stored version might be a fallback guess from the tenant,
+            # not a version the agent actually supported, so we allow the "downgrade".
+            attestation_count = agent.get("attestation_count", 0)
+            if old_version is not None and attestation_count > 0:
                 old_version_tuple = str_to_version(old_version)
                 if not old_version_tuple:
                     logger.error("Agent %s stored version %s is invalid", agent_id, old_version)
                     return None
 
-            if old_version_tuple is not None and negotiated_tuple <= old_version_tuple:
-                logger.warning(
-                    "Agent %s API version %s is lower or equal to previous version %s",
-                    agent_id,
-                    negotiated,
-                    old_version,
-                )
-                return None
+                if negotiated_tuple <= old_version_tuple:
+                    logger.warning(
+                        "Agent %s API version %s is lower or equal to previous version %s",
+                        agent_id,
+                        negotiated,
+                        old_version,
+                    )
+                    return None
 
             logger.info("Agent %s new API version %s is supported", agent_id, negotiated)
 
