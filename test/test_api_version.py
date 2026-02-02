@@ -56,6 +56,91 @@ class APIVersion_Test(unittest.TestCase):
             with self.subTest(description):
                 self.assertEqual(api_version.is_supported_version(version), supported, description)
 
+    def test_negotiate_version_with_string(self):
+        """Test negotiate_version with a single version string."""
+        # Single version that is supported
+        result = api_version.negotiate_version("2.0")
+        self.assertEqual(result, "2.0")
+
+        # Single version that is not supported
+        result = api_version.negotiate_version("99.0")
+        self.assertIsNone(result)
+
+    def test_negotiate_version_with_list(self):
+        """Test negotiate_version with a list of versions."""
+        # List with multiple supported versions - should return highest
+        result = api_version.negotiate_version(["1.0", "2.0", "2.1"])
+        self.assertEqual(result, "2.1")
+
+        # List with mixed supported/unsupported - should return highest supported
+        result = api_version.negotiate_version(["1.0", "2.0", "99.0"])
+        self.assertEqual(result, "2.0")
+
+        # List with no supported versions
+        result = api_version.negotiate_version(["98.0", "99.0"])
+        self.assertIsNone(result)
+
+    def test_negotiate_version_returns_highest(self):
+        """Test that negotiate_version returns the highest common version."""
+        # All versions supported by both
+        result = api_version.negotiate_version(["1.0", "2.0", "2.1", "2.2", "2.3", "2.4", "2.5"])
+        self.assertEqual(result, "2.5")
+
+        # Only lower versions in common
+        result = api_version.negotiate_version(["1.0", "2.0"])
+        self.assertEqual(result, "2.0")
+
+    def test_negotiate_version_with_custom_local_versions(self):
+        """Test negotiate_version with custom local_versions."""
+        # Restrict local versions to exclude 3.0 (simulating pull mode)
+        local_versions = ["1.0", "2.0", "2.1", "2.2", "2.3", "2.4", "2.5"]
+        result = api_version.negotiate_version(["2.5", "3.0"], local_versions)
+        self.assertEqual(result, "2.5")
+
+        # Remote only has 3.0, local doesn't support it
+        result = api_version.negotiate_version(["3.0"], local_versions)
+        self.assertIsNone(result)
+
+        # Both support 3.0 when included in local
+        local_versions_with_3 = ["1.0", "2.0", "2.5", "3.0"]
+        result = api_version.negotiate_version(["2.5", "3.0"], local_versions_with_3)
+        self.assertEqual(result, "3.0")
+
+    def test_negotiate_version_raise_on_error(self):
+        """Test negotiate_version with raise_on_error=True."""
+        # No compatible version should raise ValueError
+        with self.assertRaises(ValueError) as context:
+            api_version.negotiate_version(["99.0"], raise_on_error=True)
+        self.assertIn("No compatible API version", str(context.exception))
+
+        # Compatible version should not raise
+        result = api_version.negotiate_version(["2.0"], raise_on_error=True)
+        self.assertEqual(result, "2.0")
+
+    def test_negotiate_version_empty_list(self):
+        """Test negotiate_version with empty list."""
+        result = api_version.negotiate_version([])
+        self.assertIsNone(result)
+
+        # With raise_on_error
+        with self.assertRaises(ValueError):
+            api_version.negotiate_version([], raise_on_error=True)
+
+    def test_negotiate_version_proper_version_comparison(self):
+        """Test that version comparison is numeric, not string-based (2.10 > 2.2)."""
+        # String comparison would incorrectly say "2.2" > "2.10" because "2" > "1"
+        # Proper version comparison should correctly identify 2.10 > 2.2
+        local_versions = ["2.2", "2.10"]
+        remote_versions = ["2.2", "2.10"]
+        result = api_version.negotiate_version(remote_versions, local_versions)
+        self.assertEqual(result, "2.10", "2.10 should be greater than 2.2")
+
+        # Test with more versions to ensure proper ordering
+        local_versions = ["1.0", "2.1", "2.2", "2.9", "2.10", "2.11"]
+        remote_versions = ["2.2", "2.9", "2.10"]
+        result = api_version.negotiate_version(remote_versions, local_versions)
+        self.assertEqual(result, "2.10", "2.10 should be the highest common version")
+
 
 if __name__ == "__main__":
     unittest.main()
