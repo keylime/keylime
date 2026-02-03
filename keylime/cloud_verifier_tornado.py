@@ -1772,6 +1772,16 @@ class VerifyEvidenceHandler(BaseHandler):
         if "mb_policy" in data and data["mb_policy"] != "":
             mb_policy = data["mb_policy"]
 
+        # At least one policy must be provided for TPM verification to be meaningful
+        if not tpm_policy and runtime_policy is None and not mb_policy:
+            failure.add_event(
+                "missing_policy",
+                {"message": "at least one policy (tpm_policy, runtime_policy, or mb_policy) must be provided"},
+                False,
+            )
+            logger.warning("POST returning 400 response. no policy provided for verification")
+            return ({}, failure)
+
         if "ima_measurement_list" in data and data["ima_measurement_list"] != "":
             ima_measurement_list = data["ima_measurement_list"]
 
