@@ -444,6 +444,8 @@ class TestIMAVerification(unittest.TestCase):
 
         # deserialize DSSE payload
         runtime_policy = ima.deserialize_runtime_policy(runtime_policy_envelope_raw.decode())
+        if runtime_policy is None:
+            self.fail("Failed to deserialize runtime policy")
         self.assertIsNotNone(runtime_policy["digests"], "Runtime policy hashes are present")
         self.assertEqual(len(runtime_policy["digests"]), 21, "Runtime policy hashes are correct length")
         self.assertEqual(
@@ -487,6 +489,8 @@ class TestIMAVerification(unittest.TestCase):
 
         # deserialize DSSE payload
         runtime_policy = ima.deserialize_runtime_policy(runtime_policy_envelope_raw.decode())
+        if runtime_policy is None:
+            self.fail("Failed to deserialize runtime policy")
         self.assertIsNotNone(runtime_policy["digests"], "Runtime policy hashes are present")
         self.assertEqual(len(runtime_policy["digests"]), 21, "Runtime policy hashes are correct length")
         self.assertEqual(

@@ -467,6 +467,8 @@ def runtime_policy_db_contents(runtime_policy_name: str, runtime_policy: str, tp
         runtime_policy_db_format["ima_policy"] = runtime_policy
     runtime_policy_bytes = runtime_policy.encode()
     runtime_policy_dict = deserialize_runtime_policy(runtime_policy)
+    if runtime_policy_dict is None:
+        raise ValueError("Failed to deserialize runtime policy")
 
     validate_runtime_policy(runtime_policy_dict)
 
@@ -537,13 +539,13 @@ def verify_runtime_policy(
         )
 
 
-def deserialize_runtime_policy(runtime_policy: str | None) -> RuntimePolicyType:
+def deserialize_runtime_policy(runtime_policy: Optional[str]) -> Optional[RuntimePolicyType]:
     """
     Converts policies stored in the database to JSON (if applicable), for use in code.
     """
 
-    if runtime_policy is None:
-        runtime_policy = ""
+    if not runtime_policy:
+        return None
 
     runtime_policy_loaded: Dict[str, Any] = json.loads(runtime_policy)
 
