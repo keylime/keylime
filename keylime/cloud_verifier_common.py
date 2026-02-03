@@ -35,7 +35,7 @@ def get_AgentAttestStates() -> AgentAttestStates:
 def process_quote_response(
     agent: Dict[str, Any],
     mb_policy: Optional[str],
-    runtime_policy: RuntimePolicyType,
+    runtime_policy: Optional[RuntimePolicyType],
     json_response: Dict[str, Any],
     agentAttestState: AgentAttestState,
 ) -> Failure:
@@ -178,8 +178,10 @@ def process_quote_response(
     # will be phased out.
     if agent["ima_sign_verification_keys"]:
         verification_key_string = agent["ima_sign_verification_keys"]
-    else:
+    elif runtime_policy is not None:
         verification_key_string = runtime_policy["verification-keys"]
+    else:
+        verification_key_string = ""
 
     tenant_keyring = file_signatures.ImaKeyring.from_string(verification_key_string)
     ima_keyrings.set_tenant_keyring(tenant_keyring)
@@ -444,7 +446,7 @@ def process_verify_attestation(
     nonce: str,
     hash_alg: str,
     tpm_policy: str,
-    runtime_policy: RuntimePolicyType,
+    runtime_policy: Optional[RuntimePolicyType],
     mb_policy: str,
     ima_measurement_list: str,
     mb_measurement_list: str,
