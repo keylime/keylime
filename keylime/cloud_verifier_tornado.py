@@ -1696,6 +1696,7 @@ class VerifyEvidenceHandler(BaseHandler):
 
             if attestation_failure:
                 failures = []
+                is_input_error = False
                 for event in attestation_failure.events:
                     failures.append(
                         {
@@ -1703,12 +1704,19 @@ class VerifyEvidenceHandler(BaseHandler):
                             "context": json.loads(event.context),
                         }
                     )
+                    # Check if this is an input validation error
+                    if event.event_id.endswith(".missing_param") or event.event_id.endswith(".missing_policy"):
+                        is_input_error = True
                 attestation_response["failures"] = failures
 
+                # Return 400 for input validation errors, 200 for attestation failures
+                if is_input_error:
+                    web_util.echo_json_response(self.req_handler, 400, "Bad Request", attestation_response)
+                else:
+                    web_util.echo_json_response(self.req_handler, 200, "Success", attestation_response)
             else:
                 attestation_response["valid"] = True
-            # TODO - should we use different error codes for attestation failures even if we processed correctly?
-            web_util.echo_json_response(self.req_handler, 200, "Success", attestation_response)
+                web_util.echo_json_response(self.req_handler, 200, "Success", attestation_response)
         except Exception:
             web_util.echo_json_response(
                 self.req_handler, 500, "Internal Server Error: Failed to process attestation data"
@@ -1721,7 +1729,7 @@ class VerifyEvidenceHandler(BaseHandler):
         tpm_ek = None
         tpm_ak = None
         tpm_policy = ""
-        runtime_policy = None
+        runtime_policy = ""
         mb_policy = ""
         ima_measurement_list = ""
         mb_log = ""
@@ -1773,7 +1781,7 @@ class VerifyEvidenceHandler(BaseHandler):
             mb_policy = data["mb_policy"]
 
         # At least one policy must be provided for TPM verification to be meaningful
-        if not tpm_policy and runtime_policy is None and not mb_policy:
+        if not tpm_policy and not runtime_policy and not mb_policy:
             failure.add_event(
                 "missing_policy",
                 {"message": "at least one policy (tpm_policy, runtime_policy, or mb_policy) must be provided"},
