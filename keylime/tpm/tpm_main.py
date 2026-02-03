@@ -557,7 +557,7 @@ class Tpm:
             logger.error("PCRs specified in policy not in quote (from agent %s): %s", agent_id, missing)
             failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": list(missing)}, True)
 
-        if mb_policy is not None:
+        if mb_policy:
             logger.info("Checking measured boot log against policy for agent: %s", agent_id)
 
             if not mba.policy_is_valid(mb_policy):
@@ -604,7 +604,7 @@ class Tpm:
         skip_clock_check: bool = False,
         skip_data_pcr_check: bool = False,
     ) -> Failure:
-        if tpm_policy is None:
+        if not tpm_policy:
             tpm_policy = {}
 
         if runtime_policy is None:
