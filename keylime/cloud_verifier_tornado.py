@@ -2549,13 +2549,35 @@ def get_agents_by_verifier_id(verifier_id: str) -> List[VerfierMain]:
         with session_context() as session:
             return session.query(VerfierMain).filter_by(verifier_id=verifier_id).all()
     except SQLAlchemyError as e:
-        logger.error("SQLAlchemy Error: %s", e)
+        logger.error("SQLAlchemy Error querying agents for verifier %s: %s", verifier_id, e)
+        logger.warning("Failed to load agents from database - worker will start with no agents")
     return []
 
 
 def main() -> None:
     """Main method of the Cloud Verifier Server.  This method is encapsulated in a function for packaging to allow it to be
-    called as a function by an external program."""
+    called as a function by an external program.
+
+    MULTIPROCESSING + DATABASE PATTERN:
+
+    This verifier uses multiprocessing to run multiple worker processes. To avoid
+    database connection leaks, we follow this pattern:
+
+    1. Parent process (this function):
+       - Creates tables and performs minimal DB operations
+       - Passes verifier_id to workers (not agent data from DB queries)
+
+    2. Worker processes (server_process function):
+       - Call engine.dispose() immediately to close inherited connections
+       - Query their own data AFTER disposing inherited connections
+       - Register shutdown handlers that cleanup sessions + dispose engine
+
+    3. SQLite uses NullPool (no connection caching) to prevent connection
+       pooling issues with multiprocessing. Connections are opened on-demand
+       and closed immediately after use.
+
+    See keylime/db/keylime_db.py make_engine() for NullPool configuration.
+    """
 
     _initialize_verifier_config()
 
@@ -2617,12 +2639,15 @@ def main() -> None:
     def server_process(task_id: int, agents: List[VerfierMain]) -> None:
         logger.info("Starting server of process %s", task_id)
         assert isinstance(engine, Engine)
+        # Dispose engine to close any inherited DB connections from parent
         engine.dispose()
+
         server = tornado.httpserver.HTTPServer(app, ssl_options=ssl_ctx, max_buffer_size=max_upload_size)
         server.add_sockets(sockets)
 
         def server_sig_handler(*_: Any) -> None:
             logger.info("Shutting down server %s..", task_id)
+
             # Stop server to not accept new incoming connections
             server.stop()
 
@@ -2637,11 +2662,9 @@ def main() -> None:
 
             asyncio.ensure_future(stop())
 
-        # Attach signal handler to ioloop.
-        # Do not use signal.signal(..) for that because it does not work!
-        loop = asyncio.get_event_loop()
-        loop.add_signal_handler(signal.SIGINT, server_sig_handler)
-        loop.add_signal_handler(signal.SIGTERM, server_sig_handler)
+        # With KillMode=process in systemd, only the parent receives SIGTERM.
+        # The parent then sends SIGTERM to children for graceful shutdown.
+        signal.signal(signal.SIGTERM, server_sig_handler)
 
         server.start()
         # Reactivate agents
@@ -2660,6 +2683,15 @@ def main() -> None:
         # Gracefully shutdown webhook workers to prevent connection errors
         if "webhook" in revocation_notifier.get_notifiers():
             revocation_notifier.shutdown_webhook_workers()
+        # Send SIGTERM to children for graceful shutdown.
+        # This allows them to complete current DB operations before exiting,
+        # preventing connection leaks from interrupted transactions.
+        for p in processes:
+            if p.is_alive() and p.pid is not None:
+                try:
+                    os.kill(p.pid, signal.SIGTERM)
+                except (ProcessLookupError, OSError):
+                    pass
         for p in processes:
             p.join()
         # Do not call sys.exit(0) here as it interferes with multiprocessing cleanup
