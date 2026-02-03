@@ -20,10 +20,10 @@ import tempfile
 import requests
 from packaging.version import Version
 
-from keylime import cmd_exec, config, crypto, keylime_logging, secure_mount, web_util
+from keylime import cmd_exec, config, crypto, web_util
 from keylime.requests_client import RequestsClient
 
-API_VERSION = 2.4
+API_VERSION = 2.5
 DEBUG = False
 EXIT_SUCESS = 0
 MAX_RETRIES = 10
@@ -134,14 +134,14 @@ def check_tpm2_tools_version():
     errout = "".join(config.convert(cmd_return["reterr"]))
     if rc != EXIT_SUCESS:
         logger.error("Error establishing tpm2-tools version using TPM2_Startup: %s" + str(rc) + ": " + str(errout))
-        sys.exit()
+        sys.exit(1)
 
     # Extract the `version="x.x.x"` from tools
     version_str_ = re.search(r'version="([^"]+)"', output)
     if version_str_ is None:
         msg = f"Could not determine tpm2-tools version from TPM2_Startup output '{output}'"
         logger.error(msg)
-        sys.exit()
+        sys.exit(1)
     version_str = version_str_.group(1)
     # Extract the full semver release number.
     tools_version = version_str.split("-")
@@ -149,7 +149,7 @@ def check_tpm2_tools_version():
     logger.info("TPM2-TOOLS Version: %s", tools_version[0])
     if Version(tools_version[0]) < Version("5.5"):
         logger.error("TPM2-TOOLS Version %s is not supported by this utility.", tools_version[0])
-        sys.exit()
+        sys.exit(1)
 
 
 def start_tpm() -> None:
@@ -468,6 +468,10 @@ def main():
     if args.mb_policy:
         mb_policy = args.mb_policy.read()
 
+    if not runtime_policy and not tpm_policy and not mb_policy:
+        logger.error("At least one policy (--runtime-policy, --tpm-policy, or --mb-policy) must be provided")
+        sys.exit(1)
+
     check_tpm2_tools_version()
     start_tpm()
 
@@ -530,6 +534,7 @@ def main():
         )
     except Exception as e:
         logger.error("Failed to send oneshot data to verifier at %s: %s", verifier_url, e)
+        sys.exit(1)
 
     logger.info("Verifier HTTP Response Code: %s", response.status_code)
     if response.status_code != 200:
@@ -538,13 +543,14 @@ def main():
             verifier_url + oneshot_url,
             response.status_code,
         )
+        sys.exit(1)
 
     try:
         response_body = response.json()
+        logger.info("Verifier Response Body: %s", response_body)
     except Exception as e:
         logger.error("Failed to decode JSON payload from verifier: %s", e)
-
-    logger.info("Verifier Response Body: %s", response_body)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
