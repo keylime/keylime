@@ -2,7 +2,6 @@ import asyncio
 import multiprocessing
 from abc import ABC, abstractmethod
 from functools import wraps
-from ssl import CERT_OPTIONAL
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import tornado
@@ -252,7 +251,6 @@ class Server(ABC):
         self._https_port = config.getint(component, "tls_port", fallback=0)
         self._max_upload_size = config.getint(component, "max_upload_size", fallback=104857600)
         self._ssl_ctx = web_util.init_mtls(component)
-        self._ssl_ctx.verify_mode = CERT_OPTIONAL
 
     def _get(self, pattern: str, controller: type["Controller"], action: str, allow_insecure: bool = False) -> None:
         """Creates a new route to handle incoming GET requests issued for paths which match the given
