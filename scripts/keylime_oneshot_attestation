@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import re
+import ssl
 import string
 import sys
 import tempfile
@@ -20,7 +21,7 @@ import tempfile
 import requests
 from packaging.version import Version
 
-from keylime import cmd_exec, config, crypto, web_util
+from keylime import cmd_exec, config, crypto
 from keylime.requests_client import RequestsClient
 
 API_VERSION = 2.5
@@ -422,32 +423,11 @@ def main():
         help="The port of the Keylime verifier server. Defaults to 8881",
     )
     arg_parser.add_argument(
-        "--verifier-cert",
-        dest="verifier_cert",
-        required=False,
-        default="/var/lib/keylime/cv_ca/server-cert.crt",
-        help="mTLS cert for the Keylime Verifier. Defaults to /var/lib/keylime/cv_ca/server-cert.crt",
-    )
-    arg_parser.add_argument(
         "--verifier-cacert",
         dest="verifier_cacert",
         required=False,
         default="/var/lib/keylime/cv_ca/cacert.crt",
-        help="mTLS CA cert for the Keylime Verifier. Defaults to /var/lib/keylime/cv_ca/cacert.crt",
-    )
-    arg_parser.add_argument(
-        "--verifier-key",
-        dest="verifier_key",
-        required=False,
-        default="/var/lib/keylime/cv_ca/server-private.pem",
-        help="mTLS key for the Keylime Verifier. Defaults to /var/lib/keylime/cv_ca/server-private.pem",
-    )
-    arg_parser.add_argument(
-        "--verifier-key-pw",
-        dest="verifier_key_pw",
-        required=False,
-        default="",
-        help="mTLS key password for the Keylime Verifier if necessary",
+        help="CA certificate for verifying the Keylime Verifier's TLS certificate. Defaults to /var/lib/keylime/cv_ca/cacert.crt",
     )
 
     args = arg_parser.parse_args()
@@ -513,14 +493,15 @@ def main():
     verifier_url = f"https://{args.verifier_host}:{args.verifier_port}"
     oneshot_url = f"/v{API_VERSION}/verify/evidence"
     response = None
-    tls_context = web_util.generate_tls_context(
-        args.verifier_cert,
-        args.verifier_key,
-        [args.verifier_cacert],
-        args.verifier_key_pw,
-        is_client=True,
-        logger=logger,
-    )
+
+    tls_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+    tls_context.check_hostname = False
+    if sys.version_info >= (3, 7):
+        tls_context.minimum_version = ssl.TLSVersion.TLSv1_2  # pylint: disable=E1101
+    else:
+        tls_context.options &= ~ssl.OP_NO_TLSv1_2
+    tls_context.load_verify_locations(cafile=args.verifier_cacert)
+    tls_context.verify_mode = ssl.CERT_REQUIRED
     try:
         logger.debug("Sending data to the verifier at %s: %s", verifier_url + oneshot_url, oneshot_data)
         client = RequestsClient(base_url=verifier_url, tls_enabled=True, tls_context=tls_context, ignore_hostname=True)
@@ -529,7 +510,6 @@ def main():
             oneshot_url,
             data=json.dumps(oneshot_data),
             timeout=5,
-            cert=(args.verifier_cert, args.verifier_key),
             verify=args.verifier_cacert,
         )
     except Exception as e:
