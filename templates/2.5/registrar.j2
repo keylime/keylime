@@ -42,6 +42,27 @@ server_key_password = {{ registrar.server_key_password }}
 # If set as 'default', the 'server-cert.crt' value is used.
 server_cert = {{ registrar.server_cert }}
 
+# Additional Subject Alternative Names (SANs) to include in auto-generated
+# server certificates when 'tls_dir = generate'.
+#
+# This is a comma-separated list of hostnames and/or IP addresses that will be
+# added to the server certificate's SAN extension. This allows clients to verify
+# the server's hostname when connecting.
+#
+# By default, the certificate will automatically include:
+# - localhost, 127.0.0.1, and ::1
+# - The system's hostname and FQDN
+# - The IP address from the 'ip' option (if not 0.0.0.0 or ::)
+#
+# Use this option to add additional names, such as:
+# - External DNS names (e.g., registrar.example.com)
+# - Load balancer addresses
+# - Additional IP addresses
+#
+# Example: cert_subject_alternative_names = registrar.example.com,10.0.0.5,registrar-internal
+# Leave empty to use only the automatically detected names.
+cert_subject_alternative_names = {{ registrar.cert_subject_alternative_names }}
+
 # The list of trusted client CA certificates.
 # The files in the list should be stored in the directory set in the 'tls_dir'
 # option.

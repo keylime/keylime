@@ -90,7 +90,23 @@ def ask_password(key_store_pw: Optional[str] = None) -> None:
     global_password = key_store_pw
 
 
-def cmd_mkcert(workingdir: str, name: str, password: Optional[str] = None) -> None:
+def cmd_mkcert(
+    workingdir: str,
+    name: str,
+    password: Optional[str] = None,
+    san_dns: Optional[List[str]] = None,
+    san_ips: Optional[List[str]] = None,
+) -> None:
+    """
+    Create a signed certificate for a server or client.
+
+    Args:
+        workingdir: The directory containing the CA certificate and private key.
+        name: The common name for the certificate (e.g., "server" or "client").
+        password: Optional password to encrypt the private key.
+        san_dns: Optional list of DNS names for the Subject Alternative Name.
+        san_ips: Optional list of IP addresses for the Subject Alternative Name.
+    """
     cwd = os.getcwd()
     mask = os.umask(0o037)
     try:
@@ -105,7 +121,9 @@ def cmd_mkcert(workingdir: str, name: str, password: Optional[str] = None) -> No
                 f"Private key of type {type(ca_pk).__name__} cannot be used for creating an x509 certificate"
             )
 
-        cert, pk = ca_impl.mk_signed_cert(cacert, ca_pk, name, priv[0]["lastserial"] + 1)
+        cert, pk = ca_impl.mk_signed_cert(
+            cacert, ca_pk, name, priv[0]["lastserial"] + 1, san_dns=san_dns, san_ips=san_ips
+        )
 
         with os.fdopen(os.open(f"{name}-cert.crt", os.O_WRONLY | os.O_CREAT, 0o640), "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))

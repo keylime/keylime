@@ -28,12 +28,14 @@
                 "session_create_rate_limit_window_agent": "60",
                 "session_lifetime": "180",
                 "extend_token_on_attestation": "True",
-                "authorization_provider": "simple"
+                "authorization_provider": "simple",
+                "cert_subject_alternative_names": ""
             }
         },
         "registrar": {
             "add": {
-                "authorization_provider": "simple"
+                "authorization_provider": "simple",
+                "cert_subject_alternative_names": ""
             }
         }
     }
