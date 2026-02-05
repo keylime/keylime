@@ -161,29 +161,13 @@ def start_tpm() -> None:
         raise Exception("Error initializing emulated TPM with TPM2_Startup: %s" + str(rc) + ": " + str(errout))
 
 
-def setup_ek_handle(tpm_pw, ek_handle, encrypt_algo):
+def setup_ek_handle(tpm_endorsement_pw, tpm_owner_pw, ek_handle, encrypt_algo):
     global EK_HANDLE, EK
 
-    # do we need to generatea a new EK or use an existing one
+    # do we need to generate a new EK or use an existing one
     if not ek_handle or ek_handle == "generate":
         logger.info("Removing all saved sessions from TPM")
         cmd_return = tpm_cmd(["flushcontext", "-s"], raiseOnError=False)
-        cmd_return = tpm_cmd(["changeauth", "-c", "o", tpm_pw], raiseOnError=False)
-        cmd_return = tpm_cmd(["changeauth", "-c", "e", tpm_pw], raiseOnError=False)
-        rc = cmd_return["code"]
-
-        # if we fail, see if already owned with this pw
-        if rc != EXIT_SUCESS:
-            cmd_return = tpm_cmd(["changeauth", "-c", "o", "-p", tpm_pw, tpm_pw], raiseOnError=False)
-            cmd_return = tpm_cmd(["changeauth", "-c", "e", "-p", tpm_pw, tpm_pw], raiseOnError=False)
-
-            reterr = cmd_return["reterr"]
-            rc = cmd_return["code"]
-            if rc != EXIT_SUCESS:
-                # ut-oh, already owned but not with provided pw!
-                raise Exception("Owner password unknown, TPM reset required. Code %s" + str(rc) + ": " + str(reterr))
-
-        logger.info("TPM Owner password confirmed: %s", tpm_pw)
 
         # create a new EK handle
         with tempfile.NamedTemporaryFile() as tmppath:
@@ -196,9 +180,9 @@ def setup_ek_handle(tpm_pw, ek_handle, encrypt_algo):
                 "-u",
                 tmppath.name,
                 "-w",
-                str(tpm_pw),
+                str(tpm_owner_pw),
                 "-P",
-                str(tpm_pw),
+                str(tpm_endorsement_pw),
             ]
             cmd_return = tpm_cmd(cmd, raiseOnError=False, outputpaths=tmppath.name)
             output = cmd_return["retout"]
@@ -238,7 +222,7 @@ def setup_ek_handle(tpm_pw, ek_handle, encrypt_algo):
                 raise Exception("tpm2_readpublic failed with code " + str(rc) + ": " + str(reterr))
 
 
-def setup_ak_handle(tpm_pw, tpm_encryption_algorithm, tpm_signing_algorithm, tpm_hash_algorithm):
+def setup_ak_handle(tpm_endorsement_pw, tpm_encryption_algorithm, tpm_signing_algorithm, tpm_hash_algorithm):
     global AK_PW, AK, AK_CONTEXT_PATH
     logger.info("Creating a new AK identity")
 
@@ -263,7 +247,7 @@ def setup_ak_handle(tpm_pw, tpm_encryption_algorithm, tpm_signing_algorithm, tpm
             "-p",
             AK_PW,
             "-P",
-            tpm_pw,
+            tpm_endorsement_pw,
         ]
         cmd_return = tpm_cmd(cmd, outputpaths=akpubfile.name)
         retout = cmd_return["retout"]
@@ -292,9 +276,9 @@ def setup_ak_handle(tpm_pw, tpm_encryption_algorithm, tpm_signing_algorithm, tpm
     tpm_cmd(["flushcontext", "-t"], raiseOnError=False)
 
 
-def create_quote(tpm_pw, ek_handle, nonce, encrypt_algo, signing_algo, hash_algo):
-    setup_ek_handle(tpm_pw, ek_handle, encrypt_algo)
-    setup_ak_handle(tpm_pw, encrypt_algo, signing_algo, hash_algo)
+def create_quote(tpm_endorsement_pw, tpm_owner_pw, ek_handle, nonce, encrypt_algo, signing_algo, hash_algo):
+    setup_ek_handle(tpm_endorsement_pw, tpm_owner_pw, ek_handle, encrypt_algo)
+    setup_ak_handle(tpm_endorsement_pw, encrypt_algo, signing_algo, hash_algo)
     quote = ""
 
     with tempfile.NamedTemporaryFile() as quotepath, tempfile.NamedTemporaryFile() as sigpath, tempfile.NamedTemporaryFile() as pcrpath:
@@ -360,10 +344,18 @@ def main():
         default="generate",
     )
     arg_parser.add_argument(
-        "--tpm-pw",
-        dest="tpm_pw",
-        required=True,
-        help="The password for the TPM. If set to 'generate' then a new random password will be created (if possible).",
+        "--tpm-owner-pw",
+        dest="tpm_owner_pw",
+        required=False,
+        help="The password for the TPM Owner hierarchy",
+        default="",
+    )
+    arg_parser.add_argument(
+        "--tpm-endorsement-pw",
+        dest="tpm_endorsement_pw",
+        required=False,
+        help="The password for the TPM Endorsement hierarchy",
+        default="",
     )
     arg_parser.add_argument(
         "--tpm-encryption-algorithm",
@@ -457,15 +449,18 @@ def main():
 
     nonce = random_password(20)
 
-    # if the pw is set to "generate" create a new one
-    tpm_pw = args.tpm_pw
+    tpm_owner_pw = args.tpm_owner_pw
+    tpm_endorsement_pw = args.tpm_endorsement_pw
     hash_algo = args.tpm_hash_algorithm
-    if tpm_pw == "generate":
-        logger.info("Generating random TPM owner password")
-        tpm_pw = random_password(20)
 
     quote = create_quote(
-        tpm_pw, args.ek_handle, nonce, args.tpm_encryption_algorithm, args.tpm_signing_algorithm, hash_algo
+        tpm_endorsement_pw,
+        tpm_owner_pw,
+        args.ek_handle,
+        nonce,
+        args.tpm_encryption_algorithm,
+        args.tpm_signing_algorithm,
+        hash_algo,
     )
     logger.info("TPM Quote: %s", quote)
     ima_measurement_list = get_ima_measurement_list()
