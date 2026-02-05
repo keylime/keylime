@@ -1,4 +1,6 @@
 import datetime
+import ipaddress
+import socket
 from typing import List, Optional, Tuple
 
 from cryptography import x509
@@ -14,8 +16,85 @@ from cryptography.hazmat.primitives.serialization import Encoding, load_pem_priv
 from cryptography.x509 import Certificate, CertificateBuilder, Name
 from cryptography.x509.oid import NameOID
 
-from keylime import config
+from keylime import config, keylime_logging
 from keylime.types import CERTIFICATE_PRIVATE_KEY_TYPES
+
+logger = keylime_logging.init_logging("ca-impl-openssl")
+
+
+def get_san_entries(
+    bind_address: Optional[str] = None,
+    additional_dns: Optional[List[str]] = None,
+    additional_ips: Optional[List[str]] = None,
+) -> Tuple[List[str], List[str]]:
+    """
+    Gather Subject Alternative Name (SAN) entries for certificate generation.
+
+    Returns a tuple of (dns_names, ip_addresses) to be included as SANs.
+
+    Args:
+        bind_address: The IP address or hostname the server binds to.
+                     If "0.0.0.0" or "::", only localhost entries are added.
+        additional_dns: Additional DNS names to include in the certificate.
+        additional_ips: Additional IP addresses to include in the certificate.
+
+    Returns:
+        Tuple of (dns_names, ip_addresses) lists.
+    """
+    dns_names: set[str] = set()
+    ip_addresses: set[str] = set()
+
+    # Always include localhost entries for local testing
+    dns_names.add("localhost")
+    ip_addresses.add("127.0.0.1")
+    ip_addresses.add("::1")
+
+    # Add system hostname
+    hostname: Optional[str] = None
+    try:
+        hostname = socket.gethostname()
+        if hostname:
+            dns_names.add(hostname)
+    except OSError:
+        pass
+
+    # Add FQDN if different from hostname
+    try:
+        fqdn = socket.getfqdn()
+        if fqdn and fqdn != hostname:
+            dns_names.add(fqdn)
+    except OSError:
+        pass
+
+    # Process the bind address
+    if bind_address:
+        try:
+            addr = ipaddress.ip_address(bind_address)
+            if not addr.is_unspecified:
+                ip_addresses.add(bind_address)
+        except ValueError:
+            # It's a hostname, not an IP
+            dns_names.add(bind_address)
+
+    # Add any additional DNS names
+    if additional_dns:
+        for dns in additional_dns:
+            if dns:
+                dns_names.add(dns)
+
+    # Add any additional IP addresses
+    if additional_ips:
+        for ip in additional_ips:
+            if ip:
+                try:
+                    # Validate the IP address
+                    ipaddress.ip_address(ip)
+                    ip_addresses.add(ip)
+                except ValueError:
+                    # Invalid IP, skip
+                    pass
+
+    return sorted(dns_names), sorted(ip_addresses)
 
 
 def mk_cert_valid(cert_req: CertificateBuilder, days: int = 365) -> CertificateBuilder:
@@ -140,10 +219,26 @@ def mk_cacert(name: Optional[str] = None) -> Tuple[Certificate, RSAPrivateKey, R
 
 
 def mk_signed_cert(
-    cacert: Certificate, ca_privkey: CERTIFICATE_PRIVATE_KEY_TYPES, name: str, serialnum: int
+    cacert: Certificate,
+    ca_privkey: CERTIFICATE_PRIVATE_KEY_TYPES,
+    name: str,
+    serialnum: int,
+    san_dns: Optional[List[str]] = None,
+    san_ips: Optional[List[str]] = None,
 ) -> Tuple[Certificate, RSAPrivateKey]:
     """
     Create a CA cert + server cert + server private key.
+
+    Args:
+        cacert: The CA certificate used to sign the new certificate.
+        ca_privkey: The CA private key used to sign the new certificate.
+        name: The common name for the certificate (e.g., "server" or "client").
+        serialnum: The serial number for the certificate.
+        san_dns: Optional list of DNS names to include in the Subject Alternative Name.
+        san_ips: Optional list of IP addresses to include in the Subject Alternative Name.
+
+    Returns:
+        A tuple of (certificate, private_key).
     """
 
     cert_req, privkey = mk_request(config.getint("ca", "cert_bits"), common_name=name)
@@ -154,6 +249,26 @@ def mk_signed_cert(
     cert_req = mk_cert_valid(cert_req)
     cert_req = cert_req.issuer_name(cacert.issuer)
 
+    # Build Subject Alternative Name entries
+    san_entries: List[x509.GeneralName] = []
+
+    # Add DNS names
+    if san_dns:
+        for dns in san_dns:
+            san_entries.append(x509.DNSName(dns))
+
+    # Add IP addresses
+    if san_ips:
+        for ip in san_ips:
+            try:
+                san_entries.append(x509.IPAddress(ipaddress.ip_address(ip)))
+            except ValueError:
+                logger.debug("Skipping invalid IP address in SAN: '%s'", ip)
+
+    # If no SANs provided, fall back to using the name
+    if not san_entries:
+        san_entries.append(x509.DNSName(name))
+
     # Extensions.
     extensions = [
         # OID 2.16.840.1.113730.1.13 is Netscape Comment.
@@ -163,7 +278,7 @@ def mk_signed_cert(
             value=b"SSL Server",
         ),
         # Subject Alternative Name.
-        x509.SubjectAlternativeName([x509.DNSName(name)]),
+        x509.SubjectAlternativeName(san_entries),
         # CRL Distribution Points.
         x509.CRLDistributionPoints(
             [

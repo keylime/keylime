@@ -1,5 +1,6 @@
 import base64
 import http.client
+import ipaddress
 import os
 import re
 import ssl
@@ -13,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import tornado.web
 
 from keylime import api_version as keylime_api_version
+from keylime import ca_impl_openssl as ca_impl
 from keylime import ca_util, config, json
 from keylime.api_version import VersionType
 
@@ -42,6 +44,24 @@ def get_tls_dir(component: str) -> str:
         tls_dir = os.path.abspath(os.path.join(config.WORK_DIR, tls_dir))
 
     return tls_dir
+
+
+def _parse_san_config(san_config: str, logger: Optional[Logger] = None) -> Tuple[List[str], List[str]]:
+    """Parse a comma-separated SAN config string into DNS names and IP addresses."""
+    dns_names: List[str] = []
+    ip_addresses: List[str] = []
+    for entry in san_config.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            ipaddress.ip_address(entry)
+            ip_addresses.append(entry)
+        except ValueError:
+            if logger:
+                logger.debug("SAN entry '%s' is not a valid IP address, using it as a DNS name", entry)
+            dns_names.append(entry)
+    return dns_names, ip_addresses
 
 
 def init_tls_dir(component: str, logger: Optional[Logger] = None) -> str:
@@ -106,7 +126,25 @@ def init_tls_dir(component: str, logger: Optional[Logger] = None) -> str:
             server_key_pw = config.get(component, "server_key_password")
             if server_key_pw:
                 server_key_pw = str(server_key_pw)
-            ca_util.cmd_mkcert(tls_dir, "server", password=server_key_pw)
+
+            # Get the bind address from config to include in certificate SANs
+            bind_address = config.get(component, "ip", fallback="")
+
+            # Get additional SANs from config if specified
+            additional_san = config.get(component, "cert_subject_alternative_names", fallback="")
+            additional_dns, additional_ips = _parse_san_config(additional_san, logger)
+
+            # Gather SAN entries based on hostname and bind address
+            san_dns, san_ips = ca_impl.get_san_entries(
+                bind_address=bind_address,
+                additional_dns=additional_dns,
+                additional_ips=additional_ips,
+            )
+
+            if logger:
+                logger.info("Generating server certificate with SANs: DNS=%s, IP=%s", san_dns, san_ips)
+
+            ca_util.cmd_mkcert(tls_dir, "server", password=server_key_pw, san_dns=san_dns, san_ips=san_ips)
 
         # For the verifier, generate client key and certificate if not present
         if component == "verifier":
