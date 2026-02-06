@@ -70,7 +70,7 @@ def get_mb_log():
     mb_log = None
     if os.path.exists(MEASUREDBOOT_ML):
         with open(MEASUREDBOOT_ML, "rb") as mb_fh:
-            mb_log = base64.b64encode(mb_fh.read())
+            mb_log = base64.b64encode(mb_fh.read()).decode("utf-8")
 
     return mb_log
 
