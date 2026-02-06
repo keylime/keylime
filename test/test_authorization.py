@@ -562,6 +562,7 @@ class TestRouteAuthAction(unittest.TestCase):
 
     def test_route_stores_auth_action(self):
         """Test that Route correctly stores auth_action parameter."""
+
         class TestController(Controller):
             def index(self):
                 pass
@@ -571,6 +572,7 @@ class TestRouteAuthAction(unittest.TestCase):
 
     def test_route_auth_action_defaults_to_none(self):
         """Test that Route auth_action defaults to None when not specified."""
+
         class TestController(Controller):
             def index(self):
                 pass
@@ -580,6 +582,7 @@ class TestRouteAuthAction(unittest.TestCase):
 
     def test_route_with_requires_auth_and_auth_action(self):
         """Test that Route correctly stores both requires_auth and auth_action."""
+
         class TestController(Controller):
             def delete(self):
                 pass
