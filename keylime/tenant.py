@@ -480,6 +480,7 @@ class Tenant:
 
         # Keep supported_version in sync for backward compatibility
         self.supported_version = self.agent_api_version
+        logger.info("Using API version %s for agent communication", self.agent_api_version)
 
         # Set the full ID strings for both PUSH and PULL modes
         self.set_full_id_str()
