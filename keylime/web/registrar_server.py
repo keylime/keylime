@@ -15,12 +15,33 @@ class RegistrarServer(Server):
         self._set_default_ssl_ctx()
 
     def _routes(self):
+        self._top_level_routes()
         self._v2_routes()
+        self._v3_routes()
+
+    def _top_level_routes(self) -> None:
         # Route used by agents to get the supported API versions (public)
         self._get("/version", VersionController, "version", allow_insecure=True, auth_action=Action.READ_VERSION)
 
     @Server.version_scope(2)
-    def _v2_routes(self):
+    def _v2_routes(self) -> None:
+        # Routes for managing registered agents (shared with v3)
+        self._agent_routes()
+        # Routes for agent self-registration (shared with v3)
+        self._registration_routes()
+        # Routes which are kept for backwards compatibility but do not adhere to RFC 9110 semantics
+        self._v2_compat_routes()
+
+    @Server.version_scope(3)
+    def _v3_routes(self) -> None:
+        # Version root (allows clients to check v3 support)
+        self._get("/", VersionController, "show_version_root", allow_insecure=True, auth_action=Action.READ_VERSION)
+        # Routes for managing registered agents (same as v2)
+        self._agent_routes()
+        # Routes for agent self-registration (same as v2, RFC 9110 compliant only)
+        self._registration_routes()
+
+    def _agent_routes(self) -> None:
         # Routes used by the tenant/admin to manage registered agents (requires mTLS)
         self._get("/agents", AgentsController, "index", requires_auth=True, auth_action=Action.LIST_REGISTRATIONS)
         self._get(
@@ -30,6 +51,7 @@ class RegistrarServer(Server):
             "/agents/:agent_id", AgentsController, "delete", requires_auth=True, auth_action=Action.DELETE_REGISTRATION
         )
 
+    def _registration_routes(self) -> None:
         # Routes used by agents to register (public, happens over HTTP without TLS)
         self._post("/agents", AgentsController, "create", allow_insecure=True, auth_action=Action.REGISTER_AGENT)
         self._post(
@@ -40,7 +62,7 @@ class RegistrarServer(Server):
             auth_action=Action.ACTIVATE_AGENT,
         )
 
-        # Routes which are kept for backwards compatibility but do not adhere to RFC 9110 semantics
+    def _v2_compat_routes(self) -> None:
         self._post(
             "/agents/:agent_id", AgentsController, "create", allow_insecure=True, auth_action=Action.REGISTER_AGENT
         )
