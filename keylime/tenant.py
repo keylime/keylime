@@ -224,8 +224,8 @@ class Tenant:
     def _negotiate_server_version(self, server_versions: Optional[List[str]], server_name: str) -> str:
         """Negotiate API version with a server.
 
-        In pull mode, API version 3.0+ is excluded since it is for push attestation only.
-        In push mode, all versions including 3.0 are available.
+        The tenant always excludes API version 3.0+ from negotiation since it does not
+        implement the v3 API.
 
         Args:
             server_versions: List of versions supported by the server, or None
@@ -237,11 +237,8 @@ class Tenant:
         Raises:
             UserError: If no compatible version is found
         """
-        # API version 3.0 is for push attestation only; exclude it in pull mode
-        if self.push_model:
-            local_versions = None  # Use all versions including 3.0
-        else:
-            local_versions = [v for v in keylime_api_version.all_versions() if keylime_api_version.major(v) < 3]
+        # The tenant does not implement the v3 API; exclude version 3.0+
+        local_versions = [v for v in keylime_api_version.all_versions() if keylime_api_version.major(v) < 3]
 
         if server_versions is None:
             # Fall back to current version when we can't reach the server
@@ -426,7 +423,11 @@ class Tenant:
 
                         if agent_versions:
                             # Negotiate compatible version
-                            negotiated = keylime_api_version.negotiate_version(agent_versions)
+                            # The tenant does not implement the v3 API; exclude version 3.0+
+                            tenant_versions = [
+                                v for v in keylime_api_version.all_versions() if keylime_api_version.major(v) < 3
+                            ]
+                            negotiated = keylime_api_version.negotiate_version(agent_versions, tenant_versions)
 
                             if negotiated is None:
                                 # No compatible version found
@@ -435,12 +436,12 @@ class Tenant:
                                     "Agent supports: %s, Tenant supports: %s",
                                     self.agent_uuid,
                                     agent_versions,
-                                    keylime_api_version.all_versions(),
+                                    tenant_versions,
                                 )
                                 raise UserError(
                                     f"Agent {self.agent_uuid} has no compatible API version. "
                                     f"Agent supports: {agent_versions}, "
-                                    f"Tenant supports: {keylime_api_version.all_versions()}"
+                                    f"Tenant supports: {tenant_versions}"
                                 )
 
                             # Validate and use negotiated version
@@ -451,7 +452,7 @@ class Tenant:
                                     negotiated,
                                     self.agent_uuid,
                                     agent_versions if isinstance(agent_versions, list) else [agent_versions],
-                                    keylime_api_version.all_versions(),
+                                    tenant_versions,
                                 )
                             elif not keylime_api_version.validate_version(negotiated):
                                 logger.warning(
