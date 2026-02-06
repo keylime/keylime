@@ -323,7 +323,11 @@ class Tenant:
         if not self.registrar_ip or not self.registrar_port:
             raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
         self.registrar_data = registrar_client.getData(
-            self.registrar_ip, self.registrar_port, self.agent_uuid, self.tls_context
+            self.registrar_ip,
+            self.registrar_port,
+            self.agent_uuid,
+            self.tls_context,
+            api_version=self.ensure_registrar_version(),
         )
 
         if self.registrar_data is None:
@@ -1117,7 +1121,13 @@ class Tenant:
 
         self.set_full_id_str()
 
-        agent_info = registrar_client.getData(self.registrar_ip, self.registrar_port, self.agent_uuid, self.tls_context)
+        agent_info = registrar_client.getData(
+            self.registrar_ip,
+            self.registrar_port,
+            self.agent_uuid,
+            self.tls_context,
+            api_version=self.ensure_registrar_version(),
+        )
 
         if not agent_info:
             logger.info(
@@ -1168,7 +1178,10 @@ class Tenant:
         self.set_full_id_str()
 
         response = registrar_client.doRegistrarList(
-            self.registrar_ip, self.registrar_port, tls_context=self.tls_context
+            self.registrar_ip,
+            self.registrar_port,
+            tls_context=self.tls_context,
+            api_version=self.ensure_registrar_version(),
         )
 
         # Marked for deletion (need to modify the code on CI tests)
@@ -1187,7 +1200,11 @@ class Tenant:
             raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
 
         response = registrar_client.doRegistrarDelete(
-            self.registrar_ip, self.registrar_port, self.agent_uuid, tls_context=self.tls_context
+            self.registrar_ip,
+            self.registrar_port,
+            self.agent_uuid,
+            tls_context=self.tls_context,
+            api_version=self.ensure_registrar_version(),
         )
 
         return response
