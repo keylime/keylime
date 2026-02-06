@@ -167,6 +167,9 @@ class AuthSession(PersistableModel):
         sessions_cache = cls._get_sessions_cache()
         if session_id in sessions_cache:
             session_data = sessions_cache[session_id]
+            # Reject sessions marked as deleted (tombstone pattern)
+            if session_data.get("deleted"):
+                return None
             # Fast verification: compare plaintext tokens directly
             # Cache is trusted process-local memory, so this is safe
             cached_token = session_data.get("token", "")
@@ -225,6 +228,9 @@ class AuthSession(PersistableModel):
         sessions_cache = cls._get_sessions_cache()
         if session_id in sessions_cache:
             session_data = sessions_cache[session_id]
+            # Reject sessions marked as deleted (tombstone pattern)
+            if session_data.get("deleted"):
+                return None
             return cls._from_cache(session_data)
 
         # Slow path: query database by primary key
@@ -493,20 +499,24 @@ class AuthSession(PersistableModel):
         Args:
             agent_id: The agent identifier
         """
+        # Use tombstone pattern to prevent race conditions:
+        # 1. Mark sessions as deleted in cache so concurrent lookups
+        #    immediately reject them (the "deleted" flag is virtual,
+        #    it only exists in the in-memory cache, not in the DB).
+        # 2. Delete from database (primary source of truth).
+        # 3. Remove deleted entries from cache.
         sessions_cache = cls._get_sessions_cache()
 
-        deleted_count = 0
+        deleted_ids = []
         for session_id, session_data in list(sessions_cache.items()):
             if session_data.get("agent_id") == agent_id and session_data.get("active"):
-                cls.uncache_session(session_id)
-                deleted_count += 1
-                logger.info("Deleted active session %s for agent '%s'", session_id, agent_id)
+                session_data["deleted"] = True
+                sessions_cache[session_id] = session_data
+                deleted_ids.append(session_id)
+                logger.info("Marked session %s as deleted for agent '%s'", session_id, agent_id)
 
-        if deleted_count > 0:
-            logger.info("Deleted %d active session(s) for agent '%s' from memory", deleted_count, agent_id)
-
-        # Also delete from database to ensure persistence (single DELETE query)
-        if cls.schema_awaiting_processing:  # pylint: disable=using-constant-test
+        # Delete from database
+        if cls.schema_awaiting_processing:
             cls.process_schema()
 
         with db_manager.session_context() as session:
@@ -519,6 +529,13 @@ class AuthSession(PersistableModel):
 
         if db_deleted_count > 0:
             logger.debug("Deleted %d active database session(s) for agent '%s'", db_deleted_count, agent_id)
+
+        # Remove deleted entries from cache
+        for session_id in deleted_ids:
+            cls.uncache_session(session_id)
+
+        if deleted_ids:
+            logger.info("Deleted %d active session(s) for agent '%s' from memory", len(deleted_ids), agent_id)
 
     @classmethod
     def clear_expired_sessions_on_startup(cls) -> None:
