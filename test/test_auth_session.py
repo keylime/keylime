@@ -181,7 +181,6 @@ class TestAuthSessionHelpers(unittest.TestCase):
     def test_get_active_session_for_agent_from_database(self, mock_all, mock_cache_session):
         """Test that get_active_session_for_agent falls back to database."""
 
-
         now = Timestamp.now()
         future_time = now + timedelta(seconds=60)
 
@@ -491,7 +490,6 @@ class TestAuthSessionCore(unittest.TestCase):
     @patch.object(AuthSession, "empty")
     def test_create_from_memory(self, mock_empty):
         """Test AuthSession.create_from_memory()."""
-
 
         # Mock agent
         mock_agent = MagicMock()

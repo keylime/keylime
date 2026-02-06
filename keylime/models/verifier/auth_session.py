@@ -522,7 +522,9 @@ class AuthSession(PersistableModel):
         with db_manager.session_context() as session:
             agent_id_col = cls.db_table.columns["agent_id"]
             active_col = cls.db_table.columns["active"]
-            delete_stmt = cls.db_table.delete().where((agent_id_col == agent_id) & (active_col == True))  # noqa: E712  # pylint: disable=singleton-comparison
+            delete_stmt = cls.db_table.delete().where(
+                (agent_id_col == agent_id) & (active_col.is_(True))  # type: ignore[no-untyped-call]
+            )
             result = session.execute(delete_stmt)
             db_deleted_count = result.rowcount  # type: ignore[attr-defined]
             session.commit()
