@@ -173,6 +173,7 @@ EOF
 create_rpmbuild_macros() {
     _dst="${1}"
 cat << EOF > "${_dst}"
+%_topdir ${RPMBUILD}
 %_sourcedir ${SRCDIR}
 %_rpmdir ${RPMSDIR}
 %_srcrpmdir ${SRPMSDIR}
@@ -205,7 +206,8 @@ create_rpm() {
     _macros="${MACROS_RC}"
     [ -n "${_signed}" ] && _macros="${MACROS_RC_SIG}"
 
-    rpmbuild --define "dummy_name ${_name}" \
+    rpmbuild --define "_topdir ${RPMBUILD}" \
+             --define "dummy_name ${_name}" \
              --define "dummy_version ${_version}" \
              --define "dummy_release ${_rel}" \
              --load="${_macros}" \
@@ -225,19 +227,6 @@ create_rpm() {
     for _expected in ${_expected_pkg}; do
         if [ -e "${_expected}" ]; then
             echo "(create_rpm) CREATED RPM: ${_expected}" >&2
-            return 0
-        fi
-    done
-
-    # OK, the package was not built where it should. Let us see if
-    # it was built in ~/rpmbuild instead, and if that is the case,
-    # copy it to the expected location.
-    _bad_location_pkg="${HOME}/rpmbuild/RPMS/noarch/${_pkgname} ${HOME}/rpmbuild/RPMS/${_pkgname}"
-    for _bad_l in ${_bad_location_pkg}; do
-        if [ -e "${_bad_l}" ]; then
-            echo "WARNING: the package ${_pkgname} was built into ~/rpmbuild despite rpmbuild being instructed to build it at a different location. Probably a fallout from https://github.com/rpm-software-management/rpm/commit/96467dce" >&2
-            install -D -m644 "${_bad_l}" "${RPMSDIR}/noarch/${_pkgname}"
-            echo "(create_rpm) CREATED RPM: ${RPMSDIR}/noarch/${_pkgname}" >&2
             return 0
         fi
     done
