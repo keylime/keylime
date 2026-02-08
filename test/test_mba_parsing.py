@@ -11,13 +11,19 @@ from keylime.mba import mba
 
 try:
     from keylime.mba.elparsing import tpm_bootlog_enrich
+
+    EFIVAR_AVAILABLE = True
 except Exception:
-    unittest.skip(f"tpm_bootlog_enrich not available, architecture ({platform.machine()}) not supported")
+    tpm_bootlog_enrich = None  # type: ignore[assignment]
+    EFIVAR_AVAILABLE = False
 
 TEMPLATES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "templates"))
 
 
-@unittest.skipIf(platform.machine() in ["ppc64le", "s390x"], "ppc64le and s390x are not supported")
+@unittest.skipIf(
+    platform.machine() in ["ppc64le", "s390x"] or not EFIVAR_AVAILABLE,
+    "ppc64le and s390x are not supported, or efivarlibs is not available",
+)
 class TestMBAParsing(unittest.TestCase):
     def test_parse_bootlog(self):
         """Test parsing binary measured boot event log"""

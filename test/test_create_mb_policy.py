@@ -10,10 +10,21 @@ import unittest
 
 from keylime.policy import create_mb_policy
 
+# Check if efivarlibs is available for measured boot parsing
+try:
+    from keylime.mba import elparsing  # pylint: disable=unused-import
+
+    EFIVAR_AVAILABLE = True
+except Exception:
+    EFIVAR_AVAILABLE = False
+
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "data", "create-mb-policy"))
 
 
-@unittest.skipIf(platform.machine() in ["ppc64le", "s390x"], "ppc64le and s390x are not supported")
+@unittest.skipIf(
+    platform.machine() in ["ppc64le", "s390x"] or not EFIVAR_AVAILABLE,
+    "ppc64le and s390x are not supported, or efivarlibs is not available",
+)
 class CreateMeasuredBootPolicy_Test(unittest.TestCase):
     def test_event_to_sha256(self):
         test_cases = [
