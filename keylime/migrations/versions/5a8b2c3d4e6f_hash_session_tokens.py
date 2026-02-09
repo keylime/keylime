@@ -16,14 +16,14 @@ Security rationale (OWASP 2023 / FIPS-140 compliant):
 - Per-token random salt prevents rainbow table attacks
 - PBKDF2 with HMAC-SHA-256 (600k iterations) adds computational cost
 
-Note: Existing sessions will be invalidated by this migration since plaintext
-tokens cannot be retroactively hashed. Agents will need to re-authenticate.
+Note: Existing sessions are invalidated by this migration since plaintext
+tokens cannot be retroactively hashed. All sessions are deleted during both
+upgrade and downgrade. Agents will need to re-authenticate.
 """
-
-import uuid
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision = "5a8b2c3d4e6f"
@@ -49,58 +49,63 @@ def downgrade_registrar():
 
 
 def upgrade_cloud_verifier():
-    # SQLite doesn't support ALTER PRIMARY KEY, so we need to recreate the table.
-    # Using batch mode handles this automatically.
-    with op.batch_alter_table("sessions") as batch_op:
-        # Add new columns
-        batch_op.add_column(sa.Column("session_id", sa.String(36), nullable=True))
-        batch_op.add_column(sa.Column("token_salt", sa.String(32), nullable=True))
+    # Drop the sessions table entirely and recreate with the new schema.
+    # Existing sessions are invalidated by this migration since plaintext
+    # tokens cannot be retroactively hashed with PBKDF2.
+    # Dropping and recreating avoids issues with ALTER PRIMARY KEY which
+    # is not supported consistently across database backends (e.g. MySQL
+    # rejects making a PRIMARY KEY column nullable during column rename).
+    #
+    # Check if the table exists before dropping to handle the case where
+    # a previous migration attempt was interrupted between drop and create.
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if "sessions" in inspector.get_table_names():
+        op.drop_table("sessions")
 
-        # Rename token to token_hash
-        batch_op.alter_column(
-            "token",
-            new_column_name="token_hash",
-            existing_type=sa.String(64),
-        )
-
-    # Generate UUIDs and placeholder values for existing rows
-    # These sessions will be invalidated
-    connection = op.get_bind()
-    sessions_table = sa.table(
+    op.create_table(
         "sessions",
-        sa.column("session_id"),
-        sa.column("token_hash"),
-        sa.column("token_salt"),
+        sa.Column("session_id", sa.String(36), primary_key=True),
+        sa.Column("token_hash", sa.String(64), nullable=False),
+        sa.Column("token_salt", sa.String(32), nullable=False),
+        sa.Column("agent_id", sa.String(80), index=True),
+        sa.Column("active", sa.Boolean()),
+        sa.Column("nonce", sa.LargeBinary(128)),
+        sa.Column("hash_algorithm", sa.String(15)),
+        sa.Column("signing_scheme", sa.String(15)),
+        sa.Column("ak_attest", sa.LargeBinary(512)),
+        sa.Column("ak_sign", sa.LargeBinary(512)),
+        sa.Column("nonce_created_at", sa.String(32)),
+        sa.Column("nonce_expires_at", sa.String(32)),
+        sa.Column("pop_received_at", sa.String(32)),
+        sa.Column("token_expires_at", sa.String(32)),
     )
-    result = connection.execute(sa.select(sessions_table.c.token_hash))
-    for row in result:
-        connection.execute(
-            sessions_table.update()
-            .where(sessions_table.c.token_hash == row[0])
-            .values(
-                session_id=str(uuid.uuid4()),
-                token_salt="0" * 32,  # Placeholder salt
-            )
-        )
-
-    # Now recreate table with proper schema (session_id as primary key)
-    with op.batch_alter_table("sessions", recreate="always") as batch_op:
-        # Set column constraints
-        batch_op.alter_column("session_id", nullable=False, existing_type=sa.String(36))
-        batch_op.alter_column("token_salt", nullable=False, existing_type=sa.String(32))
-        batch_op.alter_column("token_hash", nullable=False, existing_type=sa.String(64))
 
 
 def downgrade_cloud_verifier():
-    # Recreate table with original schema (token as primary key)
-    with op.batch_alter_table("sessions", recreate="always") as batch_op:
-        # Remove new columns
-        batch_op.drop_column("session_id")
-        batch_op.drop_column("token_salt")
+    # Drop the sessions table entirely and recreate with the original schema.
+    # Sessions are invalidated by the downgrade since hashed tokens cannot be
+    # converted back to plaintext.
+    #
+    # Check if the table exists before dropping to handle the case where
+    # a previous migration attempt was interrupted between drop and create.
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if "sessions" in inspector.get_table_names():
+        op.drop_table("sessions")
 
-        # Rename token_hash back to token
-        batch_op.alter_column(
-            "token_hash",
-            new_column_name="token",
-            existing_type=sa.String(64),
-        )
+    op.create_table(
+        "sessions",
+        sa.Column("token", sa.String(64), primary_key=True),
+        sa.Column("agent_id", sa.String(80), index=True),
+        sa.Column("active", sa.Boolean()),
+        sa.Column("nonce", sa.LargeBinary(128)),
+        sa.Column("hash_algorithm", sa.String(15)),
+        sa.Column("signing_scheme", sa.String(15)),
+        sa.Column("ak_attest", sa.LargeBinary(512)),
+        sa.Column("ak_sign", sa.LargeBinary(512)),
+        sa.Column("nonce_created_at", sa.String(32)),
+        sa.Column("nonce_expires_at", sa.String(32)),
+        sa.Column("pop_received_at", sa.String(32)),
+        sa.Column("token_expires_at", sa.String(32)),
+    )
