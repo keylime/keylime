@@ -687,7 +687,7 @@ class TPMEngine(VerificationEngine):
             logger.debug("get_active_session_for_agent returned: None")
 
         if session_data:
-            session_lifetime = config.getint("verifier", "session_lifetime")
+            session_lifetime = config.getint("verifier", "session_lifetime", fallback=config.DEFAULT_SESSION_LIFETIME)
             new_expiry = Timestamp.now() + timedelta(seconds=session_lifetime)
 
             # Update token expiration in shared memory (for current worker processes)
