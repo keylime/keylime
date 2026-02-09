@@ -526,3 +526,4 @@ DEBUG_DB = environ_bool("DEBUG_DB", False)
 # Default timeout and retry constants to avoid magic numbers throughout the codebase
 DEFAULT_TIMEOUT = 60.0
 DEFAULT_MAX_RETRIES = 5
+DEFAULT_SESSION_LIFETIME = 180

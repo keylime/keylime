@@ -686,7 +686,7 @@ class AuthSession(PersistableModel):
             self._add_error("verification", f"TPM verification failed: {str(e)}")
 
         # Set token expiration (only on successful validation)
-        session_lifetime = config.getint("verifier", "session_lifetime")
+        session_lifetime = config.getint("verifier", "session_lifetime", fallback=config.DEFAULT_SESSION_LIFETIME)
         self.token_expires_at = Timestamp.now() + timedelta(seconds=session_lifetime)
         self.active = True
 
