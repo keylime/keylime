@@ -252,39 +252,15 @@ signed_attributes = {{ verifier.signed_attributes }}
 # Require that allowlists are signed with a key passed via the tenant tool
 require_allow_list_signatures = {{ verifier.require_allow_list_signatures }}
 
-[revocations]
-
-# List of revocation notification methods to enable.
-#
-# Available methods are:
-#
-# "agent": Deliver notification directly to the agent via the REST
-# protocol.
-#
-# "zeromq": Enable the ZeroMQ based revocation notification method;
-# zmq_ip and zmq_port options must be set. Currently this only works if you are
-# using keylime-CA.
-#
-# "webhook": Send notification via webhook. The endpoint URL must be
-# configured with 'webhook_url' option. This can be used to notify other
-# systems that do not have a Keylime agent running.
-enabled_revocation_notifications = {{ revocations.enabled_revocation_notifications }}
-
-# The binding address and port of the revocation notifier service via ZeroMQ.
-zmq_ip = {{ revocations.zmq_ip }}
-zmq_port = {{ revocations.zmq_port }}
-
-# Webhook url for revocation notifications.
-webhook_url = {{ revocations.webhook_url }}
-
 # Attestation mode. Can be 'pull' (traditional) or 'push' (agent-driven).
-mode = {{ verifier_mode }}
+# Default: pull
+mode = {{ verifier.mode }}
 #
 # Lifetime in seconds for challanges sent to agents in push mode.
-challenge_lifetime = {{ verifier_challenge_lifetime }}
+challenge_lifetime = {{ verifier.challenge_lifetime }}
 #
 # Timeout in seconds for a single evidence verification task (0 = auto).
-verification_timeout = {{ verifier_verification_timeout }}
+verification_timeout = {{ verifier.verification_timeout }}
 #
 # Rate limiting for session creation endpoint (POST /sessions) in push mode.
 # These settings prevent denial-of-service attacks where an attacker floods the verifier
@@ -318,3 +294,28 @@ session_lifetime = {{ verifier.session_lifetime }}
 # as long as they continue attesting within the session_lifetime window.
 # Default: true
 extend_token_on_attestation = {{ verifier.extend_token_on_attestation }}
+
+[revocations]
+
+# List of revocation notification methods to enable.
+#
+# Available methods are:
+#
+# "agent": Deliver notification directly to the agent via the REST
+# protocol.
+#
+# "zeromq": Enable the ZeroMQ based revocation notification method;
+# zmq_ip and zmq_port options must be set. Currently this only works if you are
+# using keylime-CA.
+#
+# "webhook": Send notification via webhook. The endpoint URL must be
+# configured with 'webhook_url' option. This can be used to notify other
+# systems that do not have a Keylime agent running.
+enabled_revocation_notifications = {{ revocations.enabled_revocation_notifications }}
+
+# The binding address and port of the revocation notifier service via ZeroMQ.
+zmq_ip = {{ revocations.zmq_ip }}
+zmq_port = {{ revocations.zmq_port }}
+
+# Webhook url for revocation notifications.
+webhook_url = {{ revocations.webhook_url }}
