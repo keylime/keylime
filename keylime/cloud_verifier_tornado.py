@@ -590,6 +590,9 @@ class AgentsHandler(BaseHandler):
 
             # Check verifier mode - push mode doesn't use operational_state state machine
             mode = config.get("verifier", "mode", fallback="pull")
+            # Handle empty string as pull mode (regression from config template changes)
+            if not mode:
+                mode = "pull"
 
             # In push mode, directly delete the agent since operational_state is not used
             # In pull mode, check operational_state to determine deletion vs termination
@@ -638,6 +641,9 @@ class AgentsHandler(BaseHandler):
         agents requests require a json block sent in the body
         """
         mode = config.get("verifier", "mode", fallback="pull")
+        # Handle empty string as pull mode (regression from config template changes)
+        if not mode:
+            mode = "pull"
 
         # TODO: exception handling needs fixing
         # Maybe handle exceptions with if/else if/else blocks ... simple and avoids nesting
