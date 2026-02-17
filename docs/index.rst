@@ -43,6 +43,7 @@ what the goals of Keylime are and how they are implemented.
    man/keylime_verifier.8
    man/keylime_registrar.8
    man/keylime_agent.8
+   man/keylime_push_model_agent.8
    man/keylime_policy.1
 
 Indices and tables

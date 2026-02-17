@@ -154,6 +154,7 @@ man_pages = [
     ("man/keylime_registrar.8", "keylime_registrar", "Keylime registrar service", [author], 8),
     ("man/keylime_verifier.8", "keylime_verifier", "Keylime verifier service", [author], 8),
     ("man/keylime_agent.8", "keylime_agent", "Keylime agent service", [author], 8),
+    ("man/keylime_push_model_agent.8", "keylime_push_model_agent", "Keylime push-model agent service", [author], 8),
 ]
 
 

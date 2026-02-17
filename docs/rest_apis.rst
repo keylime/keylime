@@ -14,9 +14,39 @@ Check the :ref:`Changelog` section for the differences between versions
    rest_apis/2_3/2_3.rst
    rest_apis/2_4/2_4.rst
    rest_apis/2_5/2_5.rst
+   rest_apis/3_0/3_0.rst
 
 Changelog
 _________
+
+Changes from v2.5 to v3.0
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+API version 3.0 introduces push-model attestation. Unlike previous versions where
+the verifier polls agents, in v3.0 agents initiate connections and submit
+attestation evidence to the verifier. The v3.0 endpoints are served by the
+verifier only; the push-model agent does not expose HTTP endpoints.
+
+* Added `POST /v3/agents/{agent_id}/attestations` endpoint to the verifier:
+    * Allows agents to submit attestation capabilities (Phase 1 of push protocol)
+    * Returns challenge nonce for TPM quote generation
+* Added `PATCH /v3/agents/{agent_id}/attestations/latest` endpoint:
+    * Allows agents to submit attestation evidence (Phase 2 of push protocol)
+    * Returns `202 Accepted` for asynchronous verification
+* Added `PATCH /v3/agents/{agent_id}/attestations/{index}` endpoint:
+    * Submit evidence for a specific attestation by index
+* Added `GET /v3/agents/{agent_id}/attestations` endpoint:
+    * Lists all attestation records for an agent
+* Added `GET /v3/agents/{agent_id}/attestations/latest` endpoint:
+    * Returns the most recent attestation for an agent, including verification status
+* Added `GET /v3/agents/{agent_id}/attestations/{index}` endpoint:
+    * Returns a specific attestation by its index
+* Added `POST /v3/sessions` endpoint:
+    * Creates a PoP authentication session and returns a challenge nonce for the agent
+* Added `PATCH /v3/sessions/{session_id}` endpoint:
+    * Completes PoP authentication by submitting the TPM-signed challenge response
+* Introduced PoP (Proof of Possession) bearer token authentication for
+  agent-to-verifier communication
 
 Changes from v2.4 to v2.5
 ~~~~~~~~~~~~~~~~~~~~~~~~~

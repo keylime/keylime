@@ -40,6 +40,13 @@ The following components can be configured:
       - ``/etc/keylime/logging.conf``
       - ``/etc/keylime/logging.conf.d``
 
+.. note::
+    For push-model attestation, the verifier must be configured with ``mode = push``
+    in the ``[verifier]`` section. The push-model agent uses the same
+    ``/etc/keylime/agent.conf`` file (TOML format) but with additional options such
+    as ``verifier_url`` and ``attestation_interval_seconds``. See
+    :doc:`push_model` for details.
+
 The next sections contain details of the configuration files
 
 Configuration file processing order

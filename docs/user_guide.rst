@@ -8,6 +8,7 @@ User Guide
 
    user_guide/authentication.rst
    user_guide/configuration.rst
+   user_guide/push_model.rst
    user_guide/runtime_ima.rst
    user_guide/user_selected_pcr_monitoring.rst
    user_guide/use_measured_boot.rst

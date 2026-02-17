@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 580" width="700" height="580">
+  <defs>
+    <style>
+      text { font-family: Tahoma, sans-serif; font-size: 12px; }
+      .title { font-size: 16px; font-weight: bold; }
+      .state { fill: #f0f0f0; stroke: #333; stroke-width: 1.5; rx: 20; ry: 20; }
+      .state-initial { fill: #e0e7ff; stroke: #2563eb; stroke-width: 2; rx: 20; ry: 20; }
+      .state-active { fill: #dbeafe; stroke: #2563eb; stroke-width: 2; rx: 20; ry: 20; }
+      .state-error { fill: #fee2e2; stroke: #dc2626; stroke-width: 1.5; rx: 20; ry: 20; }
+      .arrow { stroke: #333; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+      .arrow-success { stroke: #16a34a; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead-success); }
+      .arrow-error { stroke: #dc2626; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead-error); }
+      .arrow-retry { stroke: #f59e0b; stroke-width: 1.5; fill: none; stroke-dasharray: 5,3; marker-end: url(#arrowhead-retry); }
+      .label { font-size: 10px; fill: #555; }
+      .label-success { font-size: 10px; fill: #16a34a; }
+      .label-error { font-size: 10px; fill: #dc2626; }
+      .label-retry { font-size: 10px; fill: #f59e0b; }
+      .state-text { font-size: 13px; font-weight: bold; text-anchor: middle; }
+      .state-desc { font-size: 10px; text-anchor: middle; fill: #666; }
+    </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#333"/>
+    </marker>
+    <marker id="arrowhead-success" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#16a34a"/>
+    </marker>
+    <marker id="arrowhead-error" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#dc2626"/>
+    </marker>
+    <marker id="arrowhead-retry" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#f59e0b"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="350" y="30" text-anchor="middle" class="title">Push-Model Agent State Machine</text>
+
+  <!-- Unregistered state -->
+  <rect x="50" y="60" width="160" height="55" class="state-initial"/>
+  <text x="130" y="85" class="state-text">Unregistered</text>
+  <text x="130" y="100" class="state-desc">Initial state</text>
+
+  <!-- Registered state -->
+  <rect x="300" y="60" width="160" height="55" class="state-active"/>
+  <text x="380" y="85" class="state-text">Registered</text>
+  <text x="380" y="100" class="state-desc">Ready for attestation</text>
+
+  <!-- Negotiating state -->
+  <rect x="300" y="190" width="160" height="55" class="state-active"/>
+  <text x="380" y="215" class="state-text">Negotiating</text>
+  <text x="380" y="230" class="state-desc">Phase 1: capabilities</text>
+
+  <!-- Attesting state -->
+  <rect x="300" y="320" width="160" height="55" class="state-active"/>
+  <text x="380" y="345" class="state-text">Attesting</text>
+  <text x="380" y="360" class="state-desc">Phase 2: evidence</text>
+
+  <!-- RegistrationFailed state -->
+  <rect x="50" y="190" width="160" height="55" class="state-error"/>
+  <text x="130" y="215" class="state-text">Reg. Failed</text>
+  <text x="130" y="230" class="state-desc">Will retry</text>
+
+  <!-- AttestationFailed state -->
+  <rect x="540" y="260" width="160" height="55" class="state-error"/>
+  <text x="620" y="285" class="state-text">Attest. Failed</text>
+  <text x="620" y="300" class="state-desc">Will retry</text>
+
+  <!-- Unregistered -> Registered (success) -->
+  <path d="M 210 87 L 295 87" class="arrow-success"/>
+  <text x="250" y="80" class="label-success">registration OK</text>
+
+  <!-- Unregistered -> RegistrationFailed (error) -->
+  <path d="M 130 115 L 130 185" class="arrow-error"/>
+  <text x="137" y="155" class="label-error">failed</text>
+
+  <!-- RegistrationFailed -> Unregistered (retry) -->
+  <path d="M 80 190 Q 55 155 80 115" class="arrow-retry"/>
+  <text x="30" y="155" class="label-retry">retry</text>
+
+  <!-- Registered -> Negotiating -->
+  <path d="M 380 115 L 380 185" class="arrow-success"/>
+  <text x="387" y="155" class="label-success">start negotiation</text>
+
+  <!-- Negotiating -> Attesting (success) -->
+  <path d="M 380 245 L 380 315" class="arrow-success"/>
+  <text x="387" y="283" class="label-success">201 Created</text>
+
+  <!-- Negotiating -> AttestationFailed (error) -->
+  <path d="M 460 220 L 535 275" class="arrow-error"/>
+  <text x="510" y="240" class="label-error">error</text>
+
+  <!-- Attesting -> Negotiating (loop - success) -->
+  <path d="M 300 345 Q 245 280 300 220" class="arrow-success"/>
+  <text x="228" y="280" class="label-success">202 Accepted</text>
+  <text x="228" y="292" class="label-success">(wait interval)</text>
+
+  <!-- Attesting -> AttestationFailed (error) -->
+  <path d="M 460 350 L 535 295" class="arrow-error"/>
+  <text x="510" y="335" class="label-error">rejected</text>
+
+  <!-- AttestationFailed -> Negotiating (retry) -->
+  <path d="M 620 260 Q 620 215 465 215" class="arrow-retry"/>
+  <text x="530" y="210" class="label-retry">retry</text>
+
+  <!-- Legend -->
+  <rect x="50" y="430" width="600" height="130" fill="#fafafa" stroke="#ddd" rx="5" ry="5"/>
+  <text x="70" y="455" font-weight="bold" font-size="13">Legend</text>
+
+  <line x1="70" y1="475" x2="120" y2="475" stroke="#16a34a" stroke-width="2"/>
+  <text x="130" y="480" class="label">Success transition</text>
+
+  <line x1="70" y1="495" x2="120" y2="495" stroke="#dc2626" stroke-width="2"/>
+  <text x="130" y="500" class="label">Error transition</text>
+
+  <line x1="70" y1="515" x2="120" y2="515" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5,3"/>
+  <text x="130" y="520" class="label">Retry (with exponential backoff)</text>
+
+  <text x="350" y="480" class="label">Phase 1: Agent POSTs capabilities, receives challenge nonce</text>
+  <text x="350" y="500" class="label">Phase 2: Agent PATCHes evidence, receives 202 Accepted</text>
+  <text x="350" y="520" class="label">The Negotiating/Attesting cycle repeats continuously</text>
+</svg>
