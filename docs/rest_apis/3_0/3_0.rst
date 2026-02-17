@@ -1,0 +1,21 @@
+RESTful API for Keylime (v3.0)
+------------------------------
+
+API version 3.0 introduces push-model attestation, where agents initiate
+connections to the verifier and proactively submit attestation evidence.
+
+Unlike previous API versions where the agent exposed HTTP endpoints for the
+verifier to poll, in v3.0 the agent acts as a client. The v3.0 endpoints are
+served by the **verifier only**. The push-model agent does not expose an API.
+
+For a conceptual overview of push-model attestation, see
+:doc:`../../design/push_model`.
+
+.. warning::
+    Push-model attestation is currently experimental. The API may change in
+    future releases.
+
+.. toctree::
+   :maxdepth: 2
+
+   verifier.rst

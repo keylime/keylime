@@ -51,9 +51,14 @@ Verifier
 The verifier implements the actual attestation of an agent and sends revocation messages if an agent leaves the trusted
 state.
 
-Once an agent is registered for attestation (using the tenant or the API directly) the verifier continuously pulls
-the required attestation data from the agent. This can include: a quote over the PCRs, the PCR values, NK public key,
-IMA log and UEFI event log. After that the quote is validated additional validation of the data can be configured.
+In the default **pull model**, once an agent is registered for attestation (using the tenant or the API directly)
+the verifier continuously pulls the required attestation data from the agent. This can include: a quote over the
+PCRs, the PCR values, NK public key, IMA log and UEFI event log. After that the quote is validated additional
+validation of the data can be configured.
+
+Keylime also supports a **push model** where the agent initiates connections to the verifier and proactively
+submits attestation evidence. This is useful for environments where the verifier cannot directly reach the
+agent (e.g. behind firewalls or NAT). See :doc:`push_model` for details.
 
 Static PCR values
 """""""""""""""""
