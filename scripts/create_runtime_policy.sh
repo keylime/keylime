@@ -230,7 +230,7 @@ then
         # If we are on an ostree system change where we look for initramfs image
         loc=$(grep -E "/ostree/[^/]([^/]*)" -o /proc/cmdline | head -n 1 | cut -d / -f 3)
         INITRAMFS_LOC="/boot/ostree/${loc}/"
-        announce "--- The location of initramfs was overriden from \"${X}\" to \"$INITRAMFS_LOC\""
+        announce "--- The location of initramfs was overridden from \"${X}\" to \"$INITRAMFS_LOC\""
     fi
 
     announce "--- Creating allowlist for init ram disks found under \"$INITRAMFS_LOC\" to $ALLOWLIST_DIR/${OUTPUT} ..."
