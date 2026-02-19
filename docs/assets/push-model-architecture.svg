@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
+  <defs>
+    <style>
+      text { font-family: Tahoma, sans-serif; font-size: 14px; }
+      .title { font-size: 16px; font-weight: bold; }
+      .subtitle { font-size: 12px; fill: #666; }
+      .box { fill: #f0f0f0; stroke: #333; stroke-width: 1.5; rx: 5; ry: 5; }
+      .arrow { stroke: #333; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+      .arrow-push { stroke: #2563eb; stroke-width: 2; fill: none; marker-end: url(#arrowhead-push); }
+      .label { font-size: 11px; fill: #555; }
+      .label-push { font-size: 11px; fill: #2563eb; }
+      .section-title { font-size: 13px; font-weight: bold; fill: #333; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+    <marker id="arrowhead-push" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" class="title">Push-Model Architecture</text>
+
+  <!-- Pull Model (left side) -->
+  <text x="200" y="60" text-anchor="middle" class="section-title">Pull Model (traditional)</text>
+
+  <!-- Pull - Agent box -->
+  <rect x="30" y="120" width="120" height="50" class="box"/>
+  <text x="90" y="150" text-anchor="middle">Agent</text>
+  <text x="90" y="165" text-anchor="middle" class="subtitle">(server, port 9002)</text>
+
+  <!-- Pull - Registrar box -->
+  <rect x="230" y="80" width="120" height="50" class="box"/>
+  <text x="290" y="110" text-anchor="middle">Registrar</text>
+
+  <!-- Pull - Verifier box -->
+  <rect x="230" y="160" width="120" height="50" class="box"/>
+  <text x="290" y="190" text-anchor="middle">Verifier</text>
+
+  <!-- Pull - Agent to Registrar arrow -->
+  <path d="M 150 130 L 225 105" class="arrow"/>
+  <text x="180" y="110" class="label">register</text>
+
+  <!-- Pull - Verifier to Agent arrow -->
+  <path d="M 230 185 L 155 160" class="arrow"/>
+  <text x="170" y="185" class="label">poll quotes</text>
+
+  <!-- Divider -->
+  <line x1="400" y1="55" x2="400" y2="380" stroke="#ccc" stroke-width="1" stroke-dasharray="5,5"/>
+
+  <!-- Push Model (right side) -->
+  <text x="600" y="60" text-anchor="middle" class="section-title">Push Model (new)</text>
+
+  <!-- Push - Agent box -->
+  <rect x="430" y="120" width="120" height="50" class="box" style="stroke: #2563eb;"/>
+  <text x="490" y="150" text-anchor="middle">Agent</text>
+  <text x="490" y="165" text-anchor="middle" class="subtitle">(client, no ports)</text>
+
+  <!-- Push - Registrar box -->
+  <rect x="630" y="80" width="120" height="50" class="box"/>
+  <text x="690" y="110" text-anchor="middle">Registrar</text>
+
+  <!-- Push - Verifier box -->
+  <rect x="630" y="160" width="120" height="50" class="box"/>
+  <text x="690" y="190" text-anchor="middle">Verifier</text>
+
+  <!-- Push - Agent to Registrar arrow -->
+  <path d="M 550 130 L 625 105" class="arrow-push"/>
+  <text x="580" y="110" class="label-push">register</text>
+
+  <!-- Push - Agent to Verifier arrow -->
+  <path d="M 550 160 L 625 180" class="arrow-push"/>
+  <text x="565" y="182" class="label-push">push evidence</text>
+
+  <!-- Legend -->
+  <rect x="30" y="250" width="740" height="130" fill="#fafafa" stroke="#ddd" rx="5" ry="5"/>
+  <text x="50" y="275" class="section-title">Protocol Flow (Push Model)</text>
+
+  <text x="50" y="300" class="label">1. Agent registers with Registrar (same as pull model)</text>
+  <text x="50" y="320" class="label">2. Agent authenticates with Verifier via PoP (POST /v3/sessions)</text>
+  <text x="50" y="340" class="label">3. Agent sends capabilities to Verifier (POST /v3/agents/{agent_id}/attestations) — receives challenge nonce</text>
+  <text x="50" y="360" class="label">4. Agent sends evidence to Verifier (PATCH /v3/agents/{agent_id}/attestations/latest) — receives 202 Accepted</text>
+  <text x="50" y="375" class="label">5. Agent waits for configured interval, then repeats from step 3</text>
+</svg>

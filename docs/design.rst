@@ -7,6 +7,7 @@ Design of Keylime
    :caption: Contents:
 
    design/overview.rst
+   design/push_model.rst
    design/security.rst
 
 

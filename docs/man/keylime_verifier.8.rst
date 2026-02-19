@@ -32,6 +32,7 @@ Primary configuration is read from ``/etc/keylime/verifier.conf`` (or an overrid
 All options are under the ``[verifier]`` section.
 
 Essentials:
+- **mode**: Attestation mode (``pull`` or ``push``). Default: ``pull``
 - **uuid**: Unique identifier for this verifier instance
 - **ip**, **port**: Bind address and HTTP port
 - **registrar_ip**, **registrar_port**: Registrar endpoint
@@ -108,7 +109,7 @@ NOTES
 SEE ALSO
 ========
 
-**keylime_registrar**\(8), **keylime_tenant**\(1), **keylime_agent**\(8)
+**keylime_registrar**\(8), **keylime_tenant**\(1), **keylime_agent**\(8), **keylime_push_model_agent**\(8)
 
 BUGS
 ====

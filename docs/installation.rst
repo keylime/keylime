@@ -62,6 +62,17 @@ Rust agent
 
 Installation instructions can be found in the `README.md <https://github.com/keylime/rust-keylime>`_ for the Rust agent.
 
+Push-model agent
+~~~~~~~~~~~~~~~~
+.. note::
+    The push-model agent (``keylime-push-model-agent``) is a separate binary from
+    the standard Rust agent. It implements the push attestation protocol where the
+    agent initiates connections to the verifier. This feature is currently experimental.
+
+    Installation instructions are the same as for the Rust agent. The push-model
+    agent binary is built from the same repository. For configuration and deployment
+    details, see the :doc:`user_guide/push_model` user guide.
+
 Keylime Bash installer
 ----------------------
 
