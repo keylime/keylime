@@ -13,3 +13,8 @@ class VersionController(Controller):
             "supported_versions": keylime_api_version.all_versions(),
         }
         self.respond(200, "Success", version_info)
+
+    # GET /v3[.0]/
+    def show_version_root(self, **_params):
+        """A request to the top-level path of a given API version returns 200 when supported."""
+        self.respond(200, "Success")
