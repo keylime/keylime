@@ -110,7 +110,7 @@ class Route:
             raise TypeError(f"URI reference 'ref' of type '{type(ref).__name__}' is not a string")
 
         if not isinstance(base_ref, str):
-            raise TypeError(f"URI reference 'base_ref' of type '{type(ref).__name__}' is not a string")
+            raise TypeError(f"URI reference 'base_ref' of type '{type(base_ref).__name__}' is not a string")
 
         # Combine location header with current path to expand any relative reference
         expanded_ref = urljoin(base_ref, ref)
