@@ -80,7 +80,7 @@ CONFIG_FILES = {
     "logging": ["/etc/keylime/logging.conf", "/usr/etc/keylime/logging.conf"],
 }
 
-# Paths to directories in which options can be overriden using configuration
+# Paths to directories in which options can be overridden using configuration
 # snippets
 CONFIG_SNIPPETS_DIRS = {
     "verifier": ["/usr/etc/keylime/verifier.conf.d", "/etc/keylime/verifier.conf.d"],
@@ -330,7 +330,7 @@ def _get_env(component: str, option: str, section: Optional[str]) -> Optional[st
     env_name = f"KEYLIME_{component.upper()}{opt_section}_{option.upper()}"
     env_value = os.environ.get(env_name, None)
     if env_value is not None:
-        log_msg = f'option "{option}" on section {section} for component {component}.conf was overriden by environment variable {env_name}'
+        log_msg = f'option "{option}" on section {section} for component {component}.conf was overridden by environment variable {env_name}'
         base_logger.info(log_msg.replace("on section None ", ""))
 
     return env_value

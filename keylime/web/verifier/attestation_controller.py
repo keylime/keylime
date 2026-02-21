@@ -140,7 +140,7 @@ class AttestationController(Controller):
           usually determined by the formula floor(n*r) where n is the total number of workers and r is the percentage
           which will dedicated to servicing incoming requests. When the formula returns <1, a single dedicated worker is
           used. But when n equals one, a warning is produced as no process can be dedicated. The value of r is 25% by
-          default but may be overriden by setting the ``dedicated_web_workers`` config value to a different percentage.
+          default but may be overridden by setting the ``dedicated_web_workers`` config value to a different percentage.
           Alternatively, a fixed number may be provided instead.
 
     Additionally:

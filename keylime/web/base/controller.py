@@ -273,7 +273,7 @@ class Controller:
     ) -> None:
         """Sends a response over the active HTTP connection. The caller can choose which parameters to provide and the
         others will be inferred. ``body`` is typically expected to be a ``dict`` or a ``list`` which is convertible to
-        JSON, or otherwise a string which will be treated as plain text. This behaviour can be overriden by specifying
+        JSON, or otherwise a string which will be treated as plain text. This behaviour can be overridden by specifying
         a ``content_type`` other than ``"application/json"``.
 
         :param code: An optional integer representing an HTTP status code (defaults to ``200`` or ``201``)

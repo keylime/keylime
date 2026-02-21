@@ -303,7 +303,7 @@ class Server(ABC):
 
     def _setup(self) -> None:
         """Defines values to use in place of the defaults for the various server options. It is suggested that this is
-        overriden by the implementing class."""
+        overridden by the implementing class."""
 
     @abstractmethod
     def _routes(self) -> None:
