@@ -19,3 +19,4 @@ For a conceptual overview of push-model attestation, see
    :maxdepth: 2
 
    verifier.rst
+   registrar.rst
