@@ -48,6 +48,19 @@ verifier only; the push-model agent does not expose HTTP endpoints.
 * Introduced PoP (Proof of Possession) bearer token authentication for
   agent-to-verifier communication
 
+API version 3.0 also introduces RFC 9110-compliant registrar routes:
+
+* Added ``GET /v3.0/`` version root probe endpoint to the registrar, allowing
+  clients to check whether the server supports API version 3.0.
+* Agent registration now uses ``POST /v3.0/agents/`` (collection-level endpoint).
+  The ``agent_id`` is sent in the JSON request body instead of the URL path.
+* Agent activation now uses ``POST /v3.0/agents/{agent_id}/activate`` instead of
+  ``PUT``, following correct HTTP method semantics.
+* Removed legacy backwards-compatibility routes from the registrar:
+    * ``POST /agents/{agent_id}`` (use ``POST /agents/`` instead)
+    * ``PUT /agents/{agent_id}/activate`` (use ``POST /agents/{agent_id}/activate``)
+    * ``PUT /agents/{agent_id}`` (use ``POST /agents/{agent_id}/activate``)
+
 Changes from v2.4 to v2.5
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 API version 2.5 was first implemented in Keylime 7.14.0.
