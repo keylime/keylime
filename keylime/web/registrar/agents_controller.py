@@ -27,7 +27,7 @@ class AgentsController(Controller):
             self.respond(404, f"Agent with ID '{agent_id}' has not been activated")
             return
 
-        self.respond(200, "Success", agent.render())
+        self.respond(200, "Success", agent.render())  # type: ignore[no-untyped-call]
 
     # POST /v2[.:minor]/agents/[:agent_id]
     def create(self, agent_id, **params):
@@ -143,10 +143,10 @@ class AgentsController(Controller):
             self.respond(404, f"Agent with ID '{agent_id}' not found")
             return
 
-        accepted = agent.verify_ak_response(auth_tag)  # type: ignore[attr-defined]
+        accepted = agent.verify_ak_response(auth_tag)  # type: ignore[attr-defined,no-untyped-call]
 
         if accepted:
-            agent.commit_changes()
+            agent.commit_changes()  # type: ignore[no-untyped-call]
             self.respond(200, "Success")
         else:
             agent.delete()
