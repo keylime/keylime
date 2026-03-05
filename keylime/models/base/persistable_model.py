@@ -1,4 +1,4 @@
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, TypeVar
 
 from sqlalchemy import asc, desc, or_
 from sqlalchemy.sql.expression import ClauseElement
@@ -17,6 +17,8 @@ from keylime.models.base.field import ModelField
 from keylime.models.base.persistable_model_meta import PersistableModelMeta
 from keylime.models.base.types.dictionary import Dictionary
 from keylime.models.base.types.list import List
+
+_PM = TypeVar("_PM", bound="PersistableModel")
 
 
 class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
@@ -181,7 +183,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         return session.query(subject).filter(*filter_criteria).order_by(*sort_criteria)
 
     @classmethod
-    def get(cls, *args: Any, **kwargs: Any) -> Optional["PersistableModel"]:
+    def get(cls: type[_PM], *args: Any, **kwargs: Any) -> Optional[_PM]:
         # pylint: disable=no-else-return
 
         if cls.schema_awaiting_processing:
@@ -203,7 +205,7 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
             return None
 
     @classmethod
-    def all(cls, *args: Any, **kwargs: Any) -> Sequence["PersistableModel"]:
+    def all(cls: type[_PM], *args: Any, **kwargs: Any) -> Sequence[_PM]:
         if cls.schema_awaiting_processing:
             cls.process_schema()
 
