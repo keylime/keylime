@@ -138,6 +138,15 @@ class DBManager:
 
         return cast(Session, self._scoped_session())
 
+    def remove_session(self) -> None:
+        """Remove the current scoped session, releasing its connection back to the pool and clearing the identity map.
+
+        Should be called at the end of each request to prevent stale objects from accumulating in the session across
+        request boundaries.
+        """
+        if self._scoped_session:
+            self._scoped_session.remove()
+
     @contextmanager
     def session_context(self, session: Session | None = None) -> Iterator[Session]:
         if session:
