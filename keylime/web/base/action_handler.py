@@ -9,6 +9,7 @@ from tornado.web import RequestHandler
 from keylime import keylime_logging
 from keylime.authorization.manager import get_authorization_manager
 from keylime.authorization.provider import Action, AuthorizationRequest
+from keylime.models.base.db import db_manager
 from keylime.models.base.types import Timestamp  # type: ignore[attr-defined]
 from keylime.models.verifier.auth_session import AuthSession
 from keylime.web.base.default_controller import DefaultController
@@ -549,6 +550,7 @@ class ActionHandler(RequestHandler):
         self._action_call_stack: list[tuple["Controller", str]] = []
         self._received_at: int = time.time_ns()
         self._finished: bool = False
+        self._entered_process_request: bool = False
 
     async def prepare(self) -> None:
         # Tornado allows the prepare method to be overridden as async in subclasses of RequestHandler
@@ -598,59 +600,80 @@ class ActionHandler(RequestHandler):
             return
 
     async def process_request(self) -> None:
+        self._entered_process_request = True  # pylint: disable=attribute-defined-outside-init
         # If a route matches the request, invoke action determined by the matching route
-        if self.matching_route and self.controller:
-            try:
-                await self._invoke_action()
-            except StopAction:
-                # If the action is terminated early, continue
-                pass
-            except ParamDecodeError:
-                # If the query, form or JSON parameters are malformed, respond using error-handling action
-                await self._invoke_action("malformed_params", ignore_param_errors=True)
-            except ActionDispatchError:
-                # If the union of path, query, form and JSON parameters and do not match the method signature
-                # of the action, respond using error-handling action
-                await self._invoke_action("action_dispatch_error", ignore_param_errors=True)
-            except RequiredContentMissing:
-                # If a decorator from the Controller class has been used to mark a certain content format as required
-                # for the action and the request body or Content-Type do not adhere, respond using error-handling action
-                await self._invoke_action("format_not_allowed", ignore_param_errors=True)
-            except Exception as err:
-                # Any other exception which is not caught within the action body should be logged as an unexpected
-                # internal error before responding using error-handling action
-                self._log_exception(err)
-                await self._invoke_action("action_exception", ignore_param_errors=True)
+        try:
+            if self.matching_route and self.controller:
+                try:
+                    await self._invoke_action()
+                except StopAction:
+                    # If the action is terminated early, continue
+                    pass
+                except ParamDecodeError:
+                    # If the query, form or JSON parameters are malformed, respond using error-handling action
+                    await self._invoke_action("malformed_params", ignore_param_errors=True)
+                except ActionDispatchError:
+                    # If the union of path, query, form and JSON parameters and do not match the method signature
+                    # of the action, respond using error-handling action
+                    await self._invoke_action("action_dispatch_error", ignore_param_errors=True)
+                except RequiredContentMissing:
+                    # If a decorator from the Controller class has been used to mark a certain content format as
+                    # required for the action and the request body or Content-Type do not adhere, respond using
+                    # error-handling action
+                    await self._invoke_action("format_not_allowed", ignore_param_errors=True)
+                except Exception as err:
+                    # Any other exception which is not caught within the action body should be logged as an
+                    # unexpected internal error before responding using error-handling action
+                    self._log_exception(err)
+                    await self._invoke_action("action_exception", ignore_param_errors=True)
 
-        # Handle situation in which no invoked action produces a response
-        self._handle_incomplete_action()
+            # Handle situation in which no invoked action produces a response
+            self._handle_incomplete_action()
+        finally:
+            # Clean up the scoped session after all action code completes (including any work done after the
+            # response is sent via stop_action=False). This prevents stale objects from accumulating in the
+            # identity map across request boundaries. Must be here rather than on_finish(), because on_finish()
+            # is called by Tornado's finish() when the response is sent, which may be before action code completes.
+            db_manager.remove_session()
 
     def write_error(self, status_code: int, **kwargs: Any) -> None:
-        if status_code == 405 and kwargs.get("exc_info"):
-            # Handle situation in which the HTTP method given in the request is not supported by the server (Tornado
-            # produces a 405 error by default in this case)
+        try:
+            if status_code == 405 and kwargs.get("exc_info"):
+                # Handle situation in which the HTTP method given in the request is not supported by the server
+                # (Tornado produces a 405 error by default in this case)
 
-            # self.prepare() is not triggered in this case, so perform request reporting tasks
-            self._process_request_id()
-            logger.info("%s %s", self.request.method, self.request.path)
-            # Produce a response using the appropriate error-handling action
-            self._invoke_action_sync("unsupported_method", ignore_param_errors=True)
+                # self.prepare() is not triggered in this case, so perform request reporting tasks
+                self._process_request_id()
+                logger.info("%s %s", self.request.method, self.request.path)
+                # Produce a response using the appropriate error-handling action
+                self._invoke_action_sync("unsupported_method", ignore_param_errors=True)
 
-        elif kwargs.get("exc_info"):
-            # For any other exception produced by this class and not caught elsewhere, log the exception and invoke
-            # the appropriate error-handling action
-            _, err, _ = kwargs["exc_info"]
-            self._log_exception(err)
-            self._invoke_action_sync("handler_exception", ignore_param_errors=True)
+            elif kwargs.get("exc_info"):
+                # For any other exception produced by this class and not caught elsewhere, log the exception and
+                # invoke the appropriate error-handling action
+                _, err, _ = kwargs["exc_info"]
+                self._log_exception(err)
+                self._invoke_action_sync("handler_exception", ignore_param_errors=True)
 
-        else:
-            # Catch-all for all other errors (typically those produced by calling Tornado's send_error method)
-            self.default_controller.send_response(status_code)
+            else:
+                # Catch-all for all other errors (typically those produced by calling Tornado's send_error method)
+                self.default_controller.send_response(status_code)
 
-        # Handle situation in which none of the above-invoked error-handling actions produce a response
-        self._handle_incomplete_action()
+            # Handle situation in which none of the above-invoked error-handling actions produce a response
+            self._handle_incomplete_action()
+        finally:
+            db_manager.remove_session()
 
     def on_finish(self) -> None:
+        # Clean up the scoped session only if process_request() was never
+        # entered (e.g., prepare() returned early due to auth/authz failure).
+        # When process_request() runs, its finally block handles cleanup —
+        # calling remove_session() here would be premature because on_finish()
+        # is triggered by finish() which may be called mid-action when
+        # stop_action=False is used (the action continues after the response).
+        if not self._entered_process_request:
+            db_manager.remove_session()
+
         message = f"Sent {self.get_status()} in {self.elapsed_time}"
 
         if self.get_status() < 400:
