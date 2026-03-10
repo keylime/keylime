@@ -1,8 +1,9 @@
 import base64
 import hmac
 import uuid
+from contextlib import contextmanager
 from datetime import timedelta
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Iterator, Optional, Sequence
 
 from sqlalchemy.orm import Session
 
@@ -32,11 +33,17 @@ logger = keylime_logging.init_logging("verifier")
 _engine = None
 
 
-def get_session() -> Session:
+@contextmanager
+def get_session_context() -> Iterator[Session]:
     global _engine
     if _engine is None:
         _engine = make_engine("cloud_verifier")
-    return SessionManager().make_session(_engine)
+    session_manager = SessionManager()
+    session = session_manager.make_session(_engine)
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 class AuthSession(PersistableModel):
@@ -270,12 +277,12 @@ class AuthSession(PersistableModel):
             return False
 
         # Use old engine to query VerfierMain (legacy model)
-        session = get_session()
-        agent = (
-            session.query(VerfierMain)
-            .filter(VerfierMain.agent_id == auth_session.agent_id)  # type: ignore[attr-defined]
-            .one_or_none()
-        )
+        with get_session_context() as session:
+            agent = (
+                session.query(VerfierMain)
+                .filter(VerfierMain.agent_id == auth_session.agent_id)  # type: ignore[attr-defined]
+                .one_or_none()
+            )
 
         return agent
 

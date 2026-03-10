@@ -1,26 +1,13 @@
 import base64
 
-from sqlalchemy.orm import Session
-
 from keylime import config, keylime_logging
-from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain
 from keylime.models.base import Timestamp
 from keylime.models.verifier import AuthSession
+from keylime.models.verifier.auth_session import get_session_context
 from keylime.web.base import Controller
 
 logger = keylime_logging.init_logging("verifier")
-
-# GLOBAL_POLICY_CACHE: Dict[str, Dict[str, str]] = {}
-
-_engine = None
-
-
-def get_session() -> Session:
-    global _engine
-    if _engine is None:
-        _engine = make_engine("cloud_verifier")
-    return SessionManager().make_session(_engine)
 
 
 class SessionController(Controller):
@@ -198,8 +185,8 @@ class SessionController(Controller):
             return
 
         # Check if agent exists - this is where we validate enrollment
-        session = get_session()
-        agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
+        with get_session_context() as session:
+            agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
 
         if not agent:
             # Agent not enrolled - return 200 with evaluation:fail
@@ -393,8 +380,8 @@ class SessionController(Controller):
 
     # POST /v3[.:minor]/agents/:agent_id/session
     def create(self, agent_id, **params):
-        session = get_session()
-        agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
+        with get_session_context() as session:
+            agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
 
         if not agent:
             self.respond(404, "here")
@@ -416,8 +403,8 @@ class SessionController(Controller):
         self.respond(200, "Success", auth_session.render())
 
     def update(self, agent_id, token, **params):
-        session = get_session()
-        agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
+        with get_session_context() as session:
+            agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
 
         # Look up session by token hash (tokens are never stored in plaintext)
         auth_session = AuthSession.get_by_token(token)

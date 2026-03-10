@@ -7,8 +7,39 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 from keylime.crypto import generate_session_token, generate_token_salt, hash_token_for_storage
 from keylime.models.base.types import Timestamp
-from keylime.models.verifier.auth_session import AuthSession
+from keylime.models.verifier.auth_session import AuthSession, get_session_context
 from keylime.shared_data import cleanup_global_shared_memory, get_shared_memory
+
+
+class TestGetSessionContext(unittest.TestCase):
+    """Test cases for get_session_context context manager."""
+
+    @patch("keylime.models.verifier.auth_session.make_engine")
+    @patch("keylime.models.verifier.auth_session.SessionManager")
+    def test_session_closed_on_normal_exit(self, mock_session_manager_cls, _mock_make_engine):
+        """Test that session.close() is called when context manager exits normally."""
+        mock_session = MagicMock()
+        mock_session_manager_cls.return_value.make_session.return_value = mock_session
+
+        with patch("keylime.models.verifier.auth_session._engine", None):
+            with get_session_context() as session:
+                self.assertIs(session, mock_session)
+
+            mock_session.close.assert_called_once()
+
+    @patch("keylime.models.verifier.auth_session.make_engine")
+    @patch("keylime.models.verifier.auth_session.SessionManager")
+    def test_session_closed_on_exception(self, mock_session_manager_cls, _mock_make_engine):
+        """Test that session.close() is called even when an exception occurs."""
+        mock_session = MagicMock()
+        mock_session_manager_cls.return_value.make_session.return_value = mock_session
+
+        with patch("keylime.models.verifier.auth_session._engine", None):
+            with self.assertRaises(RuntimeError):
+                with get_session_context():
+                    raise RuntimeError("simulated error")
+
+            mock_session.close.assert_called_once()
 
 
 class TestAuthSessionHelpers(unittest.TestCase):
@@ -398,7 +429,7 @@ class TestAuthSessionCore(unittest.TestCase):
         self.assertIn("errors", result)
         self.assertIn("authentication_supported", result["errors"])
 
-    @patch("keylime.models.verifier.auth_session.get_session")
+    @patch("keylime.models.verifier.auth_session.get_session_context")
     @patch.object(AuthSession, "get_by_token")
     def test_authenticate_agent_success(self, mock_get_by_token, mock_get_session):
         """Test successful agent authentication with valid token."""
@@ -409,7 +440,8 @@ class TestAuthSessionCore(unittest.TestCase):
         # Mock session query
         mock_db_session = MagicMock()
         mock_db_session.query.return_value.filter.return_value.one_or_none.return_value = mock_agent
-        mock_get_session.return_value = mock_db_session
+        mock_get_session.return_value.__enter__ = MagicMock(return_value=mock_db_session)
+        mock_get_session.return_value.__exit__ = MagicMock(return_value=False)
 
         # Mock AuthSession.get_by_token to return an active session
         mock_auth_session = MagicMock()
