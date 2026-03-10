@@ -1,5 +1,6 @@
 import base64
 import hmac
+import threading
 import uuid
 from contextlib import contextmanager
 from datetime import timedelta
@@ -31,19 +32,19 @@ from keylime.tpm.tpm_main import Tpm
 logger = keylime_logging.init_logging("verifier")
 
 _engine = None
+_engine_lock = threading.Lock()
+_session_manager = SessionManager()
 
 
 @contextmanager
 def get_session_context() -> Iterator[Session]:
     global _engine
     if _engine is None:
-        _engine = make_engine("cloud_verifier")
-    session_manager = SessionManager()
-    session = session_manager.make_session(_engine)
-    try:
+        with _engine_lock:
+            if _engine is None:
+                _engine = make_engine("cloud_verifier")
+    with _session_manager.session_context(_engine) as session:
         yield session
-    finally:
-        session.close()
 
 
 class AuthSession(PersistableModel):
@@ -283,6 +284,8 @@ class AuthSession(PersistableModel):
                 .filter(VerfierMain.agent_id == auth_session.agent_id)  # type: ignore[attr-defined]
                 .one_or_none()
             )
+            if agent:
+                session.expunge(agent)  # type: ignore[no-untyped-call]
 
         return agent
 
