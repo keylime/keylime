@@ -187,6 +187,8 @@ class SessionController(Controller):
         # Check if agent exists - this is where we validate enrollment
         with get_session_context() as session:
             agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
+            if agent:
+                session.expunge(agent)  # type: ignore[no-untyped-call]
 
         if not agent:
             # Agent not enrolled - return 200 with evaluation:fail
@@ -382,6 +384,8 @@ class SessionController(Controller):
     def create(self, agent_id, **params):
         with get_session_context() as session:
             agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
+            if agent:
+                session.expunge(agent)  # type: ignore[no-untyped-call]
 
         if not agent:
             self.respond(404, "here")
@@ -405,6 +409,8 @@ class SessionController(Controller):
     def update(self, agent_id, token, **params):
         with get_session_context() as session:
             agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
+            if agent:
+                session.expunge(agent)  # type: ignore[no-untyped-call]
 
         # Look up session by token hash (tokens are never stored in plaintext)
         auth_session = AuthSession.get_by_token(token)

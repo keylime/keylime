@@ -2,6 +2,7 @@
 
 import base64
 import unittest
+from contextlib import contextmanager
 from datetime import timedelta
 from unittest.mock import MagicMock, PropertyMock, patch
 
@@ -14,32 +15,59 @@ from keylime.shared_data import cleanup_global_shared_memory, get_shared_memory
 class TestGetSessionContext(unittest.TestCase):
     """Test cases for get_session_context context manager."""
 
+    def _make_mock_session_manager(self, mock_session):
+        """Create a mock SessionManager whose session_context() mirrors real lifecycle."""
+        mock_scoped = MagicMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.make_session.return_value = mock_session
+        mock_session_manager._scoped_session = mock_scoped  # pylint: disable=protected-access
+
+        @contextmanager
+        def fake_session_context(engine):  # pylint: disable=unused-argument
+            session = mock_session_manager.make_session(engine)
+            try:
+                yield session
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+            finally:
+                scoped = mock_session_manager._scoped_session  # pylint: disable=protected-access
+                if scoped is not None:
+                    scoped.remove()
+
+        mock_session_manager.session_context = fake_session_context
+        return mock_session_manager, mock_scoped
+
     @patch("keylime.models.verifier.auth_session.make_engine")
-    @patch("keylime.models.verifier.auth_session.SessionManager")
-    def test_session_closed_on_normal_exit(self, mock_session_manager_cls, _mock_make_engine):
-        """Test that session.close() is called when context manager exits normally."""
+    def test_session_cleanup_on_normal_exit(self, _mock_make_engine):
+        """Test that session is committed and cleaned up when context manager exits normally."""
         mock_session = MagicMock()
-        mock_session_manager_cls.return_value.make_session.return_value = mock_session
+        mock_session_manager, mock_scoped = self._make_mock_session_manager(mock_session)
 
         with patch("keylime.models.verifier.auth_session._engine", None):
-            with get_session_context() as session:
-                self.assertIs(session, mock_session)
+            with patch("keylime.models.verifier.auth_session._session_manager", mock_session_manager):
+                with get_session_context() as session:
+                    self.assertIs(session, mock_session)
 
-            mock_session.close.assert_called_once()
+                mock_session.commit.assert_called_once()
+                mock_scoped.remove.assert_called_once()
 
     @patch("keylime.models.verifier.auth_session.make_engine")
-    @patch("keylime.models.verifier.auth_session.SessionManager")
-    def test_session_closed_on_exception(self, mock_session_manager_cls, _mock_make_engine):
-        """Test that session.close() is called even when an exception occurs."""
+    def test_session_rollback_on_exception(self, _mock_make_engine):
+        """Test that session is rolled back and cleaned up when an exception occurs."""
         mock_session = MagicMock()
-        mock_session_manager_cls.return_value.make_session.return_value = mock_session
+        mock_session_manager, mock_scoped = self._make_mock_session_manager(mock_session)
 
         with patch("keylime.models.verifier.auth_session._engine", None):
-            with self.assertRaises(RuntimeError):
-                with get_session_context():
-                    raise RuntimeError("simulated error")
+            with patch("keylime.models.verifier.auth_session._session_manager", mock_session_manager):
+                with self.assertRaises(RuntimeError):
+                    with get_session_context():
+                        raise RuntimeError("simulated error")
 
-            mock_session.close.assert_called_once()
+                mock_session.rollback.assert_called_once()
+                mock_session.commit.assert_not_called()
+                mock_scoped.remove.assert_called_once()
 
 
 class TestAuthSessionHelpers(unittest.TestCase):
