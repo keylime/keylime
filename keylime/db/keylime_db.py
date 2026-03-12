@@ -1,4 +1,5 @@
 import os
+import threading
 from configparser import NoOptionError
 from contextlib import contextmanager
 from sqlite3 import Connection as SQLite3Connection
@@ -89,10 +90,12 @@ def make_engine(service: str, **engine_args: Any) -> Engine:
 class SessionManager:
     engine: Optional[Engine]
     _scoped_session: Optional[scoped_session]
+    _lock: threading.Lock
 
     def __init__(self) -> None:
         self.engine = None
         self._scoped_session = None
+        self._lock = threading.Lock()
 
     def make_session(self, engine: Engine) -> Session:
         """
@@ -100,7 +103,9 @@ class SessionManager:
         """
         self.engine = engine
         if self._scoped_session is None:
-            self._scoped_session = scoped_session(sessionmaker())
+            with self._lock:
+                if self._scoped_session is None:
+                    self._scoped_session = scoped_session(sessionmaker())
         try:
             self._scoped_session.configure(bind=self.engine)  # type: ignore
             self._scoped_session.configure(expire_on_commit=False)  # type: ignore

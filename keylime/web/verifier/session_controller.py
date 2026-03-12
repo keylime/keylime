@@ -185,6 +185,7 @@ class SessionController(Controller):
             return
 
         # Check if agent exists - this is where we validate enrollment
+        agent = None
         with get_session_context() as session:
             agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
             if agent:
@@ -382,6 +383,7 @@ class SessionController(Controller):
 
     # POST /v3[.:minor]/agents/:agent_id/session
     def create(self, agent_id, **params):
+        agent = None
         with get_session_context() as session:
             agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
             if agent:
@@ -407,6 +409,7 @@ class SessionController(Controller):
         self.respond(200, "Success", auth_session.render())
 
     def update(self, agent_id, token, **params):
+        agent = None
         with get_session_context() as session:
             agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
             if agent:
