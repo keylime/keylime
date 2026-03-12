@@ -101,11 +101,13 @@ class SessionManager:
         """
         To use: session = self.make_session(engine)
         """
-        self.engine = engine
         if self._scoped_session is None:
             with self._lock:
                 if self._scoped_session is None:
+                    self.engine = engine
                     self._scoped_session = scoped_session(sessionmaker())
+        elif self.engine is not engine:
+            logger.warning("SessionManager called with different engine than originally configured")
         try:
             self._scoped_session.configure(bind=self.engine)  # type: ignore
             self._scoped_session.configure(expire_on_commit=False)  # type: ignore
