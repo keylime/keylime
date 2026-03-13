@@ -1,12 +1,8 @@
 import base64
 import hmac
-import threading
 import uuid
-from contextlib import contextmanager
 from datetime import timedelta
-from typing import Any, Dict, Iterator, Optional, Sequence
-
-from sqlalchemy.orm import Session
+from typing import Any, Dict, Optional, Sequence
 
 from keylime import config, keylime_logging
 from keylime.crypto import (
@@ -16,7 +12,6 @@ from keylime.crypto import (
     parse_session_token,
     verify_token_hash,
 )
-from keylime.db.keylime_db import SessionManager, make_engine
 from keylime.db.verifier_db import VerfierMain
 from keylime.models.base import *
 from keylime.shared_data import get_shared_memory
@@ -30,21 +25,6 @@ from keylime.tpm.errors import (
 from keylime.tpm.tpm_main import Tpm
 
 logger = keylime_logging.init_logging("verifier")
-
-_engine = None
-_engine_lock = threading.Lock()
-_session_manager = SessionManager()
-
-
-@contextmanager
-def get_session_context() -> Iterator[Session]:
-    global _engine
-    if _engine is None:
-        with _engine_lock:
-            if _engine is None:
-                _engine = make_engine("cloud_verifier")
-    with _session_manager.session_context(_engine) as session:
-        yield session
 
 
 class AuthSession(PersistableModel):
@@ -243,51 +223,6 @@ class AuthSession(PersistableModel):
 
         # Slow path: query database by primary key
         return cls.get(session_id)  # type: ignore[return-value]
-
-    @classmethod
-    def authenticate_agent(cls, token: str):  # type: ignore[no-untyped-def]
-        """Authenticate an agent using their session token.
-
-        Uses indexed database lookup by token hash for performance (O(1) instead of O(n)).
-        Tokens are hashed before lookup since only hashes are stored in the database.
-
-        Args:
-            token: The session token to verify
-
-        Returns:
-            VerfierMain object if authenticated, False otherwise
-        """
-        # Use indexed lookup by token hash (much faster than scanning all sessions)
-        auth_session = cls.get_by_token(token)
-
-        if not auth_session:
-            return False
-
-        # Validate session is active
-        if not getattr(auth_session, "active", False):
-            return False
-
-        # Validate session hasn't expired
-        token_expires_at = getattr(auth_session, "token_expires_at", None)
-        if token_expires_at and token_expires_at < Timestamp.now():
-            logger.debug(
-                "Authentication attempted with expired token for agent '%s' (expired at %s)",
-                getattr(auth_session, "agent_id", "unknown"),
-                token_expires_at,
-            )
-            return False
-
-        # Use old engine to query VerfierMain (legacy model)
-        with get_session_context() as session:
-            agent = (
-                session.query(VerfierMain)
-                .filter(VerfierMain.agent_id == auth_session.agent_id)  # type: ignore[attr-defined]
-                .one_or_none()
-            )
-            if agent:
-                session.expunge(agent)  # type: ignore[no-untyped-call]
-
-        return agent
 
     @classmethod
     def create(

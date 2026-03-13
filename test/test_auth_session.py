@@ -2,72 +2,13 @@
 
 import base64
 import unittest
-from contextlib import contextmanager
 from datetime import timedelta
 from unittest.mock import MagicMock, PropertyMock, patch
 
 from keylime.crypto import generate_session_token, generate_token_salt, hash_token_for_storage
 from keylime.models.base.types import Timestamp
-from keylime.models.verifier.auth_session import AuthSession, get_session_context
+from keylime.models.verifier.auth_session import AuthSession
 from keylime.shared_data import cleanup_global_shared_memory, get_shared_memory
-
-
-class TestGetSessionContext(unittest.TestCase):
-    """Test cases for get_session_context context manager."""
-
-    def _make_mock_session_manager(self, mock_session):
-        """Create a mock SessionManager whose session_context() mirrors real lifecycle."""
-        mock_scoped = MagicMock()
-        mock_session_manager = MagicMock()
-        mock_session_manager.make_session.return_value = mock_session
-        mock_session_manager._scoped_session = mock_scoped  # pylint: disable=protected-access
-
-        @contextmanager
-        def fake_session_context(engine):  # pylint: disable=unused-argument
-            session = mock_session_manager.make_session(engine)
-            try:
-                yield session
-                session.commit()
-            except Exception:
-                session.rollback()
-                raise
-            finally:
-                scoped = mock_session_manager._scoped_session  # pylint: disable=protected-access
-                if scoped is not None:
-                    scoped.remove()
-
-        mock_session_manager.session_context = fake_session_context
-        return mock_session_manager, mock_scoped
-
-    @patch("keylime.models.verifier.auth_session.make_engine")
-    def test_session_cleanup_on_normal_exit(self, _mock_make_engine):
-        """Test that session is committed and cleaned up when context manager exits normally."""
-        mock_session = MagicMock()
-        mock_session_manager, mock_scoped = self._make_mock_session_manager(mock_session)
-
-        with patch("keylime.models.verifier.auth_session._engine", None):
-            with patch("keylime.models.verifier.auth_session._session_manager", mock_session_manager):
-                with get_session_context() as session:
-                    self.assertIs(session, mock_session)
-
-                mock_session.commit.assert_called_once()
-                mock_scoped.remove.assert_called_once()
-
-    @patch("keylime.models.verifier.auth_session.make_engine")
-    def test_session_rollback_on_exception(self, _mock_make_engine):
-        """Test that session is rolled back and cleaned up when an exception occurs."""
-        mock_session = MagicMock()
-        mock_session_manager, mock_scoped = self._make_mock_session_manager(mock_session)
-
-        with patch("keylime.models.verifier.auth_session._engine", None):
-            with patch("keylime.models.verifier.auth_session._session_manager", mock_session_manager):
-                with self.assertRaises(RuntimeError):
-                    with get_session_context():
-                        raise RuntimeError("simulated error")
-
-                mock_session.rollback.assert_called_once()
-                mock_session.commit.assert_not_called()
-                mock_scoped.remove.assert_called_once()
 
 
 class TestAuthSessionHelpers(unittest.TestCase):
@@ -456,58 +397,6 @@ class TestAuthSessionCore(unittest.TestCase):
         # Should return errors
         self.assertIn("errors", result)
         self.assertIn("authentication_supported", result["errors"])
-
-    @patch("keylime.models.verifier.auth_session.get_session_context")
-    @patch.object(AuthSession, "get_by_token")
-    def test_authenticate_agent_success(self, mock_get_by_token, mock_get_session):
-        """Test successful agent authentication with valid token."""
-        # Create a mock agent
-        mock_agent = MagicMock()
-        mock_agent.agent_id = self.test_agent_id
-
-        # Mock session query
-        mock_db_session = MagicMock()
-        mock_db_session.query.return_value.filter.return_value.one_or_none.return_value = mock_agent
-        mock_get_session.return_value.__enter__ = MagicMock(return_value=mock_db_session)
-        mock_get_session.return_value.__exit__ = MagicMock(return_value=False)
-
-        # Mock AuthSession.get_by_token to return an active session
-        mock_auth_session = MagicMock()
-        mock_auth_session.session_id = "550e8400-e29b-41d4-a716-446655440000"
-        mock_auth_session.active = True
-        mock_auth_session.agent_id = self.test_agent_id
-        mock_auth_session.token_expires_at = Timestamp.now() + timedelta(hours=1)
-        mock_get_by_token.return_value = mock_auth_session
-
-        result = AuthSession.authenticate_agent("test-token")
-
-        # Should return the agent
-        self.assertIsNotNone(result)
-        self.assertEqual(result.agent_id, self.test_agent_id)  # type: ignore[union-attr]
-
-    @patch.object(AuthSession, "get_by_token")
-    def test_authenticate_agent_inactive_session(self, mock_get_by_token):
-        """Test that inactive sessions cannot authenticate."""
-        # Mock AuthSession.get_by_token to return an inactive session
-        mock_auth_session = MagicMock()
-        mock_auth_session.active = False
-        mock_get_by_token.return_value = mock_auth_session
-
-        result = AuthSession.authenticate_agent("test-token")
-
-        # Should return False
-        self.assertFalse(result)
-
-    @patch.object(AuthSession, "get_by_token")
-    def test_authenticate_agent_no_session(self, mock_get_by_token):
-        """Test that authentication fails when session doesn't exist."""
-        # Mock AuthSession.get_by_token to return None (no session found)
-        mock_get_by_token.return_value = None
-
-        result = AuthSession.authenticate_agent("test-token")
-
-        # Should return False
-        self.assertFalse(result)
 
     @patch.object(AuthSession, "empty")
     def test_create_with_agent(self, mock_empty):
