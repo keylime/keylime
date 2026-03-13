@@ -2,9 +2,8 @@ import base64
 
 from keylime import config, keylime_logging
 from keylime.db.verifier_db import VerfierMain
-from keylime.models.base import Timestamp
+from keylime.models.base import Timestamp, db_manager
 from keylime.models.verifier import AuthSession
-from keylime.models.verifier.auth_session import get_session_context
 from keylime.web.base import Controller
 
 logger = keylime_logging.init_logging("verifier")
@@ -186,7 +185,7 @@ class SessionController(Controller):
 
         # Check if agent exists - this is where we validate enrollment
         agent = None
-        with get_session_context() as session:
+        with db_manager.session_context() as session:
             agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
             if agent:
                 session.expunge(agent)  # type: ignore[no-untyped-call]
@@ -384,7 +383,7 @@ class SessionController(Controller):
     # POST /v3[.:minor]/agents/:agent_id/session
     def create(self, agent_id, **params):
         agent = None
-        with get_session_context() as session:
+        with db_manager.session_context() as session:
             agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
             if agent:
                 session.expunge(agent)  # type: ignore[no-untyped-call]
@@ -410,7 +409,7 @@ class SessionController(Controller):
 
     def update(self, agent_id, token, **params):
         agent = None
-        with get_session_context() as session:
+        with db_manager.session_context() as session:
             agent = session.query(VerfierMain).filter(VerfierMain.agent_id == agent_id).one_or_none()
             if agent:
                 session.expunge(agent)  # type: ignore[no-untyped-call]
