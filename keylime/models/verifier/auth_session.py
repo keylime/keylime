@@ -630,10 +630,11 @@ class AuthSession(PersistableModel):
             logger.error("Unexpected error during TPM verification: %s: %s", type(e).__name__, e)
             self._add_error("verification", f"TPM verification failed: {str(e)}")
 
-        # Set token expiration (only on successful validation)
-        session_lifetime = config.getint("verifier", "session_lifetime", fallback=config.DEFAULT_SESSION_LIFETIME)
-        self.token_expires_at = Timestamp.now() + timedelta(seconds=session_lifetime)
-        self.active = True
+        # Set token expiration and activate only on successful validation
+        if not any(errs for errs in self.errors.values()):
+            session_lifetime = config.getint("verifier", "session_lifetime", fallback=config.DEFAULT_SESSION_LIFETIME)
+            self.token_expires_at = Timestamp.now() + timedelta(seconds=session_lifetime)
+            self.active = True
 
     def _set_nonce(self):
         if "nonce" not in self.values:
