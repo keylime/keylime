@@ -265,12 +265,18 @@ class ActionHandler(RequestHandler):
                 # Look up by token hash (tokens are never stored in plaintext)
                 auth_session = AuthSession.get_by_token(token)
                 if auth_session and auth_session.agent_id:  # type: ignore[attr-defined]
-                    # Check if token is still valid
-                    now = Timestamp.now()
-                    if auth_session.token_expires_at >= now:  # type: ignore[attr-defined]
-                        logger.debug("Extracted agent identity from bearer token: %s", auth_session.agent_id)  # type: ignore[attr-defined]
-                        return (auth_session.agent_id, "agent")  # type: ignore[attr-defined]
-                    logger.debug("Bearer token expired for agent: %s", auth_session.agent_id)  # type: ignore[attr-defined]
+                    # Check if session is active and token is still valid
+                    if not getattr(auth_session, "active", False):
+                        logger.debug("Session not active for agent: %s", auth_session.agent_id)  # type: ignore[attr-defined]
+                    else:
+                        token_expires_at = getattr(auth_session, "token_expires_at", None)
+                        if token_expires_at is None:
+                            logger.debug("Session has no expiry for agent: %s", auth_session.agent_id)  # type: ignore[attr-defined]
+                        elif token_expires_at >= Timestamp.now():
+                            logger.debug("Extracted agent identity from bearer token: %s", auth_session.agent_id)  # type: ignore[attr-defined]
+                            return (auth_session.agent_id, "agent")  # type: ignore[attr-defined]
+                        else:
+                            logger.debug("Bearer token expired for agent: %s", auth_session.agent_id)  # type: ignore[attr-defined]
                 else:
                     logger.debug("Invalid bearer token provided")
             else:
@@ -520,13 +526,27 @@ class ActionHandler(RequestHandler):
             self.finish()
             return False
 
+        # Check if session is active
+        if not getattr(auth_session, "active", False):
+            logger.info(
+                "Authentication session not active for agent '%s'",
+                auth_session.agent_id,  # type: ignore[attr-defined]
+            )
+            self.set_status(401)
+            self.write(
+                {"errors": [{"status": "401", "title": "Unauthorized", "detail": "Authentication session not active"}]}
+            )
+            self.finish()
+            return False
+
         # Check if token has expired
+        token_expires_at = getattr(auth_session, "token_expires_at", None)
         now = Timestamp.now()
-        if auth_session.token_expires_at < now:  # type: ignore[attr-defined]
+        if token_expires_at is None or token_expires_at < now:
             logger.info(
                 "Authentication token expired for agent '%s' (expired at %s)",
                 auth_session.agent_id,  # type: ignore[attr-defined]
-                auth_session.token_expires_at,  # type: ignore[attr-defined]
+                token_expires_at,
             )
             self.set_status(401)
             self.write(
