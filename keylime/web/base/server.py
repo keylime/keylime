@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 import tornado
 
 from keylime import api_version, config, keylime_logging, web_util
+from keylime.models.base.db import db_manager
 from keylime.web.base.action_handler import ActionHandler
 from keylime.web.base.route import Route
 
@@ -299,6 +300,15 @@ class Server(ABC):
         tornado.process.fork_processes(self.worker_count)
         # num.value = num.value + 1
         # print(num.value)
+
+        # Dispose inherited db_manager engine after fork to avoid sharing the
+        # parent's connection pool, then re-create with a fresh pool for this
+        # child process.
+        service = db_manager.service
+        db_manager.dispose()
+        if service:
+            db_manager.make_engine(service)
+
         asyncio.run(self.start_single())
 
     def _setup(self) -> None:
