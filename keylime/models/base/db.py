@@ -101,9 +101,6 @@ class DBManager:
 
     @property
     def service(self) -> Optional[str]:
-        if not self._service:
-            raise BackendMissing("cannot access the service for a DBManager before a call to db_manager.make_engine()")
-
         return self._service
 
     @property
@@ -137,6 +134,25 @@ class DBManager:
                 logger.error("Error creating SQL session manager %s", err)
 
         return cast(Session, self._scoped_session())
+
+    def dispose(self) -> None:
+        """Dispose the engine and clear all state.
+
+        Must be called after fork to avoid sharing the parent's connection pool
+        across child processes. The next call to make_engine() will create fresh
+        connections for the child process.
+        """
+        if self._scoped_session:
+            self._scoped_session.remove()
+        if self._engine:
+            # Use close=False so the child discards the inherited pool
+            # without closing the parent's underlying connections. Per
+            # SQLAlchemy docs, this is the recommended approach after fork.
+            self._engine.dispose(close=False)  # type: ignore[call-arg]
+        self._engine = None
+        self._scoped_session = None
+        self._registry = None
+        self._service = None
 
     def remove_session(self) -> None:
         """Remove the current scoped session, releasing its connection back to the pool and clearing the identity map.
