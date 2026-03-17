@@ -1,0 +1,11 @@
+{
+    "version": "2.6",
+    "type": "update",
+    "components": {
+        "verifier": {
+            "add": {
+                "shutdown_drain_timeout": "10"
+            }
+        }
+    }
+}

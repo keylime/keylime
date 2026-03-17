@@ -53,6 +53,7 @@ Essentials:
 - **quote_interval**: Time between integrity checks (seconds)
 - **max_upload_size**: Upload size limit (bytes)
 - **request_timeout**: Agent request timeout (seconds)
+- **shutdown_drain_timeout**: Max time (seconds) to wait for in-flight operations during shutdown
 - **measured_boot_policy_name**, **measured_boot_imports**, **measured_boot_evaluate**: measured boot policy settings
 - **severity_labels**, **severity_policy**: revocation severity config
 - **ignore_tomtou_errors**: handle ToMToU IMA entries (bool)

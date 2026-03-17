@@ -259,9 +259,13 @@ def stop_broker() -> None:
 
 
 def shutdown_webhook_workers() -> None:
-    """Convenience function to shutdown webhook workers using the global manager."""
-    manager = _get_webhook_manager()
-    manager.shutdown_workers()
+    """Shutdown webhook workers if the manager was ever initialized.
+
+    If no revocation notifications were sent in this process, the manager
+    is still None and there is nothing to shut down.
+    """
+    if _webhook_manager is not None:
+        _webhook_manager.shutdown_workers()
 
 
 def notify(tosend: Dict[str, Any]) -> None:
