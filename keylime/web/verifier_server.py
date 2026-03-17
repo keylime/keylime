@@ -1,12 +1,16 @@
 import asyncio
 from typing import List, Optional
 
-import tornado.httpserver
-import tornado.ioloop
-import tornado.process
 from sqlalchemy.exc import SQLAlchemyError
 
-from keylime import cloud_verifier_common, cloud_verifier_tornado, config, keylime_logging
+from keylime import (
+    cloud_verifier_common,
+    cloud_verifier_tornado,
+    config,
+    keylime_logging,
+    push_agent_monitor,
+    revocation_notifier,
+)
 from keylime.authorization.provider import Action
 from keylime.common import states
 from keylime.db.keylime_db import SessionManager, make_engine
@@ -30,82 +34,76 @@ class VerifierServer(Server):
         super().__init__()
         self._prepare_agents_on_startup()
         self._clear_stale_sessions_on_startup()
+        self._all_agents: List[VerfierMain] = []
         self._worker_agents: Optional[List[VerfierMain]] = None
+        self._activate_task: Optional[asyncio.Task[None]] = None
 
-    def start_multi(self) -> None:  # pylint: disable=no-member
-        """Override to support PULL mode agent activation across multiple workers."""
-        # Get all agents from database before forking (only needed for PULL mode)
+    def _pre_fork(self) -> None:
+        """Query agents from database before forking (only needed for PULL mode)."""
         logger.info("start_multi() called with operating_mode: %s", self.operating_mode)
-        all_agents: List[VerfierMain] = []
+        self._all_agents = []
         if self.operating_mode == "pull":
             verifier_id = config.get("verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
             logger.info("Querying agents for verifier_id: %s", verifier_id)
-            all_agents = cloud_verifier_tornado.get_agents_by_verifier_id(verifier_id)
-            logger.info("Found %d agents in database before forking", len(all_agents))
+            self._all_agents = cloud_verifier_tornado.get_agents_by_verifier_id(verifier_id)
+            logger.info("Found %d agents in database before forking", len(self._all_agents))
 
-        # Log server startup (copied from base class)
-        ports = ""
-        protocols = ""
-        if self._Server__tornado_http_sockets:  # type: ignore # pylint: disable=no-member
-            ports = str(self.http_port)
-            protocols = "HTTP"
-        if self._Server__tornado_https_sockets and self.ssl_ctx:  # type: ignore # pylint: disable=no-member
-            ports = f"{ports}/{self.https_port}" if ports else f"{self.https_port}"
-            protocols = f"{protocols}/S" if protocols else "HTTPS"
-        logger.info(
-            "Listening on %s:%s (%s) with %s worker processes...",
-            self.bind_interface,
-            ports,
-            protocols,
-            self.worker_count,
-        )
-
-        # Fork worker processes - returns task_id in each child process
-        task_id = tornado.process.fork_processes(self.worker_count)
-
+    def _post_fork(self, task_id: int) -> None:
+        """Reset inherited DB state and distribute agents to this worker."""
         # CRITICAL: Reset any database state inherited from parent process.
-        # The parent initializes globals when querying agents (line 39), so children
-        # inherit initialized state. We must reset to trigger lazy re-initialization.
+        # The parent initializes globals when querying agents in _pre_fork(),
+        # so children inherit initialized state. We must reset to trigger
+        # lazy re-initialization.
         cloud_verifier_tornado.reset_verifier_config()
 
         # Distribute agents to this worker using round-robin (task_id is the worker index)
-        if self.operating_mode == "pull" and all_agents:
-            self._worker_agents = [all_agents[i] for i in range(task_id, len(all_agents), self.worker_count)]
+        if self.operating_mode == "pull" and self._all_agents:
+            self._worker_agents = [
+                self._all_agents[i] for i in range(task_id, len(self._all_agents), self.worker_count)
+            ]
             logger.info("Worker %d assigned %d agent(s)", task_id, len(self._worker_agents))
 
-        # Start this worker's HTTP/HTTPS servers and activate agents
-        self.start_single()
-
-    def start_single(self) -> None:  # type: ignore[override]  # pylint: disable=attribute-defined-outside-init,invalid-overridden-method
-        """Override to support PULL mode agent activation after server startup."""
-        # Start HTTP/HTTPS servers (logic copied from parent to allow agent activation before blocking)
-        # pylint: disable=no-member
-        if self._Server__tornado_http_sockets:  # type: ignore
-            http_server = tornado.httpserver.HTTPServer(
-                self._Server__tornado_app, ssl_options=None, max_buffer_size=self.max_upload_size  # type: ignore
-            )
-            http_server.add_sockets(self._Server__tornado_http_sockets)  # type: ignore
-            self._Server__tornado_http_server = http_server  # type: ignore # pylint: disable=attribute-defined-outside-init
-
-        if self._Server__tornado_https_sockets and self.ssl_ctx:  # type: ignore
-            https_server = tornado.httpserver.HTTPServer(
-                self._Server__tornado_app, ssl_options=self.ssl_ctx, max_buffer_size=self.max_upload_size  # type: ignore
-            )
-            https_server.add_sockets(self._Server__tornado_https_sockets)  # type: ignore
-            self._Server__tornado_https_server = https_server  # type: ignore # pylint: disable=attribute-defined-outside-init
-        # pylint: enable=no-member
-
-        # Activate agents for PULL mode
-        if self.operating_mode == "pull" and self._worker_agents:
+    async def _on_server_started(self) -> None:
+        """Activate agents for PULL mode after servers are listening."""
+        # In start_single() mode (single-process), _pre_fork/_post_fork
+        # are never called so _worker_agents is None and _all_agents is
+        # empty.  Query agents directly in that case.
+        agents = self._worker_agents if self._worker_agents is not None else self._all_agents
+        if self.operating_mode == "pull" and not agents and self._worker_agents is None:
+            verifier_id = config.get("verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID)
+            agents = cloud_verifier_tornado.get_agents_by_verifier_id(verifier_id)
+        if self.operating_mode == "pull" and agents:
             verifier_host = config.get("verifier", "ip")
             verifier_port = config.get("verifier", "port")
-            logger.info("Activating %d agent(s) for PULL mode", len(self._worker_agents))
-            asyncio.ensure_future(
-                cloud_verifier_tornado.activate_agents(self._worker_agents, verifier_host, int(verifier_port))
+            logger.info("Activating %d agent(s) for PULL mode", len(agents))
+            self._activate_task = asyncio.ensure_future(
+                cloud_verifier_tornado.activate_agents(agents, verifier_host, int(verifier_port))
             )
 
-        # Wait forever (until event loop is stopped)
-        tornado.ioloop.IOLoop.current().start()
+    async def _graceful_shutdown(self) -> None:
+        """Cancel attestation-specific pending work and drain in-flight operations before stopping servers."""
+        # Cancel all pending attestation timeouts (retries, polls)
+        cloud_verifier_tornado.cancel_all_pending_events()
+        push_agent_monitor.cancel_all_timeouts()
+
+        # Wait for in-flight attestation operations to complete before
+        # tearing down webhook workers — in-flight process_agent() calls
+        # may still need to send revocation notifications.
+        drain_timeout = config.getfloat("verifier", "shutdown_drain_timeout", fallback=10.0)
+        drained = await cloud_verifier_tornado.wait_for_drain(drain_timeout)
+        if not drained:
+            logger.warning(
+                "Shutting down with %d attestation operation(s) still active after %.1fs",
+                cloud_verifier_tornado.get_active_operations(),
+                drain_timeout,
+            )
+
+        # Shutdown webhook workers after draining so revocation
+        # notifications from in-flight attestations are delivered.
+        if "webhook" in revocation_notifier.get_notifiers():
+            revocation_notifier.shutdown_webhook_workers()
+
+        await super()._graceful_shutdown()
 
     def _prepare_agents_on_startup(self) -> None:
         """Prepare agents in database for verifier startup.
