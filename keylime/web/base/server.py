@@ -1,5 +1,6 @@
 import asyncio
 import multiprocessing
+import signal
 from abc import ABC, abstractmethod
 from functools import wraps
 from ssl import CERT_OPTIONAL
@@ -7,8 +8,9 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import tornado
 
-from keylime import api_version, config, keylime_logging, web_util
+from keylime import api_version, config, keylime_logging, shutdown, web_util
 from keylime.models.base.db import db_manager
+from keylime.shared_data import deregister_shared_memory_child
 from keylime.web.base.action_handler import ActionHandler
 from keylime.web.base.route import Route
 
@@ -251,6 +253,8 @@ class Server(ABC):
         # Tornado servers are instantiated by calling start_single() or start_multi(), so set to None initially
         self.__tornado_http_server: Optional[tornado.httpserver.HTTPServer] = None
         self.__tornado_https_server: Optional[tornado.httpserver.HTTPServer] = None
+        self._server_stopped: Optional[asyncio.Event] = None
+        self._shutdown_task: Optional[asyncio.Task[None]] = None
 
     async def start_single(self) -> None:
         """Instantiates and starts the server (with one Tornado HTTPServer instance to handle HTTP connections
@@ -273,7 +277,82 @@ class Server(ABC):
             https_server.add_sockets(self.__tornado_https_sockets)
             self.__tornado_https_server = https_server
 
-        await asyncio.Event().wait()
+        # Create the stop event before installing signal handlers so that
+        # _graceful_shutdown() can always set it, even if a signal arrives
+        # before we reach the wait().
+        self._server_stopped = asyncio.Event()
+
+        # Install signal handlers for graceful shutdown
+        self._install_signal_handlers()
+
+        try:
+            # Hook for subclasses to perform work after servers are listening
+            # but before blocking (e.g. activate agents).
+            await self._on_server_started()
+            await self._server_stopped.wait()
+        finally:
+            # Remove signal handlers before returning to asyncio.run()'s
+            # teardown, which closes the wakeup fd and replaces remaining
+            # handlers with _sighandler_noop.  Any signal arriving after
+            # that would write to the closed fd, causing
+            # "OSError: Bad file descriptor".
+            self._remove_signal_handlers()
+
+    async def _on_server_started(self) -> None:
+        """Called after servers are listening but before blocking.
+
+        Override in subclasses to perform post-startup work such as
+        activating agents.  The default implementation does nothing.
+        """
+
+    def _install_signal_handlers(self) -> None:
+        """Install SIGINT/SIGTERM handlers for graceful shutdown."""
+        loop = asyncio.get_event_loop()
+
+        async def _run_graceful_shutdown() -> None:
+            try:
+                await self._graceful_shutdown()
+            except Exception:
+                logger.exception("Graceful shutdown failed")
+            finally:
+                if self._server_stopped is not None:
+                    self._server_stopped.set()
+
+        def _make_handler(signame: str) -> Callable[[], None]:
+            def _handler() -> None:
+                if shutdown.is_shutting_down():
+                    logger.warning("Shutdown already in progress, ignoring %s", signame)
+                    return
+                logger.info("Received %s, shutting down", signame)
+                shutdown.request_shutdown()
+                self._shutdown_task = asyncio.ensure_future(_run_graceful_shutdown())
+
+            return _handler
+
+        loop.add_signal_handler(signal.SIGINT, _make_handler("SIGINT"))
+        loop.add_signal_handler(signal.SIGTERM, _make_handler("SIGTERM"))
+
+    def _remove_signal_handlers(self) -> None:
+        """Remove SIGINT/SIGTERM handlers from the event loop."""
+        loop = asyncio.get_event_loop()
+        loop.remove_signal_handler(signal.SIGINT)
+        loop.remove_signal_handler(signal.SIGTERM)
+
+    async def _graceful_shutdown(self) -> None:
+        """Stop servers and close connections gracefully.
+
+        Subclasses can override this to cancel component-specific pending work
+        before calling super().
+        """
+        if self.__tornado_http_server:
+            self.__tornado_http_server.stop()
+        if self.__tornado_https_server:
+            self.__tornado_https_server.stop()
+
+        if self.__tornado_http_server:
+            await self.__tornado_http_server.close_all_connections()
+        if self.__tornado_https_server:
+            await self.__tornado_https_server.close_all_connections()
 
     def start_multi(self) -> None:
         ports = ""
@@ -295,11 +374,18 @@ class Server(ABC):
             self.worker_count,
         )
 
+        self._pre_fork()
+
         # with StatsCollector():
         # num = manager.Value('i', 0)
-        tornado.process.fork_processes(self.worker_count)
+        task_id = tornado.process.fork_processes(self.worker_count)
         # num.value = num.value + 1
         # print(num.value)
+
+        # Remove the Manager's server process from multiprocessing's child
+        # tracking so Python's atexit handler does not try to join() it in
+        # child workers (the Manager was spawned by the parent).
+        deregister_shared_memory_child()
 
         # Dispose inherited db_manager engine after fork to avoid sharing the
         # parent's connection pool, then re-create with a fresh pool for this
@@ -309,7 +395,26 @@ class Server(ABC):
         if service:
             db_manager.make_engine(service)
 
+        self._post_fork(task_id)
+
         asyncio.run(self.start_single())
+
+    def _pre_fork(self) -> None:
+        """Called before ``fork_processes()`` in ``start_multi()``.
+
+        Override in subclasses to perform work that must happen in the
+        parent process before forking (e.g. querying the database for
+        agent lists to distribute across workers).
+        """
+
+    def _post_fork(self, task_id: int) -> None:
+        """Called after ``fork_processes()`` in each child worker.
+
+        *task_id* is the worker index returned by Tornado's
+        ``fork_processes()``.  Override to perform per-worker
+        initialization (e.g. resetting inherited DB state, distributing
+        agents).
+        """
 
     def _setup(self) -> None:
         """Defines values to use in place of the defaults for the various server options. It is suggested that this is

@@ -256,51 +256,39 @@ class TestVerifierServerEngineDisposal(unittest.TestCase):
             "_prepare_agents_on_startup should document why engine disposal is needed",
         )
 
-    def test_start_multi_resets_verifier_config_after_fork(self):
-        """Verify start_multi() resets verifier config in each worker after forking."""
+    def test_post_fork_resets_verifier_config(self):
+        """Verify _post_fork() resets verifier config to clear inherited database state."""
         # Read the source code
         server_path = os.path.join(os.path.dirname(__file__), "..", "keylime", "web", "verifier_server.py")
 
         with open(server_path, encoding="utf-8") as f:
             source = f.read()
 
-        # Find the start_multi method
-        pattern = r"def start_multi\(self\).*?(?=\n    def |\Z)"
+        # Find the _post_fork method
+        pattern = r"def _post_fork\(self.*?\).*?(?=\n    def |\Z)"
         match = re.search(pattern, source, re.DOTALL)
 
-        self.assertIsNotNone(match, "start_multi method not found")
+        self.assertIsNotNone(match, "_post_fork method not found")
         assert match is not None
 
         method_body = match.group(0)
 
-        # Should fork processes
-        self.assertIn(
-            "fork_processes",
-            method_body,
-            "start_multi should call tornado.process.fork_processes",
-        )
-
-        # After fork, should reset verifier config (which handles engine disposal)
-        # Look for the pattern after fork_processes()
-        fork_index = method_body.find("fork_processes")
-        after_fork = method_body[fork_index:]
-
         self.assertIn(
             "reset_verifier_config()",
-            after_fork,
-            "start_multi must call reset_verifier_config() after forking to clear inherited database state",
+            method_body,
+            "_post_fork must call reset_verifier_config() to clear inherited database state",
         )
 
         self.assertIn(
             "cloud_verifier_tornado.reset_verifier_config()",
-            after_fork,
-            "start_multi should call cloud_verifier_tornado.reset_verifier_config() after forking",
+            method_body,
+            "_post_fork should call cloud_verifier_tornado.reset_verifier_config()",
         )
 
-    def test_verifier_config_reset_happens_before_worker_operations(self):
-        """Verify verifier config reset occurs after fork but before any worker operations."""
-        # Read the source code
-        server_path = os.path.join(os.path.dirname(__file__), "..", "keylime", "web", "verifier_server.py")
+    def test_base_server_calls_post_fork_before_start_single(self):
+        """Verify base Server.start_multi() calls _post_fork() after fork and before start_single()."""
+        # Read the base server source code
+        server_path = os.path.join(os.path.dirname(__file__), "..", "keylime", "web", "base", "server.py")
 
         with open(server_path, encoding="utf-8") as f:
             source = f.read()
@@ -314,53 +302,49 @@ class TestVerifierServerEngineDisposal(unittest.TestCase):
 
         # Extract the order of operations
         fork_index = method_body.find("fork_processes")
-        reset_index = method_body.find("reset_verifier_config()")
-        start_single_index = method_body.find("self.start_single()")
+        post_fork_index = method_body.find("_post_fork")
+        start_single_index = method_body.find("start_single()")
 
         # All should be present
         self.assertNotEqual(fork_index, -1, "fork_processes call not found")
-        self.assertNotEqual(reset_index, -1, "reset_verifier_config() call not found")
+        self.assertNotEqual(post_fork_index, -1, "_post_fork() call not found")
         self.assertNotEqual(start_single_index, -1, "start_single() call not found")
 
-        # Correct order: fork -> reset_verifier_config -> start_single
+        # Correct order: fork -> _post_fork -> start_single
         self.assertLess(
             fork_index,
-            reset_index,
-            "Verifier config reset must happen AFTER forking",
+            post_fork_index,
+            "_post_fork must be called AFTER forking",
         )
         self.assertLess(
-            reset_index,
+            post_fork_index,
             start_single_index,
-            "Verifier config reset must happen BEFORE starting worker server",
+            "_post_fork must be called BEFORE starting worker server",
         )
 
-    def test_reset_pattern_is_documented(self):
-        """Verify reset_verifier_config() pattern is documented."""
+    def test_post_fork_is_documented(self):
+        """Verify _post_fork() documents why reset_verifier_config() is needed."""
         # Read the source code
         server_path = os.path.join(os.path.dirname(__file__), "..", "keylime", "web", "verifier_server.py")
 
         with open(server_path, encoding="utf-8") as f:
             source = f.read()
 
-        # Find the start_multi method
-        pattern = r"def start_multi\(self\).*?(?=\n    def |\Z)"
+        # Find the _post_fork method
+        pattern = r"def _post_fork\(self.*?\).*?(?=\n    def |\Z)"
         match = re.search(pattern, source, re.DOTALL)
 
         assert match is not None
         method_body = match.group(0)
 
-        # Should document why reset is needed after fork
-        fork_index = method_body.find("fork_processes")
-        after_fork = method_body[fork_index:]
-
         # Should mention critical concepts: reset, inherited state, parent process
         critical_terms = ["reset", "inherit", "parent", "database"]
-        found_terms = [term for term in critical_terms if term.lower() in after_fork.lower()]
+        found_terms = [term for term in critical_terms if term.lower() in method_body.lower()]
 
         self.assertGreaterEqual(
             len(found_terms),
             3,
-            f"start_multi should document why reset_verifier_config() is needed after fork. "
+            f"_post_fork should document why reset_verifier_config() is needed after fork. "
             f"Expected mentions of reset/inherit/parent/database, found: {found_terms}",
         )
 
@@ -398,9 +382,9 @@ class TestEngineDisposalDocumentation(unittest.TestCase):
             f"Expected mentions of fork/connection/dispose/parent/child, found: {found_terms}",
         )
 
-    def test_start_multi_documents_disposal_reason(self):
-        """Verify start_multi() documents why global engine disposal is needed."""
-        server_path = os.path.join(os.path.dirname(__file__), "..", "keylime", "web", "verifier_server.py")
+    def test_base_start_multi_documents_disposal_reason(self):
+        """Verify base Server.start_multi() documents why engine disposal after fork is needed."""
+        server_path = os.path.join(os.path.dirname(__file__), "..", "keylime", "web", "base", "server.py")
 
         with open(server_path, encoding="utf-8") as f:
             source = f.read()
@@ -416,15 +400,15 @@ class TestEngineDisposalDocumentation(unittest.TestCase):
         fork_index = method_body.find("fork_processes")
         after_fork = method_body[fork_index:]
 
-        critical_terms = ["inherit", "corrupt", "dispose", "worker", "parent"]
+        critical_terms = ["inherit", "connection", "dispose", "worker", "parent"]
 
         found_terms = [term for term in critical_terms if term.lower() in after_fork.lower()]
 
         self.assertGreaterEqual(
             len(found_terms),
             2,
-            f"start_multi should document why global engine disposal after fork is critical. "
-            f"Expected mentions of inherit/corrupt/dispose/worker/parent, found: {found_terms}",
+            f"start_multi should document why engine disposal after fork is critical. "
+            f"Expected mentions of inherit/connection/dispose/worker/parent, found: {found_terms}",
         )
 
 
