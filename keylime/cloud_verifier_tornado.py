@@ -29,6 +29,7 @@ from keylime import (
     keylime_logging,
     push_agent_monitor,
     revocation_notifier,
+    shutdown,
     signing,
     tornado_requests,
     web_util,
@@ -170,6 +171,90 @@ exclude_db: Dict[str, Any] = {
     "learned_ima_keyrings": {},
     "ssl_context": None,
 }
+
+# Registry of agent_id -> IOLoop timeout handle for all scheduled pending
+# events (quote polls, retries).  Used to cancel them all on shutdown.
+_pending_events: Dict[str, object] = {}
+
+# Counter of currently executing process_agent() coroutines.  The shutdown
+# handler waits for this to reach zero before stopping the IOLoop so that
+# in-flight DB writes can finish.
+_active_operations = 0
+# Event signalled when _active_operations drops to zero during shutdown.
+_operations_drained = asyncio.Event()
+_operations_drained.set()  # initially no operations are active
+
+
+def _enter_operation() -> None:
+    """Increment the active operations counter."""
+    global _active_operations
+    _active_operations += 1
+    _operations_drained.clear()
+
+
+def _exit_operation() -> None:
+    """Decrement the active operations counter; signal if drained."""
+    global _active_operations
+    _active_operations -= 1
+    if _active_operations <= 0:
+        _operations_drained.set()
+
+
+def _register_pending_event(agent: Dict[str, Any], handle: object) -> None:
+    """Track a pending IOLoop timeout in both the agent dict and the global registry.
+
+    The agent dict field ``pending_event`` is the per-agent reference used during
+    normal operation (e.g. cancelling on state change).  The module-level
+    ``_pending_events`` dict mirrors it so that *all* handles can be
+    bulk-cancelled on shutdown without iterating over every agent.
+    """
+    agent["pending_event"] = handle
+    _pending_events[agent["agent_id"]] = handle
+
+
+def _cancel_pending_event(agent: Dict[str, Any]) -> None:
+    """Cancel and unregister the pending IOLoop timeout for *agent*, if any."""
+    handle = agent.get("pending_event")
+    if handle is None:
+        return
+    agent["pending_event"] = None
+    _pending_events.pop(agent["agent_id"], None)
+    try:
+        tornado.ioloop.IOLoop.current().remove_timeout(handle)
+    except Exception as e:
+        logger.debug("Could not remove pending event for agent %s: %s", agent["agent_id"], e)
+
+
+def get_active_operations() -> int:
+    """Return the number of currently executing process_agent() coroutines."""
+    return _active_operations
+
+
+async def wait_for_drain(timeout: float) -> bool:
+    """Wait up to *timeout* seconds for all active operations to finish.
+
+    Returns True if all operations drained, False if the timeout expired.
+    """
+    try:
+        await asyncio.wait_for(_operations_drained.wait(), timeout=timeout)
+        return True
+    except asyncio.TimeoutError:
+        return False
+
+
+def cancel_all_pending_events() -> None:
+    """Cancel every tracked pending IOLoop timeout.  Called on shutdown."""
+    if not _pending_events:
+        return
+    io_loop = tornado.ioloop.IOLoop.current()
+    for agent_id, handle in _pending_events.items():
+        try:
+            io_loop.remove_timeout(handle)
+        except Exception as e:
+            logger.debug("Could not remove pending event for agent %s: %s", agent_id, e)
+    count = len(_pending_events)
+    _pending_events.clear()
+    logger.info("Cancelled %d pending attestation event(s) for shutdown", count)
 
 
 def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, Any]:
@@ -2035,6 +2120,17 @@ async def invoke_get_quote(
     need_pubkey: bool,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> None:
+    # Clear tracking only — the timeout already fired (this *is* the callback),
+    # so there is no handle to cancel via remove_timeout().  Done before the
+    # shutdown check so tracking state is cleaned up even on early return.
+    if agent.get("pending_event") is not None:
+        agent["pending_event"] = None
+        _pending_events.pop(agent["agent_id"], None)
+
+    if shutdown.is_shutting_down():
+        logger.debug("Skipping get_quote for agent %s — shutting down", agent["agent_id"])
+        return
+
     failure = Failure(Component.INTERNAL, ["verifier"])
 
     params = cloud_verifier_common.prepare_get_quote(agent)
@@ -2138,10 +2234,17 @@ async def invoke_get_quote(
 
 
 async def invoke_provide_v(agent: Dict[str, Any], timeout: float = DEFAULT_TIMEOUT) -> None:
-    failure = Failure(Component.INTERNAL, ["verifier"])
-
+    # Clear tracking only — the timeout already fired (this *is* the callback),
+    # so there is no handle to cancel via remove_timeout().  Done before the
+    # shutdown check so tracking state is cleaned up even on early return.
     if agent.get("pending_event") is not None:
         agent["pending_event"] = None
+        _pending_events.pop(agent["agent_id"], None)
+
+    if shutdown.is_shutting_down():
+        logger.debug("Skipping provide_v for agent %s — shutting down", agent["agent_id"])
+        return
+    failure = Failure(Component.INTERNAL, ["verifier"])
 
     v_json_message = cloud_verifier_common.prepare_v(agent)
 
@@ -2298,6 +2401,14 @@ async def notify_error(
 async def process_agent(
     agent: Dict[str, Any], new_operational_state: int, failure: Failure = Failure(Component.INTERNAL, ["verifier"])
 ) -> None:
+    # During shutdown, allow terminal-state transitions (FAILED, INVALID_QUOTE)
+    # through so that final DB writes and revocation notifications complete.
+    # Only skip non-terminal transitions that would schedule new polls/retries.
+    if shutdown.is_shutting_down() and new_operational_state not in (states.FAILED, states.INVALID_QUOTE):
+        logger.debug("Skipping process_agent for agent %s — shutting down", agent["agent_id"])
+        return
+
+    _enter_operation()
     try:  # pylint: disable=R1702
         main_agent_operational_state = agent["operational_state"]
         stored_agent = None
@@ -2328,15 +2439,13 @@ async def process_agent(
         # if the stored agent could not be recovered from the database, stop polling
         if not stored_agent:
             logger.warning("Unable to retrieve agent %s from database. Stopping polling", agent["agent_id"])
-            if agent["pending_event"] is not None:
-                tornado.ioloop.IOLoop.current().remove_timeout(agent["pending_event"])
+            _cancel_pending_event(agent)
             return
 
         # if the user did terminated this agent
         if stored_agent.operational_state == states.TERMINATED:  # pyright: ignore
             logger.warning("Agent %s terminated by user.", agent["agent_id"])
-            if agent["pending_event"] is not None:
-                tornado.ioloop.IOLoop.current().remove_timeout(agent["pending_event"])
+            _cancel_pending_event(agent)
 
             # Second database operation - delete agent
             with session_context() as session:
@@ -2346,8 +2455,7 @@ async def process_agent(
         # if the user tells us to stop polling because the tenant quote check failed
         if stored_agent.operational_state == states.TENANT_FAILED:  # pyright: ignore
             logger.warning("Agent %s has failed tenant quote. Stopping polling", agent["agent_id"])
-            if agent["pending_event"] is not None:
-                tornado.ioloop.IOLoop.current().remove_timeout(agent["pending_event"])
+            _cancel_pending_event(agent)
             return
 
         # Use the request timeout stored in the agent dict (read from the
@@ -2374,8 +2482,7 @@ async def process_agent(
 
                 # When the failure is irrecoverable we stop polling the agent
                 if not failure.recoverable or failure.highest_severity == MAX_SEVERITY_LABEL:
-                    if agent["pending_event"] is not None:
-                        tornado.ioloop.IOLoop.current().remove_timeout(agent["pending_event"])
+                    _cancel_pending_event(agent)
 
                     # Third database operation - update agent with failure state
                     with session_context() as session:
@@ -2451,6 +2558,10 @@ async def process_agent(
                     "Setting up callback to check agent ID %s again in %f seconds", agent["agent_id"], interval
                 )
 
+                if shutdown.is_shutting_down():
+                    logger.debug("Not scheduling next poll for agent %s — shutting down", agent["agent_id"])
+                    return
+
                 pending = tornado.ioloop.IOLoop.current().call_later(
                     # type: ignore  # due to python <3.9
                     interval,
@@ -2461,7 +2572,7 @@ async def process_agent(
                     False,
                     timeout=timeout,
                 )
-                agent["pending_event"] = pending
+                _register_pending_event(agent, pending)
             return
 
         maxr = config.getint("verifier", "max_retries")
@@ -2493,7 +2604,11 @@ async def process_agent(
                     maxr,
                     next_retry,
                 )
-                tornado.ioloop.IOLoop.current().call_later(
+                if shutdown.is_shutting_down():
+                    logger.debug("Not scheduling retry for agent %s — shutting down", agent["agent_id"])
+                    return
+
+                pending = tornado.ioloop.IOLoop.current().call_later(
                     # type: ignore  # due to python <3.9
                     next_retry,
                     invoke_get_quote,
@@ -2503,6 +2618,7 @@ async def process_agent(
                     True,
                     timeout=timeout,
                 )
+                _register_pending_event(agent, pending)
             return
 
         if main_agent_operational_state == states.PROVIDE_V and new_operational_state == states.PROVIDE_V_RETRY:
@@ -2527,9 +2643,17 @@ async def process_agent(
                     maxr,
                     next_retry,
                 )
-                tornado.ioloop.IOLoop.current().call_later(
-                    next_retry, invoke_provide_v, agent  # type: ignore  # due to python <3.9
+                if shutdown.is_shutting_down():
+                    logger.debug("Not scheduling retry for agent %s — shutting down", agent["agent_id"])
+                    return
+
+                pending = tornado.ioloop.IOLoop.current().call_later(
+                    next_retry,  # type: ignore  # due to python <3.9
+                    invoke_provide_v,
+                    agent,
+                    timeout,
                 )
+                _register_pending_event(agent, pending)
             return
         raise Exception("nothing should ever fall out of this!")
 
@@ -2539,6 +2663,8 @@ async def process_agent(
             "exception", {"context": "Agent caused the verifier to throw an exception", "data": str(e)}, False
         )
         await process_agent(agent, states.FAILED, failure)
+    finally:
+        _exit_operation()
 
 
 async def activate_agents(agents: List[VerfierMain], verifier_ip: str, verifier_port: int) -> None:
@@ -2645,31 +2771,62 @@ def main() -> None:
         server = tornado.httpserver.HTTPServer(app, ssl_options=ssl_ctx, max_buffer_size=max_upload_size)
         server.add_sockets(sockets)
 
-        def server_sig_handler(*_: Any) -> None:
-            logger.info("Shutting down server %s..", task_id)
+        # Hold strong references to async tasks to prevent GC from collecting them mid-run
+        _background_tasks: List[asyncio.Task[None]] = []
+
+        def server_sig_handler(signame: str = "signal") -> None:
+            if shutdown.is_shutting_down():
+                logger.warning("Shutdown already in progress, ignoring %s (server %s)", signame, task_id)
+                return
+            logger.info("Received %s, shutting down server %s..", signame, task_id)
+
+            # Signal all attestation loops to stop scheduling new work
+            shutdown.request_shutdown()
+
             # Stop server to not accept new incoming connections
             server.stop()
 
-            # Gracefully shutdown webhook workers to prevent connection errors
-            if "webhook" in revocation_notifier.get_notifiers():
-                revocation_notifier.shutdown_webhook_workers()
+            # Cancel all pending attestation timeouts (retries, polls)
+            cancel_all_pending_events()
+            push_agent_monitor.cancel_all_timeouts()
 
-            # Wait for all connections to be closed and then stop ioloop
+            # Wait for in-flight operations, then close connections and stop
             async def stop() -> None:
-                await server.close_all_connections()
-                tornado.ioloop.IOLoop.current().stop()
+                try:
+                    # Give in-flight process_agent() coroutines time to finish
+                    # DB writes and revocation notifications before tearing
+                    # down webhook workers.
+                    drain_timeout = config.getfloat("verifier", "shutdown_drain_timeout", fallback=10.0)
+                    drained = await wait_for_drain(drain_timeout)
+                    if not drained:
+                        logger.warning(
+                            "Shutting down with %d operation(s) still active after %.1fs",
+                            get_active_operations(),
+                            drain_timeout,
+                        )
 
-            asyncio.ensure_future(stop())
+                    # Shutdown webhook workers after draining so revocation
+                    # notifications from in-flight attestations are delivered.
+                    if "webhook" in revocation_notifier.get_notifiers():
+                        revocation_notifier.shutdown_webhook_workers()
+
+                    await server.close_all_connections()
+                except Exception:
+                    logger.exception("Error during shutdown cleanup")
+                finally:
+                    tornado.ioloop.IOLoop.current().stop()
+
+            _background_tasks.append(asyncio.ensure_future(stop()))
 
         # Attach signal handler to ioloop.
         # Do not use signal.signal(..) for that because it does not work!
         loop = asyncio.get_event_loop()
-        loop.add_signal_handler(signal.SIGINT, server_sig_handler)
-        loop.add_signal_handler(signal.SIGTERM, server_sig_handler)
+        loop.add_signal_handler(signal.SIGINT, lambda: server_sig_handler("SIGINT"))
+        loop.add_signal_handler(signal.SIGTERM, lambda: server_sig_handler("SIGTERM"))
 
         server.start()
         # Reactivate agents
-        asyncio.ensure_future(activate_agents(agents, verifier_host, int(verifier_port)))
+        _background_tasks.append(asyncio.ensure_future(activate_agents(agents, verifier_host, int(verifier_port))))
         tornado.ioloop.IOLoop.current().start()
         logger.debug("Server %s stopped.", task_id)
         sys.exit(0)

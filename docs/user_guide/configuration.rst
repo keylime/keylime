@@ -425,6 +425,10 @@ Common Options (Both Models)
       - (empty)
       - 2.5
       - ``KEYLIME_VERIFIER_CERT_SUBJECT_ALTERNATIVE_NAMES``
+    * - ``shutdown_drain_timeout``
+      - ``10``
+      - 2.6
+      - ``KEYLIME_VERIFIER_SHUTDOWN_DRAIN_TIMEOUT``
 
 Pull Model Specific Options
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1097,6 +1101,8 @@ Configuration Version History
       - Added ``api_versions`` for agent, ``malformed_cert_action`` for registrar
     * - 2.5
       - **Push model support**: Added ``mode``, ``challenge_lifetime``, ``verification_timeout``, session rate limiting and lifetime options for verifier; ``verifier_url``, ``agent_data_path``, TLS validation, exponential backoff options for agent. Added ``authorization_provider`` and ``cert_subject_alternative_names`` for verifier and registrar
+    * - 2.6
+      - Added ``shutdown_drain_timeout`` for verifier graceful shutdown
 
 For detailed information on all configuration options for each component, refer
 to the configuration files in ``/etc/keylime/`` and their inline documentation.

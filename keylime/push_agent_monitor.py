@@ -171,6 +171,29 @@ def cancel_agent_timeout(agent_id: str) -> None:
             logger.error("Error cancelling timeout for agent %s: %s", agent_id, e)
 
 
+def cancel_all_timeouts() -> None:
+    """Cancel all scheduled PUSH mode agent timeouts.
+
+    Called during shutdown to prevent timeout callbacks from firing
+    against a stopping event loop.
+    """
+    with _agent_timeout_handles_lock:
+        handles = dict(_agent_timeout_handles)
+        _agent_timeout_handles.clear()
+
+    if not handles:
+        return
+
+    io_loop = tornado.ioloop.IOLoop.current()
+    for agent_id, handle in handles.items():
+        try:
+            io_loop.remove_timeout(handle)
+        except Exception as e:
+            logger.debug("Could not remove timeout for agent %s during shutdown: %s", agent_id, e)
+
+    logger.info("Cancelled %d PUSH mode agent timeout(s) for shutdown", len(handles))
+
+
 def check_push_agent_timeouts() -> None:
     """Check all PUSH mode agents for timeouts and mark failed ones.
 
