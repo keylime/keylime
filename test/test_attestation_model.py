@@ -964,5 +964,31 @@ class TestAttestationModel(unittest.TestCase):
         self.assertFalse(attestation.ready_for_next_attestation)
 
 
+class TestVerifierAgentLatestAttestation(unittest.TestCase):
+    """Test that VerifierAgent.latest_attestation is not cached (memory leak fix)"""
+
+    def test_latest_attestation_not_cached(self):
+        """Verify the property has no functools.cache wrapper"""
+        prop_fget = VerifierAgent.latest_attestation.fget
+        # @cache adds cache_info and __wrapped__ attributes
+        self.assertFalse(hasattr(prop_fget, "cache_info"))
+        self.assertFalse(hasattr(prop_fget, "__wrapped__"))
+
+    def test_latest_attestation_calls_db_each_time(self):
+        """Verify each access queries the DB (no stale cache)"""
+        with patch("keylime.models.verifier.Attestation.get_latest") as mock_get:
+            mock_get.return_value = None
+
+            # Call the underlying function directly to avoid needing db_manager setup
+            prop_fget = VerifierAgent.latest_attestation.fget
+            assert prop_fget is not None
+            fake_agent = MagicMock()
+            fake_agent.agent_id = "test-agent"
+
+            prop_fget(fake_agent)
+            prop_fget(fake_agent)
+            self.assertEqual(mock_get.call_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
