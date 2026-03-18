@@ -43,7 +43,7 @@ class TestAttestationControllerParameterHandling(unittest.TestCase):
         self.controller._api_request_body = Mock()  # pylint: disable=protected-access
 
         self.agent_id = "test-agent-123"
-        self.attestation_index = "1"  # String, as it comes from URL route
+        self.attestation_index = 1  # Integer, as it comes from the ORM Integer column
 
         # Mock attestation evidence data
         self.attestation_data = {
@@ -270,7 +270,7 @@ class TestAttestationControllerErrorMessages(unittest.TestCase):
         self.controller._api_request_body = Mock()  # pylint: disable=protected-access
 
         self.agent_id = "test-agent-123"
-        self.attestation_index = "1"  # String, as it comes from URL route
+        self.attestation_index = 1  # Integer, as it comes from the ORM Integer column
 
     @patch("keylime.web.verifier.attestation_controller.APIError")
     @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
@@ -772,7 +772,7 @@ class TestAttestationControllerGetMethods(unittest.TestCase):
         # Setup mock agent with latest attestation
         mock_agent = Mock(spec=VerifierAgent)
         mock_attestation = Mock()
-        mock_attestation.index = "5"
+        mock_attestation.index = 5
         mock_attestation.render_state = Mock(return_value={})
         mock_agent.latest_attestation = mock_attestation
         mock_agent_class.get.return_value = mock_agent
@@ -792,7 +792,7 @@ class TestAttestationControllerGetMethods(unittest.TestCase):
                     self.controller.show_latest(self.agent_id)
 
                     # Verify it called show() with the latest attestation index
-                    mock_attestation_class.get.assert_called_once_with(agent_id=self.agent_id, index="5")
+                    mock_attestation_class.get.assert_called_once_with(agent_id=self.agent_id, index=5)
 
 
 if __name__ == "__main__":
