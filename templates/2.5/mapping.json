@@ -13,8 +13,7 @@
                 "ima_ml_count_file": "/tmp/ima_ml_count",
                 "uefi_logs_evidence_version": "1.0",
                 "tls_accept_invalid_certs": "false",
-                "tls_accept_invalid_hostnames": "false",
-                "enable_authentication": "true"
+                "tls_accept_invalid_hostnames": "false"
             }
         },
         "verifier": {
