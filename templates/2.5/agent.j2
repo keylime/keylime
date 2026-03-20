@@ -274,10 +274,3 @@ ima_ml_path = "{{ agent.ima_ml_path }}"
 # If set as a relative path, it will be considered from the root path "/".
 # If set as an absolute path, it will use it without changes
 measuredboot_ml_path = "{{ agent.measuredboot_ml_path }}"
-
-# Enable challenge-response authentication for push model attestation.
-# When enabled, the agent will authenticate with the verifier using TPM-based
-# proof of possession before sending attestation evidence.
-# This option is specific to the push attestation model.
-# The default is False (disabled).
-enable_authentication = {{ agent.enable_authentication }}
