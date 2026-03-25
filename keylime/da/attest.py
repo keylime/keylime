@@ -128,8 +128,10 @@ def main() -> None:
                 if "clock" in agent["tpm_clockinfo"]:
                     p_tpm_ts = agent["tpm_clockinfo"]["clock"]
 
+            mb_policy_fallback = config.get("verifier", "measured_boot_policy_name", fallback="accept-all")
             failure = cloud_verifier_common.process_quote_response(
-                agent, mb_policy, runtime_policy, json_response["results"], agentAttestState
+                agent, mb_policy, runtime_policy, json_response["results"], agentAttestState,
+                mb_policy_name=attestation_record.get("mb_policy_name", mb_policy_fallback),
             )
 
             if "tpm_clockinfo" in agent:
