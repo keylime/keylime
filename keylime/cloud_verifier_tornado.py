@@ -695,36 +695,115 @@ class AgentsHandler(BaseHandler):
                 except SQLAlchemyError as e:
                     logger.error("SQLAlchemy Error deleting agent in push mode: %s", e)
                     web_util.echo_json_response(self.req_handler, 500, "Internal Server Error")
-            else:
-                # Pull mode: Use operational_state to determine deletion behavior
-                op_state = agent.operational_state
-                if op_state in (
-                    states.SAVED,
-                    states.FAILED,
-                    states.TERMINATED,
-                    states.TENANT_FAILED,
-                    states.INVALID_QUOTE,
-                ):
-                    try:
-                        verifier_db_delete_agent(session, agent_id)
-                        web_util.echo_json_response(self.req_handler, 200, "Success")
-                        logger.info("DELETE (pull mode) returning 200 response for agent id: %s", agent_id)
-                    except SQLAlchemyError as e:
-                        logger.error("SQLAlchemy Error deleting agent in pull mode: %s", e)
-                        web_util.echo_json_response(self.req_handler, 500, "Internal Server Error")
+                return
+
+            # Pull mode: Use operational_state to determine deletion behavior.
+            #
+            # Terminal states with no in-flight work can be deleted
+            # immediately (200).  Note that TERMINATED is intentionally
+            # excluded: it means a previous DELETE was accepted but the
+            # attestation cycle has not yet finished.  Deleting immediately
+            # while in-flight work exists causes store_attestation_state()
+            # to fail when it tries to persist results for the now-gone
+            # agent.
+            op_state = agent.operational_state
+            if op_state in (
+                states.SAVED,
+                states.FAILED,
+                states.TENANT_FAILED,
+                states.INVALID_QUOTE,
+            ):
+                # Agent is in a terminal state with no in-flight work — delete immediately.
+                # Cancel any local pending poll timer first (same-worker
+                # defensive cleanup).  This matters when a cross-worker
+                # PUT /stop sets TENANT_FAILED in the DB but cannot cancel
+                # the timer in this worker's _pending_events.
+                pending_handle = _pending_events.pop(agent_id, None)
+                if pending_handle is not None:
+                    tornado.ioloop.IOLoop.current().remove_timeout(pending_handle)
+                try:
+                    verifier_db_delete_agent(session, agent_id)
+                    web_util.echo_json_response(self.req_handler, 200, "Success")
+                    logger.info("DELETE (pull mode) returning 200 response for agent id: %s", agent_id)
+                except SQLAlchemyError as e:
+                    logger.error("SQLAlchemy Error deleting agent in pull mode: %s", e)
+                    web_util.echo_json_response(self.req_handler, 500, "Internal Server Error")
+                return
+
+            # Agent is in an active state or already TERMINATED from a
+            # previous DELETE.
+            #
+            # Multi-worker note: _pending_events is process-local.  Each
+            # agent's attestation cycle runs in the worker process it was
+            # assigned to at startup (round-robin), but this DELETE
+            # request may arrive at any worker.
+            #
+            # - Same worker: pending_handle is accurate — if found, the
+            #   agent was idle (timer pending) and we can delete
+            #   immediately since no coroutine is in-flight.
+            # - Different worker: pending_handle is always None, so we
+            #   fall through to the 202/TERMINATED path.  The managing
+            #   worker's timer fires normally, process_agent() detects
+            #   TERMINATED, and completes the deletion.
+            #
+            # Important: when the agent is already TERMINATED, do NOT
+            # cancel the pending poll timer — it is the only mechanism
+            # that will trigger process_agent() to detect TERMINATED and
+            # complete the deletion.
+            if op_state == states.TERMINATED:  # pyright: ignore
+                # Agent is already TERMINATED from a previous DELETE.
+                # Leave the pending poll timer alone so process_agent()
+                # can detect TERMINATED and complete the deletion.
+                web_util.echo_json_response(self.req_handler, 202, "Accepted")
+                logger.info(
+                    "DELETE (pull mode) returning 202 response for agent id: %s "
+                    "(already TERMINATED, waiting for deletion to complete)",
+                    agent_id,
+                )
+                return
+
+            # First DELETE for this agent.  Try to cancel the pending
+            # poll timer (same-worker optimization).
+            #
+            # Pop the handle first but do NOT cancel the timer yet —
+            # if the DB operation fails we restore the handle so the
+            # attestation cycle can continue.
+            pending_handle = _pending_events.pop(agent_id, None)
+            try:
+                if pending_handle is not None:
+                    # Same-worker optimization: the agent was idle
+                    # (waiting for the next poll timer) — no in-flight
+                    # coroutine will come along to detect TERMINATED and
+                    # complete the deletion, so delete immediately.
+                    verifier_db_delete_agent(session, agent_id)
+                    # DB succeeded — now safe to cancel the timer.
+                    tornado.ioloop.IOLoop.current().remove_timeout(pending_handle)
+                    web_util.echo_json_response(self.req_handler, 200, "Success")
+                    logger.info("DELETE (pull mode) returning 200 response for agent id: %s", agent_id)
                 else:
-                    try:
-                        update_agent = session.get(VerfierMain, agent_id)  # type: ignore[attr-defined]
-                        if update_agent is None:
-                            web_util.echo_json_response(self.req_handler, 404, "agent id not found")
-                            return
-                        update_agent.operational_state = states.TERMINATED  # pyright: ignore
-                        session.add(update_agent)
-                        # session.commit() is automatically called by context manager
-                        web_util.echo_json_response(self.req_handler, 202, "Accepted")
-                        logger.info("DELETE (pull mode) returning 202 response for agent id: %s", agent_id)
-                    except SQLAlchemyError as e:
-                        logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
+                    # Either an invoke_get_quote() / invoke_provide_v()
+                    # coroutine is in-flight (no pending_handle — the
+                    # timer already fired), or this DELETE arrived at a
+                    # different worker process.  Mark as TERMINATED and
+                    # let process_agent() perform the actual deletion
+                    # when the in-flight work finishes (or the timer
+                    # fires in the managing worker).
+                    update_agent = session.get(VerfierMain, agent_id)  # type: ignore[attr-defined]
+                    if update_agent is None:
+                        web_util.echo_json_response(self.req_handler, 404, "agent id not found")
+                        return
+                    update_agent.operational_state = states.TERMINATED  # pyright: ignore
+                    session.add(update_agent)
+                    web_util.echo_json_response(self.req_handler, 202, "Accepted")
+                    logger.info("DELETE (pull mode) returning 202 response for agent id: %s", agent_id)
+            except SQLAlchemyError as e:
+                logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
+                if pending_handle is not None:
+                    # Restore the timer so the attestation cycle can
+                    # continue — the DB operation failed so the agent
+                    # is still there.
+                    _pending_events[agent_id] = pending_handle
+                web_util.echo_json_response(self.req_handler, 500, "Internal server error")
 
     def post(self) -> None:
         """This method handles the POST requests to add agents to the Cloud Verifier.
