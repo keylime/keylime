@@ -371,7 +371,12 @@ def store_attestation_state(agentAttestState: AgentAttestState) -> None:
         try:
             with session_context() as session:
                 update_agent = session.get(VerfierMain, agentAttestState.get_agent_id())  # type: ignore[attr-defined]
-                assert update_agent
+                if update_agent is None:
+                    logger.warning(
+                        "Agent %s no longer in database, skipping attestation state storage",
+                        agent_id,
+                    )
+                    return
                 update_agent.boottime = agentAttestState.get_boottime()  # pyright: ignore
                 update_agent.next_ima_ml_entry = agentAttestState.get_next_ima_ml_entry()  # pyright: ignore
                 ima_pcrs_dict = agentAttestState.get_ima_pcrs()
@@ -710,7 +715,9 @@ class AgentsHandler(BaseHandler):
                 else:
                     try:
                         update_agent = session.get(VerfierMain, agent_id)  # type: ignore[attr-defined]
-                        assert update_agent
+                        if update_agent is None:
+                            web_util.echo_json_response(self.req_handler, 404, "agent id not found")
+                            return
                         update_agent.operational_state = states.TERMINATED  # pyright: ignore
                         session.add(update_agent)
                         # session.commit() is automatically called by context manager
