@@ -6,6 +6,8 @@ using multiprocessing.Manager().
 
 import atexit
 import multiprocessing as mp
+import multiprocessing.process
+import os
 import threading
 import time
 from typing import Any, Dict, List, Optional
@@ -137,8 +139,6 @@ class SharedDataManager:
         # Register handler to reinitialize manager connection after fork
         # This is needed because Manager uses network connections that don't survive fork
         try:
-            import os  # pylint: disable=import-outside-toplevel
-
             self._parent_pid = os.getpid()
             logger.debug("SharedDataManager initialized in process %d", self._parent_pid)
         except Exception as e:
@@ -283,15 +283,48 @@ class SharedDataManager:
         """Cleanup shared resources.
 
         This is automatically called on exit but can be called manually
-        for explicit cleanup.
+        for explicit cleanup.  Only the parent process (the one that
+        created the Manager) is allowed to shut it down; child workers
+        forked from the parent skip the call to avoid the
+        ``AssertionError: can only join a child process`` raised by
+        ``multiprocessing`` when a non-parent tries to join.
         """
-        if hasattr(self, "_manager"):
-            logger.debug("Shutting down SharedDataManager")
-            try:
-                self._manager.shutdown()
-                logger.info("SharedDataManager shutdown complete")
-            except Exception as e:
-                logger.error("Error during SharedDataManager shutdown: %s", e)
+        if not hasattr(self, "_manager"):
+            return
+
+        if hasattr(self, "_parent_pid") and os.getpid() != self._parent_pid:
+            logger.debug(
+                "Skipping SharedDataManager shutdown in child process %d (parent is %d)",
+                os.getpid(),
+                self._parent_pid,
+            )
+            return
+
+        logger.debug("Shutting down SharedDataManager")
+        try:
+            self._manager.shutdown()
+            logger.info("SharedDataManager shutdown complete")
+        except Exception:
+            logger.exception("Error during SharedDataManager shutdown")
+
+    def deregister_child(self) -> None:
+        """Remove the Manager's server process from multiprocessing's child tracking.
+
+        Must be called in each forked worker **after** ``fork()``.  Without
+        this, Python's ``multiprocessing.util._exit_function`` atexit handler
+        tries to ``join()`` the Manager server process in every child worker,
+        causing ``AssertionError: can only join a child process`` because the
+        Manager was spawned by the parent, not the child.
+        """
+        # The Manager's server process is stored in _manager._process
+        server_process = getattr(self._manager, "_process", None)
+        if server_process is not None:
+            multiprocessing.process._children.discard(server_process)  # type: ignore[attr-defined]  # pylint: disable=protected-access
+            logger.debug(
+                "Deregistered Manager server process (pid %s) from child tracking in worker %d",
+                getattr(server_process, "pid", "?"),
+                os.getpid(),
+            )
 
     def __repr__(self) -> str:
         stats = self.get_stats()
@@ -362,6 +395,18 @@ def get_shared_memory() -> SharedDataManager:
                 logger.info("Global shared memory manager initialized")
 
     return _global_shared_manager
+
+
+def deregister_shared_memory_child() -> None:
+    """Deregister the Manager's server process in a forked child worker.
+
+    Call this after ``tornado.process.fork_processes()`` (or any ``fork()``)
+    to prevent Python's atexit handler from trying to ``join()`` the Manager
+    server process in the child, which would raise
+    ``AssertionError: can only join a child process``.
+    """
+    if _global_shared_manager is not None:
+        _global_shared_manager.deregister_child()
 
 
 def cleanup_global_shared_memory() -> None:
