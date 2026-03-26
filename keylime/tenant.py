@@ -1074,22 +1074,17 @@ class Tenant:
             #            keylime_logging.log_http_response(logger, logging.ERROR, response_json)
             raise UserError(f"{self.verifier_fid_str} timed out while deleting {self.agent_fid_str}.")
 
-        if response_json["code"] == 202:
+        if response_json["code"] == 200:
+            logger.info("Agent %s deleted from the CV", self.agent_uuid)
+        elif response_json["code"] == 202:
             numtries = 0
             deleted = False
 
             while not deleted:
-                reponse_json = self.do_cvstatus(not_found_fail=False)
-                if reponse_json["code"] != 404:
+                response_json = self.do_cvstatus(not_found_fail=False)
+                if response_json["code"] != 404:
                     numtries += 1
                     if numtries >= self.maxr:
-                        # EVALUATE DELETION
-                        #                        logger.error(
-                        #                            "%s was not deleted from %s after %d tries",
-                        #                            self.agent_fid_str,
-                        #                            self.verifier_fid_str,
-                        #                            numtries,
-                        #                        )
                         raise UserError(
                             f"{self.agent_fid_str} was not deleted from {self.verifier_fid_str} after {numtries} tries"
                         )
@@ -1114,8 +1109,17 @@ class Tenant:
                     self.verifier_fid_str,
                     numtries,
                 )
-                # Marked for deletion (need to modify the code on CI tests)
                 logger.info("Agent %s deleted from the CV", self.agent_uuid)
+        elif response_json["code"] == 404:
+            # The agent was already deleted (e.g. by another caller
+            # between the do_cvstatus check and the DELETE request).
+            # The desired end state is reached — treat as success.
+            logger.info("Agent %s is already absent from the CV", self.agent_uuid)
+        else:
+            raise UserError(
+                f"Unexpected response code {response_json['code']} from "
+                f"{self.verifier_fid_str} while deleting {self.agent_fid_str}"
+            )
 
     def do_regstatus(self) -> Dict[str, Any]:
         if not self.registrar_ip or not self.registrar_port:
