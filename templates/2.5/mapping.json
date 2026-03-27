@@ -4,13 +4,23 @@
     "components": {
         "agent": {
             "add": {
+                "keylime_dir": "/var/lib/keylime",
+                "payload_key": "default",
+                "payload_key_password": "",
+                "revocation_actions_dir": "/usr/libexec/keylime",
+                "allow_payload_revocation_actions": "true",
                 "agent_data_path": "/var/lib/keylime/agent_data.json",
                 "verifier_url": "https://localhost:8881",
+                "verifier_tls_ca_cert": "default",
+                "registrar_tls_port": "8891",
+                "registrar_tls_enabled": "false",
+                "registrar_tls_ca_cert": "default",
+                "registrar_api_versions": "default",
                 "exponential_backoff_max_retries": "5",
                 "exponential_backoff_initial_delay": "10000",
-                "exponential_backoff_max_delay": "360000",
+                "exponential_backoff_max_delay": "300000",
                 "certification_keys_server_identifier": "ak",
-                "uefi_logs_evidence_version": "1.0",
+                "uefi_logs_evidence_version": "2.1",
                 "tls_accept_invalid_certs": "false",
                 "tls_accept_invalid_hostnames": "false"
             }

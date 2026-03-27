@@ -44,6 +44,11 @@ agent_data_path = "{{ agent_data_path }}"
 # Verifier URL
 verifier_url = "{{ agent_verifier_url }}"
 
+# Verifier TLS CA certificate (Push Model specific).
+# Used to verify the verifier's server certificate.
+# If set as "default", the "cv_ca/cacert.crt" value relative to keylime_dir is used.
+verifier_tls_ca_cert = "{{ agent.verifier_tls_ca_cert }}"
+
 # Server identifier for certification keys
 certification_keys_server_identifier = "{{ agent_certification_keys_server_identifier }}"
 
@@ -54,10 +59,30 @@ uefi_logs_evidence_version = "{{ agent_uefi_logs_evidence_version }}"
 registrar_ip = "{{ agent.registrar_ip }}"
 registrar_port = {{ agent.registrar_port }}
 
+# The TLS port of the registrar server (Push Model specific).
+# Used when registrar_tls_enabled is set to true.
+registrar_tls_port = {{ agent.registrar_tls_port }}
+
+# Enable TLS communication between agent and registrar (Push Model specific).
+# When enabled, the agent uses TLS (server verification only) with the registrar.
+registrar_tls_enabled = {{ agent.registrar_tls_enabled }}
+
+# TLS CA certificate for verifying the registrar's server certificate (Push Model specific).
+# Only used when registrar_tls_enabled is true.
+# If set as "default", the "cv_ca/cacert.crt" value relative to keylime_dir is used.
+registrar_tls_ca_cert = "{{ agent.registrar_tls_ca_cert }}"
+
+# The API versions to use when communicating with the registrar (Push Model specific).
+# Supports "default" (all supported), "latest", or a comma-separated list.
+registrar_api_versions = "{{ agent.registrar_api_versions }}"
+
 # Enable mTLS communication between agent, verifier and tenant.
 # Details on why setting it to "False" is generally considered insecure can be found
 # on https://github.com/keylime/keylime/security/advisories/GHSA-2m39-75g9-ff5r
 enable_agent_mtls = {{ agent.enable_agent_mtls }}
+
+# The keylime working directory.
+keylime_dir = "{{ agent.keylime_dir }}"
 
 # Accept invalid TLS certificates (INSECURE - for testing only)
 # When enabled, the agent will accept self-signed or invalid certificates
@@ -99,6 +124,14 @@ server_key = "{{ agent.server_key }}"
 # mTLS authentication
 # If left empty, the private key will not be encrypted.
 server_key_password = "{{ agent.server_key_password }}"
+
+# The name of the file containing the payload encryption private key.
+# If set as "default", the "payload-private.pem" value is used.
+payload_key = "{{ agent.payload_key }}"
+
+# Set the password used to encrypt the payload private key file.
+# If left empty, the private key will not be encrypted.
+payload_key_password = "{{ agent.payload_key_password }}"
 
 # The name of the file containing the X509 certificate used as the Keylime agent
 # server TLS certificate.
@@ -159,6 +192,9 @@ revocation_cert = "{{ agent.revocation_cert }}"
 # action_list in the unzipped payload content.
 revocation_actions = "{{ agent.revocation_actions }}"
 
+# The path to the directory containing pre-installed revocation action scripts.
+revocation_actions_dir = "{{ agent.revocation_actions_dir }}"
+
 # A script to execute after unzipping the tenant payload.  This is like
 # cloud-init lite =)  Keylime will run it with a /bin/sh environment and
 # with a working directory of /var/lib/keylime/secure/unzipped.
@@ -170,6 +206,10 @@ payload_script = "{{ agent.payload_script }}"
 # is generally considered insecure can be found on
 # https://github.com/keylime/keylime/security/advisories/GHSA-2m39-75g9-ff5r
 enable_insecure_payload = {{ agent.enable_insecure_payload }}
+
+# Whether to allow running revocation actions sent as part of the payload.
+# Setting to false limits revocation actions to pre-installed ones.
+allow_payload_revocation_actions = {{ agent.allow_payload_revocation_actions }}
 
 # Maximum number of retries for exponential backoff
 exponential_backoff_max_retries = {{ agent.exponential_backoff_max_retries }}
