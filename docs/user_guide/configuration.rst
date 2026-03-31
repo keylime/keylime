@@ -790,7 +790,7 @@ CA Configuration (``/etc/keylime/ca.conf``)
       - 2.0
       - ``KEYLIME_CA_CERT_LOCALITY``
     * - ``cert_organization``
-      - ``MITLL``
+      - ``Keylime``
       - 2.0
       - ``KEYLIME_CA_CERT_ORGANIZATION``
     * - ``cert_org_unit``

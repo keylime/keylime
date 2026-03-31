@@ -670,7 +670,7 @@
             "cert_organization": {
                 "section": "ca",
                 "option": "cert_organization",
-                "default": "MITLL"
+                "default": "Keylime"
             },
             "cert_org_unit": {
                 "section": "ca",

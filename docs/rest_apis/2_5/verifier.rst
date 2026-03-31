@@ -99,7 +99,7 @@ Verifier
           "runtime_policy_key": "",
           "mb_refstate": "null",
           "ima_sign_verification_keys": "[]",
-          "metadata": "{\"cert_serial\": 71906672046699268666356441515514540742724395900, \"subject\": \"/C=US/ST=MA/L=Lexington/O=MITLL/OU=53/CN=D432FBB3-D2F1-4A97-9EF7-75BD81C00000\"}",
+          "metadata": "{\"cert_serial\": 71906672046699268666356441515514540742724395900, \"subject\": \"/C=US/ST=MA/L=Lexington/O=Keylime/OU=53/CN=D432FBB3-D2F1-4A97-9EF7-75BD81C00000\"}",
           "revocation_key": "-----BEGIN PRIVATE KEY----- (...) -----END PRIVATE KEY-----\n",
           "accept_tpm_hash_algs": [
             "sha512",
