@@ -1216,6 +1216,15 @@ class AgentsHandler(BaseHandler):
                         # session.commit() is automatically called by context manager
                     except SQLAlchemyError as e:
                         logger.error("SQLAlchemy Error: %s", e)
+                        web_util.echo_json_response(self.req_handler, 500, "Internal server error")
+                        return
+
+                    # DB succeeded — now safe to cancel the pending poll
+                    # timer to prevent new attestation cycles.
+                    if agent_id is not None:
+                        pending_handle = _pending_events.pop(agent_id, None)
+                        if pending_handle is not None:
+                            tornado.ioloop.IOLoop.current().remove_timeout(pending_handle)
 
                     web_util.echo_json_response(self.req_handler, 200, "Success")
                     logger.info("PUT returning 200 response for agent id: %s", agent_id)
