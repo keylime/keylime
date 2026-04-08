@@ -24,7 +24,7 @@ def bytes_to_str(data: Any) -> Any:
         for _k, _v in data.items():
             data[_k] = bytes_to_str(_v)
     elif isinstance(data, tuple(_list_types)):
-        _l = list(data)
+        _l = list(data)  # type: ignore[call-overload]
         for _k, _v in enumerate(_l):
             _l[_k] = bytes_to_str(_v)
         data = _l
