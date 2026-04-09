@@ -1,6 +1,30 @@
 Verifier
 ~~~~~~~~
 
+.. http:get::  /v2.5/agents/
+
+    Get ordered list of agents enrolled in the Verifier.
+
+    **Example response**:
+
+    .. sourcecode:: json
+
+        {
+          "code": 200,
+          "status": "Success",
+          "results": {
+            "uuids": [
+              "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"
+            ]
+          }
+        }
+
+    :>json int code: HTTP status code
+    :>json string status: Status as string
+    :>json object results: Results as a JSON object
+    :>json list uuids: List of enrolled agent UUIDs
+
+
 .. http:get::  /v2.5/agents/{agent_id:UUID}
 
     Get status of agent `agent_id` from Verifier
@@ -276,23 +300,11 @@ Verifier
     :>json list[string] runtimepolicy names: List of names of the runtime policies.
 
 
-.. http:delete::  /v2.5/allowlist/{runtime_policy_name:string}
+.. http:delete::  /v2.5/allowlists/{runtime_policy_name:string}
 
     Delete IMA policy `runtime_policy_name`.
 
-    **Example response**:
-
-    .. sourcecode:: json
-
-        {
-          "code": 200,
-          "status": "Success",
-          "results": {}
-        }
-
-    :>json int code: HTTP status code
-    :>json string status: Status as string
-    :>json object results: Results as a JSON object (empty)
+    Returns HTTP 204 with empty body on success.
 
 
 .. http:get::  /v2.5/verify/identity
@@ -331,9 +343,9 @@ Verifier
     :<json int valid: A boolean 1 for valid, 0 for invalid identity.
 
 
-.. http:get::  /v2.5/mbpolicies/{policy_name:string}
+.. http:get::  /v2.5/mbpolicies/[policy_name:string]
 
-    Get the measured boot policy named `policy_name`
+    If `policy_name` is provided, get the named measured boot policy from the Verifier.
 
     **Example response**:
 
@@ -343,13 +355,75 @@ Verifier
           "code": 200,
           "status": "Success",
           "results": {
+            "name": "my-mb-policy",
+            "mb_policy": "{...}"
           }
         }
 
     :>json int code: HTTP status code
     :>json string status: Status as string
     :>json object results: Results as a JSON object
-    :<json int valid: A boolean 1 for valid, 0 for invalid identity.
+    :>json string name: Name of the requested measured boot policy.
+    :>json string mb_policy: Measured boot policy JSON object.
+
+
+    Otherwise, retrieve list of names of the measured boot policies.
+
+    **Example response**:
+
+    .. sourcecode:: json
+
+        {
+          "code": 200,
+          "status": "Success",
+          "results": {
+            "mbpolicy names": [
+                "mbpolicyname1",
+                "mbpolicyname2"
+            ]
+          }
+        }
+
+    :>json int code: HTTP status code
+    :>json string status: Status as string
+    :>json object results: Results as a JSON object
+    :>json list[string] mbpolicy names: List of names of the measured boot policies.
+
+
+.. http:post::  /v2.5/mbpolicies/{policy_name:string}
+
+    Add new named measured boot policy `policy_name` to Verifier.
+
+    **Example request**:
+
+    .. sourcecode:: json
+
+        {
+          "mb_policy": "{...}"
+        }
+
+    :<json string mb_policy: Measured boot reference state policy JSON object.
+
+    **Example response**:
+
+    .. sourcecode:: json
+
+        {
+          "code": 200,
+          "status": "Success",
+          "results": {}
+        }
+
+    :>json int code: HTTP status code
+    :>json string status: Status as string
+    :>json object results: Results as a JSON object (empty)
+
+
+.. http:delete::  /v2.5/mbpolicies/{policy_name:string}
+
+    Delete measured boot policy `policy_name`.
+
+    Returns HTTP 204 with empty body on success.
 
 .. http:post::  /v2.5/verify/evidence
 
