@@ -300,10 +300,15 @@ class TestVerifierServerEngineDisposal(unittest.TestCase):
         assert match is not None
         method_body = match.group(0)
 
+        # Strip comment lines to avoid false matches from mentions
+        # in comments (e.g. "# ... before start_single()").
+        code_lines = [line for line in method_body.splitlines() if not line.lstrip().startswith("#")]
+        code_body = "\n".join(code_lines)
+
         # Extract the order of operations
-        fork_index = method_body.find("fork_processes")
-        post_fork_index = method_body.find("_post_fork")
-        start_single_index = method_body.find("start_single()")
+        fork_index = code_body.find("fork_processes")
+        post_fork_index = code_body.find("_post_fork")
+        start_single_index = code_body.find("start_single()")
 
         # All should be present
         self.assertNotEqual(fork_index, -1, "fork_processes call not found")

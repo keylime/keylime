@@ -376,11 +376,29 @@ class Server(ABC):
 
         self._pre_fork()
 
+        # Ignore SIGTERM/SIGINT in the parent so it stays in tornado's
+        # monitor loop (os.wait) until all children have drained and
+        # exited cleanly.  Once all children exit, tornado calls
+        # sys.exit(0) which triggers atexit → SharedDataManager.cleanup()
+        # → Manager shutdown via IPC.  Without this, the default signal
+        # disposition kills the parent immediately (no atexit), leaving
+        # the Manager process orphaned.
+        # Children inherit SIG_IGN but override it in
+        # _install_signal_handlers() before entering the event loop.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+
         # with StatsCollector():
         # num = manager.Value('i', 0)
         task_id = tornado.process.fork_processes(self.worker_count)
         # num.value = num.value + 1
         # print(num.value)
+
+        # Restore default signal disposition in children so they don't
+        # silently ignore SIGTERM/SIGINT before _install_signal_handlers()
+        # replaces these with asyncio-based handlers in start_single().
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
 
         # Remove the Manager's server process from multiprocessing's child
         # tracking so Python's atexit handler does not try to join() it in

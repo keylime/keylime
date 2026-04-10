@@ -8,13 +8,26 @@ import atexit
 import multiprocessing as mp
 import multiprocessing.process
 import os
+import signal
 import threading
 import time
+from multiprocessing.managers import SyncManager
 from typing import Any, Dict, List, Optional
 
 from keylime import keylime_logging
 
 logger = keylime_logging.init_logging("shared_data")
+
+
+def _manager_ignore_signals() -> None:
+    """Ignore SIGTERM and SIGINT in the Manager's server process.
+
+    Called as the ``initializer`` for ``SyncManager.start()`` so that
+    the Manager survives process-group signals (systemd SIGTERM, Ctrl+C)
+    and stays available while workers drain in-flight work.
+    """
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 class FlatDictView:
@@ -127,7 +140,20 @@ class SharedDataManager:
         # Use explicit context to ensure fork compatibility
         # The Manager must be started BEFORE any fork() calls
         ctx = mp.get_context("fork")
-        self._manager = ctx.Manager()
+        # Use SyncManager directly (instead of the ctx.Manager() shortcut)
+        # so we can pass an initializer that makes the Manager's server
+        # process ignore SIGTERM and SIGINT.  Without this, systemd's
+        # cgroup-wide SIGTERM (or Ctrl+C SIGINT in foreground) kills the
+        # Manager before workers finish draining, causing
+        # ConnectionResetError in proxy objects.  The Manager is still
+        # cleanable via IPC shutdown message, process.kill(), or systemd
+        # SIGKILL escalation.
+        # Cannot use 'with' context manager here: the Manager must outlive
+        # __init__ and persist for the lifetime of SharedDataManager.
+        self._manager = SyncManager(ctx=ctx)
+        self._manager.start(  # pylint: disable=consider-using-with
+            initializer=_manager_ignore_signals,
+        )
 
         # CRITICAL FIX: Use a SINGLE flat dict instead of nested dicts
         # Nested DictProxy objects have synchronization issues
