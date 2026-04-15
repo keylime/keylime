@@ -150,7 +150,51 @@ Legend:
 
 ### Unit tests
 
-The Keylime test suite can be run locally by executing [.ci/run_local.sh](.ci/run_local.sh) (requires Docker).
+The Keylime test suite can be run locally in two ways:
+
+#### Using Docker
+
+Execute [.ci/run_local.sh](.ci/run_local.sh) (requires Docker).
+
+#### Using test/run_tests.sh
+
+The [test/run_tests.sh](test/run_tests.sh) script provides a flexible way to run unit tests either against source code or installed packages.
+
+**Source mode** (default behavior):
+```bash
+cd test
+./run_tests.sh
+```
+
+This will:
+- Create a virtual environment
+- Install Keylime from source
+- Run all unit tests
+
+**Testing against installed packages:**
+
+This is useful for validating RPM/DEB package installations or testing deployed systems.
+
+```bash
+export KEYLIME_SRC=/usr/lib/python3.12/site-packages/keylime
+export KEYLIME_TEST_SRC=~/rpmbuild/BUILD/keylime-7.14.1/test
+$KEYLIME_TEST_SRC/run_tests.sh
+```
+
+This will:
+- Skip virtual environment creation and package installation
+- Use the system-installed Keylime package
+- Run tests from the specified test sources directory
+
+**Available options:**
+- `-c`: Run with coverage measurement (source mode only)
+- `-u`: Run in user (non-root) mode
+- `-h`: Display help information
+
+**Environment variables:**
+- `KEYLIME_SRC`: Location of Keylime source/installation (auto-detected from script location)
+- `KEYLIME_TEST_SRC`: Location of test sources (defaults to `${KEYLIME_SRC}/test`)
+- `KEYLIME_TEST_MODE`: Explicitly set test mode to `"source"` or `"installed"` (auto-detected based on `KEYLIME_SRC` path)
 
 ### E2E tests
 
