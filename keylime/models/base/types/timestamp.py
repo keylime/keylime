@@ -36,7 +36,7 @@ class Timestamp(ModelType):
 
         if not ts:
             try:
-                ts = datetime.fromtimestamp(float(value))
+                ts = datetime.fromtimestamp(float(value), tz=timezone.utc)
             except ValueError:
                 pass
 
@@ -49,7 +49,7 @@ class Timestamp(ModelType):
         return self._load_datetime(ts)
 
     def _load_float(self, value: float) -> datetime:
-        ts = datetime.fromtimestamp(value)
+        ts = datetime.fromtimestamp(value, tz=timezone.utc)
         return self._load_datetime(ts)
 
     def _load_int(self, value: int) -> datetime:

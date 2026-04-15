@@ -177,6 +177,20 @@ class TestTimestampLoadNumeric(unittest.TestCase):
         self.assertEqual(result.month, 1)
         self.assertEqual(result.day, 1)
 
+    def test_load_int_has_utc_timezone(self):
+        """Test that Unix timestamp conversion results in UTC timezone"""
+        ts = Timestamp()
+        unix_int = 1705314645  # Jan 15, 2024 10:30:45 UTC
+
+        result = ts._load_int(unix_int)  # pylint: disable=protected-access
+
+        # This will fail if fromtimestamp() doesn't specify tz=timezone.utc
+        self.assertEqual(result.tzinfo, timezone.utc)
+        # Also verify the time is correct in UTC
+        self.assertEqual(result.hour, 10)
+        self.assertEqual(result.minute, 30)
+        self.assertEqual(result.second, 45)
+
 
 class TestTimestampCast(unittest.TestCase):
     """Test cases for Timestamp.cast() method"""
