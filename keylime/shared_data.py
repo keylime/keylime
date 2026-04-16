@@ -18,6 +18,23 @@ from keylime import keylime_logging
 
 logger = keylime_logging.init_logging("shared_data")
 
+_RUNTIME_DIR = "/var/run/keylime"
+
+
+def _ensure_runtime_dir() -> None:
+    """Ensure the runtime directory exists with correct permissions.
+
+    Under systemd, ``tmpfiles.d`` creates ``/var/run/keylime/`` at boot.
+    This function provides a fallback for non-systemd execution and
+    validates permissions in either case.
+    """
+    os.makedirs(_RUNTIME_DIR, mode=0o700, exist_ok=True)
+    perms = os.stat(_RUNTIME_DIR).st_mode & 0o777
+    if perms != 0o700 or not os.access(_RUNTIME_DIR, os.W_OK | os.X_OK):
+        msg = f"{_RUNTIME_DIR} is not usable by the current process"
+        logger.error(msg)
+        raise PermissionError(msg)
+
 
 def _manager_ignore_signals() -> None:
     """Ignore SIGTERM and SIGINT in the Manager's server process.
@@ -137,8 +154,20 @@ class SharedDataManager:
         """
         logger.debug("Initializing SharedDataManager")
 
-        # Use explicit context to ensure fork compatibility
-        # The Manager must be started BEFORE any fork() calls
+        # Ensure /var/run/keylime/ exists with correct permissions
+        # before forking the Manager server process.
+        _ensure_runtime_dir()
+        self._socket_path = os.path.join(_RUNTIME_DIR, f"shared_data.{os.getpid()}.sock")
+
+        # Remove stale socket from a previous run (e.g. after a crash).
+        # CPython's SocketListener does not pre-unlink before bind().
+        try:
+            os.unlink(self._socket_path)
+        except (FileNotFoundError, PermissionError):
+            pass
+
+        # Use explicit context to ensure fork compatibility.
+        # The Manager must be started BEFORE any fork() calls.
         ctx = mp.get_context("fork")
         # Use SyncManager directly (instead of the ctx.Manager() shortcut)
         # so we can pass an initializer that makes the Manager's server
@@ -150,7 +179,7 @@ class SharedDataManager:
         # SIGKILL escalation.
         # Cannot use 'with' context manager here: the Manager must outlive
         # __init__ and persist for the lifetime of SharedDataManager.
-        self._manager = SyncManager(ctx=ctx)
+        self._manager = SyncManager(address=self._socket_path, ctx=ctx)
         self._manager.start(  # pylint: disable=consider-using-with
             initializer=_manager_ignore_signals,
         )
@@ -162,8 +191,6 @@ class SharedDataManager:
         self._lock = self._manager.Lock()
         self._initialized_at = time.time()
 
-        # Register handler to reinitialize manager connection after fork
-        # This is needed because Manager uses network connections that don't survive fork
         try:
             self._parent_pid = os.getpid()
             logger.debug("SharedDataManager initialized in process %d", self._parent_pid)
@@ -173,7 +200,10 @@ class SharedDataManager:
         # Ensure cleanup on exit
         atexit.register(self.cleanup)
 
-        logger.info("SharedDataManager initialized successfully")
+        logger.info(
+            "SharedDataManager initialized successfully (socket: %s)",
+            self._socket_path,
+        )
 
     def set_data(self, key: str, value: Any) -> None:
         """Store arbitrary pickleable data by key.
@@ -332,6 +362,18 @@ class SharedDataManager:
             logger.info("SharedDataManager shutdown complete")
         except Exception:
             logger.exception("Error during SharedDataManager shutdown")
+
+        # Remove socket file if it still exists.  The Manager server
+        # process normally unlinks it on exit, but if it was killed
+        # (SIGKILL) the file may be left behind.
+        socket_path = getattr(self, "_socket_path", None)
+        if socket_path:
+            try:
+                os.unlink(socket_path)
+            except FileNotFoundError:
+                pass
+            except OSError as e:
+                logger.debug("Could not remove socket file %s: %s", socket_path, e)
 
     def deregister_child(self) -> None:
         """Remove the Manager's server process from multiprocessing's child tracking.
