@@ -1,6 +1,7 @@
 dbus-python
 # modules required for pylint
 setuptools
+pytest
 # packages required for mypy
 sqlalchemy-stubs
 types-python-dateutil
