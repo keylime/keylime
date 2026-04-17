@@ -5,6 +5,7 @@ using multiprocessing.Manager().
 """
 
 import atexit
+import contextlib
 import multiprocessing as mp
 import multiprocessing.process
 import os
@@ -379,19 +380,10 @@ class SharedDataManager:
             return
 
         if hasattr(self, "_parent_pid") and os.getpid() != self._parent_pid:
-            logger.debug(
-                "Skipping SharedDataManager shutdown in child process %d (parent is %d)",
-                os.getpid(),
-                self._parent_pid,
-            )
             return
 
-        logger.debug("Shutting down SharedDataManager")
-        try:
+        with contextlib.suppress(Exception):
             self._manager.shutdown()
-            logger.info("SharedDataManager shutdown complete")
-        except Exception:
-            logger.exception("Error during SharedDataManager shutdown")
 
         # Remove socket file if it still exists.  The Manager server
         # process normally unlinks it on exit, but if it was killed
@@ -400,10 +392,8 @@ class SharedDataManager:
         if socket_path:
             try:
                 os.unlink(socket_path)
-            except FileNotFoundError:
+            except OSError:
                 pass
-            except OSError as e:
-                logger.debug("Could not remove socket file %s: %s", socket_path, e)
 
     def deregister_child(self) -> None:
         """Remove the Manager's server process from multiprocessing's child tracking.
