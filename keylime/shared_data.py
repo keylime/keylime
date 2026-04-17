@@ -9,6 +9,8 @@ import multiprocessing as mp
 import multiprocessing.process
 import os
 import signal
+import stat
+import tempfile
 import threading
 import time
 from multiprocessing.managers import SyncManager
@@ -21,19 +23,47 @@ logger = keylime_logging.init_logging("shared_data")
 _RUNTIME_DIR = "/var/run/keylime"
 
 
-def _ensure_runtime_dir() -> None:
-    """Ensure the runtime directory exists with correct permissions.
+def _get_socket_dir() -> str:
+    """Return a writable directory for the SyncManager Unix socket.
 
-    Under systemd, ``tmpfiles.d`` creates ``/var/run/keylime/`` at boot.
-    This function provides a fallback for non-systemd execution and
-    validates permissions in either case.
+    Preferred location is ``/var/run/keylime/`` (created by tmpfiles.d
+    at boot).  When that directory is not usable — e.g. during unit
+    tests running as a non-root user — fall back to a stable per-user
+    directory derived from ``$XDG_RUNTIME_DIR`` or the system temp
+    directory.  Using a stable path lets subsequent runs find and
+    clean up stale sockets left by crashed processes.
     """
-    os.makedirs(_RUNTIME_DIR, mode=0o700, exist_ok=True)
-    perms = os.stat(_RUNTIME_DIR).st_mode & 0o777
-    if perms != 0o700 or not os.access(_RUNTIME_DIR, os.W_OK | os.X_OK):
-        msg = f"{_RUNTIME_DIR} is not usable by the current process"
-        logger.error(msg)
+    try:
+        os.makedirs(_RUNTIME_DIR, mode=0o700, exist_ok=True)
+        st = os.lstat(_RUNTIME_DIR)
+        if stat.S_ISDIR(st.st_mode) and (st.st_mode & 0o777) == 0o700 and os.access(_RUNTIME_DIR, os.W_OK | os.X_OK):
+            return _RUNTIME_DIR
+    except OSError:
+        pass
+
+    base = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
+    fallback = os.path.join(base, "keylime")
+    os.makedirs(fallback, mode=0o700, exist_ok=True)
+
+    # When the base is a world-writable directory (e.g. /tmp), another
+    # user could have pre-created "keylime" as a symlink or with open
+    # permissions.  Validate with lstat to avoid symlink-following.
+    st = os.lstat(fallback)
+    if (
+        not stat.S_ISDIR(st.st_mode)
+        or st.st_uid != os.geteuid()
+        or (st.st_mode & 0o077)
+        or not os.access(fallback, os.W_OK | os.X_OK)
+    ):
+        msg = f"{fallback} exists but is not a private writable directory owned by this user"
         raise PermissionError(msg)
+
+    logger.debug(
+        "%s is not usable by the current process; using %s",
+        _RUNTIME_DIR,
+        fallback,
+    )
+    return fallback
 
 
 def _manager_ignore_signals() -> None:
@@ -154,10 +184,10 @@ class SharedDataManager:
         """
         logger.debug("Initializing SharedDataManager")
 
-        # Ensure /var/run/keylime/ exists with correct permissions
-        # before forking the Manager server process.
-        _ensure_runtime_dir()
-        self._socket_path = os.path.join(_RUNTIME_DIR, f"shared_data.{os.getpid()}.sock")
+        # Obtain a writable directory for the SyncManager socket.
+        # Prefers /var/run/keylime/ (tmpfiles.d), falls back to a temp dir.
+        socket_dir = _get_socket_dir()
+        self._socket_path = os.path.join(socket_dir, f"shared_data.{os.getpid()}.sock")
 
         # Remove stale socket from a previous run (e.g. after a crash).
         # CPython's SocketListener does not pre-unlink before bind().
