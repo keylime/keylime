@@ -16,6 +16,7 @@ from keylime.ima import ima
 from keylime.ima.file_signatures import ImaKeyrings
 from keylime.ima.types import RuntimePolicyType
 from keylime.mba import mba
+from keylime.mba.elchecking import policies as mb_policies
 from keylime.tpm import tpm2_objects, tpm_util
 from keylime.tpm.errors import (
     HashAlgorithmMismatch,
@@ -26,6 +27,28 @@ from keylime.tpm.errors import (
 )
 
 logger = keylime_logging.init_logging("tpm")
+
+
+def mb_pcrs_to_check(policy_name: str) -> Set[int]:
+    """Return the set of measured-boot PCRs to replay against the event log.
+
+    Intersects ``config.MEASUREDBOOT_PCRS`` (PCRs Keylime collects) with the
+    set returned by ``policy.get_relevant_pcrs()`` for *policy_name*.  PCRs
+    outside the policy's relevant set are excluded so that runtime extensions
+    not captured in the event log (e.g. PCR 11 from ``systemd-pcrphase``) do
+    not cause spurious verification failures.
+
+    Policies that return an empty set from ``get_relevant_pcrs()`` (such as
+    the built-in ``accept-all`` and ``reject-all``) apply no restriction, so
+    the full ``MEASUREDBOOT_PCRS`` set is returned unchanged.
+    """
+    pcr_set: Set[int] = set(config.MEASUREDBOOT_PCRS)
+    policy = mb_policies.get_policy(policy_name)
+    if policy is not None:
+        relevant = policy.get_relevant_pcrs()
+        if relevant:
+            pcr_set &= relevant
+    return pcr_set
 
 
 class Tpm:
@@ -366,6 +389,7 @@ class Tpm:
         hash_alg: Hash,
         count: int,
         skip_data_pcr_check: bool = False,
+        mb_policy_name: str = "accept-all",
     ) -> Failure:
         failure = Failure(Component.PCR_VALIDATION)
 
@@ -451,8 +475,8 @@ class Tpm:
             except Exception:
                 pass
 
-        if not mb_failure and mb_policy is not None and mba.policy_is_valid(mb_policy) and mb_policy_is_nonempty:
-            for pcr_num in set(config.MEASUREDBOOT_PCRS) & pcr_nums:
+        if not mb_failure and mb_policy is not None and mba.policy_is_valid(mb_policy):
+            for pcr_num in mb_pcrs_to_check(mb_policy_name) & pcr_nums:
                 if not mb_measurement_list:
                     logger.error(
                         "Measured Boot PCR %d in policy, but no measurement list provided by agent %s",
@@ -564,7 +588,7 @@ class Tpm:
                 logger.error("Invalid measured boot policy for agent '%s'", agent_id)
                 failure.add_event("invalid_mb_policy", "Invalid measured boot policy", True)
 
-        if not mb_failure and mba.policy_is_valid(mb_policy):
+        if not mb_failure and mb_policy_is_nonempty and mba.policy_is_valid(mb_policy):
             mb_evaluate = config.get("verifier", "measured_boot_evaluate", fallback="once")
 
             # Value of measured_boot_evaluate can be only 'once' or 'always'
@@ -598,6 +622,7 @@ class Tpm:
         ima_keyrings: Optional[ImaKeyrings] = None,
         mb_measurement_list: Optional[Union[bytes, str]] = None,
         mb_policy: Optional[str] = None,
+        mb_policy_name: str = "accept-all",
         compressed: bool = False,
         count: int = -1,
         skip_pcr_check: bool = False,
@@ -673,6 +698,7 @@ class Tpm:
                 hash_alg,
                 count,
                 skip_data_pcr_check,
+                mb_policy_name=mb_policy_name,
             )
 
         return failure

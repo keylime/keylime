@@ -1987,7 +1987,8 @@ class VerifyEvidenceHandler(BaseHandler):
             # TODO - provide better error handling around bad runtime policy
             policy_obj = ima.deserialize_runtime_policy(runtime_policy)
             failure = cloud_verifier_common.process_verify_attestation(
-                tpm_ek, tpm_ak, quote, nonce, hash_alg, tpm_policy, policy_obj, mb_policy, ima_measurement_list, mb_log
+                tpm_ek, tpm_ak, quote, nonce, hash_alg, tpm_policy, policy_obj, mb_policy, ima_measurement_list, mb_log,
+                mb_policy_name=config.get("verifier", "measured_boot_policy_name", fallback="accept-all"),
             )
 
             if len(failure.events) > 0:
@@ -2308,6 +2309,7 @@ async def invoke_get_quote(
                 ima.deserialize_runtime_policy(runtime_policy),
                 json_response["results"],
                 agentAttestState,
+                mb_policy_name=config.get("verifier", "measured_boot_policy_name", fallback="accept-all"),
             )
             if not failure:
                 if agent["provide_V"]:
