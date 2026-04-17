@@ -83,13 +83,20 @@ def parse_binary_bootlog(log_bin: bytes) -> typing.Tuple[Failure, typing.Optiona
         log_bin_filename = log_bin_file.name
         retDict_tpm2 = cmd_exec.run(cmd=["tpm2_eventlog", "--eventlog-version=2", log_bin_filename], raiseOnError=False)
     log_parsed_strs = retDict_tpm2["retout"]
-    if len(retDict_tpm2["reterr"]) > 0:
+    if retDict_tpm2["code"] != 0:
         failure.add_event(
-            "tpm2_eventlog.warning",
-            {"context": "tpm2_eventlog exited with warnings", "data": str(retDict_tpm2["reterr"])},
+            "tpm2_eventlog.error",
+            {
+                "context": "tpm2_eventlog exited with non-zero return code",
+                "code": retDict_tpm2["code"],
+                "data": str(retDict_tpm2["reterr"]),
+            },
             True,
         )
         return failure, None
+    if retDict_tpm2["reterr"]:
+        warnings = "\n".join(line.decode("utf-8").strip() for line in retDict_tpm2["reterr"])
+        logger.warning("tpm2_eventlog produced warnings: %s", warnings)
     log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False, logger=logger)
     if log_parsed_data is None:
         failure.add_event("yaml", "yaml output of tpm2_eventlog could not be parsed!", True)
