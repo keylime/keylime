@@ -47,7 +47,6 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinxcontrib.httpdomain",
     "sphinx_tabs.tabs",
-    "sphinx_prompt",
     "recommonmark",
     "notfound.extension",
     "sphinxcontrib.bibtex",
