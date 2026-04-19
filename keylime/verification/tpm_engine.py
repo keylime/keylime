@@ -780,10 +780,13 @@ class TPMEngine(VerificationEngine):
                 self.agent.accept_attestations = False
                 # Invalidate authentication session on attestation failure in pull mode
                 AuthSession.delete_active_session_for_agent(self.agent_id)
-            # In push mode, token remains valid and agent can retry.
-            # Token is NOT extended on failed attestations (extension only happens for successful attestations above).
-            # Agent will get 503 Service Unavailable if it retries too quickly (due to attestation_interval check).
-            # When token expires, agent will get 401 and must re-authenticate.
+            elif agent_util.is_push_mode_agent(self.attestation.agent):
+                # PUSH mode: re-enable attestations and update timestamp to clear timeout state.
+                # The agent is actively communicating even though verification failed.
+                # Status will show FAIL (not TIMEOUT) because consecutive_attestation_failures > 0.
+                self.attestation.agent.accept_attestations = True
+                self.attestation.agent.last_received_quote = int(time.time())
+                push_agent_monitor.schedule_agent_timeout(self.attestation.agent.agent_id)
 
         self.attestation.refresh_metadata()  # type: ignore[no-untyped-call]
         self._determine_failure_reason(failure)
