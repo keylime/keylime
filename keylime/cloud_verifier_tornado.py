@@ -6,6 +6,7 @@ import os
 import signal
 import sys
 import threading
+import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -21,6 +22,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.orm.exc import NoResultFound  # pyright: ignore
 
+from keylime import agent_util
 from keylime import api_version as keylime_api_version
 from keylime import (
     cloud_verifier_common,
@@ -2767,6 +2769,11 @@ async def activate_agents(agents: List[VerfierMain], verifier_ip: str, verifier_
     for agent in agents:
         agent.verifier_ip = verifier_ip  # pyright: ignore
         agent.verifier_port = verifier_port  # pyright: ignore
+
+        if agent_util.is_push_mode_agent(agent):
+            logger.debug("Skipping PULL activation for PUSH mode agent %s", agent.agent_id)
+            continue
+
         agent_run = _from_db_obj(agent)
         if agent_run["mtls_cert"] and agent_run["mtls_cert"] != "disabled":
             agent_run["ssl_context"] = web_util.generate_agent_tls_context(
@@ -2824,10 +2831,36 @@ def main() -> None:
     VerfierMain.metadata.create_all(engine, checkfirst=True)  # pyright: ignore
     with session_context() as session:
         try:
+            quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
+            timeout_seconds = push_agent_monitor.get_maximum_attestation_interval(quote_interval)
+            current_time = int(time.time())
+
             query_all = session.query(VerfierMain).all()
             for row in query_all:
                 if row.operational_state in states.APPROVED_REACTIVATE_STATES:
                     row.operational_state = states.START  # pyright: ignore
+
+                if agent_util.is_push_mode_agent(row):
+                    logger.info(
+                        "PUSH mode agent %s: last_received_quote=%s, accept_attestations=%s (type=%s)",
+                        row.agent_id,
+                        row.last_received_quote,
+                        row.accept_attestations,
+                        type(row.accept_attestations).__name__,
+                    )
+                    if row.last_received_quote is not None and bool(row.accept_attestations):
+                        last_quote = int(row.last_received_quote)  # pyright: ignore[reportArgumentType]
+                        time_since_last = current_time - last_quote
+                        if time_since_last > timeout_seconds:
+                            logger.warning(
+                                "PUSH mode agent %s timed out during verifier downtime "
+                                "(%.1f seconds since last attestation, threshold: %.1f seconds). "
+                                "Setting accept_attestations to False.",
+                                row.agent_id,
+                                time_since_last,
+                                timeout_seconds,
+                            )
+                            row.accept_attestations = False  # pyright: ignore[reportAttributeAccessIssue]
             # session.commit() is automatically called by context manager
         except SQLAlchemyError as e:
             logger.error("SQLAlchemy Error: %s", e)
@@ -2884,6 +2917,7 @@ def main() -> None:
             # Cancel all pending attestation timeouts (retries, polls)
             cancel_all_pending_events()
             push_agent_monitor.cancel_all_timeouts()
+            push_timeout_periodic.stop()
 
             # Wait for in-flight operations, then close connections and stop
             async def stop() -> None:
@@ -2922,6 +2956,18 @@ def main() -> None:
         server.start()
         # Reactivate agents
         _background_tasks.append(asyncio.ensure_future(activate_agents(agents, verifier_host, int(verifier_port))))
+
+        # Check PUSH mode agents that may have timed out while the verifier was down
+        tornado.ioloop.IOLoop.current().add_callback(push_agent_monitor.check_push_agent_timeouts)
+
+        # Schedule periodic PUSH agent timeout checks as a safety net
+        quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
+        push_timeout_interval_ms = push_agent_monitor.get_maximum_attestation_interval(quote_interval) * 1000
+        push_timeout_periodic = tornado.ioloop.PeriodicCallback(
+            push_agent_monitor.check_push_agent_timeouts, push_timeout_interval_ms
+        )
+        push_timeout_periodic.start()
+
         tornado.ioloop.IOLoop.current().start()
         logger.debug("Server %s stopped.", task_id)
         sys.exit(0)

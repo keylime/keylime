@@ -1,9 +1,11 @@
 import asyncio
+import time
 from typing import List, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
 
 from keylime import (
+    agent_util,
     cloud_verifier_common,
     cloud_verifier_tornado,
     config,
@@ -126,9 +128,24 @@ class VerifierServer(Server):
                     # Reset agents in APPROVED_REACTIVATE_STATES to START state
                     # This matches the old architecture (cloud_verifier_tornado.py:2332-2338)
                     query_all = session.query(VerfierMain).all()
+                    now = int(time.time())
+                    quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
+                    timeout_threshold = push_agent_monitor.get_maximum_attestation_interval(quote_interval)
+
                     for row in query_all:
                         if row.operational_state in states.APPROVED_REACTIVATE_STATES:
                             row.operational_state = states.START  # type: ignore
+
+                        if agent_util.is_push_mode_agent(row) and row.last_received_quote is not None:
+                            elapsed = now - int(row.last_received_quote)  # pyright: ignore[reportArgumentType]
+                            if elapsed > timeout_threshold:
+                                logger.info(
+                                    "PUSH agent %s last attested %ds ago (threshold: %ds), marking as timed out",
+                                    row.agent_id,
+                                    elapsed,
+                                    int(timeout_threshold),
+                                )
+                                row.accept_attestations = False  # type: ignore
 
                     # Log remaining agents
                     num = session.query(VerfierMain).count()
