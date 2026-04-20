@@ -170,6 +170,36 @@ class TestEvidenceItemModel(unittest.TestCase):
 
             self.assertIsNotNone(evidence.chosen_parameters)
 
+    def test_generate_challenge_certification_length(self):
+        """Test that generate_challenge produces a challenge of the correct length"""
+        evidence = EvidenceItem.empty()
+        evidence.evidence_class = "certification"
+
+        with patch.object(evidence, "refresh_metadata"):
+            evidence.generate_challenge(128)
+
+            self.assertIsNotNone(evidence.chosen_parameters)
+            self.assertIsNotNone(evidence.chosen_parameters.challenge)
+            self.assertEqual(len(evidence.chosen_parameters.challenge), 16)  # 128 bits = 16 bytes
+
+    def test_generate_challenge_is_random(self):
+        """Test that generate_challenge produces unique random nonces"""
+        evidence1 = EvidenceItem.empty()
+        evidence1.evidence_class = "certification"
+        evidence2 = EvidenceItem.empty()
+        evidence2.evidence_class = "certification"
+
+        with patch.object(evidence1, "refresh_metadata"), \
+             patch.object(evidence2, "refresh_metadata"):
+            evidence1.generate_challenge(128)
+            evidence2.generate_challenge(128)
+
+            self.assertNotEqual(
+                evidence1.chosen_parameters.challenge,
+                evidence2.chosen_parameters.challenge,
+                "Two separately generated challenges must not be identical",
+            )
+
     def test_generate_challenge_non_certification_raises(self):
         """Test that generating challenge for non-certification raises ValueError"""
         evidence = EvidenceItem.empty()

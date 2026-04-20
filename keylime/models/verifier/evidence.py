@@ -74,7 +74,7 @@ class EvidenceItem(PersistableModel):
         self.chosen_parameters.validate_choices(check_against=self.capabilities)
         self.refresh_metadata()
 
-    def generate_challenge(self, bit_length):  # pylint: disable=unused-argument  # Parameter reserved for future use
+    def generate_challenge(self, bit_length):
         if self.evidence_class != "certification":  # pylint: disable=comparison-with-callable  # ORM framework pattern
             raise ValueError("challenge can only be generated for EvidenceItem with evidence_class 'certification'")
 
@@ -382,8 +382,7 @@ class CertificationParameters(ChosenParameters):
         # fields can vary by evidence_type (even when the evidence_types belong to the same evidence_class)
 
     def generate_challenge(self, bit_length):
-        # self.challenge = Nonce.generate(bit_length)
-        self.challenge = bytes.fromhex("49beed365aac777dae23564f5ad0ec")
+        self.challenge = Nonce.generate(bit_length)
 
     def render(self, only=None):
         output = super().render(only)
