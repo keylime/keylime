@@ -205,12 +205,39 @@ class TestParseBootlogTpm2Eventlog(unittest.TestCase):
             "reterr": [b"warning: unknown EV_IPL event type"],
             "code": 0,
         }
+        valid_parsed = {"pcrs": {"sha256": {0: "abc"}}}
+        mock_enrich_mod = mock.MagicMock()
         with (
             mock.patch("keylime.cmd_exec.run", return_value=mock_retdict),
-            mock.patch("keylime.config.yaml_to_dict", return_value=None),
-            mock.patch.object(tpm2_tools_elparser.logger, "warning") as mock_warning,
-        ):  # type: ignore[union-attr]
-            tpm2_tools_elparser.parse_binary_bootlog(b"\x00" * 8)  # type: ignore[union-attr]
+            mock.patch("keylime.config.yaml_to_dict", return_value=valid_parsed),
+            mock.patch.dict("sys.modules", {"keylime.mba.elparsing.tpm_bootlog_enrich": mock_enrich_mod}),
+            mock.patch.object(tpm2_tools_elparser.logger, "warning") as mock_warning,  # type: ignore[union-attr]
+        ):
+            failure, result = tpm2_tools_elparser.parse_binary_bootlog(b"\x00" * 8)  # type: ignore[union-attr]
+        # Stderr did NOT abort processing — result is returned.
+        self.assertIsNotNone(result)
+        self.assertFalse(failure)
+        # The warning was logged.
+        self.assertTrue(any("tpm2_eventlog produced warnings" in str(c) for c in mock_warning.call_args_list))
+
+    def test_non_utf8_stderr_does_not_crash(self) -> None:
+        """Non-UTF-8 bytes in stderr must not raise UnicodeDecodeError."""
+        mock_retdict = {
+            "retout": [b"some: yaml\n"],
+            "reterr": [b"bad bytes: \xff\xfe"],
+            "code": 0,
+        }
+        valid_parsed = {"pcrs": {"sha256": {0: "abc"}}}
+        mock_enrich_mod = mock.MagicMock()
+        with (
+            mock.patch("keylime.cmd_exec.run", return_value=mock_retdict),
+            mock.patch("keylime.config.yaml_to_dict", return_value=valid_parsed),
+            mock.patch.dict("sys.modules", {"keylime.mba.elparsing.tpm_bootlog_enrich": mock_enrich_mod}),
+            mock.patch.object(tpm2_tools_elparser.logger, "warning") as mock_warning,  # type: ignore[union-attr]
+        ):
+            failure, result = tpm2_tools_elparser.parse_binary_bootlog(b"\x00" * 8)  # type: ignore[union-attr]
+        self.assertIsNotNone(result)
+        self.assertFalse(failure)
         self.assertTrue(any("tpm2_eventlog produced warnings" in str(c) for c in mock_warning.call_args_list))
 
 

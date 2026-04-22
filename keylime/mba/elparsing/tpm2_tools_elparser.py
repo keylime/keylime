@@ -17,6 +17,15 @@ if typing.TYPE_CHECKING:
 logger = keylime_logging.init_logging("elparsing")
 
 
+def _decode_stderr(lines: typing.List[bytes]) -> str:
+    """Decode a list of stderr byte-strings into a single human-readable string.
+
+    Uses ``errors="replace"`` to avoid ``UnicodeDecodeError`` when the
+    output contains non-UTF-8 bytes.
+    """
+    return "\n".join(line.decode("utf-8", errors="replace").strip() for line in lines)
+
+
 def bootlog_parse(
     mb_measurement_list: Optional[str], hash_alg: str
 ) -> typing.Tuple["MBPCRDict", "MBAgg", "MBLog", Failure]:
@@ -89,13 +98,13 @@ def parse_binary_bootlog(log_bin: bytes) -> typing.Tuple[Failure, typing.Optiona
             {
                 "context": "tpm2_eventlog exited with non-zero return code",
                 "code": retDict_tpm2["code"],
-                "data": str(retDict_tpm2["reterr"]),
+                "data": _decode_stderr(retDict_tpm2["reterr"]),
             },
             True,
         )
         return failure, None
     if retDict_tpm2["reterr"]:
-        warnings = "\n".join(line.decode("utf-8").strip() for line in retDict_tpm2["reterr"])
+        warnings = _decode_stderr(retDict_tpm2["reterr"])
         logger.warning("tpm2_eventlog produced warnings: %s", warnings)
     log_parsed_data = config.yaml_to_dict(log_parsed_strs, add_newlines=False, logger=logger)
     if log_parsed_data is None:
