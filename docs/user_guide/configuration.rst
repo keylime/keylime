@@ -369,6 +369,10 @@ Common Options (Both Models)
       - ``0``
       - 2.0
       - ``KEYLIME_VERIFIER_NUM_WORKERS``
+    * - ``max_workers``
+      - ``16``
+      - 2.6
+      - ``KEYLIME_VERIFIER_MAX_WORKERS``
     * - ``max_upload_size``
       - ``104857600``
       - 2.0
@@ -613,6 +617,10 @@ Registrar Configuration (``/etc/keylime/registrar.conf``)
       - ``5,10``
       - 2.0
       - ``KEYLIME_REGISTRAR_DATABASE_POOL_SZ_OVFL``
+    * - ``max_workers``
+      - ``16``
+      - 2.6
+      - ``KEYLIME_REGISTRAR_MAX_WORKERS``
     * - ``auto_migrate_db``
       - ``True``
       - 2.0

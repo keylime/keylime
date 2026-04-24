@@ -106,6 +106,14 @@ database_url = {{ registrar.database_url }}
 # (https://docs.sqlalchemy.org/en/14/core/pooling.html#api-documentation-available-pool-implementations)
 database_pool_sz_ovfl = {{ registrar.database_pool_sz_ovfl }}
 
+# Maximum number of worker processes. The actual number of workers will be
+# min(cpu_count, max_workers). This prevents creating too many workers on
+# high-core-count systems, which can lead to excessive database connections
+# and resource usage.
+# Set to "0" for no limit (use all CPUs).
+# Default: 16
+max_workers = {{ registrar.max_workers }}
+
 # Whether to automatically update the DB schema using alembic
 auto_migrate_db = {{ registrar.auto_migrate_db }}
 

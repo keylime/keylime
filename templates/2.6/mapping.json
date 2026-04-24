@@ -4,7 +4,13 @@
     "components": {
         "verifier": {
             "add": {
-                "shutdown_drain_timeout": "10"
+                "shutdown_drain_timeout": "10",
+                "max_workers": "16"
+            }
+        },
+        "registrar": {
+            "add": {
+                "max_workers": "16"
             }
         }
     }

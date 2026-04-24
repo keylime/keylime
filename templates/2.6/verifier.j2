@@ -165,6 +165,14 @@ auto_migrate_db = {{ verifier.auto_migrate_db }}
 # Set to "0" to create one worker per processor.
 num_workers = {{ verifier.num_workers }}
 
+# Maximum number of worker processes. The actual number of workers will be
+# min(cpu_count, max_workers). This prevents creating too many workers on
+# high-core-count systems, which can lead to excessive database connections
+# and resource usage.
+# Set to "0" for no limit (use all CPUs).
+# Default: 16
+max_workers = {{ verifier.max_workers }}
+
 # Whether or not to use an exponential backoff algorithm for retries.
 exponential_backoff = {{ verifier.exponential_backoff }}
 

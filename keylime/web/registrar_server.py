@@ -12,6 +12,7 @@ class RegistrarServer(Server):
         self._set_http_port(from_config="port")
         self._set_https_port(from_config="tls_port")
         self._set_max_upload_size(from_config="max_upload_size")
+        self._set_max_workers(from_config="max_workers")
         self._set_default_ssl_ctx()
 
     def _routes(self):
