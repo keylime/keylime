@@ -52,6 +52,7 @@ Essentials:
 - **database_pool_sz_ovfl**: Pool size, overflow (non-sqlite)
 - **auto_migrate_db**: Apply DB migrations on startup
 - **num_workers**: Number of worker processes (``0`` = CPU count)
+- **max_workers**: Maximum worker processes; actual count is ``min(cpu_count, max_workers)`` (``0`` = no limit, default ``16``)
 - **exponential_backoff**, **retry_interval**, **max_retries**: Retry behavior for agent comm
 - **quote_interval**: Time between integrity checks (seconds)
 - **max_upload_size**: Upload size limit (bytes)

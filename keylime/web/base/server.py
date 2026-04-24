@@ -210,6 +210,7 @@ class Server(ABC):
         self.__max_upload_size: Optional[int] = 104857600  # 100MiB
         self.__ssl_ctx: Optional["SSLContext"] = None
         self.__worker_count: Optional[int] = 0
+        self.__max_workers: Optional[int] = 0
 
         # Override defaults with values given by the implementing class
         self._setup()
@@ -563,6 +564,18 @@ class Server(ABC):
 
         self._set_option("max_upload_size", **kwargs)
 
+    def _set_max_workers(self, **kwargs: Any) -> None:
+        """Sets the maximum number of worker processes to fork.
+
+        The actual worker count will be min(cpu_count, max_workers).
+        A value of 0 means no limit (use all CPUs).
+        """
+
+        if "from_config" in kwargs:
+            kwargs.update({"from_config": (kwargs["from_config"], int)})
+
+        self._set_option("max_workers", **kwargs)
+
     def _set_ssl_ctx(self, **kwargs: Any) -> None:
         """Sets the values used to secure TLS sessions. See https://docs.python.org/3/library/ssl.html#ssl.SSLContext"""
 
@@ -725,13 +738,19 @@ class Server(ABC):
         return self.__ssl_ctx
 
     @property
-    def worker_count(self) -> int:
-        # pylint: disable=no-else-return
+    def max_workers(self) -> Optional[int]:
+        return self.__max_workers
 
+    @property
+    def worker_count(self) -> int:
         if self.__worker_count == 0 or self.__worker_count is None:
-            return multiprocessing.cpu_count()
+            count = multiprocessing.cpu_count()
         else:
-            return self.__worker_count
+            count = self.__worker_count
+
+        if self.__max_workers and self.__max_workers > 0:
+            return min(count, self.__max_workers)
+        return count
 
     @property
     def routes(self) -> list[Route]:

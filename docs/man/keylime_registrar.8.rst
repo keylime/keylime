@@ -53,6 +53,10 @@ Essential configuration options:
 **database_pool_sz_ovfl**
    Pool size, overflow (non-sqlite)
 
+**max_workers**
+   Maximum worker processes; actual count is ``min(cpu_count, max_workers)``
+   (``0`` = no limit, default ``16``)
+
 **auto_migrate_db**
    Apply DB migrations on startup
 
@@ -128,7 +132,7 @@ NOTES
 
 - HTTPS is required for routes unless explicitly allowed insecure by the service.
 - With ``tls_dir = default``, start the verifier before the registrar so the shared CA/certs exist in ``$KEYLIME_DIR/cv_ca``.
-- The service forks worker processes (default: CPU count).
+- The service forks worker processes (default: CPU count, capped by ``max_workers``).
 - Registrar and verifier may run on the same host or on separate hosts.
 
 SEE ALSO
