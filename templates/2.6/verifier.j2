@@ -7,7 +7,9 @@ version = {{ verifier.version }}
 # Unique identifier for each verifier instance.
 uuid = {{ verifier.uuid }}
 
-# The binding address and port for the verifier server
+# The binding address and port for the verifier server. Use a specific address
+# to bind one interface, or set ip to "*" to listen on all IPv4 and IPv6
+# addresses supported by the host.
 ip = "{{ verifier.ip }}"
 port = {{ verifier.port }}
 

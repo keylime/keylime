@@ -34,7 +34,9 @@ All options are under the ``[verifier]`` section.
 Essentials:
 - **mode**: Attestation mode (``pull`` or ``push``). Default: ``pull``
 - **uuid**: Unique identifier for this verifier instance
-- **ip**, **port**: Bind address and HTTP port
+- **ip**, **port**: Bind address and HTTP port. Set ``ip = *`` to listen on all IPv4
+  and IPv6 addresses supported by the host; use a concrete address to limit the
+  verifier to one interface.
 - **registrar_ip**, **registrar_port**: Registrar endpoint
 - **enable_agent_mtls**: Enable mTLS with agents and tenant
 - **tls_dir**: TLS material location
