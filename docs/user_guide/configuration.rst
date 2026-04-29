@@ -106,15 +106,23 @@ address:
     [verifier]
     ip = 172.30.1.10
 
-For the verifier listener, the ``ip`` option can also be set to ``*`` to bind
-to all IPv4 and IPv6 addresses supported by the host:
+For the verifier listener, the ``ip`` option can also be set to a wildcard
+address to bind to all interfaces. Use ``0.0.0.0`` for all IPv4 interfaces:
 
 .. code-block:: ini
 
     [verifier]
-    ip = *
+    ip = 0.0.0.0
 
-This wildcard only controls where the verifier listens for incoming
+or ``::`` for all IPv6 interfaces (which on most dual-stack hosts also accepts
+incoming IPv4 connections):
+
+.. code-block:: ini
+
+    [verifier]
+    ip = ::
+
+These wildcard addresses only control where the verifier listens for incoming
 connections. Other components still need a concrete verifier address or DNS name
 when they connect to the verifier.
 
