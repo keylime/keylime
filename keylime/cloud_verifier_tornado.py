@@ -1151,9 +1151,10 @@ class AgentsHandler(BaseHandler):
                         if mode == "pull":
                             # Prepare SSLContext for mTLS connections
                             agent_data["ssl_context"] = None
-                            if agent_data["mtls_cert"] and agent_data["mtls_cert"] != "disabled":
+                            mtls_cert = agent_data["mtls_cert"]
+                            if agent_mtls_cert_enabled and isinstance(mtls_cert, str) and mtls_cert != "disabled":
                                 agent_data["ssl_context"] = web_util.generate_agent_tls_context(
-                                    "verifier", agent_data["mtls_cert"], logger=logger
+                                    "verifier", mtls_cert, logger=logger
                                 )
 
                             if agent_data["ssl_context"] is None:
