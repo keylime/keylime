@@ -10,6 +10,8 @@ Tests cover:
 import unittest
 from unittest.mock import MagicMock, patch
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from keylime import cloud_verifier_tornado
 
 
@@ -108,6 +110,63 @@ class TestStoreAttestationState(unittest.TestCase):
 
         # Verify no attempt to set attributes on None
         mock_session.add.assert_not_called()
+
+
+class TestCompleteDeletionIfTerminated(unittest.TestCase):
+    """Test _complete_deletion_if_terminated helper."""
+
+    @patch("keylime.cloud_verifier_tornado.verifier_db_delete_agent")
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_deletes_when_agent_is_terminated(self, mock_session_ctx, mock_delete):
+        """Completes deletion when agent exists and is TERMINATED."""
+        mock_session = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.operational_state = 8  # states.TERMINATED
+        mock_session.query.return_value.filter_by.return_value.first.return_value = mock_agent
+        mock_session_ctx.return_value.__enter__ = MagicMock(return_value=mock_session)
+        mock_session_ctx.return_value.__exit__ = MagicMock(return_value=False)
+
+        cloud_verifier_tornado._complete_deletion_if_terminated("agent-123")
+
+        mock_delete.assert_called_once_with(mock_session, "agent-123")
+
+    @patch("keylime.cloud_verifier_tornado.verifier_db_delete_agent")
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_noop_when_agent_already_deleted(self, mock_session_ctx, mock_delete):
+        """Logs and returns when agent no longer exists in DB."""
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter_by.return_value.first.return_value = None
+        mock_session_ctx.return_value.__enter__ = MagicMock(return_value=mock_session)
+        mock_session_ctx.return_value.__exit__ = MagicMock(return_value=False)
+
+        cloud_verifier_tornado._complete_deletion_if_terminated("agent-123")
+
+        mock_delete.assert_not_called()
+
+    @patch("keylime.cloud_verifier_tornado.logger")
+    @patch("keylime.cloud_verifier_tornado.verifier_db_delete_agent")
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_warns_when_agent_in_unexpected_state(self, mock_session_ctx, mock_delete, mock_logger):
+        """Logs warning and does not delete when agent exists in a non-TERMINATED state."""
+        mock_session = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.operational_state = 3  # states.GET_QUOTE
+        mock_session.query.return_value.filter_by.return_value.first.return_value = mock_agent
+        mock_session_ctx.return_value.__enter__ = MagicMock(return_value=mock_session)
+        mock_session_ctx.return_value.__exit__ = MagicMock(return_value=False)
+
+        cloud_verifier_tornado._complete_deletion_if_terminated("agent-123")
+
+        mock_delete.assert_not_called()
+        mock_logger.warning.assert_called_once()
+
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_handles_sqlalchemy_error(self, mock_session_ctx):
+        """Logs and does not raise on SQLAlchemyError."""
+        mock_session_ctx.return_value.__enter__ = MagicMock(side_effect=SQLAlchemyError("connection lost"))
+        mock_session_ctx.return_value.__exit__ = MagicMock(return_value=False)
+
+        cloud_verifier_tornado._complete_deletion_if_terminated("agent-123")
 
 
 if __name__ == "__main__":
