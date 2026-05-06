@@ -18,8 +18,8 @@ export TPM2TOOLS_TCTI=tabrmd:
 export TCTI=tabrmd:
 
 # Configure dbus
-sudo rm -rf /var/run/dbus
-sudo mkdir /var/run/dbus
+sudo rm -rf /run/dbus
+sudo mkdir /run/dbus
 sudo dbus-daemon --system
 
 tpm2-abrmd \
