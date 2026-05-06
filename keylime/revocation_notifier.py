@@ -17,7 +17,7 @@ from keylime.requests_client import RequestsClient
 logger = keylime_logging.init_logging("revocation_notifier")
 broker_proc: Optional[Process] = None
 
-_SOCKET_PATH = "/var/run/keylime/keylime.verifier.ipc"
+_SOCKET_PATH = "/run/keylime/keylime.verifier.ipc"
 
 # Global webhook manager instance (initialized when needed)
 _webhook_manager: Optional["WebhookNotificationManager"] = None

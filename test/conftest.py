@@ -13,7 +13,7 @@ from keylime.shared_data import cleanup_global_shared_memory
 def _shared_data_runtime_dir():
     """Redirect SharedDataManager sockets to a temporary directory.
 
-    The SyncManager creates Unix domain sockets in /var/run/keylime/,
+    The SyncManager creates Unix domain sockets in /run/keylime/,
     which may not be writable by the test user.  This fixture patches
     the runtime directory to a per-test temp directory so that tests
     work in any environment.
