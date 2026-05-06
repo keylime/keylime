@@ -369,6 +369,7 @@ def _complete_deletion_if_terminated(agent_id: str) -> None:
 
     If the agent still exists and is TERMINATED, complete the deletion
     now — there will be no future process_agent() cycle to do it.
+    If the agent is TENANT_FAILED, leave it for the DELETE handler.
     If the agent is already gone, just log and return.
     """
     try:
@@ -379,6 +380,8 @@ def _complete_deletion_if_terminated(agent_id: str) -> None:
             elif agent.operational_state == states.TERMINATED:  # pyright: ignore
                 logger.info("Agent %s was terminated during attestation, completing deletion", agent_id)
                 verifier_db_delete_agent(session, agent_id)
+            elif agent.operational_state == states.TENANT_FAILED:  # pyright: ignore
+                logger.info("Agent %s tenant quote check failed, stopping poll cycle", agent_id)
             else:
                 logger.warning(
                     "Agent %s update matched 0 rows, but agent exists in state %s. Stopping poll cycle.",
@@ -2220,12 +2223,13 @@ async def update_agent_api_version(
                     session.query(VerfierMain)
                     .filter_by(agent_id=agent_id)
                     .filter(VerfierMain.operational_state != states.TERMINATED)  # pyright: ignore
+                    .filter(VerfierMain.operational_state != states.TENANT_FAILED)  # pyright: ignore
                     .update(agent_db)  # pyright: ignore
                 )
                 # session.commit() is automatically called by context manager
 
             if rows == 0:
-                logger.info("Agent %s was terminated during version negotiation, stopping", agent_id)
+                logger.info("Agent %s was terminated or stopped during version negotiation, stopping", agent_id)
                 _complete_deletion_if_terminated(agent_id)
                 return None
 
@@ -2624,6 +2628,7 @@ async def process_agent(
                             session.query(VerfierMain)
                             .filter_by(agent_id=agent["agent_id"])
                             .filter(VerfierMain.operational_state != states.TERMINATED)  # pyright: ignore
+                            .filter(VerfierMain.operational_state != states.TENANT_FAILED)  # pyright: ignore
                             .update(agent)  # type: ignore[arg-type]
                         )
                         # session.commit() is automatically called by context manager
@@ -2640,15 +2645,17 @@ async def process_agent(
                     del agent_db[key]
 
             # Fourth database operation - update agent state.
-            # The TERMINATED filter prevents a TOCTOU race: if a DELETE
-            # handler set TERMINATED between our initial read and this
-            # write, the update matches zero rows and we stop polling
-            # instead of reverting the agent back to an active state.
+            # The TERMINATED/TENANT_FAILED filters prevent a TOCTOU race:
+            # if a DELETE or PUT /stop handler set one of these states
+            # between our initial read and this write, the update matches
+            # zero rows and we stop polling instead of reverting the agent
+            # back to an active state.
             with session_context() as session:
                 rows = (
                     session.query(VerfierMain)
                     .filter_by(agent_id=agent_db["agent_id"])
                     .filter(VerfierMain.operational_state != states.TERMINATED)  # pyright: ignore
+                    .filter(VerfierMain.operational_state != states.TENANT_FAILED)  # pyright: ignore
                     .update(agent_db)  # pyright: ignore
                 )
                 # session.commit() is automatically called by context manager
