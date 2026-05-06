@@ -46,7 +46,10 @@ Verifier
             "last_event_id": "qoute_validation.quote_validation",
             "attestation_count": 240,
             "last_received_quote": 1676644582,
-            "last_successful_attestation": 1676644462
+            "last_successful_attestation": 1676644462,
+            "attestation_status": "PASS",
+            "attestation_period": "2s",
+            "maximum_attestation_interval": "10s"
           }
         }
 
@@ -76,6 +79,9 @@ Verifier
     :>json int attestation_count: Number of quotes received from the agent which have verified successfully.
     :>json int last_received_quote: Timestamp of the last quote received from the agent irrespective of validity. A value of 0 indicates no quotes have been received. May be `null` after upgrading from a previous Keylime version.
     :>json int last_successful_attestation: Timestamp of the last quote received from the agent which verified successfully. A value of 0 indicates no valid quotes have been received. May be `null` after upgrading from a previous Keylime version.
+    :>json string attestation_status: Current attestation status of the agent. Possible values: ``"PASS"`` (agent is successfully attesting), ``"FAIL"`` (agent attestation failed or timed out), ``"PENDING"`` (agent enrolled but not yet attested).
+    :>json string attestation_period: Configured attestation interval (e.g., ``"2s"``). Derived from the ``quote_interval`` verifier configuration option.
+    :>json string maximum_attestation_interval: Maximum time allowed between attestations before the agent is considered timed out in PUSH mode (e.g., ``"10s"``). Typically ``quote_interval * 5`` seconds.
 
 
 .. http:post::  /v2.5/agents/{agent_id:UUID}
