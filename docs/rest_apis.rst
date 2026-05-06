@@ -85,6 +85,10 @@ API version 2.5 was first implemented in Keylime 7.14.0.
       API version instead of blindly using the agent's latest version
     * Prevents compatibility issues when newer agents communicate with older
       tenants/verifiers
+* Added attestation monitoring fields to `GET /v2.5/agents/{agent_id}` response:
+    * `attestation_status`: Current attestation status (``"PASS"``, ``"FAIL"``, or ``"PENDING"``)
+    * `attestation_period`: Configured attestation interval derived from ``quote_interval``
+    * `maximum_attestation_interval`: Maximum time allowed between attestations in PUSH mode
 
 Changes from v2.3 to v2.4
 ~~~~~~~~~~~~~~~~~~~~~~~~~
