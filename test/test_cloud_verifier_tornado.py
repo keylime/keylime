@@ -146,8 +146,26 @@ class TestCompleteDeletionIfTerminated(unittest.TestCase):
     @patch("keylime.cloud_verifier_tornado.logger")
     @patch("keylime.cloud_verifier_tornado.verifier_db_delete_agent")
     @patch("keylime.cloud_verifier_tornado.session_context")
+    def test_noop_when_agent_tenant_failed(self, mock_session_ctx, mock_delete, mock_logger):
+        """Does not delete when agent is in TENANT_FAILED state."""
+        mock_session = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.operational_state = 10  # states.TENANT_FAILED
+        mock_session.query.return_value.filter_by.return_value.first.return_value = mock_agent
+        mock_session_ctx.return_value.__enter__ = MagicMock(return_value=mock_session)
+        mock_session_ctx.return_value.__exit__ = MagicMock(return_value=False)
+
+        cloud_verifier_tornado._complete_deletion_if_terminated("agent-123")
+
+        mock_delete.assert_not_called()
+        mock_logger.info.assert_called_once()
+        self.assertIn("tenant quote check failed", mock_logger.info.call_args[0][0])
+
+    @patch("keylime.cloud_verifier_tornado.logger")
+    @patch("keylime.cloud_verifier_tornado.verifier_db_delete_agent")
+    @patch("keylime.cloud_verifier_tornado.session_context")
     def test_warns_when_agent_in_unexpected_state(self, mock_session_ctx, mock_delete, mock_logger):
-        """Logs warning and does not delete when agent exists in a non-TERMINATED state."""
+        """Logs warning and does not delete when agent exists in an unexpected state."""
         mock_session = MagicMock()
         mock_agent = MagicMock()
         mock_agent.operational_state = 3  # states.GET_QUOTE
