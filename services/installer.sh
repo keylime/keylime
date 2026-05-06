@@ -51,15 +51,15 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
 else
     echo "Warning: systemd-tmpfiles not found, creating directories manually"
     # Create essential directories as fallback for non-systemd systems
-    mkdir -p /var/run/keylime /var/lib/keylime \
+    mkdir -p /run/keylime /var/lib/keylime \
         /etc/keylime/ca.conf.d \
         /etc/keylime/logging.conf.d \
         /etc/keylime/verifier.conf.d \
         /etc/keylime/registrar.conf.d \
         /etc/keylime/tenant.conf.d \
         /etc/keylime/agent.conf.d
-    chown keylime:keylime /var/run/keylime /var/lib/keylime
-    chmod 700 /var/run/keylime /var/lib/keylime
+    chown keylime:keylime /run/keylime /var/lib/keylime
+    chmod 700 /run/keylime /var/lib/keylime
     # Mirror tmpfiles.d Z/z semantics: recursively set ownership and
     # file permissions under /etc/keylime, then fix directories to 0500.
     chown -R keylime:keylime /etc/keylime
