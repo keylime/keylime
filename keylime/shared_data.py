@@ -21,13 +21,13 @@ from keylime import keylime_logging
 
 logger = keylime_logging.init_logging("shared_data")
 
-_RUNTIME_DIR = "/var/run/keylime"
+_RUNTIME_DIR = "/run/keylime"
 
 
 def _get_socket_dir() -> str:
     """Return a writable directory for the SyncManager Unix socket.
 
-    Preferred location is ``/var/run/keylime/`` (created by tmpfiles.d
+    Preferred location is ``/run/keylime/`` (created by tmpfiles.d
     at boot).  When that directory is not usable — e.g. during unit
     tests running as a non-root user — fall back to a stable per-user
     directory derived from ``$XDG_RUNTIME_DIR`` or the system temp
@@ -186,7 +186,7 @@ class SharedDataManager:
         logger.debug("Initializing SharedDataManager")
 
         # Obtain a writable directory for the SyncManager socket.
-        # Prefers /var/run/keylime/ (tmpfiles.d), falls back to a temp dir.
+        # Prefers /run/keylime/ (tmpfiles.d), falls back to a temp dir.
         socket_dir = _get_socket_dir()
         self._socket_path = os.path.join(socket_dir, f"shared_data.{os.getpid()}.sock")
 
