@@ -8,7 +8,7 @@ class APIVersion_Test(unittest.TestCase):
 
     def test_current_version(self):
         """Test current_version."""
-        self.assertEqual(api_version.current_version(), "2.5", "Current version is 2.5")
+        self.assertEqual(api_version.current_version(), "2.6", "Current version is 2.6")
 
     def test_latest_minor_version(self):
         """Test laster_minor_version."""
@@ -83,8 +83,8 @@ class APIVersion_Test(unittest.TestCase):
     def test_negotiate_version_returns_highest(self):
         """Test that negotiate_version returns the highest common version."""
         # All versions supported by both
-        result = api_version.negotiate_version(["1.0", "2.0", "2.1", "2.2", "2.3", "2.4", "2.5"])
-        self.assertEqual(result, "2.5")
+        result = api_version.negotiate_version(["1.0", "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"])
+        self.assertEqual(result, "2.6")
 
         # Only lower versions in common
         result = api_version.negotiate_version(["1.0", "2.0"])
