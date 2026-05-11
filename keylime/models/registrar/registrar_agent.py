@@ -290,6 +290,7 @@ class RegistrarAgent(PersistableModel):
         # If the iak_attest and iak_sign values are missing, treat this as an error
         if not iak_attest or not iak_sign:
             self._add_error("aik_tpm", "cannot be bound to the IAK because of a missing 'iak_attest' or 'iak_sign'")
+            return
 
         # Decode Base64 values to binary TPM structures
         iak_attest = base64.b64decode(iak_attest)
