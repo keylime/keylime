@@ -60,6 +60,18 @@ H-5         ECC SM2 P256     SM3_256
 ==========  ===============  ==========
 
 
-.. [#] IEEE Standard for Local and Metropolitan Area Networks - Secure Device Identity, https://standards.ieee.org/standard/802_1AR-2018.html  
+Qualifying Data in AK Certification (API v2.6+)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Starting with API version 2.6, the agent hashes the agent ID using SHA-256
+before passing it as ``qualifyingData`` to ``TPM2_Certify`` when certifying
+the AK with the IAK. This ensures the qualifying data fits within the
+``TPM2B_DATA`` size limit on TPMs that only support SHA-256 (where the limit
+is 34 bytes), which is smaller than a typical UUID string (36 bytes).
+
+The registrar accepts both the hashed format (from agents using API v2.6+) and
+the raw agent ID format (from older agents) to maintain backward compatibility.
+
+.. [#] IEEE Standard for Local and Metropolitan Area Networks - Secure Device Identity, https://standards.ieee.org/standard/802_1AR-2018.html
 .. [#tcg] TPM 2.0 Keys for Device Identity and Attestation, https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf
 
