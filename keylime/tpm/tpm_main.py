@@ -1,4 +1,6 @@
 import base64
+import hashlib
+import hmac
 import struct
 import zlib
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -99,6 +101,14 @@ class Tpm:
         if not isinstance(pub, (RSAPublicKey, EllipticCurvePublicKey)):
             raise ValueError(f"Unsupported key type {type(pub).__name__}")
 
+        # Validate magic number and structure type before parsing
+        try:
+            magic, attest_type = struct.unpack_from(">IH", attest)
+        except struct.error as exc:
+            raise ObjectNameMismatch("malformed TPM2B_ATTEST structure") from exc
+        if magic != tpm2_objects.TPM_GENERATED_VALUE or attest_type != tpm2_objects.TPM_ST_ATTEST_CERTIFY:
+            raise ObjectNameMismatch("invalid magic or structure type in TPM2B_ATTEST")
+
         # Skip over qualifiedSigner field, so that we can locate the qualifying data which comes after
         _key_name, rest = Tpm._unpackv(attest, 6)
         # Extract buffer from extraData
@@ -109,7 +119,13 @@ class Tpm:
             raise QualifyingDataMismatch("qualifying data does not match TPM2B_ATTEST structure")
 
         # Check object is present in attest structure
-        if tpm2_objects.get_tpm2b_public_name(tpm_object) != rest[27:61].hex():
+        # Skip clockInfo(17) + firmwareVersion(8) to reach TPMS_CERTIFY_INFO,
+        # then extract the TPM2B_NAME (variable-length, depends on name algorithm)
+        try:
+            certify_name, _ = Tpm._unpackv(rest, 25)
+        except struct.error as exc:
+            raise ObjectNameMismatch("malformed TPMS_CERTIFY_INFO in TPM2B_ATTEST structure") from exc
+        if tpm2_objects.get_tpm2b_public_name(tpm_object) != certify_name.hex():
             raise ObjectNameMismatch("name of TPM object not found in TPM2B_ATTEST structure")
 
         # Calculate digest from attest info
@@ -162,17 +178,38 @@ class Tpm:
 
     @staticmethod
     def verify_aik_with_iak(uuid: str, aik_tpm: bytes, iak_tpm: bytes, iak_attest: bytes, iak_sign: bytes) -> bool:
-        attest_body = iak_attest.split(b"\x00$")[1]
+        try:
+            magic, attest_type = struct.unpack_from(">IH", iak_attest)
+            if magic != tpm2_objects.TPM_GENERATED_VALUE or attest_type != tpm2_objects.TPM_ST_ATTEST_CERTIFY:
+                logger.warning("Agent %s AIK verification failed, invalid magic or structure is not CERTIFY", uuid)
+                return False
+            _qualified_signer, rest = Tpm._unpackv(iak_attest, 6)
+            extra_data, rest = Tpm._unpackv(rest)
+        except struct.error:
+            logger.warning("Agent %s AIK verification failed, malformed IAK attestation structure", uuid)
+            return False
         iak_pub = tpm2_objects.pubkey_from_tpm2b_public(iak_tpm)
 
-        # check UUID in certify matches UUID registering
-        if attest_body[: len(uuid)] != bytes(uuid, "utf-8"):
-            logger.warning("Agent %s AIK verification failed, uuid does not match attest info", uuid)
+        # check qualifying data: accept SHA-256 hash of UUID (new agents) or raw UUID (old agents)
+        expected_hashed = hashlib.sha256(uuid.encode("utf-8")).digest()
+        if hmac.compare_digest(extra_data, expected_hashed):
+            pass
+        elif hmac.compare_digest(extra_data, uuid.encode("utf-8")):
+            logger.info("Agent %s uses raw UUID as qualifying data (pre-2.6 format)", uuid)
+        else:
+            logger.warning("Agent %s AIK verification failed, qualifying data does not match agent ID", uuid)
             return False
 
         # check aik in certify matches aik being registered
-        if tpm2_objects.get_tpm2b_public_name(aik_tpm) != attest_body[len(uuid) + 27 : len(uuid) + 61].hex():
-            logger.warning(" Agent %s AIK verification failed, name of aik does not match attest info", uuid)
+        # Skip clockInfo(17) + firmwareVersion(8) to reach TPMS_CERTIFY_INFO,
+        # then extract the TPM2B_NAME (variable-length, depends on name algorithm)
+        try:
+            certify_name, _ = Tpm._unpackv(rest, 25)
+        except struct.error:
+            logger.warning("Agent %s AIK verification failed, malformed TPMS_CERTIFY_INFO", uuid)
+            return False
+        if tpm2_objects.get_tpm2b_public_name(aik_tpm) != certify_name.hex():
+            logger.warning("Agent %s AIK verification failed, name of aik does not match attest info", uuid)
             return False
 
         # generate digest of attest info

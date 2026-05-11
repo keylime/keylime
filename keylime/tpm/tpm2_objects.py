@@ -59,6 +59,7 @@ TPM_ALG_ECDSA = 0x0018
 
 TPM_GENERATED_VALUE = 0xFF544347
 
+TPM_ST_ATTEST_CERTIFY = 0x8017
 TPM_ST_ATTEST_QUOTE = 0x8018
 
 # These are the object attribute values important for EK certs
