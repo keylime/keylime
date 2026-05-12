@@ -189,8 +189,7 @@ class TestEvidenceItemModel(unittest.TestCase):
         evidence2 = EvidenceItem.empty()
         evidence2.evidence_class = "certification"
 
-        with patch.object(evidence1, "refresh_metadata"), \
-             patch.object(evidence2, "refresh_metadata"):
+        with patch.object(evidence1, "refresh_metadata"), patch.object(evidence2, "refresh_metadata"):
             evidence1.generate_challenge(128)
             evidence2.generate_challenge(128)
 
