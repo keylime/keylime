@@ -49,7 +49,7 @@ MBAgg = Optional[Dict[str, List[str]]]
 # list of all imported modules for MBA.
 # ###########
 
-_mba_imports = []
+_mba_imports: List[Any] = []
 
 # ###########
 # import/load measured boot attestation imports
