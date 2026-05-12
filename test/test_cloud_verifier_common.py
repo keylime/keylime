@@ -976,7 +976,6 @@ class TestProcessGetStatus(unittest.TestCase):
             "PULL mode agent should show FAIL in FAILED state",
         )
 
-
     def test_push_mode_agent_fail_when_timed_out_with_failures(self):
         """Test PUSH agent shows FAIL (not TIMEOUT) when timed out with prior failures."""
         agent = self._create_mock_agent(
