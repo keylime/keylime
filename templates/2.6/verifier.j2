@@ -325,6 +325,16 @@ session_lifetime = {{ verifier.session_lifetime }}
 # as long as they continue attesting within the session_lifetime window.
 # Default: true
 extend_token_on_attestation = {{ verifier.extend_token_on_attestation }}
+#
+# Whether to allow PUSH mode agents to automatically recover from attestation
+# failures (FAIL → PASS transition) when a subsequent attestation succeeds.
+# When disabled (default), agents that previously failed attestation remain in
+# FAIL status even after a successful attestation; an operator must re-add the
+# agent to clear the failure state. This keeps unexpected changes visible.
+# Note: TIMEOUT → PASS recovery (for connectivity issues) is always allowed
+# regardless of this setting.
+# Default: false
+auto_recover_attestation_failures = {{ verifier.auto_recover_attestation_failures }}
 
 # Maximum time in seconds to wait for in-flight attestation operations to
 # complete during shutdown. The verifier will wait up to this long for active
