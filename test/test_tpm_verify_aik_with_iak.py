@@ -169,7 +169,6 @@ class TestVerifyAikWithIak(unittest.TestCase):
 
     def test_invalid_magic_rejected(self):
         """iak_attest with a bad magic number should return False."""
-        # Corrupt the magic number (first 4 bytes), keep valid CERTIFY type
         bad_attest = b"\xde\xad\xbe\xef" + b"\x80\x17" + b"\x00" * 50
         sig = _build_sig(tpm2_objects.TPM_ALG_RSASSA, tpm2_objects.TPM_ALG_SHA256, self.fake_sig)
 
@@ -179,7 +178,6 @@ class TestVerifyAikWithIak(unittest.TestCase):
 
     def test_wrong_structure_type_rejected(self):
         """iak_attest with a non-CERTIFY structure type (e.g. QUOTE) should return False."""
-        # Valid magic, but type 0x8018 = TPM_ST_ATTEST_QUOTE instead of CERTIFY
         bad_attest = b"\xff\x54\x43\x47" + b"\x80\x18" + b"\x00" * 50
         sig = _build_sig(tpm2_objects.TPM_ALG_RSASSA, tpm2_objects.TPM_ALG_SHA256, self.fake_sig)
 
