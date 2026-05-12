@@ -279,8 +279,13 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         # PUSH mode: determine status based on accept_attestations flag and attestation history
         # Agent must have successfully attested at least once to show PASS
         if hasattr(agent, "accept_attestations") and agent.accept_attestations is False:
-            # Timeout has fired - agent is not accepting attestations
-            attestation_status = "FAIL"
+            # Timeout has fired - check if there were prior attestation failures
+            # to avoid downgrading from FAIL to TIMEOUT
+            consecutive_failures = getattr(agent, "consecutive_attestation_failures", None)
+            if consecutive_failures is not None and consecutive_failures > 0:
+                attestation_status = "FAIL"
+            else:
+                attestation_status = "TIMEOUT"
         elif hasattr(agent, "accept_attestations") and agent.accept_attestations is True:
             # Check if there are recent failures (consecutive_attestation_failures > 0)
             # This prevents showing PASS when recent attestations failed but timeout hasn't fired yet

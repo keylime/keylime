@@ -4,7 +4,7 @@ This module implements event-driven timeout detection for PUSH mode agents.
 Instead of polling the database continuously, it schedules individual timeout
 callbacks when attestations are received. When an agent exceeds the timeout
 threshold, its accept_attestations flag is set to False, which causes
-attestation_status to show as "FAIL".
+attestation_status to show as "TIMEOUT" (or "FAIL" if there were prior attestation failures).
 
 Integration points:
 - Call schedule_agent_timeout(agent_id) when a PUSH mode attestation is received
@@ -248,7 +248,9 @@ def check_push_agent_timeouts() -> None:
             timed_out_count = 0
             for agent in push_agents:
                 # Skip agents that have never received an attestation
-                if agent.last_received_quote is None:
+                if (
+                    agent.last_received_quote is None or agent.last_received_quote <= 0
+                ):  # pyright: ignore[reportGeneralTypeIssues]
                     logger.debug("Agent %s has never received an attestation, skipping timeout check", agent.agent_id)
                     continue
 

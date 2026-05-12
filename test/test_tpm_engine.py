@@ -212,6 +212,7 @@ class TestTPMEngineProcessResults(unittest.TestCase):
 
         # Simulate agent that has timed out (accept_attestations=False)
         self.mock_agent.accept_attestations = False
+        self.mock_agent.consecutive_attestation_failures = 0
 
         # Mock _extend_auth_token
         with patch.object(self.engine, "_extend_auth_token"):
@@ -240,6 +241,196 @@ class TestTPMEngineProcessResults(unittest.TestCase):
         mock_schedule_timeout.assert_called_once_with("test-agent-123")
 
         # Evaluation should be set to pass
+        self.assertEqual(self.mock_attestation.evaluation, "pass")
+
+    @patch("keylime.verification.tpm_engine.config.get")
+    @patch("keylime.verification.tpm_engine.agent_util.is_push_mode_agent")
+    @patch("keylime.verification.tpm_engine.push_agent_monitor.schedule_agent_timeout")
+    @patch("keylime.verification.tpm_engine.config.getboolean")
+    def test_process_results_push_failure_clears_timeout(
+        self, mock_getboolean, mock_schedule_timeout, mock_is_push_mode, mock_config_get
+    ):
+        """Failed attestation from PUSH agent should clear timeout state (TIMEOUT -> FAIL)"""
+        mock_config_get.return_value = "push"
+        mock_getboolean.return_value = True
+        mock_is_push_mode.return_value = True
+
+        self.mock_agent.accept_attestations = False
+        self.mock_agent.consecutive_attestation_failures = 0
+
+        failure = Failure(Component.QUOTE_VALIDATION)
+        failure.add_event("test_failure", "Test failure", True)
+
+        with patch.object(self.engine, "_select_ima_log_item", return_value=None):
+            with patch.object(self.engine, "_determine_failure_reason"):
+                with patch.object(type(self.engine), "attest_state", new_callable=PropertyMock, return_value=None):
+                    with patch.object(
+                        type(self.engine), "failure_reason", new_callable=PropertyMock, return_value=None
+                    ):
+                        self.engine._process_results(failure)
+
+        self.assertTrue(
+            self.mock_agent.accept_attestations,
+            "Failed attestation from PUSH agent should re-enable accept_attestations to clear timeout state",
+        )
+        self.assertEqual(self.mock_agent.consecutive_attestation_failures, 1)
+        mock_schedule_timeout.assert_called_once_with("test-agent-123")
+        self.assertEqual(self.mock_attestation.evaluation, "fail")
+
+    @patch("keylime.verification.tpm_engine.config.getboolean")
+    @patch("keylime.verification.tpm_engine.agent_util.is_push_mode_agent")
+    @patch("keylime.verification.tpm_engine.push_agent_monitor.schedule_agent_timeout")
+    def test_process_results_push_fail_to_pass_blocked_by_default(
+        self, _mock_schedule_timeout, mock_is_push_mode, mock_getboolean
+    ):
+        """PUSH mode: FAIL → PASS should be blocked by default (auto_recover_attestation_failures=False)"""
+
+        def getboolean_side_effect(_section, key, fallback=None):
+            if key == "auto_recover_attestation_failures":
+                return False
+            if key == "extend_token_on_attestation":
+                return True
+            return fallback
+
+        mock_getboolean.side_effect = getboolean_side_effect
+        mock_is_push_mode.return_value = True
+
+        self.mock_agent.accept_attestations = True
+        self.mock_agent.consecutive_attestation_failures = 3
+
+        with patch.object(self.engine, "_extend_auth_token"):
+            with patch.object(self.engine, "_select_ima_log_item", return_value=None):
+                with patch.object(self.engine, "_determine_failure_reason"):
+                    with patch.object(type(self.engine), "attest_state", new_callable=PropertyMock, return_value=None):
+                        with patch.object(
+                            type(self.engine), "failure_reason", new_callable=PropertyMock, return_value=None
+                        ):
+                            self.engine._process_results(None)
+
+        self.assertTrue(self.mock_agent.accept_attestations)
+        self.assertEqual(
+            self.mock_agent.consecutive_attestation_failures,
+            3,
+            "FAIL → PASS should be blocked: consecutive_attestation_failures must not be reset",
+        )
+        self.assertEqual(self.mock_agent.attestation_count, 1)
+        self.assertEqual(self.mock_attestation.evaluation, "pass")
+
+    @patch("keylime.verification.tpm_engine.config.getboolean")
+    @patch("keylime.verification.tpm_engine.agent_util.is_push_mode_agent")
+    @patch("keylime.verification.tpm_engine.push_agent_monitor.schedule_agent_timeout")
+    def test_process_results_push_fail_to_pass_allowed_when_configured(
+        self, _mock_schedule_timeout, mock_is_push_mode, mock_getboolean
+    ):
+        """PUSH mode: FAIL → PASS should be allowed when auto_recover_attestation_failures=True"""
+
+        def getboolean_side_effect(_section, key, fallback=None):
+            if key == "auto_recover_attestation_failures":
+                return True
+            if key == "extend_token_on_attestation":
+                return True
+            return fallback
+
+        mock_getboolean.side_effect = getboolean_side_effect
+        mock_is_push_mode.return_value = True
+
+        self.mock_agent.accept_attestations = True
+        self.mock_agent.consecutive_attestation_failures = 3
+
+        with patch.object(self.engine, "_extend_auth_token"):
+            with patch.object(self.engine, "_select_ima_log_item", return_value=None):
+                with patch.object(self.engine, "_determine_failure_reason"):
+                    with patch.object(type(self.engine), "attest_state", new_callable=PropertyMock, return_value=None):
+                        with patch.object(
+                            type(self.engine), "failure_reason", new_callable=PropertyMock, return_value=None
+                        ):
+                            self.engine._process_results(None)
+
+        self.assertTrue(self.mock_agent.accept_attestations)
+        self.assertEqual(
+            self.mock_agent.consecutive_attestation_failures,
+            0,
+            "FAIL → PASS should be allowed: consecutive_attestation_failures must be reset when configured",
+        )
+        self.assertEqual(self.mock_agent.attestation_count, 1)
+        self.assertEqual(self.mock_attestation.evaluation, "pass")
+
+    @patch("keylime.verification.tpm_engine.config.getboolean")
+    @patch("keylime.verification.tpm_engine.agent_util.is_push_mode_agent")
+    @patch("keylime.verification.tpm_engine.push_agent_monitor.schedule_agent_timeout")
+    def test_process_results_push_fail_timeout_pass_blocked_by_default(
+        self, _mock_schedule_timeout, mock_is_push_mode, mock_getboolean
+    ):
+        """PUSH mode: FAIL → TIMEOUT → PASS should be blocked by default (no bypass via timeout)"""
+
+        def getboolean_side_effect(_section, key, fallback=None):
+            if key == "auto_recover_attestation_failures":
+                return False
+            if key == "extend_token_on_attestation":
+                return True
+            return fallback
+
+        mock_getboolean.side_effect = getboolean_side_effect
+        mock_is_push_mode.return_value = True
+
+        self.mock_agent.accept_attestations = False
+        self.mock_agent.consecutive_attestation_failures = 3
+
+        with patch.object(self.engine, "_extend_auth_token"):
+            with patch.object(self.engine, "_select_ima_log_item", return_value=None):
+                with patch.object(self.engine, "_determine_failure_reason"):
+                    with patch.object(type(self.engine), "attest_state", new_callable=PropertyMock, return_value=None):
+                        with patch.object(
+                            type(self.engine), "failure_reason", new_callable=PropertyMock, return_value=None
+                        ):
+                            self.engine._process_results(None)
+
+        self.assertTrue(self.mock_agent.accept_attestations)
+        self.assertEqual(
+            self.mock_agent.consecutive_attestation_failures,
+            3,
+            "FAIL → TIMEOUT → PASS must not bypass auto_recover_attestation_failures=False",
+        )
+        self.assertEqual(self.mock_agent.attestation_count, 1)
+        self.assertEqual(self.mock_attestation.evaluation, "pass")
+
+    @patch("keylime.verification.tpm_engine.config.getboolean")
+    @patch("keylime.verification.tpm_engine.agent_util.is_push_mode_agent")
+    @patch("keylime.verification.tpm_engine.push_agent_monitor.schedule_agent_timeout")
+    def test_process_results_push_fail_timeout_pass_allowed_when_configured(
+        self, _mock_schedule_timeout, mock_is_push_mode, mock_getboolean
+    ):
+        """PUSH mode: FAIL → TIMEOUT → PASS should be allowed when auto_recover_attestation_failures=True"""
+
+        def getboolean_side_effect(_section, key, fallback=None):
+            if key == "auto_recover_attestation_failures":
+                return True
+            if key == "extend_token_on_attestation":
+                return True
+            return fallback
+
+        mock_getboolean.side_effect = getboolean_side_effect
+        mock_is_push_mode.return_value = True
+
+        self.mock_agent.accept_attestations = False
+        self.mock_agent.consecutive_attestation_failures = 3
+
+        with patch.object(self.engine, "_extend_auth_token"):
+            with patch.object(self.engine, "_select_ima_log_item", return_value=None):
+                with patch.object(self.engine, "_determine_failure_reason"):
+                    with patch.object(type(self.engine), "attest_state", new_callable=PropertyMock, return_value=None):
+                        with patch.object(
+                            type(self.engine), "failure_reason", new_callable=PropertyMock, return_value=None
+                        ):
+                            self.engine._process_results(None)
+
+        self.assertTrue(self.mock_agent.accept_attestations)
+        self.assertEqual(
+            self.mock_agent.consecutive_attestation_failures,
+            0,
+            "FAIL → TIMEOUT → PASS should clear failures when auto_recover_attestation_failures=True",
+        )
+        self.assertEqual(self.mock_agent.attestation_count, 1)
         self.assertEqual(self.mock_attestation.evaluation, "pass")
 
 
