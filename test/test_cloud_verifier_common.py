@@ -872,23 +872,23 @@ class TestProcessGetStatus(unittest.TestCase):
         )
 
     def test_push_mode_agent_fail_when_not_accepting(self):
-        """Test PUSH mode agent shows FAIL when accept_attestations=False."""
+        """Test PUSH mode agent shows TIMEOUT when accept_attestations=False."""
         # Create PUSH mode agent with accept_attestations=False
         agent = self._create_mock_agent(
             operational_state=states.GET_QUOTE,
             ip=None,
             port=None,
-            accept_attestations=False,  # Timed out or failed
+            accept_attestations=False,  # Timed out
             attestation_count=1,
         )
 
         status = cloud_verifier_common.process_get_status(agent)
 
-        # Should be FAIL because accept_attestations=False
+        # Should be TIMEOUT because accept_attestations=False (agent stopped sending attestations)
         self.assertEqual(
             status["attestation_status"],
-            "FAIL",
-            "PUSH mode agent should show FAIL when accept_attestations=False",
+            "TIMEOUT",
+            "PUSH mode agent should show TIMEOUT when accept_attestations=False",
         )
 
     def test_push_mode_agent_fail_with_consecutive_failures(self):
@@ -975,6 +975,39 @@ class TestProcessGetStatus(unittest.TestCase):
             "FAIL",
             "PULL mode agent should show FAIL in FAILED state",
         )
+
+
+    def test_push_mode_agent_fail_when_timed_out_with_failures(self):
+        """Test PUSH agent shows FAIL (not TIMEOUT) when timed out with prior failures."""
+        agent = self._create_mock_agent(
+            operational_state=states.GET_QUOTE,
+            ip=None,
+            port=None,
+            accept_attestations=False,
+            attestation_count=5,
+            consecutive_attestation_failures=3,
+        )
+
+        status = cloud_verifier_common.process_get_status(agent)
+
+        self.assertEqual(
+            status["attestation_status"],
+            "FAIL",
+            "PUSH mode agent with accept_attestations=False and consecutive_failures > 0 should show FAIL",
+        )
+
+    def test_push_mode_agent_pending_without_accept_attestations_attr(self):
+        """Test PUSH agent shows PENDING when accept_attestations attribute is missing."""
+        agent = self._create_mock_agent(
+            operational_state=None,
+            ip=None,
+            port=None,
+        )
+        del agent.accept_attestations
+
+        status = cloud_verifier_common.process_get_status(agent)
+
+        self.assertEqual(status["attestation_status"], "PENDING")
 
 
 if __name__ == "__main__":

@@ -194,6 +194,30 @@ class TestPushAgentMonitor(unittest.TestCase):
     @patch("keylime.push_agent_monitor.config")
     @patch("keylime.cloud_verifier_tornado.session_context")
     @patch("keylime.push_agent_monitor.time.time")
+    def test_check_push_agent_timeouts_sentinel_zero_not_timed_out(self, mock_time, mock_session_context, mock_config):
+        """Test that agents with sentinel last_received_quote=0 are not marked as timed out."""
+        mock_config.getfloat.return_value = 2.0
+        mock_session_context.return_value.__enter__.return_value = self.session
+        mock_session_context.return_value.__exit__.return_value = None
+        mock_time.return_value = self.current_time
+
+        self._create_push_agent(
+            agent_id="sentinel-zero-agent",
+            accept_attestations=True,
+            last_received_quote=0,
+            operational_state=None,
+        )
+
+        check_push_agent_timeouts()
+
+        agent = self.session.query(VerfierMain).filter_by(agent_id="sentinel-zero-agent").first()
+        self.assertIsNotNone(agent)
+        assert agent is not None  # Type narrowing for pyright
+        self.assertTrue(agent.accept_attestations)
+
+    @patch("keylime.push_agent_monitor.config")
+    @patch("keylime.cloud_verifier_tornado.session_context")
+    @patch("keylime.push_agent_monitor.time.time")
     def test_check_push_agent_timeouts_already_failed_agent(self, mock_time, mock_session_context, mock_config):
         """Test that already-failed agents are not updated again (to prevent log spam)."""
         # Configure mocks

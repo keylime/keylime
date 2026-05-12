@@ -739,12 +739,28 @@ class TPMEngine(VerificationEngine):
             # The fresh agent is used for reading policies but updates must go to the original
             self.attestation.agent.attestation_count += 1
 
-            # Reset consecutive failures counter on success
-            self.attestation.agent.consecutive_attestation_failures = 0
+            # Handle state transitions differently for PUSH vs PULL mode:
+            # - TIMEOUT → PASS: agent resumes accepting attestations
+            # - Clearing failure count requires no prior failures or auto_recover_attestation_failures=True
+            if agent_util.is_push_mode_agent(self.attestation.agent):
+                had_failures = (self.attestation.agent.consecutive_attestation_failures or 0) > 0
 
-            # Re-enable attestations on successful attestation
-            # This allows PUSH mode agents to recover from timeout-induced FAIL status
-            self.attestation.agent.accept_attestations = True
+                self.attestation.agent.accept_attestations = True
+
+                if not had_failures:
+                    self.attestation.agent.consecutive_attestation_failures = 0
+                elif config.getboolean("verifier", "auto_recover_attestation_failures", fallback=False):
+                    self.attestation.agent.consecutive_attestation_failures = 0
+                else:
+                    logger.info(
+                        "Agent %s passed attestation but has prior failures (count=%d). "
+                        "FAIL to PASS auto-recovery is disabled. Re-add agent to clear.",
+                        self.attestation.agent.agent_id,
+                        self.attestation.agent.consecutive_attestation_failures,
+                    )
+            else:
+                self.attestation.agent.consecutive_attestation_failures = 0
+                self.attestation.agent.accept_attestations = True
 
             # Update operational state to GET_QUOTE if not already set
             # This ensures the agent shows as actively attesting in status queries
@@ -780,10 +796,13 @@ class TPMEngine(VerificationEngine):
                 self.agent.accept_attestations = False
                 # Invalidate authentication session on attestation failure in pull mode
                 AuthSession.delete_active_session_for_agent(self.agent_id)
-            # In push mode, token remains valid and agent can retry.
-            # Token is NOT extended on failed attestations (extension only happens for successful attestations above).
-            # Agent will get 503 Service Unavailable if it retries too quickly (due to attestation_interval check).
-            # When token expires, agent will get 401 and must re-authenticate.
+            elif agent_util.is_push_mode_agent(self.attestation.agent):
+                # PUSH mode: re-enable attestations and update timestamp to clear timeout state.
+                # The agent is actively communicating even though verification failed.
+                # Status will show FAIL (not TIMEOUT) because consecutive_attestation_failures > 0.
+                self.attestation.agent.accept_attestations = True
+                self.attestation.agent.last_received_quote = int(time.time())
+                push_agent_monitor.schedule_agent_timeout(self.attestation.agent.agent_id)
 
         self.attestation.refresh_metadata()  # type: ignore[no-untyped-call]
         self._determine_failure_reason(failure)

@@ -105,6 +105,123 @@ class TestVerifierServerPrepareAgents(unittest.TestCase):
         # Verify query was called
         mock_session.query.return_value.count.assert_called()
 
+    @patch("keylime.web.verifier_server.push_agent_monitor")
+    @patch("keylime.web.verifier_server.agent_util")
+    @patch("keylime.web.verifier_server.config")
+    @patch("keylime.web.verifier_server.make_engine")
+    @patch("keylime.web.verifier_server.SessionManager")
+    def test_prepare_agents_sentinel_zero_not_timed_out(
+        self, mock_session_manager, mock_make_engine, mock_config, mock_agent_util, mock_push_monitor
+    ):
+        """Test that PUSH agents with sentinel last_received_quote=0 are not marked timed out."""
+        mock_engine = MagicMock()
+        mock_make_engine.return_value = mock_engine
+
+        mock_config.getfloat.return_value = 2.0
+        mock_push_monitor.get_maximum_attestation_interval.return_value = 10.0
+
+        mock_agent = MagicMock()
+        mock_agent.agent_id = "push-agent-sentinel"
+        mock_agent.operational_state = None
+        mock_agent.last_received_quote = 0
+        mock_agent.accept_attestations = True
+        mock_agent_util.is_push_mode_agent.return_value = True
+
+        mock_session = MagicMock()
+        mock_session.query.return_value.all.return_value = [mock_agent]
+        mock_session.query.return_value.count.return_value = 1
+
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_session
+        mock_context.__exit__.return_value = None
+
+        mock_sm = MagicMock()
+        mock_sm.session_context.return_value = mock_context
+        mock_session_manager.return_value = mock_sm
+
+        server = VerifierServer.__new__(VerifierServer)
+        server._prepare_agents_on_startup()  # pylint: disable=protected-access
+
+        self.assertTrue(mock_agent.accept_attestations)
+
+    @patch("keylime.web.verifier_server.push_agent_monitor")
+    @patch("keylime.web.verifier_server.agent_util")
+    @patch("keylime.web.verifier_server.config")
+    @patch("keylime.web.verifier_server.make_engine")
+    @patch("keylime.web.verifier_server.SessionManager")
+    def test_prepare_agents_push_agent_timed_out_during_downtime(
+        self, mock_session_manager, mock_make_engine, mock_config, mock_agent_util, mock_push_monitor
+    ):
+        """Test that PUSH agents that timed out during verifier downtime are marked."""
+        mock_engine = MagicMock()
+        mock_make_engine.return_value = mock_engine
+
+        mock_config.getfloat.return_value = 2.0
+        mock_push_monitor.get_maximum_attestation_interval.return_value = 10.0
+
+        mock_agent = MagicMock()
+        mock_agent.agent_id = "push-agent-stale"
+        mock_agent.operational_state = None
+        mock_agent.last_received_quote = 1000
+        mock_agent.accept_attestations = True
+        mock_agent_util.is_push_mode_agent.return_value = True
+
+        mock_session = MagicMock()
+        mock_session.query.return_value.all.return_value = [mock_agent]
+        mock_session.query.return_value.count.return_value = 1
+
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_session
+        mock_context.__exit__.return_value = None
+
+        mock_sm = MagicMock()
+        mock_sm.session_context.return_value = mock_context
+        mock_session_manager.return_value = mock_sm
+
+        server = VerifierServer.__new__(VerifierServer)
+        server._prepare_agents_on_startup()  # pylint: disable=protected-access
+
+        self.assertFalse(mock_agent.accept_attestations)
+
+    @patch("keylime.web.verifier_server.push_agent_monitor")
+    @patch("keylime.web.verifier_server.agent_util")
+    @patch("keylime.web.verifier_server.config")
+    @patch("keylime.web.verifier_server.make_engine")
+    @patch("keylime.web.verifier_server.SessionManager")
+    def test_prepare_agents_push_agent_none_quote_not_timed_out(
+        self, mock_session_manager, mock_make_engine, mock_config, mock_agent_util, mock_push_monitor
+    ):
+        """Test that PUSH agents with last_received_quote=None are not marked timed out."""
+        mock_engine = MagicMock()
+        mock_make_engine.return_value = mock_engine
+
+        mock_config.getfloat.return_value = 2.0
+        mock_push_monitor.get_maximum_attestation_interval.return_value = 10.0
+
+        mock_agent = MagicMock()
+        mock_agent.agent_id = "push-agent-new"
+        mock_agent.operational_state = None
+        mock_agent.last_received_quote = None
+        mock_agent.accept_attestations = True
+        mock_agent_util.is_push_mode_agent.return_value = True
+
+        mock_session = MagicMock()
+        mock_session.query.return_value.all.return_value = [mock_agent]
+        mock_session.query.return_value.count.return_value = 1
+
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_session
+        mock_context.__exit__.return_value = None
+
+        mock_sm = MagicMock()
+        mock_sm.session_context.return_value = mock_context
+        mock_session_manager.return_value = mock_sm
+
+        server = VerifierServer.__new__(VerifierServer)
+        server._prepare_agents_on_startup()  # pylint: disable=protected-access
+
+        self.assertTrue(mock_agent.accept_attestations)
+
 
 class TestVerifierServerRoutes(unittest.TestCase):
     """Test cases for VerifierServer route configuration."""
