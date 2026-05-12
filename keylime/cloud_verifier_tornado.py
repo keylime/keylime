@@ -22,7 +22,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.orm.exc import NoResultFound  # pyright: ignore
 
-from keylime import agent_util
+from keylime import (
+    agent_util,
+)
 from keylime import api_version as keylime_api_version
 from keylime import (
     cloud_verifier_common,
