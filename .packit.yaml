@@ -1,8 +1,23 @@
 jobs:
 - job: tests
   trigger: pull_request
-  metadata:
-    targets:
+  manual_trigger: true
+  identifier: full
+  targets:
     - fedora-branched
     - centos-stream-10-x86_64
-    skip_build: true
+  skip_build: true
+  tf_extra_params:
+    test:
+      tmt:
+        name: "/packit-ci/e2e.*"
+- job: tests
+  trigger: pull_request
+  identifier: fast
+  targets:
+    - fedora-latest
+  skip_build: true
+  tf_extra_params:
+    test:
+      tmt:
+        name: "/packit-ci/fast-e2e"

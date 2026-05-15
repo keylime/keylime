@@ -44,7 +44,7 @@ adjust:
          - dnf config-manager --set-enabled epel || true
          - dnf -y install beakerlib
 
-## First test plan
+## First full test plan
 
 /e2e-with-revocation:
 
@@ -113,6 +113,8 @@ adjust:
      - /regression/keylime-agent-option-override-through-envvar
      - /regression/db-connection-leak-reproducer
      - /regression/cannot-use-mTLS-cert-on-verifier-api-endpoint/*
+     - /regression/cannot-use-mTLS-cert-on-server-admin-api-endpoint/.*
+     - /regression/push-tenant_cannot_access_agent_endpoint
      - /sanity/keylime-secure_mount
      - /sanity/opened-conf-files
      - /upstream/run_keylime_tests
@@ -128,7 +130,7 @@ adjust:
         - /setup/generate_coverage_report
 
 
-## Second test plan
+## Second full test plan
 
 /e2e-without-revocation:
 
@@ -151,3 +153,31 @@ adjust:
      - /functional/basic-attestation-with-custom-certificates
      - /functional/basic-attestation-without-mtls
      - /functional/basic-attestation-with-unpriviledged-agent
+
+## fast e2e test plan
+
+/fast-e2e-minimal:
+
+  summary: run most impactful e2e tests providing 50 percent code coverage
+
+  discover:
+    how: fmf
+    url: https://github.com/RedHat-SP-Security/keylime-tests
+    ref: main
+    test:
+     - /setup/apply_workarounds
+     - /setup/configure_tpm_emulator
+     - /setup/install_upstream_keylime
+     - /setup/install_rust_keylime_from_copr
+     - /setup/configure_kernel_ima_module/ima_policy_signing
+     - /functional/measured-boot-swtpm-sanity/.*
+     - /functional/iak-idevid-register-with-certificates
+     - /compatibility/api_version_compatibility
+     - /functional/push-authentication-persistence
+     - /functional/push-authentication-cross-agent-attestation
+     - /regression/keylime-agent-option-override-through-envvar
+     - /functional/basic-attestation-with-custom-certificates
+     - /functional/attestation-mode-mismatch
+     - /functional/durable-attestion-sanity-on-localhost
+     - /functional/keylime-policy-commands
+     - /functional/tenant-runtime-policy-sanity
