@@ -1,9 +1,14 @@
 name: PR code coverage measurement on codecov.io
 
-on: [pull_request]
+on:
+  check_run:
+    types: [completed]
 
 jobs:
   build:
+    # Only run if the "full" testing-farm job finished
+    if: >
+      contains(github.event.check_run.name, 'testing-farm:fedora-43-x86_64:full')
     runs-on: ubuntu-latest
     continue-on-error: true
     name: Submit code coverage from Packit tests
