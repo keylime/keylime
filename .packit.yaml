@@ -7,6 +7,9 @@ jobs:
     - fedora-branched
     - centos-stream-10-x86_64
   skip_build: true
+  require:
+    label:
+      absent: ["disable e2e tests"]
   tf_extra_params:
     test:
       tmt:
@@ -17,6 +20,9 @@ jobs:
   targets:
     - fedora-latest
   skip_build: true
+  require:
+    label:
+      absent: ["disable e2e tests"]
   tf_extra_params:
     test:
       tmt:
