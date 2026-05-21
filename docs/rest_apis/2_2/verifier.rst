@@ -295,19 +295,11 @@ Verifier
     :>json list[string] runtimepolicy names: List of names of the runtime policies.
 
 
-.. http:delete::  /v2.2/allowlist/{runtime_policy_name:string}
+.. http:delete::  /v2.2/allowlists/{runtime_policy_name:string}
 
     Delete IMA policy `runtime_policy_name`.
 
-    **Example response**:
-
-    .. sourcecode:: json
-
-        {
-          "code": 200,
-          "status": "Success",
-          "results": {}
-        }
+    Returns HTTP 204 with empty body on success.
 
     :>json int code: HTTP status code
     :>json string status: Status as string
