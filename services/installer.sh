@@ -20,8 +20,12 @@ fi
 echo "Using keylime scripts directory: ${KEYLIMEDIR}"
 
 # prepare keylime service files and store them in systemd path
-sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" "$BASEDIR/keylime_registrar.service.template" > /etc/systemd/system/keylime_registrar.service
-sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" "$BASEDIR/keylime_verifier.service.template" > /etc/systemd/system/keylime_verifier.service
+if command -v systemctl >/dev/null 2>&1; then
+    sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" "$BASEDIR/keylime_registrar.service.template" > /etc/systemd/system/keylime_registrar.service
+    sed "s|KEYLIMEDIR|$KEYLIMEDIR|g" "$BASEDIR/keylime_verifier.service.template" > /etc/systemd/system/keylime_verifier.service
+else
+    echo "systemd not detected, skipping service file installation"
+fi
 
 echo "Creating keylime user if it not exists"
 if ! getent passwd keylime >/dev/null; then
@@ -76,10 +80,12 @@ else
     fi
 fi
 
-# set permissions
-chmod 664 /etc/systemd/system/keylime_registrar.service
-chmod 664 /etc/systemd/system/keylime_verifier.service
+# set permissions for systemd service files
+if command -v systemctl >/dev/null 2>&1; then
+    chmod 664 /etc/systemd/system/keylime_registrar.service
+    chmod 664 /etc/systemd/system/keylime_verifier.service
 
-# enable at startup
-systemctl enable keylime_registrar.service
-systemctl enable keylime_verifier.service
+    # enable at startup
+    systemctl enable keylime_registrar.service
+    systemctl enable keylime_verifier.service
+fi
