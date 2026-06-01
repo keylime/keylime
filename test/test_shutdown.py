@@ -13,8 +13,14 @@ class TestShutdownFlag(unittest.TestCase):
     """Test the process-wide shutdown flag."""
 
     def setUp(self) -> None:
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
         # Reset the module-level event before each test
         shutdown._shutdown_event = asyncio.Event()
+
+    def tearDown(self) -> None:
+        asyncio.set_event_loop(None)
+        self.loop.close()
 
     def test_initial_state_not_shutting_down(self) -> None:
         self.assertFalse(shutdown.is_shutting_down())
@@ -33,6 +39,8 @@ class TestOperationTracking(unittest.TestCase):
     """Test _enter_operation / _exit_operation and drain logic."""
 
     def setUp(self) -> None:
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
         # Import here so we can reset module globals
         from keylime import cloud_verifier_tornado as cvt
 
@@ -47,6 +55,8 @@ class TestOperationTracking(unittest.TestCase):
     def tearDown(self) -> None:
         self.cvt._active_operations = self._saved_active
         self.cvt._operations_drained = self._saved_event
+        asyncio.set_event_loop(None)
+        self.loop.close()
 
     def test_initial_state_is_drained(self) -> None:
         self.assertEqual(self.cvt.get_active_operations(), 0)
@@ -78,12 +88,8 @@ class TestOperationTracking(unittest.TestCase):
         self.assertTrue(self.cvt._operations_drained.is_set())
 
     def test_wait_for_drain_returns_true_when_already_drained(self) -> None:
-        loop = asyncio.new_event_loop()
-        try:
-            result = loop.run_until_complete(self.cvt.wait_for_drain(1.0))
-            self.assertTrue(result)
-        finally:
-            loop.close()
+        result = self.loop.run_until_complete(self.cvt.wait_for_drain(1.0))
+        self.assertTrue(result)
 
     def test_wait_for_drain_returns_true_after_exit(self) -> None:
         self.cvt._enter_operation()
@@ -96,23 +102,14 @@ class TestOperationTracking(unittest.TestCase):
             asyncio.ensure_future(_exit_soon())
             return await self.cvt.wait_for_drain(2.0)
 
-        loop = asyncio.new_event_loop()
-        try:
-            result = loop.run_until_complete(_drain_after_delay())
-            self.assertTrue(result)
-            self.assertEqual(self.cvt.get_active_operations(), 0)
-        finally:
-            loop.close()
+        result = self.loop.run_until_complete(_drain_after_delay())
+        self.assertTrue(result)
+        self.assertEqual(self.cvt.get_active_operations(), 0)
 
     def test_wait_for_drain_returns_false_on_timeout(self) -> None:
         self.cvt._enter_operation()
-
-        loop = asyncio.new_event_loop()
-        try:
-            result = loop.run_until_complete(self.cvt.wait_for_drain(0.1))
-            self.assertFalse(result)
-        finally:
-            loop.close()
+        result = self.loop.run_until_complete(self.cvt.wait_for_drain(0.1))
+        self.assertFalse(result)
 
 
 class TestPendingEventRegistry(unittest.TestCase):
