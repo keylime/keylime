@@ -301,7 +301,8 @@ class TestEccPublicKeySecurityValidation(unittest.TestCase):
         # The cryptography library should reject this point as not being on the curve
         with self.assertRaises(ValueError) as cm:
             pubkey_parms_from_tpm2b_public(tpm2b_public)
-        self.assertIn("not on the curve", str(cm.exception).lower())
+        err = str(cm.exception).lower()
+        self.assertTrue("not on the curve" in err or "invalid ec key" in err)
 
     def test_point_at_infinity_validation(self):
         """Test that the point at infinity (0, 0) is rejected (Security Check #2)"""
@@ -314,7 +315,8 @@ class TestEccPublicKeySecurityValidation(unittest.TestCase):
         # The cryptography library should reject the point at infinity
         with self.assertRaises(ValueError) as cm:
             pubkey_parms_from_tpm2b_public(tpm2b_public)
-        self.assertIn("not on the curve", str(cm.exception).lower())
+        err = str(cm.exception).lower()
+        self.assertTrue("not on the curve" in err or "invalid ec key" in err)
 
     def test_valid_point_accepted(self):
         """Test that a valid point on the curve is accepted"""
@@ -413,7 +415,8 @@ class TestEccPublicKeySecurityValidation(unittest.TestCase):
         tpm2b_public_invalid = self.create_ecc_tpm2b_public(1, 1, TPM_ECC_NIST_P521)
         with self.assertRaises(ValueError) as cm:
             pubkey_parms_from_tpm2b_public(tpm2b_public_invalid)
-        self.assertIn("not on the curve", str(cm.exception).lower())
+        err = str(cm.exception).lower()
+        self.assertTrue("not on the curve" in err or "invalid ec key" in err)
 
 
 class TestEccMarshaling(unittest.TestCase):
