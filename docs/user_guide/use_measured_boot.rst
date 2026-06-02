@@ -60,6 +60,18 @@ an agent node, the following actions will be taken.
 3. The `keylime_verifier` will replay the boot log from step 2, ensuring the correct values for PCRs collected in step 1. Again, this is very similar to what it is done with "IMA logs" and PCR 10.
 4. The very same `keylime_verifier` will take the boot log, now deemed "attested" and evaluate it against the measured boot policy, causing the attestation to fail if it does not conform.
 
+.. note::
+
+   The PCR replay in step 3 is restricted to the intersection of ``MEASUREDBOOT_PCRS``
+   (the PCRs Keylime collects) and the set returned by the active policy's
+   ``get_relevant_pcrs()`` method.  PCRs outside that set are excluded from the
+   replay check.  This allows policies to declare that certain PCRs (e.g. PCR 11,
+   which ``systemd-pcrphase`` extends at runtime) are not part of their trust
+   model, preventing spurious verification failures.
+   Policies that return an empty set from ``get_relevant_pcrs()`` (such as the
+   built-in ``accept-all`` and ``reject-all``) apply no restriction, so all
+   ``MEASUREDBOOT_PCRS`` are replayed.
+
 How to use 
 ---------- 
 
