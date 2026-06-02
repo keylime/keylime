@@ -844,6 +844,7 @@ class TPMEngine(VerificationEngine):
             ima_keyrings=self.attest_state.get_ima_keyrings() if self.attest_state else None,  # type: ignore[arg-type]
             mb_measurement_list=uefi_entries,
             mb_policy=self.uefi_ref_state,
+            mb_policy_name=config.get("verifier", "measured_boot_policy_name", fallback="accept-all"),
             compressed=False,
             count=self.agent.attestation_count,
         )

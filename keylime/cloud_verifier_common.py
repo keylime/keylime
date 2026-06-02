@@ -38,6 +38,7 @@ def process_quote_response(
     runtime_policy: Optional[RuntimePolicyType],
     json_response: Dict[str, Any],
     agentAttestState: AgentAttestState,
+    mb_policy_name: str = "accept-all",
 ) -> Failure:
     """Validates the response from the Cloud agent.
 
@@ -202,6 +203,7 @@ def process_quote_response(
         ima_keyrings,
         mb_measurement_list,
         mb_policy,
+        mb_policy_name=mb_policy_name,
         compressed=(agent["supported_version"] == "1.0"),
         count=agent["attestation_count"],
     )  # TODO: change this to always False after initial update
@@ -450,6 +452,7 @@ def process_verify_attestation(
     mb_policy: str,
     ima_measurement_list: str,
     mb_measurement_list: str,
+    mb_policy_name: str = "accept-all",
 ) -> Failure:
     """Processes attestation data one time only without requiring registration
 
@@ -488,6 +491,7 @@ def process_verify_attestation(
             None,  # skip ima_keyrings
             mb_measurement_list,
             mb_policy,
+            mb_policy_name=mb_policy_name,
             skip_clock_check=True,
             skip_pcr_check=False,
             skip_data_pcr_check=True,

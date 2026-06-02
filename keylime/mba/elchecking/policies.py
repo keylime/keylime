@@ -67,6 +67,11 @@ def register(name: str, policy: Policy) -> None:
     _registry[name] = policy
 
 
+def unregister(name: str) -> None:
+    """Remove the policy registered under the given name, if present"""
+    _registry.pop(name, None)
+
+
 register("accept-all", AcceptAll())
 register("reject-all", RejectAll())
 
