@@ -308,6 +308,43 @@ class TestImaDM(unittest.TestCase):
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_device_rename.new_uuid_invalid", failure.get_event_ids())
 
+    def _make_linear_load_data(self, name, uuid=""):
+        return (
+            f"dm_version=4.45.0;name={name},uuid={uuid},"
+            f"major=253,minor=0,minor_count=1,num_targets=1;"
+            f"target_index=0,target_begin=0,target_len=4268032,"
+            f"target_name=linear,target_version=1.4.0,"
+            f"device_name=254:2,start=0;"
+        )
+
+    def test_string_token_accepts_dm_whitelist_chars(self):
+        valid_names = [
+            "test_device",
+            "my.device",
+            "vol+1",
+            "dev@host",
+            "pool#1",
+            "my.dev_1+tag@host#2",
+        ]
+        for name in valid_names:
+            with self.subTest(name=name):
+                data = self._make_linear_load_data(name)
+                result: ima_dm.LoadEvent = cast(ima_dm.LoadEvent, ima_dm.parse(data, "dm_table_load"))
+                self.assertEqual(result.device_metadata.name, name)
+
+    def test_string_token_rejects_non_whitelist_chars(self):
+        invalid_names = [
+            "test\\device",
+            "test[0]",
+            "test^dev",
+            "test`dev",
+        ]
+        for name in invalid_names:
+            with self.subTest(name=name):
+                data = self._make_linear_load_data(name)
+                with self.assertRaises(Exception):
+                    ima_dm.parse(data, "dm_table_load")
+
     def test_matching_func(self):
         for entry in [None, False, True, "test", 123]:
             self.assertTrue(ima_dm._check_attr(entry, None))
