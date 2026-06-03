@@ -81,7 +81,7 @@ by using the option '--mb-policy' with the command `keylime_tenant`.
 The simplest way to test this functionality is by providing an empty
 measured boot policy with the `accept-all` measured_boot_policy_name
 specified in `verifier.conf`, which will cause the `keylime_verifier`
-to simply skip the aforementioned step 4.
+to skip the aforementioned steps 3 and 4 (no PCR replay and no policy evaluation).
 
 An example follows::
 
