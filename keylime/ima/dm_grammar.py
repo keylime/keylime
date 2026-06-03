@@ -153,7 +153,7 @@ snapshot_snapshot_overflowed: "snapshot_overflowed=" yes_no
 // generic rules
 ?yes_no: "y" -> yes | "n" -> no
 optional_string: STRING? 
-STRING: /([A-z]|[0-9]|\-|\:)+/
+STRING: /[A-Za-z0-9\-\:\_\.+@#]+/
 NUMBER: INT
 version_nb: INT "." INT "." INT
 
