@@ -15,7 +15,9 @@ except ImportError:
     # fall back to older version
     try:
         # The following only exists with python-cryptography v37.0.x
-        from cryptography.hazmat.primitives.asymmetric.types import CERTIFICATE_PRIVATE_KEY_TYPES
+        from cryptography.hazmat.primitives.asymmetric.types import (  # type: ignore[attr-defined,no-redef]  # isort: skip
+            CERTIFICATE_PRIVATE_KEY_TYPES,  # pyright: ignore[reportAttributeAccessIssue]
+        )
     except ImportError:
         pass
 
