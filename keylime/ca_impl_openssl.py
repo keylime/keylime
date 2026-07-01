@@ -134,6 +134,9 @@ def mk_request(bits: int, common_name: str) -> Tuple[CertificateBuilder, RSAPriv
       common_name -- common name in the request
     Returns a X509 request and the private key
     """
+    # RSA key_size must be at least 1024; default to 2048 for invalid values
+    if bits < 1024:
+        bits = 2048
 
     privkey = rsa.generate_private_key(
         public_exponent=65537,
