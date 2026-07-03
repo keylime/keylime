@@ -18,7 +18,7 @@ import tornado.netutil
 import tornado.process
 import tornado.web
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import InvalidRequestError, SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.orm.exc import NoResultFound  # pyright: ignore
 
@@ -614,7 +614,17 @@ class AgentsHandler(BaseHandler):
                 if agent is not None:
                     # Refresh agent from database to ensure we have the latest consecutive_attestation_failures
                     # This is critical for PUSH mode status detection when failures occur
-                    session.refresh(agent)
+                    try:
+                        session.refresh(agent, attribute_names=["consecutive_attestation_failures"])
+                    except InvalidRequestError:
+                        # The attestation loop concurrently deleted the agent (TERMINATED → deleted)
+                        # between the initial query and the refresh. Return 404 to the caller.
+                        web_util.echo_json_response(self.req_handler, 404, "agent id not found")
+                        logger.info(
+                            "GET returning 404 response. agent %s was deleted during request processing.",
+                            agent_id,
+                        )
+                        return
                     response = cloud_verifier_common.process_get_status(agent)
                     web_util.echo_json_response(self.req_handler, 200, "Success", response)
                 else:
@@ -658,9 +668,18 @@ class AgentsHandler(BaseHandler):
 
                     json_response = {}
                     for agent in agent_list:
+                        aid = agent.agent_id
                         # Refresh agent from database to ensure fresh consecutive_attestation_failures
-                        session.refresh(agent)
-                        json_response[agent.agent_id] = cloud_verifier_common.process_get_status(agent)
+                        try:
+                            session.refresh(agent, attribute_names=["consecutive_attestation_failures"])
+                        except InvalidRequestError:
+                            # Agent was concurrently deleted during iteration; skip it.
+                            logger.debug(
+                                "Agent %s was deleted during bulk GET request processing, skipping.",
+                                aid,
+                            )
+                            continue
+                        json_response[aid] = cloud_verifier_common.process_get_status(agent)
 
                     web_util.echo_json_response(self.req_handler, 200, "Success", json_response)
                 else:
