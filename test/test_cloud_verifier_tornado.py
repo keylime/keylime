@@ -3,14 +3,17 @@
 Tests cover:
 1. _register_pending_event / _cancel_pending_event helpers
 2. store_attestation_state graceful handling when agent is deleted
+3. AgentsHandler.get() race condition: session.refresh() raises InvalidRequestError
+   when the attestation loop deletes the agent between query and refresh
 """
 
 # pylint: disable=protected-access
 
 import unittest
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import InvalidRequestError, SQLAlchemyError
 
 from keylime import cloud_verifier_tornado
 
@@ -287,6 +290,166 @@ class TestActivateAgentsSkipsPushMode(unittest.IsolatedAsyncioTestCase):
         await cloud_verifier_tornado.activate_agents([agent1, agent2], "127.0.0.1", 8881)
 
         mock_from_db.assert_not_called()
+
+
+def _make_agents_handler(agent_id: str):
+    """Build a bare AgentsHandler instance without Tornado infrastructure.
+
+    Bypasses tornado.web.RequestHandler.__init__ and sets only the attributes
+    the GET handler path under test actually touches.
+    """
+    handler = object.__new__(cloud_verifier_tornado.AgentsHandler)
+    req = MagicMock()
+    req.uri = f"/v2.1/agents/{agent_id}"
+    handler._req_handler_override = req
+    handler.request = req
+    return handler
+
+
+class TestGetHandlerRaceCondition(unittest.TestCase):
+    """Verify that AgentsHandler.get() handles the concurrent-deletion race.
+
+    The race: the attestation loop deletes a TERMINATED agent between the
+    initial query (one_or_none) and the subsequent session.refresh(). SQLAlchemy
+    raises InvalidRequestError("Could not refresh instance '...'") in that case.
+    The handler must return 404 instead of propagating a 500.
+    """
+
+    AGENT_ID = "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"
+
+    def _run_get(self, session_mock):
+        """Wire up validate_input and session_context, invoke handler.get()."""
+        handler = _make_agents_handler(self.AGENT_ID)
+
+        # Provide REST params the same way __validate_input would
+        validate_return = ({"agents": self.AGENT_ID, "api_version": "2.1"}, self.AGENT_ID)
+
+        @contextmanager
+        def fake_session_ctx():
+            yield session_mock
+
+        with (
+            patch.object(
+                cloud_verifier_tornado.AgentsHandler,
+                "_AgentsHandler__validate_input",
+                return_value=validate_return,
+            ),
+            patch("keylime.cloud_verifier_tornado.session_context", fake_session_ctx),
+            patch("keylime.cloud_verifier_tornado.web_util.echo_json_response") as mock_echo,
+        ):
+            handler.get()
+            return mock_echo
+
+    def test_returns_404_when_refresh_raises_invalid_request_error(self):
+        """GET returns 404 (not 500) when session.refresh raises InvalidRequestError."""
+        mock_session = MagicMock()
+        mock_agent = MagicMock()
+        # Query finds the agent — it still existed at query time
+        mock_session.query.return_value.options.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = (
+            mock_agent
+        )
+        # Refresh raises — agent was deleted between query and refresh
+        mock_session.refresh.side_effect = InvalidRequestError("Could not refresh instance")
+
+        mock_echo = self._run_get(mock_session)
+
+        mock_echo.assert_called_once()
+        args = mock_echo.call_args[0]
+        self.assertEqual(args[1], 404)
+        self.assertIn("not found", args[2])
+        # Verify attribute_names is passed to avoid expiring eagerly-loaded relationships
+        mock_session.refresh.assert_called_once_with(mock_agent, attribute_names=["consecutive_attestation_failures"])
+
+    def test_returns_200_when_no_race(self):
+        """GET returns 200 normally when session.refresh succeeds."""
+        mock_session = MagicMock()
+        mock_agent = MagicMock()
+        mock_session.query.return_value.options.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = (
+            mock_agent
+        )
+        mock_session.refresh.return_value = None  # success
+
+        with patch("keylime.cloud_verifier_tornado.cloud_verifier_common.process_get_status", return_value={}):
+            mock_echo = self._run_get(mock_session)
+
+        mock_echo.assert_called_once()
+        args = mock_echo.call_args[0]
+        self.assertEqual(args[1], 200)
+
+    def test_returns_404_when_agent_not_found(self):
+        """GET returns 404 when agent is not in DB at query time."""
+        mock_session = MagicMock()
+        mock_session.query.return_value.options.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = (
+            None
+        )
+
+        mock_echo = self._run_get(mock_session)
+
+        mock_echo.assert_called_once()
+        args = mock_echo.call_args[0]
+        self.assertEqual(args[1], 404)
+        # refresh must NOT have been called — agent was already None
+        mock_session.refresh.assert_not_called()
+
+
+class TestBulkGetHandlerRaceCondition(unittest.TestCase):
+    """Verify bulk GET skips deleted agents rather than crashing."""
+
+    AGENT_IDS = ["agent-aaa", "agent-bbb", "agent-ccc"]
+
+    def _run_bulk_get(self, session_mock):
+        handler = _make_agents_handler("")
+
+        # No agent_id → bulk listing path; "bulk" key triggers the for-loop
+        validate_return = ({"agents": "", "api_version": "2.1", "bulk": ""}, "")
+
+        @contextmanager
+        def fake_session_ctx():
+            yield session_mock
+
+        with (
+            patch.object(
+                cloud_verifier_tornado.AgentsHandler,
+                "_AgentsHandler__validate_input",
+                return_value=validate_return,
+            ),
+            patch("keylime.cloud_verifier_tornado.session_context", fake_session_ctx),
+            patch("keylime.cloud_verifier_tornado.web_util.echo_json_response") as mock_echo,
+            patch(
+                "keylime.cloud_verifier_tornado.cloud_verifier_common.process_get_status",
+                side_effect=lambda a: {"agent_id": a.agent_id},
+            ),
+        ):
+            handler.get()
+            return mock_echo
+
+    def test_bulk_get_skips_deleted_agent_includes_rest(self):
+        """Bulk GET omits the concurrently-deleted agent but includes the others."""
+        agents = []
+        for aid in self.AGENT_IDS:
+            a = MagicMock()
+            a.agent_id = aid
+            agents.append(a)
+
+        mock_session = MagicMock()
+        mock_session.query.return_value.options.return_value.options.return_value.all.return_value = agents
+
+        # Middle agent is deleted between query and refresh
+        def refresh_side_effect(agent, attribute_names=None):  # pylint: disable=unused-argument
+            if agent.agent_id == "agent-bbb":
+                raise InvalidRequestError("Could not refresh instance")
+
+        mock_session.refresh.side_effect = refresh_side_effect
+
+        mock_echo = self._run_bulk_get(mock_session)
+
+        mock_echo.assert_called_once()
+        args = mock_echo.call_args[0]
+        self.assertEqual(args[1], 200)
+        result = args[3]
+        self.assertIn("agent-aaa", result)
+        self.assertNotIn("agent-bbb", result)  # deleted agent is skipped
+        self.assertIn("agent-ccc", result)
 
 
 if __name__ == "__main__":
