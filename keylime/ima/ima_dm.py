@@ -259,7 +259,7 @@ class DmIMAValidator:
                 )
                 device_state.valid_state = False
             elif match_key == "uuid":
-                self.devices[event.new_name] = self.devices.pop(device_key)
+                self.devices[event.new_uuid] = self.devices.pop(device_key)
 
         return failure
 
