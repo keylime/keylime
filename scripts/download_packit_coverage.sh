@@ -3,7 +3,7 @@
 # There are 3 options how to tell this script where to start
 # --artifacts-url - Testing Farm artifacts URL, provided by testing-farm script
 # --testing-farm-log - Log of 'testing-farm request' command from where artifacts URL will be parsed
-# --github-sha - PR merge commit provided by GitHub, here we will try to get artifacts URL using GitHub API
+# --github-sha - PR HEAD commit (check_run.head_sha) provided by GitHub, here we will try to get artifacts URL using GitHub API
 
 if [ "$1" == "--artifacts-url" -a -n "$2" ]; then
     TF_ARTIFACTS_URL="$2"
@@ -97,12 +97,9 @@ if [ -n "${GITHUB_SHA}" -a -z "${TF_ARTIFACTS_URL}" -a -z "${TT_LOG}" ]; then
     echo "Trying to find Testing Farm / Packig CI test results using GitHub API"
 
     echo "Fist I need to find the respective PR commit"
-    GITHUB_API_SHA_URL="${GITHUB_API_COMMIT_URL}/${GITHUB_SHA}"
-
-    # Now we try to parse URL of Testing farm job from GITHUB_API_RUNS_URL page
-    GITHUB_PR_SHA=$( do_GitHub_API_call "${GITHUB_API_SHA_URL}" \
-                                     ".parents[1].sha" \
-                                     "Failed to parse PR commit from ${GITHUB_API_RUNS_URL}, trying again after ${SLEEP_DELAY} seconds..." )
+    # When triggered by check_run event, the SHA passed via --github-sha
+    # is already the PR HEAD commit (check_run.head_sha), so we use it directly
+    GITHUB_PR_SHA="${GITHUB_SHA}"
     echo "GITHUB_PR_SHA=${GITHUB_PR_SHA}"
 
     echo "Now we read check-runs details"
