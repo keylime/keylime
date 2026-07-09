@@ -18,8 +18,9 @@ jobs:
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v3
     - name: Wait for Packit tests to finish and download coverage.xml file
-      run: ./download_packit_coverage.sh
+      run: ./download_packit_coverage.sh --github-sha "$GITHUB_PR_SHA"
       env:
+        GITHUB_PR_SHA: ${{ github.event.check_run.head_sha }}
         MAX_DURATION: 7200
         SLEEP_DELAY: 120
     - name: List downloaded files
