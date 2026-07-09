@@ -1,8 +1,15 @@
+import hashlib
 import os
 import tempfile
 import unittest
 
 from keylime.common.algorithms import Encrypt, Hash, Key, Sign, is_accepted
+
+try:
+    hashlib.new("sm3", b"")
+    _SM3_AVAILABLE = True
+except (ValueError, Exception):
+    _SM3_AVAILABLE = False
 
 
 class TestHash(unittest.TestCase):
@@ -46,7 +53,7 @@ class TestHash(unittest.TestCase):
             },
             {
                 "hash": "sm3_256",
-                "valid": True,
+                "valid": _SM3_AVAILABLE,
             },
         ]
 
@@ -59,11 +66,9 @@ class TestHash(unittest.TestCase):
             {"hash": "sha256", "len": 64},
             {"hash": "sha384", "len": 96},
             {"hash": "sha512", "len": 128},
-            {
-                "hash": "sm3_256",
-                "len": 64,
-            },
         ]
+        if _SM3_AVAILABLE:
+            test_cases.append({"hash": "sm3_256", "len": 64})
 
         for c in test_cases:
             self.assertEqual(Hash(c["hash"]).get_hex_size(), c["len"])

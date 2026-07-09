@@ -827,8 +827,12 @@ def process_signature_verification_keys(verification_keys: List[str], policy: Ru
 def _get_digest_algorithm_from_hex(hexstring: str) -> str:
     """Try to identify the algorithm used to generate the provided value by length"""
     for alg in list(algorithms.Hash):
-        if len(hexstring) == algorithms.Hash(alg).get_hex_size():
-            return str(alg)
+        try:
+            if len(hexstring) == algorithms.Hash(alg).get_hex_size():
+                return str(alg)
+        except ValueError:
+            # Algorithm not supported by the current OpenSSL (e.g. sm3 on ELN/RHEL)
+            continue
     return INVALID_ALGORITHM
 
 

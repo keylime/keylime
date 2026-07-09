@@ -1,5 +1,6 @@
 import argparse
 import copy
+import hashlib
 import os
 import pathlib
 import shutil
@@ -9,6 +10,12 @@ import tempfile
 import unittest
 from importlib import util
 from test.utils import assertDigestsEqual, keylimePolicyAssertLogs
+
+try:
+    hashlib.new("sm3", b"")
+    _SM3_AVAILABLE = True
+except (ValueError, Exception):
+    _SM3_AVAILABLE = False
 
 from keylime.common import algorithms
 from keylime.ima import ima
@@ -697,7 +704,10 @@ foobar.so(.*)?
 
         rootfs = os.path.join(HELPER_DIR, "rootfs")
         # Prepare test cases
-        for algo in ["sha1", "sha256", "sha384", "sha512", "sm3_256"]:
+        _algos = ["sha1", "sha256", "sha384", "sha512"]
+        if _SM3_AVAILABLE:
+            _algos.append("sm3_256")
+        for algo in _algos:
             base_policy = os.path.join(HELPER_DIR, f"policy-{algo}")
             allowlist = os.path.join(HELPER_DIR, f"allowlist-{algo}")
             ima_log = os.path.join(HELPER_DIR, f"ima-log-{algo}")
@@ -794,6 +804,7 @@ foobar.so(.*)?
                         msg=f"ARGS: {' '.join(cli_args)}",
                     )
 
+    @unittest.skipUnless(_SM3_AVAILABLE, "sm3 not supported by OpenSSL")
     def test_digest_algorithm_priority_exceptions(self):
         """Test priority algorithms exceptions"""
 
@@ -893,7 +904,10 @@ foobar.so(.*)?
 
         rootfs = os.path.join(HELPER_DIR, "rootfs")
         # Prepare test cases
-        for algo in ["sha256", "sha384", "sha512", "sm3_256"]:
+        _mismatch_algos = ["sha256", "sha384", "sha512"]
+        if _SM3_AVAILABLE:
+            _mismatch_algos.append("sm3_256")
+        for algo in _mismatch_algos:
             base_policy = ["--base-policy", os.path.join(HELPER_DIR, f"policy-{algo}")]
             allowlist = ["--allowlist", os.path.join(HELPER_DIR, f"allowlist-{algo}")]
             ima_log = [
