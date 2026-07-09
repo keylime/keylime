@@ -449,9 +449,34 @@ class Server(ABC):
         """Sets config component (i.e., namespace) used to locate config values when setting server options."""
         self.__config_component = component
 
+    _TYPED_CONFIG_GETTERS: dict[type, Callable[..., Any]] = {
+        int: config.getint,
+        float: config.getfloat,
+        bool: config.getboolean,
+    }
+
+    def _get_typed_config_value(self, config_name: str, data_type: type, fallback: Any) -> Any:
+        """Read a typed config value, falling back gracefully on ValueError."""
+        getter = self._TYPED_CONFIG_GETTERS[data_type]
+        try:
+            return getter(self.config_component, config_name, fallback=fallback)  # type: ignore
+        except ValueError:
+            if fallback is None:
+                raise
+            raw_value = config.get(self.config_component, config_name, fallback="<unknown>")  # type: ignore[arg-type]
+            logger.warning(
+                "Cannot parse '%s' as %s for option '%s' (component: %s), using fallback: %s",
+                raw_value,
+                data_type.__name__,
+                config_name,
+                self.config_component,
+                fallback,
+            )
+            return fallback
+
     def _set_option(self, name: str, **kwargs: Any) -> None:
         """Sets server option by name either from given value or by obtaining it from user config. If the value is
-        falsy, uses the given fallback value instead or ``None`` if no fallback is provided. Examples::
+        ``None``, uses the given fallback value instead. Examples::
 
             # Set option using provided value
             self._set_option("bind_interface", value="0.0.0.0")
@@ -487,19 +512,13 @@ class Server(ABC):
             case {"from_config": (config_name, data_type)} if data_type is str:
                 value = config.get(self.config_component, config_name, fallback=fallback)  # type: ignore
 
-            case {"from_config": (config_name, data_type)} if data_type is int:
-                value = config.getint(self.config_component, config_name, fallback=fallback)  # type: ignore
-
-            case {"from_config": (config_name, data_type)} if data_type is float:
-                value = config.getfloat(self.config_component, config_name, fallback=fallback)  # type: ignore
-
-            case {"from_config": (config_name, data_type)} if data_type is bool:
-                value = config.getboolean(self.config_component, config_name, fallback=fallback)  # type: ignore
+            case {"from_config": (config_name, data_type)} if data_type in self._TYPED_CONFIG_GETTERS:
+                value = self._get_typed_config_value(config_name, data_type, fallback)
 
             case _:
                 raise TypeError(f"invalid arguments given when setting option '{name}' for {self.__class__.__name__}")
 
-        setattr(self, attr_name, value or fallback)
+        setattr(self, attr_name, value if value is not None else fallback)
 
     def _set_operating_mode(self, **kwargs: Any) -> None:
         """Sets operating mode of the server (push or pull)."""
@@ -573,6 +592,9 @@ class Server(ABC):
 
         if "from_config" in kwargs:
             kwargs.update({"from_config": (kwargs["from_config"], int)})
+
+        if "fallback" not in kwargs:
+            kwargs.update({"fallback": 0})
 
         self._set_option("max_workers", **kwargs)
 
