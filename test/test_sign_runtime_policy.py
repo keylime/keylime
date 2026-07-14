@@ -169,7 +169,7 @@ class SignRuntimePolicy_Test(unittest.TestCase):
             with tempfile.TemporaryDirectory() as temp_dir:
                 os.chdir(temp_dir)
 
-                for case in test_cases:
+                for i, case in enumerate(test_cases):
                     expected = case["valid"]
                     del case["valid"]
                     missing_params = case["missing_params"]
@@ -184,7 +184,11 @@ class SignRuntimePolicy_Test(unittest.TestCase):
                         with self.assertRaises(SystemExit):
                             args = parser.parse_args(cli_args)
                     else:
-                        args = parser.parse_args(cli_args)
+                        # Use a per-case temp file instead of /dev/stdout to avoid
+                        # permission issues in restricted container environments (e.g. Konflux).
+                        fd, output_file = tempfile.mkstemp(suffix=f"-{i}.json", dir=temp_dir)
+                        os.close(fd)
+                        args = parser.parse_args(cli_args + ["--output", output_file])
                         self.assertTrue(args is not None)
 
                         signed = sign_runtime_policy.sign_runtime_policy(args)
