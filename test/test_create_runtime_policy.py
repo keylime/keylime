@@ -771,23 +771,28 @@ foobar.so(.*)?
         subparser = main_parser.add_subparsers(title="actions")
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
-        for case in test_cases:
-            cli_args = ["--verbose"]
-            # Prepare argument input
-            for k in ["algo_opt", "base_policy", "allowlist", "ima_log", "rootfs"]:
-                cli_args.extend(case.get(k, []))
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i, case in enumerate(test_cases):
+                cli_args = ["--verbose"]
+                # Prepare argument input
+                for k in ["algo_opt", "base_policy", "allowlist", "ima_log", "rootfs"]:
+                    cli_args.extend(case.get(k, []))
 
-            args = parser.parse_args(cli_args)
-            expected_algo = case["expected_algo"]
-            expected_source = case["expected_source"]
+                # Use a per-case temp file instead of /dev/stdout to avoid
+                # permission issues in restricted container environments (e.g. Konflux).
+                fd, output_file = tempfile.mkstemp(suffix=f"-{i}.json", dir=temp_dir)
+                os.close(fd)
+                args = parser.parse_args(cli_args + ["--output", output_file])
+                expected_algo = case["expected_algo"]
+                expected_source = case["expected_source"]
 
-            with keylimePolicyAssertLogs() as logs:
-                _policy = create_runtime_policy.create_runtime_policy(args)
-                self.assertIn(
-                    f"Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
-                    logs.getvalue(),
-                    msg=f"ARGS: {' '.join(cli_args)}",
-                )
+                with keylimePolicyAssertLogs() as logs:
+                    _policy = create_runtime_policy.create_runtime_policy(args)
+                    self.assertIn(
+                        f"Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
+                        logs.getvalue(),
+                        msg=f"ARGS: {' '.join(cli_args)}",
+                    )
 
     def test_digest_algorithm_priority_exceptions(self):
         """Test priority algorithms exceptions"""
@@ -839,28 +844,33 @@ foobar.so(.*)?
         subparser = main_parser.add_subparsers(title="actions")
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
-        for case in test_cases:
-            cli_args = ["--verbose"]
-            # Prepare argument input
-            for k in ["base_policy", "allowlist", "ima_log"]:
-                cli_args.extend(case.get(k, []))
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i, case in enumerate(test_cases):
+                cli_args = ["--verbose"]
+                # Prepare argument input
+                for k in ["base_policy", "allowlist", "ima_log"]:
+                    cli_args.extend(case.get(k, []))
 
-            args = parser.parse_args(cli_args)
-            expected_algo = case["expected_algo"]
-            expected_source = case["expected_source"]
+                # Use a per-case temp file instead of /dev/stdout to avoid
+                # permission issues in restricted container environments (e.g. Konflux).
+                fd, output_file = tempfile.mkstemp(suffix=f"-{i}.json", dir=temp_dir)
+                os.close(fd)
+                args = parser.parse_args(cli_args + ["--output", output_file])
+                expected_algo = case["expected_algo"]
+                expected_source = case["expected_source"]
 
-            with keylimePolicyAssertLogs() as logs:
-                _policy = create_runtime_policy.create_runtime_policy(args)
-                if case["expected_mismatch"]:
-                    self.assertIn(
-                        f"The digest algorithm in the IMA measurement list does not match the previously set '{expected_algo}' algorithm",
-                        logs.getvalue(),
-                    )
-                else:
-                    self.assertIn(
-                        f"Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
-                        logs.getvalue(),
-                    )
+                with keylimePolicyAssertLogs() as logs:
+                    _policy = create_runtime_policy.create_runtime_policy(args)
+                    if case["expected_mismatch"]:
+                        self.assertIn(
+                            f"The digest algorithm in the IMA measurement list does not match the previously set '{expected_algo}' algorithm",
+                            logs.getvalue(),
+                        )
+                    else:
+                        self.assertIn(
+                            f"Using digest algorithm '{expected_algo}' obtained from the {expected_source}",
+                            logs.getvalue(),
+                        )
 
     def test_mixed_algorithms_sources(self):
         """Test that mixing digests from different algorithms is not allowed"""
