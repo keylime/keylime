@@ -917,21 +917,26 @@ foobar.so(.*)?
         subparser = main_parser.add_subparsers(title="actions")
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
-        for case in test_cases:
-            cli_args = []
-            # Prepare argument input
-            for k in ["algo_opt", "base policy", "allowlist", "IMA measurement list", "rootfs"]:
-                cli_args.extend(case.get(k, []))
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i, case in enumerate(test_cases):
+                cli_args = []
+                # Prepare argument input
+                for k in ["algo_opt", "base policy", "allowlist", "IMA measurement list", "rootfs"]:
+                    cli_args.extend(case.get(k, []))
 
-            args = parser.parse_args(cli_args)
+                # Use a per-case temp file instead of /dev/stdout to avoid
+                # permission issues in restricted container environments (e.g. Konflux).
+                fd, output_file = tempfile.mkstemp(suffix=f"-{i}.json", dir=temp_dir)
+                os.close(fd)
+                args = parser.parse_args(cli_args + ["--output", output_file])
 
-            with keylimePolicyAssertLogs() as logs:
-                policy = create_runtime_policy.create_runtime_policy(args)
-                self.assertIn(
-                    f"The digest algorithm in the {case['source']} does not match the previously set 'sha1' algorithm",
-                    logs.getvalue(),
-                )
-                self.assertEqual(policy, None)
+                with keylimePolicyAssertLogs() as logs:
+                    policy = create_runtime_policy.create_runtime_policy(args)
+                    self.assertIn(
+                        f"The digest algorithm in the {case['source']} does not match the previously set 'sha1' algorithm",
+                        logs.getvalue(),
+                    )
+                    self.assertEqual(policy, None)
 
     def test_unknown_algorithm_sources(self):
         """Test that input with digests from unknown algorithms are not allowed"""
@@ -978,18 +983,23 @@ foobar.so(.*)?
         subparser = main_parser.add_subparsers(title="actions")
         parser = create_runtime_policy.get_arg_parser(subparser, parent_parser)
 
-        for case in test_cases:
-            cli_args = ["--verbose"]
-            # Prepare argument input
-            for k in ["algo_opt", "base policy", "allowlist", "IMA measurement list", "rootfs"]:
-                cli_args.extend(case.get(k, []))
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i, case in enumerate(test_cases):
+                cli_args = ["--verbose"]
+                # Prepare argument input
+                for k in ["algo_opt", "base policy", "allowlist", "IMA measurement list", "rootfs"]:
+                    cli_args.extend(case.get(k, []))
 
-            args = parser.parse_args(cli_args)
+                # Use a per-case temp file instead of /dev/stdout to avoid
+                # permission issues in restricted container environments (e.g. Konflux).
+                fd, output_file = tempfile.mkstemp(suffix=f"-{i}.json", dir=temp_dir)
+                os.close(fd)
+                args = parser.parse_args(cli_args + ["--output", output_file])
 
-            with keylimePolicyAssertLogs() as logs:
-                policy = create_runtime_policy.create_runtime_policy(args)
-                self.assertIn(
-                    f"Invalid digest algorithm found in the {case['source']}",
-                    logs.getvalue(),
-                )
-                self.assertEqual(policy, None)
+                with keylimePolicyAssertLogs() as logs:
+                    policy = create_runtime_policy.create_runtime_policy(args)
+                    self.assertIn(
+                        f"Invalid digest algorithm found in the {case['source']}",
+                        logs.getvalue(),
+                    )
+                    self.assertEqual(policy, None)
