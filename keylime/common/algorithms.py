@@ -23,6 +23,20 @@ def is_accepted(algorithm: str, accepted: List[Any]) -> bool:
     return False
 
 
+# Digest sizes in bits, defined by the respective specifications. Kept
+# static so that size queries and algorithm recognition keep working even
+# when an algorithm is not enabled in the crypto backend (e.g. sm3 with
+# OpenSSL builds that disable it); only actual hashing requires backend
+# support.
+_HASH_SIZES = {
+    "sha1": 160,
+    "sha256": 256,
+    "sha384": 384,
+    "sha512": 512,
+    "sm3_256": 256,
+}
+
+
 class Hash(str, enum.Enum):
     # Names compatible with tpm2-tools (man/common/alg.md)
     SHA1 = "sha1"
@@ -48,10 +62,10 @@ class Hash(str, enum.Enum):
         return cast(bytes, self.__hashfn(data).digest())
 
     def get_size(self) -> int:
-        return cast(int, self.__hashfn(b"").digest_size * 8)
+        return _HASH_SIZES[self.value]
 
     def get_hex_size(self) -> int:
-        return len(self.__hashfn(b"").hexdigest())
+        return self.get_size() // 4
 
     def get_start_hash(self) -> bytes:
         return b"\x00" * (self.get_size() // 8)
@@ -80,6 +94,9 @@ class Hash(str, enum.Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
+assert set(_HASH_SIZES.keys()) == {h.value for h in Hash}, "_HASH_SIZES keys must match Hash enum values"
 
 
 class Key(str, enum.Enum):
