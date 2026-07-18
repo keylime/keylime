@@ -57,3 +57,28 @@ class TestWorkerCount(unittest.TestCase):
     def test_explicit_worker_count_no_limit(self):
         server = self._make_server(worker_count=20, max_workers=0)
         self.assertEqual(server.worker_count, 20)
+
+
+class TestBindInterface(unittest.TestCase):
+    """Tests for Server.bind_interface validation."""
+
+    def test_wildcard_star_address_raises_error(self):
+        server = _StubServer.__new__(_StubServer)
+        # pylint: disable=attribute-defined-outside-init
+        setattr(server, "_Server__component", "verifier")
+        setattr(server, "_Server__bind_interface", "127.0.0.1")
+
+        with self.assertRaises(ValueError) as context:
+            server._set_bind_interface(value="*")
+
+        self.assertIn("bind address '*' is not supported", str(context.exception))
+
+    def test_valid_bind_interface(self):
+        server = _StubServer.__new__(_StubServer)
+        # pylint: disable=attribute-defined-outside-init
+        setattr(server, "_Server__component", "verifier")
+        setattr(server, "_Server__bind_interface", "127.0.0.1")
+
+        server._set_bind_interface(value="0.0.0.0")
+        self.assertEqual(server.bind_interface, "0.0.0.0")
+
