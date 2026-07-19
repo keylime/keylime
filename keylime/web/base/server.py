@@ -556,6 +556,7 @@ class Server(ABC):
 
         self._set_option("bind_interface", **kwargs)
         if self.bind_interface == "*":
+            # noqa: TRY003 - detailed message needed for operator
             raise ValueError(
                 "bind address '*' is not supported; use '0.0.0.0' for IPv4 or '::' for IPv4+IPv6 dual-stack"
             )
