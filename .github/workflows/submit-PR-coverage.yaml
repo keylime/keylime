@@ -7,8 +7,7 @@ on:
 jobs:
   build:
     # Only run if the "full" testing-farm job finished
-    if: >
-      contains(github.event.check_run.name, 'testing-farm:fedora-43-x86_64:full')
+    if: contains(github.event.check_run.name, 'testing-farm:fedora-43-x86_64:full')
     runs-on: ubuntu-latest
     continue-on-error: true
     name: Submit code coverage from Packit tests
@@ -16,7 +15,9 @@ jobs:
       run:
         working-directory: scripts
     steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     - name: Wait for Packit tests to finish and download coverage.xml file
       run: ./download_packit_coverage.sh --github-sha "$GITHUB_PR_SHA"
       env:
@@ -26,7 +27,7 @@ jobs:
     - name: List downloaded files
       run: ls coverage*
     - name: Upload coverage.unittests.xml report to Codecov with GitHub Action
-      uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565303 # v2
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
@@ -34,7 +35,7 @@ jobs:
         disable_search: true
         flags: unittests
     - name: Upload coverage.testsuite.xml report to Codecov with GitHub Action
-      uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565303 # v2
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
@@ -42,7 +43,7 @@ jobs:
         disable_search: true
         flags: testsuite
     - name: Upload coverage.packit.xml report to Codecov with GitHub Action
-      uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565303 # v2
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
