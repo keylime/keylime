@@ -150,11 +150,21 @@ def check_tpm_origin(cert: Certificate, cert_type: str = "") -> bool:
     :param cert_type: Type of certificate as string for logging
     :returns: True if the certificate came from a TPM, or we are not sure. False if it did not come from a TPM
     """
-    san_ext = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+    try:
+        san_ext = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+    except x509.ExtensionNotFound:
+        logger.warning("%s Certificate did not contain a SubjectAltName. This may not have come from a TPM.", cert_type)
+        return True
     if not isinstance(san_ext.value, x509.SubjectAlternativeName):
         logger.warning("%s Certificate did not contain a SubjectAltName. This may not have come from a TPM.", cert_type)
         return True
-    othername = san_ext.value.get_values_for_type(x509.OtherName)[0]
+    othernames = san_ext.value.get_values_for_type(x509.OtherName)
+    if not othernames:
+        logger.warning(
+            "%s Certificate did not contain the HW module name. This may not have come from a TPM.", cert_type
+        )
+        return True
+    othername = othernames[0]
     if othername.type_id.dotted_string != OID_HW_MODULE_NAME:
         logger.warning(
             "%s Certificate did not contain the HW module name. This may not have come from a TPM.", cert_type

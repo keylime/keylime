@@ -1,8 +1,13 @@
 import base64
+import datetime
 import os
 import unittest
 
 import cryptography
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 
 from keylime import cert_utils, tpm_ek_ca
 
@@ -311,3 +316,34 @@ VMuvlCzEwd8V/FIw"""
 
         for index, c in enumerate(test_cases):
             self.assertEqual(cert_utils.is_x509_cert(c["data"]), c["valid"], msg=f"index is {index}")
+
+    @staticmethod
+    def _self_signed_cert(sans=None):
+        key = ec.generate_private_key(ec.SECP256R1())
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "keylime-test")])
+        builder = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime(2020, 1, 1))
+            .not_valid_after(datetime.datetime(2030, 1, 1))
+        )
+        if sans is not None:
+            builder = builder.add_extension(x509.SubjectAlternativeName(sans), critical=False)
+        return builder.sign(key, hashes.SHA256())
+
+    def test_check_tpm_origin_no_subject_alt_name(self):
+        # A certificate without a SubjectAltName extension must not crash
+        # check_tpm_origin. Per the registrar's design (see issue #1612 / PR #1637)
+        # the check only warns and returns True ("we are not sure") instead of
+        # raising ExtensionNotFound.
+        cert = self._self_signed_cert(sans=None)
+        self.assertTrue(cert_utils.check_tpm_origin(cert, "IDevID"))
+
+    def test_check_tpm_origin_san_without_othername(self):
+        # A SubjectAltName that contains no OtherName entry must not crash
+        # check_tpm_origin with an IndexError; it should warn and return True.
+        cert = self._self_signed_cert(sans=[x509.DNSName("example.com")])
+        self.assertTrue(cert_utils.check_tpm_origin(cert, "IAK"))
