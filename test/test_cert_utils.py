@@ -3,6 +3,8 @@ import os
 import unittest
 
 import cryptography
+from pyasn1.codec.der import encoder
+from pyasn1.type import univ
 
 from keylime import cert_utils, tpm_ek_ca
 
@@ -311,3 +313,30 @@ VMuvlCzEwd8V/FIw"""
 
         for index, c in enumerate(test_cases):
             self.assertEqual(cert_utils.is_x509_cert(c["data"]), c["valid"], msg=f"index is {index}")
+
+    def test_x509_der_cert_octet_string_wrapped(self):
+        # Some hardware TPMs store the EK certificate in NV RAM wrapped in an
+        # ASN.1 OCTET STRING (tag 0x04) instead of raw DER (tag 0x30 SEQUENCE).
+        der_cert_data = base64.b64decode(st_sha256_with_rsa_der)
+        wrapped_der_cert_data = encoder.encode(univ.OctetString(der_cert_data))
+
+        expected = cert_utils.x509_der_cert(der_cert_data)
+        result = cert_utils.x509_der_cert(wrapped_der_cert_data)
+        self.assertEqual(expected.subject, result.subject)
+        self.assertEqual(expected.serial_number, result.serial_number)
+
+    def test_unwrap_x509_octet_string_malformed_octet_string(self):
+        # Oversized length field; pyasn1 raises OverflowError here, not PyAsn1Error.
+        malformed = bytes.fromhex("04888e2e6120439b1f6a")
+        with self.assertLogs("keylime.cert_utils", level="WARNING") as log:
+            result = cert_utils.unwrap_x509_octet_string(malformed)
+        self.assertEqual(result, malformed)
+        self.assertTrue(any("unwrapping failed" in msg for msg in log.output))
+
+    def test_unwrap_x509_octet_string_not_a_certificate_inside(self):
+        # Valid OCTET STRING, but the content inside isn't a certificate.
+        wrapped_non_cert = encoder.encode(univ.OctetString(b"not a certificate"))
+        with self.assertLogs("keylime.cert_utils", level="WARNING") as log:
+            result = cert_utils.unwrap_x509_octet_string(wrapped_non_cert)
+        self.assertEqual(result, wrapped_non_cert)
+        self.assertTrue(any("does not start with a SEQUENCE tag" in msg for msg in log.output))

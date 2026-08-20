@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.x509 import Certificate
 from cryptography.x509.oid import ExtensionOID
 from pyasn1.codec.der import decoder, encoder
+from pyasn1.type import univ
 from pyasn1_modules import pem, rfc2459, rfc4108
 
 from keylime import keylime_logging, tpm_ek_ca
@@ -59,12 +60,40 @@ def x509_der_cert(der_cert_data: bytes) -> Certificate:
     :type der_cert_data: bytes
     :returns: cryptography.x509.Certificate
     """
+    der_cert_data = unwrap_x509_octet_string(der_cert_data)
+
     try:
         return x509.load_der_x509_certificate(data=der_cert_data, backend=default_backend())
     except Exception as err:
         logger.warning("Failed to parse DER data with python-cryptography: %s", err)
         pyasn1_cert = decoder.decode(der_cert_data, asn1Spec=rfc2459.Certificate())[0]
         return x509.load_der_x509_certificate(data=encoder.encode(pyasn1_cert), backend=default_backend())
+
+
+def unwrap_x509_octet_string(der_cert_data: bytes) -> bytes:
+    """If der_cert_data is an ASN.1 OCTET STRING wrapping a DER certificate,
+    unwrap it and return the inner DER bytes. Otherwise, return der_cert_data unchanged.
+    """
+    if not der_cert_data or der_cert_data[0] != 0x04:
+        return der_cert_data
+
+    try:
+        octet_string, _ = decoder.decode(der_cert_data, asn1Spec=univ.OctetString())
+        unwrapped = bytes(octet_string)
+    except Exception as err:
+        logger.warning(
+            "Data starts with OCTET STRING tag (0x04) but unwrapping failed; passing through original data: %s", err
+        )
+        return der_cert_data
+
+    if unwrapped and unwrapped[0] == 0x30:
+        return unwrapped
+
+    logger.warning(
+        "Data starts with OCTET STRING tag (0x04) and was unwrapped, but the inner content "
+        "does not start with a SEQUENCE tag (0x30); passing through original data."
+    )
+    return der_cert_data
 
 
 def x509_pem_cert(pem_cert_data: str) -> Certificate:

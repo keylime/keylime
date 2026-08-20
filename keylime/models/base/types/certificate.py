@@ -12,6 +12,7 @@ from pyasn1_modules import pem as pyasn1_pem
 from pyasn1_modules import rfc2459 as pyasn1_rfc2459
 from sqlalchemy.types import Text
 
+from keylime import cert_utils
 from keylime.certificate_wrapper import CertificateWrapper, wrap_certificate
 from keylime.models.base.type import ModelType
 
@@ -110,6 +111,7 @@ class Certificate(ModelType):
 
         :returns: A ``CertificateWrapper`` object
         """
+        der_cert_data = cert_utils.unwrap_x509_octet_string(der_cert_data)
 
         try:
             cert = cryptography.x509.load_der_x509_certificate(der_cert_data)
