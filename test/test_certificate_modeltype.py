@@ -10,6 +10,8 @@ import unittest
 
 import cryptography.x509
 from cryptography.hazmat.primitives.serialization import Encoding
+from pyasn1.codec.der import encoder as pyasn1_encoder
+from pyasn1.type import univ as pyasn1_univ
 
 from keylime.certificate_wrapper import CertificateWrapper, wrap_certificate
 from keylime.models.base.types.certificate import Certificate
@@ -181,6 +183,16 @@ d4wslruibXBsLPtJw2c6vTC2SV2F1PXwy5j1OKU+D6nxaaItQvWADEjcTg==
         der_bytes = self.compliant_cert.public_bytes(Encoding.DER)
         result = self.cert_type.cast(der_bytes)
         self.assertIsInstance(result, CertificateWrapper)
+
+    def test_cast_octet_string_wrapped_der_bytes(self):
+        """Test casting OCTET-STRING-wrapped DER bytes (not CertificateWrapper "wrapping")."""
+        der_bytes = self.compliant_cert.public_bytes(Encoding.DER)
+        octet_string_wrapped_der_bytes = pyasn1_encoder.encode(pyasn1_univ.OctetString(der_bytes))
+        result = self.cert_type.cast(octet_string_wrapped_der_bytes)
+        self.assertIsInstance(result, CertificateWrapper)
+        assert result is not None
+        self.assertEqual(result.subject, self.compliant_cert.subject)
+        self.assertEqual(result.serial_number, self.compliant_cert.serial_number)
 
     def test_cast_none_value(self):
         """Test that None values return None."""
