@@ -18,7 +18,7 @@ jobs:
   trigger: pull_request
   identifier: fast
   targets:
-    - fedora-latest
+    - fedora-latest-stable
   skip_build: true
   require:
     label:
