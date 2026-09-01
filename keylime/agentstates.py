@@ -97,6 +97,7 @@ class AgentAttestState:
     ima_keyring: ImaKeyrings
     ima_dm_state: Optional[bytes]
     quote_progress: Optional[Tuple[int, int]]
+    _mb_refstate_warned_boottime: Optional[int]
 
     def __init__(self, agent_id: str) -> None:
         """constructor"""
@@ -117,6 +118,8 @@ class AgentAttestState:
 
         # quote_progress later consists of tuple(pcr_match_line, log length)
         self.quote_progress = None
+
+        self._mb_refstate_warned_boottime = None
 
     def get_agent_id(self) -> str:
         """Get the agent_id"""
@@ -202,6 +205,19 @@ class AgentAttestState:
 
     def set_ima_dm_state(self, state: bytes) -> None:
         self.ima_dm_state = state
+
+    def mb_refstate_warned_for_boottime(self, boottime: int) -> bool:
+        """Whether the measured-boot refstate warning was already sent for this boottime.
+
+        Deliberately independent of the IMA attestation state: the IMA
+        failure path resets the stored boottime, which must not re-arm
+        this warning for the same boot.
+        """
+        return self._mb_refstate_warned_boottime == boottime
+
+    def mark_mb_refstate_warning_sent(self, boottime: int) -> None:
+        """Record the boottime for which the measured-boot refstate warning was sent."""
+        self._mb_refstate_warned_boottime = boottime
 
     def check_quote_progress(self, pcr_match_line: int, log_length: int) -> bool:
         """Check whether the quote is making forward-progress.

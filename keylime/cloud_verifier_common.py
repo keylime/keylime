@@ -187,6 +187,28 @@ def process_quote_response(
     tenant_keyring = file_signatures.ImaKeyring.from_string(verification_key_string)
     ima_keyrings.set_tenant_keyring(tenant_keyring)
 
+    # Warn when accept-all ignores a non-empty measured boot reference state.
+    # Emitted once per boot: the deduplication records the reported boottime
+    # the warning was sent for, in a field the IMA attestation reset does not
+    # clear, so neither IMA-less agents (entry 0 on every quote) nor agents
+    # whose IMA validation keeps failing (ima.py resets the attestation state
+    # on every failure) are re-warned within the same boot.
+    if mb_policy_name == "accept-all" and mb_policy and not agentAttestState.mb_refstate_warned_for_boottime(boottime):
+        try:
+            parsed_mb = json.loads(mb_policy)
+            has_nonempty_refstate = bool(parsed_mb) if isinstance(parsed_mb, dict) else True
+        except ValueError:
+            has_nonempty_refstate = bool(mb_policy.strip())
+
+        if has_nonempty_refstate:
+            logger.warning(
+                "Boot reference state for agent %s is being ignored because policy "
+                '"accept-all" is active. Keylime is only checking that the boot log matches '
+                "the PCR values in the TPM quote.",
+                agent_id,
+            )
+            agentAttestState.mark_mb_refstate_warning_sent(boottime)
+
     if agent.get("tpm_clockinfo"):
         agentAttestState.set_tpm_clockinfo(TPMClockInfo.from_dict(agent["tpm_clockinfo"]))
 
