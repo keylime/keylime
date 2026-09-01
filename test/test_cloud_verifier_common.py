@@ -1009,5 +1009,202 @@ class TestProcessGetStatus(unittest.TestCase):
         self.assertEqual(status["attestation_status"], "PENDING")
 
 
+class TestProcessQuoteResponseMbRefstateWarning(unittest.TestCase):
+    """Test the measured boot refstate warning in process_quote_response().
+
+    These tests verify that a WARNING is emitted exactly once per agent
+    when the active measured boot policy is "accept-all" but the agent
+    carries a non-empty boot reference state.
+
+    Regression test for: https://github.com/keylime/keylime/issues/1932
+    """
+
+    def _make_agent(self) -> dict:
+        """Return a minimal agent dict that passes early guards."""
+        return {
+            "agent_id": "test-agent-uuid",
+            "nonce": "deadbeef",
+            "public_key": "",
+            "v": "",
+            "b64_encrypted_V": "",
+            "provide_V": True,
+            "ak_tpm": "ak-tpm-data",
+            "tpm_policy": '{"mask": "0x0"}',
+            "ima_sign_verification_keys": "",
+            "accept_tpm_hash_algs": ["sha256"],
+            "accept_tpm_encryption_algs": ["rsa"],
+            "accept_tpm_signing_algs": ["rsassa"],
+            "supported_version": "2.5",
+            "attestation_count": 0,
+            "tpm_clockinfo": None,
+        }
+
+    def _make_json_response(self) -> dict:
+        """Return a minimal quote response."""
+        return {
+            "quote": "r/1RDR4AYAC...",
+            "hash_alg": "sha256",
+            "enc_alg": "rsa2048",
+            "sign_alg": "rsassa",
+            "pubkey": "",
+            "ima_measurement_list": None,
+            "ima_measurement_list_entry": 0,
+            "mb_measurement_list": None,
+            "boottime": 0,
+        }
+
+    @patch("keylime.cloud_verifier_common.get_tpm_instance")
+    def test_warns_once_on_accept_all_with_nonempty_refstate(self, mock_get_tpm):
+        """Warning is emitted exactly once when accept-all ignores a non-empty refstate."""
+        from keylime.agentstates import AgentAttestState  # pylint: disable=import-outside-toplevel
+        from keylime.failure import Component, Failure  # pylint: disable=import-outside-toplevel
+
+        mock_tpm = MagicMock()
+        mock_tpm.check_quote.return_value = Failure(Component.DEFAULT)
+        mock_get_tpm.return_value = mock_tpm
+
+        agent = self._make_agent()
+        agentAttestState = AgentAttestState(agent["agent_id"])
+        json_response = self._make_json_response()
+        mb_policy = '{"secureboot": true, "bootloader": "shim"}'
+        mb_policy_name = "accept-all"
+
+        import logging  # pylint: disable=import-outside-toplevel
+
+        logger = logging.getLogger("keylime.cloudverifier_common")
+
+        # First call should emit the warning
+        with patch.object(logger, "warning") as mock_warn:
+            cloud_verifier_common.process_quote_response(
+                agent, mb_policy, None, json_response, agentAttestState, mb_policy_name
+            )
+            mock_warn.assert_called_once()
+            self.assertIn("is being ignored because policy", mock_warn.call_args[0][0])
+            self.assertIn("accept-all", mock_warn.call_args[0][0])
+
+        # Second call should NOT emit the warning again (deduplication)
+        with patch.object(logger, "warning") as mock_warn:
+            cloud_verifier_common.process_quote_response(
+                agent, mb_policy, None, json_response, agentAttestState, mb_policy_name
+            )
+            mock_warn.assert_not_called()
+
+    @patch("keylime.cloud_verifier_common.get_tpm_instance")
+    def test_no_warning_when_refstate_is_empty_dict(self, mock_get_tpm):
+        """No warning when mb_policy is empty dict {} under accept-all."""
+        from keylime.agentstates import AgentAttestState  # pylint: disable=import-outside-toplevel
+        from keylime.failure import Component, Failure  # pylint: disable=import-outside-toplevel
+
+        mock_tpm = MagicMock()
+        mock_tpm.check_quote.return_value = Failure(Component.DEFAULT)
+        mock_get_tpm.return_value = mock_tpm
+
+        agent = self._make_agent()
+        agentAttestState = AgentAttestState(agent["agent_id"])
+        json_response = self._make_json_response()
+
+        import logging  # pylint: disable=import-outside-toplevel
+
+        logger = logging.getLogger("keylime.cloudverifier_common")
+        with patch.object(logger, "warning") as mock_warn:
+            cloud_verifier_common.process_quote_response(
+                agent, "{}", None, json_response, agentAttestState, "accept-all"
+            )
+            mock_warn.assert_not_called()
+
+    @patch("keylime.cloud_verifier_common.get_tpm_instance")
+    def test_no_warning_when_refstate_is_none(self, mock_get_tpm):
+        """No warning when mb_policy is None under accept-all."""
+        from keylime.agentstates import AgentAttestState  # pylint: disable=import-outside-toplevel
+        from keylime.failure import Component, Failure  # pylint: disable=import-outside-toplevel
+
+        mock_tpm = MagicMock()
+        mock_tpm.check_quote.return_value = Failure(Component.DEFAULT)
+        mock_get_tpm.return_value = mock_tpm
+
+        agent = self._make_agent()
+        agentAttestState = AgentAttestState(agent["agent_id"])
+        json_response = self._make_json_response()
+
+        import logging  # pylint: disable=import-outside-toplevel
+
+        logger = logging.getLogger("keylime.cloudverifier_common")
+        with patch.object(logger, "warning") as mock_warn:
+            cloud_verifier_common.process_quote_response(
+                agent, None, None, json_response, agentAttestState, "accept-all"
+            )
+            mock_warn.assert_not_called()
+
+    @patch("keylime.cloud_verifier_common.get_tpm_instance")
+    def test_no_warning_when_policy_is_not_accept_all(self, mock_get_tpm):
+        """No warning when policy name is not accept-all, even with non-empty refstate."""
+        from keylime.agentstates import AgentAttestState  # pylint: disable=import-outside-toplevel
+        from keylime.failure import Component, Failure  # pylint: disable=import-outside-toplevel
+
+        mock_tpm = MagicMock()
+        mock_tpm.check_quote.return_value = Failure(Component.DEFAULT)
+        mock_get_tpm.return_value = mock_tpm
+
+        agent = self._make_agent()
+        agentAttestState = AgentAttestState(agent["agent_id"])
+        json_response = self._make_json_response()
+        mb_policy = '{"secureboot": true}'
+
+        import logging  # pylint: disable=import-outside-toplevel
+
+        logger = logging.getLogger("keylime.cloudverifier_common")
+        with patch.object(logger, "warning") as mock_warn:
+            cloud_verifier_common.process_quote_response(
+                agent, mb_policy, None, json_response, agentAttestState, "example-policy"
+            )
+            mock_warn.assert_not_called()
+
+    @patch("keylime.cloud_verifier_common.get_tpm_instance")
+    def test_warning_sets_flag_on_agent_attest_state(self, mock_get_tpm):
+        """The _warned_mb_refstate_ignored flag is set on agentAttestState after warning."""
+        from keylime.agentstates import AgentAttestState  # pylint: disable=import-outside-toplevel
+        from keylime.failure import Component, Failure  # pylint: disable=import-outside-toplevel
+
+        mock_tpm = MagicMock()
+        mock_tpm.check_quote.return_value = Failure(Component.DEFAULT)
+        mock_get_tpm.return_value = mock_tpm
+
+        agent = self._make_agent()
+        agentAttestState = AgentAttestState(agent["agent_id"])
+        self.assertFalse(getattr(agentAttestState, "_warned_mb_refstate_ignored", False))
+
+        json_response = self._make_json_response()
+        cloud_verifier_common.process_quote_response(
+            agent, '{"foo": "bar"}', None, json_response, agentAttestState, "accept-all"
+        )
+
+        self.assertTrue(agentAttestState._warned_mb_refstate_ignored)  # pylint: disable=protected-access,no-member
+
+    @patch("keylime.cloud_verifier_common.get_tpm_instance")
+    def test_warning_with_non_dict_json_refstate(self, mock_get_tpm):
+        """Warning is emitted for non-dict JSON (e.g., list) under accept-all."""
+        from keylime.agentstates import AgentAttestState  # pylint: disable=import-outside-toplevel
+        from keylime.failure import Component, Failure  # pylint: disable=import-outside-toplevel
+
+        mock_tpm = MagicMock()
+        mock_tpm.check_quote.return_value = Failure(Component.DEFAULT)
+        mock_get_tpm.return_value = mock_tpm
+
+        agent = self._make_agent()
+        agentAttestState = AgentAttestState(agent["agent_id"])
+        json_response = self._make_json_response()
+
+        import logging  # pylint: disable=import-outside-toplevel
+
+        logger = logging.getLogger("keylime.cloudverifier_common")
+
+        with patch.object(logger, "warning") as mock_warn:
+            cloud_verifier_common.process_quote_response(
+                agent, '["event1", "event2"]', None, json_response, agentAttestState, "accept-all"
+            )
+            mock_warn.assert_called_once()
+            self.assertIn("is being ignored because policy", mock_warn.call_args[0][0])
+
+
 if __name__ == "__main__":
     unittest.main()
