@@ -72,7 +72,19 @@ class RpmRepo_Test(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         if cls.dirpath is not None:
-            shutil.rmtree(cls.dirpath)
+            # setup-rpm-tests spawns gpg-agent, which removes its socket files async on
+            # exit; rmtree may race this and find a socket that's already gone—ignore it.
+            # `onerror` is deprecated since Python 3.12 in favor of `onexc`, but the
+            # latter isn't available on the older versions this project still supports.
+            def _ignore_already_removed(_func, _path, exc):
+                err = exc[1] if isinstance(exc, tuple) else exc
+                if not isinstance(err, FileNotFoundError):
+                    raise err
+
+            if sys.version_info >= (3, 12):
+                shutil.rmtree(cls.dirpath, onexc=_ignore_already_removed)
+            else:
+                shutil.rmtree(cls.dirpath, onerror=_ignore_already_removed)
 
     def test_analyze_local_repo(self):
         test_cases = [
