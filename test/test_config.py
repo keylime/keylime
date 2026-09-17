@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import unittest
 from configparser import NoOptionError
+from unittest import mock
 
 from keylime import config
 
@@ -14,10 +15,10 @@ CONFIG_DIR = os.path.abspath(os.path.join(DATA_DIR, "config"))
 
 class TestConfig(unittest.TestCase):
     def setUp(self):
-        """Dummy setup so that the tearDown() is executed"""
-        # See the following documentation:
-        # https://docs.python.org/3/library/unittest.html#unittest.TestCase.tearDown
-        return
+        """Reload the config module so no other test's cached state leaks in."""
+        # config._config caches results by component name; without this, a
+        # lookup cached by an earlier test would make our overrides below no-ops.
+        importlib.reload(config)
 
     def tearDown(self):
         """The config module should be reloaded."""
@@ -129,23 +130,14 @@ class TestConfig(unittest.TestCase):
     def test_env_overrides_all(self):
         """Test that using an env var to set config ignore other files"""
 
-        if "KEYLIME_VERIFIER_CONFIG" in os.environ:
-            env_bkp = os.environ["KEYLIME_VERIFIER_CONFIG"]
-        else:
-            env_bkp = ""
-
-        os.environ["KEYLIME_VERIFIER_CONFIG"] = os.path.join(CONFIG_DIR, "verifier.conf")
-
-        # Reload the configuration to use the set environment variable on setup
-        importlib.reload(config)
-        config.CONFIG_SNIPPETS_DIRS = {"verifier": [os.path.join(CONFIG_DIR, "verifier.conf.d")]}
-        c = config.get_config("verifier")
-        self.assertEqual(c.get("verifier", "attribute_1"), "value_1")
-        self.assertRaises(Exception, c.get, "verifier", "attribute_2")
-        self.assertRaises(Exception, c.get, "verifier", "attribute_3")
-
-        # Unset the variable to not affect other tests
-        os.environ["KEYLIME_VERIFIER_CONFIG"] = env_bkp
+        with mock.patch.dict(os.environ, {"KEYLIME_VERIFIER_CONFIG": os.path.join(CONFIG_DIR, "verifier.conf")}):
+            # Reload the configuration to use the set environment variable on setup
+            importlib.reload(config)
+            config.CONFIG_SNIPPETS_DIRS = {"verifier": [os.path.join(CONFIG_DIR, "verifier.conf.d")]}
+            c = config.get_config("verifier")
+            self.assertEqual(c.get("verifier", "attribute_1"), "value_1")
+            self.assertRaises(Exception, c.get, "verifier", "attribute_2")
+            self.assertRaises(Exception, c.get, "verifier", "attribute_3")
 
     def test_get(self) -> None:
         """Sanity test for config.get()"""
