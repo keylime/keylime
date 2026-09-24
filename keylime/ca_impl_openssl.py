@@ -34,7 +34,7 @@ def get_san_entries(
 
     Args:
         bind_address: The IP address or hostname the server binds to.
-                     If "0.0.0.0" or "::", only localhost entries are added.
+                     Bind addresses "0.0.0.0", "::", and "*" are not added to SANs.
         additional_dns: Additional DNS names to include in the certificate.
         additional_ips: Additional IP addresses to include in the certificate.
 
@@ -73,8 +73,8 @@ def get_san_entries(
             if not addr.is_unspecified:
                 ip_addresses.add(bind_address)
         except ValueError:
-            # It's a hostname, not an IP
-            dns_names.add(bind_address)
+            if bind_address != "*":
+                dns_names.add(bind_address)
 
     # Add any additional DNS names
     if additional_dns:

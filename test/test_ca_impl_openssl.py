@@ -153,6 +153,18 @@ class TestGetSanEntries(unittest.TestCase):
         self.assertIn("::1", ip_addresses)
         self.assertIn("2001:db8::1", ip_addresses)
 
+    @mock.patch("keylime.ca_impl_openssl.socket.gethostname")
+    @mock.patch("keylime.ca_impl_openssl.socket.getfqdn")
+    def test_get_san_entries_with_asterisk(self, mock_getfqdn, mock_gethostname):
+        """Test that * as a bind address is omitted from DNS SANs."""
+        mock_gethostname.return_value = "testhost"
+        mock_getfqdn.return_value = "testhost"
+
+        dns_names, _ = ca_impl_openssl.get_san_entries(bind_address="*")
+
+        self.assertNotIn("*", dns_names)
+        self.assertIn("localhost", dns_names)
+
 
 class TestMkSignedCertWithSans(unittest.TestCase):
     """Tests for mk_signed_cert with SAN parameters."""
