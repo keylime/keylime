@@ -39,6 +39,37 @@ def verify_attestation(
     return (claims, failure)
 
 
+def get_processor_model(report: bytes) -> str:
+    """
+    Determine the AMD processor model from the SEV-SNP attestation report.
+
+    The report VERSION field and CHIP_ID help identify the processor generation.
+    Returns the processor model name for use in the AMD KDS VCEK URL.
+    """
+    version = int.from_bytes(report[0x000:0x004], byteorder="little")
+    chip_id_prefix = report[0x1A0:0x1A4]
+
+    # Map attestation report version to processor model
+    # Based on AMD SEV-SNP specification revisions
+    # Version 1: Milan (Zen 3)
+    # Version 2: Genoa, Bergamo, Siena (Zen 4 variants)
+    # Version 3+: Turin and future (Zen 5+)
+
+    if version == 1:
+        return "Milan"
+    elif version == 2:
+        # Genoa, Bergamo, and Siena all use version 2
+        # These models all work with "Genoa" in the KDS URL path
+        # (Bergamo and Siena are Genoa derivatives)
+        return "Genoa"
+    elif version >= 3:
+        # Turin and future processors
+        return "Turin"
+    else:
+        # Unknown version - default to Milan for backwards compatibility
+        return "Milan"
+
+
 def vek_signature_verify(report: bytes, failure: Failure) -> bool:
     reported_tcb = report[0x180:0x188]
 
@@ -48,8 +79,11 @@ def vek_signature_verify(report: bytes, failure: Failure) -> bool:
     snp = str(reported_tcb[6]).zfill(2)
     ucode = str(reported_tcb[7]).zfill(2)
 
+    # Detect processor model from attestation report
+    processor_model = get_processor_model(report)
+
     vcek_url = "https://kdsintf.amd.com/vcek/v1/"
-    vcek_url += "Milan/"
+    vcek_url += f"{processor_model}/"
     vcek_url += hw_id + "?"
     vcek_url += "blSPL=" + bl
     vcek_url += "&teeSPL=" + tee
@@ -63,6 +97,7 @@ def vek_signature_verify(report: bytes, failure: Failure) -> bool:
             {
                 "message": "unable to fetch VCEK for SEV-SNP report",
                 "status_code": res.status_code,
+                "processor_model": processor_model,
                 "vcek_url": vcek_url,
             },
             False,
