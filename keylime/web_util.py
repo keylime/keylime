@@ -15,7 +15,7 @@ import tornado.web
 
 from keylime import api_version as keylime_api_version
 from keylime import ca_impl_openssl as ca_impl
-from keylime import ca_util, config, json
+from keylime import ca_util, config, json, keylime_logging
 from keylime.api_version import VersionType
 
 
@@ -400,6 +400,11 @@ def init_mtls(component: str, logger: Optional[Logger] = None) -> ssl.SSLContext
 
     if logger:
         logger.info("Setting up TLS...")
+
+    if component in ("verifier", "registrar") and config.get(component, "ip", fallback="") == "*":
+        (logger or keylime_logging.init_logging(component)).warning(
+            "Using '*' as a bind address is deprecated. Use '0.0.0.0' for IPv4 or '::' for IPv6 instead."
+        )
 
     # Initialize the TLS directory, generating keys and certificates if
     # requested
