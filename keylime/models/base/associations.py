@@ -137,7 +137,7 @@ class ModelAssociation(ABC):
         return not self.to_one
 
 
-class EmbeddedAssociation(ModelAssociation):
+class EmbeddedAssociation(ModelAssociation):  # pylint: disable=abstract-method
     def __init__(
         self,
         name: str,
@@ -253,7 +253,7 @@ class EmbeddedInAssociation(EmbeddedAssociation):
             ...
 
 
-class EntityAssociation(ModelAssociation):
+class EntityAssociation(ModelAssociation):  # pylint: disable=abstract-method
     """EntityAssociation extends ModelAssociation to provide additional functionality common to associations which
     map to a relationship between database entities.
     """

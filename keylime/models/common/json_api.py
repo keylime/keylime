@@ -3,7 +3,7 @@
 from keylime.models.base import *
 
 
-class APIModel(BasicModel):
+class APIModel(BasicModel):  # pylint: disable=abstract-method
     def render(self, only=None):
         output = super().render(only)
         output_copy = output.copy()
