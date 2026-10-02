@@ -625,6 +625,14 @@ class AgentsHandler(BaseHandler):
                             agent_id,
                         )
                         return
+                    # Tombstone: TERMINATED agents are logically deleted.
+                    if agent.operational_state == states.TERMINATED:  # pyright: ignore
+                        web_util.echo_json_response(self.req_handler, 404, "agent id not found")
+                        logger.info(
+                            "GET returning 404 response. agent %s is TERMINATED (pending deletion).",
+                            agent_id,
+                        )
+                        return
                     response = cloud_verifier_common.process_get_status(agent)
                     web_util.echo_json_response(self.req_handler, 200, "Success", response)
                 else:
@@ -679,16 +687,29 @@ class AgentsHandler(BaseHandler):
                                 aid,
                             )
                             continue
+                        if agent.operational_state == states.TERMINATED:  # pyright: ignore
+                            logger.debug(
+                                "Agent %s is TERMINATED (pending deletion), skipping in bulk GET.",
+                                aid,
+                            )
+                            continue
                         json_response[aid] = cloud_verifier_common.process_get_status(agent)
 
                     web_util.echo_json_response(self.req_handler, 200, "Success", json_response)
                 else:
                     if ("verifier" in rest_params) and (rest_params["verifier"] != ""):
                         json_response_list = (
-                            session.query(VerfierMain.agent_id).filter_by(verifier_id=rest_params["verifier"]).all()
+                            session.query(VerfierMain.agent_id)
+                            .filter_by(verifier_id=rest_params["verifier"])
+                            .filter(VerfierMain.operational_state != states.TERMINATED)
+                            .all()
                         )
                     else:
-                        json_response_list = session.query(VerfierMain.agent_id).all()
+                        json_response_list = (
+                            session.query(VerfierMain.agent_id)
+                            .filter(VerfierMain.operational_state != states.TERMINATED)
+                            .all()
+                        )
 
                     web_util.echo_json_response(self.req_handler, 200, "Success", {"uuids": json_response_list})
 
