@@ -21,7 +21,7 @@ from keylime.models.base.types.list import List
 _PM = TypeVar("_PM", bound="PersistableModel")
 
 
-class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
+class PersistableModel(BasicModel, metaclass=PersistableModelMeta):  # pylint: disable=abstract-method
     """PersistableModel extends the BasicModel class to provide additional functionality for saving and retrieving
     records to and from a database. Internally, a SQLAlchemy-mapped class is built dynamically from the schema
     defined by the implementing class, and model change operations are mapped to their SQLAlchemy equivalent.
@@ -350,8 +350,10 @@ class PersistableModel(BasicModel, metaclass=PersistableModelMeta):
         changes = self._changes.copy()
         dialect = db_manager.engine.dialect
 
+        model_fields: dict[str, ModelField] = dict(type(self).fields)
+
         for name, value in self.changes.items():
-            field = type(self).fields[name]
+            field = model_fields[name]
 
             if not field.persist:
                 del changes[name]

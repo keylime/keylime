@@ -339,15 +339,11 @@ class APIMessageBody(APILinksMixin, APIMetaMixin):
 
     @property
     def client_errors(self) -> list[APIError]:
-        return [
-            error for error in self._errors if error.http_code and error.http_code >= 400 and error.http_code <= 499
-        ]
+        return [error for error in self._errors if error.http_code and 400 <= error.http_code <= 499]
 
     @property
     def server_errors(self) -> list[APIError]:
-        return [
-            error for error in self._errors if error.http_code and error.http_code >= 500 and error.http_code <= 599
-        ]
+        return [error for error in self._errors if error.http_code and 500 <= error.http_code <= 599]
 
     @property
     def meta(self) -> MappingProxyType[str, APIMeta]:

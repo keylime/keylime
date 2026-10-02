@@ -611,7 +611,7 @@ class CertificationKey(PersistableModel):
         if not self.allowable_signature_schemes or not self.key_algorithm:
             return
 
-        for scheme in self.allowable_signature_schemes:
+        for scheme in self.allowable_signature_schemes:  # pylint: disable=not-an-iterable
             if not algorithms.Sign.is_recognized(scheme):
                 continue
 

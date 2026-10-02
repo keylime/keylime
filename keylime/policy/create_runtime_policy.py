@@ -761,7 +761,7 @@ def process_ima_buf_in_measurement_list(
                     errmsg = f"Skipping line that was split into {len(pieces)} pieces, expected 6: {line}"
                     logger.debug(errmsg)
                     continue
-                if pieces[2] not in ("ima-buf"):
+                if pieces[2] != "ima-buf":
                     continue
                 checksum_hash = pieces[3].split(":")[1]
                 path = pieces[4]

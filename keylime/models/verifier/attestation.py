@@ -1,4 +1,5 @@
 # pyright: reportAttributeAccessIssue=false
+# pylint: disable=not-an-iterable,unsubscriptable-object
 # ORM model with dynamically-created attributes from metaclasses
 from datetime import timedelta
 
