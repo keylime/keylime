@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy.exc import InvalidRequestError, SQLAlchemyError
 
 from keylime import cloud_verifier_tornado
+from keylime.common import states
 
 
 class TestPendingEventRegistry(unittest.TestCase):
@@ -391,6 +392,23 @@ class TestGetHandlerRaceCondition(unittest.TestCase):
         # refresh must NOT have been called — agent was already None
         mock_session.refresh.assert_not_called()
 
+    def test_returns_404_when_agent_is_terminated(self):
+        """GET returns 404 for a TERMINATED agent (tombstone pattern)."""
+        mock_session = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.operational_state = states.TERMINATED
+        mock_session.query.return_value.options.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = (
+            mock_agent
+        )
+        mock_session.refresh.return_value = None  # success
+
+        mock_echo = self._run_get(mock_session)
+
+        mock_echo.assert_called_once()
+        args = mock_echo.call_args[0]
+        self.assertEqual(args[1], 404)
+        self.assertIn("not found", args[2])
+
 
 class TestBulkGetHandlerRaceCondition(unittest.TestCase):
     """Verify bulk GET skips deleted agents rather than crashing."""
@@ -449,6 +467,31 @@ class TestBulkGetHandlerRaceCondition(unittest.TestCase):
         result = args[3]
         self.assertIn("agent-aaa", result)
         self.assertNotIn("agent-bbb", result)  # deleted agent is skipped
+        self.assertIn("agent-ccc", result)
+
+    def test_bulk_get_skips_terminated_agent(self):
+        """Bulk GET omits TERMINATED agents (tombstone pattern)."""
+        agents = []
+        for aid in self.AGENT_IDS:
+            a = MagicMock()
+            a.agent_id = aid
+            a.operational_state = states.GET_QUOTE  # normal state
+            agents.append(a)
+        # Mark middle agent as TERMINATED
+        agents[1].operational_state = states.TERMINATED
+
+        mock_session = MagicMock()
+        mock_session.query.return_value.options.return_value.options.return_value.all.return_value = agents
+        mock_session.refresh.return_value = None
+
+        mock_echo = self._run_bulk_get(mock_session)
+
+        mock_echo.assert_called_once()
+        args = mock_echo.call_args[0]
+        self.assertEqual(args[1], 200)
+        result = args[3]
+        self.assertIn("agent-aaa", result)
+        self.assertNotIn("agent-bbb", result)  # TERMINATED agent is skipped
         self.assertIn("agent-ccc", result)
 
 
