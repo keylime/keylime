@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from keylime.web.base.server import Server
 
@@ -57,3 +57,14 @@ class TestWorkerCount(unittest.TestCase):
     def test_explicit_worker_count_no_limit(self):
         server = self._make_server(worker_count=20, max_workers=0)
         self.assertEqual(server.worker_count, 20)
+
+    def test_empty_max_workers_falls_back_with_warning(self):
+        server = self._make_server()
+        server._use_config("verifier")
+        mock_getint = MagicMock(side_effect=ValueError("invalid literal for int() with base 10: ''"))
+        with patch.dict(Server._TYPED_CONFIG_GETTERS, {int: mock_getint}):
+            with patch("keylime.web.base.server.config.get", return_value=""):
+                with self.assertLogs("keylime.web", level="WARNING") as log_ctx:
+                    server._set_max_workers(from_config="max_workers")
+        self.assertEqual(server.max_workers, 0)
+        self.assertTrue(any("Cannot parse" in msg for msg in log_ctx.output))
