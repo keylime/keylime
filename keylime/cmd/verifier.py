@@ -1,6 +1,7 @@
 from keylime import api_version, config, keylime_logging
 from keylime.common.migrations import apply
 from keylime.mba import mba
+from keylime.mba.elchecking import policies
 from keylime.models import da_manager, db_manager
 from keylime.shared_data import initialize_shared_memory
 from keylime.web import VerifierServer
@@ -35,6 +36,13 @@ def main() -> None:
 
     # Explicitly load and initialize measured boot components
     mba.load_imports()
+
+    # A measured boot policy name that is not registered is an operator error. Fail
+    # fast here so a misspelled name cannot silently accept an empty reference state
+    # and let attestation pass at run time.
+    mb_policy_name = config.get("verifier", "measured_boot_policy_name", fallback="accept-all")
+    if policies.get_policy(mb_policy_name) is None:
+        raise ValueError(f"Unknown measured boot policy name configured: {mb_policy_name!r}")
 
     # Prepare to use the cloud_verifier database
     db_manager.make_engine("cloud_verifier")

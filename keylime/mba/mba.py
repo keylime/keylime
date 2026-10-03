@@ -1,5 +1,5 @@
 import importlib
-from inspect import isfunction
+from inspect import Parameter, isfunction, signature
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from keylime import config
@@ -159,18 +159,36 @@ def bootlog_evaluate(
     measurement_data: MBLog,
     pcrsInQuote: Set[int],
     agent_id: str,
+    quote_hash_alg: Optional[str] = None,
+    log_bound_pcrs: Optional[Set[int]] = None,
 ) -> Failure:
     """
     MBA API front-end for evaluating a measured boot event log against a policy.
     :param policy_data: policy definition (aka "mb_policy") (as a string).
     :param measurement_data: parsed measured boot event log as produced by `bootlog_parse`
-    :param pcrsInQuote: a set of PCRs provided by the quote.
+    :param pcrsInQuote: the PCRs the quote validated. Always passed positionally so
+        its meaning never changes for any implementation.
     :param agent_id: the UUID of the keylime agent sending this data.
+    :param quote_hash_alg: the PCR bank authenticated by the quote.
+    :param log_bound_pcrs: PCRs whose event-log value matched the quote.
     :returns: list of all failures encountered while evaluating the boot log against the policy.
     """
     try:
         m = _find_implementation("bootlog_evaluate")
-        return m.bootlog_evaluate(policy_data, measurement_data, pcrsInQuote, agent_id)  # type: ignore[no-any-return]
+        implementation = m.bootlog_evaluate
+        parameters = signature(implementation).parameters
+        accepts_kwargs = any(parameter.kind == Parameter.VAR_KEYWORD for parameter in parameters.values())
+
+        # The positional pcrsInQuote keeps its original meaning for every
+        # implementation. The extra context is passed by keyword only to
+        # implementations that name it (or accept arbitrary keywords), so a
+        # legacy four-argument implementation is never changed.
+        extra: Dict[str, Any] = {}
+        if accepts_kwargs or "quote_hash_alg" in parameters:
+            extra["quote_hash_alg"] = quote_hash_alg
+        if accepts_kwargs or "log_bound_pcrs" in parameters:
+            extra["log_bound_pcrs"] = log_bound_pcrs
+        return implementation(policy_data, measurement_data, pcrsInQuote, agent_id, **extra)  # type: ignore[no-any-return]
     except Exception as e:
         raise ValueError from e
 
