@@ -1,5 +1,12 @@
 name: PR code coverage measurement on codecov.io
 
+# This workflow handles fork-based PRs where the commit SHA originates from
+# the contributor's fork. Because the workflow is triggered by check_run
+# events rather than pull_request events, codecov cannot automatically
+# determine the associated PR. The commit SHA (head_sha) belongs to the
+# fork's branch, so we explicitly query the upstream repository's API to
+# resolve the PR number and pass it to codecov via override_pr.
+
 on:
   check_run:
     types: [completed]
@@ -26,6 +33,21 @@ jobs:
         SLEEP_DELAY: 120
     - name: List downloaded files
       run: ls coverage*
+    - name: Fetch PR number for Commit
+      id: get_pr
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        HEAD_SHA: ${{ github.event.check_run.head_sha }}
+      run: |
+        # Query the original repository for PRs associated with the fork's commit SHA
+        PR_NUMBER=$(gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/pulls" --jq '.[0].number' 2>/dev/null)
+        if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" == "null" ]; then
+          echo "::warning::No open PR found for commit $HEAD_SHA - coverage will be visible in codecov WebUI but no PR comment will be posted"
+          PR_NUMBER=""
+        else
+          echo "Found PR: $PR_NUMBER"
+        fi
+        echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
     - name: Upload coverage.unittests.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
       env:
@@ -34,6 +56,8 @@ jobs:
         files: scripts/coverage.unittests.xml
         disable_search: true
         flags: unittests
+        override_commit: ${{ github.event.check_run.head_sha }}
+        override_pr: ${{ steps.get_pr.outputs.pr_number }}
     - name: Upload coverage.testsuite.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
       env:
@@ -42,6 +66,8 @@ jobs:
         files: scripts/coverage.testsuite.xml
         disable_search: true
         flags: testsuite
+        override_commit: ${{ github.event.check_run.head_sha }}
+        override_pr: ${{ steps.get_pr.outputs.pr_number }}
     - name: Upload coverage.packit.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
       env:
@@ -50,3 +76,5 @@ jobs:
         files: scripts/coverage.packit.xml
         disable_search: true
         flags: packit-e2e
+        override_commit: ${{ github.event.check_run.head_sha }}
+        override_pr: ${{ steps.get_pr.outputs.pr_number }}
