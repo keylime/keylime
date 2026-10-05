@@ -238,7 +238,7 @@ class AgentAttestState:
 class AgentAttestStates:
     """AgentAttestStates administers a map of AgentAttestState's indexed by agent_id"""
 
-    instance = None
+    instance: Optional["AgentAttestStates"] = None
     map_lock: threading.Lock
     map: Dict[str, AgentAttestState]
 
