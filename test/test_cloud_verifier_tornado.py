@@ -605,5 +605,100 @@ class TestPostHandlerTombstoneCleanup(unittest.TestCase):
             self.assertNotEqual(call[0][1], 409, "POST should not return 409 for TERMINATED agent")
 
 
+class TestVerifierDbDeleteAgentPreservesSharedPolicies(unittest.TestCase):
+    """Verify verifier_db_delete_agent preserves policies referenced by other agents."""
+
+    AGENT_ID = "agent-aaa"
+
+    def _make_session(self, allowlist_id=None, mbpolicy_id=None, other_agent_refs_ima=False, other_agent_refs_mb=False):
+        """Build a mock session that routes query() calls by model."""
+        session = MagicMock()
+
+        # Track delete calls per model
+        delete_tracker = {}
+
+        def route_query(model):
+            if "Allowlist" in str(model):
+                chain = MagicMock()
+                filter_chain = MagicMock()
+                chain.filter_by.return_value = filter_chain
+                if allowlist_id is not None:
+                    row_mock = MagicMock()
+                    row_mock.id = allowlist_id
+                    filter_chain.first.return_value = row_mock
+                else:
+                    filter_chain.first.return_value = None
+                filter_chain.delete.return_value = 0
+                delete_tracker["allowlist"] = filter_chain.delete
+                return chain
+            if "Mbpolicy" in str(model):
+                chain = MagicMock()
+                filter_chain = MagicMock()
+                chain.filter_by.return_value = filter_chain
+                if mbpolicy_id is not None:
+                    row_mock = MagicMock()
+                    row_mock.id = mbpolicy_id
+                    filter_chain.first.return_value = row_mock
+                else:
+                    filter_chain.first.return_value = None
+                filter_chain.delete.return_value = 0
+                delete_tracker["mbpolicy"] = filter_chain.delete
+                return chain
+            if "agent_id" in str(model):
+                chain = MagicMock()
+                filter_chain = MagicMock()
+                chain.filter_by.return_value = filter_chain
+                if other_agent_refs_ima or other_agent_refs_mb:
+                    filter_chain.first.return_value = MagicMock()
+                else:
+                    filter_chain.first.return_value = None
+                return chain
+            chain = MagicMock()
+            chain.filter_by.return_value.delete.return_value = 0
+            return chain
+
+        session.query.side_effect = route_query
+        return session, delete_tracker
+
+    @patch("keylime.cloud_verifier_tornado.Attestation")
+    @patch("keylime.cloud_verifier_tornado.EvidenceItem")
+    @patch("keylime.cloud_verifier_tornado.get_AgentAttestStates")
+    @patch("keylime.cloud_verifier_tornado.push_agent_monitor")
+    def test_deletes_policy_when_no_other_agent_references_it(self, _mock_push, _mock_aas, _mock_ev, _mock_att):
+        """Auto-named policy is deleted when no other agent references it."""
+        session, tracker = self._make_session(allowlist_id=42, other_agent_refs_ima=False)
+
+        cloud_verifier_tornado.verifier_db_delete_agent(session, self.AGENT_ID)
+
+        self.assertIn("allowlist", tracker)
+        tracker["allowlist"].assert_called_once()
+
+    @patch("keylime.cloud_verifier_tornado.Attestation")
+    @patch("keylime.cloud_verifier_tornado.EvidenceItem")
+    @patch("keylime.cloud_verifier_tornado.get_AgentAttestStates")
+    @patch("keylime.cloud_verifier_tornado.push_agent_monitor")
+    def test_preserves_policy_when_another_agent_references_it(self, _mock_push, _mock_aas, _mock_ev, _mock_att):
+        """Auto-named policy is NOT deleted when another agent references it."""
+        session, tracker = self._make_session(allowlist_id=42, other_agent_refs_ima=True)
+
+        cloud_verifier_tornado.verifier_db_delete_agent(session, self.AGENT_ID)
+
+        tracker["allowlist"].assert_not_called()
+
+    @patch("keylime.cloud_verifier_tornado.Attestation")
+    @patch("keylime.cloud_verifier_tornado.EvidenceItem")
+    @patch("keylime.cloud_verifier_tornado.get_AgentAttestStates")
+    @patch("keylime.cloud_verifier_tornado.push_agent_monitor")
+    def test_skips_policy_when_no_auto_named_policy_exists(self, _mock_push, _mock_aas, _mock_ev, _mock_att):
+        """No error when the agent has no auto-named policy."""
+        session, tracker = self._make_session(allowlist_id=None, mbpolicy_id=None)
+
+        cloud_verifier_tornado.verifier_db_delete_agent(session, self.AGENT_ID)
+
+        tracker["allowlist"].assert_not_called()
+        tracker["mbpolicy"].assert_not_called()
+        session.commit.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -354,7 +354,7 @@ def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
     #   3. VerifierAttestations (legacy attestations table, FK to agent)
     # Agent and policies:
     #   4. agent
-    #   5. allowlists/mbpolicies (by name, not FK)
+    #   5. allowlists/mbpolicies (by name, only if no other agent references them)
     # NOTE: Authentication sessions are NOT deleted when an agent is removed.
     # This allows agents to maintain their authentication tokens through policy
     # updates (DELETE + POST) and re-enrollment without needing to re-authenticate.
@@ -363,8 +363,18 @@ def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
     Attestation.delete_all(agent_id=agent_id, session_=session)
     session.query(VerifierAttestations).filter_by(agent_id=agent_id).delete()
     session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
-    session.query(VerifierAllowlist).filter_by(name=agent_id).delete()
-    session.query(VerifierMbpolicy).filter_by(name=agent_id).delete()
+    # Only delete auto-named policies if no other agent references them
+    allowlist_row = session.query(VerifierAllowlist).filter_by(name=agent_id).first()
+    allowlist_id = allowlist_row.id if allowlist_row is not None else None
+    if (
+        allowlist_id is not None
+        and not session.query(VerfierMain.agent_id).filter_by(ima_policy_id=allowlist_id).first()
+    ):
+        session.query(VerifierAllowlist).filter_by(name=agent_id).delete()
+    mbpolicy_row = session.query(VerifierMbpolicy).filter_by(name=agent_id).first()
+    mbpolicy_id = mbpolicy_row.id if mbpolicy_row is not None else None
+    if mbpolicy_id is not None and not session.query(VerfierMain.agent_id).filter_by(mb_policy_id=mbpolicy_id).first():
+        session.query(VerifierMbpolicy).filter_by(name=agent_id).delete()
     session.commit()
 
 
