@@ -875,7 +875,46 @@ class AgentsHandler(BaseHandler):
                         web_util.echo_json_response(self.req_handler, 404, "agent id not found")
                         return
                     update_agent.operational_state = states.TERMINATED  # pyright: ignore
+
+                    # Eagerly clean up auto-named policies so they appear
+                    # deleted together with the agent (tombstone consistency).
+                    # Null out the FKs first so the policy rows can be deleted
+                    # in the same transaction.
+                    ima_policy_id = update_agent.ima_policy_id
+                    mb_policy_id = update_agent.mb_policy_id
+                    update_agent.ima_policy_id = None  # pyright: ignore
+                    update_agent.mb_policy_id = None  # pyright: ignore
                     session.add(update_agent)
+                    session.flush()
+
+                    if ima_policy_id is not None:
+                        is_auto = session.query(VerifierAllowlist.id).filter_by(id=ima_policy_id, name=agent_id).first()
+                        if is_auto:
+                            other_ref = (
+                                session.query(VerfierMain.agent_id)
+                                .filter(
+                                    VerfierMain.ima_policy_id == ima_policy_id,
+                                    VerfierMain.agent_id != agent_id,
+                                )
+                                .first()
+                            )
+                            if not other_ref:
+                                session.query(VerifierAllowlist).filter_by(id=ima_policy_id).delete()
+
+                    if mb_policy_id is not None:
+                        is_auto = session.query(VerifierMbpolicy.id).filter_by(id=mb_policy_id, name=agent_id).first()
+                        if is_auto:
+                            other_ref = (
+                                session.query(VerfierMain.agent_id)
+                                .filter(
+                                    VerfierMain.mb_policy_id == mb_policy_id,
+                                    VerfierMain.agent_id != agent_id,
+                                )
+                                .first()
+                            )
+                            if not other_ref:
+                                session.query(VerifierMbpolicy).filter_by(id=mb_policy_id).delete()
+
                     web_util.echo_json_response(self.req_handler, 202, "Accepted")
                     logger.info("DELETE (pull mode) returning 202 response for agent id: %s", agent_id)
             except SQLAlchemyError as e:
