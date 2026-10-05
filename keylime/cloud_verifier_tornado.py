@@ -1041,13 +1041,22 @@ class AgentsHandler(BaseHandler):
                             raise e
 
                         if new_agent_count > 0:
-                            web_util.echo_json_response(
-                                self.req_handler,
-                                409,
-                                f"Agent of uuid {agent_id} already exists. Please use delete or update.",
-                            )
-                            logger.warning("Agent of uuid %s already exists", agent_id)
-                            return
+                            existing_agent = session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+                            if existing_agent and cast(int, existing_agent.operational_state) == states.TERMINATED:
+                                logger.info(
+                                    "Agent %s is TERMINATED (pending deletion). Cleaning up before re-enrollment.",
+                                    agent_id,
+                                )
+                                clear_agent_policy_cache(agent_id)
+                                verifier_db_delete_agent(session, agent_id)
+                            else:
+                                web_util.echo_json_response(
+                                    self.req_handler,
+                                    409,
+                                    f"Agent of uuid {agent_id} already exists. Please use delete or update.",
+                                )
+                                logger.warning("Agent of uuid %s already exists", agent_id)
+                                return
 
                         # Write IMA policy to database if needed
                         if not runtime_policy_name and not runtime_policy:
@@ -1401,17 +1410,27 @@ class AllowlistHandler(BaseHandler):
                 raise
 
             try:
-                agent = session.query(VerfierMain).filter_by(ima_policy_id=runtime_policy.id).one_or_none()
+                agents = session.query(VerfierMain).filter_by(ima_policy_id=runtime_policy.id).all()
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error: %s", e)
                 raise
-            if agent is not None:
+            active_agents = [a for a in agents if cast(int, a.operational_state) != states.TERMINATED]
+            if active_agents:
                 web_util.echo_json_response(
                     self.req_handler,
                     409,
-                    f"Can't delete allowlist as it's currently in use by agent {agent.agent_id}",
+                    f"Can't delete allowlist as it's currently in use by agent {active_agents[0].agent_id}",
                 )
                 return
+
+            terminated_agents = [a for a in agents if cast(int, a.operational_state) == states.TERMINATED]
+            for agent in terminated_agents:
+                logger.info(
+                    "Deleting TERMINATED agent %s before policy cleanup.",
+                    agent.agent_id,
+                )
+                clear_agent_policy_cache(str(agent.agent_id))
+                verifier_db_delete_agent(session, str(agent.agent_id))
 
             try:
                 session.query(VerifierAllowlist).filter_by(name=allowlist_name).delete()
@@ -1752,17 +1771,27 @@ class MbpolicyHandler(BaseHandler):
                 raise
 
             try:
-                agent = session.query(VerfierMain).filter_by(mb_policy_id=mbpolicy.id).one_or_none()
+                agents = session.query(VerfierMain).filter_by(mb_policy_id=mbpolicy.id).all()
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error: %s", e)
                 raise
-            if agent is not None:
+            active_agents = [a for a in agents if cast(int, a.operational_state) != states.TERMINATED]
+            if active_agents:
                 web_util.echo_json_response(
                     self.req_handler,
                     409,
-                    f"Can't delete mb_policy as it's currently in use by agent {agent.agent_id}",
+                    f"Can't delete mb_policy as it's currently in use by agent {active_agents[0].agent_id}",
                 )
                 return
+
+            terminated_agents = [a for a in agents if cast(int, a.operational_state) == states.TERMINATED]
+            for agent in terminated_agents:
+                logger.info(
+                    "Deleting TERMINATED agent %s before policy cleanup.",
+                    agent.agent_id,
+                )
+                clear_agent_policy_cache(str(agent.agent_id))
+                verifier_db_delete_agent(session, str(agent.agent_id))
 
             try:
                 session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).delete()

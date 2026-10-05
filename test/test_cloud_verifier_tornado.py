@@ -495,5 +495,115 @@ class TestBulkGetHandlerRaceCondition(unittest.TestCase):
         self.assertIn("agent-ccc", result)
 
 
+class TestPostHandlerTombstoneCleanup(unittest.TestCase):
+    """Verify POST cleans up TERMINATED agents instead of returning 409.
+
+    When an agent DELETE returns 202 (async), the row stays in DB with
+    operational_state=TERMINATED until the attestation loop garbage-collects it.
+    A subsequent POST to re-enroll the same agent_id must not return 409 —
+    it should delete the TERMINATED row and proceed with enrollment.
+    """
+
+    AGENT_ID = "d432fbb3-d2f1-4a97-9ef7-75bd81c00000"
+    FULL_JSON_BODY = {
+        "cloudagent_ip": "127.0.0.1",
+        "cloudagent_port": "9002",
+        "supported_version": "2.1",
+        "mtls_cert": "disabled",
+        "runtime_policy_name": "",
+        "runtime_policy": "",
+        "runtime_policy_key": "",
+        "mb_refstate": "",
+        "mb_policy_name": "",
+        "v": "test-v",
+        "tpm_policy": "{}",
+        "metadata": "{}",
+        "ima_sign_verification_keys": "",
+        "revocation_key": "",
+        "accept_tpm_hash_algs": ["sha256"],
+        "accept_tpm_encryption_algs": ["rsa"],
+        "accept_tpm_signing_algs": ["rsassa"],
+        "ak_tpm": "test-ak",
+    }
+
+    def _make_session_mock(self, agent_count, existing_agent=None):
+        """Build a session mock that routes query() calls correctly.
+
+        session.query(VerifierAllowlist) is used for IMA policy lookups.
+        session.query(VerfierMain) is used for the agent duplicate check.
+        """
+        mock_session = MagicMock()
+
+        allowlist_chain = MagicMock()
+        allowlist_chain.filter_by.return_value.one_or_none.return_value = None
+
+        agent_chain = MagicMock()
+        agent_chain.filter_by.return_value.count.return_value = agent_count
+        agent_chain.filter_by.return_value.first.return_value = existing_agent
+
+        def route_query(model):
+            model_name = getattr(model, "__name__", str(model))
+            if "Allowlist" in model_name or "VerifierAllowlist" in str(model):
+                return allowlist_chain
+            return agent_chain
+
+        mock_session.query.side_effect = route_query
+        return mock_session
+
+    def _run_post(self, session_mock):
+        """Wire up validate_input and session_context, invoke handler.post()."""
+        handler = _make_agents_handler(self.AGENT_ID)
+
+        validate_return = ({"agents": self.AGENT_ID, "api_version": "2.1"}, self.AGENT_ID)
+        handler.request.body = cloud_verifier_tornado.json.dumps(self.FULL_JSON_BODY).encode()
+
+        @contextmanager
+        def fake_session_ctx():
+            yield session_mock
+
+        with (
+            patch.object(
+                cloud_verifier_tornado.AgentsHandler,
+                "_AgentsHandler__validate_input",
+                return_value=validate_return,
+            ),
+            patch("keylime.cloud_verifier_tornado.session_context", fake_session_ctx),
+            patch("keylime.cloud_verifier_tornado.web_util.echo_json_response") as mock_echo,
+            patch("keylime.cloud_verifier_tornado.config.get", return_value="pull"),
+            patch("keylime.cloud_verifier_tornado.config.getboolean", return_value=False),
+        ):
+            handler.post()
+            return mock_echo
+
+    def test_post_returns_409_for_active_agent(self):
+        """POST returns 409 when agent exists and is NOT terminated."""
+        mock_agent = MagicMock()
+        mock_agent.operational_state = states.GET_QUOTE
+        mock_session = self._make_session_mock(agent_count=1, existing_agent=mock_agent)
+
+        mock_echo = self._run_post(mock_session)
+
+        mock_echo.assert_called_once()
+        args = mock_echo.call_args[0]
+        self.assertEqual(args[1], 409)
+
+    def test_post_cleans_up_terminated_agent(self):
+        """POST cleans up TERMINATED agent and does not return 409."""
+        mock_agent = MagicMock()
+        mock_agent.operational_state = states.TERMINATED
+        mock_session = self._make_session_mock(agent_count=1, existing_agent=mock_agent)
+
+        with (
+            patch("keylime.cloud_verifier_tornado.verifier_db_delete_agent") as mock_delete,
+            patch("keylime.cloud_verifier_tornado.clear_agent_policy_cache") as mock_clear_cache,
+        ):
+            mock_echo = self._run_post(mock_session)
+
+        mock_clear_cache.assert_called_once_with(self.AGENT_ID)
+        mock_delete.assert_called_once_with(mock_session, self.AGENT_ID)
+        for call in mock_echo.call_args_list:
+            self.assertNotEqual(call[0][1], 409, "POST should not return 409 for TERMINATED agent")
+
+
 if __name__ == "__main__":
     unittest.main()
