@@ -308,6 +308,71 @@ class TestImaDM(unittest.TestCase):
         failure = validator.validate(ima_buf.digest, ima_buf.name, ima_buf.data)
         self.assertIn("ima.validation.dm.dm_device_rename.new_uuid_invalid", failure.get_event_ids())
 
+    def _make_buf_entry(self, payload, event):
+        # Build the (digest, name, data) triple that DmIMAValidator.validate expects,
+        # computing a matching sha256 digest so the data hash check passes.
+        import hashlib
+
+        data = ast.Buffer(payload.encode().hex())
+        name = ast.Name(event)
+        digest = ast.Digest("sha256:" + hashlib.sha256(payload.encode()).hexdigest())
+        return digest, name, data
+
+    def test_device_rename_uuid_match(self):
+        # When matching on uuid, a rename that changes the uuid must keep tracking
+        # the device under its new uuid, otherwise later events for it are lost.
+        policy = {
+            "version": 1,
+            "match_on": "uuid",
+            "rules": {
+                "example": {
+                    "required": False,
+                    "device_resume_required": False,
+                    "device_rename": {"valid_name": "test.*", "valid_uuid": "newuuid"},
+                    "device_remove": {"allow_removal": False},
+                    "allow_clear": False,
+                    "table_load": {
+                        "allow_multiple_loads": False,
+                        "name": "test",
+                        "uuid": "myuuid",
+                        "major": 253,
+                        "minor": 0,
+                        "minor_count": 1,
+                        "num_targets": 1,
+                        "targets": [
+                            {
+                                "target_index": 0,
+                                "target_begin": 0,
+                                "target_len": 4268032,
+                                "target_name": "linear",
+                                "target_version": "1.4.0",
+                                "device_name": "254:2",
+                                "start": 0,
+                            }
+                        ],
+                    },
+                }
+            },
+        }
+        validator = ima_dm.DmIMAValidator(cast(types.Policies, policy))
+
+        load = self._make_linear_load_data("test", uuid="myuuid")
+        failure = validator.validate(*self._make_buf_entry(load, "dm_table_load"))
+        self.assertFalse(failure)
+        self.assertIn("myuuid", validator.devices)
+
+        rename = (
+            "dm_version=4.45.0;name=test,uuid=myuuid,major=253,minor=0,minor_count=1,"
+            "num_targets=1;new_name=test2,new_uuid=newuuid;current_device_capacity=4268032;"
+        )
+        failure = validator.validate(*self._make_buf_entry(rename, "dm_device_rename"))
+        self.assertFalse(failure)
+
+        # The device must now be tracked under its new uuid, not the new name.
+        self.assertNotIn("myuuid", validator.devices)
+        self.assertIn("newuuid", validator.devices)
+        self.assertNotIn("test2", validator.devices)
+
     def _make_linear_load_data(self, name, uuid=""):
         return (
             f"dm_version=4.45.0;name={name},uuid={uuid},"
