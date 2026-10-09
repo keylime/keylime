@@ -53,6 +53,7 @@ class VerfierMain(Base):
     tpm_clockinfo = Column(JSONPickleType(pickler=JSONPickler))
     accept_attestations = Column(Boolean)
     consecutive_attestation_failures = Column(Integer, nullable=True)
+    enrollment_generation = Column(Integer, nullable=False, server_default="0")
 
 
 class VerifierAllowlist(Base):
