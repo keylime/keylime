@@ -38,6 +38,9 @@ INVALID_ENTRIES = {
     "invalid-template-hash": "10 I936eb315fb4e74b99e7d461bc5c96049e1ee092 ima-ng sha1:bc026ae66d81713e4e852465e980784dc96651f8 /usr/lib/systemd/systemd",
     "invalid-digest": "10 7936eb315fb4e74b99e7d461bc5c96049e1ee092 ima-ng sha1:Ic026ae66d81713e4e852465e980784dc96651f8 /usr/lib/systemd/systemd",
     "not-ima-string": "this is text not an ima entry",
+    "legacy-name-too-long": "10 " + "a" * 40 + " ima " + "a" * 40 + " " + "A" * 256,
+    "name-not-utf8-encodable": "10 " + "a" * 40 + " ima-ng sha256:" + "b" * 64 + " /\udcff",
+    "digest-algorithm-not-utf8-encodable": "10 " + "a" * 40 + " ima-ng \udcff:" + "b" * 64 + " /x",
 }
 
 # END TEST DATA
