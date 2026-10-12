@@ -42,6 +42,14 @@ class VerifierServer(Server):
 
     def _pre_fork(self) -> None:
         """Query agents from database before forking (only needed for PULL mode)."""
+        # Wire request_timeout from config into the module-level dict so agents
+        # pick up the configured value instead of DEFAULT_TIMEOUT.
+        # This mirrors the initialization done in cloud_verifier_tornado.main().
+        from keylime.config import DEFAULT_TIMEOUT
+        cloud_verifier_tornado.exclude_db["request_timeout"] = config.getfloat(
+            "verifier", "request_timeout", fallback=DEFAULT_TIMEOUT
+        )
+
         logger.info("start_multi() called with operating_mode: %s", self.operating_mode)
         self._all_agents = []
         if self.operating_mode == "pull":
