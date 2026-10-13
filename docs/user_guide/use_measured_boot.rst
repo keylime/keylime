@@ -62,15 +62,12 @@ an agent node, the following actions will be taken.
 
 .. note::
 
-   The PCR replay in step 3 is restricted to the intersection of ``MEASUREDBOOT_PCRS``
-   (the PCRs Keylime collects) and the set returned by the active policy's
-   ``get_relevant_pcrs()`` method.  PCRs outside that set are excluded from the
-   replay check.  This allows policies to declare that certain PCRs (e.g. PCR 11,
-   which ``systemd-pcrphase`` extends at runtime) are not part of their trust
-   model, preventing spurious verification failures.
-   Policies that return an empty set from ``get_relevant_pcrs()`` (such as the
-   built-in ``accept-all`` and ``reject-all``) apply no restriction, so all
-   ``MEASUREDBOOT_PCRS`` are replayed.
+   The PCR replay in step 3 uses the intersection of ``MEASUREDBOOT_PCRS`` and
+   the active policy's relevant PCR set. PCRs outside that set are excluded.
+   This allows a policy to omit PCR 11 when ``systemd-pcrphase`` extends it at
+   runtime. A policy that returns an empty set applies no restriction, so
+   Keylime uses all ``MEASUREDBOOT_PCRS``. The built-in ``accept-all`` and
+   ``reject-all`` policies use this behavior.
 
 How to use 
 ---------- 
@@ -135,6 +132,56 @@ While an operator can attempt to write its own policy from scratch, it is
 recommended that one just copies `example.py` into `mypolicy.py`, change it as
 required and then just points to this policy for `measured_boot_policy_name` in `verifier.conf`
 for its own use.
+
+Ordered PCR replay policy
+-------------------------
+
+The built-in `ordered-replay` policy pins the expected final PCR values of the
+boot log. The reference values are the outcome of replaying the log in order.
+Keylime does that replay once, in the trusted parser (`tpm2_eventlog`), and
+binds the resulting per-PCR values to the AK-signed quote before the policy
+runs. The policy then compares each reference value against that quote-bound,
+parser-calculated `pcrs` map, so it inherits the parser's handling of special
+cases such as `StartupLocality` and `EV_EFI_HCRTM_EVENT`.
+
+The `pcrs` map uses the same bank and PCR structure as the parsed event log.
+Supported bank names are the ones the verifier can authenticate through a quote:
+
+* `sha1`
+* `sha256`
+* `sha384`
+* `sha512`
+
+PCR values may be JSON integers or full-size hexadecimal strings::
+
+   {
+     "pcrs": {
+       "sha256": {
+         "0": "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+       }
+     }
+   }
+
+Set `measured_boot_policy_name = ordered-replay` to select this policy. The
+reference map must contain exactly one bank, and that bank must match the bank
+in the AK-signed quote. Every reference PCR must also belong to
+``MEASUREDBOOT_PCRS`` and must have an event-log value that Keylime matched
+against the same PCR in the quote. An empty or missing reference state is
+rejected rather than treated as accept-all.
+
+This policy pins the reference state against each quote, so it runs on every
+attestation and during one-shot evidence verification, regardless of the
+``measured_boot_evaluate`` setting. A later quote that presents a different boot
+state is therefore still compared against the reference values.
+
+The guarantee is per-PCR final value equality against the quote. Reordering
+events that extend a single PCR is detected when it changes that PCR's digest
+sequence, and therefore its final value, under the collision resistance of the
+bank's hash. Reordering that leaves the final value unchanged is not
+authenticated. This covers swapping two events with equal digests, or moving an
+``EV_NO_ACTION`` entry that does not extend the PCR. Interleaving of events
+across different PCRs also cannot be distinguished from independent PCR
+endpoints. No policy built on PCR values alone can authenticate that ordering.
 
 Named Measured Boot Policy
 ----------------------------

@@ -391,14 +391,14 @@ class Tpm:
             )
 
     @staticmethod
-    def mb_pcrs_to_check(policy_name: str) -> Set[int]:
+    def mb_pcrs_to_check(policy_name: str, refstate: Optional[mb_policies.RefState] = None) -> Set[int]:
         """Return the set of measured-boot PCRs to replay against the event log.
 
-        Intersects ``config.MEASUREDBOOT_PCRS`` (PCRs Keylime collects) with the
-        set returned by ``policy.get_relevant_pcrs()`` for *policy_name*.  PCRs
-        outside the policy's relevant set are excluded so that runtime extensions
-        not captured in the event log (e.g. PCR 11 from ``systemd-pcrphase``) do
-        not cause spurious verification failures.
+        Intersects ``config.MEASUREDBOOT_PCRS`` with the PCR set derived from the
+        reference state when the policy provides one. PCRs outside that set are
+        excluded so that runtime extensions not captured in the event log (e.g.
+        PCR 11 from ``systemd-pcrphase``) do not cause spurious verification
+        failures.
 
         Policies that return an empty set from ``get_relevant_pcrs()`` (such as
         the built-in ``accept-all`` and ``reject-all``) apply no restriction, so
@@ -407,7 +407,14 @@ class Tpm:
         pcr_set: Set[int] = set(config.MEASUREDBOOT_PCRS)
         policy = mb_policies.get_policy(policy_name)
         if policy is not None:
-            relevant = policy.get_relevant_pcrs()
+            try:
+                if refstate is None:
+                    relevant = policy.get_relevant_pcrs()
+                else:
+                    relevant = policy.get_relevant_pcrs_from_refstate(refstate)
+            except Exception as exn:
+                logger.warning("Could not derive PCRs for measured boot policy %s: %s", policy_name, str(exn))
+                return pcr_set
             if relevant:
                 pcr_set &= relevant
         return pcr_set
@@ -454,6 +461,7 @@ class Tpm:
         failure.merge(mb_failure)
 
         pcrs_in_quote: Set[int] = set()  # PCRs in quote that were already used for some kind of validation
+        mb_log_bound_pcrs: Set[int] = set()  # PCRs whose event-log value matched the quote
 
         pcr_nums = set(pcrs_dict.keys())
 
@@ -493,27 +501,65 @@ class Tpm:
         else:
             logger.info("No IMA verification policy configured for agent '%s'; skipping IMA verification", agent_id)
 
-        if mb_policy is not None:
-            logger.info("Checking measured boot PCRs against log for agent: %s", agent_id)
-        else:
-            logger.info(
-                "No measured boot policy configured for agent '%s'; skipping measured boot verification", agent_id
-            )
-
         # Collect mismatched measured boot PCRs as measured_boot failures
         mb_pcr_failure = Failure(Component.MEASURED_BOOT)
-        # Handle measured boot PCRs only if the parsing worked and policy is valid and non-empty
-        # An empty policy {} is treated as accept-all and should skip validation
+        # Handle measured boot PCRs only if the parsing worked and the policy runs.
+        # An empty policy {} is treated as accept-all for policies that tolerate an
+        # empty reference state; policies that require content (ordered-replay,
+        # reject-all) still run so the missing content surfaces as a failure.
         mb_policy_is_nonempty = False
+        mb_refstate: Optional[mb_policies.RefState] = None
         if mb_policy is not None:
             try:
                 mb_policy_obj = json.loads(mb_policy)
                 mb_policy_is_nonempty = bool(mb_policy_obj)
+                if isinstance(mb_policy_obj, dict):
+                    mb_refstate = mb_policy_obj
             except Exception:
                 pass
 
-        if not mb_failure and mb_policy is not None and mba.policy_is_valid(mb_policy) and mb_policy_is_nonempty:
-            for pcr_num in Tpm.mb_pcrs_to_check(mb_policy_name) & pcr_nums:
+        # An unregistered policy name is an operator misconfiguration. Fail closed
+        # here instead of skipping evaluation, so a misspelled name cannot accept an
+        # empty reference state and let attestation pass. Startup validation catches
+        # this earlier; this guard also covers callers outside the normal path.
+        mb_selected_policy = mb_policies.get_policy(mb_policy_name)
+        if mb_selected_policy is None:
+            logger.error("Unknown measured boot policy name '%s' for agent %s", mb_policy_name, agent_id)
+            failure.add_event(
+                "invalid_mb_policy",
+                {"context": "Unknown measured boot policy", "policy": mb_policy_name},
+                True,
+            )
+            return failure
+
+        mb_requires_content = not mb_selected_policy.accepts_empty_refstate()
+        mb_requires_every_quote = mb_selected_policy.requires_evaluation_every_quote()
+        mb_requires_log_bound = mb_selected_policy.requires_log_bound_pcrs()
+        mb_policy_is_valid_policy = mb_policy is not None and mba.policy_is_valid(mb_policy)
+        # A truthy reference state that is not valid policy is an operator error. It is
+        # reported below as invalid_mb_policy and must not reach the evaluator, whereas a
+        # missing or empty state still enters the evaluator for content-requiring policies.
+        mb_policy_is_malformed = mb_policy is not None and mb_policy.strip() != "" and not mb_policy_is_valid_policy
+        # A policy that requires content, must run on every quote, or needs the
+        # log-bound PCR set (ordered-replay, reject-all) runs even when no reference
+        # state is supplied, so it fails closed instead of being silently skipped.
+        # Other policies only run for a valid, non-empty reference state.
+        mb_should_evaluate = not mb_policy_is_malformed and (
+            mb_requires_content
+            or mb_requires_every_quote
+            or mb_requires_log_bound
+            or (mb_policy_is_valid_policy and mb_policy_is_nonempty)
+        )
+
+        if mb_should_evaluate:
+            logger.info("Checking measured boot PCRs against log for agent: %s", agent_id)
+        else:
+            logger.info(
+                "No measured boot policy to evaluate for agent '%s'; skipping measured boot verification", agent_id
+            )
+
+        if not mb_failure and mb_should_evaluate:
+            for pcr_num in Tpm.mb_pcrs_to_check(mb_policy_name, mb_refstate) & pcr_nums:
                 if not mb_measurement_list:
                     logger.error(
                         "Measured Boot PCR %d in policy, but no measurement list provided by agent %s",
@@ -543,12 +589,14 @@ class Tpm:
                     mb_pcr_failure.add_event(
                         f"invalid_pcr_{pcr_num}",
                         {
-                            "context": "SHA256 boot event log PCR value does not match",
+                            "context": f"{hash_alg.value} boot event log PCR value does not match",
                             "got": pcrs_dict[pcr_num],
                             "expected": val_from_log_hex,
                         },
                         True,
                     )
+                else:
+                    mb_log_bound_pcrs.add(pcr_num)
 
                 if pcr_num in pcr_allowlist and pcrs_dict[pcr_num] not in pcr_allowlist[pcr_num]:
                     logger.error(
@@ -625,7 +673,7 @@ class Tpm:
                 logger.error("Invalid measured boot policy for agent '%s'", agent_id)
                 failure.add_event("invalid_mb_policy", "Invalid measured boot policy", True)
 
-        if not mb_failure and mb_policy_is_nonempty and mba.policy_is_valid(mb_policy):
+        if not mb_failure and mb_should_evaluate:
             mb_evaluate = config.get("verifier", "measured_boot_evaluate", fallback="once")
 
             # Value of measured_boot_evaluate can be only 'once' or 'always'
@@ -635,12 +683,24 @@ class Tpm:
                     "invalid_measured_boot_evaluate", "correct value of measured_boot_evaluate is required", True
                 )
 
-            if mb_evaluate == "always":
-                mb_policy_failure = mba.bootlog_evaluate(mb_policy, mb_measurement_data, pcrs_in_quote, agent_id)
-                failure.merge(mb_policy_failure)
-
-            elif mb_evaluate == "once" and count == 0:
-                mb_policy_failure = mba.bootlog_evaluate(mb_policy, mb_measurement_data, pcrs_in_quote, agent_id)
+            # measured_boot_evaluate is only 'once' or 'always'; there is no
+            # multi-quote 'learn' mode on this path. 'once' evaluates only on the
+            # first quote (count == 0), and the continuous verifier increments
+            # attestation_count itself so that first quote is reached naturally.
+            # One-shot verification is a separate entry point that passes count=0
+            # (see process_verify_attestation), so a 'once' policy runs on its
+            # single quote too. A policy that pins the reference state against
+            # every quote (requires_evaluation_every_quote) runs regardless of
+            # mb_evaluate and count.
+            if mb_evaluate == "always" or mb_requires_every_quote or (mb_evaluate == "once" and count == 0):
+                mb_policy_failure = mba.bootlog_evaluate(
+                    mb_policy,
+                    mb_measurement_data,
+                    pcrs_in_quote,
+                    agent_id,
+                    quote_hash_alg=str(hash_alg),
+                    log_bound_pcrs=mb_log_bound_pcrs,
+                )
                 failure.merge(mb_policy_failure)
 
         return failure
