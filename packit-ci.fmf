@@ -104,6 +104,7 @@ adjust:
      - /functional/attestation-mode-mismatch
      - /functional/push-attestation-on-localhost
      - /functional/push-authentication-*
+     - /functional/push-model-attestation-with-postgresql-db
      - /functional/verifier_registrar_unreachable/.*
      - /regression/cve-2023-38200
      - /regression/cve-2023-38201
