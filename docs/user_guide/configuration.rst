@@ -278,6 +278,11 @@ applicability to pull/push attestation models.
 Verifier Configuration (``/etc/keylime/verifier.conf``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. warning::
+    The ``registrar_ip`` and ``registrar_port`` options are deprecated. The
+    verifier does not communicate with the registrar since version 6.4.0, so
+    these options are unused and will be removed in the next major release.
+
 Common Options (Both Models)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -305,11 +310,11 @@ Common Options (Both Models)
       - ``8881``
       - 2.0
       - ``KEYLIME_VERIFIER_PORT``
-    * - ``registrar_ip``
+    * - ``registrar_ip`` (deprecated)
       - ``127.0.0.1``
       - 2.0
       - ``KEYLIME_VERIFIER_REGISTRAR_IP``
-    * - ``registrar_port``
+    * - ``registrar_port`` (deprecated)
       - ``8891``
       - 2.0
       - ``KEYLIME_VERIFIER_REGISTRAR_PORT``

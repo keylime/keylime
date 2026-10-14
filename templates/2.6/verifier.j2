@@ -13,7 +13,9 @@ uuid = {{ verifier.uuid }}
 ip = "{{ verifier.ip }}"
 port = {{ verifier.port }}
 
-# The address and port of registrar server that the verifier communicates with
+# DEPRECATED: The verifier does not communicate with the registrar since version
+# 6.4.0, so the registrar_ip and registrar_port options are unused. They will be
+# removed with the next major release.
 registrar_ip = {{ verifier.registrar_ip }}
 registrar_port = {{ verifier.registrar_port }}
 
