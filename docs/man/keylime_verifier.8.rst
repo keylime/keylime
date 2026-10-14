@@ -38,7 +38,7 @@ Essentials:
   the verifier to one interface, ``0.0.0.0`` to listen on all IPv4 interfaces,
   or ``::`` to listen on all IPv6 interfaces (which also accepts IPv4 on
   dual-stack hosts).
-- **registrar_ip**, **registrar_port**: Registrar endpoint
+- **registrar_ip**, **registrar_port**: **DEPRECATED**: Unused since version 6.4.0, as the verifier no longer communicates with the registrar. These options will be removed with the next major release.
 - **enable_agent_mtls**: Enable mTLS with agents and tenant
 - **tls_dir**: TLS material location
 
