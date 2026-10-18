@@ -342,7 +342,7 @@ class TestAttestationControllerExponentialBackoff(unittest.TestCase):
 
         self.agent_id = "test-agent-123"
 
-    @patch("keylime.config.getint")
+    @patch("keylime.config.getfloat")
     @patch("keylime.common.retry.retry_time")
     @patch("keylime.web.verifier.attestation_controller.APIError")
     @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
@@ -397,7 +397,7 @@ class TestAttestationControllerExponentialBackoff(unittest.TestCase):
         mock_api_error_class.assert_called_with("attestation_failed_retry", 503)
         mock_error.set_detail.assert_called_once()
 
-    @patch("keylime.config.getint")
+    @patch("keylime.config.getfloat")
     @patch("keylime.common.retry.retry_time")
     @patch("keylime.web.verifier.attestation_controller.APIError")
     @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
@@ -449,7 +449,7 @@ class TestAttestationControllerExponentialBackoff(unittest.TestCase):
         call_args = mock_retry_time.call_args[0]
         self.assertEqual(call_args[2], 5)  # consecutive_failures parameter
 
-    @patch("keylime.config.getint")
+    @patch("keylime.config.getfloat")
     @patch("keylime.common.retry.retry_time")
     @patch("keylime.web.verifier.attestation_controller.APIError")
     @patch("keylime.web.verifier.attestation_controller.VerifierAgent")

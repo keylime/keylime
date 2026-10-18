@@ -2741,7 +2741,7 @@ async def process_agent(
             and new_operational_state == states.GET_QUOTE
         ):
             agent["num_retries"] = 0
-            interval = config.getfloat("verifier", "quote_interval")
+            interval = config.getfloat("verifier", "quote_interval", fallback=config.DEFAULT_QUOTE_INTERVAL)
             agent["operational_state"] = states.GET_QUOTE
             if interval == 0:
                 await invoke_get_quote(agent, mb_policy, runtime_policy, False, timeout=timeout)
@@ -2960,7 +2960,7 @@ def main() -> None:
     VerfierMain.metadata.create_all(engine, checkfirst=True)  # pyright: ignore
     with session_context() as session:
         try:
-            quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
+            quote_interval = config.getfloat("verifier", "quote_interval", fallback=config.DEFAULT_QUOTE_INTERVAL)
             timeout_seconds = push_agent_monitor.get_maximum_attestation_interval(quote_interval)
             current_time = int(time.time())
 
@@ -3070,7 +3070,7 @@ def main() -> None:
         tornado.ioloop.IOLoop.current().add_callback(push_agent_monitor.check_push_agent_timeouts)
 
         # Schedule periodic PUSH agent timeout checks as a safety net
-        quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
+        quote_interval = config.getfloat("verifier", "quote_interval", fallback=config.DEFAULT_QUOTE_INTERVAL)
         push_timeout_interval_ms = push_agent_monitor.get_maximum_attestation_interval(quote_interval) * 1000
         push_timeout_periodic = tornado.ioloop.PeriodicCallback(
             push_agent_monitor.check_push_agent_timeouts, push_timeout_interval_ms
