@@ -40,6 +40,20 @@ class RUNTIME_POLICY_GENERATOR(enum.IntEnum):
 # hash algorithm received from agent's IMA runtime measurements.
 # The only situation where this hard-coding would become a problem is if and when
 # the kernel maintainers decide to use a different algorithm for template-hash.
+# The kernel records memfd objects under this name. The content is created at
+# runtime, so a generated allowlist cannot contain a stable hash for it.
+DEFAULT_RUNTIME_EXCLUDES = ["memfd:kernel"]
+
+
+def with_default_excludes(excludes: List[str]) -> List[str]:
+    """Return excludes plus patterns every generated runtime policy should carry."""
+    merged = list(excludes)
+    for pattern in DEFAULT_RUNTIME_EXCLUDES:
+        if pattern not in merged:
+            merged.append(pattern)
+    return merged
+
+
 EMPTY_RUNTIME_POLICY: RuntimePolicyType = {
     "meta": {
         "version": RUNTIME_POLICY_CURRENT_VERSION,
