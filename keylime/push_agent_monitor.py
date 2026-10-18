@@ -90,7 +90,7 @@ def _mark_agent_failed(agent_id: str, expected_handle: object) -> None:
 
             # Only update if currently accepting attestations
             if agent.accept_attestations is True:  # pyright: ignore[reportGeneralTypeIssues]
-                quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
+                quote_interval = config.getfloat("verifier", "quote_interval", fallback=config.DEFAULT_QUOTE_INTERVAL)
                 timeout_seconds = quote_interval * _TIMEOUT_MULTIPLIER
 
                 logger.warning(
@@ -125,7 +125,7 @@ def schedule_agent_timeout(agent_id: str, timeout_seconds: Optional[float] = Non
 
         # Calculate timeout if not provided
         if timeout_seconds is None:
-            quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
+            quote_interval = config.getfloat("verifier", "quote_interval", fallback=config.DEFAULT_QUOTE_INTERVAL)
             timeout_seconds = quote_interval * _TIMEOUT_MULTIPLIER
 
         # Schedule the timeout callback
@@ -208,7 +208,7 @@ def check_push_agent_timeouts() -> None:
     """
     try:
         # Get quote interval from config
-        quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
+        quote_interval = config.getfloat("verifier", "quote_interval", fallback=config.DEFAULT_QUOTE_INTERVAL)
         timeout_seconds = quote_interval * _TIMEOUT_MULTIPLIER
         current_time = int(time.time())
 
