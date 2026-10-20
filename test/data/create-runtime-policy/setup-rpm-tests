@@ -338,6 +338,15 @@ prepare_rpms() {
         rpmsign --load="${MACROS_RC_SIG}" --addsign --signfiles {} \;
 }
 
+cleanup_gpg_agents() {
+    # create_keys() implicitly starts a gpg-agent per homedir (RSA and ECC),
+    # and prepare_rpms() keeps using them for signing. Nothing needs them
+    # once this script is done.
+    gpgconf --homedir "${GPGDIR_RSA}" --kill gpg-agent || true
+    gpgconf --homedir "${GPGDIR_ECC}" --kill gpg-agent || true
+}
+
 sanity_check
 create_keys
 prepare_rpms
+cleanup_gpg_agents
