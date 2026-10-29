@@ -582,7 +582,7 @@ def main() -> None:
     # Ensure we only have unique values in lists
     for key in ["digests", "ima-buf", "keyrings"]:
         policy[key] = {k: sorted(list(set(v))) for k, v in policy[key].items()}  # type: ignore
-    policy["excludes"] = sorted(list(set(policy["excludes"])))
+    policy["excludes"] = sorted(set(ima.with_default_excludes(policy["excludes"])))
     policy["ima"]["ignored_keyrings"] = sorted(list(set(policy["ima"]["ignored_keyrings"])))
 
     policy["meta"]["generator"] = ima.RUNTIME_POLICY_GENERATOR.LegacyAllowList
