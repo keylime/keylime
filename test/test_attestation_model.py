@@ -813,7 +813,7 @@ class TestAttestationModel(unittest.TestCase):
 
         self.assertEqual(result, 0)
 
-    @patch("keylime.models.verifier.attestation.config.getint")
+    @patch("keylime.models.verifier.attestation.config.getfloat")
     @patch("keylime.models.base.types.timestamp.Timestamp.now")
     def test_next_attestation_expected_after_with_evidence(self, mock_now, mock_config):
         """Test next_attestation_expected_after uses evidence_received_at when available"""
@@ -844,7 +844,7 @@ class TestAttestationModel(unittest.TestCase):
 
         self.assertEqual(result, now)
 
-    @patch("keylime.models.verifier.attestation.config.getint")
+    @patch("keylime.models.verifier.attestation.config.getfloat")
     @patch("keylime.models.base.types.timestamp.Timestamp.now")
     def test_seconds_to_next_attestation_positive(self, mock_now, mock_config):
         """Test seconds_to_next_attestation returns positive value"""
@@ -859,7 +859,7 @@ class TestAttestationModel(unittest.TestCase):
 
         self.assertEqual(result, 600)
 
-    @patch("keylime.models.verifier.attestation.config.getint")
+    @patch("keylime.models.verifier.attestation.config.getfloat")
     @patch("keylime.models.base.types.timestamp.Timestamp.now")
     def test_seconds_to_next_attestation_negative_returns_zero(self, mock_now, mock_config):
         """Test seconds_to_next_attestation returns 0 when time has passed"""

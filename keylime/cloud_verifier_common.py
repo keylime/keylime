@@ -324,7 +324,7 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
             attestation_status = "PENDING"
 
     # Get attestation period from config
-    attestation_period_seconds = config.getfloat("verifier", "quote_interval", fallback=2.0)
+    attestation_period_seconds = config.getfloat("verifier", "quote_interval", fallback=config.DEFAULT_QUOTE_INTERVAL)
     attestation_period = f"{int(attestation_period_seconds)}s"
 
     # Calculate maximum attestation interval (timeout threshold)

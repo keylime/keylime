@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 from sqlalchemy import create_engine
 
+from keylime import config
 from keylime.agent_util import is_push_mode_agent
 from keylime.db.keylime_db import SessionManager
 from keylime.db.verifier_db import VerfierMain, VerifierAllowlist, VerifierMbpolicy
@@ -407,6 +408,7 @@ class TestPushAgentMonitor(unittest.TestCase):
         """Test scheduling a timeout with default timeout calculation."""
         # Configure mocks
         quote_interval = 2.0
+        mock_config.DEFAULT_QUOTE_INTERVAL = config.DEFAULT_QUOTE_INTERVAL
         mock_config.getfloat.return_value = quote_interval
 
         mock_ioloop = MagicMock()
@@ -418,7 +420,9 @@ class TestPushAgentMonitor(unittest.TestCase):
         schedule_agent_timeout("test-agent-1")
 
         # Verify config was queried
-        mock_config.getfloat.assert_called_once_with("verifier", "quote_interval", fallback=2.0)
+        mock_config.getfloat.assert_called_once_with(
+            "verifier", "quote_interval", fallback=config.DEFAULT_QUOTE_INTERVAL
+        )
 
         # Verify timeout was scheduled with correct parameters
         expected_timeout = get_maximum_attestation_interval(quote_interval)

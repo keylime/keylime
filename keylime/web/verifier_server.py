@@ -129,7 +129,9 @@ class VerifierServer(Server):
                     # This matches the old architecture (cloud_verifier_tornado.py:2332-2338)
                     query_all = session.query(VerfierMain).all()
                     now = int(time.time())
-                    quote_interval = config.getfloat("verifier", "quote_interval", fallback=2.0)
+                    quote_interval = config.getfloat(
+                        "verifier", "quote_interval", fallback=config.DEFAULT_QUOTE_INTERVAL
+                    )
                     timeout_threshold = push_agent_monitor.get_maximum_attestation_interval(quote_interval)
 
                     for row in query_all:

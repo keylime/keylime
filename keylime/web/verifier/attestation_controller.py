@@ -1,6 +1,8 @@
 # pyright: reportAttributeAccessIssue=false
 # Uses ORM models with dynamically-created attributes from metaclasses
 
+import math
+
 from keylime import agent_util, config, keylime_logging
 from keylime.common import retry
 from keylime.models.verifier import Attestation, VerifierAgent
@@ -247,7 +249,9 @@ class AttestationController(Controller):
             # Calculate retry-after using exponential backoff (same formula as rest of codebase)
             exponential_backoff = config.getboolean("verifier", "exponential_backoff", fallback=True)
             retry_interval = config.getfloat("verifier", "retry_interval", fallback=2.0)
-            max_interval = config.getint("verifier", "quote_interval", fallback=60)
+            max_interval = max(
+                1, math.ceil(config.getfloat("verifier", "quote_interval", fallback=config.DEFAULT_QUOTE_INTERVAL))
+            )
             consecutive_failures = agent.consecutive_attestation_failures or 1  # type: ignore[union-attr]
 
             # Use existing retry_time function for consistency with rest of codebase
