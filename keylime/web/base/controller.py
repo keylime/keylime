@@ -310,6 +310,15 @@ class Controller:
 
         self.action_handler.finish()
 
+    def send_not_found(self) -> None:
+        """Return HTTP 404 for an action this API version does not implement.
+
+        ``respond()`` builds the v2 JSON envelope and raises when the request
+        targets API version 3 or newer. Unimplemented v3 actions use this path
+        so the client receives 404 instead of a server traceback.
+        """
+        self.send_response(404, "Not Found")
+
     def respond(
         self,
         code: int = 200,
