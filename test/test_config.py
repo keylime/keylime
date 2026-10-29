@@ -4,7 +4,7 @@ import os
 import shutil
 import tempfile
 import unittest
-from configparser import NoOptionError
+from configparser import NoOptionError, RawConfigParser
 
 from keylime import config
 
@@ -14,10 +14,15 @@ CONFIG_DIR = os.path.abspath(os.path.join(DATA_DIR, "config"))
 
 class TestConfig(unittest.TestCase):
     def setUp(self):
-        """Dummy setup so that the tearDown() is executed"""
-        # See the following documentation:
-        # https://docs.python.org/3/library/unittest.html#unittest.TestCase.tearDown
-        return
+        """Drop process-wide config state before each test.
+
+        ``get_config()`` caches parsers in a module global. Other test modules
+        can fill that cache before this class runs, and ``tearDown`` only
+        reloads the module after a test from this class has finished. Reloading
+        here makes the first test see the fixtures it sets, not a parser left
+        behind by an earlier module.
+        """
+        importlib.reload(config)
 
     def tearDown(self):
         """The config module should be reloaded."""
@@ -104,6 +109,16 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(c.get("verifier", "attribute_1"), "value_1_3")
         self.assertEqual(c.get("verifier", "attribute_2"), "value_2")
         self.assertEqual(c.get("verifier", "attribute_3"), "value_3")
+
+    def test_setup_drops_cache_from_other_modules(self):
+        """A parser cached before this class runs must not hide the fixture."""
+        config._config = {"verifier": RawConfigParser()}  # pylint: disable=protected-access
+        self.setUp()
+        config.CONFIG_FILES = {"verifier": [os.path.join(CONFIG_DIR, "verifier.conf")]}
+        config.CONFIG_ENV = {"verifier": ""}
+        config.CONFIG_SNIPPETS_DIRS = {"verifier": ""}
+        cached = config.get_config("verifier")
+        self.assertEqual(cached.get("verifier", "attribute_1"), "value_1")
 
     def test_cache_config(self):
         """Test the config is properly cached between calls."""
