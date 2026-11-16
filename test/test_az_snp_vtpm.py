@@ -209,12 +209,16 @@ class VerifyAttestationTest(unittest.TestCase):
         for frozen in (vcek.not_valid_after_utc + timedelta(days=1), vcek.not_valid_before_utc - timedelta(days=1)):
             with self.subTest(frozen=frozen.isoformat()):
 
-                class FrozenDatetime(datetime):
-                    @classmethod
-                    def now(cls, tz=None):
-                        return cls(frozen.year, frozen.month, frozen.day, tzinfo=tz)
+                def make_frozen_datetime(moment):
+                    # bound as a parameter, not a loop-closed-over variable
+                    class FrozenDatetime(datetime):
+                        @classmethod
+                        def now(cls, tz=None):
+                            return cls(moment.year, moment.month, moment.day, tzinfo=tz)
 
-                with patch.object(az_snp_vtpm, "datetime", FrozenDatetime):
+                    return FrozenDatetime
+
+                with patch.object(az_snp_vtpm, "datetime", make_frozen_datetime(frozen)):
                     claims, failure = self.verify(evidence, REPORT_DATA_V2)
                 self.assertEqual(claims, {})
                 self.assertIn(f"{TEE_COMPONENT}.vcek_validity", event_ids(failure))
@@ -838,8 +842,6 @@ class TrustAnchorsTest(unittest.TestCase):
 
     def test_unparseable_file_skipped(self):
         """A corrupt anchor file is skipped with a warning, not a crash."""
-        import tempfile
-
         with tempfile.TemporaryDirectory() as tmp:
             bad = os.path.join(tmp, "bad.pem")
             with open(bad, "wb") as f:
