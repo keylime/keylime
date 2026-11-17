@@ -36,6 +36,17 @@ class UserError(Exception):
     pass
 
 
+def check_action_list(zf: zipfile.ZipFile) -> None:
+    """Raise UserError if an action_list entry has no matching <name>.py in the zip"""
+    names = zf.namelist()
+    if "action_list" not in names:
+        return
+    entries = zf.read("action_list").decode("utf-8", errors="replace").split(",")
+    missing = [f"{n}.py" for n in (e.strip() for e in entries) if n and f"{n}.py" not in names]
+    if missing:
+        raise UserError(f"action_list refers to files not included in the payload: {', '.join(missing)}")
+
+
 class Tenant:
     """Simple command processor example."""
 
@@ -637,6 +648,8 @@ class Tenant:
                             logger.warning(
                                 "Specified include directory %s does not exist. Skipping...", args["incl_dir"]
                             )
+
+                check_action_list(zf)
 
             cert_pkg = sf.getvalue()
 
