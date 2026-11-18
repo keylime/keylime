@@ -164,6 +164,10 @@ BUNDLED_ANCHOR_STORE = os.path.join(os.path.dirname(__file__), "amd_cert_store")
 # the process lifetime (the chains are stable vendor certificates)
 _ANCHOR_CACHE: Dict[str, Tuple[x509.Certificate, x509.Certificate]] = {}
 
+# cc_eventlog replay is not implemented yet; warn only once per process rather
+# than on every attestation, since the message carries no per-attestation detail
+_CC_EVENTLOG_WARNED = False
+
 
 @dataclass
 class Evidence:
@@ -664,6 +668,8 @@ def parse_tpm_attest(message: bytes) -> TpmAttest:
     take(8)  # firmwareVersion
 
     (count,) = struct.unpack(">I", take(4))
+    if count != 1:
+        raise ValueError(f"TPMS_ATTEST must select exactly one PCR bank, got {count}")
     hash_algs = []
     bitmap = b""
     for _ in range(count):
@@ -1079,8 +1085,8 @@ def _decode_oid_int(raw: bytes) -> int:
     if len(raw) < 2 or raw[0] != 0x02:
         raise ValueError(f"invalid DER INTEGER extension value {raw.hex()}")
     (length,) = raw[1:2]
-    if len(raw) < 2 + length:
-        raise ValueError(f"truncated DER INTEGER extension value {raw.hex()}")
+    if len(raw) != 2 + length:
+        raise ValueError(f"invalid length for DER INTEGER extension value {raw.hex()}")
     return int.from_bytes(raw[2 : 2 + length], "big")
 
 
@@ -1156,6 +1162,13 @@ def verify_snp_report_signature(vcek: x509.Certificate, snp: SnpReport, failure:
     sig = snp.raw[SNP_REPORT_SIGNATURE_OFFSET : SNP_REPORT_SIGNATURE_OFFSET + 2 * SNP_REPORT_SIGNATURE_R_SIZE]
     r = int.from_bytes(sig[:SNP_REPORT_SIGNATURE_R_SIZE], "little")
     s = int.from_bytes(sig[SNP_REPORT_SIGNATURE_R_SIZE:], "little")
+    if r <= 0 or s <= 0:
+        failure.add_event(
+            "report_signature",
+            {"message": "SNP report signature has a non-positive scalar"},
+            False,
+        )
+        return False
     try:
         public_key = vcek.public_key()
     except (ValueError, UnsupportedAlgorithm) as e:
@@ -1299,7 +1312,12 @@ def _parse_evidence_parts(
         return None
 
     if parsed.cc_eventlog:
-        logger.warning("cc_eventlog present in the az-snp-vtpm evidence but its replay is not implemented; ignoring it")
+        global _CC_EVENTLOG_WARNED
+        if not _CC_EVENTLOG_WARNED:
+            logger.warning(
+                "cc_eventlog present in the az-snp-vtpm evidence but its replay is not implemented; ignoring it"
+            )
+            _CC_EVENTLOG_WARNED = True
 
     # Phase 0 - parse the HCL container and the nested SNP report
     try:

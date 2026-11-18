@@ -9,6 +9,7 @@ import os
 import struct
 import tempfile
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
@@ -638,6 +639,7 @@ class PhaseFailureTest(unittest.TestCase):
         # (the local fixture's user-data is "my-fixed-test-nonce")
         envelope = load_json("evidence-v0-genoa-local.json")
         hcl = az_snp_vtpm.parse_hcl_report(bytes(envelope["data"]["tee-evidence"]["evidence"]["report"]))
+        assert hcl.user_data is not None
         self.assertNotEqual(hcl.user_data[:48], derive_keylime_evidence_nonce(envelope))
         _claims, failure = az_snp_vtpm.verify_attestation(
             keylime_evidence(envelope), derive_keylime_evidence_nonce(envelope)
@@ -980,7 +982,7 @@ class TurinTcbTest(unittest.TestCase):
             az_snp_vtpm.FMC_SPL_OID: b"\x02\x01\x0a",  # 10
         }
         with patch.object(az_snp_vtpm, "_get_oid_value", side_effect=lambda cert, oid: turin_values.get(oid)):
-            self.assertTrue(az_snp_vtpm.verify_vcek_oids(None, snp, Failure(Component.TEE)))
+            self.assertTrue(az_snp_vtpm.verify_vcek_oids(None, snp, Failure(Component.TEE)))  # type: ignore[arg-type]
 
         # values matching the LEGACY mapping must fail for a Turin report
         # (they would put bootloader's value on the FMC OID, etc.)
@@ -990,7 +992,7 @@ class TurinTcbTest(unittest.TestCase):
         legacy_values[az_snp_vtpm.LOADER_SPL_OID] = b"\x02\x01\x0a"  # 10 (legacy loader byte)
         failure = Failure(Component.TEE)
         with patch.object(az_snp_vtpm, "_get_oid_value", side_effect=lambda cert, oid: legacy_values.get(oid)):
-            self.assertFalse(az_snp_vtpm.verify_vcek_oids(None, snp, failure))
+            self.assertFalse(az_snp_vtpm.verify_vcek_oids(None, snp, failure))  # type: ignore[arg-type]
         self.assertIn(f"{TEE_COMPONENT}.vcek_oid_mismatch", event_ids(failure))
 
     def test_legacy_oid_check_ignores_fmc(self):
@@ -1005,7 +1007,7 @@ class TurinTcbTest(unittest.TestCase):
             # no FMC entry at all - must not be required for Genoa
         }
         with patch.object(az_snp_vtpm, "_get_oid_value", side_effect=lambda cert, oid: legacy_values.get(oid)):
-            self.assertTrue(az_snp_vtpm.verify_vcek_oids(None, snp, Failure(Component.TEE)))
+            self.assertTrue(az_snp_vtpm.verify_vcek_oids(None, snp, Failure(Component.TEE)))  # type: ignore[arg-type]
 
 
 class MalformedEvidenceTest(unittest.TestCase):
@@ -1156,7 +1158,7 @@ class MalformedEvidenceTest(unittest.TestCase):
     def test_bad_init_data_hash_type(self):
         for bad in ("notbytes", 5, [1, 2]):
             with self.subTest(bad=bad):
-                claims, failure = az_snp_vtpm.verify_attestation(self.evidence, self.nonce, init_data_hash=bad)
+                claims, failure = az_snp_vtpm.verify_attestation(self.evidence, self.nonce, init_data_hash=bad)  # type: ignore[arg-type]
                 self.assertEqual(claims, {})
                 self.assertIn(f"{TEE_COMPONENT}.invalid_input", event_ids(failure))
 
