@@ -6,6 +6,7 @@ import sys
 from json.decoder import JSONDecodeError
 from typing import TYPE_CHECKING, Any, Optional
 
+from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
@@ -114,7 +115,14 @@ def _get_signer(
         except FileNotFoundError:
             logger.error("The specified key '%s' does not exist", in_ec_keyfile_path)
             return None
-        privkey = load_pem_private_key(pemlines, None, default_backend())
+
+        try:
+            privkey = load_pem_private_key(pemlines, None, default_backend())
+        except (ValueError, TypeError, UnsupportedAlgorithm) as exc:
+            # ValueError: not a PEM private key (e.g. a public key or an unrelated file)
+            # TypeError: the private key is encrypted, and no password is used here
+            logger.error("Unable to load the private key '%s': %s", in_ec_keyfile_path, exc)
+            return None
 
         if not isinstance(privkey, ec.EllipticCurvePrivateKey):
             logger.error("Only elliptic curve keys are supported")
