@@ -711,8 +711,11 @@ def get_rootfs_digests(
                 logger.warning("Ignoring directory '%s' that should be skipped, but it is not under '%s'", d, rootfs)
             else:
                 # Remove the prefix to make it consistent with other excluded
-                # directories
-                if abs_rootfs != "/" and abs_d.startswith(abs_rootfs):
+                # directories. When the rootfs is "/", there is no prefix to
+                # remove, so the absolute path is used as it is.
+                if abs_rootfs == "/":
+                    dirs_to_exclude.append(abs_d)
+                elif abs_d.startswith(abs_rootfs):
                     dirs_to_exclude.append(abs_d[len(abs_rootfs) :])
 
     dirs_to_exclude.extend(BASE_EXCLUDE_DIRS)

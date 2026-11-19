@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from importlib import util
 from test.utils import assertDigestsEqual, keylimePolicyAssertLogs
+from unittest import mock
 
 from keylime.common import algorithms
 from keylime.ima import ima
@@ -339,6 +340,37 @@ checksum-4 \
 
         digests = create_runtime_policy.path_digests(homedir, dirs_to_exclude=["/non-existing"])
         self.assertEqual(len(digests), 1, msg=f"digests = {digests}, dirs_to_exclude=['/non-existing']")
+
+    def test_get_rootfs_digests_skip_path(self):
+        # The directories listed in skip_path must be handed to path_digests()
+        # as directories to exclude, relative to the rootfs. When the rootfs is
+        # "/" there is no prefix to strip, so they are passed as they are.
+        test_cases = [
+            {"rootfs": "/", "skip_path": "/home,/opt/data", "expected": ["/home", "/opt/data"]},
+            {"rootfs": "/", "skip_path": "/home/", "expected": ["/home"]},
+            {
+                "rootfs": "/mnt/rootfs",
+                "skip_path": "/mnt/rootfs/home,/mnt/rootfs/opt/data",
+                "expected": ["/home", "/opt/data"],
+            },
+            # Directories outside of the rootfs are ignored.
+            {"rootfs": "/mnt/rootfs", "skip_path": "/home", "expected": []},
+        ]
+
+        for case in test_cases:
+            with mock.patch.object(create_runtime_policy, "path_digests", return_value={}) as path_digests:
+                create_runtime_policy.get_rootfs_digests(case["rootfs"], case["skip_path"], {}, "sha256")
+
+            dirs_to_exclude = path_digests.call_args.kwargs["dirs_to_exclude"]
+            for skipped in case["expected"]:
+                self.assertIn(skipped, dirs_to_exclude, msg=f"case = {case}, dirs_to_exclude = {dirs_to_exclude}")
+
+            # The directories that are always excluded must still be there.
+            for base_dir in create_runtime_policy.BASE_EXCLUDE_DIRS:
+                self.assertIn(base_dir, dirs_to_exclude, msg=f"case = {case}")
+
+            if not case["expected"]:
+                self.assertEqual(dirs_to_exclude, create_runtime_policy.BASE_EXCLUDE_DIRS, msg=f"case = {case}")
 
     def test_process_exclude_list(self):
         test_cases = [
