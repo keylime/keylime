@@ -344,6 +344,14 @@ auto_recover_attestation_failures = {{ verifier.auto_recover_attestation_failure
 # Floating point values accepted here.
 shutdown_drain_timeout = {{ verifier.shutdown_drain_timeout }}
 
+# Directory with the AMD ASK/ARK trust anchors used by
+# the az-snp-vtpm TEE evidence verifier to validate AMD SEV-SNP VCEK
+# certificate chains. Leave empty to use the per-generation certificates
+# bundled with the keylime package; the verifier never fetches anchors from
+# the network. See the amd_cert_store README inside the keylime.tee package
+# for the expected file format and refresh instructions.
+amd_anchor_path = {{ verifier.amd_anchor_path }}
+
 [revocations]
 
 # List of revocation notification methods to enable.
